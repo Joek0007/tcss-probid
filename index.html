@@ -143,11 +143,20 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
   .stat-grid{grid-template-columns:1fr 1fr}
   .modal-box{margin:8px;max-height:94vh;border-radius:14px}
   .card{padding:14px}
-  /* Mobile bottom nav */
   #mobile-nav{display:flex}
+  #mobile-menu-btn{display:block}
   #topbar .version-badge{display:none}
 }
-@media(min-width:769px){
+/* Also force mobile nav on touch devices (phones/tablets regardless of reported width) */
+@media(hover:none) and (pointer:coarse){
+  #sidebar{transform:translateX(-220px);transition:transform .3s;z-index:300}
+  #sidebar.mobile-open{transform:translateX(0);box-shadow:4px 0 20px rgba(0,0,0,.4)}
+  #content{margin-left:0;padding:14px;padding-bottom:72px}
+  #topbar{left:0;padding:0 12px}
+  #mobile-nav{display:flex!important}
+  #mobile-menu-btn{display:block!important}
+}
+@media(min-width:769px) and (hover:hover){
   #mobile-nav{display:none!important}
   #mobile-menu-btn{display:none!important}
 }
@@ -7215,6 +7224,10 @@ function init() {
   const cb = document.getElementById('company-badge');
   if (cb) cb.textContent = (DB.settings.cname || 'TCSS').substring(0,12);
 
+  // Check mobile mode on load and resize
+  checkMobileMode();
+  window.addEventListener('resize', checkMobileMode);
+
   // Initialize Supabase and check session
   if (initSupabase()) {
     // file:// protocol can't handle Supabase auth redirects
@@ -7505,6 +7518,29 @@ function toggleMobileMenu() {
   var isOpen = sidebar.classList.contains('mobile-open');
   sidebar.classList.toggle('mobile-open', !isOpen);
   if (overlay) overlay.classList.toggle('visible', !isOpen);
+}
+
+function checkMobileMode() {
+  var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  var isNarrow = window.innerWidth <= 768;
+  var mobileNav = document.getElementById('mobile-nav');
+  var menuBtn   = document.getElementById('mobile-menu-btn');
+  var sidebar   = document.getElementById('sidebar');
+  var content   = document.getElementById('content');
+  var topbar    = document.getElementById('topbar');
+  if (isTouch || isNarrow) {
+    if (mobileNav)  mobileNav.style.display  = 'flex';
+    if (menuBtn)    menuBtn.style.display     = 'block';
+    if (sidebar)    sidebar.style.transform   = 'translateX(-220px)';
+    if (content)    { content.style.marginLeft='0'; content.style.paddingBottom='72px'; }
+    if (topbar)     topbar.style.left = '0';
+  } else {
+    if (mobileNav)  mobileNav.style.display  = 'none';
+    if (menuBtn)    menuBtn.style.display     = 'none';
+    if (sidebar)    sidebar.style.transform   = '';
+    if (content)    { content.style.marginLeft=''; content.style.paddingBottom=''; }
+    if (topbar)     topbar.style.left = '';
+  }
 }
 
 function mobileNav(page) {
