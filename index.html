@@ -2170,24 +2170,41 @@ const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes & Bids',jo
 function goPage(id) {
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});
-  const pg = document.getElementById('page-'+id);
+  var pg = document.getElementById('page-'+id);
   if (pg) pg.classList.add('active');
-  const ni = document.querySelector('[data-page="'+id+'"]');
+  var ni = document.querySelector('[data-page="'+id+'"]');
   if (ni) ni.classList.add('active');
-  const tt = document.getElementById('topbar-title');
+  var tt = document.getElementById('topbar-title');
   if (tt) tt.textContent = PAGE_TITLES[id] || id;
-  if (id==='dash') renderDash();
-  if (id==='quotes') renderQuotes();
-  if (id==='customers') renderCustomers();
-  if (id==='contacts') renderContacts();
-  if (id==='jobs') renderJobs();
-  if (id==='team') renderTeam();
-  if (id==='catalog') { _pumActive=false; renderCatalog(); }
+  // Render page content
+  if (id==='dash')       renderDash();
+  if (id==='quotes')     renderQuotes();
+  if (id==='customers')  renderCustomers();
+  if (id==='contacts')   renderContacts();
+  if (id==='jobs')       renderJobs();
+  if (id==='team')       renderTeam();
+  if (id==='catalog')    { _pumActive=false; renderCatalog(); }
   else if (id==='templates') renderTemplates();
-  if (id==='reports') renderReports();
-  if (id==='inventory') renderInventory();
-  if (id==='settings') loadSettings();
-  if (id==='qq') renderTplLibrary();
+  if (id==='reports')    renderReports();
+  if (id==='inventory')  renderInventory();
+  if (id==='settings')   loadSettings();
+  if (id==='qq')         renderTplLibrary();
+  if (id==='field')      setTimeout(renderFieldPage, 50);
+  if (id==='timesheet')  { var today=new Date().toISOString().split('T')[0]; var dtEl=document.getElementById('ts-date-filter'); if(dtEl&&!dtEl.value) dtEl.value=today; setTimeout(loadTimesheets,50); }
+  // Sync mobile bottom nav highlight
+  var mobilePages = ['dash','qq','field','jobs','inventory'];
+  document.querySelectorAll('.mob-nav-item').forEach(function(item){ item.classList.remove('active'); });
+  if (mobilePages.includes(id)) {
+    var mob = document.getElementById('mob-'+id);
+    if (mob) mob.classList.add('active');
+  }
+  // Close mobile sidebar if open
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('mobile-overlay');
+  if (sidebar && sidebar.classList.contains('mobile-open')) {
+    sidebar.classList.remove('mobile-open');
+    if (overlay) overlay.classList.remove('visible');
+  }
 }
 
 // ---- LINE ITEMS ----
@@ -5879,18 +5896,7 @@ async function restoreClockSession() {
   }
 }
 
-// Hook into goPage to render field page and timesheet
-var _prevGoPage = goPage;
-function goPage(id) {
-  _prevGoPage(id);
-  if (id === 'field')     { setTimeout(renderFieldPage, 50); }
-  if (id === 'timesheet') {
-    var today = new Date().toISOString().split('T')[0];
-    var dtEl  = document.getElementById('ts-date-filter');
-    if (dtEl && !dtEl.value) dtEl.value = today;
-    setTimeout(loadTimesheets, 50);
-  }
-}
+// Field page and timesheet rendering is now built into goPage directly
 
 // =============================================
 // END TIME CLOCK
@@ -8167,34 +8173,43 @@ var TCSS_USERS = [
 
 // ---- MOBILE NAVIGATION ----
 function toggleMobileMenu() {
-  var sidebar  = document.getElementById('sidebar');
-  var overlay  = document.getElementById('mobile-overlay');
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('mobile-overlay');
   if (!sidebar) return;
   var isOpen = sidebar.classList.contains('mobile-open');
   sidebar.classList.toggle('mobile-open', !isOpen);
+  sidebar.style.transform = isOpen ? 'translateX(-220px)' : 'translateX(0)';
   if (overlay) overlay.classList.toggle('visible', !isOpen);
 }
 
 function checkMobileMode() {
-  var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-  var isNarrow = window.innerWidth <= 768;
+  var isTouch  = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  var isNarrow = window.innerWidth <= 900;
+  var isMobile = isTouch || isNarrow;
   var mobileNav = document.getElementById('mobile-nav');
   var menuBtn   = document.getElementById('mobile-menu-btn');
   var sidebar   = document.getElementById('sidebar');
   var content   = document.getElementById('content');
   var topbar    = document.getElementById('topbar');
-  if (isTouch || isNarrow) {
+
+  if (isMobile) {
     if (mobileNav)  mobileNav.style.display  = 'flex';
     if (menuBtn)    menuBtn.style.display     = 'block';
-    if (sidebar)    sidebar.style.transform   = 'translateX(-220px)';
+    if (sidebar)    { sidebar.style.transform = 'translateX(-220px)'; sidebar.style.position='fixed'; }
     if (content)    { content.style.marginLeft='0'; content.style.paddingBottom='72px'; }
     if (topbar)     topbar.style.left = '0';
+    document.body.classList.add('is-mobile');
   } else {
     if (mobileNav)  mobileNav.style.display  = 'none';
     if (menuBtn)    menuBtn.style.display     = 'none';
-    if (sidebar)    sidebar.style.transform   = '';
-    if (content)    { content.style.marginLeft=''; content.style.paddingBottom=''; }
-    if (topbar)     topbar.style.left = '';
+    if (sidebar)    { sidebar.style.transform = ''; sidebar.style.position='fixed'; }
+    if (content)    { content.style.marginLeft='220px'; content.style.paddingBottom=''; }
+    if (topbar)     topbar.style.left = '220px';
+    document.body.classList.remove('is-mobile');
+    // Make sure sidebar is visible on desktop
+    if (sidebar) sidebar.classList.remove('mobile-open');
+    var overlay = document.getElementById('mobile-overlay');
+    if (overlay) overlay.classList.remove('visible');
   }
 }
 
@@ -8213,19 +8228,7 @@ function mobileNav(page) {
   if (overlay) overlay.classList.remove('visible');
 }
 
-// Sync mobile nav when goPage is called
-var _origGoPage = goPage;
-function goPage(id) {
-  _origGoPage(id);
-  // Sync bottom nav highlight
-  var mobilePages = ['dash','qq','jobs','inventory'];
-  var items = document.querySelectorAll('.mob-nav-item');
-  items.forEach(function(item){ item.classList.remove('active'); });
-  if (mobilePages.includes(id)) {
-    var active = document.getElementById('mob-' + id);
-    if (active) active.classList.add('active');
-  }
-}
+// Mobile nav sync is now built into goPage directly
 
 // ---- AUTH HELPERS ----
 async function doSignIn() {
