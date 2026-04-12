@@ -412,6 +412,56 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 /* Export button */
 .btn-export{background:#37474f;color:#fff;border:none}
 .btn-export:hover{background:#263238}
+/* ===== FIELD MODE / TIME CLOCK ===== */
+.field-page{max-width:480px;margin:0 auto;padding:0}
+.clock-card{background:#fff;border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid #e0e0e0}
+.clock-status-bar{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.clock-status-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.clock-status-dot.out{background:#90a4ae}
+.clock-status-dot.in{background:#2e7d32;box-shadow:0 0 0 4px rgba(46,125,50,.2);animation:gpulse 2s infinite}
+.clock-status-dot.break{background:#e65100}
+.clock-status-dot.lunch{background:#6a1b9a}
+@keyframes gpulse{0%,100%{box-shadow:0 0 0 4px rgba(46,125,50,.2)}50%{box-shadow:0 0 0 8px rgba(46,125,50,.05)}}
+.clock-status-text{font-size:13px;font-weight:700;color:#546e7a}
+.clock-timer{text-align:center;padding:18px 0 14px}
+.clock-timer-time{font-size:54px;font-weight:900;color:#0d1b2a;letter-spacing:-2px;font-variant-numeric:tabular-nums;line-height:1}
+.clock-timer-label{font-size:11px;color:#90a4ae;font-weight:600;text-transform:uppercase;letter-spacing:.8px;margin-top:4px}
+.clock-job-select{width:100%;padding:12px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:14px;font-weight:600;color:#0d1b2a;background:#f8fafc;margin-bottom:14px}
+.clock-job-select:focus{border-color:#1565c0;outline:none}
+.clock-btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.clock-btn{padding:16px;border-radius:12px;border:none;font-size:14px;font-weight:800;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:4px}
+.clock-btn .btn-icon{font-size:22px;line-height:1}
+.clock-btn.clock-in{background:linear-gradient(135deg,#2e7d32,#43a047);color:#fff;grid-column:1/-1;padding:22px;font-size:18px}
+.clock-btn.clock-out{background:linear-gradient(135deg,#c62828,#e53935);color:#fff;grid-column:1/-1;padding:22px;font-size:18px}
+.clock-btn.break-start{background:#fff3e0;color:#e65100;border:2px solid #ffb74d}
+.clock-btn.break-end{background:#e8f5e9;color:#2e7d32;border:2px solid #a5d6a7}
+.clock-btn.lunch-start{background:#f3e5f5;color:#6a1b9a;border:2px solid #ce93d8}
+.clock-btn.lunch-end{background:#e8f5e9;color:#2e7d32;border:2px solid #a5d6a7}
+.clock-btn:active{transform:scale(.96)}
+.clock-btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.gps-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:4px 10px;border-radius:10px;font-weight:700;margin-top:6px}
+.gps-badge.acquiring{background:#fff3e0;color:#e65100}
+.gps-badge.locked{background:#e8f5e9;color:#2e7d32}
+.gps-badge.failed{background:#ffebee;color:#c62828}
+.clock-log-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:12px}
+.clock-log-item:last-child{border-bottom:none}
+.clock-log-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.clock-log-time{color:#546e7a;font-weight:600;min-width:55px}
+.clock-log-event{color:#0d1b2a;font-weight:600;flex:1}
+.day-summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
+.day-stat{background:#f8fafc;border-radius:10px;padding:10px;text-align:center;border:1px solid #e0e0e0}
+.day-stat-val{font-size:20px;font-weight:900;color:#1565c0}
+.day-stat-lbl{font-size:10px;color:#90a4ae;font-weight:600;text-transform:uppercase;margin-top:2px}
+.timesheet-row{display:grid;grid-template-columns:140px 1fr 70px 70px 70px;gap:6px;padding:10px 14px;border-bottom:1px solid #f0f0f0;font-size:12px;align-items:center}
+.timesheet-hdr{background:#f5f7fa;font-weight:700;font-size:11px;color:#455a64;text-transform:uppercase}
+.ts-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.ts-in{background:#e8f5e9;color:#2e7d32}
+.ts-break{background:#fff3e0;color:#e65100}
+.ts-out{background:#f5f5f5;color:#90a4ae}
+.eod-reminder{position:fixed;bottom:70px;left:0;right:0;margin:0 12px;background:linear-gradient(135deg,#c62828,#e53935);color:#fff;border-radius:14px;padding:14px 18px;z-index:500;display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(198,40,40,.3);animation:slideUp .3s ease}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.eod-reminder-text{flex:1;font-size:13px;font-weight:700;line-height:1.4}
+.eod-clock-out-btn{background:#fff;color:#c62828;border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer}
 /* ===== PROPOSAL DEFAULTS SETTINGS ===== */
 .clause-list{list-style:none;padding:0;margin:0}
 .clause-item{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #f0f0f0}
@@ -560,6 +610,8 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
     <div class="nav-group-title">Business</div>
     <div class="nav-item" data-page="reports"><span class="nav-icon">📈</span>Reports</div>
     <div class="nav-item" data-page="inventory"><span class="nav-icon">🏷️</span>Inventory</div>
+    <div class="nav-item" data-page="field"><span class="nav-icon">⏱</span>Time Clock</div>
+    <div class="nav-item" data-page="timesheet" id="nav-timesheet"><span class="nav-icon">📋</span>Timesheets</div>
     <div class="nav-item" data-page="settings"><span class="nav-icon">⚙️</span>Settings</div>
   </div>
 </div>
@@ -1082,6 +1134,83 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
     </div>
   </div>
   <div id="jobs-list"><div class="empty-state"><div class="empty-icon">🔧</div><p>No jobs yet. Convert a won quote or create manually.</p></div></div>
+</div>
+
+<!-- FIELD TIME CLOCK -->
+<div class="page" id="page-field">
+  <div class="field-page">
+
+    <!-- Clock Card -->
+    <div class="clock-card" id="clock-main-card">
+      <div class="clock-status-bar">
+        <div class="clock-status-dot out" id="clock-dot"></div>
+        <span class="clock-status-text" id="clock-status-text">Not Clocked In</span>
+        <div class="gps-badge acquiring" id="gps-badge" style="margin-left:auto">📍 GPS...</div>
+      </div>
+
+      <div class="clock-timer">
+        <div class="clock-timer-time" id="clock-timer-display">0:00:00</div>
+        <div class="clock-timer-label" id="clock-timer-label">Time on Job</div>
+      </div>
+
+      <!-- Job selector (shown when not clocked in) -->
+      <div id="clock-job-wrap">
+        <div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Select Job</div>
+        <select class="clock-job-select" id="clock-job-select">
+          <option value="">-- Choose your job --</option>
+        </select>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="clock-btn-grid" id="clock-btn-grid">
+        <button class="clock-btn clock-in" id="btn-clock-in" onclick="doClockIn()">
+          <span class="btn-icon">▶</span>Clock In
+        </button>
+      </div>
+
+      <!-- Day summary (shown when clocked in) -->
+      <div class="day-summary" id="day-summary" style="display:none">
+        <div class="day-stat"><div class="day-stat-val" id="ds-worked">0:00</div><div class="day-stat-lbl">Worked</div></div>
+        <div class="day-stat"><div class="day-stat-val" id="ds-break">0:00</div><div class="day-stat-lbl">Break</div></div>
+        <div class="day-stat"><div class="day-stat-val" id="ds-lunch">0:00</div><div class="day-stat-lbl">Lunch</div></div>
+      </div>
+    </div>
+
+    <!-- Today's Punch Log -->
+    <div class="clock-card" id="punch-log-card" style="display:none">
+      <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Today's Punch Log</div>
+      <div id="punch-log-list"></div>
+    </div>
+
+    <!-- My Jobs Today -->
+    <div class="clock-card">
+      <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">My Assigned Jobs</div>
+      <div id="field-my-jobs"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TIMESHEET VIEW (Office/Owner) -->
+<div class="page" id="page-timesheet">
+  <div class="page-header">
+    <h2>⏱ Timesheets</h2>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="date" id="ts-date-filter" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:8px">
+      <button class="btn btn-outline btn-sm" onclick="loadTimesheets()">↻ Refresh</button>
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="timesheet-row timesheet-hdr">
+      <span>Technician</span><span>Job</span><span>In</span><span>Out</span><span>Hours</span>
+    </div>
+    <div id="timesheet-body"></div>
+  </div>
+  <!-- Live activity panel -->
+  <div class="card" style="margin-top:14px">
+    <div class="card-title">🟢 Currently Clocked In</div>
+    <div id="live-activity"></div>
+  </div>
 </div>
 
 <!-- CUSTOMERS -->
@@ -2036,7 +2165,7 @@ function fmtSigned(n) { return (n < 0 ? '-' : '') + fmt(n); }
 function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 
 // ---- NAVIGATION ----
-const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes & Bids',jobs:'Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory & Tools',settings:'Settings'};
+const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes & Bids',jobs:'Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory & Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets'};
 
 function goPage(id) {
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
@@ -5238,7 +5367,533 @@ function exportInventoryCSV() {
 }
 
 // =============================================
-// PROPOSAL DEFAULTS — ASSUMPTIONS & EXCLUSIONS
+// TIME CLOCK & GPS SYSTEM
+// =============================================
+
+var _clockState = {
+  status: 'out',       // out | in | break | lunch
+  sessionId: null,
+  clockInAt: null,
+  breakStartAt: null,
+  lunchStartAt: null,
+  breakMinutes: 0,
+  lunchMinutes: 0,
+  jobId: null,
+  jobName: null,
+  gpsLat: null,
+  gpsLng: null,
+  gpsAccuracy: null,
+  timerInterval: null,
+  todayEvents: []
+};
+
+var _eodReminderShown = false;
+
+// ---- GPS ----
+function getGPS(callback) {
+  var badge = document.getElementById('gps-badge');
+  if (badge) { badge.className='gps-badge acquiring'; badge.textContent='📍 Getting GPS...'; }
+
+  if (!navigator.geolocation) {
+    if (badge) { badge.className='gps-badge failed'; badge.textContent='❌ GPS unavailable'; }
+    callback(null, null, null);
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      var lat = pos.coords.latitude;
+      var lng = pos.coords.longitude;
+      var acc = Math.round(pos.coords.accuracy);
+      _clockState.gpsLat = lat;
+      _clockState.gpsLng = lng;
+      _clockState.gpsAccuracy = acc;
+      if (badge) {
+        badge.className = 'gps-badge locked';
+        badge.textContent = '📍 GPS ±' + acc + 'm';
+      }
+      callback(lat, lng, acc);
+    },
+    function(err) {
+      if (badge) { badge.className='gps-badge failed'; badge.textContent='❌ GPS denied'; }
+      callback(null, null, null);
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+  );
+}
+
+// ---- CLOCK IN ----
+async function doClockIn() {
+  var jobSel = document.getElementById('clock-job-select');
+  var jobId  = jobSel ? jobSel.value : '';
+  var jobName = jobSel && jobSel.selectedIndex > 0 ? jobSel.options[jobSel.selectedIndex].text : 'General';
+
+  if (!jobId) {
+    showToast('Please select a job first', 'warning');
+    if (jobSel) jobSel.style.borderColor='#c62828';
+    return;
+  }
+  if (jobSel) jobSel.style.borderColor='';
+
+  var btn = document.getElementById('btn-clock-in');
+  if (btn) { btn.disabled=true; btn.textContent='Clocking in...'; }
+
+  getGPS(async function(lat, lng, acc) {
+    var now = new Date();
+    var session = {
+      user_id:      _currentUser ? _currentUser.id : null,
+      user_name:    _currentUser ? _currentUser.full_name : 'Unknown',
+      job_id:       jobId,
+      job_name:     jobName,
+      status:       'clocked_in',
+      clock_in_at:  now.toISOString(),
+      clock_in_lat: lat,
+      clock_in_lng: lng,
+      date:         now.toISOString().split('T')[0]
+    };
+
+    var sessionId = null;
+    if (_sb && _currentUser) {
+      var res = await _sb.from('clock_sessions').insert(session).select().single();
+      if (res.data) sessionId = res.data.id;
+      // Log the event
+      await _sb.from('time_events').insert({
+        session_id: sessionId,
+        user_id: _currentUser.id,
+        user_name: _currentUser.full_name,
+        job_id: jobId, job_name: jobName,
+        event_type: 'clock_in',
+        lat: lat, lng: lng, accuracy: acc,
+        timestamp: now.toISOString()
+      });
+    }
+
+    _clockState.status    = 'in';
+    _clockState.sessionId = sessionId;
+    _clockState.clockInAt = now;
+    _clockState.jobId     = jobId;
+    _clockState.jobName   = jobName;
+    _clockState.todayEvents.push({ type:'clock_in', time:now, lat, lng });
+
+    updateClockUI();
+    startClockTimer();
+    showToast('Clocked in to ' + jobName, 'success');
+    scheduleEodReminder();
+  });
+}
+
+// ---- CLOCK OUT ----
+async function doClockOut() {
+  if (_clockState.status === 'on_break') { await doBreakEnd(); }
+  if (_clockState.status === 'at_lunch') { await doLunchEnd(); }
+
+  if (!confirm('Clock out of ' + (_clockState.jobName||'job') + '?')) return;
+
+  var btn = document.getElementById('btn-clock-out');
+  if (btn) { btn.disabled=true; btn.textContent='Clocking out...'; }
+
+  getGPS(async function(lat, lng, acc) {
+    var now = new Date();
+    var workedMs  = now - _clockState.clockInAt;
+    var breakMs   = _clockState.breakMinutes * 60000;
+    var lunchMs   = _clockState.lunchMinutes * 60000;
+    var netMs     = Math.max(0, workedMs - breakMs - lunchMs);
+    var totalMins = Math.round(netMs / 60000);
+
+    if (_sb && _currentUser && _clockState.sessionId) {
+      await _sb.from('clock_sessions').update({
+        status: 'clocked_out',
+        clock_out_at:  now.toISOString(),
+        clock_out_lat: lat, clock_out_lng: lng,
+        break_minutes:  _clockState.breakMinutes,
+        lunch_minutes:  _clockState.lunchMinutes,
+        total_minutes:  totalMins
+      }).eq('id', _clockState.sessionId);
+
+      await _sb.from('time_events').insert({
+        session_id: _clockState.sessionId,
+        user_id: _currentUser.id,
+        user_name: _currentUser.full_name,
+        job_id: _clockState.jobId, job_name: _clockState.jobName,
+        event_type: 'clock_out',
+        lat: lat, lng: lng, accuracy: acc,
+        timestamp: now.toISOString()
+      });
+    }
+
+    _clockState.todayEvents.push({ type:'clock_out', time:now, lat, lng });
+    showToast('Clocked out — ' + formatMinutes(totalMins) + ' net hours', 'success');
+
+    // Reset state
+    clearInterval(_clockState.timerInterval);
+    _clockState.status     = 'out';
+    _clockState.sessionId  = null;
+    _clockState.clockInAt  = null;
+    _clockState.breakMinutes = 0;
+    _clockState.lunchMinutes = 0;
+    _eodReminderShown = false;
+    hideEodReminder();
+    updateClockUI();
+  });
+}
+
+// ---- BREAK ----
+async function doBreakStart() {
+  var now = new Date();
+  _clockState.status = 'on_break';
+  _clockState.breakStartAt = now;
+  if (_sb && _currentUser && _clockState.sessionId) {
+    await _sb.from('clock_sessions').update({ status:'on_break' }).eq('id', _clockState.sessionId);
+    await _sb.from('time_events').insert({ session_id:_clockState.sessionId, user_id:_currentUser.id, user_name:_currentUser.full_name, job_id:_clockState.jobId, job_name:_clockState.jobName, event_type:'break_start', timestamp:now.toISOString() });
+  }
+  _clockState.todayEvents.push({ type:'break_start', time:now });
+  updateClockUI();
+  showToast('Break started', 'info');
+}
+
+async function doBreakEnd() {
+  var now = new Date();
+  var mins = Math.round((now - _clockState.breakStartAt) / 60000);
+  _clockState.breakMinutes += mins;
+  _clockState.status = 'in';
+  _clockState.breakStartAt = null;
+  if (_sb && _currentUser && _clockState.sessionId) {
+    await _sb.from('clock_sessions').update({ status:'clocked_in', break_minutes:_clockState.breakMinutes }).eq('id', _clockState.sessionId);
+    await _sb.from('time_events').insert({ session_id:_clockState.sessionId, user_id:_currentUser.id, user_name:_currentUser.full_name, job_id:_clockState.jobId, event_type:'break_end', timestamp:now.toISOString() });
+  }
+  _clockState.todayEvents.push({ type:'break_end', time:now });
+  updateClockUI();
+  showToast('Back on the clock', 'success');
+}
+
+// ---- LUNCH ----
+async function doLunchStart() {
+  var now = new Date();
+  _clockState.status = 'at_lunch';
+  _clockState.lunchStartAt = now;
+  if (_sb && _currentUser && _clockState.sessionId) {
+    await _sb.from('clock_sessions').update({ status:'at_lunch' }).eq('id', _clockState.sessionId);
+    await _sb.from('time_events').insert({ session_id:_clockState.sessionId, user_id:_currentUser.id, user_name:_currentUser.full_name, job_id:_clockState.jobId, event_type:'lunch_start', timestamp:now.toISOString() });
+  }
+  _clockState.todayEvents.push({ type:'lunch_start', time:now });
+  updateClockUI();
+  showToast('Lunch started', 'info');
+}
+
+async function doLunchEnd() {
+  var now = new Date();
+  var mins = Math.round((now - _clockState.lunchStartAt) / 60000);
+  _clockState.lunchMinutes += mins;
+  _clockState.status = 'in';
+  _clockState.lunchStartAt = null;
+  if (_sb && _currentUser && _clockState.sessionId) {
+    await _sb.from('clock_sessions').update({ status:'clocked_in', lunch_minutes:_clockState.lunchMinutes }).eq('id', _clockState.sessionId);
+    await _sb.from('time_events').insert({ session_id:_clockState.sessionId, user_id:_currentUser.id, user_name:_currentUser.full_name, job_id:_clockState.jobId, event_type:'lunch_end', timestamp:now.toISOString() });
+  }
+  _clockState.todayEvents.push({ type:'lunch_end', time:now });
+  updateClockUI();
+  showToast('Back from lunch', 'success');
+}
+
+// ---- TIMER ----
+function startClockTimer() {
+  clearInterval(_clockState.timerInterval);
+  _clockState.timerInterval = setInterval(function() {
+    if (_clockState.status === 'out') return;
+    var now = new Date();
+    var elapsed = now - _clockState.clockInAt;
+    // Subtract break/lunch time
+    var offMs = (_clockState.breakMinutes + _clockState.lunchMinutes) * 60000;
+    if (_clockState.breakStartAt)  offMs += (now - _clockState.breakStartAt);
+    if (_clockState.lunchStartAt)  offMs += (now - _clockState.lunchStartAt);
+    var net = Math.max(0, elapsed - offMs);
+    var el  = document.getElementById('clock-timer-display');
+    if (el) el.textContent = formatMs(net);
+
+    // Update day summary
+    var workedEl = document.getElementById('ds-worked');
+    var breakEl  = document.getElementById('ds-break');
+    var lunchEl  = document.getElementById('ds-lunch');
+    if (workedEl) workedEl.textContent = formatMs(net);
+    var bMs = _clockState.breakMinutes * 60000 + (_clockState.breakStartAt ? now - _clockState.breakStartAt : 0);
+    var lMs = _clockState.lunchMinutes * 60000 + (_clockState.lunchStartAt ? now - _clockState.lunchStartAt : 0);
+    if (breakEl) breakEl.textContent = formatMs(bMs);
+    if (lunchEl) lunchEl.textContent = formatMs(lMs);
+  }, 1000);
+}
+
+function formatMs(ms) {
+  var s = Math.floor(ms / 1000);
+  var h = Math.floor(s / 3600);
+  var m = Math.floor((s % 3600) / 60);
+  var sec = s % 60;
+  return h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+}
+
+function formatMinutes(mins) {
+  var h = Math.floor(mins / 60);
+  var m = mins % 60;
+  return h + 'h ' + m + 'm';
+}
+
+// ---- UI UPDATE ----
+function updateClockUI() {
+  var dot     = document.getElementById('clock-dot');
+  var txt     = document.getElementById('clock-status-text');
+  var btnGrid = document.getElementById('clock-btn-grid');
+  var jobWrap = document.getElementById('clock-job-wrap');
+  var daySumm = document.getElementById('day-summary');
+  var punchCard = document.getElementById('punch-log-card');
+  var timerLbl  = document.getElementById('clock-timer-label');
+
+  var statusMap = {
+    out:    { cls:'out', text:'Not Clocked In' },
+    in:     { cls:'in',  text:'Clocked In — ' + (_clockState.jobName||'') },
+    on_break: { cls:'break', text:'On Break' },
+    at_lunch: { cls:'lunch', text:'At Lunch' }
+  };
+  var s = statusMap[_clockState.status] || statusMap.out;
+
+  if (dot) { dot.className='clock-status-dot '+s.cls; }
+  if (txt) txt.textContent = s.text;
+  if (timerLbl) timerLbl.textContent = _clockState.status==='out' ? 'Start your day' : 'Net Time on Job';
+
+  if (jobWrap) jobWrap.style.display = _clockState.status==='out' ? 'block' : 'none';
+  if (daySumm) daySumm.style.display = _clockState.status!=='out' ? 'grid' : 'none';
+  if (punchCard) punchCard.style.display = _clockState.todayEvents.length ? 'block' : 'none';
+  if (_clockState.status==='out') {
+    var el=document.getElementById('clock-timer-display'); if(el) el.textContent='0:00:00';
+  }
+
+  // Build button grid
+  if (btnGrid) {
+    if (_clockState.status === 'out') {
+      btnGrid.innerHTML = '<button class="clock-btn clock-in" id="btn-clock-in" onclick="doClockIn()"><span class="btn-icon">▶</span>Clock In</button>';
+    } else if (_clockState.status === 'in') {
+      btnGrid.innerHTML =
+        '<button class="clock-btn break-start" onclick="doBreakStart()"><span class="btn-icon">⏸</span>Break</button>' +
+        '<button class="clock-btn lunch-start" onclick="doLunchStart()"><span class="btn-icon">🍽</span>Lunch</button>' +
+        '<button class="clock-btn clock-out" id="btn-clock-out" onclick="doClockOut()"><span class="btn-icon">⏹</span>Clock Out</button>';
+    } else if (_clockState.status === 'on_break') {
+      btnGrid.innerHTML =
+        '<button class="clock-btn break-end" style="grid-column:1/-1" onclick="doBreakEnd()"><span class="btn-icon">▶</span>End Break</button>' +
+        '<button class="clock-btn clock-out" id="btn-clock-out" onclick="doClockOut()"><span class="btn-icon">⏹</span>Clock Out</button>';
+    } else if (_clockState.status === 'at_lunch') {
+      btnGrid.innerHTML =
+        '<button class="clock-btn lunch-end" style="grid-column:1/-1" onclick="doLunchEnd()"><span class="btn-icon">▶</span>Back from Lunch</button>' +
+        '<button class="clock-btn clock-out" id="btn-clock-out" onclick="doClockOut()"><span class="btn-icon">⏹</span>Clock Out</button>';
+    }
+  }
+
+  // Update punch log
+  renderPunchLog();
+}
+
+function renderPunchLog() {
+  var list = document.getElementById('punch-log-list');
+  if (!list || !_clockState.todayEvents.length) return;
+  var colors = { clock_in:'#2e7d32', clock_out:'#c62828', break_start:'#e65100', break_end:'#2e7d32', lunch_start:'#6a1b9a', lunch_end:'#2e7d32' };
+  var labels = { clock_in:'Clocked In', clock_out:'Clocked Out', break_start:'Break Started', break_end:'Break Ended', lunch_start:'Lunch Started', lunch_end:'Lunch Ended' };
+  list.innerHTML = _clockState.todayEvents.slice().reverse().map(function(ev){
+    var t = ev.time instanceof Date ? ev.time : new Date(ev.time);
+    var timeStr = t.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+    var gpsStr = ev.lat ? ' · 📍' : '';
+    return '<div class="clock-log-item">' +
+      '<div class="clock-log-dot" style="background:' + (colors[ev.type]||'#90a4ae') + '"></div>' +
+      '<span class="clock-log-time">' + timeStr + '</span>' +
+      '<span class="clock-log-event">' + (labels[ev.type]||ev.type) + gpsStr + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+// ---- POPULATE JOB SELECTOR ----
+function renderFieldPage() {
+  // Populate job selector with assigned jobs
+  var sel = document.getElementById('clock-job-select');
+  if (sel) {
+    sel.innerHTML = '<option value="">-- Choose your job --</option>';
+    var myJobs = DB.jobs.filter(function(j){
+      return (j.status==='Scheduled'||j.status==='In Progress') &&
+        (!_currentUser || !j.assignedTo || j.assignedTo.toLowerCase().includes(_currentUser.full_name.split(' ')[0].toLowerCase()));
+    });
+    if (myJobs.length === 0) {
+      // Show all active jobs if none specifically assigned
+      myJobs = DB.jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; });
+    }
+    myJobs.forEach(function(j){
+      var opt = document.createElement('option');
+      opt.value = j.id;
+      opt.textContent = j.name + (j.customer ? ' — ' + j.customer : '');
+      sel.appendChild(opt);
+    });
+    // Pre-select if already clocked in
+    if (_clockState.jobId) sel.value = _clockState.jobId;
+  }
+
+  // My jobs list
+  var myJobsEl = document.getElementById('field-my-jobs');
+  if (myJobsEl) {
+    var myJobs2 = DB.jobs.filter(function(j){
+      return (j.status==='Scheduled'||j.status==='In Progress');
+    });
+    if (!myJobs2.length) {
+      myJobsEl.innerHTML = '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No active jobs assigned.</div>';
+    } else {
+      myJobsEl.innerHTML = myJobs2.map(function(j){
+        var sc = j.status==='In Progress'?'s-inprogress':'s-pending';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5">' +
+          '<div><div style="font-weight:700;font-size:13px">' + escHtml(j.name||'') + '</div>' +
+          '<div style="font-size:11px;color:#90a4ae">' + escHtml(j.customer||'') + (j.address?' · '+escHtml(j.address):'') + '</div></div>' +
+          '<span class="status-badge ' + sc + '" style="font-size:10px">' + escHtml(j.status) + '</span>' +
+        '</div>';
+      }).join('');
+    }
+  }
+
+  // Re-start timer if clocked in
+  if (_clockState.status !== 'out' && !_clockState.timerInterval) {
+    startClockTimer();
+  }
+
+  updateClockUI();
+  getGPS(function(){});
+}
+
+// ---- EOD REMINDER ----
+function scheduleEodReminder() {
+  // Check every minute if it's past 4:45pm and still clocked in
+  clearInterval(window._eodInterval);
+  window._eodInterval = setInterval(function() {
+    if (_clockState.status === 'out') { clearInterval(window._eodInterval); return; }
+    var now = new Date();
+    var hour = now.getHours();
+    var min  = now.getMinutes();
+    if ((hour === 16 && min >= 45) || hour >= 17) {
+      if (!_eodReminderShown) {
+        _eodReminderShown = true;
+        showEodReminder();
+      }
+    }
+  }, 60000);
+}
+
+function showEodReminder() {
+  var existing = document.getElementById('eod-reminder');
+  if (existing) return;
+  var div = document.createElement('div');
+  div.id = 'eod-reminder';
+  div.className = 'eod-reminder';
+  div.innerHTML =
+    '<div class="eod-reminder-text">⏰ It\'s after 4:45pm — don\'t forget to clock out before you leave!</div>' +
+    '<button class="eod-clock-out-btn" onclick="doClockOut()">Clock Out Now</button>' +
+    '<button onclick="hideEodReminder()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:0 4px">×</button>';
+  document.body.appendChild(div);
+}
+
+function hideEodReminder() {
+  var el = document.getElementById('eod-reminder');
+  if (el) el.remove();
+}
+
+// ---- TIMESHEET VIEW (Office/Owner) ----
+async function loadTimesheets() {
+  if (!_sb) return;
+  var dateEl = document.getElementById('ts-date-filter');
+  var date   = dateEl ? dateEl.value : new Date().toISOString().split('T')[0];
+
+  var body    = document.getElementById('timesheet-body');
+  var liveEl  = document.getElementById('live-activity');
+  if (body) body.innerHTML = '<div style="padding:20px;text-align:center;color:#90a4ae">Loading...</div>';
+
+  // Get sessions for selected date
+  var { data: sessions } = await _sb.from('clock_sessions')
+    .select('*')
+    .eq('date', date)
+    .order('clock_in_at');
+
+  if (!sessions || !sessions.length) {
+    if (body) body.innerHTML = '<div style="padding:20px;text-align:center;color:#90a4ae">No timesheet data for ' + date + '</div>';
+  } else {
+    if (body) body.innerHTML = sessions.map(function(s){
+      var inTime  = s.clock_in_at  ? new Date(s.clock_in_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '—';
+      var outTime = s.clock_out_at ? new Date(s.clock_out_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '—';
+      var hrs     = s.total_minutes > 0 ? (s.total_minutes/60).toFixed(1)+'h' : (s.status!=='clocked_out'?'<span style="color:#2e7d32;font-weight:700">Active</span>':'—');
+      var stBadge = s.status==='clocked_in'?'<span class="ts-badge ts-in">● In</span>':s.status==='on_break'?'<span class="ts-badge ts-break">⏸ Break</span>':s.status==='at_lunch'?'<span class="ts-badge ts-break">🍽 Lunch</span>':'<span class="ts-badge ts-out">✓ Out</span>';
+      return '<div class="timesheet-row">' +
+        '<span style="font-weight:600">' + escHtml(s.user_name||'') + '</span>' +
+        '<span style="font-size:11px;color:#546e7a">' + escHtml(s.job_name||'—') + '</span>' +
+        '<span>' + inTime + '</span>' +
+        '<span>' + outTime + '</span>' +
+        '<span>' + hrs + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  // Live activity
+  var { data: live } = await _sb.from('clock_sessions')
+    .select('*')
+    .in('status', ['clocked_in','on_break','at_lunch']);
+
+  if (liveEl) {
+    if (!live || !live.length) {
+      liveEl.innerHTML = '<div style="color:#90a4ae;font-size:13px;padding:8px 0">Nobody clocked in right now.</div>';
+    } else {
+      liveEl.innerHTML = live.map(function(s){
+        var inTime = s.clock_in_at ? new Date(s.clock_in_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '';
+        var statusTxt = s.status==='on_break' ? '⏸ On Break' : s.status==='at_lunch' ? '🍽 At Lunch' : '🟢 Working';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5">' +
+          '<div><div style="font-weight:700;font-size:13px">' + escHtml(s.user_name||'') + '</div>' +
+          '<div style="font-size:11px;color:#90a4ae">' + escHtml(s.job_name||'') + ' · In at ' + inTime + '</div></div>' +
+          '<span style="font-size:12px;font-weight:700">' + statusTxt + '</span>' +
+        '</div>';
+      }).join('');
+    }
+  }
+}
+
+// ---- RESTORE SESSION ON LOGIN ----
+async function restoreClockSession() {
+  if (!_sb || !_currentUser) return;
+  var today = new Date().toISOString().split('T')[0];
+  var { data } = await _sb.from('clock_sessions')
+    .select('*')
+    .eq('user_id', _currentUser.id)
+    .eq('date', today)
+    .neq('status', 'clocked_out')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (data) {
+    _clockState.status    = data.status;
+    _clockState.sessionId = data.id;
+    _clockState.clockInAt = new Date(data.clock_in_at);
+    _clockState.jobId     = data.job_id;
+    _clockState.jobName   = data.job_name;
+    _clockState.breakMinutes = data.break_minutes || 0;
+    _clockState.lunchMinutes = data.lunch_minutes || 0;
+    startClockTimer();
+    updateClockUI();
+    showToast('Session restored — still clocked in to ' + data.job_name, 'info');
+    scheduleEodReminder();
+  }
+}
+
+// Hook into goPage to render field page and timesheet
+var _prevGoPage = goPage;
+function goPage(id) {
+  _prevGoPage(id);
+  if (id === 'field')     { setTimeout(renderFieldPage, 50); }
+  if (id === 'timesheet') {
+    var today = new Date().toISOString().split('T')[0];
+    var dtEl  = document.getElementById('ts-date-filter');
+    if (dtEl && !dtEl.value) dtEl.value = today;
+    setTimeout(loadTimesheets, 50);
+  }
+}
+
+// =============================================
+// END TIME CLOCK
 // =============================================
 
 var DEFAULT_ASSUMPTIONS = [
@@ -7237,7 +7892,7 @@ function init() {
       // Still try to restore session from localStorage
       _sb.auth.getSession().then(function(result) {
         if (result.data && result.data.session) {
-          loadCurrentUserProfile().then(function(){ syncAllFromCloud(); });
+          loadCurrentUserProfile().then(function(){ syncAllFromCloud(); restoreClockSession(); });
         } else {
           showAuthModal();
         }
@@ -7245,7 +7900,7 @@ function init() {
     } else {
       _sb.auth.getSession().then(function(result) {
         if (result.data && result.data.session) {
-          loadCurrentUserProfile().then(function(){ syncAllFromCloud(); });
+          loadCurrentUserProfile().then(function(){ syncAllFromCloud(); restoreClockSession(); });
         } else {
           showAuthModal();
         }
@@ -7659,11 +8314,11 @@ if (document.readyState === 'loading') {
   <div class="mob-nav-item" onclick="mobileNav('qq')" id="mob-qq">
     <span class="mob-icon">⚡</span>Quote
   </div>
+  <div class="mob-nav-item" onclick="mobileNav('field')" id="mob-field">
+    <span class="mob-icon">⏱</span>Clock
+  </div>
   <div class="mob-nav-item" onclick="mobileNav('jobs')" id="mob-jobs">
     <span class="mob-icon">🔧</span>Jobs
-  </div>
-  <div class="mob-nav-item" onclick="mobileNav('inventory')" id="mob-inventory">
-    <span class="mob-icon">🏷️</span>Tools
   </div>
   <div class="mob-nav-item mob-nav-more" onclick="toggleMobileMenu()" id="mob-more">
     <span class="mob-icon">☰</span>More
