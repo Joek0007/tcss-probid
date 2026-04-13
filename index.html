@@ -1969,12 +1969,15 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
     <div class="modal-head"><h3>📄 Quote Preview</h3><button class="close-btn" data-action="closeModal" data-modal="modal-preview">×</button></div>
     <div class="modal-body">
       <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center" class="no-print">
-        <button class="btn btn-primary" data-action="printQuote">🖨 Print / Save PDF</button>
-        <button class="btn btn-outline" data-action="printInternal">📊 Internal Copy</button>
+        <button class="btn btn-primary" onclick="printQuote()">🖨 Print / Save PDF</button>
+        <button class="btn btn-outline" onclick="printInternal()">📊 Internal Copy</button>
         <button class="btn btn-success" data-action="emailQuote">📧 Email to Customer</button>
-        <button class="btn btn-outline" id="edit-summary-btn" data-action="startEditSummary" title="Edit the auto-generated executive summary">✏️ Edit Summary</button>
+        <button class="btn btn-outline" id="edit-summary-btn" onclick="startEditSummary()" title="Edit the auto-generated executive summary">✏️ Edit Summary</button>
         <span id="summary-edited-badge" style="display:none;font-size:11px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;padding:3px 10px;border-radius:10px;font-weight:700">✓ Custom Summary</span>
         <button class="btn btn-ghost btn-sm" id="reset-summary-btn" data-action="resetSummary" style="display:none;font-size:11px;color:#90a4ae" title="Revert to auto-generated summary">↺ Reset to Auto</button>
+      </div>
+      <div style="font-size:11px;color:#90a4ae;margin-bottom:10px;padding:6px 12px;background:#f8fafc;border-radius:6px" class="no-print">
+        💡 <strong>To save as PDF:</strong> Click Print / Save PDF → In the print dialog choose <strong>"Save as PDF"</strong> as the destination/printer. The filename will include the quote number and customer name.
       </div>
       <!-- Inline summary editor (hidden by default) -->
       <div id="summary-editor-wrap" style="display:none;margin-bottom:14px;border:2px solid #1565c0;border-radius:10px;overflow:hidden">
@@ -3498,10 +3501,8 @@ function resetSummary() {
 // ---- END EXECUTIVE SUMMARY EDITOR ----
 
 function printQuote() {
-  // Build full print document from current preview data
   var q = _previewQuoteData;
   if (!q) {
-    // Build from current QQ state
     var cn = (document.getElementById('qq-cn')||{}).value || '';
     var jn = (document.getElementById('qq-jn')||{}).value || '';
     if (!cn || !jn) { alert('Please enter customer name and job name first.'); return; }
@@ -3510,32 +3511,45 @@ function printQuote() {
   // Auto-generate quote number if missing
   if (!q.num || q.num === 'PREVIEW') {
     q.num = nextQNum();
+    if (_previewQuoteData) _previewQuoteData.num = q.num;
     var numEl = document.getElementById('qq-num');
     if (numEl) numEl.value = q.num;
   }
   var html = buildPrintHTML(q, 'client');
-  // Use blob URL — works on Safari without popup blocker
-  var blob = new Blob([html], {type:'text/html'});
-  var url  = URL.createObjectURL(blob);
-  var a    = document.createElement('a');
-  a.href   = url;
-  a.target = '_blank';
-  a.rel    = 'noopener';
-  a.click();
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+  // Set document title so browser uses it as the suggested PDF filename
+  var filename = 'Proposal-' + (q.num||'') + '-' + (q.cn||'').replace(/[^a-zA-Z0-9]/g,'-');
+  var fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+    '<title>' + filename + '</title>' +
+    '<style>@media print{body{margin:0}}</style>' +
+    '</head><body>' + html + '</body></html>';
+  var w = window.open('', '_blank');
+  if (!w) {
+    // Popup blocked — fallback to same-window iframe print
+    alert('Popup blocked. Please allow popups for this site and try again, or use your browser\'s print button (Ctrl+P / Cmd+P).');
+    return;
+  }
+  w.document.open();
+  w.document.write(fullHtml);
+  w.document.close();
+  w.document.title = filename;
+  setTimeout(function(){ w.focus(); w.print(); }, 600);
 }
+
 function printInternal() {
   var q = _previewQuoteData || getQData();
   if (!q.num || q.num === 'PREVIEW') q.num = (document.getElementById('qq-num')||{}).value || 'INTERNAL';
   var html = buildPrintHTML(q, 'internal');
-  var blob = new Blob([html], {type:'text/html'});
-  var url  = URL.createObjectURL(blob);
-  var a    = document.createElement('a');
-  a.href   = url;
-  a.target = '_blank';
-  a.rel    = 'noopener';
-  a.click();
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
+  var filename = 'Internal-' + (q.num||'') + '-' + (q.cn||'').replace(/[^a-zA-Z0-9]/g,'-');
+  var fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+    '<title>' + filename + '</title>' +
+    '</head><body>' + html + '</body></html>';
+  var w = window.open('', '_blank');
+  if (!w) { alert('Popup blocked. Please allow popups for this site and try again.'); return; }
+  w.document.open();
+  w.document.write(fullHtml);
+  w.document.close();
+  w.document.title = filename;
+  setTimeout(function(){ w.focus(); w.print(); }, 600);
 }
 
 // =============================================
