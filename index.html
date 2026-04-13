@@ -412,6 +412,15 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 /* Export button */
 .btn-export{background:#37474f;color:#fff;border:none}
 .btn-export:hover{background:#263238}
+/* ===== AUTOCOMPLETE ===== */
+.autocomplete-wrap{position:relative}
+.autocomplete-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #1565c0;border-top:none;border-radius:0 0 10px 10px;z-index:500;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.autocomplete-item{padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f0f0;display:flex;flex-direction:column;gap:2px}
+.autocomplete-item:last-child{border-bottom:none}
+.autocomplete-item:hover,.autocomplete-item.active{background:#e3f2fd;color:#1565c0}
+.autocomplete-item-main{font-weight:600;color:#0d1b2a}
+.autocomplete-item-sub{font-size:11px;color:#90a4ae}
+.autocomplete-item:hover .autocomplete-item-main,.autocomplete-item.active .autocomplete-item-main{color:#1565c0}
 /* ===== FIELD MODE / TIME CLOCK ===== */
 .field-page{max-width:480px;margin:0 auto;padding:0}
 .clock-card{background:#fff;border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid #e0e0e0}
@@ -694,11 +703,23 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
     <div>
       <!-- Customer Info -->
       <div class="card">
-        <div class="section-title">👤 Customer Information</div>
+        <div class="section-title">👤 Customer &amp; Contact</div>
+        <div class="form-row cols2">
+          <div class="autocomplete-wrap">
+            <label>Customer / Company *</label>
+            <input id="qq-cn" placeholder="Type company name..." autocomplete="off" oninput="onCustomerInput(this.value)" onblur="setTimeout(closeCustomerDropdown,200)">
+            <div id="customer-dropdown" class="autocomplete-dropdown" style="display:none"></div>
+          </div>
+          <div class="autocomplete-wrap">
+            <label>Contact Person</label>
+            <input id="qq-contact-name" placeholder="Select customer first..." autocomplete="off" oninput="onContactInput(this.value)" onblur="setTimeout(closeContactDropdown,200)">
+            <div id="contact-dropdown" class="autocomplete-dropdown" style="display:none"></div>
+          </div>
+        </div>
         <div class="form-row cols3">
-          <div><label>Customer Name *</label><input id="qq-cn" placeholder="Full name or company"></div>
-          <div><label>Phone</label><input id="qq-ph" placeholder="(555) 000-0000"></div>
-          <div><label>Email</label><input id="qq-em" type="email" placeholder="email@example.com"></div>
+          <div><label>Contact Phone</label><input id="qq-ph" placeholder="(555) 000-0000"></div>
+          <div><label>Contact Email</label><input id="qq-em" type="email" placeholder="email@example.com"></div>
+          <div><label>Contact Title</label><input id="qq-contact-title" placeholder="e.g. Facilities Director"></div>
         </div>
         <div class="form-row"><div><label>Service Address</label><input id="qq-ad" placeholder="Job site address"></div></div>
       </div>
@@ -893,6 +914,15 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
             <div class="lumpsum-label-row">
               <label>Label for lump sum line:</label>
               <input id="lumpsum-label" value="Complete Low Voltage Installation" placeholder="e.g. Complete Installation">
+            </div>
+            <div style="height:1px;background:#ffe0b2;margin:10px 0"></div>
+            <div class="section-toggle-row" onclick="toggleLumpSumItems()">
+              <label class="toggle-switch" onclick="event.stopPropagation()">
+                <input type="checkbox" id="lumpsum-show-items" onchange="toggleLumpSumItems()" checked>
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-value-label on" id="lumpsum-show-items-label">YES</span>
+              <span class="toggle-label" style="font-size:12px">List items below total (qty &amp; description only, no prices)</span>
             </div>
           </div>
         </div>
@@ -2389,12 +2419,23 @@ function loadPerDiemData(d) {
 // =============================================
 // V6: LUMP SUM FUNCTIONS
 // =============================================
+function toggleLumpSumItems() {
+  var cb  = document.getElementById('lumpsum-show-items');
+  var lbl = document.getElementById('lumpsum-show-items-label');
+  if (!cb || !lbl) return;
+  var on = cb.checked;
+  lbl.textContent = on ? 'YES' : 'NO';
+  lbl.className = 'toggle-value-label' + (on ? ' on' : '');
+}
+
 function getLumpSumState() {
-  const toggle = document.getElementById('lumpsum-toggle');
-  const label  = document.getElementById('lumpsum-label');
+  const toggle    = document.getElementById('lumpsum-toggle');
+  const label     = document.getElementById('lumpsum-label');
+  const showItems = document.getElementById('lumpsum-show-items');
   return {
-    enabled: !!(toggle && toggle.checked),
-    label:   label ? label.value.trim() || 'Complete Low Voltage Installation' : 'Complete Low Voltage Installation'
+    enabled:   !!(toggle && toggle.checked),
+    label:     label ? label.value.trim() || 'Complete Low Voltage Installation' : 'Complete Low Voltage Installation',
+    showItems: showItems ? showItems.checked : true
   };
 }
 
@@ -2782,6 +2823,8 @@ function getQData(id) {
     ph:  (document.getElementById('qq-ph')||{}).value || '',
     em:  (document.getElementById('qq-em')||{}).value || '',
     ad:  (document.getElementById('qq-ad')||{}).value || '',
+    contactName:  (document.getElementById('qq-contact-name')||{}).value || '',
+    contactTitle: (document.getElementById('qq-contact-title')||{}).value || '',
     jn:  (document.getElementById('qq-jn')||{}).value || '',
     jt:  (document.getElementById('qq-jt')||{}).value || 'New Construction',
     env: env,
@@ -3017,11 +3060,12 @@ function buildPrintHTML(q, mode) {
     const lumpSum = q.lumpSum && q.lumpSum.enabled;
     const margin  = Math.min(Math.max((q.targetMargin||35)/100, 0), 0.99);
 
-    // LUMP SUM MODE — single line
+    // LUMP SUM MODE — total price as one line, optionally list items below without prices
     if (lumpSum) {
-      const label = q.lumpSum.label || 'Complete Low Voltage Installation';
-      const total = fmt(q.total || 0);
-      return '<tr style="border-bottom:1px solid #e8e8e8">' +
+      const label     = q.lumpSum.label || 'Complete Low Voltage Installation';
+      const total     = fmt(q.total || 0);
+      const showItems = q.lumpSum.showItems !== false; // default true
+      var rows = '<tr style="border-bottom:1px solid #e8e8e8">' +
         '<td style="padding:8px 12px;width:40px;color:#888">1</td>' +
         '<td style="padding:8px 12px;font-weight:600">' + escHtml(label) + '</td>' +
         '<td style="padding:8px 12px;text-align:center">1</td>' +
@@ -3029,11 +3073,27 @@ function buildPrintHTML(q, mode) {
         '<td style="padding:8px 12px;text-align:right">' + total + '</td>' +
         '<td style="padding:8px 12px;text-align:right;font-weight:700">' + total + '</td>' +
         '</tr>';
+      // Optionally list items with qty/description only — no pricing
+      if (showItems && q.items && q.items.length > 0) {
+        rows += '<tr><td colspan="6" style="padding:6px 12px;background:#f8fafc;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px">Included Materials &amp; Scope</td></tr>';
+        q.items.forEach(function(item, idx) {
+          if (!item.desc) return;
+          var qty = parseFloat(item.qty)||0;
+          rows += '<tr style="border-bottom:1px solid #f5f5f5">' +
+            '<td style="padding:5px 12px;color:#aaa;font-size:11px">' + (idx+1) + '</td>' +
+            '<td style="padding:5px 12px;font-size:12px;color:#546e7a">' + escHtml(item.desc) + '</td>' +
+            '<td style="padding:5px 12px;text-align:center;font-size:12px;color:#546e7a">' + qty + '</td>' +
+            '<td style="padding:5px 12px;font-size:12px;color:#546e7a">' + escHtml(item.unit||'ea') + '</td>' +
+            '<td></td><td></td>' +
+            '</tr>';
+        });
+      }
+      return rows;
     }
 
     // ITEMIZED MODE
     if (!q.items || q.items.length === 0) return '<p style="color:#666">No line items recorded.</p>';
-    let rows = '';
+    var rows = '';
     let rowNum = 0;
     q.items.forEach(function(item) {
       const qty = parseFloat(item.qty)||0;
@@ -3180,10 +3240,12 @@ function buildPrintHTML(q, mode) {
   // CUSTOMER + PROJECT
   '<div class="prop-two-col">' +
   '<div class="prop-section"><div class="prop-section-title">Prepared For</div>' +
-  '<div class="info-block"><strong>' + escHtml(q.cn||'') + '</strong><br>' +
-  (q.ph ? escHtml(q.ph) + '<br>' : '') +
-  (q.em ? escHtml(q.em) + '<br>' : '') +
-  (q.ad ? escHtml(q.ad) : '') +
+  '<div class="info-block">' +
+  '<strong style="font-size:15px">' + escHtml(q.cn||'') + '</strong><br>' +
+  (q.contactName ? '<span style="color:#1565c0;font-weight:600">' + escHtml(q.contactName) + '</span>' + (q.contactTitle ? ' &nbsp;·&nbsp; <span style="color:#607d8b;font-size:12px">' + escHtml(q.contactTitle) + '</span>' : '') + '<br>' : '') +
+  (q.ph ? '<span style="color:#546e7a">&#128222; ' + escHtml(q.ph) + '</span><br>' : '') +
+  (q.em ? '<span style="color:#546e7a">&#9993; ' + escHtml(q.em) + '</span><br>' : '') +
+  (q.ad ? '<span style="color:#546e7a">&#128205; ' + escHtml(q.ad) + '</span>' : '') +
   '</div></div>' +
   '<div class="prop-section"><div class="prop-section-title">Project Details</div>' +
   '<div class="info-block">' +
@@ -3235,18 +3297,16 @@ function buildPrintHTML(q, mode) {
   internalSectionHTML() +
 
 
-  // SERVICE CONTRACT OFFER — dynamic from saved selection or generic
+  // SERVICE CONTRACT OFFER — only show if explicitly selected
   (function() {
     var svc = q.svcContract;
-    if (svc) {
-      return '<div class="service-offer-box">' +
-        '<strong>Optional Service Agreement — ' + escHtml(svc.label) + ' Plan</strong><br>' +
-        '<span style="font-size:13px;font-weight:700;color:#1b5e20">$' + svc.annual + '/year</span>' +
-        (svc.term > 1 ? ' &nbsp;·&nbsp; ' + svc.term + '-year term available' : '') + '<br>' +
-        '<span style="color:#2e7d32">' + (svc.includes||[]).map(function(i){ return '· '+i; }).join(' &nbsp;') + '</span>' +
-      '</div>';
-    }
-    return '<div class="service-offer-box"><strong>Optional Service Agreement</strong> — Protect your investment with an annual service agreement starting at approximately ' + fmt((q.total||0)*0.07) + '/year. Ask your representative for details.</div>';
+    if (!svc || !svc.tier) return ''; // don't show if not selected
+    return '<div class="service-offer-box">' +
+      '<strong>Optional Service Agreement — ' + escHtml(svc.label) + ' Plan</strong><br>' +
+      '<span style="font-size:13px;font-weight:700;color:#1b5e20">$' + svc.annual + '/year</span>' +
+      (svc.term > 1 ? ' &nbsp;·&nbsp; ' + svc.term + '-year term available' : '') + '<br>' +
+      '<span style="color:#2e7d32">' + (svc.includes||[]).map(function(i){ return '· '+i; }).join(' &nbsp;') + '</span>' +
+    '</div>';
   })() +
 
   // ASSUMPTIONS — respects settings toggle AND per-quote toggle
@@ -3351,25 +3411,33 @@ function _updateSummaryBadge(q) {
 
 // ---- EXECUTIVE SUMMARY EDITOR ----
 function startEditSummary() {
-  // Get current text from the rendered exec box
-  const execBox = document.getElementById('prop-exec-box');
-  const editor  = document.getElementById('summary-editor-wrap');
-  const textarea= document.getElementById('summary-editor-textarea');
-  if (!execBox || !editor || !textarea) return;
+  var editor   = document.getElementById('summary-editor-wrap');
+  var textarea = document.getElementById('summary-editor-textarea');
+  if (!editor || !textarea) return;
 
-  // Extract plain text from paragraphs
-  const paragraphs = execBox.querySelectorAll('p');
-  const currentText = paragraphs.length > 0
-    ? Array.from(paragraphs).map(function(p){ return p.textContent; }).join('\n\n')
-    : execBox.textContent;
+  // Try to get current text from rendered exec box
+  var execBox = document.getElementById('prop-exec-box');
+  var currentText = '';
+
+  if (execBox) {
+    var paragraphs = execBox.querySelectorAll('p');
+    currentText = paragraphs.length > 0
+      ? Array.from(paragraphs).map(function(p){ return p.textContent; }).join('\n\n')
+      : execBox.textContent;
+  } else if (_previewQuoteData) {
+    // Fall back to saved custom summary or auto-generate
+    currentText = _previewQuoteData.execSummary || '';
+    if (!currentText) {
+      // Show a placeholder based on job name
+      currentText = 'Enter your custom executive summary for ' + (_previewQuoteData.jn || 'this project') + ' here.';
+    }
+  }
 
   textarea.value = currentText;
   editor.style.display = 'block';
   textarea.focus();
-  textarea.setSelectionRange(0, 0);
-
-  // Scroll editor into view
-  editor.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  // Scroll to editor
+  editor.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 function applySummary() {
@@ -3430,23 +3498,44 @@ function resetSummary() {
 // ---- END EXECUTIVE SUMMARY EDITOR ----
 
 function printQuote() {
-  const pc = document.getElementById('preview-content');
-  if (!pc) return;
-  const w = window.open('', '_blank', 'width=900,height=700');
-  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Proposal</title></head><body>' + pc.innerHTML + '</body></html>');
-  w.document.close();
-  w.focus();
-  setTimeout(function(){ w.print(); }, 500);
+  // Build full print document from current preview data
+  var q = _previewQuoteData;
+  if (!q) {
+    // Build from current QQ state
+    var cn = (document.getElementById('qq-cn')||{}).value || '';
+    var jn = (document.getElementById('qq-jn')||{}).value || '';
+    if (!cn || !jn) { alert('Please enter customer name and job name first.'); return; }
+    q = getQData();
+  }
+  // Auto-generate quote number if missing
+  if (!q.num || q.num === 'PREVIEW') {
+    q.num = nextQNum();
+    var numEl = document.getElementById('qq-num');
+    if (numEl) numEl.value = q.num;
+  }
+  var html = buildPrintHTML(q, 'client');
+  // Use blob URL — works on Safari without popup blocker
+  var blob = new Blob([html], {type:'text/html'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.target = '_blank';
+  a.rel    = 'noopener';
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
 }
 function printInternal() {
-  const q = _previewQuoteData || getQData();
-  q.num = (document.getElementById('qq-num')||{}).value || 'INTERNAL';
-  const html = buildPrintHTML(q, 'internal');
-  const w = window.open('', '_blank', 'width=900,height=700');
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  setTimeout(function(){ w.print(); }, 500);
+  var q = _previewQuoteData || getQData();
+  if (!q.num || q.num === 'PREVIEW') q.num = (document.getElementById('qq-num')||{}).value || 'INTERNAL';
+  var html = buildPrintHTML(q, 'internal');
+  var blob = new Blob([html], {type:'text/html'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.target = '_blank';
+  a.rel    = 'noopener';
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 10000);
 }
 
 // =============================================
@@ -3603,7 +3692,7 @@ function clearQQ(skipConfirm) {
   const otx = document.getElementById('permit-other-text'); if(otx) otx.value='';
   const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
   updatePermitStatus();
-  const fields = ['qq-cn','qq-ph','qq-em','qq-ad','qq-jn','qq-num','qq-notes','qq-int','qq-tc'];
+  const fields = ['qq-cn','qq-ph','qq-em','qq-ad','qq-jn','qq-num','qq-notes','qq-int','qq-tc','qq-contact-name','qq-contact-title'];
   fields.forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
   const lr = document.getElementById('qq-lr'); if(lr) lr.value = DB.settings.laborRate || 100;
   const mk = document.getElementById('qq-mk'); if(mk) mk.value = DB.settings.targetMargin || 35;
@@ -3634,6 +3723,8 @@ function clearQQ(skipConfirm) {
   const lsBody   = document.getElementById('lumpsum-body');   if(lsBody)   lsBody.classList.remove('expanded');
   const lsLbl    = document.getElementById('lumpsum-toggle-label'); if(lsLbl) { lsLbl.textContent = 'NO'; lsLbl.className = 'toggle-value-label'; }
   const lsLabel  = document.getElementById('lumpsum-label'); if(lsLabel) lsLabel.value = 'Complete Low Voltage Installation';
+  const lsItems  = document.getElementById('lumpsum-show-items'); if(lsItems) lsItems.checked = true;
+  const lsILbl   = document.getElementById('lumpsum-show-items-label'); if(lsILbl){lsILbl.textContent='YES';lsILbl.className='toggle-value-label on';}
   // Reset service contract toggle
   _svcTier = null;
   const svcCb=document.getElementById('svc-enabled'); if(svcCb) svcCb.checked=false;
@@ -3657,6 +3748,7 @@ function editQuote(id) {
   if (!q) return;
   function setV(elId, val) { const el=document.getElementById(elId); if(el) el.value = (val!==undefined&&val!==null) ? val : ''; }
   setV('qq-cn', q.cn); setV('qq-ph', q.ph); setV('qq-em', q.em); setV('qq-ad', q.ad);
+  setV('qq-contact-name', q.contactName||''); setV('qq-contact-title', q.contactTitle||'');
   setV('qq-jn', q.jn); setV('qq-jt', q.jt); setV('qq-env', q.env||'office');
   setV('qq-dt', q.dt); setV('qq-vu', q.vu); setV('qq-num', q.num);
   setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc);
@@ -6069,6 +6161,105 @@ function saveJtAddendums() {
 
 // =============================================
 // PROPOSAL DEFAULTS — END
+
+// =============================================
+// CUSTOMER & CONTACT AUTOCOMPLETE
+// =============================================
+
+function onCustomerInput(val) {
+  var dropdown = document.getElementById('customer-dropdown');
+  if (!dropdown) return;
+  if (!val || val.length < 1) { dropdown.style.display='none'; return; }
+  var sl = val.toLowerCase();
+  var matches = DB.customers.filter(function(c){
+    return (c.name||'').toLowerCase().includes(sl);
+  }).slice(0,8);
+  if (!matches.length) { dropdown.style.display='none'; return; }
+  dropdown.innerHTML = matches.map(function(c){
+    return '<div class="autocomplete-item" onmousedown="selectCustomer(\''+c.id+'\')">' +
+      '<span class="autocomplete-item-main">'+escHtml(c.name||'')+'</span>' +
+      '<span class="autocomplete-item-sub">'+(c.phone||'')+(c.email?' · '+c.email:'')+'</span>' +
+    '</div>';
+  }).join('');
+  dropdown.style.display = 'block';
+}
+
+function selectCustomer(id) {
+  var cust = DB.customers.find(function(c){ return c.id===id; });
+  if (!cust) return;
+  var cnEl=document.getElementById('qq-cn');    if(cnEl) cnEl.value=cust.name||'';
+  var phEl=document.getElementById('qq-ph');    if(phEl&&cust.phone&&!phEl.value) phEl.value=cust.phone;
+  var emEl=document.getElementById('qq-em');    if(emEl&&cust.email&&!emEl.value) emEl.value=cust.email;
+  var adEl=document.getElementById('qq-ad');    if(adEl&&cust.address&&!adEl.value) adEl.value=cust.address;
+  closeCustomerDropdown();
+  // Auto-populate contact if only one exists for this customer
+  var contacts = DB.contacts.filter(function(c){
+    return (c.company||'').toLowerCase()===(cust.name||'').toLowerCase();
+  });
+  var ctEl = document.getElementById('qq-contact-name');
+  if (contacts.length===1) {
+    selectContact(contacts[0].id);
+  } else if (contacts.length>1 && ctEl) {
+    ctEl.placeholder='Select contact...';
+    ctEl.focus();
+    showContactsForCustomer(contacts);
+  } else if (ctEl) {
+    ctEl.placeholder='No contacts on file';
+  }
+}
+
+function closeCustomerDropdown() {
+  var d=document.getElementById('customer-dropdown'); if(d) d.style.display='none';
+}
+
+function onContactInput(val) {
+  var dropdown=document.getElementById('contact-dropdown');
+  if (!dropdown) return;
+  if (!val||val.length<1) { dropdown.style.display='none'; return; }
+  var sl=val.toLowerCase();
+  var cnVal=(document.getElementById('qq-cn')||{}).value||'';
+  var matches=DB.contacts.filter(function(c){
+    return (c.name||'').toLowerCase().includes(sl);
+  }).slice(0,8);
+  if (!matches.length) { dropdown.style.display='none'; return; }
+  dropdown.innerHTML = matches.map(function(c){
+    return '<div class="autocomplete-item" onmousedown="selectContact(\''+c.id+'\')">' +
+      '<span class="autocomplete-item-main">'+escHtml(c.name||'')+'</span>' +
+      '<span class="autocomplete-item-sub">'+(c.title||'')+(c.company?' · '+c.company:'')+(c.phone?' · '+c.phone:'')+'</span>' +
+    '</div>';
+  }).join('');
+  dropdown.style.display='block';
+}
+
+function showContactsForCustomer(contacts) {
+  var dropdown=document.getElementById('contact-dropdown');
+  if (!dropdown) return;
+  dropdown.innerHTML=contacts.map(function(c){
+    return '<div class="autocomplete-item" onmousedown="selectContact(\''+c.id+'\')">' +
+      '<span class="autocomplete-item-main">'+escHtml(c.name||'')+'</span>' +
+      '<span class="autocomplete-item-sub">'+(c.title||'')+(c.phone?' · '+c.phone:'')+'</span>' +
+    '</div>';
+  }).join('');
+  dropdown.style.display='block';
+}
+
+function selectContact(id) {
+  var contact=DB.contacts.find(function(c){ return c.id===id; });
+  if (!contact) return;
+  var ctEl=document.getElementById('qq-contact-name');   if(ctEl)   ctEl.value=contact.name||'';
+  var tiEl=document.getElementById('qq-contact-title');  if(tiEl)   tiEl.value=contact.title||'';
+  var phEl=document.getElementById('qq-ph');             if(phEl&&contact.phone&&!phEl.value) phEl.value=contact.phone;
+  var emEl=document.getElementById('qq-em');             if(emEl&&contact.email&&!emEl.value) emEl.value=contact.email;
+  closeContactDropdown();
+}
+
+function closeContactDropdown() {
+  var d=document.getElementById('contact-dropdown'); if(d) d.style.display='none';
+}
+
+// =============================================
+// END AUTOCOMPLETE
+// =============================================
 // =============================================
 var _cqqEnabled = false;
 
@@ -6552,12 +6743,15 @@ function onMarginManualChange() {
 }
 
 // ---- UPDATE LINE ITEM ----
-function updateLI(id, field, value) {
-  const item = lineItems.find(function(x){return x._id==id});
+function updateLI(id, field, value, rerender) {
+  var item = lineItems.find(function(x){return x._id==id});
   if (!item) return;
-  if (field==='qty'||field==='mc'||field==='lh') item[field] = parseFloat(value)||0;
-  else item[field] = value;
-  renderLI();
+  if (field==='qty'||field==='mc'||field==='lh') {
+    item[field] = parseFloat(value)||0;
+    if (rerender) renderLI(); // only re-render when explicitly requested (on blur)
+  } else {
+    item[field] = value; // text fields: just update data, don't re-render (preserves focus)
+  }
   calcTotals();
 }
 
@@ -6908,11 +7102,23 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// Re-render line item row when user tabs out of a numeric field
+document.addEventListener('blur', function(e) {
+  var el = e.target;
+  if (el.hasAttribute('data-li') && el.hasAttribute('data-field')) {
+    var field = el.getAttribute('data-field');
+    if (field === 'qty' || field === 'mc' || field === 'lh') {
+      updateLI(el.getAttribute('data-li'), field, el.value, true); // re-render on blur
+    }
+  }
+}, true); // capture phase so blur fires on inputs
+
 // Line item input changes (event delegation)
 document.addEventListener('input', function(e) {
   const el = e.target;
   if (el.hasAttribute('data-li') && el.hasAttribute('data-field')) {
-    updateLI(el.getAttribute('data-li'), el.getAttribute('data-field'), el.value);
+    // Pass false — don't re-render on every keystroke (preserves focus for all fields)
+    updateLI(el.getAttribute('data-li'), el.getAttribute('data-field'), el.value, false);
     return;
   }
   // Template item row
