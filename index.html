@@ -412,6 +412,22 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 /* Export button */
 .btn-export{background:#37474f;color:#fff;border:none}
 .btn-export:hover{background:#263238}
+/* ===== TOOLS & BARCODE SCANNER ===== */
+.tool-section{display:none}
+.tool-section.active{display:block}
+.barcode-scan-wrap{background:linear-gradient(135deg,#0d1b2a,#1a2744);border-radius:14px;padding:16px;margin-bottom:4px}
+.barcode-scan-header{display:flex;align-items:center;justify-content:space-between;color:#fff;font-size:13px;font-weight:700;margin-bottom:12px}
+.barcode-input{width:100%;padding:12px 14px;border:2px solid #1565c0;border-radius:10px;font-size:16px;font-family:monospace;font-weight:700;letter-spacing:1px;background:#fff;color:#0d1b2a}
+.barcode-input:focus{border-color:#64b5f6;outline:none;box-shadow:0 0 0 3px rgba(100,181,246,.2)}
+.barcode-result-card{background:#fff;border-radius:10px;padding:14px;margin-top:6px}
+.barcode-result-tag{font-size:22px;font-weight:900;color:#1565c0;font-family:monospace;letter-spacing:1px}
+.barcode-result-name{font-size:16px;font-weight:700;color:#0d1b2a;margin:4px 0}
+.barcode-result-meta{font-size:12px;color:#607d8b}
+.barcode-result-status{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700;margin:8px 0}
+.brs-available{background:#e8f5e9;color:#2e7d32}
+.brs-checked-out{background:#fff3e0;color:#e65100}
+.brs-unknown{background:#f5f5f5;color:#90a4ae}
+.asset-tag-badge{display:inline-flex;align-items:center;gap:4px;background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:6px;padding:2px 8px;font-family:monospace;font-size:12px;font-weight:700}
 /* ===== AUTOCOMPLETE ===== */
 .autocomplete-wrap{position:relative}
 .autocomplete-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #1565c0;border-top:none;border-radius:0 0 10px 10px;z-index:500;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.12)}
@@ -461,7 +477,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 .day-stat{background:#f8fafc;border-radius:10px;padding:10px;text-align:center;border:1px solid #e0e0e0}
 .day-stat-val{font-size:20px;font-weight:900;color:#1565c0}
 .day-stat-lbl{font-size:10px;color:#90a4ae;font-weight:600;text-transform:uppercase;margin-top:2px}
-.timesheet-row{display:grid;grid-template-columns:140px 1fr 70px 70px 70px;gap:6px;padding:10px 14px;border-bottom:1px solid #f0f0f0;font-size:12px;align-items:center}
+.timesheet-row{display:grid;grid-template-columns:140px 1fr 70px 70px 60px 80px 80px;gap:6px;padding:10px 14px;border-bottom:1px solid #f0f0f0;font-size:12px;align-items:center}
 .timesheet-hdr{background:#f5f7fa;font-weight:700;font-size:11px;color:#455a64;text-transform:uppercase}
 .ts-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700}
 .ts-in{background:#e8f5e9;color:#2e7d32}
@@ -618,7 +634,8 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
   <div class="nav-group">
     <div class="nav-group-title">Business</div>
     <div class="nav-item" data-page="reports"><span class="nav-icon">📈</span>Reports</div>
-    <div class="nav-item" data-page="inventory"><span class="nav-icon">🏷️</span>Inventory</div>
+    <div class="nav-item" data-page="inventory"><span class="nav-icon">📦</span>Materials</div>
+    <div class="nav-item" data-page="tools"><span class="nav-icon">🔧</span>Tools &amp; Assets</div>
     <div class="nav-item" data-page="field"><span class="nav-icon">⏱</span>Time Clock</div>
     <div class="nav-item" data-page="timesheet" id="nav-timesheet"><span class="nav-icon">📋</span>Timesheets</div>
     <div class="nav-item" data-page="settings"><span class="nav-icon">⚙️</span>Settings</div>
@@ -1067,7 +1084,10 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
       </div>
       <!-- Line Items -->
       <div class="card">
-        <div class="section-title">📦 Line Items</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div class="section-title" style="margin-bottom:0">📦 Line Items</div>
+          <button class="btn btn-primary" data-action="saveQQ" style="flex-shrink:0">💾 Save Quote</button>
+        </div>
         <div style="display:flex;gap:8px;margin-bottom:10px">
           <button class="btn btn-outline btn-sm" data-action="addRow">+ Add Row</button>
           <button class="btn btn-outline btn-sm" data-action="openCatalog">📦 From Catalog</button>
@@ -1174,45 +1194,59 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
     <div class="clock-card" id="clock-main-card">
       <div class="clock-status-bar">
         <div class="clock-status-dot out" id="clock-dot"></div>
-        <span class="clock-status-text" id="clock-status-text">Not Clocked In</span>
+        <span class="clock-status-text" id="clock-status-text">Not Started</span>
         <div class="gps-badge acquiring" id="gps-badge" style="margin-left:auto">📍 GPS...</div>
       </div>
 
       <div class="clock-timer">
         <div class="clock-timer-time" id="clock-timer-display">0:00:00</div>
-        <div class="clock-timer-label" id="clock-timer-label">Time on Job</div>
+        <div class="clock-timer-label" id="clock-timer-label">Start your day</div>
       </div>
 
-      <!-- Job selector (shown when not clocked in) -->
+      <!-- Geofence alert (shown when enforced and out of range) -->
+      <div id="geo-alert" style="display:none;background:#ffebee;border:2px solid #ef9a9a;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#c62828;font-weight:600"></div>
+
+      <!-- Job selector -->
       <div id="clock-job-wrap">
         <div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Select Job</div>
         <select class="clock-job-select" id="clock-job-select">
           <option value="">-- Choose your job --</option>
         </select>
+        <!-- Out of town flag -->
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <label class="toggle-switch" style="transform:scale(.8);transform-origin:left">
+            <input type="checkbox" id="clock-out-of-town" onchange="toggleOutOfTown()">
+            <span class="toggle-slider"></span>
+          </label>
+          <span style="font-size:12px;color:#546e7a;font-weight:600">Out of town job (hotel as base)</span>
+        </div>
+        <div id="hotel-addr-wrap" style="display:none;margin-top:8px">
+          <input id="clock-hotel-addr" class="clock-job-select" style="font-size:13px" placeholder="Hotel name or address...">
+        </div>
       </div>
 
       <!-- Action buttons -->
       <div class="clock-btn-grid" id="clock-btn-grid">
-        <button class="clock-btn clock-in" id="btn-clock-in" onclick="doClockIn()">
-          <span class="btn-icon">▶</span>Clock In
+        <button class="clock-btn clock-in" id="btn-start-travel" onclick="doStartTravel()">
+          <span class="btn-icon">🚗</span>Start Travel
         </button>
       </div>
 
-      <!-- Day summary (shown when clocked in) -->
+      <!-- Day summary -->
       <div class="day-summary" id="day-summary" style="display:none">
-        <div class="day-stat"><div class="day-stat-val" id="ds-worked">0:00</div><div class="day-stat-lbl">Worked</div></div>
+        <div class="day-stat"><div class="day-stat-val" id="ds-travel">0:00</div><div class="day-stat-lbl">Travel</div></div>
+        <div class="day-stat"><div class="day-stat-val" id="ds-worked">0:00</div><div class="day-stat-lbl">On Site</div></div>
         <div class="day-stat"><div class="day-stat-val" id="ds-break">0:00</div><div class="day-stat-lbl">Break</div></div>
-        <div class="day-stat"><div class="day-stat-val" id="ds-lunch">0:00</div><div class="day-stat-lbl">Lunch</div></div>
       </div>
     </div>
 
     <!-- Today's Punch Log -->
     <div class="clock-card" id="punch-log-card" style="display:none">
-      <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Today's Punch Log</div>
+      <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Today's Activity Log</div>
       <div id="punch-log-list"></div>
     </div>
 
-    <!-- My Jobs Today -->
+    <!-- My Jobs -->
     <div class="clock-card">
       <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">My Assigned Jobs</div>
       <div id="field-my-jobs"></div>
@@ -1232,7 +1266,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
   </div>
   <div class="card" style="padding:0;overflow:hidden">
     <div class="timesheet-row timesheet-hdr">
-      <span>Technician</span><span>Job</span><span>In</span><span>Out</span><span>Hours</span>
+      <span>Technician</span><span>Job</span><span>In</span><span>Out</span><span>Total</span><span>Travel</span><span>On Site</span>
     </div>
     <div id="timesheet-body"></div>
   </div>
@@ -1474,114 +1508,197 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 </div>
 
 <!-- INVENTORY & TOOL TRACKING -->
+<!-- MATERIALS & STOCK -->
 <div class="page" id="page-inventory">
-  <div class="page-header"><h2>🏷️ Inventory &amp; Tools</h2>
+  <div class="page-header"><h2>📦 Materials &amp; Stock</h2>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline btn-sm" data-action="newInventoryItem">+ Add Item</button>
       <button class="btn btn-export btn-sm" data-action="exportInventoryCSV">📥 Export</button>
     </div>
   </div>
-
-  <!-- Tab nav -->
   <div class="inv-tab-nav">
     <button class="inv-tab active" onclick="switchInvTab('items')">📦 All Items</button>
-    <button class="inv-tab" onclick="switchInvTab('checkout')">🔄 Checkouts</button>
     <button class="inv-tab" onclick="switchInvTab('lowstock')">⚠️ Low Stock</button>
   </div>
-
-  <!-- Low stock warning bar -->
   <div class="low-stock-warn" id="inv-low-warn"></div>
-
   <!-- ITEMS TAB -->
   <div class="inv-section active" id="inv-items">
     <div class="inv-stat-grid">
       <div class="stat-card"><div class="stat-val" id="inv-total">0</div><div class="stat-lbl">Total Items</div></div>
-      <div class="stat-card orange"><div class="stat-val" id="inv-checked-out">0</div><div class="stat-lbl">Checked Out</div></div>
       <div class="stat-card red"><div class="stat-val" id="inv-low-count">0</div><div class="stat-lbl">Low Stock</div></div>
       <div class="stat-card green"><div class="stat-val" id="inv-categories">0</div><div class="stat-lbl">Categories</div></div>
     </div>
     <div class="inv-filter-bar">
-      <input id="inv-search" placeholder="🔍 Search items, asset tags...">
+      <input id="inv-search" placeholder="🔍 Search materials...">
       <select id="inv-cat-filter"><option value="">All Categories</option></select>
       <select id="inv-loc-filter"><option value="">All Locations</option></select>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
-      <table>
-        <thead><tr>
-          <th>Asset Tag</th><th>Item Name</th><th>Category</th>
-          <th>Location</th><th>Qty</th><th>Status</th><th>Actions</th>
-        </tr></thead>
-        <tbody id="inv-tbl"></tbody>
-      </table>
+      <table><thead><tr>
+        <th>Item Name</th><th>Category</th><th>Location</th><th>Qty</th><th>Min</th><th>Unit Cost</th><th>Actions</th>
+      </tr></thead><tbody id="inv-tbl"></tbody></table>
     </div>
   </div>
-
-  <!-- CHECKOUTS TAB -->
-  <div class="inv-section" id="inv-checkout">
-    <div class="card">
-      <div class="card-title">🔄 Active Checkouts</div>
-      <table>
-        <thead><tr>
-          <th>Asset Tag</th><th>Item</th><th>Checked Out To</th>
-          <th>Job / Purpose</th><th>Date Out</th><th>Expected Return</th><th>Action</th>
-        </tr></thead>
-        <tbody id="inv-co-tbl"></tbody>
-      </table>
-    </div>
-    <div class="card">
-      <div class="card-title">📋 Checkout History (Last 30)</div>
-      <table>
-        <thead><tr>
-          <th>Asset Tag</th><th>Item</th><th>Who</th>
-          <th>Date Out</th><th>Date In</th><th>Status</th>
-        </tr></thead>
-        <tbody id="inv-hist-tbl"></tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- LOW STOCK TAB -->
   <div class="inv-section" id="inv-lowstock">
     <div class="card">
       <div class="card-title">⚠️ Items Below Minimum Stock Level</div>
-      <table>
-        <thead><tr>
-          <th>Asset Tag</th><th>Item</th><th>Category</th>
-          <th>On Hand</th><th>Min Level</th><th>Gap</th><th>Actions</th>
-        </tr></thead>
-        <tbody id="inv-low-tbl"></tbody>
-      </table>
+      <table><thead><tr>
+        <th>Item</th><th>Category</th><th>On Hand</th><th>Min Level</th><th>Gap</th><th>Actions</th>
+      </tr></thead><tbody id="inv-low-tbl"></tbody></table>
     </div>
   </div>
 </div>
 
-<!-- INVENTORY ITEM MODAL -->
+<!-- TOOLS & ASSETS -->
+<div class="page" id="page-tools">
+  <div class="page-header"><h2>🔧 Tools &amp; Assets</h2>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-outline btn-sm" onclick="openBarcodeScanner()" id="btn-scan-barcode">📷 Scan Tag</button>
+      <button class="btn btn-outline btn-sm" data-action="newToolItem">+ Add Tool</button>
+    </div>
+  </div>
+
+  <!-- Barcode scan bar -->
+  <div id="barcode-scan-bar" style="display:none;margin-bottom:14px">
+    <div class="barcode-scan-wrap">
+      <div class="barcode-scan-header">
+        <span>📷 Scan or Type Asset Tag</span>
+        <button onclick="closeBarcodeScanner()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">×</button>
+      </div>
+      <!-- Camera feed -->
+      <div id="barcode-camera-wrap" style="display:none;position:relative;margin-bottom:10px">
+        <video id="barcode-video" autoplay playsinline style="width:100%;max-height:220px;border-radius:8px;object-fit:cover"></video>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:200px;height:60px;border:3px solid #00e676;border-radius:8px;pointer-events:none"></div>
+        <div style="position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:11px;color:#fff;font-weight:700">Point at barcode — scanning automatically</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="barcode-input" class="barcode-input" placeholder="Scan barcode or type TCSS -001..."
+          oninput="onBarcodeInput(this.value)" onkeydown="if(event.key==='Enter')lookupBarcode(this.value)">
+        <button class="btn btn-primary btn-sm" onclick="lookupBarcode(document.getElementById('barcode-input').value)">Look Up</button>
+        <button class="btn btn-outline btn-sm" onclick="toggleCamera()" id="btn-toggle-camera">📷 Camera</button>
+      </div>
+      <div id="barcode-result" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <div class="inv-tab-nav">
+    <button class="inv-tab active" onclick="switchToolTab('assets')">🔧 All Tools</button>
+    <button class="inv-tab" onclick="switchToolTab('checkouts')">🔄 Checked Out</button>
+    <button class="inv-tab" onclick="switchToolTab('history')">📋 History</button>
+  </div>
+
+  <!-- ALL TOOLS TAB -->
+  <div class="tool-section active" id="tool-assets">
+    <div class="inv-stat-grid">
+      <div class="stat-card"><div class="stat-val" id="tool-total">0</div><div class="stat-lbl">Total Tools</div></div>
+      <div class="stat-card orange"><div class="stat-val" id="tool-out">0</div><div class="stat-lbl">Checked Out</div></div>
+      <div class="stat-card green"><div class="stat-val" id="tool-in">0</div><div class="stat-lbl">Available</div></div>
+      <div class="stat-card"><div class="stat-val" id="tool-tags">0</div><div class="stat-lbl">Tagged</div></div>
+    </div>
+    <div class="inv-filter-bar">
+      <input id="tool-search" placeholder="🔍 Search tools, TCSS -001..." oninput="renderTools()">
+      <select id="tool-cat-filter" onchange="renderTools()"><option value="">All Categories</option></select>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table><thead><tr>
+        <th>Asset Tag</th><th>Tool / Equipment</th><th>Category</th>
+        <th>Location</th><th>Status</th><th>Assigned To</th><th>Actions</th>
+      </tr></thead><tbody id="tool-tbl"></tbody></table>
+    </div>
+  </div>
+
+  <!-- CHECKED OUT TAB -->
+  <div class="tool-section" id="tool-checkouts">
+    <div class="card">
+      <div class="card-title">🔄 Currently Checked Out</div>
+      <table><thead><tr>
+        <th>Asset Tag</th><th>Tool</th><th>Checked Out To</th>
+        <th>Job</th><th>Date Out</th><th>Expected Return</th><th>Action</th>
+      </tr></thead><tbody id="tool-co-tbl"></tbody></table>
+    </div>
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div class="tool-section" id="tool-history">
+    <div class="card">
+      <div class="card-title">📋 Checkout History (Last 50)</div>
+      <table><thead><tr>
+        <th>Asset Tag</th><th>Tool</th><th>Who</th>
+        <th>Date Out</th><th>Date In</th><th>Job</th><th>Status</th>
+      </tr></thead><tbody id="tool-hist-tbl"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- INVENTORY ITEM MODAL (Materials) -->
 <div class="modal-overlay" id="modal-inv-item">
   <div class="modal-box">
     <div class="modal-head">
-      <h3 id="inv-modal-title">New Inventory Item</h3>
+      <h3 id="inv-modal-title">New Material / Stock Item</h3>
       <button class="close-btn" data-action="closeModal" data-modal="modal-inv-item">×</button>
     </div>
     <div class="modal-body">
-      <div class="form-row cols2">
-        <div><label>Item Name *</label><input id="inv-name" placeholder="e.g. Milwaukee Drill Kit"></div>
-        <div><label>Asset Tag (auto-generated)</label><input id="inv-tag" placeholder="TCSS -1" readonly style="background:#f5f7fa;font-family:monospace;font-weight:700;color:#1565c0"></div>
-      </div>
+      <div class="form-row"><div><label>Item Name *</label><input id="inv-name" placeholder="e.g. CAT6 Cable (500ft box)"></div></div>
       <div class="form-row cols3">
-        <div><label>Category</label><input id="inv-cat" placeholder="Tools, Cable, Hardware..." list="inv-cat-datalist"><datalist id="inv-cat-datalist"></datalist></div>
-        <div><label>Location</label><input id="inv-loc" placeholder="Shop, Van 1, Warehouse..." list="inv-loc-datalist"><datalist id="inv-loc-datalist"></datalist></div>
+        <div><label>Category</label><input id="inv-cat" placeholder="Cable, Hardware, Connectors..." list="inv-cat-datalist"><datalist id="inv-cat-datalist"></datalist></div>
+        <div><label>Location</label><input id="inv-loc" placeholder="Shop, Warehouse, Van..." list="inv-loc-datalist"><datalist id="inv-loc-datalist"></datalist></div>
         <div><label>Quantity On Hand</label><input id="inv-qty" type="number" value="1" min="0"></div>
       </div>
       <div class="form-row cols2">
-        <div><label>Min Stock Level (alert below this)</label><input id="inv-min" type="number" value="1" min="0"></div>
-        <div><label>Unit Cost ($)</label><input id="inv-cost" type="number" value="0" min="0" step="0.01" placeholder="0.00"></div>
+        <div><label>Min Stock Level</label><input id="inv-min" type="number" value="1" min="0"></div>
+        <div><label>Unit Cost ($ )</label><input id="inv-cost" type="number" value="0" min="0" step="0.01"></div>
       </div>
-      <div class="form-row"><div><label>Description / Notes</label><textarea id="inv-notes" rows="2" placeholder="Serial number, model, notes..."></textarea></div></div>
+      <div class="form-row"><div><label>Notes</label><textarea id="inv-notes" rows="2" placeholder="Supplier, part number, notes..."></textarea></div></div>
       <input type="hidden" id="inv-id">
+      <input type="hidden" id="inv-tag">
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-inv-item">Cancel</button>
       <button class="btn btn-primary" data-action="saveInventoryItem">Save Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOOL ITEM MODAL -->
+<div class="modal-overlay" id="modal-tool-item">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="tool-modal-title">New Tool / Asset</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-tool-item">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row cols2">
+        <div><label>Tool / Equipment Name *</label><input id="tool-name" placeholder="e.g. Milwaukee M18 Drill Kit"></div>
+        <div>
+          <label>Asset Tag</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input id="tool-tag" placeholder="TCSS -001" style="font-family:monospace;font-weight:700;color:#1565c0;flex:1">
+            <button type="button" class="btn btn-outline btn-sm" onclick="autoAssignTag()" title="Auto-assign next available tag">Auto</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row cols3">
+        <div><label>Category</label>
+          <select id="tool-cat">
+            <option>Power Tools</option><option>Hand Tools</option><option>Test Equipment</option>
+            <option>Ladders & Lifts</option><option>Safety Equipment</option><option>Networking Equipment</option>
+            <option>Camera Equipment</option><option>Vehicles</option><option>Other</option>
+          </select>
+        </div>
+        <div><label>Location / Assigned To</label><input id="tool-loc" placeholder="Shop, Van 1, Marcus..." list="tool-loc-list"><datalist id="tool-loc-list"></datalist></div>
+        <div><label>Purchase Value ($)</label><input id="tool-cost" type="number" value="0" min="0" step="0.01"></div>
+      </div>
+      <div class="form-row cols2">
+        <div><label>Serial Number</label><input id="tool-serial" placeholder="Optional"></div>
+        <div><label>Purchase Date</label><input id="tool-purchase-date" type="date"></div>
+      </div>
+      <div class="form-row"><div><label>Notes</label><textarea id="tool-notes" rows="2" placeholder="Model number, condition, maintenance notes..."></textarea></div></div>
+      <input type="hidden" id="tool-id">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-tool-item">Cancel</button>
+      <button class="btn btn-primary" data-action="saveToolItem">Save Tool</button>
     </div>
   </div>
 </div>
@@ -1689,6 +1806,32 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
         </div>
         <div style="font-size:11px;color:#90a4ae;margin-top:3px">Set to 0 for pass-through at cost. Typical range: 10–20%.</div>
       </div>
+    </div>
+
+    <!-- FIELD OPERATIONS SETTINGS -->
+    <div class="card"><div class="card-title">📍 Field Operations</div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:4px">Geofence Enforcement</div>
+        <div style="font-size:12px;color:#546e7a;margin-bottom:10px">When ON, techs must be within 500 ft of the job site to clock in or out. The first tech to clock in on a job establishes the site anchor point.</div>
+        <div class="section-toggle-row" onclick="toggleGeofenceEnforcement()">
+          <label class="toggle-switch" onclick="event.stopPropagation()">
+            <input type="checkbox" id="s-geofence-enforce" onchange="toggleGeofenceEnforcement()">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-value-label" id="s-geofence-label">OFF</span>
+          <span class="toggle-label">Enforce geofence — block clock in/out if outside 500 ft</span>
+        </div>
+        <div id="geofence-status-note" style="margin-top:8px;font-size:11px;padding:8px 12px;border-radius:8px;background:#f5f5f5;color:#607d8b">
+          Currently: <strong>Soft mode</strong> — GPS is captured and flagged but techs are never blocked.
+        </div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding-top:12px">
+        <div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:4px">Office / Home Base</div>
+        <div style="font-size:12px;color:#546e7a;margin-bottom:8px">Used to calculate travel time from shop to job sites.</div>
+        <div class="form-row"><div><label>Office Address</label><input id="s-office-addr" placeholder="e.g. 1100 Commerce Dr, Asheboro, NC 27203"></div></div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="saveFieldSettings()">💾 Save Field Settings</button>
+      <span id="field-settings-saved" style="display:none;font-size:12px;color:#2e7d32;margin-left:8px">✓ Saved!</span>
     </div>
     <div class="card"><div class="card-title">👤 User Profile</div>
       <div class="form-row cols2">
@@ -2190,13 +2333,13 @@ function loadDB() {
     const raw = localStorage.getItem(DB_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],quoteSeq:1000,jobSeq:1,invSeq:1}, parsed);
+      DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1}, parsed);
     } else {
       const prev = localStorage.getItem('tcssv7') || localStorage.getItem('tcssv6') || localStorage.getItem('tcssv5') || localStorage.getItem('tcssv4');
       if (prev) {
         try {
           const oldData = JSON.parse(prev);
-          DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],quoteSeq:1000,jobSeq:1,invSeq:1}, oldData);
+          DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1}, oldData);
           console.log('Migrated data to v8');
         } catch(e) {}
       }
@@ -2215,7 +2358,7 @@ function fmtSigned(n) { return (n < 0 ? '-' : '') + fmt(n); }
 function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 
 // ---- NAVIGATION ----
-const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes & Bids',jobs:'Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory & Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets'};
+const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes & Bids',jobs:'Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Materials & Stock',tools:'Tools & Assets',settings:'Settings',field:'Time Clock',timesheet:'Timesheets'};
 
 function goPage(id) {
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
@@ -2237,6 +2380,7 @@ function goPage(id) {
   else if (id==='templates') renderTemplates();
   if (id==='reports')    renderReports();
   if (id==='inventory')  renderInventory();
+  if (id==='tools')      { setTimeout(renderTools, 50); }
   if (id==='settings')   loadSettings();
   if (id==='qq')         renderTplLibrary();
   if (id==='field')      setTimeout(renderFieldPage, 50);
@@ -5527,522 +5671,708 @@ function exportInventoryCSV() {
 }
 
 // =============================================
-// TIME CLOCK & GPS SYSTEM
+// TOOLS & ASSETS — Separated from Inventory
+// =============================================
+
+// DB.tools = array of tool objects
+// DB.toolCheckouts = array of checkout records
+// DB.toolSeq = next available tag number (starts at 1)
+
+function getTools() { return DB.tools || []; }
+function getToolCheckouts() { return DB.toolCheckouts || []; }
+
+// ---- TAG GENERATION ----
+// Format: TCSS -001 (space before dash, zero-padded to 3 digits up to 999, then 4 digits)
+function formatTag(n) {
+  var num = parseInt(n)||1;
+  if (num > 999) return 'TCSS -' + String(num).padStart(4,'0');
+  return 'TCSS -' + String(num).padStart(3,'0');
+}
+
+function nextAvailableTag() {
+  var used = (DB.tools||[]).map(function(t){ return t.tag||''; });
+  for (var i=1; i<=1000; i++) {
+    var tag = formatTag(i);
+    if (!used.includes(tag)) return tag;
+  }
+  return formatTag(1001); // overflow safety
+}
+
+function autoAssignTag() {
+  var el = document.getElementById('tool-tag');
+  if (el) el.value = nextAvailableTag();
+}
+
+// ---- RENDER TOOLS LIST ----
+function renderTools() {
+  var search   = ((document.getElementById('tool-search')||{}).value||'').toLowerCase();
+  var catF     = (document.getElementById('tool-cat-filter')||{}).value||'';
+  var tools    = getTools().slice();
+  var checkouts = getToolCheckouts().filter(function(c){ return !c.returnedAt; });
+
+  if (search) tools = tools.filter(function(t){
+    return (t.name||'').toLowerCase().includes(search)||
+           (t.tag||'').toLowerCase().includes(search)||
+           (t.cat||'').toLowerCase().includes(search);
+  });
+  if (catF) tools = tools.filter(function(t){ return (t.cat||'')=== catF; });
+
+  // Stats
+  var totalOut = checkouts.length;
+  var totalIn  = tools.filter(function(t){ return !checkouts.find(function(c){ return c.toolId===t.id; }); }).length;
+  var tagged   = tools.filter(function(t){ return t.tag; }).length;
+  var setT = function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
+  setT('tool-total', tools.length);
+  setT('tool-out',   totalOut);
+  setT('tool-in',    totalIn);
+  setT('tool-tags',  tagged);
+
+  // Category filter
+  var cats = []; tools.forEach(function(t){ if(t.cat&&!cats.includes(t.cat)) cats.push(t.cat); });
+  var cf = document.getElementById('tool-cat-filter');
+  if (cf) {
+    var prev = cf.value;
+    cf.innerHTML = '<option value="">All Categories</option>' + cats.sort().map(function(c){ return '<option value="'+escHtml(c)+'"'+(c===prev?' selected':'')+'>'+escHtml(c)+'</option>'; }).join('');
+  }
+
+  // Table
+  var tbl = document.getElementById('tool-tbl');
+  if (!tbl) return;
+  if (!tools.length) { tbl.innerHTML='<tr><td colspan="7" class="empty-state"><p>No tools yet. Click + Add Tool to get started.</p></td></tr>'; return; }
+
+  tbl.innerHTML = tools.map(function(t){
+    var co = checkouts.find(function(c){ return c.toolId===t.id; });
+    var statusBadge = co
+      ? '<span class="ts-badge ts-break">🔄 Out — '+escHtml(co.toName||'')+'</span>'
+      : '<span class="ts-badge ts-in">✓ Available</span>';
+    return '<tr>'+
+      '<td><span class="asset-tag-badge">'+escHtml(t.tag||'—')+'</span></td>'+
+      '<td style="font-weight:700">'+escHtml(t.name||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(t.cat||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(t.location||'')+'</td>'+
+      '<td>'+statusBadge+'</td>'+
+      '<td style="font-size:12px">'+escHtml(co?co.toName:t.location||'')+'</td>'+
+      '<td style="white-space:nowrap">'+
+        (co
+          ? '<button class="btn btn-success btn-sm" data-action="checkinTool" data-id="'+co.id+'">✓ Return</button>'
+          : '<button class="btn btn-outline btn-sm" data-action="checkoutTool" data-id="'+t.id+'">Check Out</button>')+
+        ' <button class="btn btn-outline btn-sm" data-action="editTool" data-id="'+t.id+'">Edit</button>'+
+        ' <button class="btn btn-danger btn-sm" data-action="delTool" data-id="'+t.id+'">Del</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+
+  renderToolCheckouts();
+  renderToolHistory();
+}
+
+function switchToolTab(tab) {
+  document.querySelectorAll('.tool-section').forEach(function(s){ s.classList.remove('active'); });
+  document.querySelectorAll('#page-tools .inv-tab').forEach(function(b){ b.classList.remove('active'); });
+  var section = document.getElementById('tool-'+tab);
+  if (section) section.classList.add('active');
+  var tabs = document.querySelectorAll('#page-tools .inv-tab');
+  var idx = ['assets','checkouts','history'].indexOf(tab);
+  if (tabs[idx]) tabs[idx].classList.add('active');
+}
+
+function renderToolCheckouts() {
+  var tbl = document.getElementById('tool-co-tbl');
+  if (!tbl) return;
+  var active = getToolCheckouts().filter(function(c){ return !c.returnedAt; });
+  if (!active.length) { tbl.innerHTML='<tr><td colspan="7" class="empty-state"><p>No tools currently checked out.</p></td></tr>'; return; }
+  var today = new Date().toISOString().split('T')[0];
+  tbl.innerHTML = active.map(function(c){
+    var tool = (DB.tools||[]).find(function(t){ return t.id===c.toolId; });
+    var overdue = c.expectedReturn && c.expectedReturn < today;
+    return '<tr>'+
+      '<td><span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span></td>'+
+      '<td style="font-weight:700">'+escHtml((tool&&tool.name)||'Unknown')+'</td>'+
+      '<td>'+escHtml(c.toName||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.jobName||'—')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.date||'')+'</td>'+
+      '<td style="font-size:12px;'+(overdue?'color:#c62828;font-weight:700':'')+'">'+escHtml(c.expectedReturn||'—')+(overdue?' ⚠️':'')+'</td>'+
+      '<td><button class="btn btn-success btn-sm" data-action="checkinTool" data-id="'+c.id+'">✓ Return</button></td>'+
+    '</tr>';
+  }).join('');
+}
+
+function renderToolHistory() {
+  var tbl = document.getElementById('tool-hist-tbl');
+  if (!tbl) return;
+  var history = getToolCheckouts().slice().reverse().slice(0,50);
+  if (!history.length) { tbl.innerHTML='<tr><td colspan="7" class="empty-state"><p>No checkout history yet.</p></td></tr>'; return; }
+  tbl.innerHTML = history.map(function(c){
+    var tool = (DB.tools||[]).find(function(t){ return t.id===c.toolId; });
+    return '<tr>'+
+      '<td><span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span></td>'+
+      '<td>'+escHtml((tool&&tool.name)||'Unknown')+'</td>'+
+      '<td>'+escHtml(c.toName||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.date||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.returnedAt||'—')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.jobName||'—')+'</td>'+
+      '<td><span class="ts-badge '+(c.returnedAt?'ts-in':'ts-break')+'">'+(c.returnedAt?'Returned':'Out')+'</span></td>'+
+    '</tr>';
+  }).join('');
+}
+
+// ---- NEW / EDIT / SAVE / DELETE TOOL ----
+function newToolItem() {
+  var modal = document.getElementById('modal-tool-item');
+  var title = document.getElementById('tool-modal-title');
+  if (title) title.textContent = 'New Tool / Asset';
+  ['tool-name','tool-tag','tool-serial','tool-notes','tool-id'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  var costEl=document.getElementById('tool-cost'); if(costEl) costEl.value=0;
+  var catEl=document.getElementById('tool-cat'); if(catEl) catEl.value='Power Tools';
+  var locEl=document.getElementById('tool-loc'); if(locEl) locEl.value='';
+  // Suggest next tag
+  var tagEl=document.getElementById('tool-tag'); if(tagEl) tagEl.value=nextAvailableTag();
+  // Populate location suggestions from team names
+  var locDl=document.getElementById('tool-loc-list');
+  if(locDl) locDl.innerHTML='<option value="Shop"><option value="Warehouse">'+
+    (DB.team||[]).map(function(t){return '<option value="'+escHtml(t.name)+'">'; }).join('');
+  openModal('modal-tool-item');
+}
+
+function editTool(id) {
+  var t=(DB.tools||[]).find(function(x){return x.id==id}); if(!t) return;
+  var title=document.getElementById('tool-modal-title'); if(title) title.textContent='Edit Tool';
+  function sv(eid,v){var el=document.getElementById(eid);if(el)el.value=v||'';}
+  sv('tool-name',t.name); sv('tool-tag',t.tag); sv('tool-cat',t.cat);
+  sv('tool-loc',t.location); sv('tool-cost',t.cost||0); sv('tool-serial',t.serial);
+  sv('tool-notes',t.notes); sv('tool-id',t.id);
+  var pd=document.getElementById('tool-purchase-date'); if(pd) pd.value=t.purchaseDate||'';
+  openModal('modal-tool-item');
+}
+
+function saveToolItem() {
+  var id   = document.getElementById('tool-id').value;
+  var name = document.getElementById('tool-name').value.trim();
+  if (!name) { alert('Tool name is required.'); return; }
+  var tag  = (document.getElementById('tool-tag').value||'').trim();
+  // Validate tag format
+  if (tag && !/^TCSS -\d+$/.test(tag)) {
+    alert('Asset tag must be in format: TCSS -001');
+    return;
+  }
+  // Check for duplicate tag
+  var dupe = (DB.tools||[]).find(function(t){ return t.tag===tag && t.id!==id; });
+  if (dupe) { alert('Asset tag '+tag+' is already assigned to: '+dupe.name); return; }
+
+  var data = {
+    id:           id || Date.now().toString(),
+    name:         name,
+    tag:          tag,
+    cat:          document.getElementById('tool-cat').value||'Other',
+    location:     document.getElementById('tool-loc').value||'',
+    cost:         parseFloat(document.getElementById('tool-cost').value)||0,
+    serial:       document.getElementById('tool-serial').value||'',
+    notes:        document.getElementById('tool-notes').value||'',
+    purchaseDate: document.getElementById('tool-purchase-date').value||'',
+    createdAt:    id ? undefined : new Date().toISOString()
+  };
+
+  if (!DB.tools) DB.tools=[];
+  if (id) {
+    var idx=DB.tools.findIndex(function(t){return t.id==id});
+    if(idx>=0) DB.tools[idx]=data; else DB.tools.push(data);
+  } else {
+    DB.tools.push(data);
+  }
+  saveDB();
+  closeModal('modal-tool-item');
+  renderTools();
+  showToast('Tool saved — '+data.tag, 'success');
+}
+
+function delTool(id) {
+  var t=(DB.tools||[]).find(function(x){return x.id==id}); if(!t) return;
+  if (!confirm('Delete '+t.name+' ('+t.tag+')? This cannot be undone.')) return;
+  DB.tools=DB.tools.filter(function(x){return x.id!=id});
+  saveDB(); renderTools();
+}
+
+// ---- CHECKOUT / CHECKIN ----
+function checkoutTool(toolId) {
+  var tool=(DB.tools||[]).find(function(t){return t.id==toolId}); if(!tool) return;
+  var toName=prompt('Check out '+tool.name+' ('+tool.tag+') to:\nEnter technician name:','');
+  if (!toName||!toName.trim()) return;
+  var jobName=prompt('Job or purpose (optional):','') || '';
+  var daysOut=prompt('Expected return in how many days?','1');
+  var returnDate=new Date(); returnDate.setDate(returnDate.getDate()+(parseInt(daysOut)||1));
+
+  if (!DB.toolCheckouts) DB.toolCheckouts=[];
+  DB.toolCheckouts.push({
+    id:             Date.now().toString(),
+    toolId:         toolId,
+    toName:         toName.trim(),
+    jobName:        jobName,
+    date:           new Date().toISOString().split('T')[0],
+    expectedReturn: returnDate.toISOString().split('T')[0],
+    returnedAt:     null
+  });
+  saveDB(); renderTools();
+  showToast(tool.tag+' checked out to '+toName.trim(), 'success');
+}
+
+function checkinTool(checkoutId) {
+  var co=(DB.toolCheckouts||[]).find(function(c){return c.id==checkoutId}); if(!co) return;
+  var tool=(DB.tools||[]).find(function(t){return t.id==co.toolId});
+  if (!confirm('Return '+(tool?tool.name:'tool')+' from '+co.toName+'?')) return;
+  co.returnedAt=new Date().toISOString().split('T')[0];
+  saveDB(); renderTools();
+  showToast((tool?tool.tag:'Tool')+' returned ✓', 'success');
+}
+
+// ---- BARCODE SCANNER ----
+var _cameraStream = null;
+var _barcodeInterval = null;
+
+function openBarcodeScanner() {
+  var bar = document.getElementById('barcode-scan-bar');
+  if (bar) {
+    bar.style.display = bar.style.display==='none' ? 'block' : 'none';
+    if (bar.style.display==='block') {
+      setTimeout(function(){
+        var inp=document.getElementById('barcode-input');
+        if(inp){inp.value='';inp.focus();}
+      },100);
+    } else {
+      closeBarcodeScanner();
+    }
+  }
+}
+
+function closeBarcodeScanner() {
+  stopCamera();
+  var bar=document.getElementById('barcode-scan-bar'); if(bar) bar.style.display='none';
+  var res=document.getElementById('barcode-result'); if(res) res.innerHTML='';
+}
+
+function onBarcodeInput(val) {
+  // USB barcode readers send the full barcode then Enter — auto-lookup on Enter is handled by onkeydown
+  // For typed input, show suggestions after 3 chars
+  if (val.length >= 3) {
+    var matches=(DB.tools||[]).filter(function(t){
+      return (t.tag||'').toLowerCase().includes(val.toLowerCase())||
+             (t.name||'').toLowerCase().includes(val.toLowerCase());
+    }).slice(0,5);
+    if (matches.length===1) lookupBarcode(matches[0].tag);
+  }
+}
+
+function lookupBarcode(val) {
+  var tag=(val||'').trim();
+  if (!tag) return;
+  var result=document.getElementById('barcode-result'); if(!result) return;
+
+  var tool=(DB.tools||[]).find(function(t){
+    return (t.tag||'').toLowerCase()===tag.toLowerCase()||
+           t.id===tag;
+  });
+
+  if (!tool) {
+    result.innerHTML='<div style="background:#ffebee;border-radius:8px;padding:12px;color:#c62828;font-weight:700">❌ Tag not found: '+escHtml(tag)+'<br><span style="font-size:11px;font-weight:400">This tag is not assigned to any tool. Add the tool first.</span></div>';
+    return;
+  }
+
+  var co=(DB.toolCheckouts||[]).find(function(c){return c.toolId===tool.id&&!c.returnedAt;});
+  var statusHtml=co
+    ? '<span class="barcode-result-status brs-checked-out">🔄 Checked Out to '+escHtml(co.toName||'')+'</span>'
+    : '<span class="barcode-result-status brs-available">✓ Available</span>';
+
+  result.innerHTML='<div class="barcode-result-card">'+
+    '<div class="barcode-result-tag">'+escHtml(tool.tag||'')+'</div>'+
+    '<div class="barcode-result-name">'+escHtml(tool.name||'')+'</div>'+
+    '<div class="barcode-result-meta">'+escHtml(tool.cat||'')+(tool.location?' · '+escHtml(tool.location):'')+'</div>'+
+    statusHtml+
+    (co
+      ? '<br><button class="btn btn-success btn-sm" onclick="checkinTool(\''+co.id+'\');closeBarcodeScanner()">✓ Return Now</button>'
+      : '<br><button class="btn btn-primary btn-sm" onclick="checkoutTool(\''+tool.id+'\')">Check Out</button>')+
+    ' <button class="btn btn-outline btn-sm" onclick="editTool(\''+tool.id+'\')">Edit</button>'+
+  '</div>';
+}
+
+async function toggleCamera() {
+  var wrap=document.getElementById('barcode-camera-wrap');
+  if (!wrap) return;
+  if (_cameraStream) {
+    stopCamera();
+    wrap.style.display='none';
+    var btn=document.getElementById('btn-toggle-camera'); if(btn) btn.textContent='📷 Camera';
+  } else {
+    try {
+      _cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+      var video=document.getElementById('barcode-video');
+      if(video){video.srcObject=_cameraStream;}
+      wrap.style.display='block';
+      var btn=document.getElementById('btn-toggle-camera'); if(btn) btn.textContent='⏹ Stop Camera';
+      showToast('Camera active — point at barcode. USB scanner also works.','info',3000);
+      // Note: Full barcode decoding requires a library like ZXing
+      // For now, camera view is shown and user can type/scan via USB
+    } catch(e) {
+      showToast('Camera access denied — use USB scanner or type tag manually','warning',3000);
+    }
+  }
+}
+
+function stopCamera() {
+  if (_cameraStream) {
+    _cameraStream.getTracks().forEach(function(t){t.stop();});
+    _cameraStream=null;
+  }
+  clearInterval(_barcodeInterval);
+}
+
+// =============================================
+// END TOOLS & ASSETS
+// =============================================
+
+// =============================================
+// TIME CLOCK, TRAVEL PHASES & GEOFENCING
 // =============================================
 
 var _clockState = {
-  status: 'out',       // out | in | break | lunch
+  status: 'out',        // out | traveling | onsite | break | lunch | returning
   sessionId: null,
-  clockInAt: null,
-  breakStartAt: null,
-  lunchStartAt: null,
-  breakMinutes: 0,
-  lunchMinutes: 0,
-  jobId: null,
-  jobName: null,
-  gpsLat: null,
-  gpsLng: null,
-  gpsAccuracy: null,
+  dayStart: null,
+  travelOutStart: null, travelOutMins: 0,
+  onsiteStart: null,    onsiteMins: 0,
+  breakStart: null,     breakMins: 0,
+  lunchStart: null,     lunchMins: 0,
+  travelBackStart: null,travelBackMins: 0,
+  jobId: null, jobName: null,
+  gpsLat: null, gpsLng: null, gpsAccuracy: null,
   timerInterval: null,
-  todayEvents: []
+  todayEvents: [],
+  outOfTown: false, hotelAddr: ''
 };
 
 var _eodReminderShown = false;
+var GEO_RADIUS_FT = 500;
 
-// ---- GPS ----
+function geoDistanceFt(lat1,lng1,lat2,lng2) {
+  var R=20902231;
+  var dLat=(lat2-lat1)*Math.PI/180;
+  var dLng=(lng2-lng1)*Math.PI/180;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)));
+}
+
 function getGPS(callback) {
-  var badge = document.getElementById('gps-badge');
-  if (badge) { badge.className='gps-badge acquiring'; badge.textContent='📍 Getting GPS...'; }
-
-  if (!navigator.geolocation) {
-    if (badge) { badge.className='gps-badge failed'; badge.textContent='❌ GPS unavailable'; }
-    callback(null, null, null);
-    return;
-  }
-
+  var badge=document.getElementById('gps-badge');
+  if (badge){badge.className='gps-badge acquiring';badge.textContent='📍 Getting GPS...';}
+  if (!navigator.geolocation){if(badge){badge.className='gps-badge failed';badge.textContent='❌ GPS unavailable';}callback(null,null,null);return;}
   navigator.geolocation.getCurrentPosition(
-    function(pos) {
-      var lat = pos.coords.latitude;
-      var lng = pos.coords.longitude;
-      var acc = Math.round(pos.coords.accuracy);
-      _clockState.gpsLat = lat;
-      _clockState.gpsLng = lng;
-      _clockState.gpsAccuracy = acc;
-      if (badge) {
-        badge.className = 'gps-badge locked';
-        badge.textContent = '📍 GPS ±' + acc + 'm';
-      }
-      callback(lat, lng, acc);
+    function(pos){
+      var lat=pos.coords.latitude,lng=pos.coords.longitude,acc=Math.round(pos.coords.accuracy);
+      _clockState.gpsLat=lat;_clockState.gpsLng=lng;_clockState.gpsAccuracy=acc;
+      if(badge){badge.className='gps-badge locked';badge.textContent='📍 GPS ±'+acc+'m';}
+      callback(lat,lng,acc);
     },
-    function(err) {
-      if (badge) { badge.className='gps-badge failed'; badge.textContent='❌ GPS denied'; }
-      callback(null, null, null);
-    },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    function(){if(badge){badge.className='gps-badge failed';badge.textContent='❌ GPS denied';}callback(null,null,null);},
+    {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
   );
 }
 
-// ---- CLOCK IN ----
-async function doClockIn() {
-  var jobSel = document.getElementById('clock-job-select');
-  var jobId  = jobSel ? jobSel.value : '';
-  var jobName = jobSel && jobSel.selectedIndex > 0 ? jobSel.options[jobSel.selectedIndex].text : 'General';
+function checkGeofence(lat,lng,jobId) {
+  if (!lat||!lng) return {ok:true,distanceFt:null,reason:'no_gps'};
+  var job=DB.jobs.find(function(j){return j.id==jobId;});
+  if (!job||!job.gpsAnchor) return {ok:true,distanceFt:null,reason:'no_anchor'};
+  var dist=geoDistanceFt(lat,lng,job.gpsAnchor.lat,job.gpsAnchor.lng);
+  return {ok:dist<=GEO_RADIUS_FT,distanceFt:dist,reason:dist<=GEO_RADIUS_FT?'in_range':'out_of_range'};
+}
 
-  if (!jobId) {
-    showToast('Please select a job first', 'warning');
-    if (jobSel) jobSel.style.borderColor='#c62828';
-    return;
-  }
-  if (jobSel) jobSel.style.borderColor='';
+function setJobAnchor(jobId,lat,lng) {
+  if (!lat||!lng) return;
+  var job=DB.jobs.find(function(j){return j.id==jobId;});
+  if (!job||job.gpsAnchor) return;
+  job.gpsAnchor={lat:lat,lng:lng,setBy:_currentUser?_currentUser.full_name:'Unknown',setAt:new Date().toISOString()};
+  saveDB();
+  showToast('Job site anchor set for '+job.name,'info',4000);
+}
 
-  var btn = document.getElementById('btn-clock-in');
-  if (btn) { btn.disabled=true; btn.textContent='Clocking in...'; }
+function showGeoAlert(msg){var el=document.getElementById('geo-alert');if(el){el.innerHTML=msg;el.style.display='block';}}
+function clearGeoAlert(){var el=document.getElementById('geo-alert');if(el){el.innerHTML='';el.style.display='none';}}
 
-  getGPS(async function(lat, lng, acc) {
-    var now = new Date();
-    var session = {
-      user_id:      _currentUser ? _currentUser.id : null,
-      user_name:    _currentUser ? _currentUser.full_name : 'Unknown',
-      job_id:       jobId,
-      job_name:     jobName,
-      status:       'clocked_in',
-      clock_in_at:  now.toISOString(),
-      clock_in_lat: lat,
-      clock_in_lng: lng,
-      date:         now.toISOString().split('T')[0]
-    };
+function toggleOutOfTown(){
+  var cb=document.getElementById('clock-out-of-town');
+  var wrap=document.getElementById('hotel-addr-wrap');
+  _clockState.outOfTown=cb?cb.checked:false;
+  if(wrap) wrap.style.display=_clockState.outOfTown?'block':'none';
+}
 
-    var sessionId = null;
-    if (_sb && _currentUser) {
-      var res = await _sb.from('clock_sessions').insert(session).select().single();
-      if (res.data) sessionId = res.data.id;
-      // Log the event
-      await _sb.from('time_events').insert({
-        session_id: sessionId,
-        user_id: _currentUser.id,
-        user_name: _currentUser.full_name,
-        job_id: jobId, job_name: jobName,
-        event_type: 'clock_in',
-        lat: lat, lng: lng, accuracy: acc,
-        timestamp: now.toISOString()
-      });
-    }
+async function logTimeEvent(type,lat,lng,acc,note){
+  if(!_sb||!_currentUser) return;
+  await _sb.from('time_events').insert({
+    session_id:_clockState.sessionId,
+    user_id:_currentUser.id,user_name:_currentUser.full_name,
+    job_id:_clockState.jobId,job_name:_clockState.jobName,
+    event_type:type,lat:lat,lng:lng,accuracy:acc,
+    timestamp:new Date().toISOString(),note:note||''
+  });
+}
 
-    _clockState.status    = 'in';
-    _clockState.sessionId = sessionId;
-    _clockState.clockInAt = now;
-    _clockState.jobId     = jobId;
-    _clockState.jobName   = jobName;
-    _clockState.todayEvents.push({ type:'clock_in', time:now, lat, lng });
-
-    updateClockUI();
-    startClockTimer();
-    showToast('Clocked in to ' + jobName, 'success');
+// PHASE 1 — START TRAVEL
+async function doStartTravel(){
+  var jobSel=document.getElementById('clock-job-select');
+  var jobId=jobSel?jobSel.value:'';
+  var jobName=jobSel&&jobSel.selectedIndex>0?jobSel.options[jobSel.selectedIndex].text:'General';
+  if(!jobId){showToast('Please select a job first','warning');if(jobSel)jobSel.style.borderColor='#c62828';return;}
+  if(jobSel)jobSel.style.borderColor='';
+  getGPS(async function(lat,lng,acc){
+    var now=new Date();
+    var session={user_id:_currentUser?_currentUser.id:null,user_name:_currentUser?_currentUser.full_name:'Unknown',
+      job_id:jobId,job_name:jobName,status:'traveling',clock_in_at:now.toISOString(),
+      clock_in_lat:lat,clock_in_lng:lng,date:now.toISOString().split('T')[0]};
+    var sessionId=null;
+    if(_sb&&_currentUser){var res=await _sb.from('clock_sessions').insert(session).select().single();if(res.data)sessionId=res.data.id;}
+    _clockState.status='traveling';_clockState.sessionId=sessionId;
+    _clockState.dayStart=now;_clockState.travelOutStart=now;
+    _clockState.jobId=jobId;_clockState.jobName=jobName;
+    _clockState.todayEvents.push({type:'travel_start',time:now,lat:lat,lng:lng,label:'Started Travel'});
+    await logTimeEvent('travel_start',lat,lng,acc);
+    updateClockUI();startClockTimer();
+    showToast('Travel started — drive safe!','success');
     scheduleEodReminder();
   });
 }
 
-// ---- CLOCK OUT ----
-async function doClockOut() {
-  if (_clockState.status === 'on_break') { await doBreakEnd(); }
-  if (_clockState.status === 'at_lunch') { await doLunchEnd(); }
-
-  if (!confirm('Clock out of ' + (_clockState.jobName||'job') + '?')) return;
-
-  var btn = document.getElementById('btn-clock-out');
-  if (btn) { btn.disabled=true; btn.textContent='Clocking out...'; }
-
-  getGPS(async function(lat, lng, acc) {
-    var now = new Date();
-    var workedMs  = now - _clockState.clockInAt;
-    var breakMs   = _clockState.breakMinutes * 60000;
-    var lunchMs   = _clockState.lunchMinutes * 60000;
-    var netMs     = Math.max(0, workedMs - breakMs - lunchMs);
-    var totalMins = Math.round(netMs / 60000);
-
-    if (_sb && _currentUser && _clockState.sessionId) {
-      await _sb.from('clock_sessions').update({
-        status: 'clocked_out',
-        clock_out_at:  now.toISOString(),
-        clock_out_lat: lat, clock_out_lng: lng,
-        break_minutes:  _clockState.breakMinutes,
-        lunch_minutes:  _clockState.lunchMinutes,
-        total_minutes:  totalMins
-      }).eq('id', _clockState.sessionId);
-
-      await _sb.from('time_events').insert({
-        session_id: _clockState.sessionId,
-        user_id: _currentUser.id,
-        user_name: _currentUser.full_name,
-        job_id: _clockState.jobId, job_name: _clockState.jobName,
-        event_type: 'clock_out',
-        lat: lat, lng: lng, accuracy: acc,
-        timestamp: now.toISOString()
-      });
-    }
-
-    _clockState.todayEvents.push({ type:'clock_out', time:now, lat, lng });
-    showToast('Clocked out — ' + formatMinutes(totalMins) + ' net hours', 'success');
-
-    // Reset state
-    clearInterval(_clockState.timerInterval);
-    _clockState.status     = 'out';
-    _clockState.sessionId  = null;
-    _clockState.clockInAt  = null;
-    _clockState.breakMinutes = 0;
-    _clockState.lunchMinutes = 0;
-    _eodReminderShown = false;
-    hideEodReminder();
-    updateClockUI();
+// PHASE 2 — ARRIVE ON SITE
+async function doArriveOnSite(){
+  getGPS(async function(lat,lng,acc){
+    var enforce=!!(DB.settings&&DB.settings.geofenceEnforce);
+    var geo=checkGeofence(lat,lng,_clockState.jobId);
+    if(geo.reason==='out_of_range'){
+      var msg='📍 You are <strong>'+geo.distanceFt+' ft</strong> from the job site ('+GEO_RADIUS_FT+' ft required).';
+      if(enforce){showGeoAlert('🔒 '+msg+'<br>Clock-in blocked. Move closer and try again.');return;}
+      else{showGeoAlert('⚠️ '+msg+'<br>Proceeding — flagged for review.');}
+    } else {clearGeoAlert();}
+    var now=new Date();
+    setJobAnchor(_clockState.jobId,lat,lng);
+    _clockState.travelOutMins=Math.round((now-_clockState.travelOutStart)/60000);
+    _clockState.onsiteStart=now;
+    if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({status:'clocked_in'}).eq('id',_clockState.sessionId);
+    await logTimeEvent('clock_in',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
+    _clockState.status='onsite';
+    _clockState.todayEvents.push({type:'clock_in',time:now,lat:lat,lng:lng,label:'Arrived On Site',flagged:geo.reason==='out_of_range'});
+    updateClockUI();showToast('Clocked in to '+_clockState.jobName,'success');
   });
 }
 
-// ---- BREAK ----
-async function doBreakStart() {
-  var now = new Date();
-  _clockState.status = 'on_break';
-  _clockState.breakStartAt = now;
-  if (_sb && _currentUser && _clockState.sessionId) {
-    await _sb.from('clock_sessions').update({ status:'on_break' }).eq('id', _clockState.sessionId);
-    await _sb.from('time_events').insert({ session_id:_clockState.sessionId, user_id:_currentUser.id, user_name:_currentUser.full_name, job_id:_clockState.jobId, job_name:_clockState.jobName, event_type:'break_start', timestamp:now.toISOString() });
-  }
-  _clockState.todayEvents.push({ type:'break_start', time:now });
-  updateClockUI();
-  showToast('Break started', 'info');
-}
-
-async function doBreakEnd() {
-  var now = new Date();
-  var mins = Math.round((now - _clockState.breakStartAt) / 60000);
-  _clockState.breakMinutes += mins;
-  _clockState.status = 'in';
-  _clockState.breakStartAt = null;
-  if (_sb && _currentUser && _clockState.sessionId) {
-    await _sb.from('clock_sessions').update({ status:'clocked_in', break_minutes:_clockState.breakMinutes }).eq('id', _clockState.sessionId);
-    await _sb.from('time_events').insert({ session_id:_clockState.sessionId, user_id:_currentUser.id, user_name:_currentUser.full_name, job_id:_clockState.jobId, event_type:'break_end', timestamp:now.toISOString() });
-  }
-  _clockState.todayEvents.push({ type:'break_end', time:now });
-  updateClockUI();
-  showToast('Back on the clock', 'success');
-}
-
-// ---- LUNCH ----
-async function doLunchStart() {
-  var now = new Date();
-  _clockState.status = 'at_lunch';
-  _clockState.lunchStartAt = now;
-  if (_sb && _currentUser && _clockState.sessionId) {
-    await _sb.from('clock_sessions').update({ status:'at_lunch' }).eq('id', _clockState.sessionId);
-    await _sb.from('time_events').insert({ session_id:_clockState.sessionId, user_id:_currentUser.id, user_name:_currentUser.full_name, job_id:_clockState.jobId, event_type:'lunch_start', timestamp:now.toISOString() });
-  }
-  _clockState.todayEvents.push({ type:'lunch_start', time:now });
-  updateClockUI();
-  showToast('Lunch started', 'info');
-}
-
-async function doLunchEnd() {
-  var now = new Date();
-  var mins = Math.round((now - _clockState.lunchStartAt) / 60000);
-  _clockState.lunchMinutes += mins;
-  _clockState.status = 'in';
-  _clockState.lunchStartAt = null;
-  if (_sb && _currentUser && _clockState.sessionId) {
-    await _sb.from('clock_sessions').update({ status:'clocked_in', lunch_minutes:_clockState.lunchMinutes }).eq('id', _clockState.sessionId);
-    await _sb.from('time_events').insert({ session_id:_clockState.sessionId, user_id:_currentUser.id, user_name:_currentUser.full_name, job_id:_clockState.jobId, event_type:'lunch_end', timestamp:now.toISOString() });
-  }
-  _clockState.todayEvents.push({ type:'lunch_end', time:now });
-  updateClockUI();
-  showToast('Back from lunch', 'success');
-}
-
-// ---- TIMER ----
-function startClockTimer() {
-  clearInterval(_clockState.timerInterval);
-  _clockState.timerInterval = setInterval(function() {
-    if (_clockState.status === 'out') return;
-    var now = new Date();
-    var elapsed = now - _clockState.clockInAt;
-    // Subtract break/lunch time
-    var offMs = (_clockState.breakMinutes + _clockState.lunchMinutes) * 60000;
-    if (_clockState.breakStartAt)  offMs += (now - _clockState.breakStartAt);
-    if (_clockState.lunchStartAt)  offMs += (now - _clockState.lunchStartAt);
-    var net = Math.max(0, elapsed - offMs);
-    var el  = document.getElementById('clock-timer-display');
-    if (el) el.textContent = formatMs(net);
-
-    // Update day summary
-    var workedEl = document.getElementById('ds-worked');
-    var breakEl  = document.getElementById('ds-break');
-    var lunchEl  = document.getElementById('ds-lunch');
-    if (workedEl) workedEl.textContent = formatMs(net);
-    var bMs = _clockState.breakMinutes * 60000 + (_clockState.breakStartAt ? now - _clockState.breakStartAt : 0);
-    var lMs = _clockState.lunchMinutes * 60000 + (_clockState.lunchStartAt ? now - _clockState.lunchStartAt : 0);
-    if (breakEl) breakEl.textContent = formatMs(bMs);
-    if (lunchEl) lunchEl.textContent = formatMs(lMs);
-  }, 1000);
-}
-
-function formatMs(ms) {
-  var s = Math.floor(ms / 1000);
-  var h = Math.floor(s / 3600);
-  var m = Math.floor((s % 3600) / 60);
-  var sec = s % 60;
-  return h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
-}
-
-function formatMinutes(mins) {
-  var h = Math.floor(mins / 60);
-  var m = mins % 60;
-  return h + 'h ' + m + 'm';
-}
-
-// ---- UI UPDATE ----
-function updateClockUI() {
-  var dot     = document.getElementById('clock-dot');
-  var txt     = document.getElementById('clock-status-text');
-  var btnGrid = document.getElementById('clock-btn-grid');
-  var jobWrap = document.getElementById('clock-job-wrap');
-  var daySumm = document.getElementById('day-summary');
-  var punchCard = document.getElementById('punch-log-card');
-  var timerLbl  = document.getElementById('clock-timer-label');
-
-  var statusMap = {
-    out:    { cls:'out', text:'Not Clocked In' },
-    in:     { cls:'in',  text:'Clocked In — ' + (_clockState.jobName||'') },
-    on_break: { cls:'break', text:'On Break' },
-    at_lunch: { cls:'lunch', text:'At Lunch' }
-  };
-  var s = statusMap[_clockState.status] || statusMap.out;
-
-  if (dot) { dot.className='clock-status-dot '+s.cls; }
-  if (txt) txt.textContent = s.text;
-  if (timerLbl) timerLbl.textContent = _clockState.status==='out' ? 'Start your day' : 'Net Time on Job';
-
-  if (jobWrap) jobWrap.style.display = _clockState.status==='out' ? 'block' : 'none';
-  if (daySumm) daySumm.style.display = _clockState.status!=='out' ? 'grid' : 'none';
-  if (punchCard) punchCard.style.display = _clockState.todayEvents.length ? 'block' : 'none';
-  if (_clockState.status==='out') {
-    var el=document.getElementById('clock-timer-display'); if(el) el.textContent='0:00:00';
-  }
-
-  // Build button grid
-  if (btnGrid) {
-    if (_clockState.status === 'out') {
-      btnGrid.innerHTML = '<button class="clock-btn clock-in" id="btn-clock-in" onclick="doClockIn()"><span class="btn-icon">▶</span>Clock In</button>';
-    } else if (_clockState.status === 'in') {
-      btnGrid.innerHTML =
-        '<button class="clock-btn break-start" onclick="doBreakStart()"><span class="btn-icon">⏸</span>Break</button>' +
-        '<button class="clock-btn lunch-start" onclick="doLunchStart()"><span class="btn-icon">🍽</span>Lunch</button>' +
-        '<button class="clock-btn clock-out" id="btn-clock-out" onclick="doClockOut()"><span class="btn-icon">⏹</span>Clock Out</button>';
-    } else if (_clockState.status === 'on_break') {
-      btnGrid.innerHTML =
-        '<button class="clock-btn break-end" style="grid-column:1/-1" onclick="doBreakEnd()"><span class="btn-icon">▶</span>End Break</button>' +
-        '<button class="clock-btn clock-out" id="btn-clock-out" onclick="doClockOut()"><span class="btn-icon">⏹</span>Clock Out</button>';
-    } else if (_clockState.status === 'at_lunch') {
-      btnGrid.innerHTML =
-        '<button class="clock-btn lunch-end" style="grid-column:1/-1" onclick="doLunchEnd()"><span class="btn-icon">▶</span>Back from Lunch</button>' +
-        '<button class="clock-btn clock-out" id="btn-clock-out" onclick="doClockOut()"><span class="btn-icon">⏹</span>Clock Out</button>';
+// PHASE 3 — LEAVE SITE
+async function doLeaveOnSite(){
+  getGPS(async function(lat,lng,acc){
+    var enforce=!!(DB.settings&&DB.settings.geofenceEnforce);
+    var geo=checkGeofence(lat,lng,_clockState.jobId);
+    if(geo.reason==='out_of_range'&&enforce){
+      showGeoAlert('🔒 Must be within '+GEO_RADIUS_FT+' ft to clock out. Current distance: <strong>'+geo.distanceFt+' ft</strong>.');
+      return;
     }
-  }
+    clearGeoAlert();
+    var now=new Date();
+    _clockState.onsiteMins+=Math.round((now-_clockState.onsiteStart)/60000);
+    _clockState.travelBackStart=now;
+    if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({status:'returning'}).eq('id',_clockState.sessionId);
+    await logTimeEvent('clock_out',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
+    _clockState.status='returning';
+    _clockState.todayEvents.push({type:'clock_out',time:now,lat:lat,lng:lng,label:'Left Job Site',flagged:geo.reason==='out_of_range'});
+    updateClockUI();showToast('Clocked out — traveling back','info');
+  });
+}
 
-  // Update punch log
+// PHASE 4 — ARRIVE BACK / END DAY
+async function doArriveBack(){
+  if(!confirm('End your workday and clock out?')) return;
+  getGPS(async function(lat,lng,acc){
+    var now=new Date();
+    _clockState.travelBackMins=Math.round((now-_clockState.travelBackStart)/60000);
+    var totalTravel=_clockState.travelOutMins+_clockState.travelBackMins;
+    var totalOnsite=_clockState.onsiteMins;
+    var totalPaid=totalTravel+totalOnsite;
+    if(_clockState.sessionId&&_sb){
+      await _sb.from('clock_sessions').update({
+        status:'clocked_out',clock_out_at:now.toISOString(),
+        clock_out_lat:lat,clock_out_lng:lng,
+        break_minutes:_clockState.breakMins,lunch_minutes:_clockState.lunchMins,
+        total_minutes:totalPaid,travel_out_mins:_clockState.travelOutMins,
+        onsite_mins:totalOnsite,travel_back_mins:_clockState.travelBackMins
+      }).eq('id',_clockState.sessionId);
+    }
+    await logTimeEvent('day_end',lat,lng,acc);
+    _clockState.todayEvents.push({type:'day_end',time:now,label:'Arrived Back'});
+    showToast('Day complete — '+formatMinutes(totalPaid)+' total paid ('+formatMinutes(totalOnsite)+' on site, '+formatMinutes(totalTravel)+' travel)','success',6000);
+    clearInterval(_clockState.timerInterval);
+    _clockState.status='out';_clockState.sessionId=null;
+    _clockState.travelOutStart=null;_clockState.onsiteStart=null;_clockState.travelBackStart=null;
+    _clockState.dayStart=null;_clockState.travelOutMins=0;_clockState.onsiteMins=0;
+    _clockState.travelBackMins=0;_clockState.breakMins=0;_clockState.lunchMins=0;
+    _eodReminderShown=false;hideEodReminder();updateClockUI();
+  });
+}
+
+// BREAK & LUNCH
+async function doBreakStart(){var now=new Date();_clockState.breakStart=now;_clockState.status='break';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'on_break'}).eq('id',_clockState.sessionId);await logTimeEvent('break_start',null,null,null);_clockState.todayEvents.push({type:'break_start',time:now,label:'Break Started'});updateClockUI();showToast('Break started','info');}
+async function doBreakEnd(){var now=new Date();_clockState.breakMins+=Math.round((now-_clockState.breakStart)/60000);_clockState.breakStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'clocked_in',break_minutes:_clockState.breakMins}).eq('id',_clockState.sessionId);await logTimeEvent('break_end',null,null,null);_clockState.todayEvents.push({type:'break_end',time:now,label:'Break Ended'});updateClockUI();showToast('Back on the clock','success');}
+async function doLunchStart(){var now=new Date();_clockState.lunchStart=now;_clockState.status='lunch';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'at_lunch'}).eq('id',_clockState.sessionId);await logTimeEvent('lunch_start',null,null,null);_clockState.todayEvents.push({type:'lunch_start',time:now,label:'Lunch Started'});updateClockUI();showToast('Lunch started','info');}
+async function doLunchEnd(){var now=new Date();_clockState.lunchMins+=Math.round((now-_clockState.lunchStart)/60000);_clockState.lunchStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'clocked_in',lunch_minutes:_clockState.lunchMins}).eq('id',_clockState.sessionId);await logTimeEvent('lunch_end',null,null,null);_clockState.todayEvents.push({type:'lunch_end',time:now,label:'Lunch Ended'});updateClockUI();showToast('Back from lunch','success');}
+
+// TIMER
+function startClockTimer(){
+  clearInterval(_clockState.timerInterval);
+  _clockState.timerInterval=setInterval(function(){
+    if(_clockState.status==='out') return;
+    var now=new Date();
+    var disp=document.getElementById('clock-timer-display');
+    var lbl=document.getElementById('clock-timer-label');
+    if(_clockState.status==='traveling'){if(disp)disp.textContent=formatMs(now-_clockState.travelOutStart);if(lbl)lbl.textContent='🚗 Travel to Site';}
+    else if(_clockState.status==='onsite'){var offMs=(_clockState.breakMins+_clockState.lunchMins)*60000;if(_clockState.breakStart)offMs+=(now-_clockState.breakStart);if(_clockState.lunchStart)offMs+=(now-_clockState.lunchStart);if(disp)disp.textContent=formatMs(Math.max(0,now-_clockState.onsiteStart-offMs));if(lbl)lbl.textContent='🔧 On Site';}
+    else if(_clockState.status==='break'){if(disp)disp.textContent=formatMs(now-_clockState.breakStart);if(lbl)lbl.textContent='⏸ On Break';}
+    else if(_clockState.status==='lunch'){if(disp)disp.textContent=formatMs(now-_clockState.lunchStart);if(lbl)lbl.textContent='🍽 At Lunch';}
+    else if(_clockState.status==='returning'){if(disp)disp.textContent=formatMs(now-_clockState.travelBackStart);if(lbl)lbl.textContent='🚗 Return Travel';}
+    var travelMs=(_clockState.travelOutMins*60000)+(_clockState.status==='traveling'?now-_clockState.travelOutStart:0)+(_clockState.travelBackMins*60000)+(_clockState.status==='returning'?now-_clockState.travelBackStart:0);
+    var onsiteMs=(_clockState.onsiteMins*60000)+(_clockState.status==='onsite'?Math.max(0,now-_clockState.onsiteStart-(_clockState.breakMins+_clockState.lunchMins)*60000):0);
+    var breakMs=_clockState.breakMins*60000+(_clockState.breakStart?now-_clockState.breakStart:0);
+    function setDs(id,ms){var el=document.getElementById(id);if(el)el.textContent=formatMs(ms);}
+    setDs('ds-travel',travelMs);setDs('ds-worked',onsiteMs);setDs('ds-break',breakMs);
+  },1000);
+}
+
+function formatMs(ms){var s=Math.floor(Math.max(0,ms)/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return h+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');}
+function formatMinutes(mins){var h=Math.floor(mins/60),m=mins%60;return h+'h '+m+'m';}
+
+// UI UPDATE
+function updateClockUI(){
+  var dot=document.getElementById('clock-dot');
+  var txt=document.getElementById('clock-status-text');
+  var btnGrid=document.getElementById('clock-btn-grid');
+  var jobWrap=document.getElementById('clock-job-wrap');
+  var daySumm=document.getElementById('day-summary');
+  var punchCard=document.getElementById('punch-log-card');
+  var statusMap={out:{cls:'out',text:'Not Started'},traveling:{cls:'in',text:'🚗 Traveling to '+(_clockState.jobName||'Job')},onsite:{cls:'in',text:'🔧 On Site — '+(_clockState.jobName||'')},break:{cls:'break',text:'⏸ On Break'},lunch:{cls:'lunch',text:'🍽 At Lunch'},returning:{cls:'in',text:'🚗 Returning'}};
+  var s=statusMap[_clockState.status]||statusMap.out;
+  if(dot)dot.className='clock-status-dot '+s.cls;
+  if(txt)txt.textContent=s.text;
+  if(jobWrap)jobWrap.style.display=_clockState.status==='out'?'block':'none';
+  if(daySumm)daySumm.style.display=_clockState.status!=='out'?'grid':'none';
+  if(punchCard)punchCard.style.display=_clockState.todayEvents.length?'block':'none';
+  if(_clockState.status==='out'){var el=document.getElementById('clock-timer-display');if(el)el.textContent='0:00:00';}
+  if(!btnGrid) return;
+  if(_clockState.status==='out'){btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doStartTravel()" style="grid-column:1/-1"><span class="btn-icon">🚗</span>Start Travel to Site</button>';}
+  else if(_clockState.status==='traveling'){btnGrid.innerHTML='<button class="clock-btn clock-in" id="btn-arrive-site" onclick="doArriveOnSite()" style="grid-column:1/-1"><span class="btn-icon">📍</span>Arrive On Site — Clock In</button>';}
+  else if(_clockState.status==='onsite'){btnGrid.innerHTML='<button class="clock-btn break-start" onclick="doBreakStart()"><span class="btn-icon">⏸</span>Break</button><button class="clock-btn lunch-start" onclick="doLunchStart()"><span class="btn-icon">🍽</span>Lunch</button><button class="clock-btn clock-out" onclick="doLeaveOnSite()" style="grid-column:1/-1"><span class="btn-icon">🚗</span>Leave Site — Start Return</button>';}
+  else if(_clockState.status==='break'){btnGrid.innerHTML='<button class="clock-btn break-end" style="grid-column:1/-1" onclick="doBreakEnd()"><span class="btn-icon">▶</span>End Break — Back to Work</button>';}
+  else if(_clockState.status==='lunch'){btnGrid.innerHTML='<button class="clock-btn lunch-end" style="grid-column:1/-1" onclick="doLunchEnd()"><span class="btn-icon">▶</span>Back from Lunch</button>';}
+  else if(_clockState.status==='returning'){btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doArriveBack()" style="grid-column:1/-1;background:linear-gradient(135deg,#1565c0,#1976d2)"><span class="btn-icon">🏁</span>Arrived Back — End Day</button>';}
   renderPunchLog();
 }
 
-function renderPunchLog() {
-  var list = document.getElementById('punch-log-list');
-  if (!list || !_clockState.todayEvents.length) return;
-  var colors = { clock_in:'#2e7d32', clock_out:'#c62828', break_start:'#e65100', break_end:'#2e7d32', lunch_start:'#6a1b9a', lunch_end:'#2e7d32' };
-  var labels = { clock_in:'Clocked In', clock_out:'Clocked Out', break_start:'Break Started', break_end:'Break Ended', lunch_start:'Lunch Started', lunch_end:'Lunch Ended' };
-  list.innerHTML = _clockState.todayEvents.slice().reverse().map(function(ev){
-    var t = ev.time instanceof Date ? ev.time : new Date(ev.time);
-    var timeStr = t.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
-    var gpsStr = ev.lat ? ' · 📍' : '';
-    return '<div class="clock-log-item">' +
-      '<div class="clock-log-dot" style="background:' + (colors[ev.type]||'#90a4ae') + '"></div>' +
-      '<span class="clock-log-time">' + timeStr + '</span>' +
-      '<span class="clock-log-event">' + (labels[ev.type]||ev.type) + gpsStr + '</span>' +
-    '</div>';
+function renderPunchLog(){
+  var list=document.getElementById('punch-log-list');
+  if(!list||!_clockState.todayEvents.length) return;
+  var colors={travel_start:'#1565c0',clock_in:'#2e7d32',clock_out:'#e65100',break_start:'#e65100',break_end:'#2e7d32',lunch_start:'#6a1b9a',lunch_end:'#2e7d32',day_end:'#c62828'};
+  list.innerHTML=_clockState.todayEvents.slice().reverse().map(function(ev){
+    var t=ev.time instanceof Date?ev.time:new Date(ev.time);
+    var timeStr=t.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+    var flagStr=ev.flagged?' <span style="color:#c62828;font-size:10px">⚠️ Outside geofence</span>':'';
+    return '<div class="clock-log-item"><div class="clock-log-dot" style="background:'+(colors[ev.type]||'#90a4ae')+'"></div><span class="clock-log-time">'+timeStr+'</span><span class="clock-log-event">'+(ev.label||ev.type)+(ev.lat?' 📍':'')+flagStr+'</span></div>';
   }).join('');
 }
 
-// ---- POPULATE JOB SELECTOR ----
-function renderFieldPage() {
-  // Populate job selector with assigned jobs
-  var sel = document.getElementById('clock-job-select');
-  if (sel) {
-    sel.innerHTML = '<option value="">-- Choose your job --</option>';
-    var myJobs = DB.jobs.filter(function(j){
-      return (j.status==='Scheduled'||j.status==='In Progress') &&
-        (!_currentUser || !j.assignedTo || j.assignedTo.toLowerCase().includes(_currentUser.full_name.split(' ')[0].toLowerCase()));
-    });
-    if (myJobs.length === 0) {
-      // Show all active jobs if none specifically assigned
-      myJobs = DB.jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; });
-    }
-    myJobs.forEach(function(j){
-      var opt = document.createElement('option');
-      opt.value = j.id;
-      opt.textContent = j.name + (j.customer ? ' — ' + j.customer : '');
-      sel.appendChild(opt);
-    });
-    // Pre-select if already clocked in
-    if (_clockState.jobId) sel.value = _clockState.jobId;
+function renderFieldPage(){
+  var sel=document.getElementById('clock-job-select');
+  if(sel){
+    sel.innerHTML='<option value="">-- Choose your job --</option>';
+    var myJobs=DB.jobs.filter(function(j){return j.status==='Scheduled'||j.status==='In Progress';});
+    myJobs.forEach(function(j){var opt=document.createElement('option');opt.value=j.id;opt.textContent=j.name+(j.customer?' — '+j.customer:'');sel.appendChild(opt);});
+    if(_clockState.jobId) sel.value=_clockState.jobId;
   }
-
-  // My jobs list
-  var myJobsEl = document.getElementById('field-my-jobs');
-  if (myJobsEl) {
-    var myJobs2 = DB.jobs.filter(function(j){
-      return (j.status==='Scheduled'||j.status==='In Progress');
-    });
-    if (!myJobs2.length) {
-      myJobsEl.innerHTML = '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No active jobs assigned.</div>';
-    } else {
-      myJobsEl.innerHTML = myJobs2.map(function(j){
-        var sc = j.status==='In Progress'?'s-inprogress':'s-pending';
-        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5">' +
-          '<div><div style="font-weight:700;font-size:13px">' + escHtml(j.name||'') + '</div>' +
-          '<div style="font-size:11px;color:#90a4ae">' + escHtml(j.customer||'') + (j.address?' · '+escHtml(j.address):'') + '</div></div>' +
-          '<span class="status-badge ' + sc + '" style="font-size:10px">' + escHtml(j.status) + '</span>' +
-        '</div>';
-      }).join('');
-    }
+  var myJobsEl=document.getElementById('field-my-jobs');
+  if(myJobsEl){
+    var active=DB.jobs.filter(function(j){return j.status==='Scheduled'||j.status==='In Progress';});
+    if(!active.length){myJobsEl.innerHTML='<div style="color:#90a4ae;font-size:13px">No active jobs assigned.</div>';}
+    else{myJobsEl.innerHTML=active.map(function(j){var ha=!!j.gpsAnchor;return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5"><div><div style="font-weight:700;font-size:13px">'+escHtml(j.name||'')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(j.customer||'')+(j.address?' · '+escHtml(j.address):'')+' · '+(ha?'<span style="color:#2e7d32">📍 Anchor set</span>':'<span style="color:#90a4ae">No anchor yet</span>')+'</div></div><span class="status-badge '+(j.status==='In Progress'?'s-inprogress':'s-pending')+'" style="font-size:10px">'+escHtml(j.status)+'</span></div>';}).join('');}
   }
-
-  // Re-start timer if clocked in
-  if (_clockState.status !== 'out' && !_clockState.timerInterval) {
-    startClockTimer();
-  }
-
+  if(_clockState.status!=='out'&&!_clockState.timerInterval) startClockTimer();
   updateClockUI();
   getGPS(function(){});
 }
 
-// ---- EOD REMINDER ----
-function scheduleEodReminder() {
-  // Check every minute if it's past 4:45pm and still clocked in
-  clearInterval(window._eodInterval);
-  window._eodInterval = setInterval(function() {
-    if (_clockState.status === 'out') { clearInterval(window._eodInterval); return; }
-    var now = new Date();
-    var hour = now.getHours();
-    var min  = now.getMinutes();
-    if ((hour === 16 && min >= 45) || hour >= 17) {
-      if (!_eodReminderShown) {
-        _eodReminderShown = true;
-        showEodReminder();
-      }
-    }
-  }, 60000);
+// GEOFENCE SETTINGS
+function toggleGeofenceEnforcement(){
+  var cb=document.getElementById('s-geofence-enforce');
+  var lbl=document.getElementById('s-geofence-label');
+  var note=document.getElementById('geofence-status-note');
+  var on=cb?cb.checked:false;
+  if(lbl){lbl.textContent=on?'ON':'OFF';lbl.className='toggle-value-label'+(on?' on':'');}
+  if(note)note.innerHTML=on?'<span style="color:#c62828;font-weight:700">🔒 Hard mode ON</span> — techs blocked if outside 500 ft.':'Currently: <strong>Soft mode</strong> — GPS captured and flagged, techs never blocked.';
 }
 
-function showEodReminder() {
-  var existing = document.getElementById('eod-reminder');
-  if (existing) return;
-  var div = document.createElement('div');
-  div.id = 'eod-reminder';
-  div.className = 'eod-reminder';
-  div.innerHTML =
-    '<div class="eod-reminder-text">⏰ It\'s after 4:45pm — don\'t forget to clock out before you leave!</div>' +
-    '<button class="eod-clock-out-btn" onclick="doClockOut()">Clock Out Now</button>' +
-    '<button onclick="hideEodReminder()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:0 4px">×</button>';
-  document.body.appendChild(div);
+function saveFieldSettings(){
+  var cb=document.getElementById('s-geofence-enforce');
+  var addr=document.getElementById('s-office-addr');
+  DB.settings=Object.assign({},DB.settings,{geofenceEnforce:cb?cb.checked:false,officeAddr:addr?addr.value:''});
+  saveDB();
+  var savedEl=document.getElementById('field-settings-saved');
+  if(savedEl){savedEl.style.display='inline';setTimeout(function(){savedEl.style.display='none';},2000);}
+  showToast('Field settings saved','success');
 }
 
-function hideEodReminder() {
-  var el = document.getElementById('eod-reminder');
-  if (el) el.remove();
-}
+// EOD REMINDER
+function scheduleEodReminder(){clearInterval(window._eodInterval);window._eodInterval=setInterval(function(){if(_clockState.status==='out'){clearInterval(window._eodInterval);return;}var now=new Date(),h=now.getHours(),m=now.getMinutes();if((h===16&&m>=45)||h>=17){if(!_eodReminderShown){_eodReminderShown=true;showEodReminder();}}},60000);}
+function showEodReminder(){if(document.getElementById('eod-reminder'))return;var div=document.createElement('div');div.id='eod-reminder';div.className='eod-reminder';var btn=_clockState.status==='onsite'?'<button class="eod-clock-out-btn" onclick="doLeaveOnSite()">Leave Site</button>':_clockState.status==='returning'?'<button class="eod-clock-out-btn" onclick="doArriveBack()">End Day</button>':'<button class="eod-clock-out-btn" onclick="doArriveBack()">Clock Out</button>';div.innerHTML='<div class="eod-reminder-text">⏰ After 4:45pm — don\'t forget to clock out!</div>'+btn+'<button onclick="hideEodReminder()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:0 4px">×</button>';document.body.appendChild(div);}
+function hideEodReminder(){var el=document.getElementById('eod-reminder');if(el)el.remove();}
 
-// ---- TIMESHEET VIEW (Office/Owner) ----
-async function loadTimesheets() {
-  if (!_sb) return;
-  var dateEl = document.getElementById('ts-date-filter');
-  var date   = dateEl ? dateEl.value : new Date().toISOString().split('T')[0];
-
-  var body    = document.getElementById('timesheet-body');
-  var liveEl  = document.getElementById('live-activity');
-  if (body) body.innerHTML = '<div style="padding:20px;text-align:center;color:#90a4ae">Loading...</div>';
-
-  // Get sessions for selected date
-  var { data: sessions } = await _sb.from('clock_sessions')
-    .select('*')
-    .eq('date', date)
-    .order('clock_in_at');
-
-  if (!sessions || !sessions.length) {
-    if (body) body.innerHTML = '<div style="padding:20px;text-align:center;color:#90a4ae">No timesheet data for ' + date + '</div>';
-  } else {
-    if (body) body.innerHTML = sessions.map(function(s){
-      var inTime  = s.clock_in_at  ? new Date(s.clock_in_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '—';
-      var outTime = s.clock_out_at ? new Date(s.clock_out_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '—';
-      var hrs     = s.total_minutes > 0 ? (s.total_minutes/60).toFixed(1)+'h' : (s.status!=='clocked_out'?'<span style="color:#2e7d32;font-weight:700">Active</span>':'—');
-      var stBadge = s.status==='clocked_in'?'<span class="ts-badge ts-in">● In</span>':s.status==='on_break'?'<span class="ts-badge ts-break">⏸ Break</span>':s.status==='at_lunch'?'<span class="ts-badge ts-break">🍽 Lunch</span>':'<span class="ts-badge ts-out">✓ Out</span>';
-      return '<div class="timesheet-row">' +
-        '<span style="font-weight:600">' + escHtml(s.user_name||'') + '</span>' +
-        '<span style="font-size:11px;color:#546e7a">' + escHtml(s.job_name||'—') + '</span>' +
-        '<span>' + inTime + '</span>' +
-        '<span>' + outTime + '</span>' +
-        '<span>' + hrs + '</span>' +
-      '</div>';
+// TIMESHEET (office view)
+async function loadTimesheets(){
+  if(!_sb) return;
+  var dateEl=document.getElementById('ts-date-filter');
+  var date=dateEl?dateEl.value:new Date().toISOString().split('T')[0];
+  var body=document.getElementById('timesheet-body'),liveEl=document.getElementById('live-activity');
+  if(body)body.innerHTML='<div style="padding:20px;text-align:center;color:#90a4ae">Loading...</div>';
+  var {data:sessions}=await _sb.from('clock_sessions').select('*').eq('date',date).order('clock_in_at');
+  if(!sessions||!sessions.length){if(body)body.innerHTML='<div style="padding:20px;text-align:center;color:#90a4ae">No data for '+date+'</div>';}
+  else{
+    if(body)body.innerHTML=sessions.map(function(s){
+      var inTime=s.clock_in_at?new Date(s.clock_in_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'—';
+      var outTime=s.clock_out_at?new Date(s.clock_out_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'—';
+      var hrs=s.total_minutes>0?(s.total_minutes/60).toFixed(1)+'h':(s.status!=='clocked_out'?'<span style="color:#2e7d32;font-weight:700">Active</span>':'—');
+      var travelMins=(s.travel_out_mins||0)+(s.travel_back_mins||0);
+      var onsiteMins=s.onsite_mins||0;
+      var stBadge=s.status==='clocked_in'?'<span class="ts-badge ts-in">● On Site</span>':s.status==='traveling'?'<span class="ts-badge ts-break">🚗 Travel</span>':s.status==='returning'?'<span class="ts-badge ts-break">🚗 Return</span>':s.status==='on_break'?'<span class="ts-badge ts-break">⏸ Break</span>':'<span class="ts-badge ts-out">✓ Out</span>';
+      return '<div class="timesheet-row"><span style="font-weight:700">'+escHtml(s.user_name||'')+'</span><span style="font-size:11px;color:#546e7a">'+escHtml(s.job_name||'—')+'</span><span>'+inTime+'</span><span>'+outTime+'</span><span>'+hrs+'</span><span style="font-size:11px;color:#1565c0">'+(travelMins>0?Math.round(travelMins/60*10)/10+'h travel':'—')+'</span><span style="font-size:11px;color:#2e7d32">'+(onsiteMins>0?Math.round(onsiteMins/60*10)/10+'h on site':'—')+'</span></div>';
     }).join('');
   }
-
-  // Live activity
-  var { data: live } = await _sb.from('clock_sessions')
-    .select('*')
-    .in('status', ['clocked_in','on_break','at_lunch']);
-
-  if (liveEl) {
-    if (!live || !live.length) {
-      liveEl.innerHTML = '<div style="color:#90a4ae;font-size:13px;padding:8px 0">Nobody clocked in right now.</div>';
-    } else {
-      liveEl.innerHTML = live.map(function(s){
-        var inTime = s.clock_in_at ? new Date(s.clock_in_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '';
-        var statusTxt = s.status==='on_break' ? '⏸ On Break' : s.status==='at_lunch' ? '🍽 At Lunch' : '🟢 Working';
-        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5">' +
-          '<div><div style="font-weight:700;font-size:13px">' + escHtml(s.user_name||'') + '</div>' +
-          '<div style="font-size:11px;color:#90a4ae">' + escHtml(s.job_name||'') + ' · In at ' + inTime + '</div></div>' +
-          '<span style="font-size:12px;font-weight:700">' + statusTxt + '</span>' +
-        '</div>';
-      }).join('');
-    }
+  var {data:live}=await _sb.from('clock_sessions').select('*').in('status',['clocked_in','on_break','at_lunch','traveling','returning']);
+  if(liveEl){
+    if(!live||!live.length){liveEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">Nobody clocked in right now.</div>';}
+    else{liveEl.innerHTML=live.map(function(s){var inTime=s.clock_in_at?new Date(s.clock_in_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'';var statusTxt=s.status==='on_break'?'⏸ On Break':s.status==='at_lunch'?'🍽 Lunch':s.status==='traveling'?'🚗 Traveling':s.status==='returning'?'🚗 Returning':'🟢 On Site';return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5"><div><div style="font-weight:700;font-size:13px">'+escHtml(s.user_name||'')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(s.job_name||'')+' · '+inTime+'</div></div><span style="font-size:12px;font-weight:700">'+statusTxt+'</span></div>';}).join('');}
   }
 }
 
-// ---- RESTORE SESSION ON LOGIN ----
-async function restoreClockSession() {
-  if (!_sb || !_currentUser) return;
-  var today = new Date().toISOString().split('T')[0];
-  var { data } = await _sb.from('clock_sessions')
-    .select('*')
-    .eq('user_id', _currentUser.id)
-    .eq('date', today)
-    .neq('status', 'clocked_out')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (data) {
-    _clockState.status    = data.status;
-    _clockState.sessionId = data.id;
-    _clockState.clockInAt = new Date(data.clock_in_at);
-    _clockState.jobId     = data.job_id;
-    _clockState.jobName   = data.job_name;
-    _clockState.breakMinutes = data.break_minutes || 0;
-    _clockState.lunchMinutes = data.lunch_minutes || 0;
-    startClockTimer();
-    updateClockUI();
-    showToast('Session restored — still clocked in to ' + data.job_name, 'info');
+// RESTORE SESSION ON LOGIN
+async function restoreClockSession(){
+  if(!_sb||!_currentUser) return;
+  var today=new Date().toISOString().split('T')[0];
+  var {data}=await _sb.from('clock_sessions').select('*').eq('user_id',_currentUser.id).eq('date',today).neq('status','clocked_out').order('created_at',{ascending:false}).limit(1).single();
+  if(data){
+    _clockState.status=data.status;_clockState.sessionId=data.id;
+    _clockState.dayStart=new Date(data.clock_in_at);
+    _clockState.jobId=data.job_id;_clockState.jobName=data.job_name;
+    _clockState.breakMins=data.break_minutes||0;_clockState.lunchMins=data.lunch_minutes||0;
+    if(data.status==='traveling')_clockState.travelOutStart=new Date(data.clock_in_at);
+    if(data.status==='clocked_in'){_clockState.onsiteStart=new Date();_clockState.onsiteMins=data.onsite_mins||0;}
+    if(data.status==='returning'){_clockState.travelBackStart=new Date();_clockState.travelOutMins=data.travel_out_mins||0;_clockState.onsiteMins=data.onsite_mins||0;}
+    startClockTimer();updateClockUI();
+    showToast('Session restored — '+_clockState.jobName,'info');
     scheduleEodReminder();
   }
 }
 
-// Field page and timesheet rendering is now built into goPage directly
-
 // =============================================
-// END TIME CLOCK
+// END TIME CLOCK & GEOFENCING
 // =============================================
 
 var DEFAULT_ASSUMPTIONS = [
@@ -6593,9 +6923,19 @@ function loadSettings() {
   sv('s-followup-days', s.followupDays||7);
   sv('s-perdiem-markup', s.perDiemMarkup!==undefined ? s.perDiemMarkup : 15);
   sv('s-uname',s.uname);sv('s-utitle',s.utitle);sv('s-uphone',s.uphone);sv('s-uemail',s.uemail);
+  // Geofence settings
+  sv('s-office-addr', s.officeAddr||'');
+  var gfCb  = document.getElementById('s-geofence-enforce');
+  var gfLbl = document.getElementById('s-geofence-label');
+  var gfNote= document.getElementById('geofence-status-note');
+  if (gfCb) gfCb.checked = !!(s.geofenceEnforce);
+  if (gfLbl) { gfLbl.textContent = s.geofenceEnforce ? 'ON' : 'OFF'; gfLbl.className = 'toggle-value-label' + (s.geofenceEnforce ? ' on' : ''); }
+  if (gfNote) gfNote.innerHTML = s.geofenceEnforce
+    ? '<span style="color:#c62828;font-weight:700">🔒 Hard mode ON</span> — techs are blocked if outside 500 ft of job site.'
+    : 'Currently: <strong>Soft mode</strong> — GPS is captured and flagged but techs are never blocked.';
   const cb=document.getElementById('company-badge'); if(cb) cb.textContent=(s.cname||'TCSS').substring(0,12);
-  loadMarginFloors(); // V5
-  applyLogoEverywhere(s.logoDataUrl || null); // V5 logo
+  loadMarginFloors();
+  applyLogoEverywhere(s.logoDataUrl || null);
   loadProposalDefaultsUI();
   loadJtAddendumsUI();
 }
@@ -6755,7 +7095,7 @@ function importData() {
     reader.onload=function(ev){
       try {
         const data=JSON.parse(ev.target.result);
-        DB=Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],quoteSeq:1000,jobSeq:1,invSeq:1},data);
+        DB=Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1},data);
         saveDB(); input.value=''; alert('Backup restored successfully! Reloading...'); location.reload();
       } catch(err){alert('Error reading backup: '+err.message);input.value='';}
     };
@@ -7066,7 +7406,12 @@ document.addEventListener('click', function(e) {
     case 'saveMarginFloors': saveMarginFloors(); break;
     case 'removeLogo': removeLogo(); break;
     // V6 Phase 2
-    case 'openCloseout':   openCloseout(id); break;
+    case 'newToolItem':    newToolItem(); break;
+    case 'saveToolItem':   saveToolItem(); break;
+    case 'editTool':       editTool(id); break;
+    case 'delTool':        delTool(id); break;
+    case 'checkoutTool':   checkoutTool(id); break;
+    case 'checkinTool':    checkinTool(id); break;
     case 'saveCloseout':   saveCloseout(); break;
     case 'cqqAppend':      cqqAppend(); break;
     case 'confirmConvertJob': confirmConvertJob(); break;
@@ -8582,8 +8927,8 @@ if (document.readyState === 'loading') {
   <div class="mob-nav-item" onclick="mobileNav('field')" id="mob-field">
     <span class="mob-icon">⏱</span>Clock
   </div>
-  <div class="mob-nav-item" onclick="mobileNav('jobs')" id="mob-jobs">
-    <span class="mob-icon">🔧</span>Jobs
+  <div class="mob-nav-item" onclick="mobileNav('tools')" id="mob-tools">
+    <span class="mob-icon">🔧</span>Tools
   </div>
   <div class="mob-nav-item mob-nav-more" onclick="toggleMobileMenu()" id="mob-more">
     <span class="mob-icon">☰</span>More
