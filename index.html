@@ -9728,9 +9728,7 @@ var _syncPending = false;
 function initSupabase() {
   try {
     _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      global: {
-        headers: { apikey: SUPABASE_KEY }
-      }
+      global: { headers: { apikey: SUPABASE_KEY } }
     });
     return true;
   } catch(e) {
@@ -9970,175 +9968,11 @@ async function syncAllFromCloud() {
 }
 
 async function pushAllToCloud() {
-  if (!_sb || !_currentUser) {
-    console.warn('[Push] Aborted — no client or user. _sb:', !!_sb, '_currentUser:', !!_currentUser);
-    return;
-  }
+  if (!_sb || !_currentUser) return;
   if (_currentUser.role === 'field') return;
-  console.log('[Push] Starting push. User:', _currentUser.id, 'Role:', _currentUser.role);
-  console.log('[Push] Quotes to push:', (DB.quotes || []).length);
   try {
-    // Push settings
+    // Push settings to company_settings (single row, id=1)
     await _sb.from('company_settings').upsert({
-      id: 1,
-      company_name: DB.settings.cname || 'TCSS',
-      default_labor_rate: DB.settings.laborRate || 100,
-      default_target_margin: DB.settings.targetMargin || 35,
-      ma_enabled: DB.settings.managerApproval ? !!DB.settings.managerApproval.enabled : false,
-      ma_below_floor_only: DB.settings.managerApproval ? !!DB.settings.managerApproval.belowFloorOnly : true,
-      ma_pin_hash: DB.settings.managerApproval ? (DB.settings.managerApproval.pinHash || '') : '',
-      ma_pin_salt: DB.settings.managerApproval ? (DB.settings.managerApproval.pinSalt || '') : ''
-    });
-
-    // Push quotes
-    for (var q of (DB.quotes || [])) {
-      if (!q || !q.id) { console.warn('[Push] Skipping quote with no id:', q); continue; }
-      try {
-        var statusMap = {
-          'draft': 'Draft', 'Draft': 'Draft',
-          'sent': 'Sent', 'Sent': 'Sent',
-          'review': 'Review', 'Review': 'Review',
-          'followup': 'Review',
-          'approved': 'Approved', 'Approved': 'Approved',
-          'won': 'Won', 'Won': 'Won',
-          'declined': 'Lost', 'lost': 'Lost', 'Lost': 'Lost',
-          'rejected': 'Rejected', 'Rejected': 'Rejected',
-          'expired': 'Expired', 'Expired': 'Expired'
-        };
-        var payload = {
-          id: q.id,
-          quote_number: q.num || null,
-          customer_name: q.cn || null,
-          job_id: null,
-          sales_rep_name: q.rep || null,
-          status: statusMap[q.status] || 'Draft',
-          quote_date: q.dt || new Date().toISOString().split('T')[0],
-          valid_until: q.vu || null,
-          quote_type: q.jt || null,
-          environment: q.env || null,
-          pricing_mode: (q.pricingMode === 'markup' ? 'markup' : 'margin'),
-          target_margin: q.targetMargin || 35,
-          labor_rate: q.laborRate || 100,
-          tax_rate: q.taxRate || 0,
-          discount: q.discount || 0,
-          total_material_cost: q.totalMaterialCost || 0,
-          total_labor_hours: q.totalLaborHours || 0,
-          labor_sell: q.laborSell || 0,
-          material_sell: q.materialSell || 0,
-          total_cost: q.totalCost || 0,
-          sell_before_tax: q.sellBeforeTax || 0,
-          tax_amount: q.taxAmt || 0,
-          total_sell: q.total || 0,
-          achieved_margin_pct: q.achievedMargin || 0,
-          below_margin_floor: !!q.belowMarginFloor,
-          scope_notes: q.notes || null,
-          internal_notes: q.internalNotes || null,
-          quote_terms: q.terms || null,
-          priority: q.priority || 'Normal',
-          lump_sum_enabled: !!(q.lumpSum && q.lumpSum.enabled),
-          lump_sum_label: (q.lumpSum && q.lumpSum.label) || null,
-          approval_status: (q.approval && q.approval.status) || null,
-          created_by: _currentUser.id
-        };
-        console.log('[Push] Upserting quote:', q.num, 'status:', payload.status, 'date:', payload.quote_date);
-        var result = await _sb.from('quotes').upsert(payload);
-        if (result.error) {
-          console.error('[Push] Quote upsert FAILED for', q.num, ':', result.error);
-        } else {
-          console.log('[Push] Quote upsert OK for', q.num);
-          // Push line items
-          if (q.items && q.items.length > 0) {
-            await _sb.from('quote_line_items').delete().eq('quote_id', q.id);
-            var lineItems = q.items.map(function(item, idx) {
-              return {
-                quote_id: q.id,
-                sort_order: idx,
-                description: item.desc || '',
-                category: item.cat || null,
-                qty: item.qty || 1,
-                unit: item.unit || 'ea',
-                material_cost: item.mc || 0,
-                labor_hours: item.lh || 0
-              };
-            });
-            var liResult = await _sb.from('quote_line_items').insert(lineItems);
-            if (liResult.error) console.error('[Push] Line items FAILED for', q.num, ':', liResult.error);
-          }
-        }
-      } catch(qErr) {
-        console.error('[Push] Exception for quote', q.num, ':', qErr);
-      }
-    }
-
-    // Push customers
-    for (var c of (DB.customers || [])) {
-      if (!c || !c.id) continue;
-      try {
-        var cResult = await _sb.from('customers').upsert({
-          id: c.id,
-          name: c.name || '',
-          company: c.company || null,
-          email: c.email || null,
-          phone: c.phone || null,
-          phone_alt: c.phone2 || null,
-          address: c.address || null,
-          city: c.city || null,
-          state: c.state || null,
-          zip: c.zip || null,
-          notes: c.notes || null,
-          is_active: c.active !== false,
-          created_by: _currentUser.id
-        });
-        if (cResult.error) console.error('[Push] Customer FAILED:', c.name, cResult.error);
-      } catch(cErr) {
-        console.warn('[Push] Customer exception:', c.name, cErr);
-      }
-    }
-
-    // Push catalog
-    for (var item of (DB.catalog || [])) {
-      if (!item || !item.id) continue;
-      try {
-        await _sb.from('catalog').upsert({
-          id: item.id,
-          name: item.name || '',
-          description: item.desc || null,
-          category: item.cat || null,
-          unit: item.unit || 'ea',
-          default_cost: item.cost || 0,
-          default_hours: item.hours || 0,
-          notes: item.notes || null,
-          is_active: item.active !== false
-        });
-      } catch(iErr) {
-        console.warn('[Push] Catalog exception:', item.name, iErr);
-      }
-    }
-
-    // Push templates
-    for (var t of (DB.templates || [])) {
-      if (!t || !t.id) continue;
-      try {
-        await _sb.from('templates').upsert({
-          id: t.id,
-          name: t.name || '',
-          category: t.cat || null,
-          description: t.desc || null,
-          items: t.items || [],
-          is_active: true,
-          created_by: _currentUser.id
-        });
-      } catch(tErr) {
-        console.warn('[Push] Template exception:', t.name, tErr);
-      }
-    }
-
-    console.log('[Push] All done');
-  } catch(e) {
-    console.error('[Push] Top-level error:', e);
-    showToast('Sync error — changes saved locally', 'warning');
-  }
-}
       id: 1,
       company_name: DB.settings.cname || 'TCSS',
       default_labor_rate: DB.settings.laborRate || 100,
