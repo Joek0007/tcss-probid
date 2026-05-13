@@ -9969,18 +9969,30 @@ async function pushAllToCloud() {
     for (var q of (DB.quotes || [])) {
       if (!q || !q.id) continue;
       try {
+        // Map app status values to schema enum values
+        var statusMap = {
+          'draft': 'Draft', 'Draft': 'Draft',
+          'sent': 'Sent', 'Sent': 'Sent',
+          'review': 'Review', 'Review': 'Review',
+          'followup': 'Review',
+          'approved': 'Approved', 'Approved': 'Approved',
+          'won': 'Won', 'Won': 'Won',
+          'declined': 'Lost', 'lost': 'Lost', 'Lost': 'Lost',
+          'rejected': 'Rejected', 'Rejected': 'Rejected',
+          'expired': 'Expired', 'Expired': 'Expired'
+        };
         await _sb.from('quotes').upsert({
           id: q.id,
           quote_number: q.num || null,
           customer_name: q.cn || null,
-          job_id: null,  // linked later when job management is built
+          job_id: null,
           sales_rep_name: q.rep || null,
-          status: (q.status || 'Draft'),
-          quote_date: q.dt || null,
+          status: statusMap[q.status] || 'Draft',
+          quote_date: q.dt || new Date().toISOString().split('T')[0],
           valid_until: q.vu || null,
           quote_type: q.jt || null,
           environment: q.env || null,
-          pricing_mode: q.pricingMode || 'margin',
+          pricing_mode: (q.pricingMode === 'markup' ? 'markup' : 'margin'),
           target_margin: q.targetMargin || 35,
           labor_rate: q.laborRate || 100,
           tax_rate: q.taxRate || 0,
