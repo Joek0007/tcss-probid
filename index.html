@@ -13,7 +13,7 @@
 <style>
 
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh;line-height:1.4}
 :root{--blue:#1565c0;--blue2:#1976d2;--teal:#00695c;--green:#2e7d32;--orange:#e65100;--red:#c62828;--gold:#f57f17;--gray:#607d8b;--sidebar:220px;--top:56px}
 #sidebar{position:fixed;top:0;left:0;width:var(--sidebar);height:100vh;background:linear-gradient(180deg,#0d1b2a 0%,#1a2744 100%);z-index:200;display:flex;flex-direction:column;overflow-y:auto}
 #sidebar .logo{padding:14px 12px 14px 14px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;overflow:visible;min-width:0}
@@ -30,17 +30,17 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e;mi
 #topbar .page-title{font-size:18px;font-weight:700;color:#0d1b2a;flex:1}
 #topbar .topbar-right{display:flex;align-items:center;gap:10px}
 .badge-company{background:#e3f2fd;color:#1565c0;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600}
-#content{margin-left:var(--sidebar);margin-top:var(--top);padding:24px;min-height:calc(100vh - var(--top))}
+#content{margin-left:var(--sidebar);margin-top:var(--top);padding:28px;min-height:calc(100vh - var(--top))}
 .page{display:none}.page.active{display:block}
-.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
 .page-header h2{font-size:22px;font-weight:700;color:#0d1b2a}
-.card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.07);margin-bottom:16px}
-.card-title{font-size:15px;font-weight:700;color:#0d1b2a;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px}
-.stat-card{background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,.07);border-left:4px solid var(--blue)}
+.card{background:#fff;border-radius:12px;padding:22px;box-shadow:0 3px 10px rgba(0,0,0,.07);margin-bottom:18px;border:1px solid rgba(13,27,42,.04)}
+.card-title{font-size:15px;font-weight:700;color:#0d1b2a;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:18px;margin-bottom:24px}
+.stat-card{background:#fff;border-radius:12px;padding:20px 22px;box-shadow:0 3px 10px rgba(0,0,0,.07);border-left:4px solid var(--blue);border:1px solid rgba(13,27,42,.04)}
 .stat-card.green{border-left-color:#2e7d32}.stat-card.orange{border-left-color:#e65100}.stat-card.teal{border-left-color:#00695c}
-.stat-val{font-size:26px;font-weight:800;color:#0d1b2a}.stat-lbl{font-size:12px;color:#607d8b;margin-top:2px;font-weight:500}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s;text-decoration:none}
+.stat-val{font-size:28px;font-weight:900;color:#0d1b2a}.stat-lbl{font-size:12px;color:#607d8b;margin-top:4px;font-weight:600}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:700;transition:all .18s;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.04)}
 .btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:#1251a3}
 .btn-success{background:#2e7d32;color:#fff}.btn-success:hover{background:#1b5e20}
 .btn-warning{background:#f57f17;color:#fff}.btn-warning:hover{background:#e65100}
@@ -49,8 +49,8 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e;mi
 .btn-sm{padding:5px 12px;font-size:12px}
 .btn-ghost{background:transparent;color:#607d8b;border:1px solid #e0e0e0}.btn-ghost:hover{background:#f5f5f5}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{background:#f5f7fa;padding:10px 12px;text-align:left;font-weight:700;color:#455a64;border-bottom:2px solid #e0e0e0;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
-td{padding:10px 12px;border-bottom:1px solid #f0f0f0;color:#37474f;vertical-align:middle}
+th{background:#f5f7fa;padding:11px 12px;text-align:left;font-weight:700;color:#455a64;border-bottom:2px solid #e0e0e0;font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+td{padding:11px 12px;border-bottom:1px solid #f0f0f0;color:#37474f;vertical-align:middle}
 tr:hover td{background:#fafbfc}
 .status-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
 .s-draft{background:#eceff1;color:#546e7a}.s-sent{background:#e3f2fd;color:#1565c0}.s-approved{background:#e8f5e9;color:#2e7d32}
@@ -58,8 +58,8 @@ tr:hover td{background:#fafbfc}
 .s-lost{background:#ffebee;color:#b71c1c}.s-followup{background:#f3e5f5;color:#6a1b9a}
 input,select,textarea{width:100%;padding:8px 12px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:13px;color:#1a1a2e;background:#fff;transition:border-color .2s;font-family:inherit}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(25,118,210,.1)}
-label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4px}
-.form-row{display:grid;gap:14px;margin-bottom:14px}
+label{display:block;font-size:12px;font-weight:700;color:#455a64;margin-bottom:5px}
+.form-row{display:grid;gap:16px;margin-bottom:16px}
 .form-row.cols2{grid-template-columns:1fr 1fr}
 .form-row.cols3{grid-template-columns:1fr 1fr 1fr}
 .form-row.cols4{grid-template-columns:1fr 1fr 1fr 1fr}
@@ -75,9 +75,24 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 .close-btn:hover{color:#c62828}
 .qq-grid{display:grid;grid-template-columns:1fr 340px;gap:20px}
 @media(max-width:900px){.qq-grid{grid-template-columns:1fr}}
-.section-title{font-size:13px;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;padding:8px 0 6px;border-bottom:2px solid #e3f2fd;margin-bottom:12px}
+.section-title{font-size:13px;font-weight:800;color:#1565c0;text-transform:uppercase;letter-spacing:.9px;padding:8px 0 8px;border-bottom:2px solid #e3f2fd;margin-bottom:14px}
 .pricing-card{background:linear-gradient(135deg,#0d1b2a 0%,#1a2744 100%);border-radius:12px;padding:18px;color:#fff}
 .pricing-mode-badge{background:rgba(25,118,210,.6);color:#90caf9;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:inline-block}
+
+/* Segmented pricing-mode toggle (replaces dropdown UX) */
+.pricing-mode-toggle{display:flex;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:3px;gap:0;width:100%;margin-bottom:10px}
+.pricing-mode-toggle .pmt-btn{flex:1;padding:8px 12px;border:none;background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:700;letter-spacing:.3px;cursor:pointer;border-radius:7px;transition:all .15s ease;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit}
+.pricing-mode-toggle .pmt-btn:hover:not(.active){background:rgba(255,255,255,.06);color:#fff}
+.pricing-mode-toggle .pmt-btn.active.margin-mode{background:#1565c0;color:#fff;box-shadow:0 2px 6px rgba(21,101,192,.4)}
+.pricing-mode-toggle .pmt-btn.active.markup-mode{background:#2e7d32;color:#fff;box-shadow:0 2px 6px rgba(46,125,50,.4)}
+
+/* Mode-switch banner shown when total changes meaningfully */
+.pmt-switch-banner{margin-top:8px;padding:8px 10px;background:#fff8e1;border:1px solid #ffc107;color:#856404;border-radius:6px;font-size:11px;font-weight:600;display:none;line-height:1.4}
+.pmt-switch-banner.show{display:block}
+.pmt-switch-banner .pmt-close{float:right;cursor:pointer;background:none;border:none;color:#856404;font-size:14px;line-height:1;padding:0 0 0 8px}
+
+/* Equivalent margin badge (markup mode) */
+.li-equiv-margin{font-size:10px;color:#90a4ae;font-weight:400;margin-left:4px}
 .pricing-card label{color:rgba(255,255,255,.75);font-size:11px}
 .pricing-card input,.pricing-card select{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff;padding:7px 10px}
 .pricing-card input:focus,.pricing-card select:focus{border-color:#64b5f6;box-shadow:0 0 0 3px rgba(100,181,246,.15)}
@@ -113,7 +128,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 .warning-box.critical{background:#ffebee;border-color:#ef9a9a;color:#c62828}
 .env-default-note{font-size:11px;color:#64b5f6;margin-top:3px;display:none}
 .env-default-note.visible{display:block}
-.filter-bar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.filter-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
 .filter-bar input{max-width:240px}
 .filter-bar select{max-width:160px;width:auto}
 .search-input{max-width:280px}
@@ -127,7 +142,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 .empty-state{text-align:center;padding:40px 20px;color:#90a4ae}
 .empty-state .empty-icon{font-size:48px;margin-bottom:10px}
 .empty-state p{font-size:14px}
-.tab-nav{display:flex;gap:0;border-bottom:2px solid #e0e0e0;margin-bottom:16px}
+.tab-nav{display:flex;gap:0;border-bottom:2px solid #e0e0e0;margin-bottom:18px}
 .tab-btn{padding:9px 18px;background:none;border:none;cursor:pointer;font-size:13px;font-weight:600;color:#607d8b;border-bottom:2px solid transparent;margin-bottom:-2px}
 .tab-btn.active{color:#1565c0;border-bottom-color:#1565c0}
 .progress-bar-outer{background:rgba(255,255,255,.15);border-radius:10px;height:8px;margin:6px 0}
@@ -137,7 +152,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
   #sidebar.mobile-open{transform:translateX(0);box-shadow:4px 0 20px rgba(0,0,0,.4)}
   #mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:299}
   #mobile-overlay.visible{display:block}
-  #content{margin-left:0;padding:14px;padding-bottom:72px}
+  #content{margin-left:0;padding:16px;padding-bottom:72px}
   #topbar{left:0;padding:0 12px}
   .form-row.cols2,.form-row.cols3,.form-row.cols4{grid-template-columns:1fr}
   .stat-grid{grid-template-columns:1fr 1fr}
@@ -151,7 +166,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 @media(hover:none) and (pointer:coarse){
   #sidebar{transform:translateX(-220px);transition:transform .3s;z-index:300}
   #sidebar.mobile-open{transform:translateX(0);box-shadow:4px 0 20px rgba(0,0,0,.4)}
-  #content{margin-left:0;padding:14px;padding-bottom:72px}
+  #content{margin-left:0;padding:16px;padding-bottom:72px}
   #topbar{left:0;padding:0 12px}
   #mobile-nav{display:flex!important}
   #mobile-menu-btn{display:block!important}
@@ -225,7 +240,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 
 /* ===== V6 PHASE 2 STYLES ===== */
 /* Pipeline bar */
-.pipeline-bar{display:flex;height:28px;border-radius:8px;overflow:hidden;margin:12px 0;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.pipeline-bar{display:flex;height:30px;border-radius:9px;overflow:hidden;margin:14px 0;box-shadow:0 2px 6px rgba(0,0,0,.1)}
 .pipeline-seg{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;transition:width .4s;overflow:hidden;white-space:nowrap;padding:0 6px;text-shadow:0 1px 2px rgba(0,0,0,.3)}
 .pipeline-seg.draft{background:#607d8b}
 .pipeline-seg.sent{background:#1565c0}
@@ -257,7 +272,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 .btn-convert:hover{background:#1b5e20}
 
 /* Job tracking page enhancements */
-.job-card{background:#fff;border-radius:10px;padding:14px 18px;box-shadow:0 2px 6px rgba(0,0,0,.07);margin-bottom:10px;border-left:4px solid #607d8b;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}
+.job-card{background:#fff;border-radius:10px;padding:16px 18px;box-shadow:0 3px 8px rgba(0,0,0,.07);margin-bottom:12px;border-left:4px solid #607d8b;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;border:1px solid rgba(13,27,42,.04)}
 .job-card.scheduled{border-left-color:#1565c0}
 .job-card.inprogress{border-left-color:#f57f17}
 .job-card.complete{border-left-color:#2e7d32}
@@ -603,6 +618,73 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 .sidebar-logo-img{max-height:36px;max-width:172px;width:100%;height:auto;object-fit:contain;object-position:left center;display:block}
 
 
+
+
+/* ===== STAGE 3 QUICK QUOTE GUARDRAILS ===== */
+.qq-stage3-panel{background:linear-gradient(135deg,#f8fbff,#eef5ff);border:1.5px solid #cfe3ff;border-radius:12px;padding:14px 16px;margin:0 0 16px;box-shadow:0 2px 8px rgba(21,101,192,.06)}
+.qq-stage3-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.qq-stage3-pill{display:inline-flex;align-items:center;gap:6px;background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+.qq-stage3-sub{font-size:12px;color:#546e7a;font-weight:600}
+.qq-stage3-shortcut{font-size:11px;color:#90a4ae;font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+.qq-stage3-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px}
+.qq-stage3-check{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:700;color:#607d8b}
+.qq-stage3-check.ok{border-color:#a5d6a7;background:#e8f5e9;color:#2e7d32}
+.qq-stage3-check.warn{border-color:#ffcc80;background:#fff8e1;color:#e65100}
+.qq-stage3-check.bad{border-color:#ef9a9a;background:#ffebee;color:#c62828}
+.qq-stage3-dot{width:10px;height:10px;border-radius:50%;background:#b0bec5;flex-shrink:0}
+.qq-stage3-check.ok .qq-stage3-dot{background:#2e7d32}
+.qq-stage3-check.warn .qq-stage3-dot{background:#f57f17}
+.qq-stage3-check.bad .qq-stage3-dot{background:#c62828}
+.qq-stage3-progress{height:10px;background:#dfe8f2;border-radius:999px;overflow:hidden;margin-bottom:8px}
+.qq-stage3-progress-bar{height:10px;background:linear-gradient(90deg,#1565c0,#42a5f5);width:0;transition:width .25s ease}
+.qq-stage3-help{font-size:12px;color:#546e7a;line-height:1.5}
+.qq-invalid{border-color:#c62828!important;box-shadow:0 0 0 3px rgba(198,40,40,.12)!important;background:#fffafb}
+.qq-sticky-bar{position:sticky;bottom:10px;z-index:90;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:rgba(13,27,42,.96);color:#fff;border-radius:14px;padding:12px 14px;margin-top:14px;box-shadow:0 12px 28px rgba(13,27,42,.28)}
+.qq-sticky-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.qq-sticky-metric{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.qq-sticky-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.qq-sticky-right .btn{box-shadow:none}
+@media(max-width:768px){.qq-stage3-top{align-items:flex-start}.qq-sticky-bar{bottom:72px}.qq-sticky-right{width:100%}.qq-sticky-right .btn{flex:1;justify-content:center}}
+
+
+
+/* ===== STAGE 4: LIFECYCLE + CONTROL LAYER ===== */
+.qq-stage4-shell{background:linear-gradient(135deg,#ffffff,#f7fbff);border:1.5px solid #d7e9ff;border-radius:14px;padding:14px 16px;margin:0 0 14px;box-shadow:0 3px 12px rgba(21,101,192,.07)}
+.qq-stage4-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.qq-stage4-num{font-size:24px;font-weight:900;color:#0d1b2a;letter-spacing:-.4px}
+.qq-stage4-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.qq-stage4-total{font-size:28px;font-weight:900;color:#1565c0;letter-spacing:-.5px}
+.qq-stage4-sub{font-size:12px;color:#607d8b;font-weight:600}
+.qq-stage4-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.qq-stage4-step{position:relative;padding:10px 12px;border-radius:12px;background:#edf2f7;border:1px solid #dbe5ee;min-height:54px;display:flex;flex-direction:column;justify-content:center;transition:all .18s ease}
+.qq-stage4-step.active{background:linear-gradient(135deg,#1565c0,#1e88e5);border-color:#1565c0;box-shadow:0 6px 16px rgba(21,101,192,.24)}
+.qq-stage4-step.done{background:#e8f5e9;border-color:#a5d6a7}
+.qq-stage4-step-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#607d8b}
+.qq-stage4-step-value{font-size:13px;font-weight:800;color:#0d1b2a;margin-top:2px}
+.qq-stage4-step.active .qq-stage4-step-label,.qq-stage4-step.active .qq-stage4-step-value{color:#fff}
+.qq-stage4-step.done .qq-stage4-step-label{color:#2e7d32}
+.qq-stage4-step.done .qq-stage4-step-value{color:#1b5e20}
+.qq-stage4-status{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;border:1px solid transparent}
+.qq-stage4-status.draft{background:#eceff1;color:#546e7a;border-color:#cfd8dc}
+.qq-stage4-status.ready{background:#e3f2fd;color:#1565c0;border-color:#90caf9}
+.qq-stage4-status.sent{background:#fff3e0;color:#e65100;border-color:#ffcc80}
+.qq-stage4-status.followup{background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8}
+.qq-stage4-status.approved{background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7}
+.qq-stage4-status.declined{background:#ffebee;color:#c62828;border-color:#ef9a9a}
+.qq-stage4-hint{font-size:12px;color:#546e7a;margin-top:10px;line-height:1.45}
+#qq-smart-action{min-width:150px;justify-content:center}
+@media(max-width:768px){.qq-stage4-flow{grid-template-columns:1fr 1fr}.qq-stage4-total{font-size:24px}.qq-stage4-num{font-size:22px}}
+
+/* ===== STEP 2 SAFE UI TIGHTENING ===== */
+.card:hover,.stat-card:hover,.job-card:hover{box-shadow:0 6px 16px rgba(0,0,0,.08)}
+.btn:hover{transform:translateY(-1px)}
+.nav-item,.tab-btn,.inv-tab,.rpt-tab,.mob-nav-item,.cat-item,.tpl-card,.job-card,.stat-card,.card,.btn{transition:all .18s ease}
+input,select,textarea{min-height:38px}
+textarea{min-height:90px}
+table{font-size:12.5px}
+.empty-state{padding:44px 20px}
+.page-header h2{letter-spacing:-.2px}
+
 </style>
 </head>
 <body>
@@ -611,14 +693,14 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
   <div class="logo" id="sidebar-logo-block">
     <div class="logo-icon" id="sidebar-logo-icon">T</div>
     <div id="sidebar-logo-img-wrap" style="display:none;width:100%;overflow:hidden"><img id="sidebar-logo-img" class="sidebar-logo-img" src="" alt="Logo"></div>
-    <div id="sidebar-logo-text-block"><div class="logo-text">TCSS ProBid</div><div class="logo-sub">v8 — Phase 4</div></div>
+    <div id="sidebar-logo-text-block"><div class="logo-text">TCSS ProBid</div><div class="logo-sub">V9 — Cloud</div></div>
   </div>
   <div class="nav-group">
     <div class="nav-group-title">Main</div>
     <div class="nav-item active" data-page="dash"><span class="nav-icon">📊</span>Dashboard</div>
     <div class="nav-item" data-page="qq"><span class="nav-icon">⚡</span>Quick Quote</div>
-    <div class="nav-item" data-page="quotes"><span class="nav-icon">📋</span>Quotes &amp; Bids</div>
-    <div class="nav-item" data-page="jobs"><span class="nav-icon">🔧</span>Jobs</div>
+    <div class="nav-item" data-page="quotes"><span class="nav-icon">📋</span>Quotes</div>
+    <div class="nav-item" data-page="jobs"><span class="nav-icon">🔧</span>Active Jobs</div>
   </div>
   <div class="nav-group">
     <div class="nav-group-title">People</div>
@@ -634,8 +716,8 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
   <div class="nav-group">
     <div class="nav-group-title">Business</div>
     <div class="nav-item" data-page="reports"><span class="nav-icon">📈</span>Reports</div>
-    <div class="nav-item" data-page="inventory"><span class="nav-icon">📦</span>Materials</div>
-    <div class="nav-item" data-page="tools"><span class="nav-icon">🔧</span>Tools &amp; Assets</div>
+    <div class="nav-item" data-page="inventory"><span class="nav-icon">📦</span>Inventory</div>
+    <div class="nav-item" data-page="tools"><span class="nav-icon">🔧</span>Tools</div>
     <div class="nav-item" data-page="field"><span class="nav-icon">⏱</span>Time Clock</div>
     <div class="nav-item" data-page="timesheet" id="nav-timesheet"><span class="nav-icon">📋</span>Timesheets</div>
     <div class="nav-item" data-page="settings"><span class="nav-icon">⚙️</span>Settings</div>
@@ -645,7 +727,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
   <button id="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
   <div class="page-title" id="topbar-title">Dashboard</div>
   <div class="topbar-right">
-    <span class="version-badge">V9 · Cloud</span>
+    <span class="version-badge">V9 — Cloud</span>
     <span class="badge-company" id="company-badge">TCSS</span>
     <span id="user-name-badge" style="font-size:12px;color:#546e7a;font-weight:600"></span>
     <div id="user-badge" onclick="showUserMenu()" title="Account" style="width:32px;height:32px;border-radius:50%;background:#1565c0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0">?</div>
@@ -716,7 +798,51 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
       <button class="btn btn-primary" data-action="saveQQ">💾 Save Quote</button>
     </div>
   </div>
-  <div class="qq-grid">
+  <div class="qq-stage3-panel no-print" id="qq-stage3-panel">
+    <div class="qq-stage3-top">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="qq-stage3-pill" id="qq-stage3-pill">New Draft</span>
+        <span class="qq-stage3-sub" id="qq-stage3-sub">Waiting for quote details</span>
+      </div>
+      <div class="qq-stage3-shortcut">Ctrl+S to save</div>
+    </div>
+    <div class="qq-stage3-checks">
+      <div class="qq-stage3-check bad" id="qq-check-customer"><span class="qq-stage3-dot"></span><span>Customer</span></div>
+      <div class="qq-stage3-check bad" id="qq-check-job"><span class="qq-stage3-dot"></span><span>Job Name</span></div>
+      <div class="qq-stage3-check bad" id="qq-check-items"><span class="qq-stage3-dot"></span><span>Line Items</span></div>
+      <div class="qq-stage3-check warn" id="qq-check-dates"><span class="qq-stage3-dot"></span><span>Dates</span></div>
+      <div class="qq-stage3-check warn" id="qq-check-pricing"><span class="qq-stage3-dot"></span><span>Pricing</span></div>
+    </div>
+    <div class="qq-stage3-progress"><div class="qq-stage3-progress-bar" id="qq-stage3-progress-bar"></div></div>
+    <div class="qq-stage3-help" id="qq-stage3-help">Add customer, job name, and at least one line item to make this quote buildable.</div>
+  </div>
+  
+  <!-- ===== STAGE 4: LIFECYCLE + CONTROL ===== -->
+  <div class="qq-stage4-shell no-print" id="qq-stage4-shell">
+    <div class="qq-stage4-head">
+      <div>
+        <div class="qq-stage4-num" id="qq-stage4-num">Quote #---</div>
+        <div class="qq-stage4-meta">
+          <span class="qq-stage4-status draft" id="qq-stage4-status">Draft</span>
+          <span class="qq-stage4-sub" id="qq-stage4-sub">Build the quote, then move it forward with the smart action button.</span>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div class="qq-stage4-total" id="qq-stage4-total">$ 0.00</div>
+        <div class="qq-stage4-sub" id="qq-stage4-total-sub">Current quote total</div>
+      </div>
+    </div>
+    <div class="qq-stage4-flow" id="qq-stage4-flow">
+      <div class="qq-stage4-step" data-stage4-step="draft"><span class="qq-stage4-step-label">Stage 1</span><span class="qq-stage4-step-value">Draft</span></div>
+      <div class="qq-stage4-step" data-stage4-step="ready"><span class="qq-stage4-step-label">Stage 2</span><span class="qq-stage4-step-value">Ready</span></div>
+      <div class="qq-stage4-step" data-stage4-step="sent"><span class="qq-stage4-step-label">Stage 3</span><span class="qq-stage4-step-value">Sent</span></div>
+      <div class="qq-stage4-step" data-stage4-step="followup"><span class="qq-stage4-step-label">Stage 4</span><span class="qq-stage4-step-value">Follow-Up</span></div>
+      <div class="qq-stage4-step" data-stage4-step="closed"><span class="qq-stage4-step-label">Stage 5</span><span class="qq-stage4-step-value">Won / Lost</span></div>
+    </div>
+    <div class="qq-stage4-hint" id="qq-stage4-hint">Start by filling customer, job name, and line items.</div>
+  </div>
+
+<div class="qq-grid">
     <div>
       <!-- Customer Info -->
       <div class="card">
@@ -778,6 +904,12 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
           <div><label>Internal Notes</label><textarea id="qq-int" rows="2" placeholder="For internal use only..."></textarea></div>
           <div><label>Quote Status</label><select id="qq-status"><option value="draft">Draft</option><option value="sent">Sent</option><option value="followup">Follow-Up</option><option value="approved">Approved/Won</option><option value="declined">Declined/Lost</option></select></div>
         </div>
+        <div class="form-row cols3">
+          <div><label>Follow-Up Date</label><input id="qq-followup" type="date"></div>
+          <div><label>Created Date</label><input id="qq-created" type="date" readonly></div>
+          <div><label>Priority</label><div id="qq-stage5-priority" style="min-height:38px;display:flex;align-items:center;padding:8px 12px;border:1.5px solid #e0e0e0;border-radius:7px;background:#f8fafc;font-size:12px;font-weight:700;color:#546e7a">Normal</div></div>
+        </div>
+        <div id="qq-stage5-banner" style="display:none;margin-top:8px;padding:10px 12px;border-radius:10px;font-size:12px;font-weight:700"></div>
       </div>
       <!-- CAMERA QUICK-QUOTE -->
       <div class="card">
@@ -1104,7 +1236,12 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
     <!-- PRICING PANEL -->
     <div>
       <div class="pricing-card">
-        <div class="pricing-mode-badge">💰 Pricing Mode: Margin-Based</div>
+        <div class="pricing-mode-badge" id="pricing-mode-badge">💰 Pricing Mode: Margin-Based</div>
+        <div class="pricing-mode-toggle" id="pmt-toggle" role="tablist" aria-label="Pricing formula">
+          <button type="button" class="pmt-btn margin-mode active" data-pmt-mode="margin" role="tab" aria-selected="true">📊 Margin-Based</button>
+          <button type="button" class="pmt-btn markup-mode" data-pmt-mode="markup" role="tab" aria-selected="false">🛠 T&amp;M / Markup</button>
+        </div>
+        <div class="pmt-switch-banner" id="pmt-switch-banner"></div>
         <div class="section-title" style="color:#90caf9;border-bottom-color:rgba(255,255,255,.15);margin-bottom:12px">Pricing Controls</div>
         <div class="form-row cols2" style="margin-bottom:10px">
           <div>
@@ -1112,7 +1249,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
             <input id="qq-lr" type="number" value="100" min="0" step="5">
           </div>
           <div>
-            <label>Target Margin (%)</label>
+            <label id="qq-mk-label">Target Margin (%)</label>
             <input id="qq-mk" type="number" value="35" min="1" max="99" step="1">
             <div class="env-default-note" id="env-default-note">Environment default applied</div>
           </div>
@@ -1121,6 +1258,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
           <div><label>Tax Rate (%)</label><input id="qq-tx" type="number" value="0" min="0" step=".1"></div>
           <div><label>Discount ($)</label><input id="qq-disc" type="number" value="0" min="0" step="10"></div>
         </div>
+        <div id="pmt-help-text" style="font-size:11px;color:rgba(255,255,255,.62);margin-top:-4px;margin-bottom:8px;line-height:1.35">Margin-Based mode: Sell = Cost ÷ (1 - margin %). Targets a profit margin as a percentage of the sell price.</div>
         <div class="section-sep" style="background:rgba(255,255,255,.1)"></div>
         <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Live Pricing Summary</div>
         <div class="price-row"><span class="price-lbl">🏗️ Equipment Rentals</span><span class="price-val" id="ps-eq">$ 0.00</span></div>
@@ -1141,12 +1279,25 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
         <div id="ps-readiness" class="readiness-badge readiness-notready">NOT READY</div>
         <div id="mf-floor-badge" class="margin-floor-badge mf-ok" style="display:none"></div>
         <div id="mf-approval" class="mf-approval">🚫 BELOW MARGIN FLOOR — Manager Approval Required Before Sending</div>
-        <div id="warn-burden" class="warning-box">⚠️ High material burden — target margin requires unusually high material markup</div>
+        <div id="warn-burden" class="warning-box">⚠️ High material markup ratio — customer may price-check parts</div>
         <div id="warn-belowcost" class="warning-box critical">🚨 Material sell is BELOW cost — critical pricing error</div>
         <div id="warn-laborlow" class="warning-box">⚠️ Labor allocation appears low — verify install scope</div>
         <div id="warn-laborhigh" class="warning-box">⚠️ Labor-heavy quote — confirm competitiveness vs market</div>
       </div>
-      <div style="font-size:11px;color:#90a4ae;text-align:center;margin-top:6px">Quote pricing driven by target margin, not markup</div>
+      <div id="pricing-mode-note" style="font-size:11px;color:#90a4ae;text-align:center;margin-top:6px">Quote pricing driven by target margin, not markup</div>
+    </div>
+  </div>
+  <div class="qq-sticky-bar no-print" id="qq-sticky-bar">
+    <div class="qq-sticky-left">
+      <span class="qq-sticky-metric" id="qq-sticky-total">Total $0.00</span>
+      <span class="qq-sticky-metric" id="qq-sticky-ready">Not Ready</span>
+      <span class="qq-sticky-metric" id="qq-sticky-dirty">Saved</span>
+    </div>
+    <div class="qq-sticky-right">
+      <button class="btn btn-warning btn-sm" id="qq-smart-action" type="button">Fix Issues</button>
+      <button class="btn btn-outline btn-sm" data-action="clearQQ">🗑 Clear</button>
+      <button class="btn btn-outline btn-sm" data-action="previewQQ">👁 Preview</button>
+      <button class="btn btn-primary btn-sm" data-action="saveQQ">💾 Save Quote</button>
     </div>
   </div>
 </div>
@@ -1154,7 +1305,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 
 <!-- QUOTES LIST -->
 <div class="page" id="page-quotes">
-  <div class="page-header"><h2>📋 Quotes &amp; Bids</h2>
+  <div class="page-header"><h2>📋 Quotes</h2>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline btn-sm" data-action="exportCSV">📥 Export CSV</button>
       <button class="btn btn-primary" data-action="newQuote">+ New Quote</button>
@@ -1510,7 +1661,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 <!-- INVENTORY & TOOL TRACKING -->
 <!-- MATERIALS & STOCK -->
 <div class="page" id="page-inventory">
-  <div class="page-header"><h2>📦 Materials &amp; Stock</h2>
+  <div class="page-header"><h2>📦 Inventory</h2>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline btn-sm" data-action="newInventoryItem">+ Add Item</button>
       <button class="btn btn-export btn-sm" data-action="exportInventoryCSV">📥 Export</button>
@@ -1552,7 +1703,7 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
 
 <!-- TOOLS & ASSETS -->
 <div class="page" id="page-tools">
-  <div class="page-header"><h2>🔧 Tools &amp; Assets</h2>
+  <div class="page-header"><h2>🔧 Tools</h2>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-outline btn-sm" onclick="openBarcodeScanner()" id="btn-scan-barcode">📷 Scan Tag</button>
       <button class="btn btn-outline btn-sm" data-action="newToolItem">+ Add Tool</button>
@@ -1989,6 +2140,87 @@ label{display:block;font-size:12px;font-weight:600;color:#455a64;margin-bottom:4
     </div>
   </div>
 
+  <!-- ============================================================ -->
+  <!-- MANAGER APPROVAL WORKFLOW                                    -->
+  <!-- Two independent toggles:                                     -->
+  <!--   1) Master enable/disable                                   -->
+  <!--   2) Below-floor only (vs all quotes)                        -->
+  <!-- PIN-gated, audit-logged, no modal overlays                   -->
+  <!-- ============================================================ -->
+  <div class="card" id="ma-card" style="margin-top:16px">
+    <div class="card-title">🔒 Manager Approval Workflow</div>
+    <p style="font-size:12px;color:#546e7a;margin-bottom:12px">PIN-protected approval gate for Print and Email actions. Preview is always available. Choose whether ALL quotes need approval, or only those below the margin floor.</p>
+
+    <!-- View when no PIN set yet -->
+    <div id="ma-view-no-pin" style="display:none;padding:12px;background:#fff8e1;border:1px solid #ffc107;border-radius:6px;margin-bottom:10px">
+      <div style="font-weight:700;color:#856404;margin-bottom:6px">⚠️ No Manager PIN set</div>
+      <div style="font-size:12px;color:#856404;margin-bottom:10px">Set a 4-8 digit PIN to enable the approval workflow.</div>
+      <button class="btn btn-primary btn-sm" type="button" id="ma-btn-show-set">🔑 Set Manager PIN</button>
+    </div>
+
+    <!-- View when PIN is set: two toggles + actions -->
+    <div id="ma-view-pin-set" style="display:none">
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px;padding:12px;background:#f8fafc;border:1px solid #e0e0e0;border-radius:6px">
+        <!-- Toggle 1: Master enable -->
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:0">
+          <input type="checkbox" id="ma-toggle-enabled" style="width:auto;margin-top:3px;flex-shrink:0">
+          <div>
+            <div style="font-weight:700;font-size:13px">Approval workflow enabled</div>
+            <div style="font-size:11px;color:#607d8b;margin-top:2px">When enabled, Print and Email actions require manager PIN per the rule below.</div>
+          </div>
+        </label>
+        <!-- Toggle 2: Below-floor only -->
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:0;padding-left:8px;border-left:3px solid #e0e0e0" id="ma-toggle-belowonly-wrap">
+          <input type="checkbox" id="ma-toggle-belowonly" style="width:auto;margin-top:3px;flex-shrink:0">
+          <div>
+            <div style="font-weight:700;font-size:13px">Only when below margin floor</div>
+            <div style="font-size:11px;color:#607d8b;margin-top:2px"><strong>ON:</strong> Approval needed only for quotes below the margin floor (e.g., 35% for New Construction). Best for experienced quoters.<br><strong>OFF:</strong> ALL quotes need approval before Print/Email. Best for new estimators.</div>
+          </div>
+        </label>
+        <!-- Status summary -->
+        <div id="ma-status-summary" style="font-size:12px;font-weight:700;padding:8px 10px;border-radius:4px;text-align:center"></div>
+      </div>
+
+      <!-- Action buttons -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" type="button" id="ma-btn-show-change">🔑 Change PIN</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="ma-btn-show-log">📋 View Approval Log</button>
+        <button class="btn btn-danger btn-sm" type="button" id="ma-btn-remove">🗑 Remove PIN & Disable</button>
+      </div>
+    </div>
+
+    <!-- Inline form: Set/Change PIN (NOT a modal overlay) -->
+    <div id="ma-form-pin" style="display:none;padding:12px;border:1px solid #1565c0;border-radius:6px;margin-top:12px;background:#e3f2fd">
+      <div style="font-weight:700;margin-bottom:8px" id="ma-form-pin-title">🔑 Set PIN</div>
+      <div id="ma-row-current" style="display:none;margin-bottom:8px">
+        <label style="font-size:12px;display:block;margin-bottom:3px">Current PIN</label>
+        <input id="ma-input-current" type="password" inputmode="numeric" maxlength="8" style="width:120px" autocomplete="off">
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:12px;display:block;margin-bottom:3px">New PIN (4-8 digits)</label>
+        <input id="ma-input-new" type="password" inputmode="numeric" maxlength="8" style="width:120px" autocomplete="off">
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:12px;display:block;margin-bottom:3px">Confirm New PIN</label>
+        <input id="ma-input-confirm" type="password" inputmode="numeric" maxlength="8" style="width:120px" autocomplete="off">
+      </div>
+      <div id="ma-form-error" style="display:none;padding:6px 8px;background:#ffebee;color:#c62828;border-radius:4px;font-size:12px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" type="button" id="ma-btn-save">💾 Save PIN</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="ma-btn-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Inline log viewer (NOT a modal) -->
+    <div id="ma-form-log" style="display:none;padding:12px;border:1px solid #607d8b;border-radius:6px;margin-top:12px;background:#fff">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700">📋 Approval Log</div>
+        <button class="btn btn-ghost btn-sm" type="button" id="ma-btn-log-close">Close</button>
+      </div>
+      <div id="ma-log-body" style="max-height:300px;overflow-y:auto;font-size:12px"></div>
+    </div>
+  </div>
+
 </div><!-- end page-settings -->
 
 <!-- SAVE AS TEMPLATE MODAL -->
@@ -2358,7 +2590,7 @@ function fmtSigned(n) { return (n < 0 ? '-' : '') + fmt(n); }
 function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 
 // ---- NAVIGATION ----
-const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes & Bids',jobs:'Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Materials & Stock',tools:'Tools & Assets',settings:'Settings',field:'Time Clock',timesheet:'Timesheets'};
+const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets'};
 
 function goPage(id) {
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
@@ -2383,6 +2615,7 @@ function goPage(id) {
   if (id==='tools')      { setTimeout(renderTools, 50); }
   if (id==='settings')   loadSettings();
   if (id==='qq')         renderTplLibrary();
+qqStage4Init();
   if (id==='field')      setTimeout(renderFieldPage, 50);
   if (id==='timesheet')  { var today=new Date().toISOString().split('T')[0]; var dtEl=document.getElementById('ts-date-filter'); if(dtEl&&!dtEl.value) dtEl.value=today; setTimeout(loadTimesheets,50); }
   // Sync mobile bottom nav highlight
@@ -2626,6 +2859,9 @@ function addRow(item) {
   lineItems.push(item || newLI('','',1,'ea',0,0));
   renderLI();
   calcTotals();
+  clearQQDraft();
+  setQQDirty(false, 'Fresh quote started');
+  updateQQStage3UI();
 }
 function delRow(id) {
   lineItems = lineItems.filter(function(x){return x._id != id});
@@ -2639,9 +2875,27 @@ function renderLI() {
     body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#90a4ae;padding:20px">No items yet. Click &ldquo;+ Add Row&rdquo; or select a template above.</td></tr>';
     return;
   }
+  // Determine pricing mode and rate ONCE per render
+  const _isMarkupMode = currentPricingMode() === 'markup';
+  const _rate = getMarginDecimal();
+  // In markup mode, compute equivalent margin %: margin = markup / (1 + markup)
+  // 25% markup ≈ 20% margin; 35% markup ≈ 25.9% margin; 100% markup = 50% margin
+  const _equivMargin = _isMarkupMode && _rate > 0 ? (_rate / (1 + _rate)) * 100 : null;
+  const _equivMarginLabel = _equivMargin != null
+    ? '<span class="li-equiv-margin">≈ ' + (Math.round(_equivMargin * 10) / 10).toFixed(1) + '% margin</span>'
+    : '';
   let html = '';
   lineItems.forEach(function(item, i) {
-    const unitMS = (item.mc && getMarginDecimal() < 1) ? (item.mc / (1 - getMarginDecimal())) : item.mc;
+    let unitMS;
+    if (!item.mc) {
+      unitMS = item.mc;
+    } else if (_isMarkupMode) {
+      // Markup: sell = cost × (1 + markup rate)
+      unitMS = item.mc * (1 + Math.max(_rate, 0));
+    } else {
+      // Margin: sell = cost / (1 - margin rate)
+      unitMS = (_rate < 1) ? (item.mc / (1 - _rate)) : item.mc;
+    }
     const totalMS = unitMS * item.qty;
     html += '<tr>';
     html += '<td style="color:#90a4ae;font-size:11px">' + (i+1) + '</td>';
@@ -2651,7 +2905,7 @@ function renderLI() {
     html += '<td><input data-li="'+item._id+'" data-field="unit" value="'+escHtml(item.unit)+'" style="width:50px" placeholder="ea"></td>';
     html += '<td><input data-li="'+item._id+'" data-field="mc" type="number" value="'+item.mc+'" min="0" step="0.01" style="width:80px"></td>';
     html += '<td><input data-li="'+item._id+'" data-field="lh" type="number" value="'+item.lh+'" min="0" step="0.25" style="width:65px"></td>';
-    html += '<td style="color:#546e7a;font-size:12px">'+fmt(unitMS)+'</td>';
+    html += '<td style="color:#546e7a;font-size:12px">'+fmt(unitMS)+(i===0?_equivMarginLabel:'')+'</td>';
     html += '<td style="color:#1565c0;font-weight:700;font-size:12px">'+fmt(totalMS)+'</td>';
     html += '<td style="color:#2e7d32;font-size:12px">'+fmt(item.lh*item.qty*getLaborRate())+'</td>';
     html += '<td><button class="btn btn-danger btn-sm" data-action="delRow" data-id="'+item._id+'">×</button></td>';
@@ -2666,7 +2920,125 @@ function getLaborRate() {
 function getMarginDecimal() {
   const el = document.getElementById('qq-mk');
   const v = el ? parseFloat(el.value)||35 : 35;
+  // In markup mode, allow rates up to 500% (5.0). In margin mode, cap at 99% (0.99).
+  if (currentPricingMode() === 'markup') {
+    return Math.min(Math.max(v,0),500) / 100;
+  }
   return Math.min(Math.max(v,0),99) / 100;
+}
+
+// Current pricing mode for the active quote.
+// Returns 'margin' (default) or 'markup'.
+// Reads from the toggle's hidden state via the active button.
+function currentPricingMode() {
+  const toggle = document.getElementById('pmt-toggle');
+  if (!toggle) return 'margin';
+  const active = toggle.querySelector('.pmt-btn.active');
+  return active ? (active.getAttribute('data-pmt-mode') || 'margin') : 'margin';
+}
+
+// Set the pricing mode programmatically. Updates the toggle visual,
+// updates labels/help text, recalculates totals, re-renders line items.
+function setPricingMode(newMode, opts) {
+  opts = opts || {};
+  if (newMode !== 'margin' && newMode !== 'markup') newMode = 'margin';
+  const toggle = document.getElementById('pmt-toggle');
+  if (!toggle) return;
+  const oldMode = currentPricingMode();
+  if (oldMode === newMode && !opts.force) return;
+
+  // Capture old total before switching, for the banner
+  let oldTotal = 0;
+  if (!opts.silent && lineItems.length > 0) {
+    try { const t = calcTotals(); oldTotal = t.totalSell || 0; } catch(e) {}
+  }
+
+  // Update toggle visual
+  Array.prototype.forEach.call(toggle.querySelectorAll('.pmt-btn'), function(b){
+    const isActive = b.getAttribute('data-pmt-mode') === newMode;
+    b.classList.toggle('active', isActive);
+    b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  // Update mode badge
+  const badge = document.getElementById('pricing-mode-badge');
+  if (badge) {
+    badge.textContent = newMode === 'markup'
+      ? '💰 Pricing Mode: T&M / Markup'
+      : '💰 Pricing Mode: Margin-Based';
+  }
+
+  // Update label
+  const label = document.getElementById('qq-mk-label');
+  if (label) {
+    label.textContent = newMode === 'markup' ? 'Markup (%)' : 'Target Margin (%)';
+  }
+
+  // Update input constraints
+  const mk = document.getElementById('qq-mk');
+  if (mk) {
+    if (newMode === 'markup') { mk.min='0'; mk.max='500'; mk.step='1'; }
+    else { mk.min='1'; mk.max='99'; mk.step='1'; }
+  }
+
+  // Update help text
+  const help = document.getElementById('pmt-help-text');
+  if (help) {
+    help.textContent = newMode === 'markup'
+      ? 'T&M / Markup mode: Material × (1 + markup %). Labor, equipment, and per diem PASS THROUGH at cost. True time-and-materials behavior — best for service calls and small jobs.'
+      : 'Margin-Based mode: Sell = Cost ÷ (1 - margin %). Targets a profit margin as a percentage of the sell price. Best for project work.';
+  }
+
+  // Update the small note at the bottom of the pricing card
+  const modeNote = document.getElementById('pricing-mode-note');
+  if (modeNote) {
+    modeNote.textContent = newMode === 'markup'
+      ? 'Quote pricing driven by markup on top of cost'
+      : 'Quote pricing driven by target margin, not markup';
+  }
+
+  // Re-render line items with new mode-aware math
+  renderLI();
+  // Recalculate totals
+  let newTotal = 0;
+  try { const t = calcTotals(); newTotal = t.totalSell || 0; } catch(e) {}
+
+  // Show the switch banner if total changed meaningfully
+  if (!opts.silent && oldTotal > 0 && Math.abs(newTotal - oldTotal) > 0.5) {
+    showPmtSwitchBanner(oldMode, newMode, oldTotal, newTotal);
+  }
+}
+
+function showPmtSwitchBanner(oldMode, newMode, oldTotal, newTotal) {
+  const banner = document.getElementById('pmt-switch-banner');
+  if (!banner) return;
+  const fmtMoney = function(n){ return '$' + (Math.round((n||0)*100)/100).toFixed(2); };
+  const oldLabel = oldMode === 'markup' ? 'T&M / Markup' : 'Margin-Based';
+  const newLabel = newMode === 'markup' ? 'T&M / Markup' : 'Margin-Based';
+  const diff = newTotal - oldTotal;
+  const dirWord = diff > 0 ? 'up' : 'down';
+  banner.innerHTML = ''
+    + '<button class="pmt-close" type="button" aria-label="Dismiss">×</button>'
+    + '⚠️ Switched from <strong>' + oldLabel + '</strong> to <strong>' + newLabel + '</strong>. '
+    + 'Total Sell changed from <strong>' + fmtMoney(oldTotal) + '</strong> to <strong>' + fmtMoney(newTotal) + '</strong> '
+    + '(' + dirWord + ' ' + fmtMoney(Math.abs(diff)) + '). Review pricing before sending.';
+  banner.classList.add('show');
+  const closeBtn = banner.querySelector('.pmt-close');
+  if (closeBtn) closeBtn.onclick = function(){ banner.classList.remove('show'); };
+}
+
+// Wire up the toggle buttons (called once on DOM ready)
+function initPricingModeToggle() {
+  const toggle = document.getElementById('pmt-toggle');
+  if (!toggle || toggle._pmtWired) return;
+  Array.prototype.forEach.call(toggle.querySelectorAll('.pmt-btn'), function(b){
+    b.addEventListener('click', function(ev){
+      ev.preventDefault();
+      const newMode = b.getAttribute('data-pmt-mode');
+      setPricingMode(newMode);
+    });
+  });
+  toggle._pmtWired = true;
 }
 function escHtml(s) {
   if (!s) return '';
@@ -2869,15 +3241,26 @@ function calcTotals() {
   const pdCost     = getPerDiemCost();
   const totalCost  = totalMaterialCost + laborSell + equipCost + pdCost;
 
-  // STEP 4: Target margin → required sell before tax
-  const targetMarginDecimal = getMarginDecimal();
+  // STEP 4: Target margin OR markup → required sell before tax
+  // - Markup mode: material × (1 + markup %), labor/equipment/per-diem PASS THROUGH at cost.
+  //   This is true T&M behavior — customer pays your hourly rate × hours, your material cost + markup, your actual equipment/per-diem cost.
+  // - Margin mode: total sell = total cost / (1 - margin %). Margin spread across everything.
+  const targetRate = getMarginDecimal();
+  const isMarkup = currentPricingMode() === 'markup';
   let sellBeforeTax = 0;
-  if (targetMarginDecimal >= 0.99) {
-    sellBeforeTax = totalCost * 100; // cap at 99%
-  } else if (targetMarginDecimal <= 0) {
-    sellBeforeTax = totalCost;
+  if (isMarkup) {
+    // Markup mode: ONLY material gets marked up. Labor + equipment + per diem pass through.
+    const materialSellMarkup = totalMaterialCost * (1 + Math.max(targetRate, 0));
+    sellBeforeTax = materialSellMarkup + laborSell + equipCost + pdCost;
   } else {
-    sellBeforeTax = totalCost / (1 - targetMarginDecimal);
+    // Margin mode: original behavior (margin applied to whole bundle)
+    if (targetRate >= 0.99) {
+      sellBeforeTax = totalCost * 100; // cap at 99%
+    } else if (targetRate <= 0) {
+      sellBeforeTax = totalCost;
+    } else {
+      sellBeforeTax = totalCost / (1 - targetRate);
+    }
   }
 
   // STEP 5: Material sell = what materials need to sell for (margin burden)
@@ -2935,6 +3318,16 @@ function calcTotals() {
   const materialBurden = totalMaterialCost > 0 ? materialSell / totalMaterialCost : 0;
   const laborRatio = totalSell > 0 ? laborSell / totalSell : 0;
 
+  // Size-aware "High material markup ratio" warning.
+  // For small jobs, high markup is just the math — warn only when the markup is high
+  // AND the job is substantial enough that a customer might price-check materials.
+  // - Substantial job (>$1k materials, >8 labor hours, markup >3.0x): WARN
+  // - Large job (>$5k materials, markup >2.5x): WARN regardless of labor hours
+  // - Otherwise: no warning (small jobs naturally have high material markup)
+  const burdenWarnSubstantial = totalMaterialCost > 1000 && totalLaborHours > 8 && materialBurden > 3.0;
+  const burdenWarnLarge = totalMaterialCost > 5000 && materialBurden > 2.5;
+  const showBurdenWarn = burdenWarnSubstantial || burdenWarnLarge;
+
   function toggleWarn(id, show, critical) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -2942,7 +3335,7 @@ function calcTotals() {
     else { el.classList.remove('visible'); }
   }
 
-  toggleWarn('warn-burden', materialBurden > 2.25, false);
+  toggleWarn('warn-burden', showBurdenWarn, false);
   toggleWarn('warn-belowcost', materialSell < totalMaterialCost && totalMaterialCost > 0, true);
   toggleWarn('warn-laborlow', laborRatio < 0.25 && totalSell > 0, false);
   toggleWarn('warn-laborhigh', laborRatio > 0.5 && totalSell > 0, false);
@@ -3004,6 +3397,7 @@ function getQData(id) {
     // Pricing controls
     laborRate: getLaborRate(),
     targetMargin: parseFloat((document.getElementById('qq-mk')||{}).value)||35,
+    pricingMode: currentPricingMode(),
     taxRate: parseFloat((document.getElementById('qq-tx')||{}).value)||0,
     discount: totals.discountAmt,
     // Computed pricing (Stage 2 new fields)
@@ -3041,6 +3435,222 @@ function getQData(id) {
   };
 }
 
+
+// =============================================
+// STAGE 3: QUICK QUOTE GUARDRAILS + DRAFT SAFETY
+// =============================================
+const QQ_DRAFT_KEY = 'tcss_probid_stage3_qq_draft_v1';
+let _qqDirty = false;
+let _qqRestoreLock = false;
+let _qqDraftTimer = null;
+let _qqWrapped = false;
+
+function qqFieldIds(){
+  return ['qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env'];
+}
+function qqGetVal(id){ var el=document.getElementById(id); return el ? el.value : ''; }
+function qqSetVal(id,val){ var el=document.getElementById(id); if(el) el.value = val==null ? '' : val; }
+function setQQDirty(flag, note){
+  if (_qqRestoreLock) return;
+  _qqDirty = !!flag;
+  var dirtyEl = document.getElementById('qq-sticky-dirty');
+  if (dirtyEl) dirtyEl.textContent = _qqDirty ? 'Unsaved Changes' : 'Saved';
+  var pill = document.getElementById('qq-stage3-pill');
+  var sub = document.getElementById('qq-stage3-sub');
+  if (pill) pill.textContent = _qqDirty ? 'Draft In Progress' : 'Quote Stable';
+  if (sub && note) sub.textContent = note;
+}
+function qqCollectDraft(){
+  return {
+    fields: qqFieldIds().reduce(function(acc,id){ acc[id]=qqGetVal(id); return acc; },{}),
+    lineItems: JSON.parse(JSON.stringify(lineItems||[])),
+    equipmentRows: JSON.parse(JSON.stringify(equipmentRows||[])),
+    perDiemData: JSON.parse(JSON.stringify(perDiemData||{})),
+    toggles: {
+      equipmentEnabled: !!((document.getElementById('equipment-enabled')||{}).checked),
+      perdiemEnabled: !!((document.getElementById('perdiem-enabled')||{}).checked),
+      lumpsumEnabled: !!((document.getElementById('lumpsum-toggle')||{}).checked),
+      lumpsumShowItems: !!((document.getElementById('lumpsum-show-items')||{}).checked),
+      cqqEnabled: !!((document.getElementById('cqq-enabled')||{}).checked)
+    },
+    savedAt: new Date().toISOString()
+  };
+}
+function saveQQDraft(){
+  try{ localStorage.setItem(QQ_DRAFT_KEY, JSON.stringify(qqCollectDraft())); }catch(e){ console.warn('QQ draft save failed', e); }
+}
+function scheduleQQDraftSave(){
+  if (_qqRestoreLock) return;
+  clearTimeout(_qqDraftTimer);
+  _qqDraftTimer = setTimeout(function(){ saveQQDraft(); }, 350);
+}
+function clearQQDraft(){
+  try{ localStorage.removeItem(QQ_DRAFT_KEY); }catch(e){}
+}
+function qqHasRecoverableDraft(){
+  try{
+    var raw = localStorage.getItem(QQ_DRAFT_KEY);
+    if (!raw) return false;
+    var parsed = JSON.parse(raw);
+    if (!parsed || !parsed.fields) return false;
+    return !!((parsed.fields['qq-cn']||'').trim() || (parsed.fields['qq-jn']||'').trim() || (parsed.lineItems||[]).length);
+  }catch(e){ return false; }
+}
+function restoreQQDraft(){
+  try{
+    var raw = localStorage.getItem(QQ_DRAFT_KEY);
+    if (!raw) return false;
+    var parsed = JSON.parse(raw);
+    if (!parsed || !parsed.fields) return false;
+    _qqRestoreLock = true;
+    qqFieldIds().forEach(function(id){ if (Object.prototype.hasOwnProperty.call(parsed.fields,id)) qqSetVal(id, parsed.fields[id]); });
+    lineItems = JSON.parse(JSON.stringify(parsed.lineItems||[]));
+    lineItems.forEach(function(item){ if(!item._id) item._id = liSeq++; });
+    equipmentRows = JSON.parse(JSON.stringify(parsed.equipmentRows||[]));
+    equipmentRows.forEach(function(r){ if(!r._id) r._id = eqSeq++; });
+    if (parsed.perDiemData) perDiemData = JSON.parse(JSON.stringify(parsed.perDiemData));
+    renderEquipRows();
+    loadPerDiemData(parsed.perDiemData || null);
+    var t = parsed.toggles || {};
+    var eqCb=document.getElementById('equipment-enabled'), eqBody=document.getElementById('equipment-body'), eqLbl=document.getElementById('equipment-toggle-label');
+    if(eqCb) eqCb.checked=!!t.equipmentEnabled; if(eqBody) eqBody.classList.toggle('expanded',!!t.equipmentEnabled); if(eqLbl){eqLbl.textContent=t.equipmentEnabled?'YES':'NO'; eqLbl.className='toggle-value-label'+(t.equipmentEnabled?' on':'');}
+    var pdCb=document.getElementById('perdiem-enabled'), pdBody=document.getElementById('perdiem-body'), pdLbl=document.getElementById('perdiem-toggle-label');
+    if(pdCb) pdCb.checked=!!t.perdiemEnabled; if(pdBody) pdBody.classList.toggle('expanded',!!t.perdiemEnabled); if(pdLbl){pdLbl.textContent=t.perdiemEnabled?'YES':'NO'; pdLbl.className='toggle-value-label'+(t.perdiemEnabled?' on':'');}
+    var lsCb=document.getElementById('lumpsum-toggle'), lsBody=document.getElementById('lumpsum-body'), lsLbl=document.getElementById('lumpsum-toggle-label');
+    if(lsCb) lsCb.checked=!!t.lumpsumEnabled; if(lsBody) lsBody.classList.toggle('expanded',!!t.lumpsumEnabled); if(lsLbl){lsLbl.textContent=t.lumpsumEnabled?'YES':'NO'; lsLbl.className='toggle-value-label'+(t.lumpsumEnabled?' on':'');}
+    var lsItems=document.getElementById('lumpsum-show-items'), lsItemsLbl=document.getElementById('lumpsum-show-items-label');
+    if(lsItems) lsItems.checked = t.lumpsumShowItems !== false; if(lsItemsLbl){ lsItemsLbl.textContent=(t.lumpsumShowItems!==false)?'YES':'NO'; lsItemsLbl.className='toggle-value-label'+((t.lumpsumShowItems!==false)?' on':''); }
+    var cqqCb=document.getElementById('cqq-enabled'), cqqBody=document.getElementById('cqq-body'), cqqLbl=document.getElementById('cqq-toggle-label');
+    if(cqqCb) cqqCb.checked=!!t.cqqEnabled; if(cqqBody) cqqBody.classList.toggle('expanded',!!t.cqqEnabled); if(cqqLbl){cqqLbl.textContent=t.cqqEnabled?'YES':'NO'; cqqLbl.className='toggle-value-label'+(t.cqqEnabled?' on':'');}
+    renderLI();
+    calcTotals();
+    updateLumpSumPreview();
+    _qqRestoreLock = false;
+    setQQDirty(true, 'Recovered local draft from this browser');
+    updateQQStage3UI();
+    return true;
+  }catch(e){ _qqRestoreLock = false; console.warn('QQ draft restore failed', e); return false; }
+}
+function qqSetCheck(id, state, label){
+  var el=document.getElementById(id); if(!el) return;
+  el.className='qq-stage3-check ' + state;
+  el.innerHTML='<span class="qq-stage3-dot"></span><span>' + label + '</span>';
+}
+function validateQQStage3(){
+  var cn=(qqGetVal('qq-cn')||'').trim();
+  var jn=(qqGetVal('qq-jn')||'').trim();
+  var email=(qqGetVal('qq-em')||'').trim();
+  var dt=qqGetVal('qq-dt');
+  var vu=qqGetVal('qq-vu');
+  var totals=calcTotals();
+  var dateOk = true;
+  if (dt && vu) dateOk = vu >= dt;
+  var emailOk = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  var itemsOk = (lineItems||[]).length > 0;
+  var pricingOk = itemsOk && (totals.totalSell||0) > 0 && totals.readiness !== 'NOT READY';
+  var score = 0;
+  if (cn) score += 20;
+  if (jn) score += 20;
+  if (itemsOk) score += 20;
+  if (dateOk) score += 20;
+  if (pricingOk && emailOk) score += 20;
+  return {cn:cn, jn:jn, emailOk:emailOk, dateOk:dateOk, itemsOk:itemsOk, pricingOk:pricingOk, totals:totals, score:score};
+}
+function updateQQStage3UI(){
+  var v = validateQQStage3();
+  qqSetCheck('qq-check-customer', v.cn ? 'ok' : 'bad', v.cn ? 'Customer Ready' : 'Customer Required');
+  qqSetCheck('qq-check-job', v.jn ? 'ok' : 'bad', v.jn ? 'Job Name Ready' : 'Job Name Required');
+  qqSetCheck('qq-check-items', v.itemsOk ? 'ok' : 'bad', v.itemsOk ? ((lineItems||[]).length + ' Line Items') : 'Add Line Items');
+  qqSetCheck('qq-check-dates', v.dateOk ? 'ok' : 'bad', v.dateOk ? 'Dates OK' : 'Valid Until < Quote Date');
+  qqSetCheck('qq-check-pricing', v.pricingOk ? 'ok' : 'warn', v.pricingOk ? ('Pricing ' + (v.totals.readiness||'READY')) : 'Review Pricing');
+  var bar=document.getElementById('qq-stage3-progress-bar'); if(bar) bar.style.width = Math.max(8, v.score) + '%';
+  var help=document.getElementById('qq-stage3-help');
+  if (help) {
+    if (!v.cn) help.textContent = 'Enter the customer or company name first.';
+    else if (!v.jn) help.textContent = 'Add a clear job name so the quote can be found and trusted later.';
+    else if (!v.itemsOk) help.textContent = 'Add at least one line item or load a template before saving.';
+    else if (!v.dateOk) help.textContent = 'Fix the date range so Valid Until is not earlier than the Quote Date.';
+    else if (!v.emailOk) help.textContent = 'Contact email looks incomplete. Fix it or leave it blank.';
+    else help.textContent = 'Quick Quote is in good shape. Review pricing and save when ready.';
+  }
+  var totalEl=document.getElementById('qq-sticky-total'); if(totalEl) totalEl.textContent='Total ' + fmt(v.totals.totalSell||0);
+  var readyEl=document.getElementById('qq-sticky-ready'); if(readyEl) readyEl.textContent=v.totals.readiness || 'Not Ready';
+  var pill=document.getElementById('qq-stage3-pill');
+  if (pill) pill.textContent = _qqDirty ? 'Draft In Progress' : ((v.cn||v.jn||v.itemsOk) ? 'Quote Stable' : 'New Draft');
+  var sub=document.getElementById('qq-stage3-sub');
+  if (sub && !_qqDirty) sub.textContent = (v.score >= 100 ? 'Ready for save or preview' : 'Guardrails active for safer quoting');
+  var cnEl=document.getElementById('qq-cn'), jnEl=document.getElementById('qq-jn'), emEl=document.getElementById('qq-em'), dtEl=document.getElementById('qq-dt'), vuEl=document.getElementById('qq-vu');
+  [cnEl,jnEl,emEl,dtEl,vuEl].forEach(function(el){ if(el) el.classList.remove('qq-invalid'); });
+  if (cnEl && !v.cn) cnEl.classList.add('qq-invalid');
+  if (jnEl && !v.jn) jnEl.classList.add('qq-invalid');
+  if (emEl && !v.emailOk) emEl.classList.add('qq-invalid');
+  if (dtEl && vuEl && !v.dateOk) { dtEl.classList.add('qq-invalid'); vuEl.classList.add('qq-invalid'); }
+}
+function initQQStage3Watchers(){
+  if (window._qqStage3Watchers) return;
+  window._qqStage3Watchers = true;
+  document.addEventListener('input', function(e){
+    var t=e.target;
+    if (!t) return;
+    if ((t.id && (qqFieldIds().indexOf(t.id) >= 0 || /^qq-/.test(t.id) || /^cqq-/.test(t.id) || /^pd-/.test(t.id) || /^permit-/.test(t.id))) || t.hasAttribute('data-li') || t.hasAttribute('data-eq')) {
+      setQQDirty(true, 'Unsaved changes in Quick Quote');
+      scheduleQQDraftSave();
+      setTimeout(updateQQStage3UI, 0);
+    }
+  }, true);
+  document.addEventListener('change', function(e){
+    var t=e.target;
+    if (!t) return;
+    if ((t.id && (qqFieldIds().indexOf(t.id) >= 0 || /^qq-/.test(t.id) || /^cqq-/.test(t.id) || /^pd-/.test(t.id) || /^permit-/.test(t.id) || /^prop-show-/.test(t.id) || /^lumpsum-/.test(t.id))) || t.hasAttribute('data-li') || t.hasAttribute('data-eq')) {
+      setQQDirty(true, 'Unsaved changes in Quick Quote');
+      scheduleQQDraftSave();
+      setTimeout(updateQQStage3UI, 0);
+    }
+  }, true);
+  window.addEventListener('beforeunload', function(e){
+    if (!_qqDirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+  document.addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      var qqPage=document.getElementById('page-qq');
+      if (qqPage && qqPage.classList.contains('active')) {
+        e.preventDefault();
+        saveQQ();
+      }
+    }
+  });
+}
+function wrapQQStage3Mutations(){
+  if (_qqWrapped) return;
+  _qqWrapped = true;
+  function wrap(name, opts){
+    if (typeof window[name] !== 'function') return;
+    var original = window[name];
+    window[name] = function(){
+      var result = original.apply(this, arguments);
+      if (opts && opts.clearDraft) clearQQDraft();
+      if (opts && opts.cleanState) setQQDirty(false, opts.cleanState);
+      else if (!(opts && opts.skipDirty) && !(_qqRestoreLock)) { setQQDirty(true, 'Unsaved changes in Quick Quote'); scheduleQQDraftSave(); }
+      setTimeout(updateQQStage3UI, 0);
+      return result;
+    };
+  }
+  wrap('addRow');
+  wrap('delRow');
+  wrap('addCatToQQ');
+  wrap('loadTemplate');
+  wrap('addEquipRow');
+  wrap('delEquipRow');
+  wrap('cqqAppend');
+  wrap('toggleEquipment');
+  wrap('togglePerDiem');
+  wrap('toggleLumpSum');
+  wrap('toggleLumpSumItems');
+  wrap('toggleCQQ');
+}
+
 function saveQQ() {
   const cn = (document.getElementById('qq-cn')||{}).value || '';
   const jn = (document.getElementById('qq-jn')||{}).value || '';
@@ -3068,8 +3678,11 @@ function saveQQ() {
     upsertCustomer(q);
   }
   saveDB();
+  clearQQDraft();
+  setQQDirty(false, 'Quote ' + q.num + ' saved successfully');
   alert('Quote ' + q.num + ' saved successfully!');
   renderDash();
+  updateQQStage3UI();
 }
 
 function upsertCustomer(q) {
@@ -3222,20 +3835,26 @@ function buildPrintHTML(q, mode) {
   // Items table (client version — no cost shown)
   function itemsTableHTML() {
     const lumpSum = q.lumpSum && q.lumpSum.enabled;
-    const margin  = Math.min(Math.max((q.targetMargin||35)/100, 0), 0.99);
+    // Rate var = margin % in margin mode (capped 0-99%), markup % in markup mode (capped 0-500%)
+    const _isMarkupMode = (q.pricingMode === 'markup');
+    const margin = _isMarkupMode
+      ? Math.min(Math.max((q.targetMargin||35)/100, 0), 5.0)
+      : Math.min(Math.max((q.targetMargin||35)/100, 0), 0.99);
 
     // LUMP SUM MODE — total price as one line, optionally list items below without prices
     if (lumpSum) {
       const label     = q.lumpSum.label || 'Complete Low Voltage Installation';
-      const total     = fmt(q.total || 0);
+      // FIX: Use sellBeforeTax (pre-tax subtotal), not q.total (after-tax).
+      // Otherwise the tax line below adds onto an already-after-tax number, confusing the customer.
+      const lineAmount = fmt(q.sellBeforeTax || q.subtotal || q.total || 0);
       const showItems = q.lumpSum.showItems !== false; // default true
       var rows = '<tr style="border-bottom:1px solid #e8e8e8">' +
         '<td style="padding:8px 12px;width:40px;color:#888">1</td>' +
         '<td style="padding:8px 12px;font-weight:600">' + escHtml(label) + '</td>' +
         '<td style="padding:8px 12px;text-align:center">1</td>' +
         '<td style="padding:8px 12px">LOT</td>' +
-        '<td style="padding:8px 12px;text-align:right">' + total + '</td>' +
-        '<td style="padding:8px 12px;text-align:right;font-weight:700">' + total + '</td>' +
+        '<td style="padding:8px 12px;text-align:right">' + lineAmount + '</td>' +
+        '<td style="padding:8px 12px;text-align:right;font-weight:700">' + lineAmount + '</td>' +
         '</tr>';
       // Optionally list items with qty/description only — no pricing
       if (showItems && q.items && q.items.length > 0) {
@@ -3264,7 +3883,18 @@ function buildPrintHTML(q, mode) {
       const mc  = parseFloat(item.mc)||0;
       const lh  = parseFloat(item.lh)||0;
       // Items with $0 cost and 0 hours but have labor — show labor-only rows
-      const unitSell = margin < 1 && mc > 0 ? mc / (1 - margin) : (lh > 0 ? 0 : 0);
+      // Markup mode: unitSell = mc × (1 + markup)
+      // Margin mode: unitSell = mc / (1 - margin)
+      let unitSell;
+      if (mc > 0) {
+        if (_isMarkupMode) {
+          unitSell = mc * (1 + margin);  // 'margin' var holds the rate (markup % when in markup mode)
+        } else {
+          unitSell = margin < 1 ? mc / (1 - margin) : mc;
+        }
+      } else {
+        unitSell = 0;
+      }
       const totalSell = unitSell * qty;
       rowNum++;
       rows += '<tr style="border-bottom:1px solid #e8e8e8">';
@@ -3378,7 +4008,47 @@ function buildPrintHTML(q, mode) {
   '.service-offer-box{background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:14px;font-size:12px;color:#1b5e20;margin:14px 0}';
 
   // Body content only — no DOCTYPE/html wrapper (modal injects this as innerHTML)
-  let bodyContent = '<style>' + propCSS + '</style><div class="prop-wrap">';
+  let bodyContent = '<style>' + propCSS + `
+
+
+/* ===== STAGE 4: LIFECYCLE + CONTROL LAYER ===== */
+.qq-stage4-shell{background:linear-gradient(135deg,#ffffff,#f7fbff);border:1.5px solid #d7e9ff;border-radius:14px;padding:14px 16px;margin:0 0 14px;box-shadow:0 3px 12px rgba(21,101,192,.07)}
+.qq-stage4-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.qq-stage4-num{font-size:24px;font-weight:900;color:#0d1b2a;letter-spacing:-.4px}
+.qq-stage4-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.qq-stage4-total{font-size:28px;font-weight:900;color:#1565c0;letter-spacing:-.5px}
+.qq-stage4-sub{font-size:12px;color:#607d8b;font-weight:600}
+.qq-stage4-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.qq-stage4-step{position:relative;padding:10px 12px;border-radius:12px;background:#edf2f7;border:1px solid #dbe5ee;min-height:54px;display:flex;flex-direction:column;justify-content:center;transition:all .18s ease}
+.qq-stage4-step.active{background:linear-gradient(135deg,#1565c0,#1e88e5);border-color:#1565c0;box-shadow:0 6px 16px rgba(21,101,192,.24)}
+.qq-stage4-step.done{background:#e8f5e9;border-color:#a5d6a7}
+.qq-stage4-step-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#607d8b}
+.qq-stage4-step-value{font-size:13px;font-weight:800;color:#0d1b2a;margin-top:2px}
+.qq-stage4-step.active .qq-stage4-step-label,.qq-stage4-step.active .qq-stage4-step-value{color:#fff}
+.qq-stage4-step.done .qq-stage4-step-label{color:#2e7d32}
+.qq-stage4-step.done .qq-stage4-step-value{color:#1b5e20}
+.qq-stage4-status{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;border:1px solid transparent}
+.qq-stage4-status.draft{background:#eceff1;color:#546e7a;border-color:#cfd8dc}
+.qq-stage4-status.ready{background:#e3f2fd;color:#1565c0;border-color:#90caf9}
+.qq-stage4-status.sent{background:#fff3e0;color:#e65100;border-color:#ffcc80}
+.qq-stage4-status.followup{background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8}
+.qq-stage4-status.approved{background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7}
+.qq-stage4-status.declined{background:#ffebee;color:#c62828;border-color:#ef9a9a}
+.qq-stage4-hint{font-size:12px;color:#546e7a;margin-top:10px;line-height:1.45}
+#qq-smart-action{min-width:150px;justify-content:center}
+@media(max-width:768px){.qq-stage4-flow{grid-template-columns:1fr 1fr}.qq-stage4-total{font-size:24px}.qq-stage4-num{font-size:22px}}
+
+/* ===== STEP 2 SAFE UI TIGHTENING ===== */
+.card:hover,.stat-card:hover,.job-card:hover{box-shadow:0 6px 16px rgba(0,0,0,.08)}
+.btn:hover{transform:translateY(-1px)}
+.nav-item,.tab-btn,.inv-tab,.rpt-tab,.mob-nav-item,.cat-item,.tpl-card,.job-card,.stat-card,.card,.btn{transition:all .18s ease}
+input,select,textarea{min-height:38px}
+textarea{min-height:90px}
+table{font-size:12.5px}
+.empty-state{padding:44px 20px}
+.page-header h2{letter-spacing:-.2px}
+
+</style><div class="prop-wrap">`;
 
   // HEADER
   bodyContent +=
@@ -3446,7 +4116,7 @@ function buildPrintHTML(q, mode) {
   '<div class="prop-section"><div class="prop-section-title">Pricing Summary</div>' +
   '<table class="pricing-summary-table">' +
   (q.lumpSum && q.lumpSum.enabled
-    ? '<tr class="sub-row"><td>' + escHtml(q.lumpSum.label||'Complete Low Voltage Installation') + '</td><td style="text-align:right">' + fmt(q.total||0) + '</td></tr>'
+    ? '<tr class="sub-row"><td>' + escHtml(q.lumpSum.label||'Complete Low Voltage Installation') + '</td><td style="text-align:right">' + fmt(q.sellBeforeTax||q.subtotal||q.total||0) + '</td></tr>'
     : '<tr class="sub-row"><td>Equipment &amp; Materials</td><td style="text-align:right">' + fmt(q.materialSell||q.sellBeforeTax||q.total||0) + '</td></tr>' +
       '<tr class="sub-row"><td>Installation Labor</td><td style="text-align:right">' + fmt(q.laborSell||0) + '</td></tr>' +
       (q.perDiemCost > 0 ? '<tr class="sub-row"><td>Per Diem / Travel</td><td style="text-align:right">' + fmt(q.perDiemCost||0) + '</td></tr>' : '') +
@@ -3681,7 +4351,47 @@ function printQuote() {
   var filename = 'Proposal-' + (q.num||'') + '-' + (q.cn||'').replace(/[^a-zA-Z0-9]/g,'-');
   var fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
     '<title>' + filename + '</title>' +
-    '<style>@media print{body{margin:0}}</style>' +
+    `<style>@media print{body{margin:0}}
+
+
+/* ===== STAGE 4: LIFECYCLE + CONTROL LAYER ===== */
+.qq-stage4-shell{background:linear-gradient(135deg,#ffffff,#f7fbff);border:1.5px solid #d7e9ff;border-radius:14px;padding:14px 16px;margin:0 0 14px;box-shadow:0 3px 12px rgba(21,101,192,.07)}
+.qq-stage4-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.qq-stage4-num{font-size:24px;font-weight:900;color:#0d1b2a;letter-spacing:-.4px}
+.qq-stage4-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.qq-stage4-total{font-size:28px;font-weight:900;color:#1565c0;letter-spacing:-.5px}
+.qq-stage4-sub{font-size:12px;color:#607d8b;font-weight:600}
+.qq-stage4-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.qq-stage4-step{position:relative;padding:10px 12px;border-radius:12px;background:#edf2f7;border:1px solid #dbe5ee;min-height:54px;display:flex;flex-direction:column;justify-content:center;transition:all .18s ease}
+.qq-stage4-step.active{background:linear-gradient(135deg,#1565c0,#1e88e5);border-color:#1565c0;box-shadow:0 6px 16px rgba(21,101,192,.24)}
+.qq-stage4-step.done{background:#e8f5e9;border-color:#a5d6a7}
+.qq-stage4-step-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#607d8b}
+.qq-stage4-step-value{font-size:13px;font-weight:800;color:#0d1b2a;margin-top:2px}
+.qq-stage4-step.active .qq-stage4-step-label,.qq-stage4-step.active .qq-stage4-step-value{color:#fff}
+.qq-stage4-step.done .qq-stage4-step-label{color:#2e7d32}
+.qq-stage4-step.done .qq-stage4-step-value{color:#1b5e20}
+.qq-stage4-status{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;border:1px solid transparent}
+.qq-stage4-status.draft{background:#eceff1;color:#546e7a;border-color:#cfd8dc}
+.qq-stage4-status.ready{background:#e3f2fd;color:#1565c0;border-color:#90caf9}
+.qq-stage4-status.sent{background:#fff3e0;color:#e65100;border-color:#ffcc80}
+.qq-stage4-status.followup{background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8}
+.qq-stage4-status.approved{background:#e8f5e9;color:#2e7d32;border-color:#a5d6a7}
+.qq-stage4-status.declined{background:#ffebee;color:#c62828;border-color:#ef9a9a}
+.qq-stage4-hint{font-size:12px;color:#546e7a;margin-top:10px;line-height:1.45}
+#qq-smart-action{min-width:150px;justify-content:center}
+@media(max-width:768px){.qq-stage4-flow{grid-template-columns:1fr 1fr}.qq-stage4-total{font-size:24px}.qq-stage4-num{font-size:22px}}
+
+/* ===== STEP 2 SAFE UI TIGHTENING ===== */
+.card:hover,.stat-card:hover,.job-card:hover{box-shadow:0 6px 16px rgba(0,0,0,.08)}
+.btn:hover{transform:translateY(-1px)}
+.nav-item,.tab-btn,.inv-tab,.rpt-tab,.mob-nav-item,.cat-item,.tpl-card,.job-card,.stat-card,.card,.btn{transition:all .18s ease}
+input,select,textarea{min-height:38px}
+textarea{min-height:90px}
+table{font-size:12.5px}
+.empty-state{padding:44px 20px}
+.page-header h2{letter-spacing:-.2px}
+
+</style>` +
     '</head><body>' + html + '</body></html>';
   var w = window.open('', '_blank');
   if (!w) {
@@ -3976,6 +4686,9 @@ function editQuote(id) {
   restoreProposalSectionToggles(q.proposalSections || null);
   renderLI();
   calcTotals();
+  clearQQDraft();
+  setQQDirty(false, 'Loaded saved quote');
+  updateQQStage3UI();
   goPage('qq');
 }
 
@@ -7130,6 +7843,8 @@ function onMarginManualChange() {
   _envManualOverride = true;
   const noteEl = document.getElementById('env-default-note');
   if (noteEl) noteEl.classList.remove('visible');
+  // Re-render line items so per-line Unit Mat Sell reflects the new rate
+  renderLI();
   calcTotals();
 }
 
@@ -8054,6 +8769,465 @@ function loadLogoOnStartup() {
   if (dataUrl) applyLogoEverywhere(dataUrl);
 }
 
+
+// =============================================
+// STAGE 5: CONTROL + FOLLOW-UP SYSTEM
+// =============================================
+function getTodayISO(){ return new Date().toISOString().split('T')[0]; }
+function getQQQuoteDate(){ return (document.getElementById('qq-dt')||{}).value || getTodayISO(); }
+function getQQFollowupDate(){ return (document.getElementById('qq-followup')||{}).value || ''; }
+function getQQCreatedDate(){ return (document.getElementById('qq-created')||{}).value || ''; }
+function qqSetDefaultFollowup(){
+  var dt = getQQQuoteDate();
+  var fuEl = document.getElementById('qq-followup');
+  if (!fuEl) return;
+  if (fuEl.value) return;
+  fuEl.value = calcFollowupDate(dt);
+}
+function getQuotePriority(q){
+  if (!q) return {label:'Normal', tone:'normal', sort:50};
+  var status = q.status || 'draft';
+  var ready = (q.readiness || '').toUpperCase();
+  if ((status === 'sent' || status === 'followup') && isFollowupOverdue(q)) return {label:'Critical', tone:'critical', sort:1};
+  if ((status === 'sent' || status === 'followup') && isFollowupDue(q)) return {label:'High', tone:'high', sort:2};
+  if (status === 'draft' && ready !== 'READY') return {label:'Needs Work', tone:'needswork', sort:3};
+  var dt = q.dt || q.createdAt || '';
+  if (dt) {
+    var age = Math.floor((new Date(getTodayISO()) - new Date(dt)) / 86400000);
+    if (age >= 30 && status !== 'approved' && status !== 'declined') return {label:'Aging 30+', tone:'critical', sort:4};
+    if (age >= 14 && status !== 'approved' && status !== 'declined') return {label:'Aging 14+', tone:'high', sort:5};
+    if (age >= 7  && status !== 'approved' && status !== 'declined') return {label:'Aging 7+', tone:'watch', sort:6};
+  }
+  if (status === 'ready') return {label:'Ready to Send', tone:'ready', sort:7};
+  if (status === 'sent') return {label:'Waiting', tone:'watch', sort:8};
+  if (status === 'approved') return {label:'Won', tone:'won', sort:90};
+  if (status === 'declined') return {label:'Lost', tone:'lost', sort:91};
+  return {label:'Normal', tone:'normal', sort:50};
+}
+function qqStage4EffectiveStatus(){
+  var status = (document.getElementById('qq-status')||{}).value || 'draft';
+  var totals = calcTotals();
+  if ((status === 'draft' || !status) && String(totals.readiness||'').toUpperCase() === 'READY') return 'ready';
+  return status;
+}
+function qqStage4ActionText(stage, totals){
+  if (String(totals.readiness||'').toUpperCase() !== 'READY') return 'Fix Issues';
+  if (stage === 'ready') return 'Send Quote';
+  if (stage === 'sent') return 'Schedule Follow-Up';
+  if (stage === 'followup') {
+    var q = { status: stage, followupDate: getQQFollowupDate(), dt: getQQQuoteDate(), readiness: totals.readiness };
+    if (isFollowupDue(q)) return 'Follow-Up NOW';
+    return 'Move to Follow-Up';
+  }
+  if (stage === 'approved') return 'Won';
+  if (stage === 'declined') return 'Lost';
+  return 'Update Status';
+}
+function qqStage5BannerState(){
+  var totals = calcTotals();
+  var status = qqStage4EffectiveStatus();
+  var fu = getQQFollowupDate();
+  var created = getQQCreatedDate() || getQQQuoteDate();
+  var q = { status: status, followupDate: fu, dt: getQQQuoteDate(), readiness: totals.readiness };
+  var age = created ? Math.floor((new Date(getTodayISO()) - new Date(created)) / 86400000) : 0;
+  if (String(totals.readiness||'').toUpperCase() !== 'READY') return {show:true, text:'Complete required quote details before this can move forward.', bg:'#fff3e0', color:'#e65100'};
+  if ((status === 'sent' || status === 'followup') && fu && isFollowupOverdue(q)) return {show:true, text:'Overdue follow-up. This quote needs action now.', bg:'#ffebee', color:'#c62828'};
+  if ((status === 'sent' || status === 'followup') && fu && isFollowupDue(q)) return {show:true, text:'Follow-up is due. Call or email the customer now.', bg:'#fff8e1', color:'#e65100'};
+  if ((status === 'sent' || status === 'followup') && !fu) return {show:true, text:'No follow-up date is set. Schedule one before this quote goes quiet.', bg:'#fff8e1', color:'#e65100'};
+  if (status === 'ready') return {show:true, text:'Quote is ready. Send it and set the next touchpoint.', bg:'#e8f5e9', color:'#2e7d32'};
+  if ((status === 'draft' || status === 'ready') && age >= 7) return {show:true, text:'This draft is aging. Either send it or clean it up.', bg:'#fff8e1', color:'#e65100'};
+  return {show:false, text:'', bg:'', color:''};
+}
+function qqStage4Init(){
+  var totals = calcTotals();
+  var stage = qqStage4EffectiveStatus();
+  var qNum = (document.getElementById('qq-num')||{}).value || '---';
+  var total = totals.totalSell || 0;
+  var numEl = document.getElementById('qq-stage4-num');
+  var statusEl = document.getElementById('qq-stage4-status');
+  var totalEl = document.getElementById('qq-stage4-total');
+  var hintEl = document.getElementById('qq-stage4-hint');
+  var btn = document.getElementById('qq-smart-action');
+  if (numEl) numEl.textContent = 'Quote #' + qNum;
+  if (totalEl) totalEl.textContent = fmt(total);
+  if (statusEl) {
+    statusEl.textContent = stage === 'ready' ? 'Ready' : (stage === 'approved' ? 'Won' : stage === 'declined' ? 'Lost' : stage.charAt(0).toUpperCase()+stage.slice(1));
+    statusEl.className = 'qq-stage4-status ' + (stage === 'ready' ? 'ready' : stage);
+  }
+  document.querySelectorAll('[data-stage4-step]').forEach(function(el){
+    var key = el.getAttribute('data-stage4-step');
+    el.classList.remove('active','done');
+    var order = {draft:1,ready:2,sent:3,followup:4,closed:5};
+    var current = stage === 'approved' || stage === 'declined' ? 'closed' : stage;
+    if (key === current) el.classList.add('active');
+    else if (order[key] < order[current]) el.classList.add('done');
+  });
+  var actionText = qqStage4ActionText(stage, totals);
+  if (btn) {
+    var notReady = String(totals.readiness||'').toUpperCase() !== 'READY';
+    // Hide the button entirely when quote is not ready (was useless "Fix Issues" nag)
+    btn.style.display = notReady ? 'none' : '';
+    btn.textContent = actionText;
+    btn.disabled = false;
+    btn.onclick = function(){
+      var statusEl = document.getElementById('qq-status');
+      var fuEl = document.getElementById('qq-followup');
+      var dt = getQQQuoteDate();
+      if (String((calcTotals().readiness||'').toUpperCase()) !== 'READY') {
+        alert('Complete required fields and pricing checks first.');
+        return;
+      }
+      if (stage === 'ready') {
+        if (statusEl) statusEl.value = 'sent';
+        if (fuEl && !fuEl.value) fuEl.value = calcFollowupDate(dt);
+      } else if (stage === 'sent') {
+        if (fuEl && !fuEl.value) fuEl.value = calcFollowupDate(dt);
+        if (statusEl) statusEl.value = 'followup';
+      } else if (stage === 'followup') {
+        if (fuEl && !fuEl.value) fuEl.value = calcFollowupDate(dt);
+        alert((fuEl && fuEl.value && fuEl.value <= getTodayISO()) ? 'Follow up with the customer now.' : 'Follow-up stage is active.');
+      }
+      updateQQStage3UI();
+      qqStage4Init();
+    };
+  }
+  var hint = 'Start by filling customer, job name, and line items.';
+  if (String(totals.readiness||'').toUpperCase() !== 'READY') hint = 'Quote is not ready. Fix the required fields and pricing issues.';
+  else if (stage === 'ready') hint = 'Ready to send. Next move: send quote and schedule follow-up.';
+  else if (stage === 'sent') hint = 'Quote sent. Next move: set and work the follow-up date.';
+  else if (stage === 'followup') hint = 'Follow-up stage active. Stay on this until it is won or lost.';
+  else if (stage === 'approved') hint = 'Quote won. Convert to job when ready.';
+  else if (stage === 'declined') hint = 'Quote closed as lost.';
+  if (hintEl) hintEl.textContent = hint;
+
+  var prEl = document.getElementById('qq-stage5-priority');
+  if (prEl) {
+    var q = { status: stage, followupDate: getQQFollowupDate(), dt: getQQQuoteDate(), readiness: totals.readiness };
+    var pr = getQuotePriority(q);
+    prEl.textContent = pr.label;
+    var styles = {
+      critical:['#ffebee','#c62828'], high:['#fff3e0','#e65100'], watch:['#fff8e1','#f57f17'],
+      ready:['#e8f5e9','#2e7d32'], needswork:['#fff3e0','#e65100'], won:['#e8f5e9','#2e7d32'], lost:['#ffebee','#c62828'], normal:['#f8fafc','#546e7a']
+    };
+    var st = styles[pr.tone] || styles.normal;
+    prEl.style.background = st[0]; prEl.style.color = st[1]; prEl.style.borderColor = st[0];
+  }
+  var banner = document.getElementById('qq-stage5-banner');
+  if (banner) {
+    var b = qqStage5BannerState();
+    banner.style.display = b.show ? 'block' : 'none';
+    banner.textContent = b.text;
+    banner.style.background = b.bg; banner.style.color = b.color;
+    banner.style.border = b.show ? ('1px solid ' + b.color + '33') : 'none';
+  }
+}
+
+// Stage 5 override: include follow-up and preserve created date
+function getQData(id) {
+  const totals = calcTotals();
+  const env = (document.getElementById('qq-env')||{}).value || 'office';
+  const envLabel = ENV_PRESETS[env] ? ENV_PRESETS[env].label : 'Office';
+  var existing = null;
+  var numVal = (document.getElementById('qq-num')||{}).value || '';
+  if (numVal) existing = DB.quotes.find(function(q){ return q.num === numVal; }) || null;
+  var createdVal = (document.getElementById('qq-created')||{}).value || (existing ? (existing.createdDate || (existing.createdAt||'').split('T')[0]) : getTodayISO());
+  return {
+    id: id || null,
+    num: (document.getElementById('qq-num')||{}).value || '',
+    cn:  (document.getElementById('qq-cn')||{}).value || '',
+    ph:  (document.getElementById('qq-ph')||{}).value || '',
+    em:  (document.getElementById('qq-em')||{}).value || '',
+    ad:  (document.getElementById('qq-ad')||{}).value || '',
+    contactName:  (document.getElementById('qq-contact-name')||{}).value || '',
+    contactTitle: (document.getElementById('qq-contact-title')||{}).value || '',
+    jn:  (document.getElementById('qq-jn')||{}).value || '',
+    jt:  (document.getElementById('qq-jt')||{}).value || 'New Construction',
+    env: env,
+    envLabel: envLabel,
+    dt:  (document.getElementById('qq-dt')||{}).value || '',
+    vu:  (document.getElementById('qq-vu')||{}).value || '',
+    rep: (document.getElementById('qq-rep')||{}).value || '',
+    pt:  (document.getElementById('qq-pt')||{}).value || '',
+    tc:  (document.getElementById('qq-tc')||{}).value || '',
+    notes: (document.getElementById('qq-notes')||{}).value || '',
+    intNotes: (document.getElementById('qq-int')||{}).value || '',
+    status: (document.getElementById('qq-status')||{}).value || 'draft',
+    followupDate: (document.getElementById('qq-followup')||{}).value || calcFollowupDate((document.getElementById('qq-dt')||{}).value || ''),
+    createdDate: createdVal,
+    laborRate: getLaborRate(),
+    targetMargin: parseFloat((document.getElementById('qq-mk')||{}).value)||35,
+    pricingMode: currentPricingMode(),
+    taxRate: parseFloat((document.getElementById('qq-tx')||{}).value)||0,
+    discount: totals.discountAmt,
+    totalMaterialCost: totals.totalMaterialCost,
+    totalLaborHours: totals.totalLaborHours,
+    laborSell: totals.laborSell,
+    totalCost: totals.totalCost,
+    materialSell: totals.materialSell,
+    sellBeforeTax: totals.sellBeforeTax,
+    taxAmt: totals.taxAmt,
+    total: totals.totalSell,
+    achievedMargin: totals.achievedMarginPct,
+    pricingHealth: totals.health,
+    readiness: totals.readiness,
+    equipmentRows: JSON.parse(JSON.stringify(equipmentRows)),
+    equipmentCost: totals.equipCost || 0,
+    permits: getPermitData(),
+    marginFloor: getMarginFloor((document.getElementById('qq-jt')||{}).value || 'New Construction'),
+    belowMarginFloor: totals.achievedMarginPct < getMarginFloor((document.getElementById('qq-jt')||{}).value || 'New Construction'),
+    perDiem: JSON.parse(JSON.stringify(perDiemData)),
+    perDiemCost: totals.pdCost || 0,
+    lumpSum: getLumpSumState(),
+    svcContract: getSvcContractData(),
+    execSummary: existing && existing.execSummary ? existing.execSummary : '',
+    proposalSections: getProposalSections(),
+    markup: totals.totalMaterialCost > 0 ? ((totals.materialSell / totals.totalMaterialCost - 1)*100).toFixed(1) : '0',
+    subtotal: totals.sellBeforeTax,
+    margin: totals.achievedMarginPct,
+    items: JSON.parse(JSON.stringify(lineItems)),
+    createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString()
+  };
+}
+
+function qqFieldIds(){
+  return ['qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-followup','qq-created','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env'];
+}
+
+function clearQQ(skipConfirm) {
+  if (!skipConfirm && lineItems.length > 0 && !confirm('Clear the current quote form?')) return;
+  lineItems = [];
+  equipmentRows = [];
+  renderEquipRows();
+  const eqCb = document.getElementById('equipment-enabled'); const eqBody = document.getElementById('equipment-body'); const eqLbl = document.getElementById('equipment-toggle-label');
+  if (eqCb) eqCb.checked = false; if (eqBody) eqBody.classList.remove('expanded'); if (eqLbl) { eqLbl.textContent='NO'; eqLbl.className='toggle-value-label'; }
+  ['permit-lv','permit-elec','permit-other','permit-none'].forEach(function(id){ const el=document.getElementById(id); if(el) el.checked=false; });
+  const otd = document.getElementById('permit-other-desc'); if(otd) otd.style.display='none';
+  const otx = document.getElementById('permit-other-text'); if(otx) otx.value='';
+  const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
+  updatePermitStatus();
+  ['qq-cn','qq-ph','qq-em','qq-ad','qq-jn','qq-num','qq-notes','qq-int','qq-tc','qq-contact-name','qq-contact-title'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+  const lr = document.getElementById('qq-lr'); if(lr) lr.value = DB.settings.laborRate || 100;
+  const mk = document.getElementById('qq-mk'); if(mk) mk.value = DB.settings.targetMargin || 35;
+  const tx = document.getElementById('qq-tx'); if(tx) tx.value = DB.settings.taxRate || 0;
+  const disc = document.getElementById('qq-disc'); if(disc) disc.value = 0;
+  const env = document.getElementById('qq-env'); if(env) env.value = 'office';
+  const status = document.getElementById('qq-status'); if(status) status.value = 'draft';
+  const dt = document.getElementById('qq-dt'); if(dt) dt.value = getTodayISO();
+  const created = document.getElementById('qq-created'); if (created) created.value = getTodayISO();
+  const follow = document.getElementById('qq-followup'); if (follow) follow.value = calcFollowupDate(getTodayISO());
+  const vd = DB.settings.validDays || 30;
+  const vu = document.getElementById('qq-vu'); if(vu){ const d=new Date(); d.setDate(d.getDate()+vd); vu.value=d.toISOString().split('T')[0]; }
+  const rep = document.getElementById('qq-rep'); if(rep) rep.value = DB.settings.uname || '';
+  const pt = document.getElementById('qq-pt'); if(pt) pt.value = DB.settings.payTerms || '';
+  const tc = document.getElementById('qq-tc'); if(tc) tc.value = DB.settings.tc || '';
+  const note = document.getElementById('env-default-note'); if(note) note.classList.remove('visible');
+  const mfb = document.getElementById('mf-floor-badge'); if(mfb) mfb.style.display='none';
+  const mfa = document.getElementById('mf-approval'); if(mfa) mfa.classList.remove('visible');
+  clearPerDiem(true);
+  const pdCb = document.getElementById('perdiem-enabled'); const pdBody = document.getElementById('perdiem-body'); const pdLbl = document.getElementById('perdiem-toggle-label');
+  if (pdCb) pdCb.checked = false; if (pdBody) pdBody.classList.remove('expanded'); if (pdLbl) { pdLbl.textContent='NO'; pdLbl.className='toggle-value-label'; }
+  const lsToggle = document.getElementById('lumpsum-toggle'); if(lsToggle) lsToggle.checked = false;
+  const lsBody = document.getElementById('lumpsum-body'); if(lsBody) lsBody.classList.remove('expanded');
+  const lsLbl = document.getElementById('lumpsum-toggle-label'); if(lsLbl){ lsLbl.textContent='NO'; lsLbl.className='toggle-value-label'; }
+  const lsLabel = document.getElementById('lumpsum-label'); if(lsLabel) lsLabel.value = 'Complete Low Voltage Installation';
+  const lsItems = document.getElementById('lumpsum-show-items'); if(lsItems) lsItems.checked = true;
+  const lsILbl = document.getElementById('lumpsum-show-items-label'); if(lsILbl){ lsILbl.textContent='YES'; lsILbl.className='toggle-value-label on'; }
+  _svcTier = null;
+  const svcCb = document.getElementById('svc-enabled'); if(svcCb) svcCb.checked=false;
+  const svcBody=document.getElementById('svc-body'); if(svcBody) svcBody.classList.remove('expanded');
+  const svcLbl=document.getElementById('svc-toggle-label'); if(svcLbl){svcLbl.textContent='NO';svcLbl.className='toggle-value-label';}
+  _cqqEnabled=false;
+  const cqqCb=document.getElementById('cqq-enabled'); if(cqqCb) cqqCb.checked=false;
+  const cqqBody=document.getElementById('cqq-body'); if(cqqBody) cqqBody.classList.remove('expanded');
+  const cqqLbl=document.getElementById('cqq-toggle-label'); if(cqqLbl){cqqLbl.textContent='NO';cqqLbl.className='toggle-value-label';}
+  resetProposalSectionToggles();
+  // Reset pricing mode to default (margin) for a fresh quote
+  setPricingMode('margin', { silent: true });
+  renderLI();
+  calcTotals();
+  qqStage4Init();
+}
+
+function editQuote(id) {
+  const q = DB.quotes.find(function(x){return x.id==id});
+  if (!q) return;
+  function setV(elId, val) { const el=document.getElementById(elId); if(el) el.value = (val!==undefined&&val!==null) ? val : ''; }
+  setV('qq-cn', q.cn); setV('qq-ph', q.ph); setV('qq-em', q.em); setV('qq-ad', q.ad);
+  setV('qq-contact-name', q.contactName||''); setV('qq-contact-title', q.contactTitle||'');
+  setV('qq-jn', q.jn); setV('qq-jt', q.jt); setV('qq-env', q.env||'office');
+  setV('qq-dt', q.dt); setV('qq-vu', q.vu); setV('qq-num', q.num); setV('qq-followup', q.followupDate || calcFollowupDate(q.dt || getTodayISO()));
+  setV('qq-created', q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || getTodayISO());
+  setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc);
+  setV('qq-notes', q.notes); setV('qq-int', q.intNotes||q.int||'');
+  setV('qq-status', q.status||'draft');
+  setV('qq-lr', q.laborRate||100); setV('qq-mk', q.targetMargin||q.markup||35); setV('qq-tx', q.taxRate||0); setV('qq-disc', q.discount||0);
+  // Restore pricing mode (margin/markup) — defaults to margin for older quotes that didn't save this field
+  setPricingMode(q.pricingMode === 'markup' ? 'markup' : 'margin', { silent: true });
+  lineItems = q.items ? JSON.parse(JSON.stringify(q.items)) : [];
+  lineItems.forEach(function(item){ if(!item._id) item._id = liSeq++; });
+  equipmentRows = q.equipmentRows ? JSON.parse(JSON.stringify(q.equipmentRows)) : [];
+  equipmentRows.forEach(function(r){ if(!r._id) r._id = eqSeq++; });
+  renderEquipRows();
+  const hasEquip = equipmentRows.length > 0;
+  const eqCb2 = document.getElementById('equipment-enabled'); const eqBody2 = document.getElementById('equipment-body'); const eqLbl2 = document.getElementById('equipment-toggle-label');
+  if (eqCb2) eqCb2.checked = hasEquip; if (eqBody2) eqBody2.classList.toggle('expanded', hasEquip); if (eqLbl2) { eqLbl2.textContent = hasEquip ? 'YES' : 'NO'; eqLbl2.className = 'toggle-value-label' + (hasEquip ? ' on' : ''); }
+  loadPermitData(q.permits || null);
+  loadPerDiemData(q.perDiem || null);
+  const hasPD = !!(q.perDiem && q.perDiemCost > 0);
+  const pdCb2 = document.getElementById('perdiem-enabled'); const pdBody2 = document.getElementById('perdiem-body'); const pdLbl2 = document.getElementById('perdiem-toggle-label');
+  if (pdCb2) pdCb2.checked = hasPD; if (pdBody2) pdBody2.classList.toggle('expanded', hasPD); if (pdLbl2) { pdLbl2.textContent = hasPD ? 'YES' : 'NO'; pdLbl2.className = 'toggle-value-label' + (hasPD ? ' on' : ''); }
+  const lsToggle = document.getElementById('lumpsum-toggle'); const lsBody = document.getElementById('lumpsum-body'); const lsLbl = document.getElementById('lumpsum-toggle-label'); const lsLabel = document.getElementById('lumpsum-label');
+  const lsOn = !!(q.lumpSum && q.lumpSum.enabled);
+  if (lsToggle) lsToggle.checked = lsOn; if (lsBody) lsBody.classList.toggle('expanded', lsOn); if (lsLbl) { lsLbl.textContent = lsOn ? 'YES' : 'NO'; lsLbl.className = 'toggle-value-label' + (lsOn ? ' on' : ''); }
+  if (lsLabel && q.lumpSum && q.lumpSum.label) lsLabel.value = q.lumpSum.label;
+  updateLumpSumPreview();
+  restoreProposalSectionToggles(q.proposalSections || null);
+  renderLI();
+  calcTotals();
+  clearQQDraft();
+  setQQDirty(false, 'Loaded saved quote');
+  updateQQStage3UI();
+  qqStage4Init();
+  goPage('qq');
+}
+
+function renderQuotes() {
+  const search = (document.getElementById('q-search')||{}).value || '';
+  const filter = (document.getElementById('q-filter')||{}).value || '';
+  let list = DB.quotes.slice();
+  if (search) { const sl = search.toLowerCase(); list = list.filter(function(q){ return (q.cn||'').toLowerCase().includes(sl)||(q.jn||'').toLowerCase().includes(sl)||(q.num||'').toLowerCase().includes(sl); }); }
+  if (filter) list = list.filter(function(q){ return (q.status||'draft') === filter; });
+  list.sort(function(a,b){
+    var pa = getQuotePriority(a), pb = getQuotePriority(b);
+    if (pa.sort !== pb.sort) return pa.sort - pb.sort;
+    return new Date(b.dt || b.createdAt || 0) - new Date(a.dt || a.createdAt || 0);
+  });
+  const tbody = document.getElementById('quotes-tbl');
+  if (!tbody) return;
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><p>No quotes found.</p></td></tr>';
+    return;
+  }
+  const healthColor = function(q){ return q.pricingHealth==='Healthy'?'color:#2e7d32':q.pricingHealth==='Watch'?'color:#e65100':'color:#c62828'; };
+  tbody.innerHTML = list.map(function(q){
+    const envLabel = q.envLabel || (ENV_PRESETS[q.env] ? ENV_PRESETS[q.env].label : q.env || '');
+    const fuBadge = isFollowupDue(q) ? '<span class="followup-due'+(isFollowupOverdue(q)?' followup-overdue':'')+'" style="margin-left:4px">'+( isFollowupOverdue(q)?'Overdue':'Follow-Up')+'</span>' : '';
+    const pr = getQuotePriority(q);
+    const prColor = pr.tone==='critical' ? '#c62828' : pr.tone==='high' ? '#e65100' : pr.tone==='needswork' ? '#e65100' : pr.tone==='ready' ? '#2e7d32' : '#607d8b';
+    const convertBtn = (q.status!=='approved'&&q.status!=='declined') ? ' <button class="btn btn-convert btn-sm" data-action="convertToJob" data-id="'+q.id+'" title="Mark Won &amp; Create Job">▶</button>' : '';
+    return '<tr><td style="font-weight:700;color:#1565c0">' + escHtml(q.num||'') + '</td><td>' + escHtml(q.cn||'') + '</td><td>' + escHtml(q.jn||'') + '</td><td style="font-size:11px">' + escHtml(envLabel) + '</td><td style="font-weight:700">' + fmt(q.total||0) + '</td><td style="font-weight:700;' + healthColor(q) + '">' + pct(q.achievedMargin||0) + '</td><td><span class="status-badge s-' + (q.status||'draft') + '">' + (q.status||'draft') + '</span>'+fuBadge+'<div style="font-size:10px;color:'+prColor+';font-weight:700;margin-top:3px">' + pr.label + '</div></td><td style="color:#90a4ae;font-size:11px">' + (q.followupDate ? '📅 '+q.followupDate : (q.dt||'')) + '</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-action="viewQuote" data-id="' + q.id + '">View</button> <button class="btn btn-outline btn-sm" data-action="editQuote" data-id="' + q.id + '">Edit</button> <button class="btn btn-ghost btn-sm" data-action="dupQuote" data-id="' + q.id + '">Dup</button>'+convertBtn+' <button class="btn btn-success btn-sm" data-action="emailSavedQuote" data-id="' + q.id + '" title="Email to customer">📧</button> <button class="btn btn-danger btn-sm" data-action="deleteQuote" data-id="' + q.id + '">Del</button></td></tr>';
+  }).join('');
+}
+
+function renderDash() {
+  const today = getTodayISO();
+  let tq=0, rev=0, wonRev=0, totalMargin=0, marginCount=0, followupsDue=0, aging7=0, aging14=0, aging30=0, draftsNotReady=0;
+  const pipeline = { draft:0, sent:0, followup:0, approved:0, declined:0 };
+  DB.quotes.forEach(function(q) {
+    tq++; rev += q.total||0; if (q.status==='approved') wonRev += q.total||0; if (q.achievedMargin!=null) { totalMargin += q.achievedMargin; marginCount++; }
+    pipeline[q.status||'draft'] = (pipeline[q.status||'draft']||0) + 1;
+    if (isFollowupDue(q)) followupsDue++;
+    var ageBase = q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || '';
+    if (ageBase && q.status !== 'approved' && q.status !== 'declined') {
+      var age = Math.floor((new Date(today) - new Date(ageBase))/86400000);
+      if (age >= 7) aging7++;
+      if (age >= 14) aging14++;
+      if (age >= 30) aging30++;
+    }
+    if ((q.status||'draft') === 'draft' && String(q.readiness||'').toUpperCase() !== 'READY') draftsNotReady++;
+  });
+  const activeJobs = DB.jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; }).length;
+  function setT(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
+  setT('ds-tq', tq); setT('ds-rev', '$' + Math.round(rev).toLocaleString()); setT('ds-won-rev', '$' + Math.round(wonRev).toLocaleString()); setT('ds-margin', marginCount>0 ? pct(totalMargin/marginCount) : '0%'); setT('ds-active-jobs', activeJobs); setT('ds-followups', followupsDue);
+
+  const pipelineBar = document.getElementById('pipeline-bar'); const pipelineLegend = document.getElementById('pipeline-legend'); const pipelineDetail = document.getElementById('pipeline-detail');
+  const PIPE_COLORS = { draft:'#607d8b', sent:'#1565c0', followup:'#6a1b9a', approved:'#2e7d32', declined:'#c62828' };
+  const PIPE_LABELS = { draft:'Draft', sent:'Sent', followup:'Follow-Up', approved:'Won', declined:'Lost' };
+  if (pipelineBar && tq > 0) {
+    pipelineBar.innerHTML = Object.keys(pipeline).map(function(k) {
+      var count = pipeline[k]||0; if (!count) return ''; var pct2 = count / tq * 100; var showNum = pct2 >= 6;
+      return '<div class="pipeline-seg ' + k + '" style="width:' + pct2 + '%;min-width:' + (count>0?'24px':'0') + '">' + (showNum ? '<span style="pointer-events:none">' + count + '</span>' : '') + '</div>';
+    }).join('');
+    pipelineLegend.innerHTML = Object.keys(pipeline).map(function(k) { if (!pipeline[k]) return ''; return '<div class="pipeline-legend-item"><div class="pipeline-legend-dot" style="background:' + PIPE_COLORS[k] + '"></div><span>' + PIPE_LABELS[k] + ': <strong>' + pipeline[k] + '</strong></span></div>'; }).join('');
+    if (pipelineDetail) {
+      const winRate = tq > 0 ? ((pipeline.approved||0)/tq*100).toFixed(0) : 0;
+      pipelineDetail.innerHTML = 'Win rate: <strong>' + winRate + '%</strong> &nbsp;·&nbsp; Follow-ups due: <strong>' + followupsDue + '</strong> &nbsp;·&nbsp; Aging 7/14/30: <strong>' + aging7 + ' / ' + aging14 + ' / ' + aging30 + '</strong> &nbsp;·&nbsp; Drafts not ready: <strong>' + draftsNotReady + '</strong>';
+    }
+  } else if (pipelineBar) {
+    pipelineBar.innerHTML = '<div style="width:100%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#90a4ae">No quotes yet</div>'; if (pipelineLegend) pipelineLegend.innerHTML = '';
+  }
+
+  const dashTbl = document.getElementById('dash-tbl');
+  if (dashTbl) {
+    const recent = DB.quotes.slice().sort(function(a,b){ return getQuotePriority(a).sort - getQuotePriority(b).sort || (new Date(b.dt||b.createdAt||0)-new Date(a.dt||a.createdAt||0)); }).slice(0, 8);
+    if (recent.length === 0) dashTbl.innerHTML = '<tr><td colspan="5" class="empty-state"><p>No quotes yet. Click + New Quote to start.</p></td></tr>';
+    else dashTbl.innerHTML = recent.map(function(q) {
+      const fu = isFollowupDue(q) ? '<span class="followup-due' + (isFollowupOverdue(q)?' followup-overdue':'') + '">Follow-Up</span>' : '';
+      return '<tr><td style="font-weight:700;color:#1565c0;font-size:12px">' + escHtml(q.num||'') + '</td><td style="font-size:12px">' + escHtml(q.cn||'') + '</td><td style="font-weight:700;font-size:12px">' + fmt(q.total||0) + '</td><td><span class="status-badge s-' + (q.status||'draft') + '">' + (q.status||'draft') + '</span>' + fu + '</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-action="editQuote" data-id="' + q.id + '">Edit</button>' + (q.status !== 'approved' && q.status !== 'declined' ? ' <button class="btn btn-convert btn-sm" data-action="convertToJob" data-id="' + q.id + '" title="Convert to Job">▶ Job</button>' : '') + '</td></tr>';
+    }).join('');
+  }
+
+  const dashJobsTbl = document.getElementById('dash-jobs-tbl');
+  if (dashJobsTbl) {
+    const active = DB.jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; }).slice(0,6);
+    if (active.length === 0) dashJobsTbl.innerHTML = '<tr><td colspan="4" class="empty-state"><p>No active jobs.</p></td></tr>';
+    else dashJobsTbl.innerHTML = active.map(function(j) { const sc = j.status==='In Progress'?'s-inprogress':'s-pending'; return '<tr><td style="font-weight:700;font-size:12px">' + escHtml(j.name||'') + '</td><td style="font-size:12px">' + escHtml(j.customer||'') + '</td><td><span class="status-badge ' + sc + '" style="font-size:10px">' + escHtml(j.status) + '</span></td><td><button class="btn btn-ghost btn-sm" data-action="goJobsPage">View</button></td></tr>'; }).join('');
+  }
+
+  const fuCard = document.getElementById('dash-followup-card'); const fuTbl = document.getElementById('dash-followup-tbl');
+  const dueFups = DB.quotes.filter(isFollowupDue).sort(function(a,b){ return (isFollowupOverdue(b)?1:0) - (isFollowupOverdue(a)?1:0) || new Date(a.followupDate||today) - new Date(b.followupDate||today); });
+  if (fuCard) fuCard.style.display = dueFups.length > 0 ? 'block' : 'none';
+  if (fuTbl && dueFups.length > 0) {
+    fuTbl.innerHTML = dueFups.map(function(q) { const overdue = isFollowupOverdue(q); return '<tr style="' + (overdue?'background:#fff8f8':'') + '"><td style="font-weight:700;color:#1565c0;font-size:12px">' + escHtml(q.num||'') + '</td><td>' + escHtml(q.cn||'') + '</td><td>' + escHtml(q.jn||'') + '</td><td style="font-weight:700;color:' + (overdue?'#c62828':'#e65100') + '">' + (q.followupDate||'') + (overdue?' ⚠️':'') + '</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-action="editQuote" data-id="' + q.id + '">Edit Quote</button> <button class="btn btn-ghost btn-sm" data-action="snoozeFollowup" data-id="' + q.id + '">Snooze 3d</button></td></tr>'; }).join('');
+  }
+
+  buildAlerts();
+  const cb = document.getElementById('company-badge'); if (cb) cb.textContent = (DB.settings.cname || 'TCSS').substring(0,12);
+}
+
+function saveQQ() {
+  let existing = null;
+  const num = (document.getElementById('qq-num')||{}).value || '';
+  if (num) { existing = DB.quotes.find(function(q){return q.num===num}); }
+  const q = getQData(existing ? existing.id : Date.now().toString());
+  if (!q.num || !existing) { q.num = nextQNum(); if(document.getElementById('qq-num')) document.getElementById('qq-num').value = q.num; }
+  q.id = existing ? existing.id : q.id;
+  if (!q.followupDate) q.followupDate = calcFollowupDate(q.dt || getTodayISO());
+  if (!q.createdDate) q.createdDate = (existing && existing.createdDate) || ((existing && existing.createdAt||'').split('T')[0]) || getTodayISO();
+  if (existing) {
+    const idx = DB.quotes.indexOf(existing);
+    if (existing.execSummary && !q.execSummary) q.execSummary = existing.execSummary;
+    if (existing.createdAt && !q.createdAt) q.createdAt = existing.createdAt;
+    DB.quotes[idx] = q;
+  } else {
+    DB.quotes.unshift(q);
+    upsertCustomer(q);
+  }
+  saveDB();
+  clearQQDraft();
+  setQQDirty(false, 'Quote ' + q.num + ' saved successfully');
+  alert('Quote ' + q.num + ' saved successfully!');
+  renderDash();
+  renderQuotes();
+  updateQQStage3UI();
+  qqStage4Init();
+}
+
+(function initStage5Watchers(){
+  document.addEventListener('input', function(e){
+    if (!e.target) return;
+    if (e.target.id === 'qq-dt') {
+      var fu = document.getElementById('qq-followup');
+      if (fu && !fu.value) fu.value = calcFollowupDate(e.target.value || getTodayISO());
+    }
+    if (e.target.id === 'qq-followup' || e.target.id === 'qq-dt' || e.target.id === 'qq-status') setTimeout(qqStage4Init, 0);
+  }, true);
+  document.addEventListener('change', function(e){
+    if (!e.target) return;
+    if (e.target.id === 'qq-status' || e.target.id === 'qq-followup' || e.target.id === 'qq-dt') setTimeout(qqStage4Init, 0);
+  }, true);
+})();
+
 // ---- INIT ----
 // =============================================
 // DEMO DATA SEED
@@ -8478,7 +9652,12 @@ function init() {
   equipmentRows = [];
   renderEquipRows();
   updatePermitStatus();
+  initPricingModeToggle();  // Wire up the segmented toggle for margin/markup
   clearQQ(true);
+  initQQStage3Watchers();
+  wrapQQStage3Mutations();
+  if (qqHasRecoverableDraft()) { try { if (confirm('Recover the last unsaved Quick Quote draft from this browser?')) restoreQQDraft(); else clearQQDraft(); } catch(e){} }
+  updateQQStage3UI();
   renderTplLibrary();
   renderDash();
   loadMarginFloors();
@@ -8515,8 +9694,20 @@ function init() {
       });
     }
     _sb.auth.onAuthStateChange(function(event, session) {
-      if (event === 'SIGNED_OUT') showAuthModal();
-      if (event === 'SIGNED_IN') { hideAuthModal(); }
+      if (event === 'SIGNED_OUT') {
+        _currentUser = null;
+        showAuthModal();
+      }
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        hideAuthModal();
+        // Load profile + sync when session established (handles magic link redirect)
+        if (!_currentUser) {
+          loadCurrentUserProfile().then(function() {
+            showToast('Welcome back, ' + (_currentUser ? _currentUser.full_name.split(' ')[0] : '') + '!', 'success');
+            syncAllFromCloud();
+          });
+        }
+      }
     });
   } else {
     showToast('Running in offline mode', 'warning', 3000);
@@ -8527,8 +9718,8 @@ function init() {
 // V9: SUPABASE CLOUD LAYER
 // =============================================
 
-var SUPABASE_URL = 'https://vvvqxvnsnwxkrwjjswfm.supabase.co';
-var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2dnF4dm5zbnd4a3J3ampzd2ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5MjEwMDQsImV4cCI6MjA5MTQ5NzAwNH0.IRAmRj9n_KBYq9seMrhFFBl-zzmqBR0df9I_5mvWMsQ';
+var SUPABASE_URL = 'https://jzvoksidbelxibzbizvi.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_4qYpNQoz_RXU29p_pkuI-A_H5-rOXDL';
 
 var _sb = null;        // Supabase client
 var _currentUser = null;  // logged-in profile
@@ -8544,16 +9735,15 @@ function initSupabase() {
   }
 }
 
-// ---- AUTH ----
-async function signIn(email, password) {
+// ---- AUTH — Magic Link ----
+async function signIn(email) {
   if (!_sb) return { error: { message: 'Not connected' } };
-  var result = await _sb.auth.signInWithPassword({ email: email.trim(), password: password });
-  if (!result.error) {
-    await loadCurrentUserProfile();
-    hideAuthModal();
-    showToast('Welcome back, ' + (_currentUser ? _currentUser.full_name.split(' ')[0] : '') + '!', 'success');
-    syncAllFromCloud();
-  }
+  var result = await _sb.auth.signInWithOtp({
+    email: email.trim(),
+    options: {
+      emailRedirectTo: window.location.href  // bounce back to this page after clicking link
+    }
+  });
   return result;
 }
 
@@ -8613,40 +9803,136 @@ async function syncAllFromCloud() {
   if (!_sb || !_currentUser) return;
   showToast('Syncing...', 'info', 1500);
   try {
-    // Pull settings
-    var { data: settingsRow } = await _sb.from('settings').select('data').eq('id', 1).single();
-    if (settingsRow && settingsRow.data) {
-      DB.settings = Object.assign({}, DB.settings, settingsRow.data);
+    // Pull company settings
+    var { data: settingsRow } = await _sb.from('company_settings').select('*').eq('id', 1).single();
+    if (settingsRow) {
+      DB.settings = DB.settings || {};
+      DB.settings.cname = settingsRow.company_name || DB.settings.cname;
+      DB.settings.laborRate = settingsRow.default_labor_rate || DB.settings.laborRate;
+      DB.settings.targetMargin = settingsRow.default_target_margin || DB.settings.targetMargin;
+      // Restore manager approval settings
+      if (!DB.settings.managerApproval) DB.settings.managerApproval = {};
+      DB.settings.managerApproval.enabled = settingsRow.ma_enabled;
+      DB.settings.managerApproval.belowFloorOnly = settingsRow.ma_below_floor_only;
+      DB.settings.managerApproval.pinHash = settingsRow.ma_pin_hash || '';
+      DB.settings.managerApproval.pinSalt = settingsRow.ma_pin_salt || '';
     }
 
-    if (_currentUser.role !== 'field') {
-      // Pull quotes
-      var { data: quotes } = await _sb.from('quotes').select('data').order('created_at', { ascending: false });
-      if (quotes && quotes.length) DB.quotes = quotes.map(function(r){ return r.data; });
+    if (_currentUser.role !== 'helper_tech' && _currentUser.role !== 'lead_tech') {
+      // Pull quotes with their line items
+      var { data: quotes } = await _sb.from('quotes')
+        .select('*, quote_line_items(*)')
+        .order('created_at', { ascending: false });
+
+      if (quotes && quotes.length) {
+        DB.quotes = quotes.map(function(q) {
+          return {
+            id: q.id,
+            num: q.quote_number,
+            cn: q.customer_name,
+            rep: q.sales_rep_name,
+            status: q.status,
+            dt: q.quote_date,
+            vu: q.valid_until,
+            jt: q.quote_type,
+            env: q.environment,
+            pricingMode: q.pricing_mode,
+            targetMargin: q.target_margin,
+            laborRate: q.labor_rate,
+            taxRate: q.tax_rate,
+            discount: q.discount,
+            totalMaterialCost: q.total_material_cost,
+            totalLaborHours: q.total_labor_hours,
+            laborSell: q.labor_sell,
+            materialSell: q.material_sell,
+            totalCost: q.total_cost,
+            sellBeforeTax: q.sell_before_tax,
+            taxAmt: q.tax_amount,
+            total: q.total_sell,
+            achievedMargin: q.achieved_margin_pct,
+            belowMarginFloor: q.below_margin_floor,
+            notes: q.scope_notes,
+            internalNotes: q.internal_notes,
+            terms: q.quote_terms,
+            priority: q.priority,
+            lumpSum: q.lump_sum_enabled ? { enabled: true, label: q.lump_sum_label, showItems: true } : null,
+            approval: q.approval_status ? { status: q.approval_status } : null,
+            items: (q.quote_line_items || []).sort(function(a,b){ return a.sort_order - b.sort_order; }).map(function(li) {
+              return {
+                _id: li.id,
+                desc: li.description,
+                cat: li.category,
+                qty: li.qty,
+                unit: li.unit,
+                mc: li.material_cost,
+                lh: li.labor_hours
+              };
+            })
+          };
+        });
+      }
 
       // Pull customers
-      var { data: custs } = await _sb.from('customers').select('*').order('name');
-      if (custs && custs.length) DB.customers = custs;
+      var { data: custs } = await _sb.from('customers').select('*').eq('is_active', true).order('name');
+      if (custs && custs.length) {
+        DB.customers = custs.map(function(c) {
+          return {
+            id: c.id,
+            name: c.name,
+            company: c.company,
+            email: c.email,
+            phone: c.phone,
+            phone2: c.phone_alt,
+            address: c.address,
+            city: c.city,
+            state: c.state,
+            zip: c.zip,
+            notes: c.notes,
+            active: c.is_active
+          };
+        });
+      }
 
       // Pull catalog
-      var { data: cat } = await _sb.from('catalog').select('*').order('name');
-      if (cat && cat.length) DB.catalog = cat;
+      var { data: cat } = await _sb.from('catalog').select('*').eq('is_active', true).order('name');
+      if (cat && cat.length) {
+        DB.catalog = cat.map(function(item) {
+          return {
+            id: item.id,
+            name: item.name,
+            desc: item.description,
+            cat: item.category,
+            unit: item.unit,
+            cost: item.default_cost,
+            hours: item.default_hours,
+            notes: item.notes,
+            active: item.is_active
+          };
+        });
+      }
 
       // Pull templates
-      var { data: tmpl } = await _sb.from('templates').select('*').order('name');
-      if (tmpl && tmpl.length) DB.templates = tmpl.map(function(t){
-        return Object.assign({}, t, { items: t.items || [] });
-      });
+      var { data: tmpl } = await _sb.from('templates').select('*').eq('is_active', true).order('name');
+      if (tmpl && tmpl.length) {
+        DB.templates = tmpl.map(function(t) {
+          return {
+            id: t.id,
+            name: t.name,
+            cat: t.category,
+            desc: t.description,
+            items: t.items || [],
+            active: t.is_active
+          };
+        });
+      }
 
-      // Pull jobs
-      var { data: jobs } = await _sb.from('jobs').select('data').order('created_at', { ascending: false });
-      if (jobs && jobs.length) DB.jobs = jobs.map(function(r){ return r.data; });
-    } else {
-      // Field: only pull their assigned jobs
-      var { data: jobs } = await _sb.from('jobs').select('data').order('start_date');
-      if (jobs && jobs.length) {
-        DB.jobs = jobs.map(function(r){ return r.data; })
-          .filter(function(j){ return j.assignedTo && _currentUser && j.assignedTo.toLowerCase().includes(_currentUser.full_name.split(' ')[0].toLowerCase()); });
+      // Pull margin floors
+      var { data: floors } = await _sb.from('margin_floors').select('*');
+      if (floors && floors.length) {
+        DB.marginFloors = DB.marginFloors || {};
+        floors.forEach(function(f) {
+          DB.marginFloors[f.job_type] = f.floor_pct;
+        });
       }
     }
 
@@ -8661,58 +9947,150 @@ async function syncAllFromCloud() {
 
 async function pushAllToCloud() {
   if (!_sb || !_currentUser) return;
-  if (_currentUser.role === 'field') return; // field syncs via specific actions only
+  if (_currentUser.role === 'field') return;
   try {
-    // Push settings
-    await _sb.from('settings').upsert({ id: 1, data: DB.settings });
+    // Push settings to company_settings (single row, id=1)
+    await _sb.from('company_settings').upsert({
+      id: 1,
+      company_name: DB.settings.cname || 'TCSS',
+      default_labor_rate: DB.settings.laborRate || 100,
+      default_target_margin: DB.settings.targetMargin || 35,
+      ma_enabled: DB.settings.managerApproval ? !!DB.settings.managerApproval.enabled : false,
+      ma_below_floor_only: DB.settings.managerApproval ? !!DB.settings.managerApproval.belowFloorOnly : true,
+      ma_pin_hash: DB.settings.managerApproval ? (DB.settings.managerApproval.pinHash || '') : '',
+      ma_pin_salt: DB.settings.managerApproval ? (DB.settings.managerApproval.pinSalt || '') : ''
+    });
 
     // Push quotes
-    for (var q of DB.quotes) {
-      await _sb.from('quotes').upsert({
-        id: q.id, num: q.num||'', cn: q.cn||'', jn: q.jn||'', jt: q.jt||'',
-        env: q.env||'', rep: q.rep||'', status: q.status||'draft',
-        dt: q.dt||'', vu: q.vu||'', total: q.total||0,
-        achieved_margin: q.achievedMargin||0, pricing_health: q.pricingHealth||'',
-        items: q.items||[], data: q,
-        created_by: _currentUser.id,
-        updated_at: new Date().toISOString()
-      });
-    }
+    for (var q of (DB.quotes || [])) {
+      if (!q || !q.id) continue;
+      try {
+        await _sb.from('quotes').upsert({
+          id: q.id,
+          quote_number: q.num || null,
+          customer_name: q.cn || null,
+          job_id: null,  // linked later when job management is built
+          sales_rep_name: q.rep || null,
+          status: (q.status || 'Draft'),
+          quote_date: q.dt || null,
+          valid_until: q.vu || null,
+          quote_type: q.jt || null,
+          environment: q.env || null,
+          pricing_mode: q.pricingMode || 'margin',
+          target_margin: q.targetMargin || 35,
+          labor_rate: q.laborRate || 100,
+          tax_rate: q.taxRate || 0,
+          discount: q.discount || 0,
+          total_material_cost: q.totalMaterialCost || 0,
+          total_labor_hours: q.totalLaborHours || 0,
+          labor_sell: q.laborSell || 0,
+          material_sell: q.materialSell || 0,
+          total_cost: q.totalCost || 0,
+          sell_before_tax: q.sellBeforeTax || 0,
+          tax_amount: q.taxAmt || 0,
+          total_sell: q.total || 0,
+          achieved_margin_pct: q.achievedMargin || 0,
+          below_margin_floor: !!q.belowMarginFloor,
+          scope_notes: q.notes || null,
+          internal_notes: q.internalNotes || null,
+          quote_terms: q.terms || null,
+          priority: q.priority || 'Normal',
+          lump_sum_enabled: !!(q.lumpSum && q.lumpSum.enabled),
+          lump_sum_label: (q.lumpSum && q.lumpSum.label) || null,
+          approval_status: (q.approval && q.approval.status) || null,
+          created_by: _currentUser.id
+        });
 
-    // Push jobs
-    for (var j of DB.jobs) {
-      await _sb.from('jobs').upsert({
-        id: j.id, num: j.num||'', name: j.name||'', customer: j.customer||'',
-        qid: j.qid||null, qnum: j.qnum||'', env: j.env||'',
-        status: j.status||'Scheduled', est_labor_hours: j.estLaborHours||0,
-        actual_labor_hours: j.actualLaborHours||0, est_total: j.estTotal||0,
-        start_date: j.startDate||'', assigned_to: j.assignedTo||'',
-        address: j.address||'', notes: j.notes||'',
-        closeout: j.closeout||null, data: j,
-        updated_at: new Date().toISOString()
-      });
+        // Push line items for this quote
+        if (q.items && q.items.length > 0) {
+          // Delete existing line items and re-insert (simplest for now)
+          await _sb.from('quote_line_items').delete().eq('quote_id', q.id);
+          var lineItems = q.items.map(function(item, idx) {
+            return {
+              quote_id: q.id,
+              sort_order: idx,
+              description: item.desc || '',
+              category: item.cat || null,
+              qty: item.qty || 1,
+              unit: item.unit || 'ea',
+              material_cost: item.mc || 0,
+              labor_hours: item.lh || 0
+            };
+          });
+          if (lineItems.length > 0) {
+            await _sb.from('quote_line_items').insert(lineItems);
+          }
+        }
+      } catch(qErr) {
+        console.warn('[Push] Quote error for', q.num, qErr);
+      }
     }
 
     // Push customers
-    for (var c of DB.customers) {
-      await _sb.from('customers').upsert({ ...c, updated_at: new Date().toISOString() });
+    for (var c of (DB.customers || [])) {
+      if (!c || !c.id) continue;
+      try {
+        await _sb.from('customers').upsert({
+          id: c.id,
+          name: c.name || '',
+          company: c.company || null,
+          email: c.email || null,
+          phone: c.phone || null,
+          phone_alt: c.phone2 || null,
+          address: c.address || null,
+          city: c.city || null,
+          state: c.state || null,
+          zip: c.zip || null,
+          notes: c.notes || null,
+          is_active: c.active !== false,
+          created_by: _currentUser.id
+        });
+      } catch(cErr) {
+        console.warn('[Push] Customer error for', c.name, cErr);
+      }
     }
 
     // Push catalog
-    for (var item of DB.catalog) {
-      await _sb.from('catalog').upsert({ ...item, updated_at: new Date().toISOString() });
+    for (var item of (DB.catalog || [])) {
+      if (!item || !item.id) continue;
+      try {
+        await _sb.from('catalog').upsert({
+          id: item.id,
+          name: item.name || '',
+          description: item.desc || null,
+          category: item.cat || null,
+          unit: item.unit || 'ea',
+          default_cost: item.cost || 0,
+          default_hours: item.hours || 0,
+          notes: item.notes || null,
+          is_active: item.active !== false
+        });
+      } catch(iErr) {
+        console.warn('[Push] Catalog error for', item.name, iErr);
+      }
     }
 
     // Push templates
-    for (var t of DB.templates) {
-      await _sb.from('templates').upsert({
-        id: t.id, name: t.name||'', icon: t.icon||'📐', cat: t.cat||'Custom',
-        env: t.env||'office', margin: t.margin||38, items: t.items||[],
-        updated_at: new Date().toISOString()
-      });
+    for (var t of (DB.templates || [])) {
+      if (!t || !t.id) continue;
+      try {
+        await _sb.from('templates').upsert({
+          id: t.id,
+          name: t.name || '',
+          category: t.cat || null,
+          description: t.desc || null,
+          items: t.items || [],
+          is_active: true,
+          created_by: _currentUser.id
+        });
+      } catch(tErr) {
+        console.warn('[Push] Template error for', t.name, tErr);
+      }
     }
+
   } catch(e) {
     console.error('Push error:', e);
+    showToast('Sync error — changes saved locally', 'warning');
   }
 }
 
@@ -8839,19 +10217,31 @@ function mobileNav(page) {
 
 // ---- AUTH HELPERS ----
 async function doSignIn() {
-  var email    = (document.getElementById('auth-email')||{}).value || '';
-  var password = (document.getElementById('auth-password')||{}).value || '';
-  var errEl    = document.getElementById('auth-error');
-  var btn      = document.getElementById('auth-btn');
-  if (!email || !password) {
-    if (errEl) { errEl.style.display='block'; errEl.textContent='Please enter your email and password.'; }
+  var email = (document.getElementById('auth-email')||{}).value || '';
+  var errEl = document.getElementById('auth-error');
+  var btn   = document.getElementById('auth-btn');
+  var sentEl = document.getElementById('auth-sent-msg');
+
+  if (!email || !email.includes('@')) {
+    if (errEl) { errEl.style.display='block'; errEl.textContent='Please enter a valid email address.'; }
     return;
   }
-  if (btn) { btn.textContent='Signing in...'; btn.disabled=true; }
-  var result = await signIn(email, password);
+  if (errEl) errEl.style.display = 'none';
+  if (btn) { btn.textContent='Sending link...'; btn.disabled=true; }
+
+  var result = await signIn(email);
+
   if (result.error) {
-    if (errEl) { errEl.style.display='block'; errEl.textContent=result.error.message||'Sign in failed. Check your credentials.'; }
-    if (btn) { btn.textContent='Sign In'; btn.disabled=false; }
+    if (errEl) { errEl.style.display='block'; errEl.textContent=result.error.message||'Could not send login link. Try again.'; }
+    if (btn) { btn.textContent='Send Login Link'; btn.disabled=false; }
+  } else {
+    // Show the "check your email" message
+    if (btn) btn.style.display = 'none';
+    if (sentEl) {
+      sentEl.style.display = 'block';
+      sentEl.innerHTML = '✅ <strong>Check your email!</strong><br>A login link was sent to <strong>' +
+        email.replace(/</g,'&lt;') + '</strong>.<br><span style="font-size:11px;color:#607d8b">Click the link in the email to sign in. You can close this tab.</span>';
+    }
   }
 }
 
@@ -8940,23 +10330,21 @@ if (document.readyState === 'loading') {
   <div style="background:#fff;border-radius:16px;padding:36px 40px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
     <div style="text-align:center;margin-bottom:24px">
       <div style="font-size:28px;font-weight:900;color:#1565c0;letter-spacing:-1px">TCSS ProBid</div>
-      <div style="font-size:13px;color:#607d8b;margin-top:4px">Sign in to your account</div>
+      <div style="font-size:13px;color:#607d8b;margin-top:4px">Enter your email to sign in</div>
     </div>
     <div id="auth-error" style="display:none;background:#ffebee;color:#c62828;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px"></div>
-    <div style="margin-bottom:14px">
-      <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Email Address</label>
-      <input id="auth-email" type="email" placeholder="your@email.com" style="width:100%;padding:10px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box">
-    </div>
+    <div id="auth-sent-msg" style="display:none;background:#e8f5e9;color:#2e7d32;padding:14px 16px;border-radius:8px;font-size:13px;margin-bottom:16px;line-height:1.5"></div>
     <div style="margin-bottom:20px">
-      <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Password</label>
-      <input id="auth-password" type="password" placeholder="••••••••" style="width:100%;padding:10px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box"
+      <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Email Address</label>
+      <input id="auth-email" type="email" placeholder="your@email.com"
+        style="width:100%;padding:10px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box"
         onkeydown="if(event.key==='Enter')doSignIn()">
     </div>
     <button onclick="doSignIn()" id="auth-btn" style="width:100%;padding:12px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
-      Sign In
+      Send Login Link
     </button>
-    <div style="text-align:center;margin-top:14px">
-      <a href="#" onclick="showForgotPassword();return false" style="font-size:12px;color:#1565c0">Forgot password?</a>
+    <div style="text-align:center;margin-top:14px;font-size:11px;color:#90a4ae">
+      We'll email you a one-click sign-in link. No password needed.
     </div>
     <div id="auth-offline-note" style="margin-top:16px;text-align:center;font-size:11px;color:#90a4ae">
       No internet? <a href="#" onclick="continueOffline();return false" style="color:#1565c0">Continue offline</a>
@@ -8982,6 +10370,703 @@ if (document.readyState === 'loading') {
     </div>
   </div>
 </div>
+
+<!-- ============================================================ -->
+<!-- MANAGER APPROVAL — full implementation                         -->
+<!-- ============================================================ -->
+<script id="manager-approval">
+(function(){
+  'use strict';
+
+  // Module-level kill switch
+  try {
+    if (localStorage.getItem('tcss_disable_manager_approval') === '1') {
+      console.warn('[ManagerApproval] Disabled via localStorage flag.');
+      return;
+    }
+  } catch(e){}
+
+  // ============================================================
+  // Settings access
+  // ============================================================
+  function getMaSettings() {
+    if (!window.DB) return null;
+    if (!window.DB.settings) window.DB.settings = {};
+    if (!window.DB.settings.managerApproval) {
+      window.DB.settings.managerApproval = {
+        enabled: false,
+        belowFloorOnly: true,  // safer default
+        pinHash: '',
+        pinSalt: '',
+        firstEnabledAt: null,
+        log: []
+      };
+    }
+    var s = window.DB.settings.managerApproval;
+    if (!Array.isArray(s.log)) s.log = [];
+    if (typeof s.belowFloorOnly !== 'boolean') s.belowFloorOnly = true;
+    return s;
+  }
+
+  function persist() {
+    try { if (typeof window.saveDB === 'function') window.saveDB(); } catch(e) {}
+  }
+
+  function hasPin() {
+    var s = getMaSettings();
+    return !!(s && s.pinHash && s.pinHash.length > 0);
+  }
+
+  // ============================================================
+  // PIN hashing (SHA-256 + random salt; falls back to simple hash if unavailable)
+  // ============================================================
+  function randomSalt() {
+    try {
+      var arr = new Uint8Array(16);
+      if (window.crypto && window.crypto.getRandomValues) {
+        window.crypto.getRandomValues(arr);
+      } else {
+        for (var i=0; i<16; i++) arr[i] = Math.floor(Math.random()*256);
+      }
+      return Array.prototype.map.call(arr, function(b){ return ('0'+b.toString(16)).slice(-2); }).join('');
+    } catch(e) {
+      return String(Math.random()).slice(2) + String(Date.now());
+    }
+  }
+
+  function hashPin(pin, salt) {
+    // Try Web Crypto API first (secure contexts: https, localhost).
+    // Falls back to djb2 hash on file:// where crypto.subtle is unavailable
+    // or rejects (which is what triggers "service unavailable" type errors).
+    var fallback = function() {
+      var str = salt + ':' + pin, h = 5381;
+      for (var i=0; i<str.length; i++) h = ((h<<5)+h+str.charCodeAt(i))>>>0;
+      return 'fb_' + h.toString(16);
+    };
+    try {
+      if (window.crypto && window.crypto.subtle && window.TextEncoder) {
+        var data = new TextEncoder().encode(salt + ':' + pin);
+        // Wrap the Web Crypto call in a Promise that catches BOTH sync throws
+        // AND async rejections, falling back to djb2 in either case.
+        return new Promise(function(resolve){
+          try {
+            var p = window.crypto.subtle.digest('SHA-256', data);
+            // Some browsers return undefined or non-Promise on file:// — guard
+            if (!p || typeof p.then !== 'function') {
+              resolve(fallback());
+              return;
+            }
+            p.then(function(buf){
+              var arr = new Uint8Array(buf);
+              resolve(Array.prototype.map.call(arr, function(b){ return ('0'+b.toString(16)).slice(-2); }).join(''));
+            }).catch(function(){
+              // Web Crypto rejected (typical on file:// origin) — use fallback
+              resolve(fallback());
+            });
+          } catch(syncErr) {
+            // Synchronous throw — use fallback
+            resolve(fallback());
+          }
+        });
+      }
+    } catch(e) {}
+    return Promise.resolve(fallback());
+  }
+
+  function verifyPin(pin) {
+    var s = getMaSettings();
+    if (!s || !s.pinHash || !s.pinSalt) return Promise.resolve(false);
+    return hashPin(pin, s.pinSalt).then(function(h){ return h === s.pinHash; });
+  }
+
+  // ============================================================
+  // UI: View toggling
+  // ============================================================
+  function el(id) { return document.getElementById(id); }
+
+  function showView() {
+    try {
+      var noPinView = el('ma-view-no-pin');
+      var pinSetView = el('ma-view-pin-set');
+      if (!noPinView || !pinSetView) return;
+      var s = getMaSettings();
+      if (hasPin()) {
+        noPinView.style.display = 'none';
+        pinSetView.style.display = 'block';
+        var t1 = el('ma-toggle-enabled');
+        var t2 = el('ma-toggle-belowonly');
+        if (t1) t1.checked = !!(s && s.enabled);
+        if (t2) t2.checked = !!(s && s.belowFloorOnly);
+        // Gray out toggle 2 when toggle 1 is off
+        var wrap = el('ma-toggle-belowonly-wrap');
+        if (wrap) {
+          if (s && s.enabled) {
+            wrap.style.opacity = '1';
+            wrap.style.pointerEvents = '';
+            if (t2) t2.disabled = false;
+          } else {
+            wrap.style.opacity = '0.45';
+            if (t2) t2.disabled = true;
+          }
+        }
+        // Status summary
+        var status = el('ma-status-summary');
+        if (status) {
+          if (!s.enabled) {
+            status.textContent = '⚪ DISABLED — No approval required for any quote';
+            status.style.background = '#eceff1';
+            status.style.color = '#546e7a';
+          } else if (s.belowFloorOnly) {
+            status.textContent = '✓ ACTIVE — Approval required only for quotes below margin floor';
+            status.style.background = '#fff8e1';
+            status.style.color = '#856404';
+          } else {
+            status.textContent = '🔒 STRICT — Approval required for ALL quotes';
+            status.style.background = '#ffebee';
+            status.style.color = '#c62828';
+          }
+        }
+      } else {
+        noPinView.style.display = 'block';
+        pinSetView.style.display = 'none';
+      }
+      // Hide forms on view refresh
+      var formPin = el('ma-form-pin'); if (formPin) formPin.style.display = 'none';
+      var formLog = el('ma-form-log'); if (formLog) formLog.style.display = 'none';
+    } catch(e) { console.error('[MA] showView error:', e); }
+  }
+
+  function showError(msg) {
+    var e = el('ma-form-error');
+    if (e) { e.textContent = msg; e.style.display = 'block'; }
+  }
+  function clearError() {
+    var e = el('ma-form-error');
+    if (e) { e.style.display = 'none'; e.textContent = ''; }
+  }
+
+  function clearInputs() {
+    ['ma-input-current','ma-input-new','ma-input-confirm'].forEach(function(id){
+      var x = el(id); if (x) x.value = '';
+    });
+    clearError();
+  }
+
+  function showSetForm() {
+    clearInputs();
+    var t = el('ma-form-pin-title'); if (t) t.textContent = '🔑 Set PIN';
+    var rc = el('ma-row-current'); if (rc) rc.style.display = 'none';
+    var f = el('ma-form-pin'); if (f) f.style.display = 'block';
+    var ne = el('ma-input-new'); if (ne) ne.focus();
+  }
+
+  function showChangeForm() {
+    clearInputs();
+    var t = el('ma-form-pin-title'); if (t) t.textContent = '🔑 Change PIN';
+    var rc = el('ma-row-current'); if (rc) rc.style.display = 'block';
+    var f = el('ma-form-pin'); if (f) f.style.display = 'block';
+    var c = el('ma-input-current'); if (c) c.focus();
+  }
+
+  function hideForm() {
+    var f = el('ma-form-pin'); if (f) f.style.display = 'none';
+    clearInputs();
+  }
+
+  function showLog() {
+    var s = getMaSettings();
+    var body = el('ma-log-body');
+    if (!body) return;
+    if (!s || !s.log || s.log.length === 0) {
+      body.innerHTML = '<div style="padding:12px;text-align:center;color:#90a4ae">No approvals logged yet.</div>';
+    } else {
+      body.innerHTML = s.log.map(function(entry){
+        var when = entry.ts ? new Date(entry.ts).toLocaleString() : '—';
+        var note = entry.note ? '<div style="margin-top:4px;font-style:italic">"' + String(entry.note).replace(/</g,'&lt;') + '"</div>' : '';
+        var marginInfo = (entry.achievedMargin != null && entry.marginFloor != null)
+          ? ' <span style="color:#546e7a">(margin ' + (Math.round(entry.achievedMargin*10)/10).toFixed(1) + '% vs floor ' + (Math.round(entry.marginFloor*10)/10).toFixed(1) + '%)</span>'
+          : '';
+        var custInfo = entry.customer ? ' — ' + String(entry.customer).replace(/</g,'&lt;') : '';
+        return '<div style="border-left:3px solid #2e7d32;padding:8px 10px;margin-bottom:6px;background:#fff">' +
+               '<div style="font-weight:700">' + (entry.action || '?') + ' — ' + (entry.quoteNum || '(unsaved)') + custInfo + '</div>' +
+               '<div style="color:#546e7a;font-size:11px">' + when + marginInfo + '</div>' + note +
+               '</div>';
+      }).join('');
+    }
+    var f = el('ma-form-log'); if (f) f.style.display = 'block';
+  }
+
+  function hideLog() {
+    var f = el('ma-form-log'); if (f) f.style.display = 'none';
+  }
+
+  // ============================================================
+  // PIN management actions
+  // ============================================================
+  function savePin() {
+    try {
+      var newPin = (el('ma-input-new')||{}).value || '';
+      var confirmPin = (el('ma-input-confirm')||{}).value || '';
+      var currentPin = (el('ma-input-current')||{}).value || '';
+      var changing = hasPin();
+
+      if (!/^[0-9]{4,8}$/.test(newPin)) { showError('PIN must be 4-8 digits.'); return; }
+      if (newPin !== confirmPin) { showError('PIN and confirmation do not match.'); return; }
+
+      var verifyChain = changing
+        ? verifyPin(currentPin).then(function(ok){ if (!ok) throw new Error('Current PIN is incorrect.'); })
+        : Promise.resolve();
+
+      verifyChain.then(function(){
+        var salt = randomSalt();
+        return hashPin(newPin, salt).then(function(hash){
+          var s = getMaSettings();
+          if (!s) { showError('Settings unavailable.'); return; }
+          s.pinSalt = salt;
+          s.pinHash = hash;
+          if (typeof s.enabled !== 'boolean') s.enabled = false;
+          persist();
+          hideForm();
+          showView();
+          if (typeof window.alert === 'function') window.alert('Manager PIN ' + (changing ? 'changed' : 'set') + ' successfully.');
+        });
+      }).catch(function(e){
+        showError(e && e.message ? e.message : 'Could not save PIN.');
+      });
+    } catch(e) {
+      console.error('[MA] savePin error:', e);
+      showError('Unexpected error.');
+    }
+  }
+
+  function removePin() {
+    try {
+      if (!window.confirm('Remove the manager PIN? Approval workflow will be disabled. Audit log will be preserved.')) return;
+      var s = getMaSettings();
+      if (!s) return;
+      s.pinHash = '';
+      s.pinSalt = '';
+      s.enabled = false;
+      persist();
+      showView();
+    } catch(e) { console.error('[MA] removePin error:', e); }
+  }
+
+  function onToggleEnabledChange() {
+    try {
+      var t = el('ma-toggle-enabled');
+      if (!t) return;
+      var s = getMaSettings();
+      if (!s) return;
+      s.enabled = !!t.checked;
+      if (s.enabled && !s.firstEnabledAt) s.firstEnabledAt = new Date().toISOString();
+      persist();
+      showView();
+    } catch(e) { console.error('[MA] toggle1 error:', e); }
+  }
+
+  function onToggleBelowOnlyChange() {
+    try {
+      var t = el('ma-toggle-belowonly');
+      if (!t) return;
+      var s = getMaSettings();
+      if (!s) return;
+      s.belowFloorOnly = !!t.checked;
+      persist();
+      showView();
+    } catch(e) { console.error('[MA] toggle2 error:', e); }
+  }
+
+  // ============================================================
+  // Settings UI: wire up
+  // ============================================================
+  function wireSettings() {
+    try {
+      var btns = [
+        ['ma-btn-show-set',    showSetForm],
+        ['ma-btn-show-change', showChangeForm],
+        ['ma-btn-show-log',    showLog],
+        ['ma-btn-log-close',   hideLog],
+        ['ma-btn-remove',      removePin],
+        ['ma-btn-save',        savePin],
+        ['ma-btn-cancel',      hideForm]
+      ];
+      btns.forEach(function(pair){
+        var b = el(pair[0]);
+        if (b && !b._maWired) {
+          b.addEventListener('click', function(ev){ try { ev.preventDefault(); pair[1](); } catch(e) { console.error(e); } });
+          b._maWired = true;
+        }
+      });
+      var t1 = el('ma-toggle-enabled');
+      if (t1 && !t1._maWired) { t1.addEventListener('change', onToggleEnabledChange); t1._maWired = true; }
+      var t2 = el('ma-toggle-belowonly');
+      if (t2 && !t2._maWired) { t2.addEventListener('change', onToggleBelowOnlyChange); t2._maWired = true; }
+      showView();
+    } catch(e) { console.error('[MA] wireSettings error:', e); }
+  }
+
+  // ============================================================
+  // GATE LOGIC: needsApproval()
+  // ============================================================
+  // Decides if a quote requires manager approval before Print/Email.
+  // Inputs: a quote object (live or saved)
+  // Returns: true if PIN prompt should fire
+  function needsApproval(q) {
+    var s = getMaSettings();
+    // If workflow disabled or no PIN: never needs approval
+    if (!s || !s.enabled || !hasPin()) return false;
+    // If no quote data (defensive): no approval
+    if (!q) return false;
+    // Already approved: no re-approval
+    if (q.approval && q.approval.status === 'approved') return false;
+    // Don't trigger on $0 quotes (no real content)
+    if (!q.total || q.total <= 0) return false;
+    if (s.belowFloorOnly) {
+      // Approval needed ONLY if below margin floor
+      // Some saved quotes may not have belowMarginFloor flag — compute from achieved + floor
+      var below = !!q.belowMarginFloor;
+      if (!below && q.achievedMargin != null && q.marginFloor != null) {
+        below = q.achievedMargin < q.marginFloor;
+      }
+      return below;
+    }
+    // Strict mode: ALL quotes need approval
+    return true;
+  }
+
+  // ============================================================
+  // INLINE PIN PANEL — slides up from bottom, no modal overlay
+  // ============================================================
+  function ensureGatePanel() {
+    var panel = el('ma-gate-panel');
+    if (panel) return panel;
+    panel = document.createElement('div');
+    panel.id = 'ma-gate-panel';
+    panel.style.cssText = [
+      'position:fixed','bottom:0','left:0','right:0',
+      'background:#fff','border-top:3px solid #c62828',
+      'box-shadow:0 -4px 12px rgba(0,0,0,0.15)',
+      'padding:16px 24px','z-index:9999','display:none',
+      'font-family:inherit'
+    ].join(';');
+    panel.innerHTML = ''
+      + '<div style="max-width:800px;margin:0 auto">'
+      + '  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+      + '    <div style="font-size:16px;font-weight:700;color:#c62828">🔒 Manager Approval Required</div>'
+      + '    <button type="button" id="ma-gate-close" style="background:none;border:none;font-size:24px;cursor:pointer;color:#90a4ae;line-height:1">×</button>'
+      + '  </div>'
+      + '  <div id="ma-gate-summary" style="font-size:13px;color:#37474f;margin-bottom:10px"></div>'
+      + '  <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'
+      + '    <div>'
+      + '      <label style="font-size:12px;display:block;margin-bottom:3px">Manager PIN</label>'
+      + '      <input id="ma-gate-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" style="width:120px;padding:6px;border:1px solid #ccc;border-radius:4px">'
+      + '    </div>'
+      + '    <div style="flex:1;min-width:200px">'
+      + '      <label style="font-size:12px;display:block;margin-bottom:3px">Approval Note (optional)</label>'
+      + '      <input id="ma-gate-note" type="text" maxlength="200" placeholder="Reason for approval" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px">'
+      + '    </div>'
+      + '    <button type="button" id="ma-gate-approve" class="btn btn-success btn-sm" style="height:32px">✓ Approve & Continue</button>'
+      + '    <button type="button" id="ma-gate-cancel" class="btn btn-ghost btn-sm" style="height:32px">Cancel</button>'
+      + '  </div>'
+      + '  <div id="ma-gate-error" style="display:none;margin-top:8px;padding:6px 8px;background:#ffebee;color:#c62828;border-radius:4px;font-size:12px"></div>'
+      + '</div>';
+    document.body.appendChild(panel);
+    return panel;
+  }
+
+  var _gateState = null;
+
+  function showGatePanel(quote, actionLabel, onApprove, onCancel) {
+    var panel = ensureGatePanel();
+    _gateState = { quote: quote, actionLabel: actionLabel, callback: onApprove, cancelCallback: onCancel };
+    var pct = function(n){ return n != null ? (Math.round(n*10)/10).toFixed(1) + '%' : '—'; };
+    var fmtMoney = function(n){ return '$' + (Math.round((n||0)*100)/100).toFixed(2); };
+    var qn = (quote && quote.num) || '(unsaved)';
+    var floor = (quote && quote.marginFloor) ? pct(quote.marginFloor) : '—';
+    var achieved = (quote && quote.achievedMargin != null) ? pct(quote.achievedMargin) : '—';
+    var total = (quote && quote.total) ? fmtMoney(quote.total) : '—';
+    var s = getMaSettings();
+    var below = quote && (quote.belowMarginFloor || (quote.achievedMargin != null && quote.marginFloor != null && quote.achievedMargin < quote.marginFloor));
+    var summaryReason = (s && s.belowFloorOnly && below)
+      ? 'is below the margin floor'
+      : 'requires approval (strict mode — all quotes)';
+    var summary = el('ma-gate-summary');
+    if (summary) {
+      summary.innerHTML = ''
+        + 'Quote <strong>' + String(qn).replace(/</g,'&lt;') + '</strong> ' + summaryReason + '. '
+        + 'Action: <strong>' + String(actionLabel).replace(/</g,'&lt;') + '</strong>. '
+        + 'Floor: <strong>' + floor + '</strong>, Achieved: <strong style="color:' + (below ? '#c62828' : '#2e7d32') + '">' + achieved + '</strong>'
+        + (total !== '—' ? ', Total: <strong>' + total + '</strong>' : '') + '.';
+    }
+    var pinInput = el('ma-gate-pin');
+    var noteInput = el('ma-gate-note');
+    if (pinInput) pinInput.value = '';
+    if (noteInput) noteInput.value = '';
+    var err = el('ma-gate-error');
+    if (err) err.style.display = 'none';
+    panel.style.display = 'block';
+    if (pinInput) setTimeout(function(){ try { pinInput.focus(); } catch(e) {} }, 50);
+  }
+
+  function hideGatePanel() {
+    var panel = el('ma-gate-panel');
+    if (panel) panel.style.display = 'none';
+    _gateState = null;
+  }
+
+  function showGateError(msg) {
+    var err = el('ma-gate-error');
+    if (err) { err.textContent = msg; err.style.display = 'block'; }
+  }
+
+  function gateConfirm() {
+    if (!_gateState) return;
+    var pin = (el('ma-gate-pin')||{}).value || '';
+    var note = (el('ma-gate-note')||{}).value || '';
+    if (!/^[0-9]{4,8}$/.test(pin)) { showGateError('PIN must be 4-8 digits.'); return; }
+    verifyPin(pin).then(function(ok){
+      if (!ok) { showGateError('PIN is incorrect.'); return; }
+      var st = _gateState;
+      var stamp = {
+        status: 'approved',
+        approvedAt: new Date().toISOString(),
+        approvedNote: note,
+        approvedAction: st.actionLabel,
+        achievedMargin: st.quote ? st.quote.achievedMargin : null,
+        marginFloor: st.quote ? st.quote.marginFloor : null,
+        // Capture the quote's "fingerprint" so we can detect changes later
+        approvedTotal: st.quote ? st.quote.total : null
+      };
+      if (st.quote) st.quote.approval = stamp;
+      // Persist to saved record if matching by num
+      try {
+        if (st.quote && st.quote.num && window.DB && Array.isArray(DB.quotes)) {
+          var saved = DB.quotes.find(function(x){ return x.num === st.quote.num; });
+          if (saved) saved.approval = stamp;
+        }
+      } catch(e) {}
+      // Audit log
+      try {
+        var s = getMaSettings();
+        if (s) {
+          s.log.unshift({
+            ts: stamp.approvedAt,
+            quoteNum: (st.quote && st.quote.num) || '(unsaved)',
+            action: st.actionLabel,
+            note: note,
+            achievedMargin: stamp.achievedMargin,
+            marginFloor: stamp.marginFloor,
+            customer: (st.quote && st.quote.cn) || ''
+          });
+          if (s.log.length > 500) s.log = s.log.slice(0, 500);
+        }
+      } catch(e) {}
+      persist();
+      var cb = st.callback;
+      hideGatePanel();
+      if (typeof cb === 'function') {
+        try { cb(); } catch(e) { console.error('[MA] approval callback error:', e); }
+      }
+    }).catch(function(e){
+      showGateError(e && e.message ? e.message : 'PIN verification failed.');
+    });
+  }
+
+  function gateCancel() {
+    if (!_gateState) { hideGatePanel(); return; }
+    var cb = _gateState.cancelCallback;
+    hideGatePanel();
+    if (typeof cb === 'function') { try { cb(); } catch(e) {} }
+  }
+
+  function wireGatePanel() {
+    var panel = ensureGatePanel();
+    var pairs = [
+      ['ma-gate-approve', gateConfirm],
+      ['ma-gate-cancel', gateCancel],
+      ['ma-gate-close', gateCancel]
+    ];
+    pairs.forEach(function(p){
+      var b = el(p[0]);
+      if (b && !b._maGateWired) {
+        b.addEventListener('click', function(ev){ try { ev.preventDefault(); p[1](); } catch(e){console.error(e);} });
+        b._maGateWired = true;
+      }
+    });
+    var pin = el('ma-gate-pin');
+    if (pin && !pin._maGateWired) {
+      pin.addEventListener('keydown', function(ev){
+        if (ev.key === 'Enter') { ev.preventDefault(); gateConfirm(); }
+      });
+      pin._maGateWired = true;
+    }
+  }
+
+  // ============================================================
+  // Live quote helper (read current QQ data)
+  // ============================================================
+  function getLiveQuote() {
+    // Build a quote-like object from the current Quick Quote form state.
+    try {
+      if (lineItems && lineItems.length > 0 && typeof calcTotals === 'function') {
+        var t = calcTotals();
+        var jt = (document.getElementById('qq-jt')||{}).value || 'New Construction';
+        var floor = (typeof getMarginFloor === 'function') ? getMarginFloor(jt) : 35;
+        var num = (document.getElementById('qq-num')||{}).value || '';
+        var cn = (document.getElementById('qq-cn')||{}).value || '';
+        // Look for saved approval if quote has been saved before
+        var savedApproval = null;
+        if (num && window.DB && Array.isArray(DB.quotes)) {
+          var match = DB.quotes.find(function(x){ return x.num === num; });
+          if (match) savedApproval = match.approval || null;
+        }
+        return {
+          num: num,
+          cn: cn,
+          total: t.totalSell,
+          achievedMargin: t.achievedMarginPct,
+          marginFloor: floor,
+          belowMarginFloor: t.achievedMarginPct < floor,
+          approval: savedApproval
+        };
+      }
+    } catch(e) { console.error('[MA] getLiveQuote error:', e); }
+    return null;
+  }
+
+  // ============================================================
+  // GATE WRAPPING: Print, Email — Preview is NOT gated
+  // ============================================================
+  function makeGatedFn(fnName, actionLabel) {
+    if (typeof window[fnName] !== 'function') return false;
+    var flagKey = '_maGated_' + fnName;
+    if (window[flagKey]) return true;
+    var origFn = window[fnName];
+    window[fnName] = function() {
+      var args = arguments, self = this;
+      try {
+        var liveQ = getLiveQuote();
+        if (needsApproval(liveQ)) {
+          showGatePanel(liveQ, actionLabel,
+            function approved(){
+              try { origFn.apply(self, args); } catch(e) { console.error('[MA] orig call error:', e); }
+            },
+            function cancelled(){}
+          );
+          return;
+        }
+      } catch(e) {
+        console.error('[MA] gate error in ' + fnName + ':', e);
+      }
+      return origFn.apply(self, args);
+    };
+    window[flagKey] = true;
+    return true;
+  }
+
+  function makeGatedSavedFn(fnName, actionLabel) {
+    if (typeof window[fnName] !== 'function') return false;
+    var flagKey = '_maGated_' + fnName;
+    if (window[flagKey]) return true;
+    var origFn = window[fnName];
+    window[fnName] = function(qid) {
+      var args = arguments, self = this;
+      try {
+        var savedQ = (window.DB && Array.isArray(DB.quotes))
+          ? DB.quotes.find(function(x){ return x.id == qid; })
+          : null;
+        if (needsApproval(savedQ)) {
+          showGatePanel(savedQ, actionLabel,
+            function approved(){
+              try { origFn.apply(self, args); } catch(e) { console.error('[MA] orig call error:', e); }
+            },
+            function cancelled(){}
+          );
+          return;
+        }
+      } catch(e) { console.error('[MA] gate error in ' + fnName + ':', e); }
+      return origFn.apply(self, args);
+    };
+    window[flagKey] = true;
+    return true;
+  }
+
+  function installGates() {
+    try {
+      // Preview: NEVER gated — always allowed
+      // Print and Email: gated per workflow rules
+      makeGatedFn('printQuote',    'Print Quote');
+      makeGatedFn('emailQuote',    'Email Quote');
+      makeGatedFn('emailQuoteQQ',  'Email Quote');
+      makeGatedSavedFn('emailSavedQuote', 'Email Saved Quote');
+    } catch(e) { console.error('[MA] installGates error:', e); }
+  }
+
+  // ============================================================
+  // INVALIDATE APPROVAL ON CHANGE
+  // If a quote changes substantially after approval, clear it.
+  // We hook into saveQQ to compare the saved approval's fingerprint.
+  // ============================================================
+  function wrapSaveQQ() {
+    if (typeof window.saveQQ !== 'function' || window._maSaveQQWrapped) return;
+    var origSaveQQ = window.saveQQ;
+    window.saveQQ = function() {
+      try {
+        // Before saving, check if the in-memory quote has changed enough to invalidate approval
+        if (typeof calcTotals === 'function') {
+          var t = calcTotals();
+          var num = (document.getElementById('qq-num')||{}).value || '';
+          if (num && window.DB && Array.isArray(DB.quotes)) {
+            var existing = DB.quotes.find(function(x){ return x.num === num; });
+            if (existing && existing.approval && existing.approval.status === 'approved') {
+              var oldTotal = existing.approval.approvedTotal || 0;
+              var newTotal = t.totalSell || 0;
+              // Invalidate if total changed by more than 5% or $50, whichever is greater
+              var threshold = Math.max(50, oldTotal * 0.05);
+              if (Math.abs(newTotal - oldTotal) > threshold) {
+                existing.approval = null;
+                console.info('[MA] Approval cleared — quote total changed from $' + oldTotal.toFixed(2) + ' to $' + newTotal.toFixed(2));
+              }
+            }
+          }
+        }
+      } catch(e) { console.error('[MA] approval invalidation error:', e); }
+      return origSaveQQ.apply(this, arguments);
+    };
+    window._maSaveQQWrapped = true;
+  }
+
+  // ============================================================
+  // BOOT
+  // ============================================================
+  function boot() {
+    wireSettings();
+    wireGatePanel();
+    installGates();
+    wrapSaveQQ();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(boot, 200); });
+  } else {
+    setTimeout(boot, 200);
+  }
+  // Belt-and-suspenders re-wire (wireSettings is idempotent thanks to _maWired flags)
+  setTimeout(boot, 1000);
+  setTimeout(boot, 3000);
+
+  // Diagnostic helper for console
+  window.maStatus = function() {
+    var s = getMaSettings();
+    console.log('[MA] hasPin:', hasPin());
+    console.log('[MA] enabled:', s && s.enabled);
+    console.log('[MA] belowFloorOnly:', s && s.belowFloorOnly);
+    console.log('[MA] log entries:', s && s.log ? s.log.length : 0);
+    return s;
+  };
+})();
+</script>
 
 </body>
 </html>
