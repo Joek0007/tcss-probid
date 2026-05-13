@@ -9735,15 +9735,19 @@ function initSupabase() {
   }
 }
 
-// ---- AUTH — Magic Link ----
-async function signIn(email) {
+// ---- AUTH — Email + Password ----
+async function signIn(email, password) {
   if (!_sb) return { error: { message: 'Not connected' } };
-  var result = await _sb.auth.signInWithOtp({
+  var result = await _sb.auth.signInWithPassword({
     email: email.trim(),
-    options: {
-      emailRedirectTo: window.location.href  // bounce back to this page after clicking link
-    }
+    password: password
   });
+  if (!result.error) {
+    await loadCurrentUserProfile();
+    hideAuthModal();
+    showToast('Welcome back, ' + (_currentUser ? _currentUser.full_name.split(' ')[0] : '') + '!', 'success');
+    syncAllFromCloud();
+  }
   return result;
 }
 
@@ -10217,31 +10221,20 @@ function mobileNav(page) {
 
 // ---- AUTH HELPERS ----
 async function doSignIn() {
-  var email = (document.getElementById('auth-email')||{}).value || '';
-  var errEl = document.getElementById('auth-error');
-  var btn   = document.getElementById('auth-btn');
-  var sentEl = document.getElementById('auth-sent-msg');
-
-  if (!email || !email.includes('@')) {
-    if (errEl) { errEl.style.display='block'; errEl.textContent='Please enter a valid email address.'; }
+  var email    = (document.getElementById('auth-email')||{}).value || '';
+  var password = (document.getElementById('auth-password')||{}).value || '';
+  var errEl    = document.getElementById('auth-error');
+  var btn      = document.getElementById('auth-btn');
+  if (!email || !password) {
+    if (errEl) { errEl.style.display='block'; errEl.textContent='Please enter your email and password.'; }
     return;
   }
   if (errEl) errEl.style.display = 'none';
-  if (btn) { btn.textContent='Sending link...'; btn.disabled=true; }
-
-  var result = await signIn(email);
-
+  if (btn) { btn.textContent='Signing in...'; btn.disabled=true; }
+  var result = await signIn(email, password);
   if (result.error) {
-    if (errEl) { errEl.style.display='block'; errEl.textContent=result.error.message||'Could not send login link. Try again.'; }
-    if (btn) { btn.textContent='Send Login Link'; btn.disabled=false; }
-  } else {
-    // Show the "check your email" message
-    if (btn) btn.style.display = 'none';
-    if (sentEl) {
-      sentEl.style.display = 'block';
-      sentEl.innerHTML = '✅ <strong>Check your email!</strong><br>A login link was sent to <strong>' +
-        email.replace(/</g,'&lt;') + '</strong>.<br><span style="font-size:11px;color:#607d8b">Click the link in the email to sign in. You can close this tab.</span>';
-    }
+    if (errEl) { errEl.style.display='block'; errEl.textContent=result.error.message||'Sign in failed. Check your credentials.'; }
+    if (btn) { btn.textContent='Sign In'; btn.disabled=false; }
   }
 }
 
@@ -10330,22 +10323,24 @@ if (document.readyState === 'loading') {
   <div style="background:#fff;border-radius:16px;padding:36px 40px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
     <div style="text-align:center;margin-bottom:24px">
       <div style="font-size:28px;font-weight:900;color:#1565c0;letter-spacing:-1px">TCSS ProBid</div>
-      <div style="font-size:13px;color:#607d8b;margin-top:4px">Enter your email to sign in</div>
+      <div style="font-size:13px;color:#607d8b;margin-top:4px">Sign in to your account</div>
     </div>
     <div id="auth-error" style="display:none;background:#ffebee;color:#c62828;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px"></div>
-    <div id="auth-sent-msg" style="display:none;background:#e8f5e9;color:#2e7d32;padding:14px 16px;border-radius:8px;font-size:13px;margin-bottom:16px;line-height:1.5"></div>
-    <div style="margin-bottom:20px">
+    <div style="margin-bottom:14px">
       <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Email Address</label>
       <input id="auth-email" type="email" placeholder="your@email.com"
+        style="width:100%;padding:10px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box">
+    </div>
+    <div style="margin-bottom:20px">
+      <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Password</label>
+      <input id="auth-password" type="password" placeholder="••••••••"
         style="width:100%;padding:10px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box"
         onkeydown="if(event.key==='Enter')doSignIn()">
     </div>
-    <button onclick="doSignIn()" id="auth-btn" style="width:100%;padding:12px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
-      Send Login Link
+    <button onclick="doSignIn()" id="auth-btn"
+      style="width:100%;padding:12px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
+      Sign In
     </button>
-    <div style="text-align:center;margin-top:14px;font-size:11px;color:#90a4ae">
-      We'll email you a one-click sign-in link. No password needed.
-    </div>
     <div id="auth-offline-note" style="margin-top:16px;text-align:center;font-size:11px;color:#90a4ae">
       No internet? <a href="#" onclick="continueOffline();return false" style="color:#1565c0">Continue offline</a>
     </div>
