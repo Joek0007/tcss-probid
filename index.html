@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#1565c0">
 <title>TCSS ProBid v9</title>
 <!-- Supabase SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.js"></script>
 <style>
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -9728,7 +9728,17 @@ var _syncPending = false;
 function initSupabase() {
   try {
     _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      global: { headers: { apikey: SUPABASE_KEY } }
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true
+      },
+      global: {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY
+        }
+      }
     });
     return true;
   } catch(e) {
