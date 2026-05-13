@@ -9760,15 +9760,31 @@ async function signOut() {
 }
 
 async function loadCurrentUserProfile() {
-  if (!_sb) return;
+  if (!_sb) { console.warn('[Profile] No Supabase client'); return; }
   var session = await _sb.auth.getSession();
-  if (!session.data.session) return;
+  if (!session.data.session) { console.warn('[Profile] No session'); return; }
   var uid = session.data.session.user.id;
+  var email = session.data.session.user.email;
+  console.log('[Profile] Loading for uid:', uid, 'email:', email);
   var res = await _sb.from('profiles').select('*').eq('id', uid).single();
+  console.log('[Profile] Result:', res);
   if (res.data) {
     _currentUser = res.data;
     applyRolePermissions(_currentUser.role);
     updateUserBadge(_currentUser);
+    console.log('[Profile] Loaded:', _currentUser.full_name, _currentUser.role);
+  } else {
+    console.warn('[Profile] No profile row found. Error:', res.error);
+    // Fallback: create a minimal currentUser from the auth session
+    // so the app doesn't completely break
+    _currentUser = {
+      id: uid,
+      full_name: email.split('@')[0],
+      role: 'owner',
+      email: email
+    };
+    updateUserBadge(_currentUser);
+    showToast('Profile not found — using fallback. Check Supabase profiles table.', 'warning', 5000);
   }
 }
 
