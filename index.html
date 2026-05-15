@@ -6555,10 +6555,16 @@ function renderTools() {
       ? '<span style="background:#e3f2fd;color:#1565c0;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700">'+lgCount+'</span>'
       : '—';
 
+    // Unresolved flags on this tool
+    var openFlags = (t.flags||[]).filter(function(f){ return !f.resolved; });
+    var flagBadge = openFlags.length > 0
+      ? ' <span style="background:#ffebee;color:#c62828;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700" title="'+escHtml(openFlags.map(function(f){return f.item+': '+f.type;}).join(', '))+'">⚠ '+openFlags.length+' FLAG'+(openFlags.length>1?'S':'')+'</span>'
+      : '';
+
     // Action buttons
     var actions = '';
     if (isPV) {
-      actions = '<button class="btn btn-success btn-sm" onclick="verifyToolReturn(\''+co.id+'\',true)">✓ Verify</button> ';
+      actions = '<button class="btn btn-success btn-sm" onclick="verifyToolReturn(\''+co.id+'\')">🔍 Inspect & Verify</button> ';
     } else if (isOut) {
       actions = '<button class="btn btn-success btn-sm" data-action="checkinTool" data-id="'+co.id+'">✓ Return</button> '+
                 '<button class="btn btn-sm" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px" onclick="openTransferModal(\''+t.id+'\')">⇄ Transfer</button> ';
@@ -6570,7 +6576,7 @@ function renderTools() {
 
     return '<tr>'+
       '<td><span class="asset-tag-badge">'+escHtml(t.tag||'—')+'</span></td>'+
-      '<td style="display:flex;align-items:center;gap:8px;padding:8px 12px">'+photoHtml+' <span style="font-weight:700">'+escHtml(t.name||'')+'</span></td>'+
+      '<td style="display:flex;align-items:center;gap:8px;padding:8px 12px">'+photoHtml+' <div><span style="font-weight:700">'+escHtml(t.name||'')+'</span>'+flagBadge+'</div></td>'+
       '<td style="font-size:12px">'+escHtml(t.cat||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(t.location||'')+'</td>'+
       '<td>'+lgBadge+'</td>'+
@@ -6605,39 +6611,52 @@ function renderToolCheckouts() {
   tbl.innerHTML = active.map(function(c){
     var tool = (DB.tools||[]).find(function(t){ return t.id===c.toolId; });
     var overdue = c.expectedReturn && c.expectedReturn < today;
-    // Linked groups with photos and descriptions
+
+    // Tool photo — tappable, prominent
+    var toolPhotoHtml = (tool&&tool.photoUrl)
+      ? '<img src="'+escHtml(tool.photoUrl)+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px;cursor:pointer;display:block;margin-bottom:4px" onclick="viewPhoto(\''+escHtml(tool.photoUrl)+'\',\''+escHtml((tool&&tool.name)||'')+'\');" title="Tap to enlarge">'
+      : '<div style="width:48px;height:48px;background:#e8eaf6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:4px">🔧</div>';
+
+    // Linked groups — larger photos so people can actually see what they look like
     var included = (c.groupsIncluded||[]).filter(function(g){ return g.included; });
     var groupsHtml = '';
     if (included.length > 0) {
       var toolGroups = (tool&&tool.linkedGroups)||[];
-      groupsHtml = '<div style="margin-top:5px;padding-top:5px;border-top:1px solid #e8e8e8">'+
+      groupsHtml = '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e0e0e0">'+
+        '<div style="font-size:10px;font-weight:700;color:#90a4ae;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Items checked out with this tool:</div>'+
         included.map(function(g){
           var tg = toolGroups.find(function(x){ return x.id===g.groupId; })||{};
           var photoHtml = tg.photoUrl
-            ? '<img src="'+escHtml(tg.photoUrl)+'" style="width:22px;height:22px;object-fit:cover;border-radius:3px;cursor:pointer;flex-shrink:0" onclick="viewPhoto(\''+escHtml(tg.photoUrl)+'\',\''+escHtml(g.label)+'\')">'
-            : '<span style="font-size:13px">📦</span>';
-          return '<div style="display:flex;align-items:center;gap:5px;padding:2px 0">'+
+            ? '<img src="'+escHtml(tg.photoUrl)+'" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer;flex-shrink:0" onclick="viewPhoto(\''+escHtml(tg.photoUrl)+'\',\''+escHtml(g.label)+'\')" title="Tap to enlarge">'
+            : '<div style="width:40px;height:40px;background:#f0f0f0;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📦</div>';
+          var badge = g.mode==='required'
+            ? '<span style="background:#c62828;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">REQ</span>'
+            : '<span style="background:#e65100;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">OPT</span>';
+          return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f5f5f5">'+
             photoHtml+
-            '<span style="font-size:11px;font-weight:600">'+escHtml(g.label)+'</span>'+
-            (tg.description?'<span style="font-size:10px;color:#90a4ae"> — '+escHtml(tg.description)+'</span>':'')+
-            (g.mode==='required'?'<span style="background:#c62828;color:#fff;border-radius:3px;padding:0 4px;font-size:9px">REQ</span>':'<span style="background:#e65100;color:#fff;border-radius:3px;padding:0 4px;font-size:9px">OPT</span>')+
+            '<div style="flex:1;min-width:0">'+
+              '<div style="font-size:12px;font-weight:700">'+escHtml(g.label)+'</div>'+
+              (tg.description?'<div style="font-size:10px;color:#90a4ae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(tg.description)+'</div>':'')+
+            '</div>'+
+            badge+
           '</div>';
         }).join('')+
       '</div>';
     }
+
     return '<tr>'+
       '<td><span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span></td>'+
-      '<td><span style="font-weight:700">'+escHtml((tool&&tool.name)||'Unknown')+'</span>'+
+      '<td>'+
+        toolPhotoHtml+
+        '<span style="font-weight:700;font-size:13px">'+escHtml((tool&&tool.name)||'Unknown')+'</span>'+
         (c.transferredFrom?'<div style="font-size:10px;color:#90a4ae">From: '+escHtml(c.transferredFrom)+'</div>':'')+
+        groupsHtml+
       '</td>'+
       '<td>'+escHtml(c.toName||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.jobName||'—')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.date||'')+'</td>'+
       '<td style="font-size:12px;'+(overdue?'color:#c62828;font-weight:700':'')+'">'+escHtml(c.expectedReturn||'—')+(overdue?' ⚠️':'')+'</td>'+
-      '<td>'+
-        groupsHtml+
-        '<div style="margin-top:4px"><button class="btn btn-success btn-sm" data-action="checkinTool" data-id="'+c.id+'">✓ Return</button></div>'+
-      '</td>'+
+      '<td><button class="btn btn-success btn-sm" data-action="checkinTool" data-id="'+c.id+'">✓ Return</button></td>'+
     '</tr>';
   }).join('');
 }
@@ -6758,7 +6777,20 @@ function delTool(id) {
 // ---- CHECKOUT / CHECKIN ----
 function checkoutTool(toolId) {
   var tool=(DB.tools||[]).find(function(t){return t.id==toolId}); if(!tool) return;
-  // Build team options
+  // Show flag warning if tool has unresolved issues
+  var openFlags = (tool.flags||[]).filter(function(f){ return !f.resolved; });
+  var flagWarningHtml = '';
+  if (openFlags.length > 0) {
+    flagWarningHtml = '<div style="background:#fff3e0;border:1px solid #ffcc02;border-radius:8px;padding:10px;margin-bottom:14px">'+
+      '<div style="font-weight:700;color:#e65100;font-size:13px">⚠ This tool has '+openFlags.length+' unresolved issue'+(openFlags.length>1?'s':'')+':</div>'+
+      '<ul style="margin:4px 0 0 16px;padding:0;font-size:12px;color:#555">'+
+      openFlags.map(function(f){
+        return '<li><strong>'+escHtml(f.item)+'</strong>: '+escHtml(f.type)+(f.note?' — '+escHtml(f.note):'')+'</li>';
+      }).join('')+
+      '</ul>'+
+      '<div style="font-size:11px;color:#90a4ae;margin-top:4px">Back office can resolve these flags in the tool\'s edit screen.</div>'+
+    '</div>';
+  }
   var teamOpts = (DB.team||[]).map(function(m){
     return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';
   }).join('');
@@ -6801,6 +6833,7 @@ function checkoutTool(toolId) {
       '<div class="modal-head"><h3>Check Out Tool</h3>'+
         '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
       '<div class="modal-body">'+
+        flagWarningHtml+
         '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:14px;display:flex;align-items:center;gap:10px">'+
           photoHtml+
           '<div><div style="font-weight:800;font-size:15px">'+escHtml(tool.name)+'</div>'+
@@ -7077,25 +7110,232 @@ function renderPendingVerifyTab() {
   if (!pending.length) { tbl.innerHTML='<tr><td colspan="6" class="empty-state"><p>No returns pending verification.</p></td></tr>'; return; }
   tbl.innerHTML = pending.map(function(c){
     var tool = (DB.tools||[]).find(function(t){ return t.id===c.toolId; });
+    var toolPhotoHtml = (tool&&tool.photoUrl)
+      ? '<img src="'+escHtml(tool.photoUrl)+'" style="width:36px;height:36px;object-fit:cover;border-radius:6px;cursor:pointer;vertical-align:middle;margin-right:6px" onclick="viewPhoto(\''+escHtml(tool.photoUrl)+'\',\''+escHtml((tool&&tool.name)||'')+'\');" title="Tap to enlarge">'
+      : '<span style="font-size:20px;margin-right:6px">🔧</span>';
+    // Show flags if tool has outstanding issues
+    var flagHtml = '';
+    if (tool&&tool.flags&&tool.flags.filter(function(f){return !f.resolved;}).length > 0) {
+      flagHtml = ' <span style="background:#ffebee;color:#c62828;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">⚠ FLAGS</span>';
+    }
     return '<tr>'+
       '<td><span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span></td>'+
-      '<td style="font-weight:700">'+escHtml((tool&&tool.name)||'Unknown')+'</td>'+
+      '<td>'+toolPhotoHtml+'<span style="font-weight:700">'+escHtml((tool&&tool.name)||'Unknown')+'</span>'+flagHtml+'</td>'+
       '<td>'+escHtml(c.returnSubmittedBy||c.toName||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.returnSubmittedAt||c.returnedAt||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.dropoffLocation||'—')+'</td>'+
       '<td>'+
-        '<button class="btn btn-success btn-sm" onclick="verifyToolReturn(\''+c.id+'\',true)">✓ Verify</button> '+
-        '<button class="btn btn-outline btn-sm" onclick="verifyToolReturn(\''+c.id+'\',false)">⚠ Flag Issue</button>'+
+        '<button class="btn btn-success btn-sm" onclick="verifyToolReturn(\''+c.id+'\')">🔍 Inspect & Verify</button>'+
       '</td>'+
     '</tr>';
   }).join('');
 }
 
-function verifyToolReturn(coId, isGood) {
+function verifyToolReturn(coId) {
   var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co) return;
   var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
   var included = (co.groupsIncluded||[]).filter(function(g){ return g.included; });
   var toolGroups = (tool&&tool.linkedGroups)||[];
+
+  // Tool's own photo header
+  var toolPhotoHtml = (tool&&tool.photoUrl)
+    ? '<img src="'+escHtml(tool.photoUrl)+'" style="width:64px;height:64px;object-fit:cover;border-radius:10px;cursor:pointer;flex-shrink:0" onclick="viewPhoto(\''+escHtml(tool.photoUrl)+'\',\''+escHtml((tool&&tool.name)||'')+'\');" title="Tap to enlarge">'
+    : '<div style="width:64px;height:64px;background:#e8eaf6;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0">🔧</div>';
+
+  // Build per-item inspection cards
+  // Each item (parent tool + each linked group) gets a card with large photo and 3-state status
+  var allItems = [];
+
+  // Parent tool is first item to inspect
+  allItems.push({
+    id:          'parent',
+    label:       (tool&&tool.name)||'Tool',
+    description: (tool&&tool.tag)||'',
+    photoUrl:    (tool&&tool.photoUrl)||'',
+    mode:        'required',
+    isParent:    true
+  });
+
+  // Then linked groups
+  included.forEach(function(g){
+    var tg = toolGroups.find(function(x){ return x.id===g.groupId; })||{};
+    allItems.push({
+      id:          g.groupId,
+      label:       g.label,
+      description: tg.description||'',
+      photoUrl:    tg.photoUrl||'',
+      mode:        g.mode,
+      isParent:    false
+    });
+  });
+
+  var itemCardsHtml = allItems.map(function(item){
+    var photoHtml = item.photoUrl
+      ? '<img src="'+escHtml(item.photoUrl)+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;cursor:pointer;flex-shrink:0;display:block" onclick="viewPhoto(\''+escHtml(item.photoUrl)+'\',\''+escHtml(item.label)+'\');" title="Tap to enlarge">'
+      : '<div style="width:72px;height:72px;background:#e8eaf6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0">'+(item.isParent?'🔧':'📦')+'</div>';
+
+    var reqBadge = item.mode==='required'
+      ? '<span style="background:#c62828;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">REQUIRED</span>'
+      : '<span style="background:#e65100;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">OPTIONAL</span>';
+
+    return '<div style="background:#fff;border:2px solid #e0e0e0;border-radius:10px;padding:12px;margin-bottom:10px" id="vrf-card-'+escHtml(item.id)+'">'+
+      '<div style="display:flex;gap:12px;align-items:flex-start">'+
+        photoHtml+
+        '<div style="flex:1">'+
+          '<div style="font-weight:800;font-size:14px">'+escHtml(item.label)+'</div>'+
+          (item.description?'<div style="font-size:11px;color:#546e7a;margin-top:2px">'+escHtml(item.description)+'</div>':'')+
+          '<div style="margin-top:4px">'+reqBadge+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px">'+
+        '<button onclick="setItemStatus(\''+escHtml(item.id)+'\',\'present\')" id="vrf-btn-present-'+escHtml(item.id)+'" '+
+          'style="padding:8px 4px;border:2px solid #2e7d32;background:#e8f5e9;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:#2e7d32">'+
+          '✓ Present</button>'+
+        '<button onclick="setItemStatus(\''+escHtml(item.id)+'\',\'damaged\')" id="vrf-btn-damaged-'+escHtml(item.id)+'" '+
+          'style="padding:8px 4px;border:2px solid #e0e0e0;background:#fff;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:#555">'+
+          '⚠ Damaged</button>'+
+        '<button onclick="setItemStatus(\''+escHtml(item.id)+'\',\'missing\')" id="vrf-btn-missing-'+escHtml(item.id)+'" '+
+          'style="padding:8px 4px;border:2px solid #e0e0e0;background:#fff;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:#555">'+
+          '✗ Missing</button>'+
+      '</div>'+
+      '<div id="vrf-note-'+escHtml(item.id)+'" style="display:none;margin-top:8px">'+
+        '<input placeholder="Describe damage or note where item was left..." style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px" id="vrf-note-text-'+escHtml(item.id)+'">'+
+      '</div>'+
+    '</div>';
+  }).join('');
+
+  var modalId = 'modal-tool-vrf-dyn';
+  var existing = document.getElementById(modalId); if(existing) existing.remove();
+  var div = document.createElement('div');
+  div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
+  div.innerHTML =
+    '<div class="modal-box" style="max-width:560px">'+
+      '<div class="modal-head"><h3>Verify Return — Inspect All Items</h3>'+
+        '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
+      '<div class="modal-body">'+
+        '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:14px;display:flex;align-items:center;gap:12px">'+
+          toolPhotoHtml+
+          '<div>'+
+            '<div style="font-weight:800;font-size:15px">'+escHtml(tool&&tool.name||'Tool')+'</div>'+
+            '<span class="asset-tag-badge">'+escHtml(tool&&tool.tag||'—')+'</span>'+
+            '<div style="font-size:12px;color:#546e7a;margin-top:2px">Returned by <strong>'+escHtml(co.returnSubmittedBy||co.toName||'')+'</strong></div>'+
+            (co.dropoffLocation?'<div style="font-size:11px;color:#546e7a">Drop-off: '+escHtml(co.dropoffLocation)+'</div>':'')+
+          '</div>'+
+        '</div>'+
+        '<div style="font-size:12px;color:#546e7a;margin-bottom:10px;font-weight:600">Tap each item\'s photo to enlarge. Mark each item as Present, Damaged, or Missing:</div>'+
+        itemCardsHtml+
+        '<input type="hidden" id="vrf-co-id" value="'+escHtml(coId)+'">'+
+        '<input type="hidden" id="vrf-items-json" value="'+escHtml(JSON.stringify(allItems.map(function(i){return {id:i.id,label:i.label,status:'present'};})))+'">'+
+      '</div>'+
+      '<div class="modal-foot">'+
+        '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
+        '<button class="btn btn-success" onclick="confirmVerifyReturn(\''+modalId+'\')">Complete Verification</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+
+  // Default all to "present" on open
+  allItems.forEach(function(item){ setItemStatus(item.id,'present'); });
+}
+
+function setItemStatus(itemId, status) {
+  // Update button styles
+  var states = ['present','damaged','missing'];
+  var colors = {present:'#2e7d32', damaged:'#f57c00', missing:'#c62828'};
+  var bgs    = {present:'#e8f5e9', damaged:'#fff3e0', missing:'#ffebee'};
+  var labels = {present:'✓ Present', damaged:'⚠ Damaged', missing:'✗ Missing'};
+  states.forEach(function(s){
+    var btn = document.getElementById('vrf-btn-'+s+'-'+itemId);
+    if (!btn) return;
+    if (s === status) {
+      btn.style.border = '2px solid '+colors[status];
+      btn.style.background = bgs[status];
+      btn.style.color = colors[status];
+    } else {
+      btn.style.border = '2px solid #e0e0e0';
+      btn.style.background = '#fff';
+      btn.style.color = '#555';
+    }
+  });
+  // Show/hide note field
+  var noteDiv = document.getElementById('vrf-note-'+itemId);
+  if (noteDiv) noteDiv.style.display = (status==='damaged'||status==='missing') ? 'block' : 'none';
+  // Update card border
+  var card = document.getElementById('vrf-card-'+itemId);
+  if (card) {
+    card.style.border = status==='present' ? '2px solid #c8e6c9' :
+                        status==='damaged' ? '2px solid #ffcc02' :
+                        '2px solid #ffcdd2';
+  }
+  // Store in hidden field
+  var hiddenEl = document.getElementById('vrf-items-json');
+  if (hiddenEl) {
+    try {
+      var items = JSON.parse(hiddenEl.value);
+      var item = items.find(function(i){ return i.id===itemId; });
+      if (item) item.status = status;
+      hiddenEl.value = JSON.stringify(items);
+    } catch(e){}
+  }
+}
+
+function confirmVerifyReturn(modalId) {
+  var coId = (document.getElementById('vrf-co-id')||{}).value||'';
+  var co   = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co) return;
+  var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
+  var now  = new Date().toISOString().split('T')[0];
+
+  // Read inspection results
+  var items = [];
+  try { items = JSON.parse((document.getElementById('vrf-items-json')||{}).value||'[]'); } catch(e){}
+
+  // Collect notes for non-present items
+  var issues = [];
+  items.forEach(function(item){
+    if (item.status !== 'present') {
+      var noteEl = document.getElementById('vrf-note-text-'+item.id);
+      var note = noteEl ? noteEl.value.trim() : '';
+      issues.push({ id:item.id, label:item.label, status:item.status, note:note });
+    }
+  });
+
+  co.status     = 'verified';
+  co.verifiedAt = now;
+  co.verifiedBy = (_currentUser&&_currentUser.full_name)||'Office';
+  co.itemInspection = items;
+
+  if (issues.length > 0) {
+    co.discrepancyNote = issues.map(function(i){
+      return i.label+': '+i.status+(i.note?' ('+i.note+')':'');
+    }).join(' | ');
+
+    // Flag the tool with any issues so next checkout shows the warning
+    if (tool) {
+      if (!tool.flags) tool.flags = [];
+      issues.forEach(function(issue){
+        tool.flags.push({
+          date:    now,
+          type:    issue.status,  // 'damaged' or 'missing'
+          item:    issue.label,
+          note:    issue.note,
+          coId:    coId,
+          holder:  co.toName||'',
+          resolved:false
+        });
+      });
+    }
+  }
+
+  saveDB();
+  var m = document.getElementById(modalId); if(m) m.remove();
+  renderTools();
+
+  if (issues.length > 0) {
+    showToast('Return verified with issues — '+issues.length+' item(s) flagged','warning',5000);
+  } else {
+    showToast((tool&&tool.tag||'Tool')+' return verified — all items present ✓','success');
+  }
+}
 
   // Build groups checklist for inspection
   var groupsHtml = '';
@@ -7175,42 +7415,6 @@ function selectVerifyCond(cond) {
     issues.style.border='2px solid #c62828'; issues.style.background='#ffebee';
     good.style.border='2px solid #e0e0e0'; good.style.background='';
     noteDiv.style.display='block';
-  }
-}
-
-function confirmVerifyReturn(modalId) {
-  var coId = (document.getElementById('vrf-co-id')||{}).value||'';
-  var cond = (document.getElementById('vrf-cond')||{}).value||'good';
-  var co   = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co) return;
-  var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
-
-  // Check for missing pieces
-  var included = (co.groupsIncluded||[]).filter(function(g){ return g.included; });
-  var missing  = included.filter(function(g){
-    var cb = document.getElementById('vrf-'+g.groupId);
-    return cb && !cb.checked;
-  });
-
-  co.status     = 'verified';
-  co.verifiedAt = new Date().toISOString().split('T')[0];
-  co.verifiedBy = (_currentUser&&_currentUser.full_name)||'Office';
-
-  if (cond === 'issues') {
-    co.discrepancyNote = (document.getElementById('vrf-note-text')||{}).value||'Issues noted at verification';
-  }
-  if (missing.length > 0) {
-    var missingNote = 'Missing items: '+missing.map(function(g){return g.label;}).join(', ');
-    co.discrepancyNote = co.discrepancyNote ? co.discrepancyNote+' | '+missingNote : missingNote;
-  }
-
-  saveDB();
-  var m = document.getElementById(modalId); if(m) m.remove();
-  renderTools();
-
-  if (co.discrepancyNote) {
-    showToast('Return verified with issues: '+co.discrepancyNote,'warning',5000);
-  } else {
-    showToast((tool&&tool.tag||'Tool')+' return verified ✓','success');
   }
 }
 
