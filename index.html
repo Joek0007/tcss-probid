@@ -6784,12 +6784,12 @@ function checkoutTool(toolId) {
         '</div>'+
         '<div class="form-row cols2">'+
           '<div><label>Checked Out To *</label>'+
-            '<input id="co-to" list="co-team" placeholder="Technician name">'+
-            '<datalist id="co-team">'+teamOpts+'</datalist></div>'+
+            '<input id="tool-co-to" list="tool-co-team" placeholder="Technician name">'+
+            '<datalist id="tool-co-team">'+teamOpts+'</datalist></div>'+
           '<div><label>Expected Return</label>'+
-            '<input id="co-ret" type="date" value="'+retStr+'"></div>'+
+            '<input id="tool-co-ret" type="date" value="'+retStr+'"></div>'+
         '</div>'+
-        '<div style="margin-top:10px"><label>Job / Purpose</label><input id="co-job" placeholder="Job name or purpose (optional)"></div>'+
+        '<div style="margin-top:10px"><label>Job / Purpose</label><input id="tool-co-job" placeholder="Job name or purpose (optional)"></div>'+
         groupsHtml+
       '</div>'+
       '<div class="modal-foot">'+
@@ -6802,7 +6802,7 @@ function checkoutTool(toolId) {
 
 function saveCheckoutModal(toolId, modalId) {
   var tool = (DB.tools||[]).find(function(t){ return t.id==toolId; }); if(!tool) return;
-  var toName = (document.getElementById('co-to')||{}).value||'';
+  var toName = (document.getElementById('tool-co-to')||{}).value||'';
   if (!toName.trim()) { showToast('Please enter who is checking this out','error'); return; }
   var groupsIncluded = (tool.linkedGroups||[]).map(function(g){
     var cb = document.getElementById('cog-'+g.id);
@@ -6813,9 +6813,9 @@ function saveCheckoutModal(toolId, modalId) {
     id:             Date.now().toString(),
     toolId:         toolId,
     toName:         toName.trim(),
-    jobName:        (document.getElementById('co-job')||{}).value||'',
+    jobName:        (document.getElementById('tool-co-job')||{}).value||'',
     date:           new Date().toISOString().split('T')[0],
-    expectedReturn: (document.getElementById('co-ret')||{}).value||'',
+    expectedReturn: (document.getElementById('tool-co-ret')||{}).value||'',
     returnedAt:     null,
     status:         'checked_out',
     groupsIncluded: groupsIncluded
@@ -7077,7 +7077,11 @@ function renderLinkedGroupsEditor() {
   var groups = window._editingToolGroups || [];
   if (!groups.length) { container.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No linked groups yet.</div>'; return; }
   container.innerHTML = groups.map(function(g,i){
+    var photoThumb = g.photoUrl
+      ? '<img src="'+escHtml(g.photoUrl)+'" style="width:32px;height:32px;object-fit:cover;border-radius:5px;cursor:pointer" onclick="window.open(this.src,\'_blank\')" title="Click to enlarge">'
+      : '<div onclick="addGroupPhoto('+i+')" style="width:32px;height:32px;background:#e8eaf6;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer" title="Add photo">📷</div>';
     return '<div style="background:#f8f9fa;border-radius:8px;padding:10px;margin-bottom:6px;display:flex;align-items:center;gap:10px">'+
+      photoThumb+
       '<div style="flex:1">'+
         '<div style="font-weight:700;font-size:13px">'+escHtml(g.label)+'</div>'+
         (g.description?'<div style="font-size:11px;color:#546e7a">'+escHtml(g.description)+'</div>':'')+
@@ -7094,9 +7098,46 @@ function renderLinkedGroupsEditor() {
 function addLinkedGroup() {
   var label = prompt('Accessory / group name:',''); if(!label||!label.trim()) return;
   var desc  = prompt('Description (optional, e.g. "Should contain 2 items"):','')||'';
+  var newGroup = { id:'g'+Date.now(), label:label.trim(), description:desc.trim(), mode:'optional', photoUrl:'' };
   if (!window._editingToolGroups) window._editingToolGroups=[];
-  window._editingToolGroups.push({ id:'g'+Date.now(), label:label.trim(), description:desc.trim(), mode:'optional' });
+  window._editingToolGroups.push(newGroup);
   renderLinkedGroupsEditor();
+  // Offer photo upload after adding
+  if (confirm('Add a photo for "'+label.trim()+'"? (Recommended — helps techs identify the item in the field)')) {
+    var inp = document.createElement('input');
+    inp.type='file'; inp.accept='image/*';
+    inp.onchange = function() {
+      var file = inp.files[0]; if(!file) return;
+      if(file.size > 5*1024*1024){showToast('Photo must be under 5MB','error');return;}
+      var reader = new FileReader();
+      reader.onload = function(e){
+        newGroup.photoUrl = e.target.result;
+        renderLinkedGroupsEditor();
+        showToast('Photo added for '+label.trim(),'success');
+      };
+      reader.readAsDataURL(file);
+    };
+    inp.click();
+  }
+}
+
+function addGroupPhoto(idx) {
+  var inp = document.createElement('input');
+  inp.type='file'; inp.accept='image/*';
+  inp.onchange = function() {
+    var file = inp.files[0]; if(!file) return;
+    if(file.size > 5*1024*1024){showToast('Photo must be under 5MB','error');return;}
+    var reader = new FileReader();
+    reader.onload = function(e){
+      if(window._editingToolGroups&&window._editingToolGroups[idx]){
+        window._editingToolGroups[idx].photoUrl = e.target.result;
+        renderLinkedGroupsEditor();
+        showToast('Photo added','success');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
 }
 
 function removeLinkedGroup(idx) {
