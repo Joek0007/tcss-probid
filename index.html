@@ -9983,8 +9983,9 @@ async function pushAllToCloud() {
 
     // Push quotes
     for (var q of (DB.quotes || [])) {
-      if (!q || !q.id) continue;
+      if (!q) continue;
       try {
+        var qId = ensureUUID(q);
         // Map app status values to schema enum values
         var statusMap = {
           'draft': 'Draft', 'Draft': 'Draft',
@@ -9998,7 +9999,7 @@ async function pushAllToCloud() {
           'expired': 'Expired', 'Expired': 'Expired'
         };
         await _sb.from('quotes').upsert({
-          id: q.id,
+          id: qId,
           quote_number: q.num || null,
           customer_name: q.cn || null,
           job_id: null,
@@ -10035,11 +10036,10 @@ async function pushAllToCloud() {
 
         // Push line items for this quote
         if (q.items && q.items.length > 0) {
-          // Delete existing line items and re-insert (simplest for now)
-          await _sb.from('quote_line_items').delete().eq('quote_id', q.id);
+          await _sb.from('quote_line_items').delete().eq('quote_id', qId);
           var lineItems = q.items.map(function(item, idx) {
             return {
-              quote_id: q.id,
+              quote_id: qId,
               sort_order: idx,
               description: item.desc || '',
               category: item.cat || null,
@@ -10058,12 +10058,30 @@ async function pushAllToCloud() {
       }
     }
 
+    // Helper: check if a string is a valid UUID
+    function isUUID(s) {
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+    }
+    // Helper: generate a UUID v4
+    function makeUUID() {
+      return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+        (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+    }
+    // Helper: get or create a valid UUID for a record, saving it back to the local object
+    function ensureUUID(obj) {
+      if (!obj.id || !isUUID(obj.id)) {
+        obj.id = makeUUID();
+      }
+      return obj.id;
+    }
+
     // Push customers
     for (var c of (DB.customers || [])) {
-      if (!c || !c.id) continue;
+      if (!c) continue;
       try {
+        var cId = ensureUUID(c);
         await _sb.from('customers').upsert({
-          id: c.id,
+          id: cId,
           name: c.name || '',
           company: c.company || null,
           email: c.email || null,
@@ -10084,10 +10102,11 @@ async function pushAllToCloud() {
 
     // Push catalog
     for (var item of (DB.catalog || [])) {
-      if (!item || !item.id) continue;
+      if (!item) continue;
       try {
+        var itemId = ensureUUID(item);
         await _sb.from('catalog').upsert({
-          id: item.id,
+          id: itemId,
           name: item.name || '',
           description: item.desc || null,
           category: item.cat || null,
@@ -10104,10 +10123,11 @@ async function pushAllToCloud() {
 
     // Push templates
     for (var t of (DB.templates || [])) {
-      if (!t || !t.id) continue;
+      if (!t) continue;
       try {
+        var tId = ensureUUID(t);
         await _sb.from('templates').upsert({
-          id: t.id,
+          id: tId,
           name: t.name || '',
           category: t.cat || null,
           description: t.desc || null,
