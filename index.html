@@ -6814,10 +6814,17 @@ function checkoutTool(toolId) {
         var badge = req
           ? '<span style="background:#c62828;color:#fff;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700">REQUIRED</span>'
           : '<span style="background:#e65100;color:#fff;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700">OPTIONAL</span>';
-        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #e8e8e8">'+
-          '<input type="checkbox" id="cog-'+escHtml(g.id)+'"'+(req?' checked disabled':' checked')+' style="width:15px;height:15px">'+
-          '<span style="font-weight:600;font-size:13px;flex:1">'+escHtml(g.label)+'</span>'+
-          (g.description?'<span style="font-size:11px;color:#546e7a">'+escHtml(g.description)+'</span> ':'')+ badge+'</div>';
+        var photoHtml = g.photoUrl
+          ? '<img src="'+escHtml(g.photoUrl)+'" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer;flex-shrink:0" onclick="viewPhoto(\''+escHtml(g.photoUrl)+'\',\''+escHtml(g.label)+'\')" title="Tap to enlarge">'
+          : '<div style="width:40px;height:40px;background:#e8eaf6;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📦</div>';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #e8e8e8">'+
+          '<input type="checkbox" id="cog-'+escHtml(g.id)+'"'+(req?' checked disabled':' checked')+' style="width:16px;height:16px;flex-shrink:0">'+
+          photoHtml+
+          '<div style="flex:1">'+
+            '<div style="font-weight:700;font-size:13px">'+escHtml(g.label)+'</div>'+
+            (g.description?'<div style="font-size:11px;color:#546e7a">'+escHtml(g.description)+'</div>':'')+
+          '</div>'+
+          badge+'</div>';
       }).join('')+
       '<p style="font-size:11px;color:#90a4ae;margin-top:6px">Required groups always travel with the tool. Uncheck optional groups to leave them behind.</p>'+
     '</div></div>';
@@ -6967,13 +6974,17 @@ function confirmReturn(modalId) {
   var now  = new Date().toISOString().split('T')[0];
 
   if (opt === 'now') {
-    var verifier = ((document.getElementById('ret-verifier')||{}).value||'').trim();
-    if (!verifier) { showToast('Please enter the verifier name','error'); return; }
-    co.returnedAt  = now;
-    co.status      = 'verified';
-    co.verifiedAt  = now;
-    co.verifiedBy  = verifier;
-    showToast((tool&&tool.tag||'Tool')+' returned and verified ✓','success');
+    // Close this modal and open the full per-item inspection
+    // Mark as pending_verify temporarily so verifyToolReturn can find it
+    co.status            = 'pending_verify';
+    co.returnedAt        = now;
+    co.returnSubmittedAt = now;
+    co.returnSubmittedBy = (document.getElementById('ret-verifier')||{}).value||(_currentUser&&_currentUser.full_name)||'Office';
+    co.dropoffLocation   = 'Direct verify';
+    saveDB();
+    var m = document.getElementById(modalId); if(m) m.remove();
+    // Open inspection modal immediately
+    verifyToolReturn(coId);
   } else {
     var submitter = ((document.getElementById('ret-submitter')||{}).value||'').trim();
     if (!submitter) { showToast('Please enter who is dropping it off','error'); return; }
@@ -6983,10 +6994,10 @@ function confirmReturn(modalId) {
     co.returnSubmittedBy  = submitter;
     co.dropoffLocation    = (document.getElementById('ret-dropoff')||{}).value||'';
     showToast((tool&&tool.tag||'Tool')+' return submitted — pending verification','info');
+    saveDB();
+    var m = document.getElementById(modalId); if(m) m.remove();
+    renderTools();
   }
-  saveDB();
-  var m = document.getElementById(modalId); if(m) m.remove();
-  renderTools();
 }
 
 // ---- TRANSFER ----
