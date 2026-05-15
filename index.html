@@ -6553,7 +6553,7 @@ function _renderToolsInner() {
 
     // Photo thumbnail
     var photoHtml = t.photoUrl
-      ? '<img src="'+escHtml(t.photoUrl)+'" style="width:32px;height:32px;object-fit:cover;border-radius:5px;cursor:pointer;vertical-align:middle" onclick="viewPhoto(\''+escHtml(t.photoUrl)+'\',\''+escHtml(t.name)+'\')" title="Click to enlarge">'
+      ? photoThumb(t.photoUrl, t.name, 32, 'vertical-align:middle')
       : '<span style="font-size:18px">🔧</span>';
 
     // Linked groups count
@@ -6621,7 +6621,7 @@ function renderToolCheckouts() {
 
     // Tool photo — tappable, prominent
     var toolPhotoHtml = (tool&&tool.photoUrl)
-      ? '<img src="'+escHtml(tool.photoUrl)+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px;cursor:pointer;display:block;margin-bottom:4px" onclick="viewPhoto(\''+escHtml(tool.photoUrl)+'\',\''+escHtml((tool&&tool.name)||'')+'\');" title="Tap to enlarge">'
+      ? photoThumb(tool.photoUrl, (tool&&tool.name)||'', 48, 'display:block;margin-bottom:4px')
       : '<div style="width:48px;height:48px;background:#e8eaf6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:4px">🔧</div>';
 
     // Linked groups — larger photos so people can actually see what they look like
@@ -6634,7 +6634,7 @@ function renderToolCheckouts() {
         included.map(function(g){
           var tg = toolGroups.find(function(x){ return x.id===g.groupId; })||{};
           var photoHtml = tg.photoUrl
-            ? '<img src="'+escHtml(tg.photoUrl)+'" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer;flex-shrink:0" onclick="viewPhoto(\''+escHtml(tg.photoUrl)+'\',\''+escHtml(g.label)+'\')" title="Tap to enlarge">'
+            ? photoThumb(tg.photoUrl, g.label, 40)
             : '<div style="width:40px;height:40px;background:#f0f0f0;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📦</div>';
           var badge = g.mode==='required'
             ? '<span style="background:#c62828;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">REQ</span>'
@@ -6815,7 +6815,7 @@ function checkoutTool(toolId) {
           ? '<span style="background:#c62828;color:#fff;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700">REQUIRED</span>'
           : '<span style="background:#e65100;color:#fff;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:700">OPTIONAL</span>';
         var photoHtml = g.photoUrl
-          ? '<img src="'+escHtml(g.photoUrl)+'" style="width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:pointer;flex-shrink:0" onclick="viewPhoto(\''+escHtml(g.photoUrl)+'\',\''+escHtml(g.label)+'\')" title="Tap to enlarge">'
+          ? photoThumb(g.photoUrl, g.label, 40)
           : '<div style="width:40px;height:40px;background:#e8eaf6;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📦</div>';
         return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #e8e8e8">'+
           '<input type="checkbox" id="cog-'+escHtml(g.id)+'"'+(req?' checked disabled':' checked')+' style="width:16px;height:16px;flex-shrink:0">'+
@@ -7129,7 +7129,7 @@ function renderPendingVerifyTab() {
   tbl.innerHTML = pending.map(function(c){
     var tool = (DB.tools||[]).find(function(t){ return t.id===c.toolId; });
     var toolPhotoHtml = (tool&&tool.photoUrl)
-      ? '<img src="'+escHtml(tool.photoUrl)+'" style="width:36px;height:36px;object-fit:cover;border-radius:6px;cursor:pointer;vertical-align:middle;margin-right:6px" onclick="viewPhoto(\''+escHtml(tool.photoUrl)+'\',\''+escHtml((tool&&tool.name)||'')+'\');" title="Tap to enlarge">'
+      ? photoThumb(tool.photoUrl, (tool&&tool.name)||'', 36, 'vertical-align:middle;margin-right:6px')
       : '<span style="font-size:20px;margin-right:6px">🔧</span>';
     // Show flags if tool has outstanding issues
     var flagHtml = '';
@@ -7157,7 +7157,7 @@ function verifyToolReturn(coId) {
 
   // Tool's own photo header
   var toolPhotoHtml = (tool&&tool.photoUrl)
-    ? '<img src="'+escHtml(tool.photoUrl)+'" style="width:64px;height:64px;object-fit:cover;border-radius:10px;cursor:pointer;flex-shrink:0" onclick="viewPhoto(\''+escHtml(tool.photoUrl)+'\',\''+escHtml((tool&&tool.name)||'')+'\');" title="Tap to enlarge">'
+    ? photoThumb(tool.photoUrl, (tool&&tool.name)||'', 64)
     : '<div style="width:64px;height:64px;background:#e8eaf6;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0">🔧</div>';
 
   // Build per-item inspection cards
@@ -7189,7 +7189,7 @@ function verifyToolReturn(coId) {
 
   var itemCardsHtml = allItems.map(function(item){
     var photoHtml = item.photoUrl
-      ? '<img src="'+escHtml(item.photoUrl)+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;cursor:pointer;flex-shrink:0;display:block" onclick="viewPhoto(\''+escHtml(item.photoUrl)+'\',\''+escHtml(item.label)+'\');" title="Tap to enlarge">'
+      ? photoThumb(item.photoUrl, item.label, 72, 'display:block')
       : '<div style="width:72px;height:72px;background:#e8eaf6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0">'+(item.isParent?'🔧':'📦')+'</div>';
 
     var reqBadge = item.mode==='required'
@@ -7356,6 +7356,23 @@ function confirmVerifyReturn(modalId) {
 }
 
 // ---- PHOTO VIEWER ----
+// Photo cache — stores base64 URLs by key so onclick attrs don't embed huge strings
+var _photoCache = {};
+function cachePhoto(key, url) { _photoCache[key] = url; return key; }
+function viewPhotoById(key, caption) { if(_photoCache[key]) viewPhoto(_photoCache[key], caption); }
+
+// Build a safe photo thumbnail — uses data attributes to avoid base64 in onclick
+function photoThumb(url, caption, size, extraStyle) {
+  if (!url) return '';
+  var key = 'p' + Math.random().toString(36).substr(2,8);
+  _photoCache[key] = url;
+  var s = size || 40;
+  return '<img src="'+escHtml(url)+'" '+
+    'style="width:'+s+'px;height:'+s+'px;object-fit:cover;border-radius:'+(s>50?'10':'6')+'px;cursor:pointer;flex-shrink:0'+(extraStyle?';'+extraStyle:'')+'" '+
+    'data-photo-key="'+key+'" data-photo-caption="'+escHtml(caption||'')+'" '+
+    'title="Tap to enlarge">';
+}
+
 function viewPhoto(url, caption) {
   var existing = document.getElementById('photo-viewer-overlay');
   if (existing) existing.remove();
@@ -7400,11 +7417,11 @@ function renderLinkedGroupsEditor() {
   var groups = window._editingToolGroups || [];
   if (!groups.length) { container.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No linked groups yet.</div>'; return; }
   container.innerHTML = groups.map(function(g,i){
-    var photoThumb = g.photoUrl
-      ? '<img src="'+escHtml(g.photoUrl)+'" style="width:32px;height:32px;object-fit:cover;border-radius:5px;cursor:pointer" onclick="viewPhoto(\''+escHtml(g.photoUrl)+'\',\''+escHtml(g.label)+'\')" title="Click to enlarge">'
+    var groupThumbHtml = g.photoUrl
+      ? photoThumb(g.photoUrl, g.label, 32)
       : '<div onclick="addGroupPhoto('+i+')" style="width:32px;height:32px;background:#e8eaf6;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer" title="Add photo">📷</div>';
     return '<div style="background:#f8f9fa;border-radius:8px;padding:10px;margin-bottom:6px;display:flex;align-items:center;gap:10px">'+
-      photoThumb+
+      groupThumbHtml+
       '<div style="flex:1">'+
         '<div style="font-weight:700;font-size:13px">'+escHtml(g.label)+'</div>'+
         (g.description?'<div style="font-size:11px;color:#546e7a">'+escHtml(g.description)+'</div>':'')+
@@ -9013,6 +9030,16 @@ document.addEventListener('click', function(e) {
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('modal-overlay')) {
     e.target.classList.remove('open');
+  }
+});
+
+// Photo thumbnail click handler — uses data-photo-key to avoid base64 in onclick attrs
+document.addEventListener('click', function(e) {
+  var img = e.target.closest('[data-photo-key]');
+  if (img) {
+    var key = img.getAttribute('data-photo-key');
+    var caption = img.getAttribute('data-photo-caption')||'';
+    viewPhotoById(key, caption);
   }
 });
 
