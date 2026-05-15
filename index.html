@@ -7809,7 +7809,24 @@ function importData() {
       try {
         const data=JSON.parse(ev.target.result);
         DB=Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1},data);
-        saveDB(); input.value=''; alert('Backup restored successfully! Reloading...'); location.reload();
+        saveDB();
+        input.value='';
+        // If connected to Supabase, push the restored data BEFORE reloading
+        // so the post-reload sync doesn't overwrite it with stale cloud data
+        if (_sb && _currentUser) {
+          alert('Backup restored! Pushing to cloud — please wait...');
+          pushAllToCloud().then(function() {
+            localStorage.setItem('_skipNextPull', '1');
+            alert('Pushed to cloud successfully! Reloading...');
+            location.reload();
+          }).catch(function(err) {
+            alert('Backup restored locally but cloud push failed: ' + err.message + '\n\nReloading anyway...');
+            location.reload();
+          });
+        } else {
+          alert('Backup restored successfully! Reloading...');
+          location.reload();
+        }
       } catch(err){alert('Error reading backup: '+err.message);input.value='';}
     };
     reader.readAsText(file);
@@ -9704,7 +9721,13 @@ function init() {
         if (!_currentUser) {
           loadCurrentUserProfile().then(function() {
             showToast('Welcome back, ' + (_currentUser ? _currentUser.full_name.split(' ')[0] : '') + '!', 'success');
-            syncAllFromCloud();
+            // Skip pull if we just did an import push
+            if (localStorage.getItem('_skipNextPull') === '1') {
+              localStorage.removeItem('_skipNextPull');
+              showToast('Import complete ✓', 'success', 3000);
+            } else {
+              syncAllFromCloud();
+            }
           });
         }
       }
