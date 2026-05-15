@@ -3377,6 +3377,7 @@ function getQData(id) {
     id: id || null,
     num: (document.getElementById('qq-num')||{}).value || '',
     cn:  (document.getElementById('qq-cn')||{}).value || '',
+    customerId: (document.getElementById('qq-customer-id')||{}).value || null,
     ph:  (document.getElementById('qq-ph')||{}).value || '',
     em:  (document.getElementById('qq-em')||{}).value || '',
     ad:  (document.getElementById('qq-ad')||{}).value || '',
@@ -6841,7 +6842,7 @@ async function doStartTravel(){
       job_id:jobId,job_name:jobName,status:'traveling',clock_in_at:now.toISOString(),
       clock_in_lat:lat,clock_in_lng:lng,date:now.toISOString().split('T')[0]};
     var sessionId=null;
-    if(_sb&&_currentUser){var res=await _sb.from('clock_sessions').insert(session).select().single();if(res.data)sessionId=res.data.id;}
+    if(_sb&&_currentUser){var res=if(res.data)sessionId=res.data.id;}
     _clockState.status='traveling';_clockState.sessionId=sessionId;
     _clockState.dayStart=now;_clockState.travelOutStart=now;
     _clockState.jobId=jobId;_clockState.jobName=jobName;
@@ -6867,7 +6868,7 @@ async function doArriveOnSite(){
     setJobAnchor(_clockState.jobId,lat,lng);
     _clockState.travelOutMins=Math.round((now-_clockState.travelOutStart)/60000);
     _clockState.onsiteStart=now;
-    if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({status:'clocked_in'}).eq('id',_clockState.sessionId);
+    if(_clockState.sessionId&&_sb) 
     await logTimeEvent('clock_in',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
     _clockState.status='onsite';
     _clockState.todayEvents.push({type:'clock_in',time:now,lat:lat,lng:lng,label:'Arrived On Site',flagged:geo.reason==='out_of_range'});
@@ -6888,7 +6889,7 @@ async function doLeaveOnSite(){
     var now=new Date();
     _clockState.onsiteMins+=Math.round((now-_clockState.onsiteStart)/60000);
     _clockState.travelBackStart=now;
-    if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({status:'returning'}).eq('id',_clockState.sessionId);
+    if(_clockState.sessionId&&_sb) 
     await logTimeEvent('clock_out',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
     _clockState.status='returning';
     _clockState.todayEvents.push({type:'clock_out',time:now,lat:lat,lng:lng,label:'Left Job Site',flagged:geo.reason==='out_of_range'});
@@ -6906,13 +6907,7 @@ async function doArriveBack(){
     var totalOnsite=_clockState.onsiteMins;
     var totalPaid=totalTravel+totalOnsite;
     if(_clockState.sessionId&&_sb){
-      await _sb.from('clock_sessions').update({
-        status:'clocked_out',clock_out_at:now.toISOString(),
-        clock_out_lat:lat,clock_out_lng:lng,
-        break_minutes:_clockState.breakMins,lunch_minutes:_clockState.lunchMins,
-        total_minutes:totalPaid,travel_out_mins:_clockState.travelOutMins,
-        onsite_mins:totalOnsite,travel_back_mins:_clockState.travelBackMins
-      }).eq('id',_clockState.sessionId);
+      // clock_sessions replaced by work_days/clock_events in new schema — stub for now
     }
     await logTimeEvent('day_end',lat,lng,acc);
     _clockState.todayEvents.push({type:'day_end',time:now,label:'Arrived Back'});
@@ -6927,10 +6922,10 @@ async function doArriveBack(){
 }
 
 // BREAK & LUNCH
-async function doBreakStart(){var now=new Date();_clockState.breakStart=now;_clockState.status='break';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'on_break'}).eq('id',_clockState.sessionId);await logTimeEvent('break_start',null,null,null);_clockState.todayEvents.push({type:'break_start',time:now,label:'Break Started'});updateClockUI();showToast('Break started','info');}
-async function doBreakEnd(){var now=new Date();_clockState.breakMins+=Math.round((now-_clockState.breakStart)/60000);_clockState.breakStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'clocked_in',break_minutes:_clockState.breakMins}).eq('id',_clockState.sessionId);await logTimeEvent('break_end',null,null,null);_clockState.todayEvents.push({type:'break_end',time:now,label:'Break Ended'});updateClockUI();showToast('Back on the clock','success');}
-async function doLunchStart(){var now=new Date();_clockState.lunchStart=now;_clockState.status='lunch';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'at_lunch'}).eq('id',_clockState.sessionId);await logTimeEvent('lunch_start',null,null,null);_clockState.todayEvents.push({type:'lunch_start',time:now,label:'Lunch Started'});updateClockUI();showToast('Lunch started','info');}
-async function doLunchEnd(){var now=new Date();_clockState.lunchMins+=Math.round((now-_clockState.lunchStart)/60000);_clockState.lunchStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'clocked_in',lunch_minutes:_clockState.lunchMins}).eq('id',_clockState.sessionId);await logTimeEvent('lunch_end',null,null,null);_clockState.todayEvents.push({type:'lunch_end',time:now,label:'Lunch Ended'});updateClockUI();showToast('Back from lunch','success');}
+async function doBreakStart(){var now=new Date();_clockState.breakStart=now;_clockState.status='break';if(_clockState.sessionId&&_sb)await logTimeEvent('break_start',null,null,null);_clockState.todayEvents.push({type:'break_start',time:now,label:'Break Started'});updateClockUI();showToast('Break started','info');}
+async function doBreakEnd(){var now=new Date();_clockState.breakMins+=Math.round((now-_clockState.breakStart)/60000);_clockState.breakStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await logTimeEvent('break_end',null,null,null);_clockState.todayEvents.push({type:'break_end',time:now,label:'Break Ended'});updateClockUI();showToast('Back on the clock','success');}
+async function doLunchStart(){var now=new Date();_clockState.lunchStart=now;_clockState.status='lunch';if(_clockState.sessionId&&_sb)await logTimeEvent('lunch_start',null,null,null);_clockState.todayEvents.push({type:'lunch_start',time:now,label:'Lunch Started'});updateClockUI();showToast('Lunch started','info');}
+async function doLunchEnd(){var now=new Date();_clockState.lunchMins+=Math.round((now-_clockState.lunchStart)/60000);_clockState.lunchStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await logTimeEvent('lunch_end',null,null,null);_clockState.todayEvents.push({type:'lunch_end',time:now,label:'Lunch Ended'});updateClockUI();showToast('Back from lunch','success');}
 
 // TIMER
 function startClockTimer(){
@@ -7045,7 +7040,7 @@ async function loadTimesheets(){
   var date=dateEl?dateEl.value:new Date().toISOString().split('T')[0];
   var body=document.getElementById('timesheet-body'),liveEl=document.getElementById('live-activity');
   if(body)body.innerHTML='<div style="padding:20px;text-align:center;color:#90a4ae">Loading...</div>';
-  var {data:sessions}=await _sb.from('clock_sessions').select('*').eq('date',date).order('clock_in_at');
+  var {data:sessions}=
   if(!sessions||!sessions.length){if(body)body.innerHTML='<div style="padding:20px;text-align:center;color:#90a4ae">No data for '+date+'</div>';}
   else{
     if(body)body.innerHTML=sessions.map(function(s){
@@ -7058,7 +7053,7 @@ async function loadTimesheets(){
       return '<div class="timesheet-row"><span style="font-weight:700">'+escHtml(s.user_name||'')+'</span><span style="font-size:11px;color:#546e7a">'+escHtml(s.job_name||'—')+'</span><span>'+inTime+'</span><span>'+outTime+'</span><span>'+hrs+'</span><span style="font-size:11px;color:#1565c0">'+(travelMins>0?Math.round(travelMins/60*10)/10+'h travel':'—')+'</span><span style="font-size:11px;color:#2e7d32">'+(onsiteMins>0?Math.round(onsiteMins/60*10)/10+'h on site':'—')+'</span></div>';
     }).join('');
   }
-  var {data:live}=await _sb.from('clock_sessions').select('*').in('status',['clocked_in','on_break','at_lunch','traveling','returning']);
+  var {data:live}=
   if(liveEl){
     if(!live||!live.length){liveEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">Nobody clocked in right now.</div>';}
     else{liveEl.innerHTML=live.map(function(s){var inTime=s.clock_in_at?new Date(s.clock_in_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'';var statusTxt=s.status==='on_break'?'⏸ On Break':s.status==='at_lunch'?'🍽 Lunch':s.status==='traveling'?'🚗 Traveling':s.status==='returning'?'🚗 Returning':'🟢 On Site';return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5"><div><div style="font-weight:700;font-size:13px">'+escHtml(s.user_name||'')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(s.job_name||'')+' · '+inTime+'</div></div><span style="font-size:12px;font-weight:700">'+statusTxt+'</span></div>';}).join('');}
@@ -7069,7 +7064,7 @@ async function loadTimesheets(){
 async function restoreClockSession(){
   if(!_sb||!_currentUser) return;
   var today=new Date().toISOString().split('T')[0];
-  var {data}=await _sb.from('clock_sessions').select('*').eq('user_id',_currentUser.id).eq('date',today).neq('status','clocked_out').order('created_at',{ascending:false}).limit(1).single();
+  var {data}=
   if(data){
     _clockState.status=data.status;_clockState.sessionId=data.id;
     _clockState.dayStart=new Date(data.clock_in_at);
@@ -7285,6 +7280,15 @@ function selectCustomer(id) {
   var phEl=document.getElementById('qq-ph');    if(phEl&&cust.phone&&!phEl.value) phEl.value=cust.phone;
   var emEl=document.getElementById('qq-em');    if(emEl&&cust.email&&!emEl.value) emEl.value=cust.email;
   var adEl=document.getElementById('qq-ad');    if(adEl&&cust.address&&!adEl.value) adEl.value=cust.address;
+  // Store customer_id for Supabase linking
+  var cidEl=document.getElementById('qq-customer-id');
+  if (!cidEl) {
+    cidEl = document.createElement('input');
+    cidEl.type = 'hidden';
+    cidEl.id = 'qq-customer-id';
+    document.getElementById('qq-cn').parentNode.appendChild(cidEl);
+  }
+  cidEl.value = cust.id;
   closeCustomerDropdown();
   // Auto-populate contact if only one exists for this customer
   var contacts = DB.contacts.filter(function(c){
@@ -10024,6 +10028,7 @@ async function pushAllToCloud() {
         await _sb.from('quotes').upsert({
           id: qId,
           quote_number: q.num || null,
+          customer_id: (q.customerId && isUUID(q.customerId)) ? q.customerId : null,
           customer_name: q.cn || null,
           job_id: null,
           sales_rep_name: q.rep || null,
