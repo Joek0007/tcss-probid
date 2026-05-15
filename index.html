@@ -1736,6 +1736,7 @@ table{font-size:12.5px}
   <div class="inv-tab-nav">
     <button class="inv-tab active" onclick="switchToolTab('assets')">🔧 All Tools</button>
     <button class="inv-tab" onclick="switchToolTab('checkouts')">🔄 Checked Out</button>
+    <button class="inv-tab" onclick="switchToolTab('pendingverify')">⏳ Pending Verify</button>
     <button class="inv-tab" onclick="switchToolTab('history')">📋 History</button>
   </div>
 
@@ -1745,6 +1746,7 @@ table{font-size:12.5px}
       <div class="stat-card"><div class="stat-val" id="tool-total">0</div><div class="stat-lbl">Total Tools</div></div>
       <div class="stat-card orange"><div class="stat-val" id="tool-out">0</div><div class="stat-lbl">Checked Out</div></div>
       <div class="stat-card green"><div class="stat-val" id="tool-in">0</div><div class="stat-lbl">Available</div></div>
+      <div class="stat-card" style="border-top-color:#f9a825"><div class="stat-val" id="tool-pv">0</div><div class="stat-lbl">Pending Verify</div></div>
       <div class="stat-card"><div class="stat-val" id="tool-tags">0</div><div class="stat-lbl">Tagged</div></div>
     </div>
     <div class="inv-filter-bar">
@@ -1754,7 +1756,7 @@ table{font-size:12.5px}
     <div class="card" style="padding:0;overflow:hidden">
       <table><thead><tr>
         <th>Asset Tag</th><th>Tool / Equipment</th><th>Category</th>
-        <th>Location</th><th>Status</th><th>Assigned To</th><th>Actions</th>
+        <th>Location</th><th>Linked Groups</th><th>Status</th><th>Assigned To</th><th>Actions</th>
       </tr></thead><tbody id="tool-tbl"></tbody></table>
     </div>
   </div>
@@ -1770,6 +1772,18 @@ table{font-size:12.5px}
     </div>
   </div>
 
+  <!-- PENDING VERIFY TAB -->
+  <div class="tool-section" id="tool-pendingverify">
+    <div class="card">
+      <div class="card-title">⏳ Returns Pending Verification</div>
+      <p style="font-size:12px;color:#546e7a;margin-bottom:12px">Tech submitted a return but office hasn't physically verified the tool is back and in good condition.</p>
+      <table><thead><tr>
+        <th>Asset Tag</th><th>Tool</th><th>Returned By</th>
+        <th>Date</th><th>Drop-Off Location</th><th>Action</th>
+      </tr></thead><tbody id="tool-pv-tbl"></tbody></table>
+    </div>
+  </div>
+
   <!-- HISTORY TAB -->
   <div class="tool-section" id="tool-history">
     <div class="card">
@@ -1778,6 +1792,51 @@ table{font-size:12.5px}
         <th>Asset Tag</th><th>Tool</th><th>Who</th>
         <th>Date Out</th><th>Date In</th><th>Job</th><th>Status</th>
       </tr></thead><tbody id="tool-hist-tbl"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- CHECKOUT MODAL -->
+<div class="modal-overlay" id="modal-checkout">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Check Out Tool</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-checkout">×</button>
+    </div>
+    <div class="modal-body" id="modal-checkout-body"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-checkout">Cancel</button>
+      <button class="btn btn-success" onclick="saveCheckout()">✓ Check Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- RETURN MODAL -->
+<div class="modal-overlay" id="modal-return">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Return Tool</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-return">×</button>
+    </div>
+    <div class="modal-body" id="modal-return-body"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-return">Cancel</button>
+      <button class="btn btn-success" onclick="confirmReturn()">Confirm Return</button>
+    </div>
+  </div>
+</div>
+
+<!-- TRANSFER MODAL -->
+<div class="modal-overlay" id="modal-transfer">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Transfer Tool</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-transfer">×</button>
+    </div>
+    <div class="modal-body" id="modal-transfer-body"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-transfer">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmTransfer()">Send Transfer</button>
     </div>
   </div>
 </div>
@@ -1813,7 +1872,7 @@ table{font-size:12.5px}
 
 <!-- TOOL ITEM MODAL -->
 <div class="modal-overlay" id="modal-tool-item">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:620px">
     <div class="modal-head">
       <h3 id="tool-modal-title">New Tool / Asset</h3>
       <button class="close-btn" data-action="closeModal" data-modal="modal-tool-item">×</button>
@@ -1825,7 +1884,7 @@ table{font-size:12.5px}
           <label>Asset Tag</label>
           <div style="display:flex;gap:6px;align-items:center">
             <input id="tool-tag" placeholder="TCSS -001" style="font-family:monospace;font-weight:700;color:#1565c0;flex:1">
-            <button type="button" class="btn btn-outline btn-sm" onclick="autoAssignTag()" title="Auto-assign next available tag">Auto</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="autoAssignTag()">Auto</button>
           </div>
         </div>
       </div>
@@ -1845,11 +1904,37 @@ table{font-size:12.5px}
         <div><label>Purchase Date</label><input id="tool-purchase-date" type="date"></div>
       </div>
       <div class="form-row"><div><label>Notes</label><textarea id="tool-notes" rows="2" placeholder="Model number, condition, maintenance notes..."></textarea></div></div>
+
+      <!-- Tool Photo -->
+      <div style="margin-top:12px">
+        <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:6px">Tool Photo</label>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="tool-photo-preview" style="width:72px;height:72px;border:2px dashed #e0e0e0;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:28px;background:#f8f9fa;overflow:hidden;cursor:pointer" onclick="document.getElementById('tool-photo-input').click()">📷</div>
+          <div>
+            <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('tool-photo-input').click()">📷 Upload Tool Photo</button>
+            <input type="file" id="tool-photo-input" accept="image/*" style="display:none" onchange="onToolPhotoSelected(this)">
+            <div style="font-size:11px;color:#90a4ae;margin-top:4px">Use a clear reference image for quick identification in the field.</div>
+            <button type="button" id="tool-photo-clear" onclick="clearToolPhoto()" style="display:none;background:none;border:none;color:#c62828;font-size:11px;cursor:pointer;padding:2px 0">✕ Remove photo</button>
+          </div>
+        </div>
+        <input type="hidden" id="tool-photo-url">
+      </div>
+
+      <!-- Linked Groups -->
+      <div style="margin-top:16px;border-top:1px solid #e0e0e0;padding-top:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label style="font-size:13px;font-weight:700;color:#263238">Linked Groups / Add-On Kits</label>
+          <button type="button" class="btn btn-outline btn-sm" onclick="addLinkedGroup()">+ Add Group</button>
+        </div>
+        <p style="font-size:11px;color:#90a4ae;margin-bottom:8px">Add accessories that should travel with this tool. Set each as Required (always goes with it) or Optional (tech decides at checkout).</p>
+        <div id="linked-groups-editor"></div>
+      </div>
+
       <input type="hidden" id="tool-id">
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-tool-item">Cancel</button>
-      <button class="btn btn-primary" data-action="saveToolItem">Save Tool</button>
+      <button class="btn btn-primary" onclick="saveToolItem()">Save Tool</button>
     </div>
   </div>
 </div>
@@ -2581,6 +2666,21 @@ function loadDB() {
     if (!DB.checkoutLog)   DB.checkoutLog   = [];
     if (!DB.invSeq)        DB.invSeq        = 1;
     if (!DB.settings.followupDays) DB.settings.followupDays = 7;
+    // Migrate old tool checkout records that lack status field
+    if (DB.toolCheckouts) {
+      DB.toolCheckouts.forEach(function(co) {
+        if (!co.status) {
+          co.status = co.returnedAt ? 'verified' : 'checked_out';
+        }
+      });
+    }
+    // Migrate old tool records to ensure linkedGroups array exists
+    if (DB.tools) {
+      DB.tools.forEach(function(t) {
+        if (!t.linkedGroups) t.linkedGroups = [];
+        if (!t.photoUrl) t.photoUrl = '';
+      });
+    }
   } catch(e) { console.warn('Load error', e); }
 }
 
@@ -6384,15 +6484,796 @@ function exportInventoryCSV() {
 }
 
 // =============================================
-// TOOLS & ASSETS — Separated from Inventory
+// TOOLS & ASSETS — v20 upgrade
 // =============================================
-
-// DB.tools = array of tool objects
-// DB.toolCheckouts = array of checkout records
-// DB.toolSeq = next available tag number (starts at 1)
+// Data model:
+//   DB.tools = [{id, name, tag, cat, location, cost, serial, notes, purchaseDate,
+//                photoUrl, ownerType('company'|'personal'), linkedGroups:[{...}]}]
+//   DB.toolCheckouts = [{id, toolId, toName, jobName, date, expectedReturn,
+//                        returnedAt, verifiedAt, verifiedBy, verifyType,
+//                        status('checked_out'|'pending_verify'|'verified'|'transfer_pending'),
+//                        transferToName, transferNote, groupsIncluded:[{groupId,included,holder}],
+//                        discrepancyNote, conditionNote}]
+// =============================================
 
 function getTools() { return DB.tools || []; }
 function getToolCheckouts() { return DB.toolCheckouts || []; }
+
+// ---- TAG GENERATION ----
+function formatTag(n) {
+  var num = parseInt(n)||1;
+  if (num > 999) return 'TCSS -' + String(num).padStart(4,'0');
+  return 'TCSS -' + String(num).padStart(3,'0');
+}
+function nextAvailableTag() {
+  var used = (DB.tools||[]).map(function(t){ return t.tag||''; });
+  for (var i=1; i<=1000; i++) {
+    var tag = formatTag(i);
+    if (!used.includes(tag)) return tag;
+  }
+  return formatTag(1001);
+}
+function autoAssignTag() {
+  var el = document.getElementById('tool-tag');
+  if (el) el.value = nextAvailableTag();
+}
+
+// ---- STATS ----
+function getToolStats() {
+  var tools = getTools();
+  var checkouts = getToolCheckouts();
+  var activeCheckouts = checkouts.filter(function(c){ return c.status === 'checked_out' || c.status === 'transfer_pending'; });
+  var pendingVerify = checkouts.filter(function(c){ return c.status === 'pending_verify'; });
+  var available = tools.filter(function(t){
+    return !activeCheckouts.find(function(c){ return c.toolId === t.id; }) &&
+           !pendingVerify.find(function(c){ return c.toolId === t.id; });
+  });
+  var tagged = tools.filter(function(t){ return t.tag; });
+  return { total: tools.length, out: activeCheckouts.length, available: available.length, pending: pendingVerify.length, tagged: tagged.length };
+}
+
+// ---- RENDER TOOLS LIST ----
+function renderTools() {
+  var search = ((document.getElementById('tool-search')||{}).value||'').toLowerCase();
+  var catF   = (document.getElementById('tool-cat-filter')||{}).value||'';
+  var tools  = getTools().slice();
+  var checkouts = getToolCheckouts();
+
+  if (search) tools = tools.filter(function(t){
+    return (t.name||'').toLowerCase().includes(search) ||
+           (t.tag||'').toLowerCase().includes(search) ||
+           (t.cat||'').toLowerCase().includes(search);
+  });
+  if (catF) tools = tools.filter(function(t){ return (t.cat||'') === catF; });
+
+  var stats = getToolStats();
+  var setT = function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
+  setT('tool-total', stats.total);
+  setT('tool-out',   stats.out);
+  setT('tool-in',    stats.available);
+  setT('tool-pv',    stats.pending);
+  setT('tool-tags',  stats.tagged);
+
+  // Category filter
+  var cats = [];
+  getTools().forEach(function(t){ if(t.cat&&!cats.includes(t.cat)) cats.push(t.cat); });
+  var cf = document.getElementById('tool-cat-filter');
+  if (cf) {
+    var prev = cf.value;
+    cf.innerHTML = '<option value="">All Categories</option>' +
+      cats.sort().map(function(c){ return '<option value="'+escHtml(c)+'"'+(c===prev?' selected':'')+'>'+escHtml(c)+'</option>'; }).join('');
+  }
+
+  var tbl = document.getElementById('tool-tbl');
+  if (!tbl) return;
+  if (!tools.length) {
+    tbl.innerHTML='<tr><td colspan="8" class="empty-state"><p>No tools yet. Click + Add Tool to get started.</p></td></tr>';
+    return;
+  }
+
+  tbl.innerHTML = tools.map(function(t){
+    var co = checkouts.find(function(c){ return c.toolId === t.id && (c.status === 'checked_out' || c.status === 'transfer_pending' || c.status === 'pending_verify'); });
+    var status = co ? co.status : 'available';
+    var holderName = co ? (co.toName||'') : (t.location||'Shop');
+    var linkedCount = (t.linkedGroups||[]).length;
+
+    var statusBadge = '';
+    if (status === 'available') statusBadge = '<span class="ts-badge ts-in">✓ Available</span>';
+    else if (status === 'checked_out') statusBadge = '<span class="ts-badge ts-break">🔄 Out — '+escHtml(co.toName||'')+'</span>';
+    else if (status === 'transfer_pending') statusBadge = '<span class="ts-badge" style="background:#e65100;color:#fff">⇄ Transfer Pending</span>';
+    else if (status === 'pending_verify') statusBadge = '<span class="ts-badge" style="background:#f9a825;color:#333">⏳ Pending Verify</span>';
+
+    var actions = '';
+    if (status === 'available') {
+      actions = '<button class="btn btn-outline btn-sm" onclick="openCheckoutModal(\''+t.id+'\')">Check Out</button> ';
+    } else if (status === 'checked_out') {
+      actions = '<button class="btn btn-success btn-sm" onclick="openReturnModal(\''+t.id+'\')">✓ Return</button> '+
+                '<button class="btn btn-sm" style="background:#e65100;color:#fff" onclick="openTransferModal(\''+t.id+'\')">⇄ Transfer</button> ';
+    } else if (status === 'transfer_pending') {
+      actions = '<button class="btn btn-primary btn-sm" onclick="openAcceptTransferModal(\''+t.id+'\')">Accept Transfer</button> ';
+    } else if (status === 'pending_verify') {
+      actions = '<button class="btn btn-success btn-sm" onclick="verifyReturn(\''+co.id+'\',true)">✓ Verify Now</button> ';
+    }
+    actions += '<button class="btn btn-outline btn-sm" onclick="editTool(\''+t.id+'\')">Edit</button> '+
+               '<button class="btn btn-danger btn-sm" onclick="delTool(\''+t.id+'\')">Del</button>';
+
+    var photoHtml = t.photoUrl
+      ? '<img src="'+escHtml(t.photoUrl)+'" style="width:36px;height:36px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="window.open(\''+escHtml(t.photoUrl)+'\',\'_blank\')">'
+      : '<div style="width:36px;height:36px;background:#e8eaf6;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px">🔧</div>';
+
+    return '<tr>'+
+      '<td><span class="asset-tag-badge">'+escHtml(t.tag||'—')+'</span></td>'+
+      '<td style="display:flex;align-items:center;gap:8px">'+photoHtml+'<span style="font-weight:700">'+escHtml(t.name||'')+'</span></td>'+
+      '<td style="font-size:12px">'+escHtml(t.cat||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(t.location||'')+'</td>'+
+      '<td>'+(linkedCount > 0 ? '<span style="background:#e3f2fd;color:#1565c0;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">'+linkedCount+'</span>' : '—')+'</td>'+
+      '<td>'+statusBadge+'</td>'+
+      '<td style="font-size:12px">'+escHtml(holderName)+'</td>'+
+      '<td style="white-space:nowrap">'+actions+'</td>'+
+    '</tr>';
+  }).join('');
+
+  renderToolCheckoutsTab();
+  renderPendingVerifyTab();
+  renderToolHistory();
+}
+
+function switchToolTab(tab) {
+  document.querySelectorAll('.tool-section').forEach(function(s){ s.classList.remove('active'); });
+  document.querySelectorAll('#page-tools .inv-tab').forEach(function(b){ b.classList.remove('active'); });
+  var section = document.getElementById('tool-'+tab);
+  if (section) section.classList.add('active');
+  var map = {'assets':0,'checkouts':1,'pendingverify':2,'history':3};
+  var tabs = document.querySelectorAll('#page-tools .inv-tab');
+  var idx = map[tab];
+  if (tabs[idx]) tabs[idx].classList.add('active');
+  if (tab === 'pendingverify') renderPendingVerifyTab();
+  if (tab === 'checkouts') renderToolCheckoutsTab();
+  if (tab === 'history') renderToolHistory();
+}
+
+function renderToolCheckoutsTab() {
+  var tbl = document.getElementById('tool-co-tbl');
+  if (!tbl) return;
+  var active = getToolCheckouts().filter(function(c){ return c.status === 'checked_out' || c.status === 'transfer_pending'; });
+  if (!active.length) { tbl.innerHTML='<tr><td colspan="7" class="empty-state"><p>No tools currently checked out.</p></td></tr>'; return; }
+  var today = new Date().toISOString().split('T')[0];
+  tbl.innerHTML = active.map(function(c){
+    var tool = (DB.tools||[]).find(function(t){ return t.id===c.toolId; });
+    var overdue = c.expectedReturn && c.expectedReturn < today;
+    var transferBadge = c.status === 'transfer_pending' ? ' <span style="background:#e65100;color:#fff;border-radius:8px;padding:1px 6px;font-size:10px">Transfer Pending</span>' : '';
+    return '<tr>'+
+      '<td><span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span></td>'+
+      '<td style="font-weight:700">'+escHtml((tool&&tool.name)||'Unknown')+'</td>'+
+      '<td>'+escHtml(c.toName||'')+transferBadge+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.jobName||'—')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.date||'')+'</td>'+
+      '<td style="font-size:12px;'+(overdue?'color:#c62828;font-weight:700':'')+'">'+escHtml(c.expectedReturn||'—')+(overdue?' ⚠️':'')+'</td>'+
+      '<td>'+
+        (c.status === 'checked_out'
+          ? '<button class="btn btn-success btn-sm" onclick="openReturnModal(\''+c.toolId+'\')">✓ Return</button> '+
+            '<button class="btn btn-sm" style="background:#e65100;color:#fff" onclick="openTransferModal(\''+c.toolId+'\')">⇄ Transfer</button>'
+          : '<button class="btn btn-primary btn-sm" onclick="openAcceptTransferModal(\''+c.toolId+'\')">Accept</button>')+
+      '</td>'+
+    '</tr>';
+  }).join('');
+}
+
+function renderPendingVerifyTab() {
+  var tbl = document.getElementById('tool-pv-tbl');
+  if (!tbl) return;
+  var pending = getToolCheckouts().filter(function(c){ return c.status === 'pending_verify'; });
+  if (!pending.length) { tbl.innerHTML='<tr><td colspan="6" class="empty-state"><p>No returns pending verification.</p></td></tr>'; return; }
+  tbl.innerHTML = pending.map(function(c){
+    var tool = (DB.tools||[]).find(function(t){ return t.id===c.toolId; });
+    return '<tr>'+
+      '<td><span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span></td>'+
+      '<td style="font-weight:700">'+escHtml((tool&&tool.name)||'Unknown')+'</td>'+
+      '<td>'+escHtml(c.toName||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.returnSubmittedAt||c.date||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.dropoffLocation||'—')+'</td>'+
+      '<td>'+
+        '<button class="btn btn-success btn-sm" onclick="verifyReturn(\''+c.id+'\',true)">✓ Verify</button> '+
+        '<button class="btn btn-outline btn-sm" onclick="verifyReturn(\''+c.id+'\',false)">Flag Issue</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+}
+
+function renderToolHistory() {
+  var tbl = document.getElementById('tool-hist-tbl');
+  if (!tbl) return;
+  var history = getToolCheckouts().filter(function(c){ return c.status === 'verified' || c.returnedAt; }).slice().reverse().slice(0,50);
+  if (!history.length) { tbl.innerHTML='<tr><td colspan="7" class="empty-state"><p>No checkout history yet.</p></td></tr>'; return; }
+  tbl.innerHTML = history.map(function(c){
+    var tool = (DB.tools||[]).find(function(t){ return t.id===c.toolId; });
+    return '<tr>'+
+      '<td><span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span></td>'+
+      '<td>'+escHtml((tool&&tool.name)||'Unknown')+'</td>'+
+      '<td>'+escHtml(c.toName||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.date||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.returnedAt||'—')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.jobName||'—')+'</td>'+
+      '<td><span class="ts-badge ts-in">✓ Returned</span>'+(c.discrepancyNote?' <span style="color:#c62828;font-size:10px">⚠ Discrepancy</span>':'')+'</td>'+
+    '</tr>';
+  }).join('');
+}
+
+// ---- CHECKOUT MODAL ----
+function openCheckoutModal(toolId) {
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; });
+  if (!tool) return;
+
+  // Build linked groups HTML
+  var groupsHtml = '';
+  if ((tool.linkedGroups||[]).length > 0) {
+    groupsHtml = '<div style="margin-top:16px"><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:8px">LINKED GROUPS / ADD-ON KITS</label>' +
+      '<div style="background:#f8f9fa;border-radius:8px;padding:12px">' +
+      tool.linkedGroups.map(function(g){
+        var isRequired = g.mode === 'required';
+        var badge = isRequired
+          ? '<span style="background:#c62828;color:#fff;border-radius:8px;padding:1px 8px;font-size:10px;font-weight:700">REQUIRED</span>'
+          : '<span style="background:#e65100;color:#fff;border-radius:8px;padding:1px 8px;font-size:10px;font-weight:700">OPTIONAL</span>';
+        var photoHtml = g.photoUrl
+          ? '<img src="'+escHtml(g.photoUrl)+'" style="width:32px;height:32px;object-fit:cover;border-radius:4px">'
+          : '<div style="width:32px;height:32px;background:#e8eaf6;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px">📦</div>';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #e0e0e0">'+
+          '<input type="checkbox" id="grp-'+escHtml(g.id)+'" '+(isRequired?'checked disabled':'checked')+
+          ' style="width:16px;height:16px;cursor:'+(isRequired?'default':'pointer')+'">'+
+          photoHtml+
+          '<div style="flex:1"><div style="font-weight:700;font-size:13px">'+escHtml(g.label)+'</div>'+
+          '<div style="font-size:11px;color:#546e7a">'+escHtml(g.description||'')+'</div></div>'+
+          badge+'</div>';
+      }).join('')+
+      '<div style="font-size:11px;color:#90a4ae;margin-top:8px">Required groups ride with the tool automatically. Optional groups can be included or left behind.</div>'+
+      '</div></div>';
+  }
+
+  // Populate team dropdown
+  var teamOptions = (DB.team||[]).map(function(m){
+    return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';
+  }).join('');
+
+  var today = new Date();
+  var nextWeek = new Date(today); nextWeek.setDate(nextWeek.getDate()+7);
+  var defaultReturn = nextWeek.toISOString().split('T')[0];
+
+  var photoHtml = tool.photoUrl
+    ? '<img src="'+escHtml(tool.photoUrl)+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px">'
+    : '<div style="width:48px;height:48px;background:#e8eaf6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">🔧</div>';
+
+  document.getElementById('modal-checkout-body').innerHTML =
+    '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:16px;display:flex;align-items:center;gap:12px">'+
+      photoHtml+
+      '<div>'+
+        '<div style="font-weight:800;font-size:15px">'+escHtml(tool.name)+'</div>'+
+        '<span class="asset-tag-badge">'+escHtml(tool.tag||'Untagged')+'</span>'+
+        '<span style="font-size:12px;color:#546e7a;margin-left:8px">'+escHtml(tool.cat||'')+(tool.location?' · Home: '+escHtml(tool.location):'')+'</span>'+
+      '</div>'+
+    '</div>'+
+    '<div class="form-row cols2">'+
+      '<div><label>Checked Out To *</label>'+
+        '<input id="co-to-name" list="co-team-list" placeholder="Technician name">'+
+        '<datalist id="co-team-list">'+teamOptions+'</datalist>'+
+      '</div>'+
+      '<div><label>Expected Return Date</label>'+
+        '<input id="co-return-date" type="date" value="'+defaultReturn+'">'+
+      '</div>'+
+    '</div>'+
+    '<div><label>Job / Purpose</label><input id="co-job-name" placeholder="Job name or purpose"></div>'+
+    groupsHtml+
+    '<div style="margin-top:12px"><label>Notes</label><input id="co-notes" placeholder="Optional notes"></div>'+
+    '<input type="hidden" id="co-tool-id" value="'+escHtml(toolId)+'">';
+
+  openModal('modal-checkout');
+}
+
+function saveCheckout() {
+  var toolId = document.getElementById('co-tool-id').value;
+  var toName = (document.getElementById('co-to-name')||{}).value||'';
+  if (!toName.trim()) { showToast('Please enter who is checking this out', 'error'); return; }
+
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; });
+  if (!tool) return;
+
+  // Capture linked group selections
+  var groupsIncluded = (tool.linkedGroups||[]).map(function(g){
+    var cb = document.getElementById('grp-'+g.id);
+    return { groupId: g.id, label: g.label, included: g.mode==='required' || (cb&&cb.checked), mode: g.mode };
+  });
+
+  if (!DB.toolCheckouts) DB.toolCheckouts = [];
+  var checkout = {
+    id:             makeToolId(),
+    toolId:         toolId,
+    toName:         toName.trim(),
+    jobName:        (document.getElementById('co-job-name')||{}).value||'',
+    date:           new Date().toISOString().split('T')[0],
+    expectedReturn: (document.getElementById('co-return-date')||{}).value||'',
+    notes:          (document.getElementById('co-notes')||{}).value||'',
+    status:         'checked_out',
+    returnedAt:     null,
+    groupsIncluded: groupsIncluded
+  };
+  DB.toolCheckouts.push(checkout);
+  saveDB();
+  closeModal('modal-checkout');
+  renderTools();
+  showToast((tool.tag||tool.name)+' checked out to '+toName.trim(), 'success');
+  pushToolsToCloud();
+}
+
+function makeToolId() {
+  return 'T-' + Date.now().toString(36) + '-' + Math.random().toString(36).substr(2,5);
+}
+
+// ---- RETURN MODAL ----
+function openReturnModal(toolId) {
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; });
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.toolId===toolId && c.status==='checked_out'; });
+  if (!tool || !co) return;
+
+  document.getElementById('modal-return-body').innerHTML =
+    '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:16px">'+
+      '<div style="font-weight:800;font-size:15px">'+escHtml(tool.name)+'</div>'+
+      '<span class="asset-tag-badge">'+escHtml(tool.tag||'Untagged')+'</span>'+
+      '<span style="font-size:12px;color:#546e7a;margin-left:8px">Currently assigned to '+escHtml(co.toName||'')+'.</span>'+
+      '<div style="font-size:11px;color:#546e7a;margin-top:4px">Choose how this return should be processed.</div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">'+
+      '<div id="return-opt-now" onclick="selectReturnOpt(\'now\')" style="border:2px solid #1565c0;border-radius:10px;padding:14px;cursor:pointer;background:#e3f2fd">'+
+        '<div style="font-weight:800;font-size:14px;color:#1565c0">Verify Now</div>'+
+        '<div style="font-size:11px;color:#546e7a;margin-top:4px">Office or management verifies the return immediately and closes the custody record.</div>'+
+      '</div>'+
+      '<div id="return-opt-later" onclick="selectReturnOpt(\'later\')" style="border:2px solid #e0e0e0;border-radius:10px;padding:14px;cursor:pointer">'+
+        '<div style="font-weight:800;font-size:14px">Verify Later</div>'+
+        '<div style="font-size:11px;color:#546e7a;margin-top:4px">Submit the return now and move it to Pending Verify for office review later.</div>'+
+      '</div>'+
+    '</div>'+
+    '<div id="return-now-fields">'+
+      '<label>Verifier Name *</label>'+
+      '<input id="return-verifier" value="Joe Kucinski" placeholder="Name of person verifying">'+
+    '</div>'+
+    '<div id="return-later-fields" style="display:none">'+
+      '<label>Submitted By *</label>'+
+      '<input id="return-submitted-by" placeholder="Person dropping it off">'+
+      '<div style="margin-top:10px"><label>Drop-Off Location / Note</label>'+
+      '<input id="return-dropoff" placeholder="Front office / shop shelf"></div>'+
+    '</div>'+
+    '<input type="hidden" id="return-tool-id" value="'+escHtml(toolId)+'">'+
+    '<input type="hidden" id="return-co-id" value="'+escHtml(co.id)+'">'+
+    '<input type="hidden" id="return-opt-val" value="now">';
+
+  openModal('modal-return');
+}
+
+function selectReturnOpt(opt) {
+  document.getElementById('return-opt-val').value = opt;
+  var nowCard = document.getElementById('return-opt-now');
+  var laterCard = document.getElementById('return-opt-later');
+  var nowFields = document.getElementById('return-now-fields');
+  var laterFields = document.getElementById('return-later-fields');
+  if (opt === 'now') {
+    nowCard.style.border = '2px solid #1565c0'; nowCard.style.background = '#e3f2fd';
+    laterCard.style.border = '2px solid #e0e0e0'; laterCard.style.background = '';
+    nowFields.style.display = 'block'; laterFields.style.display = 'none';
+  } else {
+    laterCard.style.border = '2px solid #1565c0'; laterCard.style.background = '#e3f2fd';
+    nowCard.style.border = '2px solid #e0e0e0'; nowCard.style.background = '';
+    nowFields.style.display = 'none'; laterFields.style.display = 'block';
+  }
+}
+
+function confirmReturn() {
+  var toolId = document.getElementById('return-tool-id').value;
+  var coId   = document.getElementById('return-co-id').value;
+  var opt    = document.getElementById('return-opt-val').value;
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; });
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; });
+  if (!co || !tool) return;
+
+  var now = new Date().toISOString().split('T')[0];
+  if (opt === 'now') {
+    var verifier = (document.getElementById('return-verifier')||{}).value||'';
+    if (!verifier.trim()) { showToast('Please enter the verifier name', 'error'); return; }
+    co.status = 'verified';
+    co.returnedAt = now;
+    co.verifiedAt = now;
+    co.verifiedBy = verifier.trim();
+    co.verifyType = 'verify_now';
+    showToast((tool.tag||tool.name)+' returned and verified ✓', 'success');
+  } else {
+    var submittedBy = (document.getElementById('return-submitted-by')||{}).value||'';
+    if (!submittedBy.trim()) { showToast('Please enter who is dropping it off', 'error'); return; }
+    co.status = 'pending_verify';
+    co.returnedAt = now;
+    co.returnSubmittedAt = now;
+    co.returnSubmittedBy = submittedBy.trim();
+    co.dropoffLocation = (document.getElementById('return-dropoff')||{}).value||'';
+    co.verifyType = 'verify_later';
+    showToast((tool.tag||tool.name)+' return submitted — pending office verification', 'info');
+  }
+  saveDB();
+  closeModal('modal-return');
+  renderTools();
+  pushToolsToCloud();
+}
+
+function verifyReturn(coId, isGood) {
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; });
+  if (!co) return;
+  var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
+  if (!isGood) {
+    var note = prompt('Describe the issue or discrepancy:', '');
+    if (note === null) return;
+    co.discrepancyNote = note;
+  }
+  co.status = 'verified';
+  co.verifiedAt = new Date().toISOString().split('T')[0];
+  co.verifiedBy = _currentUser ? _currentUser.full_name : 'Office';
+  saveDB();
+  renderTools();
+  showToast((tool&&tool.tag||'Tool')+' return verified ✓', 'success');
+  pushToolsToCloud();
+}
+
+// ---- TRANSFER MODAL ----
+function openTransferModal(toolId) {
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; });
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.toolId===toolId && c.status==='checked_out'; });
+  if (!tool || !co) return;
+
+  var teamOptions = (DB.team||[]).map(function(m){
+    return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';
+  }).join('');
+
+  // Groups currently included in this checkout
+  var groupsHtml = '';
+  if ((co.groupsIncluded||[]).length > 0) {
+    groupsHtml = '<div style="margin-top:12px"><label style="font-size:12px;font-weight:700;color:#546e7a">WHICH PIECES TRAVEL WITH THIS TRANSFER?</label>'+
+      '<div style="background:#f8f9fa;border-radius:8px;padding:10px;margin-top:6px">'+
+      co.groupsIncluded.filter(function(g){ return g.included; }).map(function(g){
+        var isRequired = g.mode === 'required';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0">'+
+          '<input type="checkbox" id="tr-grp-'+escHtml(g.groupId)+'" '+(isRequired?'checked disabled':'checked')+'style="width:15px;height:15px">'+
+          '<span style="font-weight:700;font-size:13px">'+escHtml(g.label)+'</span>'+
+          (isRequired ? '<span style="background:#c62828;color:#fff;border-radius:6px;padding:1px 6px;font-size:10px">REQUIRED</span>' :
+                        '<span style="background:#e65100;color:#fff;border-radius:6px;padding:1px 6px;font-size:10px">OPTIONAL</span>')+
+        '</div>';
+      }).join('')+
+      '</div></div>';
+  }
+
+  document.getElementById('modal-transfer-body').innerHTML =
+    '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:16px">'+
+      '<div style="font-weight:800">'+escHtml(tool.name)+'</div>'+
+      '<span class="asset-tag-badge">'+escHtml(tool.tag||'Untagged')+'</span>'+
+      '<span style="font-size:12px;color:#546e7a;margin-left:8px">Currently with: '+escHtml(co.toName||'')+'</span>'+
+    '</div>'+
+    '<div><label>Transfer To *</label>'+
+      '<input id="tr-to-name" list="tr-team-list" placeholder="Receiving technician">'+
+      '<datalist id="tr-team-list">'+teamOptions+'</datalist>'+
+    '</div>'+
+    '<div style="margin-top:10px"><label>Transfer Reason / Note</label>'+
+      '<input id="tr-note" placeholder="Field handoff, job change, etc."></div>'+
+    groupsHtml+
+    '<input type="hidden" id="tr-tool-id" value="'+escHtml(toolId)+'">'+
+    '<input type="hidden" id="tr-co-id" value="'+escHtml(co.id)+'">';
+
+  openModal('modal-transfer');
+}
+
+function confirmTransfer() {
+  var toolId = document.getElementById('tr-tool-id').value;
+  var coId   = document.getElementById('tr-co-id').value;
+  var toName = (document.getElementById('tr-to-name')||{}).value||'';
+  if (!toName.trim()) { showToast('Please enter who is receiving this tool', 'error'); return; }
+
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; });
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; });
+  if (!co || !tool) return;
+
+  // Which groups travel with the transfer
+  var transferGroups = (co.groupsIncluded||[]).filter(function(g){ return g.included; }).map(function(g){
+    var cb = document.getElementById('tr-grp-'+g.groupId);
+    return { groupId: g.groupId, label: g.label, included: g.mode==='required' || (cb&&cb.checked), mode: g.mode };
+  });
+
+  // Close current checkout
+  co.status = 'verified';
+  co.returnedAt = new Date().toISOString().split('T')[0];
+  co.transferredTo = toName.trim();
+
+  // Open new checkout for receiving tech
+  var newCo = {
+    id:             makeToolId(),
+    toolId:         toolId,
+    toName:         toName.trim(),
+    jobName:        co.jobName||'',
+    date:           new Date().toISOString().split('T')[0],
+    expectedReturn: co.expectedReturn||'',
+    notes:          (document.getElementById('tr-note')||{}).value||'',
+    status:         'checked_out',
+    returnedAt:     null,
+    groupsIncluded: transferGroups,
+    transferredFrom: co.toName||''
+  };
+  DB.toolCheckouts.push(newCo);
+  saveDB();
+  closeModal('modal-transfer');
+  renderTools();
+  showToast((tool.tag||tool.name)+' transferred to '+toName.trim(), 'success');
+  pushToolsToCloud();
+}
+
+// ---- ACCEPT TRANSFER (field receiving inspection) ----
+function openAcceptTransferModal(toolId) {
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; });
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.toolId===toolId && c.status==='transfer_pending'; });
+  if (!tool) return;
+  // For now, direct transfer (no two-step pending) — full two-party pending in next iteration
+  showToast('Transfer accepted', 'success');
+}
+
+// ---- NEW / EDIT / SAVE / DELETE TOOL ----
+function newToolItem() {
+  var modal = document.getElementById('modal-tool-item');
+  var title = document.getElementById('tool-modal-title');
+  if (title) title.textContent = 'New Tool / Asset';
+  ['tool-name','tool-tag','tool-serial','tool-notes','tool-id'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  var costEl=document.getElementById('tool-cost'); if(costEl) costEl.value=0;
+  var catEl=document.getElementById('tool-cat'); if(catEl) catEl.value='Power Tools';
+  var locEl=document.getElementById('tool-loc'); if(locEl) locEl.value='';
+  var pdEl=document.getElementById('tool-purchase-date'); if(pdEl) pdEl.value='';
+  var tagEl=document.getElementById('tool-tag'); if(tagEl) tagEl.value=nextAvailableTag();
+  var locDl=document.getElementById('tool-loc-list');
+  if(locDl) locDl.innerHTML='<option value="Shop"><option value="Warehouse">'+
+    (DB.team||[]).map(function(t){return '<option value="'+escHtml(t.name)+'">'; }).join('');
+  window._editingToolGroups = [];
+  renderLinkedGroupsEditor();
+  loadToolPhotoInModal('');
+  openModal('modal-tool-item');
+}
+
+function editTool(id) {
+  var t=(DB.tools||[]).find(function(x){return x.id==id}); if(!t) return;
+  var title=document.getElementById('tool-modal-title'); if(title) title.textContent='Edit Tool';
+  function sv(eid,v){var el=document.getElementById(eid);if(el)el.value=v||'';}
+  sv('tool-name',t.name); sv('tool-tag',t.tag); sv('tool-cat',t.cat||'Power Tools');
+  sv('tool-loc',t.location); sv('tool-cost',t.cost||0); sv('tool-serial',t.serial);
+  sv('tool-notes',t.notes); sv('tool-id',t.id);
+  var pd=document.getElementById('tool-purchase-date'); if(pd) pd.value=t.purchaseDate||'';
+  window._editingToolGroups = JSON.parse(JSON.stringify(t.linkedGroups||[]));
+  renderLinkedGroupsEditor();
+  loadToolPhotoInModal(t.photoUrl||'');
+  openModal('modal-tool-item');
+}
+
+function saveToolItem() {
+  var id   = document.getElementById('tool-id').value;
+  var name = (document.getElementById('tool-name').value||'').trim();
+  if (!name) { alert('Tool name is required.'); return; }
+  var tag  = (document.getElementById('tool-tag').value||'').trim();
+  if (tag && !/^TCSS -\d+$/.test(tag)) {
+    alert('Asset tag must be in format: TCSS -001'); return;
+  }
+  var dupe = (DB.tools||[]).find(function(t){ return t.tag===tag && t.id!==id; });
+  if (dupe) { alert('Asset tag '+tag+' is already assigned to: '+dupe.name); return; }
+
+  var data = {
+    id:           id || makeToolId(),
+    name:         name,
+    tag:          tag,
+    cat:          document.getElementById('tool-cat').value||'Other',
+    location:     document.getElementById('tool-loc').value||'',
+    cost:         parseFloat(document.getElementById('tool-cost').value)||0,
+    serial:       document.getElementById('tool-serial').value||'',
+    notes:        document.getElementById('tool-notes').value||'',
+    purchaseDate: document.getElementById('tool-purchase-date').value||'',
+    photoUrl:     (document.getElementById('tool-photo-url')||{}).value || (id ? ((DB.tools||[]).find(function(t){return t.id===id;})||{}).photoUrl||'' : ''),
+    linkedGroups: window._editingToolGroups || [],
+    createdAt:    id ? undefined : new Date().toISOString()
+  };
+
+  if (!DB.tools) DB.tools=[];
+  if (id) {
+    var idx=DB.tools.findIndex(function(t){return t.id==id});
+    if(idx>=0) DB.tools[idx]=data; else DB.tools.push(data);
+  } else {
+    DB.tools.push(data);
+  }
+  saveDB();
+  closeModal('modal-tool-item');
+  renderTools();
+  showToast('Tool saved — '+data.tag, 'success');
+  pushToolsToCloud();
+}
+
+function delTool(id) {
+  var t=(DB.tools||[]).find(function(x){return x.id==id}); if(!t) return;
+  var active = (DB.toolCheckouts||[]).find(function(c){ return c.toolId===id && c.status==='checked_out'; });
+  if (active) { alert('Cannot delete — tool is currently checked out to '+active.toName+'. Return it first.'); return; }
+  if (!confirm('Delete '+t.name+' ('+t.tag+')? This cannot be undone.')) return;
+  DB.tools=DB.tools.filter(function(x){return x.id!=id});
+  saveDB(); renderTools();
+}
+
+// ---- LINKED GROUPS EDITOR ----
+window._editingToolGroups = [];
+
+function renderLinkedGroupsEditor() {
+  var container = document.getElementById('linked-groups-editor');
+  if (!container) return;
+  var groups = window._editingToolGroups || [];
+  if (!groups.length) {
+    container.innerHTML = '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No linked groups yet.</div>';
+    return;
+  }
+  container.innerHTML = groups.map(function(g, i){
+    return '<div style="background:#f8f9fa;border-radius:8px;padding:10px;margin-bottom:8px;display:flex;align-items:center;gap:10px">'+
+      '<div style="flex:1">'+
+        '<div style="font-weight:700;font-size:13px">'+escHtml(g.label)+'</div>'+
+        '<div style="font-size:11px;color:#546e7a">'+escHtml(g.description||'')+'</div>'+
+      '</div>'+
+      '<select onchange="updateGroupMode('+i+',this.value)" style="font-size:11px;padding:2px 6px;border:1px solid #e0e0e0;border-radius:6px">'+
+        '<option value="optional"'+(g.mode==='optional'?' selected':'')+'>Optional</option>'+
+        '<option value="required"'+(g.mode==='required'?' selected':'')+'>Required</option>'+
+      '</select>'+
+      '<button onclick="removeLinkedGroup('+i+')" style="background:#ffebee;border:none;color:#c62828;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px">×</button>'+
+    '</div>';
+  }).join('');
+}
+
+function addLinkedGroup() {
+  var label = prompt('Group / accessory name:', '');
+  if (!label||!label.trim()) return;
+  var desc = prompt('Description (optional, e.g. "Should contain 2 items"):', '')||'';
+  if (!window._editingToolGroups) window._editingToolGroups = [];
+  window._editingToolGroups.push({
+    id: makeToolId(),
+    label: label.trim(),
+    description: desc.trim(),
+    mode: 'optional',
+    photoUrl: ''
+  });
+  renderLinkedGroupsEditor();
+}
+
+function removeLinkedGroup(idx) {
+  if (window._editingToolGroups) window._editingToolGroups.splice(idx,1);
+  renderLinkedGroupsEditor();
+}
+
+function updateGroupMode(idx, mode) {
+  if (window._editingToolGroups && window._editingToolGroups[idx]) {
+    window._editingToolGroups[idx].mode = mode;
+  }
+}
+
+// ---- BARCODE SCANNER ----
+var _cameraStream = null;
+var _barcodeInterval = null;
+
+function openBarcodeScanner() {
+  var bar = document.getElementById('barcode-scan-bar');
+  if (bar) {
+    bar.style.display = bar.style.display==='none' ? 'block' : 'none';
+    if (bar.style.display==='block') {
+      setTimeout(function(){ var inp=document.getElementById('barcode-input'); if(inp){inp.value='';inp.focus();} },100);
+    } else { closeBarcodeScanner(); }
+  }
+}
+function closeBarcodeScanner() {
+  stopCamera();
+  var bar=document.getElementById('barcode-scan-bar'); if(bar) bar.style.display='none';
+  var res=document.getElementById('barcode-result'); if(res) res.innerHTML='';
+}
+function onBarcodeInput(val) {
+  if (val.length >= 3) {
+    var matches=(DB.tools||[]).filter(function(t){
+      return (t.tag||'').toLowerCase().includes(val.toLowerCase()) ||
+             (t.name||'').toLowerCase().includes(val.toLowerCase());
+    }).slice(0,5);
+    if (matches.length===1) lookupBarcode(matches[0].tag);
+  }
+}
+function lookupBarcode(val) {
+  var tag=(val||'').trim(); if(!tag) return;
+  var result=document.getElementById('barcode-result'); if(!result) return;
+  var tool=(DB.tools||[]).find(function(t){
+    return (t.tag||'').toLowerCase()===tag.toLowerCase() || t.id===tag;
+  });
+  if (!tool) {
+    result.innerHTML='<div style="background:#ffebee;border-radius:8px;padding:12px;color:#c62828;font-weight:700">❌ Tag not found: '+escHtml(tag)+'</div>';
+    return;
+  }
+  var co=(DB.toolCheckouts||[]).find(function(c){return c.toolId===tool.id&&c.status==='checked_out';});
+  var statusHtml=co
+    ? '<span class="barcode-result-status brs-checked-out">🔄 Checked Out to '+escHtml(co.toName||'')+'</span>'
+    : '<span class="barcode-result-status brs-available">✓ Available</span>';
+  result.innerHTML='<div class="barcode-result-card">'+
+    '<div class="barcode-result-tag">'+escHtml(tool.tag||'')+'</div>'+
+    '<div class="barcode-result-name">'+escHtml(tool.name||'')+'</div>'+
+    '<div class="barcode-result-meta">'+escHtml(tool.cat||'')+(tool.location?' · '+escHtml(tool.location):'')+'</div>'+
+    statusHtml+
+    (co
+      ? '<br><button class="btn btn-success btn-sm" onclick="openReturnModal(\''+tool.id+'\');closeBarcodeScanner()">✓ Return Now</button>'
+      : '<br><button class="btn btn-primary btn-sm" onclick="openCheckoutModal(\''+tool.id+'\');closeBarcodeScanner()">Check Out</button>')+
+    ' <button class="btn btn-outline btn-sm" onclick="editTool(\''+tool.id+'\');closeBarcodeScanner()">Edit</button>'+
+  '</div>';
+}
+async function toggleCamera() {
+  var wrap=document.getElementById('barcode-camera-wrap'); if(!wrap) return;
+  if (_cameraStream) {
+    stopCamera(); wrap.style.display='none';
+    var btn=document.getElementById('btn-toggle-camera'); if(btn) btn.textContent='📷 Camera';
+  } else {
+    try {
+      _cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+      var video=document.getElementById('barcode-video');
+      if(video){video.srcObject=_cameraStream;}
+      wrap.style.display='block';
+      var btn=document.getElementById('btn-toggle-camera'); if(btn) btn.textContent='⏹ Stop Camera';
+      showToast('Camera active — point at barcode','info',3000);
+    } catch(e) { showToast('Camera access denied — use USB scanner or type tag manually','warning',3000); }
+  }
+}
+function stopCamera() {
+  if (_cameraStream) { _cameraStream.getTracks().forEach(function(t){t.stop();}); _cameraStream=null; }
+  clearInterval(_barcodeInterval);
+}
+
+// ---- SUPABASE SYNC ----
+async function pushToolsToCloud() {
+  if (!_sb || !_currentUser) return;
+  try {
+    for (var t of (DB.tools||[])) {
+      if (!t) continue;
+      var tId = ensureUUID(t);
+      await _sb.from('tools').upsert({
+        id: tId,
+        name: t.name||'',
+        asset_tag: t.tag||null,
+        category: t.cat||'Other',
+        home_location: t.location||null,
+        current_status: 'available',
+        serial_number: t.serial||null,
+        purchase_date: t.purchaseDate||null,
+        notes: t.notes||null,
+        owner_type: 'company',
+        is_active: true,
+        created_by: _currentUser.id
+      });
+    }
+    for (var co of (DB.toolCheckouts||[])) {
+      if (!co) continue;
+      var coId = ensureUUID(co);
+      var toolUUID = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
+      if (!toolUUID) continue;
+      await _sb.from('tool_checkouts').upsert({
+        id: coId,
+        tool_id: toolUUID.id,
+        checked_out_to_id: _currentUser.id,
+        job_purpose: co.jobName||null,
+        expected_return_date: co.expectedReturn||null,
+        status: co.status==='checked_out'?'checked_out':
+                co.status==='pending_verify'?'pending_verification':
+                co.status==='verified'?'closed_verified':'checked_out',
+        notes: co.notes||null
+      });
+    }
+    saveDB();
+  } catch(e) {
+    console.warn('[Tools] Sync error:', e);
+  }
+}
+
+// =============================================
+// END TOOLS & ASSETS
+// =============================================
+
 
 // ---- TAG GENERATION ----
 // Format: TCSS -001 (space before dash, zero-padded to 3 digits up to 999, then 4 digits)
@@ -6527,116 +7408,6 @@ function renderToolHistory() {
       '<td><span class="ts-badge '+(c.returnedAt?'ts-in':'ts-break')+'">'+(c.returnedAt?'Returned':'Out')+'</span></td>'+
     '</tr>';
   }).join('');
-}
-
-// ---- NEW / EDIT / SAVE / DELETE TOOL ----
-function newToolItem() {
-  var modal = document.getElementById('modal-tool-item');
-  var title = document.getElementById('tool-modal-title');
-  if (title) title.textContent = 'New Tool / Asset';
-  ['tool-name','tool-tag','tool-serial','tool-notes','tool-id'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.value='';
-  });
-  var costEl=document.getElementById('tool-cost'); if(costEl) costEl.value=0;
-  var catEl=document.getElementById('tool-cat'); if(catEl) catEl.value='Power Tools';
-  var locEl=document.getElementById('tool-loc'); if(locEl) locEl.value='';
-  // Suggest next tag
-  var tagEl=document.getElementById('tool-tag'); if(tagEl) tagEl.value=nextAvailableTag();
-  // Populate location suggestions from team names
-  var locDl=document.getElementById('tool-loc-list');
-  if(locDl) locDl.innerHTML='<option value="Shop"><option value="Warehouse">'+
-    (DB.team||[]).map(function(t){return '<option value="'+escHtml(t.name)+'">'; }).join('');
-  openModal('modal-tool-item');
-}
-
-function editTool(id) {
-  var t=(DB.tools||[]).find(function(x){return x.id==id}); if(!t) return;
-  var title=document.getElementById('tool-modal-title'); if(title) title.textContent='Edit Tool';
-  function sv(eid,v){var el=document.getElementById(eid);if(el)el.value=v||'';}
-  sv('tool-name',t.name); sv('tool-tag',t.tag); sv('tool-cat',t.cat);
-  sv('tool-loc',t.location); sv('tool-cost',t.cost||0); sv('tool-serial',t.serial);
-  sv('tool-notes',t.notes); sv('tool-id',t.id);
-  var pd=document.getElementById('tool-purchase-date'); if(pd) pd.value=t.purchaseDate||'';
-  openModal('modal-tool-item');
-}
-
-function saveToolItem() {
-  var id   = document.getElementById('tool-id').value;
-  var name = document.getElementById('tool-name').value.trim();
-  if (!name) { alert('Tool name is required.'); return; }
-  var tag  = (document.getElementById('tool-tag').value||'').trim();
-  // Validate tag format
-  if (tag && !/^TCSS -\d+$/.test(tag)) {
-    alert('Asset tag must be in format: TCSS -001');
-    return;
-  }
-  // Check for duplicate tag
-  var dupe = (DB.tools||[]).find(function(t){ return t.tag===tag && t.id!==id; });
-  if (dupe) { alert('Asset tag '+tag+' is already assigned to: '+dupe.name); return; }
-
-  var data = {
-    id:           id || Date.now().toString(),
-    name:         name,
-    tag:          tag,
-    cat:          document.getElementById('tool-cat').value||'Other',
-    location:     document.getElementById('tool-loc').value||'',
-    cost:         parseFloat(document.getElementById('tool-cost').value)||0,
-    serial:       document.getElementById('tool-serial').value||'',
-    notes:        document.getElementById('tool-notes').value||'',
-    purchaseDate: document.getElementById('tool-purchase-date').value||'',
-    createdAt:    id ? undefined : new Date().toISOString()
-  };
-
-  if (!DB.tools) DB.tools=[];
-  if (id) {
-    var idx=DB.tools.findIndex(function(t){return t.id==id});
-    if(idx>=0) DB.tools[idx]=data; else DB.tools.push(data);
-  } else {
-    DB.tools.push(data);
-  }
-  saveDB();
-  closeModal('modal-tool-item');
-  renderTools();
-  showToast('Tool saved — '+data.tag, 'success');
-}
-
-function delTool(id) {
-  var t=(DB.tools||[]).find(function(x){return x.id==id}); if(!t) return;
-  if (!confirm('Delete '+t.name+' ('+t.tag+')? This cannot be undone.')) return;
-  DB.tools=DB.tools.filter(function(x){return x.id!=id});
-  saveDB(); renderTools();
-}
-
-// ---- CHECKOUT / CHECKIN ----
-function checkoutTool(toolId) {
-  var tool=(DB.tools||[]).find(function(t){return t.id==toolId}); if(!tool) return;
-  var toName=prompt('Check out '+tool.name+' ('+tool.tag+') to:\nEnter technician name:','');
-  if (!toName||!toName.trim()) return;
-  var jobName=prompt('Job or purpose (optional):','') || '';
-  var daysOut=prompt('Expected return in how many days?','1');
-  var returnDate=new Date(); returnDate.setDate(returnDate.getDate()+(parseInt(daysOut)||1));
-
-  if (!DB.toolCheckouts) DB.toolCheckouts=[];
-  DB.toolCheckouts.push({
-    id:             Date.now().toString(),
-    toolId:         toolId,
-    toName:         toName.trim(),
-    jobName:        jobName,
-    date:           new Date().toISOString().split('T')[0],
-    expectedReturn: returnDate.toISOString().split('T')[0],
-    returnedAt:     null
-  });
-  saveDB(); renderTools();
-  showToast(tool.tag+' checked out to '+toName.trim(), 'success');
-}
-
-function checkinTool(checkoutId) {
-  var co=(DB.toolCheckouts||[]).find(function(c){return c.id==checkoutId}); if(!co) return;
-  var tool=(DB.tools||[]).find(function(t){return t.id==co.toolId});
-  if (!confirm('Return '+(tool?tool.name:'tool')+' from '+co.toName+'?')) return;
-  co.returnedAt=new Date().toISOString().split('T')[0];
-  saveDB(); renderTools();
-  showToast((tool?tool.tag:'Tool')+' returned ✓', 'success');
 }
 
 // ---- BARCODE SCANNER ----
