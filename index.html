@@ -3377,7 +3377,6 @@ function getQData(id) {
     id: id || null,
     num: (document.getElementById('qq-num')||{}).value || '',
     cn:  (document.getElementById('qq-cn')||{}).value || '',
-    customerId: (document.getElementById('qq-customer-id')||{}).value || null,
     ph:  (document.getElementById('qq-ph')||{}).value || '',
     em:  (document.getElementById('qq-em')||{}).value || '',
     ad:  (document.getElementById('qq-ad')||{}).value || '',
@@ -6842,7 +6841,7 @@ async function doStartTravel(){
       job_id:jobId,job_name:jobName,status:'traveling',clock_in_at:now.toISOString(),
       clock_in_lat:lat,clock_in_lng:lng,date:now.toISOString().split('T')[0]};
     var sessionId=null;
-    if(_sb&&_currentUser){var res=if(res.data)sessionId=res.data.id;}
+    if(_sb&&_currentUser){var res=await _sb.from('clock_sessions').insert(session).select().single();if(res.data)sessionId=res.data.id;}
     _clockState.status='traveling';_clockState.sessionId=sessionId;
     _clockState.dayStart=now;_clockState.travelOutStart=now;
     _clockState.jobId=jobId;_clockState.jobName=jobName;
@@ -6868,7 +6867,7 @@ async function doArriveOnSite(){
     setJobAnchor(_clockState.jobId,lat,lng);
     _clockState.travelOutMins=Math.round((now-_clockState.travelOutStart)/60000);
     _clockState.onsiteStart=now;
-    if(_clockState.sessionId&&_sb) 
+    if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({status:'clocked_in'}).eq('id',_clockState.sessionId);
     await logTimeEvent('clock_in',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
     _clockState.status='onsite';
     _clockState.todayEvents.push({type:'clock_in',time:now,lat:lat,lng:lng,label:'Arrived On Site',flagged:geo.reason==='out_of_range'});
@@ -6889,7 +6888,7 @@ async function doLeaveOnSite(){
     var now=new Date();
     _clockState.onsiteMins+=Math.round((now-_clockState.onsiteStart)/60000);
     _clockState.travelBackStart=now;
-    if(_clockState.sessionId&&_sb) 
+    if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({status:'returning'}).eq('id',_clockState.sessionId);
     await logTimeEvent('clock_out',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
     _clockState.status='returning';
     _clockState.todayEvents.push({type:'clock_out',time:now,lat:lat,lng:lng,label:'Left Job Site',flagged:geo.reason==='out_of_range'});
@@ -6907,7 +6906,13 @@ async function doArriveBack(){
     var totalOnsite=_clockState.onsiteMins;
     var totalPaid=totalTravel+totalOnsite;
     if(_clockState.sessionId&&_sb){
-      // clock_sessions replaced by work_days/clock_events in new schema — stub for now
+      await _sb.from('clock_sessions').update({
+        status:'clocked_out',clock_out_at:now.toISOString(),
+        clock_out_lat:lat,clock_out_lng:lng,
+        break_minutes:_clockState.breakMins,lunch_minutes:_clockState.lunchMins,
+        total_minutes:totalPaid,travel_out_mins:_clockState.travelOutMins,
+        onsite_mins:totalOnsite,travel_back_mins:_clockState.travelBackMins
+      }).eq('id',_clockState.sessionId);
     }
     await logTimeEvent('day_end',lat,lng,acc);
     _clockState.todayEvents.push({type:'day_end',time:now,label:'Arrived Back'});
@@ -6922,10 +6927,10 @@ async function doArriveBack(){
 }
 
 // BREAK & LUNCH
-async function doBreakStart(){var now=new Date();_clockState.breakStart=now;_clockState.status='break';if(_clockState.sessionId&&_sb)await logTimeEvent('break_start',null,null,null);_clockState.todayEvents.push({type:'break_start',time:now,label:'Break Started'});updateClockUI();showToast('Break started','info');}
-async function doBreakEnd(){var now=new Date();_clockState.breakMins+=Math.round((now-_clockState.breakStart)/60000);_clockState.breakStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await logTimeEvent('break_end',null,null,null);_clockState.todayEvents.push({type:'break_end',time:now,label:'Break Ended'});updateClockUI();showToast('Back on the clock','success');}
-async function doLunchStart(){var now=new Date();_clockState.lunchStart=now;_clockState.status='lunch';if(_clockState.sessionId&&_sb)await logTimeEvent('lunch_start',null,null,null);_clockState.todayEvents.push({type:'lunch_start',time:now,label:'Lunch Started'});updateClockUI();showToast('Lunch started','info');}
-async function doLunchEnd(){var now=new Date();_clockState.lunchMins+=Math.round((now-_clockState.lunchStart)/60000);_clockState.lunchStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await logTimeEvent('lunch_end',null,null,null);_clockState.todayEvents.push({type:'lunch_end',time:now,label:'Lunch Ended'});updateClockUI();showToast('Back from lunch','success');}
+async function doBreakStart(){var now=new Date();_clockState.breakStart=now;_clockState.status='break';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'on_break'}).eq('id',_clockState.sessionId);await logTimeEvent('break_start',null,null,null);_clockState.todayEvents.push({type:'break_start',time:now,label:'Break Started'});updateClockUI();showToast('Break started','info');}
+async function doBreakEnd(){var now=new Date();_clockState.breakMins+=Math.round((now-_clockState.breakStart)/60000);_clockState.breakStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'clocked_in',break_minutes:_clockState.breakMins}).eq('id',_clockState.sessionId);await logTimeEvent('break_end',null,null,null);_clockState.todayEvents.push({type:'break_end',time:now,label:'Break Ended'});updateClockUI();showToast('Back on the clock','success');}
+async function doLunchStart(){var now=new Date();_clockState.lunchStart=now;_clockState.status='lunch';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'at_lunch'}).eq('id',_clockState.sessionId);await logTimeEvent('lunch_start',null,null,null);_clockState.todayEvents.push({type:'lunch_start',time:now,label:'Lunch Started'});updateClockUI();showToast('Lunch started','info');}
+async function doLunchEnd(){var now=new Date();_clockState.lunchMins+=Math.round((now-_clockState.lunchStart)/60000);_clockState.lunchStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'clocked_in',lunch_minutes:_clockState.lunchMins}).eq('id',_clockState.sessionId);await logTimeEvent('lunch_end',null,null,null);_clockState.todayEvents.push({type:'lunch_end',time:now,label:'Lunch Ended'});updateClockUI();showToast('Back from lunch','success');}
 
 // TIMER
 function startClockTimer(){
@@ -7035,38 +7040,16 @@ function hideEodReminder(){var el=document.getElementById('eod-reminder');if(el)
 
 // TIMESHEET (office view)
 async function loadTimesheets(){
-  if(!_sb) return;
-  var dateEl=document.getElementById('ts-date-filter');
-  var date=dateEl?dateEl.value:new Date().toISOString().split('T')[0];
-  var body=document.getElementById('timesheet-body'),liveEl=document.getElementById('live-activity');
-  if(body)body.innerHTML='<div style="padding:20px;text-align:center;color:#90a4ae">Loading...</div>';
-  // clock_sessions replaced by work_days/clock_events — stub until time tracking module is built
-  var sessions = [];
-  var live = [];
-  if(!sessions||!sessions.length){if(body)body.innerHTML='<div style="padding:20px;text-align:center;color:#90a4ae">No data for '+date+'</div>';}
-  else{
-    if(body)body.innerHTML=sessions.map(function(s){
-      var inTime=s.clock_in_at?new Date(s.clock_in_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'—';
-      var outTime=s.clock_out_at?new Date(s.clock_out_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'—';
-      var hrs=s.total_minutes>0?(s.total_minutes/60).toFixed(1)+'h':(s.status!=='clocked_out'?'<span style="color:#2e7d32;font-weight:700">Active</span>':'—');
-      var travelMins=(s.travel_out_mins||0)+(s.travel_back_mins||0);
-      var onsiteMins=s.onsite_mins||0;
-      var stBadge=s.status==='clocked_in'?'<span class="ts-badge ts-in">● On Site</span>':s.status==='traveling'?'<span class="ts-badge ts-break">🚗 Travel</span>':s.status==='returning'?'<span class="ts-badge ts-break">🚗 Return</span>':s.status==='on_break'?'<span class="ts-badge ts-break">⏸ Break</span>':'<span class="ts-badge ts-out">✓ Out</span>';
-      return '<div class="timesheet-row"><span style="font-weight:700">'+escHtml(s.user_name||'')+'</span><span style="font-size:11px;color:#546e7a">'+escHtml(s.job_name||'—')+'</span><span>'+inTime+'</span><span>'+outTime+'</span><span>'+hrs+'</span><span style="font-size:11px;color:#1565c0">'+(travelMins>0?Math.round(travelMins/60*10)/10+'h travel':'—')+'</span><span style="font-size:11px;color:#2e7d32">'+(onsiteMins>0?Math.round(onsiteMins/60*10)/10+'h on site':'—')+'</span></div>';
-    }).join('');
-  }
-  // live activity also stubbed
-  if(liveEl){
-    if(!live||!live.length){liveEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">Nobody clocked in right now.</div>';}
-    else{liveEl.innerHTML=live.map(function(s){var inTime=s.clock_in_at?new Date(s.clock_in_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'';var statusTxt=s.status==='on_break'?'⏸ On Break':s.status==='at_lunch'?'🍽 Lunch':s.status==='traveling'?'🚗 Traveling':s.status==='returning'?'🚗 Returning':'🟢 On Site';return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5"><div><div style="font-weight:700;font-size:13px">'+escHtml(s.user_name||'')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(s.job_name||'')+' · '+inTime+'</div></div><span style="font-size:12px;font-weight:700">'+statusTxt+'</span></div>';}).join('');}
-  }
+  // Stubbed — will be implemented in time tracking module build
+  var body=document.getElementById('timesheet-body');
+  var liveEl=document.getElementById('live-activity');
+  if(body) body.innerHTML='<div style="padding:20px;text-align:center;color:#90a4ae">Time tracking coming soon.</div>';
+  if(liveEl) liveEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">Nobody clocked in right now.</div>';
 }
 
 // RESTORE SESSION ON LOGIN
 async function restoreClockSession(){
-  // clock_sessions replaced by work_days/clock_events in new schema
-  // This function will be fully implemented in the time tracking module build
-  return;
+  // Stubbed — will be implemented in time tracking module build
 }
 
 // =============================================
@@ -7270,15 +7253,6 @@ function selectCustomer(id) {
   var phEl=document.getElementById('qq-ph');    if(phEl&&cust.phone&&!phEl.value) phEl.value=cust.phone;
   var emEl=document.getElementById('qq-em');    if(emEl&&cust.email&&!emEl.value) emEl.value=cust.email;
   var adEl=document.getElementById('qq-ad');    if(adEl&&cust.address&&!adEl.value) adEl.value=cust.address;
-  // Store customer_id for Supabase linking
-  var cidEl=document.getElementById('qq-customer-id');
-  if (!cidEl) {
-    cidEl = document.createElement('input');
-    cidEl.type = 'hidden';
-    cidEl.id = 'qq-customer-id';
-    document.getElementById('qq-cn').parentNode.appendChild(cidEl);
-  }
-  cidEl.value = cust.id;
   closeCustomerDropdown();
   // Auto-populate contact if only one exists for this customer
   var contacts = DB.contacts.filter(function(c){
@@ -7805,21 +7779,17 @@ function importData() {
         DB=Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1},data);
         saveDB();
         input.value='';
-        // If connected to Supabase, push the restored data BEFORE reloading
-        // so the post-reload sync doesn't overwrite it with stale cloud data
         if (_sb && _currentUser) {
           alert('Backup restored! Pushing to cloud — please wait...');
           pushAllToCloud().then(function() {
             localStorage.setItem('_skipNextPull', '1');
-            alert('Pushed to cloud successfully! Reloading...');
+            alert('Pushed to cloud! Reloading...');
             location.reload();
-          }).catch(function(err) {
-            alert('Backup restored locally but cloud push failed: ' + err.message + '\n\nReloading anyway...');
-            location.reload();
+          }).catch(function() {
+            alert('Backup restored locally. Reloading...'); location.reload();
           });
         } else {
-          alert('Backup restored successfully! Reloading...');
-          location.reload();
+          alert('Backup restored successfully! Reloading...'); location.reload();
         }
       } catch(err){alert('Error reading backup: '+err.message);input.value='';}
     };
@@ -9715,13 +9685,7 @@ function init() {
         if (!_currentUser) {
           loadCurrentUserProfile().then(function() {
             showToast('Welcome back, ' + (_currentUser ? _currentUser.full_name.split(' ')[0] : '') + '!', 'success');
-            // Skip pull if we just did an import push
-            if (localStorage.getItem('_skipNextPull') === '1') {
-              localStorage.removeItem('_skipNextPull');
-              showToast('Import complete ✓', 'success', 3000);
-            } else {
-              syncAllFromCloud();
-            }
+            syncAllFromCloud();
           });
         }
       }
@@ -9763,7 +9727,12 @@ async function signIn(email, password) {
     await loadCurrentUserProfile();
     hideAuthModal();
     showToast('Welcome back, ' + (_currentUser ? _currentUser.full_name.split(' ')[0] : '') + '!', 'success');
-    syncAllFromCloud();
+    if (localStorage.getItem('_skipNextPull') === '1') {
+      localStorage.removeItem('_skipNextPull');
+      showToast('Import complete ✓', 'success', 3000);
+    } else {
+      syncAllFromCloud();
+    }
   }
   return result;
 }
@@ -10018,7 +9987,6 @@ async function pushAllToCloud() {
         await _sb.from('quotes').upsert({
           id: qId,
           quote_number: q.num || null,
-          customer_id: (q.customerId && isUUID(q.customerId)) ? q.customerId : null,
           customer_name: q.cn || null,
           job_id: null,
           sales_rep_name: q.rep || null,
@@ -10076,20 +10044,17 @@ async function pushAllToCloud() {
       }
     }
 
-    // Helper: check if a string is a valid UUID
+    // UUID helpers for legacy IDs
     function isUUID(s) {
       return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
     }
-    // Helper: generate a UUID v4
     function makeUUID() {
-      return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-        (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+      return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,function(c){
+        return (c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16);
+      });
     }
-    // Helper: get or create a valid UUID for a record, saving it back to the local object
     function ensureUUID(obj) {
-      if (!obj.id || !isUUID(obj.id)) {
-        obj.id = makeUUID();
-      }
+      if (!obj.id || !isUUID(obj.id)) obj.id = makeUUID();
       return obj.id;
     }
 
