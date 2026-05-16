@@ -1654,19 +1654,22 @@ table{font-size:12.5px}
         <option value="followup">Follow-Up</option>
       </select>
       <select id="q-sort" style="width:auto">
-        <option value="priority">Sort: Priority</option>
-        <option value="date-desc">Sort: Newest First</option>
-        <option value="date-asc">Sort: Oldest First</option>
-        <option value="total-desc">Sort: Highest Value</option>
-        <option value="total-asc">Sort: Lowest Value</option>
-        <option value="customer">Sort: Customer A–Z</option>
-        <option value="margin-desc">Sort: Highest Margin</option>
-        <option value="followup">Sort: Follow-Up Due</option>
+        <option value="num-desc">Quote # Newest</option>
+        <option value="num-asc">Quote # Oldest</option>
+        <option value="priority">Priority</option>
+        <option value="date-desc">Date Newest</option>
+        <option value="date-asc">Date Oldest</option>
+        <option value="total-desc">Highest Value</option>
+        <option value="total-asc">Lowest Value</option>
+        <option value="customer">Customer A–Z</option>
+        <option value="margin-desc">Highest Margin</option>
+        <option value="followup">Follow-Up Due</option>
       </select>
+      <button class="btn btn-ghost btn-sm" onclick="saveQuoteSortDefault()" title="Save this sort as your default view">⭐ Save Default</button>
       <button class="btn btn-ghost btn-sm" data-action="refreshQuotes">↻ Refresh</button>
     </div>
     <table><thead><tr>
-      <th onclick="setSortQuotes('num')" style="cursor:pointer" title="Sort by quote number"># <span id="qsort-num"></span></th>
+      <th onclick="setSortQuotes(document.getElementById('q-sort').value==='num-desc'?'num-asc':'num-desc')" style="cursor:pointer" title="Sort by quote number"># <span id="qsort-num-desc"></span><span id="qsort-num-asc"></span></th>
       <th onclick="setSortQuotes('customer')" style="cursor:pointer" title="Sort by customer">Customer <span id="qsort-customer"></span></th>
       <th>Job Name</th>
       <th>Environment</th>
@@ -3937,7 +3940,25 @@ function goPage(id) {
   if (tt) tt.textContent = PAGE_TITLES[id] || id;
   // Render page content
   if (id==='dash')       renderDash();
-  if (id==='quotes')     renderQuotes();
+  if (id==='quotes') {
+    renderQuotes();
+    // Wire sort/filter directly — more reliable than delegated listeners for selects
+    setTimeout(function(){
+      var qs = document.getElementById('q-sort');
+      var qf = document.getElementById('q-filter');
+      var qq = document.getElementById('q-search');
+      // Apply saved default sort (fallback to num-desc)
+      var savedSort = DB.settings && DB.settings.quoteDefaultSort || 'num-desc';
+      if (qs && !qs._wired) {
+        qs.value = savedSort;
+        qs.addEventListener('change', renderQuotes);
+        qs._wired = true;
+      }
+      if (qf && !qf._wired) { qf.addEventListener('change', renderQuotes); qf._wired=true; }
+      if (qq && !qq._wired) { qq.addEventListener('input',  renderQuotes); qq._wired=true; }
+      renderQuotes();
+    }, 50);
+  }
   if (id==='customers')  renderCustomers();
   if (id==='contacts')   renderContacts();
   if (id==='jobs')       renderJobs();
@@ -14787,6 +14808,20 @@ function editQuote(id) {
   goPage('qq');
 }
 
+function saveQuoteSortDefault() {
+  var sel = document.getElementById('q-sort');
+  var sortVal = sel ? sel.value : 'num-desc';
+  DB.settings = Object.assign({}, DB.settings, {quoteDefaultSort: sortVal});
+  saveDB();
+  var sortLabels = {
+    'num-desc':'Quote # Newest','num-asc':'Quote # Oldest',
+    'priority':'Priority','date-desc':'Date Newest','date-asc':'Date Oldest',
+    'total-desc':'Highest Value','total-asc':'Lowest Value',
+    'customer':'Customer A–Z','margin-desc':'Highest Margin','followup':'Follow-Up Due'
+  };
+  showToast('Default sort saved: '+( sortLabels[sortVal]||sortVal),'success');
+}
+
 function setSortQuotes(sortVal) {
   var sel = document.getElementById('q-sort');
   if (sel) sel.value = sortVal;
@@ -14803,11 +14838,15 @@ function renderQuotes() {
 
   // Apply sort
   switch(sort) {
+    case 'num-desc':
+      list.sort(function(a,b){ return (b.num||'').localeCompare(a.num||'',undefined,{numeric:true}); }); break;
+    case 'num-asc':
+      list.sort(function(a,b){ return (a.num||'').localeCompare(b.num||'',undefined,{numeric:true}); }); break;
     case 'priority':
       list.sort(function(a,b){
         var pa=getQuotePriority(a),pb=getQuotePriority(b);
         if(pa.sort!==pb.sort) return pa.sort-pb.sort;
-        return new Date(b.dt||b.createdAt||0)-new Date(a.dt||a.createdAt||0);
+        return (b.num||'').localeCompare(a.num||'',undefined,{numeric:true});
       }); break;
     case 'date-desc':
       list.sort(function(a,b){ return new Date(b.dt||b.createdAt||0)-new Date(a.dt||a.createdAt||0); }); break;
@@ -14823,14 +14862,14 @@ function renderQuotes() {
       list.sort(function(a,b){ return (b.achievedMargin||0)-(a.achievedMargin||0); }); break;
     case 'followup':
       list.sort(function(a,b){ return (a.followupDate||'9999').localeCompare(b.followupDate||'9999'); }); break;
-    case 'num':
-      list.sort(function(a,b){ return (a.num||'').localeCompare(b.num||'',undefined,{numeric:true}); }); break;
+    default:
+      list.sort(function(a,b){ return (b.num||'').localeCompare(a.num||'',undefined,{numeric:true}); }); break;
   }
 
   // Update column header sort indicators
-  ['num','customer','total-desc','margin-desc','date-desc'].forEach(function(k){
+  ['num-desc','num-asc','customer','total-desc','margin-desc','date-desc'].forEach(function(k){
     var el=document.getElementById('qsort-'+k);
-    if(el) el.textContent=sort===k?'▲':'';
+    if(el) el.textContent=sort===k?'▲':sort==='num-asc'&&k==='num-asc'?'▲':'';
   });
 
   const tbody = document.getElementById('quotes-tbl');
