@@ -3697,6 +3697,7 @@ function loadDB() {
     if (!DB.inventory)     DB.inventory     = [];
     if (!DB.checkoutLog)   DB.checkoutLog   = [];
     if (!DB.invSeq)        DB.invSeq        = 1;
+    if (!DB.catalogVersion) DB.catalogVersion = 1;
     if (!DB.toolLoans)     DB.toolLoans     = [];
     if (!DB.lunchFlags)    DB.lunchFlags    = [];
     if (!DB.workDays)      DB.workDays      = [];
@@ -4507,74 +4508,6 @@ function calcTotals() {
 // ---- QUOTE NUMBER GENERATOR ----
 function nextQNum() { DB.quoteSeq = (DB.quoteSeq||1000) + 1; saveDB(); return 'Q-' + DB.quoteSeq; }
 
-// =============================================
-// STAGE 2: getQData() — ENHANCED SAVE STRUCTURE
-// =============================================
-function getQData(id) {
-  const totals = calcTotals();
-  const env = (document.getElementById('qq-env')||{}).value || 'office';
-  const envLabel = ENV_PRESETS[env] ? ENV_PRESETS[env].label : 'Office';
-  return {
-    id: id || null,
-    num: (document.getElementById('qq-num')||{}).value || '',
-    cn:  (document.getElementById('qq-cn')||{}).value || '',
-    ph:  (document.getElementById('qq-ph')||{}).value || '',
-    em:  (document.getElementById('qq-em')||{}).value || '',
-    ad:  (document.getElementById('qq-ad')||{}).value || '',
-    contactName:  (document.getElementById('qq-contact-name')||{}).value || '',
-    contactTitle: (document.getElementById('qq-contact-title')||{}).value || '',
-    jn:  (document.getElementById('qq-jn')||{}).value || '',
-    jt:  (document.getElementById('qq-jt')||{}).value || 'New Construction',
-    env: env,
-    envLabel: envLabel,
-    dt:  (document.getElementById('qq-dt')||{}).value || '',
-    vu:  (document.getElementById('qq-vu')||{}).value || '',
-    rep: (document.getElementById('qq-rep')||{}).value || '',
-    pt:  (document.getElementById('qq-pt')||{}).value || '',
-    tc:  (document.getElementById('qq-tc')||{}).value || '',
-    notes: (document.getElementById('qq-notes')||{}).value || '',
-    intNotes: (document.getElementById('qq-int')||{}).value || '',
-    status: (document.getElementById('qq-status')||{}).value || 'draft',
-    // Pricing controls
-    laborRate: getLaborRate(),
-    targetMargin: parseFloat((document.getElementById('qq-mk')||{}).value)||35,
-    pricingMode: currentPricingMode(),
-    taxRate: parseFloat((document.getElementById('qq-tx')||{}).value)||0,
-    discount: totals.discountAmt,
-    // Computed pricing (Stage 2 new fields)
-    totalMaterialCost: totals.totalMaterialCost,
-    totalLaborHours: totals.totalLaborHours,
-    laborSell: totals.laborSell,
-    totalCost: totals.totalCost,
-    materialSell: totals.materialSell,
-    sellBeforeTax: totals.sellBeforeTax,
-    taxAmt: totals.taxAmt,
-    total: totals.totalSell,
-    achievedMargin: totals.achievedMarginPct,
-    pricingHealth: totals.health,
-    readiness: totals.readiness,
-    // V5 Phase 1 fields
-    equipmentRows: JSON.parse(JSON.stringify(equipmentRows)),
-    equipmentCost: totals.equipCost || 0,
-    permits: getPermitData(),
-    marginFloor: getMarginFloor((document.getElementById('qq-jt')||{}).value || 'New Construction'),
-    belowMarginFloor: totals.achievedMarginPct < getMarginFloor((document.getElementById('qq-jt')||{}).value || 'New Construction'),
-    // V6 Phase 2 fields
-    perDiem: JSON.parse(JSON.stringify(perDiemData)),
-    perDiemCost: totals.pdCost || 0,
-    lumpSum: getLumpSumState(),
-    svcContract: getSvcContractData(),
-    execSummary: '',
-    proposalSections: getProposalSections(),
-    // Legacy compatibility fields
-    markup: totals.totalMaterialCost > 0 ? ((totals.materialSell / totals.totalMaterialCost - 1)*100).toFixed(1) : '0',
-    subtotal: totals.sellBeforeTax,
-    margin: totals.achievedMarginPct,
-    // Line items
-    items: JSON.parse(JSON.stringify(lineItems)),
-    createdAt: new Date().toISOString()
-  };
-}
 
 
 // =============================================
@@ -4585,10 +4518,6 @@ let _qqDirty = false;
 let _qqRestoreLock = false;
 let _qqDraftTimer = null;
 let _qqWrapped = false;
-
-function qqFieldIds(){
-  return ['qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env'];
-}
 function qqGetVal(id){ var el=document.getElementById(id); return el ? el.value : ''; }
 function qqSetVal(id,val){ var el=document.getElementById(id); if(el) el.value = val==null ? '' : val; }
 function setQQDirty(flag, note){
@@ -4790,40 +4719,6 @@ function wrapQQStage3Mutations(){
   wrap('toggleLumpSum');
   wrap('toggleLumpSumItems');
   wrap('toggleCQQ');
-}
-
-function saveQQ() {
-  const cn = (document.getElementById('qq-cn')||{}).value || '';
-  const jn = (document.getElementById('qq-jn')||{}).value || '';
-  if (!cn.trim()) { alert('Please enter a customer name.'); return; }
-  if (!jn.trim()) { alert('Please enter a job name.'); return; }
-  if (lineItems.length === 0) { alert('Please add at least one line item.'); return; }
-
-  let existing = null;
-  const num = (document.getElementById('qq-num')||{}).value || '';
-  if (num) { existing = DB.quotes.find(function(q){return q.num===num}); }
-
-  const q = getQData(existing ? existing.id : Date.now().toString());
-  if (!q.num || !existing) { q.num = nextQNum(); if(document.getElementById('qq-num')) document.getElementById('qq-num').value = q.num; }
-  q.id = existing ? existing.id : q.id;
-  // V6: auto-set follow-up date for new quotes
-  if (!existing) q.followupDate = calcFollowupDate(q.dt);
-
-  if (existing) {
-    const idx = DB.quotes.indexOf(existing);
-    // Preserve custom exec summary if it was set via the preview editor
-    if (existing.execSummary && !q.execSummary) q.execSummary = existing.execSummary;
-    DB.quotes[idx] = q;
-  } else {
-    DB.quotes.unshift(q);
-    upsertCustomer(q);
-  }
-  saveDB();
-  clearQQDraft();
-  setQQDirty(false, 'Quote ' + q.num + ' saved successfully');
-  alert('Quote ' + q.num + ' saved successfully!');
-  renderDash();
-  updateQQStage3UI();
 }
 
 function upsertCustomer(q) {
@@ -5354,7 +5249,7 @@ let _previewQuoteData = null; // tracks the quote currently being previewed
 function previewQQ() {
   const cn = (document.getElementById('qq-cn')||{}).value || '';
   const jn = (document.getElementById('qq-jn')||{}).value || '';
-  if (!cn.trim() || !jn.trim()) { alert('Please enter customer name and job name first.'); return; }
+  if (!cn.trim() || !jn.trim()) { showToast('Please enter customer name and job name first.','error'); return; }
   const q = getQData();
   q.num = (document.getElementById('qq-num')||{}).value || 'PREVIEW';
   // Carry over any saved custom exec summary from the saved quote
@@ -5421,7 +5316,7 @@ function applySummary() {
   if (!textarea || !editor) return;
 
   const newText = textarea.value.trim();
-  if (!newText) { alert('Summary cannot be empty.'); return; }
+  if (!newText) { showToast('Summary cannot be empty.','error'); return; }
 
   // Save to current preview quote data
   if (_previewQuoteData) {
@@ -5477,7 +5372,7 @@ function printQuote() {
   if (!q) {
     var cn = (document.getElementById('qq-cn')||{}).value || '';
     var jn = (document.getElementById('qq-jn')||{}).value || '';
-    if (!cn || !jn) { alert('Please enter customer name and job name first.'); return; }
+    if (!cn || !jn) { showToast('Please enter customer name and job name first.','error'); return; }
     q = getQData();
   }
   // Auto-generate quote number if missing
@@ -5537,7 +5432,7 @@ table{font-size:12.5px}
   var w = window.open('', '_blank');
   if (!w) {
     // Popup blocked — fallback to same-window iframe print
-    alert('Popup blocked. Please allow popups for this site and try again, or use your browser\'s print button (Ctrl+P / Cmd+P).');
+    showToast('Popup blocked — allow popups or use Ctrl+P to print','warning',6000);
     return;
   }
   w.document.open();
@@ -5556,7 +5451,7 @@ function printInternal() {
     '<title>' + filename + '</title>' +
     '</head><body>' + html + '</body></html>';
   var w = window.open('', '_blank');
-  if (!w) { alert('Popup blocked. Please allow popups for this site and try again.'); return; }
+  if (!w) { showToast('Popup blocked. Please allow popups for this site and try again.','error'); return; }
   w.document.open();
   w.document.write(fullHtml);
   w.document.close();
@@ -5688,8 +5583,7 @@ function emailQuoteQQ() {
   const cn = (document.getElementById('qq-cn')||{}).value || '';
   const jn = (document.getElementById('qq-jn')||{}).value || '';
   if (!cn.trim() || !jn.trim()) {
-    alert('Please enter a customer name and job name before emailing.');
-    return;
+    showToast('Please enter a customer name and job name before emailing.','error'); return;
   }
   const q = getQData();
   q.num = (document.getElementById('qq-num')||{}).value || 'DRAFT';
@@ -5701,137 +5595,7 @@ function emailSavedQuote(qid) {
   const q = DB.quotes.find(function(x){ return x.id == qid; });
   if (q) fireEmailQuote(q);
 }
-
-// ---- CLEAR QQ ----
-function clearQQ(skipConfirm) {
-  if (!skipConfirm && lineItems.length > 0 && !confirm('Clear the current quote form?')) return;
-  lineItems = [];
-  // V5: clear equipment rows and permits
-  equipmentRows = [];
-  renderEquipRows();
-  // Reset equipment toggle to NO / collapsed
-  const eqCb   = document.getElementById('equipment-enabled');
-  const eqBody = document.getElementById('equipment-body');
-  const eqLbl  = document.getElementById('equipment-toggle-label');
-  if (eqCb)   eqCb.checked = false;
-  if (eqBody) eqBody.classList.remove('expanded');
-  if (eqLbl)  { eqLbl.textContent = 'NO'; eqLbl.className = 'toggle-value-label'; }
-  // V5: permits
-  ['permit-lv','permit-elec','permit-other','permit-none'].forEach(function(id){ const el=document.getElementById(id); if(el) el.checked=false; });
-  const otd = document.getElementById('permit-other-desc'); if(otd) otd.style.display='none';
-  const otx = document.getElementById('permit-other-text'); if(otx) otx.value='';
-  const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
-  updatePermitStatus();
-  const fields = ['qq-cn','qq-ph','qq-em','qq-ad','qq-jn','qq-num','qq-notes','qq-int','qq-tc','qq-contact-name','qq-contact-title'];
-  fields.forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
-  const lr = document.getElementById('qq-lr'); if(lr) lr.value = DB.settings.laborRate || 100;
-  const mk = document.getElementById('qq-mk'); if(mk) mk.value = DB.settings.targetMargin || 35;
-  const tx = document.getElementById('qq-tx'); if(tx) tx.value = DB.settings.taxRate || 0;
-  const disc = document.getElementById('qq-disc'); if(disc) disc.value = 0;
-  const env = document.getElementById('qq-env'); if(env) env.value = 'office';
-  const status = document.getElementById('qq-status'); if(status) status.value = 'draft';
-  const dt = document.getElementById('qq-dt'); if(dt) dt.value = new Date().toISOString().split('T')[0];
-  const vd = DB.settings.validDays || 30;
-  const vu = document.getElementById('qq-vu');
-  if(vu){ const d=new Date(); d.setDate(d.getDate()+vd); vu.value=d.toISOString().split('T')[0]; }
-  const rep = document.getElementById('qq-rep'); if(rep) rep.value = DB.settings.uname || '';
-  const pt = document.getElementById('qq-pt'); if(pt) pt.value = DB.settings.payTerms || '';
-  const tc = document.getElementById('qq-tc'); if(tc) tc.value = DB.settings.tc || '';
-  const note = document.getElementById('env-default-note'); if(note) note.classList.remove('visible');
-  const mfb = document.getElementById('mf-floor-badge'); if(mfb) mfb.style.display='none';
-  const mfa = document.getElementById('mf-approval'); if(mfa) mfa.classList.remove('visible');
-  // V6: reset per diem toggle to NO / collapsed
-  clearPerDiem(true);
-  const pdCb   = document.getElementById('perdiem-enabled');
-  const pdBody = document.getElementById('perdiem-body');
-  const pdLbl  = document.getElementById('perdiem-toggle-label');
-  if (pdCb)   pdCb.checked = false;
-  if (pdBody) pdBody.classList.remove('expanded');
-  if (pdLbl)  { pdLbl.textContent = 'NO'; pdLbl.className = 'toggle-value-label'; }
-  // V6: reset lump sum toggle to NO / collapsed
-  const lsToggle = document.getElementById('lumpsum-toggle'); if(lsToggle) lsToggle.checked = false;
-  const lsBody   = document.getElementById('lumpsum-body');   if(lsBody)   lsBody.classList.remove('expanded');
-  const lsLbl    = document.getElementById('lumpsum-toggle-label'); if(lsLbl) { lsLbl.textContent = 'NO'; lsLbl.className = 'toggle-value-label'; }
-  const lsLabel  = document.getElementById('lumpsum-label'); if(lsLabel) lsLabel.value = 'Complete Low Voltage Installation';
-  const lsItems  = document.getElementById('lumpsum-show-items'); if(lsItems) lsItems.checked = true;
-  const lsILbl   = document.getElementById('lumpsum-show-items-label'); if(lsILbl){lsILbl.textContent='YES';lsILbl.className='toggle-value-label on';}
-  // Reset service contract toggle
-  _svcTier = null;
-  const svcCb=document.getElementById('svc-enabled'); if(svcCb) svcCb.checked=false;
-  const svcBody=document.getElementById('svc-body'); if(svcBody) svcBody.classList.remove('expanded');
-  const svcLbl=document.getElementById('svc-toggle-label'); if(svcLbl){svcLbl.textContent='NO';svcLbl.className='toggle-value-label';}
-  // Reset camera quick-quote toggle
-  _cqqEnabled=false;
-  const cqqCb=document.getElementById('cqq-enabled'); if(cqqCb) cqqCb.checked=false;
-  const cqqBody=document.getElementById('cqq-body'); if(cqqBody) cqqBody.classList.remove('expanded');
-  const cqqLbl=document.getElementById('cqq-toggle-label'); if(cqqLbl){cqqLbl.textContent='NO';cqqLbl.className='toggle-value-label';}
-  // Reset proposal section toggles to defaults (all YES)
-  resetProposalSectionToggles();
-  renderLI();
-  calcTotals();
-}
-
-// ---- EDIT QUOTE ----
 let _viewingQuoteId = null;
-function editQuote(id) {
-  const q = DB.quotes.find(function(x){return x.id==id});
-  if (!q) return;
-  function setV(elId, val) { const el=document.getElementById(elId); if(el) el.value = (val!==undefined&&val!==null) ? val : ''; }
-  setV('qq-cn', q.cn); setV('qq-ph', q.ph); setV('qq-em', q.em); setV('qq-ad', q.ad);
-  setV('qq-contact-name', q.contactName||''); setV('qq-contact-title', q.contactTitle||'');
-  setV('qq-jn', q.jn); setV('qq-jt', q.jt); setV('qq-env', q.env||'office');
-  setV('qq-dt', q.dt); setV('qq-vu', q.vu); setV('qq-num', q.num);
-  setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc);
-  setV('qq-notes', q.notes); setV('qq-int', q.intNotes||q.int||'');
-  setV('qq-status', q.status||'draft');
-  setV('qq-lr', q.laborRate||100);
-  setV('qq-mk', q.targetMargin||q.markup||35);
-  setV('qq-tx', q.taxRate||0);
-  setV('qq-disc', q.discount||0);
-  lineItems = q.items ? JSON.parse(JSON.stringify(q.items)) : [];
-  lineItems.forEach(function(item){ if(!item._id) item._id = liSeq++; });
-  // V5: load equipment rows and permits
-  equipmentRows = q.equipmentRows ? JSON.parse(JSON.stringify(q.equipmentRows)) : [];
-  equipmentRows.forEach(function(r){ if(!r._id) r._id = eqSeq++; });
-  renderEquipRows();
-  // Restore equipment toggle state
-  const hasEquip = equipmentRows.length > 0;
-  const eqCb2   = document.getElementById('equipment-enabled');
-  const eqBody2 = document.getElementById('equipment-body');
-  const eqLbl2  = document.getElementById('equipment-toggle-label');
-  if (eqCb2)   eqCb2.checked = hasEquip;
-  if (eqBody2) eqBody2.classList.toggle('expanded', hasEquip);
-  if (eqLbl2)  { eqLbl2.textContent = hasEquip ? 'YES' : 'NO'; eqLbl2.className = 'toggle-value-label' + (hasEquip ? ' on' : ''); }
-
-  loadPermitData(q.permits || null);
-  // V6: load per diem and restore toggle state
-  loadPerDiemData(q.perDiem || null);
-  const hasPD   = !!(q.perDiem && q.perDiemCost > 0);
-  const pdCb2   = document.getElementById('perdiem-enabled');
-  const pdBody2 = document.getElementById('perdiem-body');
-  const pdLbl2  = document.getElementById('perdiem-toggle-label');
-  if (pdCb2)   pdCb2.checked = hasPD;
-  if (pdBody2) pdBody2.classList.toggle('expanded', hasPD);
-  if (pdLbl2)  { pdLbl2.textContent = hasPD ? 'YES' : 'NO'; pdLbl2.className = 'toggle-value-label' + (hasPD ? ' on' : ''); }
-  const lsToggle = document.getElementById('lumpsum-toggle');
-  const lsBody   = document.getElementById('lumpsum-body');
-  const lsLbl    = document.getElementById('lumpsum-toggle-label');
-  const lsLabel  = document.getElementById('lumpsum-label');
-  const lsOn     = !!(q.lumpSum && q.lumpSum.enabled);
-  if (lsToggle) lsToggle.checked = lsOn;
-  if (lsBody)   lsBody.classList.toggle('expanded', lsOn);
-  if (lsLbl)    { lsLbl.textContent = lsOn ? 'YES' : 'NO'; lsLbl.className = 'toggle-value-label' + (lsOn ? ' on' : ''); }
-  if (lsLabel && q.lumpSum && q.lumpSum.label) lsLabel.value = q.lumpSum.label;
-  updateLumpSumPreview();
-  // Restore proposal section toggles
-  restoreProposalSectionToggles(q.proposalSections || null);
-  renderLI();
-  calcTotals();
-  clearQQDraft();
-  setQQDirty(false, 'Loaded saved quote');
-  updateQQStage3UI();
-  goPage('qq');
-}
 
 function dupQuote(id) {
   const q = DB.quotes.find(function(x){return x.id==id});
@@ -5882,75 +5646,6 @@ function viewQuote(id) {
 // ---- MODAL HELPERS ----
 function openModal(id) { const m=document.getElementById(id); if(m) m.classList.add('open'); }
 function closeModal(id) { const m=document.getElementById(id); if(m) m.classList.remove('open'); }
-
-// ---- RENDER DASHBOARD ----
-function renderDash() {
-  const tq = DB.quotes.length;
-  let rev = 0, won = 0, totalMargin = 0, marginCount = 0;
-  const pipeline = {};
-  DB.quotes.forEach(function(q) {
-    rev += q.total||0;
-    if (q.status==='approved') won++;
-    if (q.achievedMargin) { totalMargin += q.achievedMargin; marginCount++; }
-    pipeline[q.status||'draft'] = (pipeline[q.status||'draft']||0) + 1;
-  });
-  function setT(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
-  setT('ds-tq', tq);
-  setT('ds-rev', '$' + Math.round(rev).toLocaleString());
-  setT('ds-won', won);
-  setT('ds-margin', marginCount > 0 ? pct(totalMargin/marginCount) : '0%');
-
-  const recent = DB.quotes.slice(0,8);
-  const tbody = document.getElementById('dash-tbl');
-  if (tbody) {
-    if (recent.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div class="empty-icon">📋</div><p>No quotes yet. Click + New Quote to get started!</p></td></tr>';
-    } else {
-      tbody.innerHTML = recent.map(function(q){
-        const healthColor = q.pricingHealth==='Healthy'?'color:#2e7d32':q.pricingHealth==='Watch'?'color:#e65100':'color:#c62828';
-        return '<tr><td style="font-weight:700;color:#1565c0">' + escHtml(q.num||'') + '</td><td>' + escHtml(q.cn||'') + '</td><td>' + escHtml(q.jn||'') + '</td><td style="font-weight:700">' + fmt(q.total||0) + '</td><td style="font-weight:700;' + healthColor + '">' + pct(q.achievedMargin||0) + '</td><td><span class="status-badge s-' + (q.status||'draft') + '">' + (q.status||'draft') + '</span></td><td style="color:#90a4ae;font-size:11px">' + (q.dt||'') + '</td><td><button class="btn btn-outline btn-sm" data-action="viewQuote" data-id="' + q.id + '">View</button> <button class="btn btn-primary btn-sm" data-action="editQuote" data-id="' + q.id + '">Edit</button></td></tr>';
-      }).join('');
-    }
-  }
-
-  const pc = document.getElementById('pipeline-chart');
-  if (pc) {
-    const statuses = ['draft','sent','followup','approved','declined'];
-    const labels = {draft:'Draft',sent:'Sent',followup:'Follow-Up',approved:'Won',declined:'Lost'};
-    const colors = {draft:'#546e7a',sent:'#1565c0',followup:'#6a1b9a',approved:'#2e7d32',declined:'#c62828'};
-    pc.innerHTML = statuses.map(function(s){
-      const cnt = pipeline[s]||0;
-      const bar = tq > 0 ? Math.round((cnt/tq)*100) : 0;
-      return '<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:' + colors[s] + ';font-weight:700">' + labels[s] + '</span><span>' + cnt + '</span></div><div class="progress-bar-outer"><div class="progress-bar-inner" style="width:' + bar + '%;background:' + colors[s] + '"></div></div></div>';
-    }).join('');
-  }
-
-  const cb = document.getElementById('company-badge');
-  if (cb) cb.textContent = (DB.settings.cname || 'TCSS').substring(0,12);
-}
-
-
-// ---- RENDER QUOTES LIST ----
-function renderQuotes() {
-  const search = (document.getElementById('q-search')||{}).value || '';
-  const filter = (document.getElementById('q-filter')||{}).value || '';
-  let list = DB.quotes.slice();
-  if (search) { const sl = search.toLowerCase(); list = list.filter(function(q){ return (q.cn||'').toLowerCase().includes(sl)||(q.jn||'').toLowerCase().includes(sl)||(q.num||'').toLowerCase().includes(sl); }); }
-  if (filter) list = list.filter(function(q){ return (q.status||'draft') === filter; });
-  const tbody = document.getElementById('quotes-tbl');
-  if (!tbody) return;
-  if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><p>No quotes found.</p></td></tr>';
-    return;
-  }
-  const healthColor = function(q){ return q.pricingHealth==='Healthy'?'color:#2e7d32':q.pricingHealth==='Watch'?'color:#e65100':'color:#c62828'; };
-  tbody.innerHTML = list.map(function(q){
-    const envLabel = q.envLabel || (ENV_PRESETS[q.env] ? ENV_PRESETS[q.env].label : q.env || '');
-    const fuBadge = isFollowupDue(q) ? '<span class="followup-due'+(isFollowupOverdue(q)?' followup-overdue':'')+'" style="margin-left:4px">'+( isFollowupOverdue(q)?'Overdue':'Follow-Up')+'</span>' : '';
-    const convertBtn = (q.status!=='approved'&&q.status!=='declined') ? ' <button class="btn btn-convert btn-sm" data-action="convertToJob" data-id="'+q.id+'" title="Mark Won &amp; Create Job">▶</button>' : '';
-    return '<tr><td style="font-weight:700;color:#1565c0">' + escHtml(q.num||'') + '</td><td>' + escHtml(q.cn||'') + '</td><td>' + escHtml(q.jn||'') + '</td><td style="font-size:11px">' + escHtml(envLabel) + '</td><td style="font-weight:700">' + fmt(q.total||0) + '</td><td style="font-weight:700;' + healthColor(q) + '">' + pct(q.achievedMargin||0) + '</td><td><span class="status-badge s-' + (q.status||'draft') + '">' + (q.status||'draft') + '</span>'+fuBadge+'</td><td style="color:#90a4ae;font-size:11px">' + (q.followupDate ? '📅 '+q.followupDate : (q.dt||'')) + '</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-action="viewQuote" data-id="' + q.id + '">View</button> <button class="btn btn-outline btn-sm" data-action="editQuote" data-id="' + q.id + '">Edit</button> <button class="btn btn-ghost btn-sm" data-action="dupQuote" data-id="' + q.id + '">Dup</button>'+convertBtn+' <button class="btn btn-success btn-sm" data-action="emailSavedQuote" data-id="' + q.id + '" title="Email to customer">📧</button> <button class="btn btn-danger btn-sm" data-action="deleteQuote" data-id="' + q.id + '">Del</button></td></tr>';
-  }).join('');
-}
 
 function deleteQuote(id) {
   if (!confirm('Delete this quote? This cannot be undone.')) return;
@@ -6012,7 +5707,7 @@ function editCustomer(id) {
 function saveCustomer() {
   const id = document.getElementById('m-cid').value;
   const name = document.getElementById('m-cname').value;
-  if (!name.trim()) { alert('Customer name required.'); return; }
+  if (!name.trim()) { showToast('Customer name required.','error'); return; }
   const data = { id:id||Date.now().toString(), name, phone:document.getElementById('m-cphone').value, email:document.getElementById('m-cemail').value, address:document.getElementById('m-caddr').value, notes:document.getElementById('m-cnotes').value };
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
   else DB.customers.push(data);
@@ -6029,53 +5724,7 @@ function renderContacts() {
     return '<tr><td style="font-weight:700">' + escHtml(c.name||'') + '</td><td>' + escHtml(c.company||'') + '</td><td>' + escHtml(c.phone||'') + '</td><td>' + escHtml(c.email||'') + '</td><td>' + escHtml(c.role||'') + '</td><td><button class="btn btn-outline btn-sm" data-action="editContact" data-id="' + c.id + '">Edit</button> <button class="btn btn-danger btn-sm" data-action="delContact" data-id="' + c.id + '">Del</button></td></tr>';
   }).join('');
 }
-function newContact(){['m-ctname','m-ctco','m-ctph','m-ctem','m-ctrole','m-ctid'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';}); openModal('modal-contact');}
-function editContact(id){const c=DB.contacts.find(function(x){return x.id==id});if(!c)return;function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v||'';}sv('m-ctname',c.name);sv('m-ctco',c.company);sv('m-ctph',c.phone);sv('m-ctem',c.email);sv('m-ctrole',c.role);sv('m-ctid',c.id);openModal('modal-contact');}
-function saveContact(){
-  const id=document.getElementById('m-ctid').value;
-  const name=document.getElementById('m-ctname').value;
-  if(!name.trim()){alert('Name required.');return;}
-  const data={
-    id:id||Date.now().toString(),
-    name,
-    company:document.getElementById('m-ctco').value,
-    phone:document.getElementById('m-ctph').value,
-    email:document.getElementById('m-ctem').value,
-    role:document.getElementById('m-ctrole').value,
-    title:document.getElementById('m-ctrole').value  // store in both for compatibility
-  };
-  if(id){const idx=DB.contacts.findIndex(function(c){return c.id==id});if(idx>=0)DB.contacts[idx]=data;else DB.contacts.push(data);}
-  else DB.contacts.push(data);
-  saveDB();closeModal('modal-contact');renderContacts();
-}
 function delContact(id){if(!confirm('Delete contact?'))return;DB.contacts=DB.contacts.filter(function(c){return c.id!=id});saveDB();renderContacts();}
-
-// ---- RENDER JOBS ----
-function renderJobs() {
-  const tbody = document.getElementById('jobs-tbl');
-  if (!tbody) return;
-  if (DB.jobs.length===0){tbody.innerHTML='<tr><td colspan="7" class="empty-state"><p>No jobs yet.</p></td></tr>';return;}
-  tbody.innerHTML = DB.jobs.map(function(j){
-    var envLabel  = j.env ? (ENV_PRESETS[j.env] ? ENV_PRESETS[j.env].label : j.env) : '';
-    var coStatus  = j.closeout ? 'done' : (j.status==='Complete'||j.status==='Closed') ? 'open' : 'none';
-    var coBadge   = coStatus==='done'
-      ? '<span class="closeout-badge closeout-done">✓ Closeout</span>'
-      : coStatus==='open'
-      ? '<button class="btn btn-sm closeout-badge closeout-open" data-action="openCloseout" data-id="'+j.id+'">📋 Closeout</button>'
-      : '';
-    var statusClass = j.status==='Scheduled'?'s-pending':j.status==='In Progress'?'s-inprogress':j.status==='Complete'||j.status==='Closed'?'s-approved':'s-draft';
-    return '<tr>' +
-      '<td style="font-weight:700">'+escHtml(j.name||'')+'</td>' +
-      '<td>'+escHtml(j.customer||'')+'</td>' +
-      '<td style="color:#1565c0">'+escHtml(j.qnum||'')+'</td>' +
-      '<td style="font-size:11px">'+escHtml(envLabel)+'</td>' +
-      '<td>'+(j.laborHours||0)+' hrs</td>' +
-      '<td><span class="status-badge '+statusClass+'">'+escHtml(j.status||'Scheduled')+'</span></td>' +
-      '<td style="white-space:nowrap">'+coBadge+'</td>' +
-      '<td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-action="editJob" data-id="'+j.id+'">Edit</button> <button class="btn btn-danger btn-sm" data-action="delJob" data-id="'+j.id+'">Del</button></td>' +
-    '</tr>';
-  }).join('');
-}
 function newJob(){
   ['m-jname','m-jcust','m-jqnum','m-jnotes','m-jid','m-jassign'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});
   const lh=document.getElementById('m-jlh');if(lh)lh.value=0;
@@ -6098,7 +5747,7 @@ function editJob(id){
 function saveJob(){
   const id=document.getElementById('m-jid').value;
   const name=document.getElementById('m-jname').value;
-  if(!name.trim()){alert('Job name required.');return;}
+  if(!name.trim()){showToast('Job name required.','error'); return;}
   const existing = id ? DB.jobs.find(function(j){return j.id==id;}) : null;
   const data = Object.assign({}, existing||{}, {
     id: id||Date.now().toString(),
@@ -6145,7 +5794,7 @@ function editTeamMember(id){
 function saveTeamMember(){
   const id=document.getElementById('m-tmid').value;
   const name=document.getElementById('m-tmname').value;
-  if(!name.trim()){alert('Name required.');return;}
+  if(!name.trim()){showToast('Name required.','error'); return;}
   const data={
     id:id||Date.now().toString(),
     name,
@@ -6264,7 +5913,7 @@ function addCatToQQ(id) {
 
 function newCatalogItem(){document.getElementById('cat-modal-title').textContent='New Catalog Item';['m-caname','m-cacat','m-caunit','m-canotes','m-caid'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});const mc=document.getElementById('m-camc');if(mc)mc.value=0;const lh=document.getElementById('m-calh');if(lh)lh.value=0;openModal('modal-catalog-item');}
 function editCatalogItem(id){const item=DB.catalog.find(function(x){return x.id==id});if(!item)return;document.getElementById('cat-modal-title').textContent='Edit Item';function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v!==undefined?v:'';}sv('m-caname',item.name);sv('m-cacat',item.cat);sv('m-caunit',item.unit);sv('m-camc',item.mc||0);sv('m-calh',item.lh||0);sv('m-canotes',item.notes);sv('m-caid',item.id);openModal('modal-catalog-item');}
-function saveCatalogItem(){const id=document.getElementById('m-caid').value;const name=document.getElementById('m-caname').value;if(!name.trim()){alert('Name required.');return;}const data={id:id||Date.now().toString(),name,cat:document.getElementById('m-cacat').value||'General',unit:document.getElementById('m-caunit').value||'ea',mc:parseFloat(document.getElementById('m-camc').value)||0,lh:parseFloat(document.getElementById('m-calh').value)||0,notes:document.getElementById('m-canotes').value};if(id){const idx=DB.catalog.findIndex(function(i){return i.id==id});if(idx>=0)DB.catalog[idx]=data;else DB.catalog.push(data);}else DB.catalog.push(data);saveDB();closeModal('modal-catalog-item');renderCatalog();}
+function saveCatalogItem(){const id=document.getElementById('m-caid').value;const name=document.getElementById('m-caname').value;if(!name.trim()){showToast('Name required.','error'); return;}const data={id:id||Date.now().toString(),name,cat:document.getElementById('m-cacat').value||'General',unit:document.getElementById('m-caunit').value||'ea',mc:parseFloat(document.getElementById('m-camc').value)||0,lh:parseFloat(document.getElementById('m-calh').value)||0,notes:document.getElementById('m-canotes').value};if(id){const idx=DB.catalog.findIndex(function(i){return i.id==id});if(idx>=0)DB.catalog[idx]=data;else DB.catalog.push(data);}else DB.catalog.push(data);saveDB();closeModal('modal-catalog-item');renderCatalog();}
 function delCatalogItem(id){if(!confirm('Delete catalog item?'))return;DB.catalog=DB.catalog.filter(function(i){return i.id!=id});saveDB();renderCatalog();}
 
 // ---- CATALOG PICKER MODAL ----
@@ -6860,7 +6509,7 @@ function tmgmtDuplicate(id) {
 
 // ---- SAVE AS TEMPLATE FROM QUOTE ----
 function saveAsTemplate() {
-  if (lineItems.length === 0) { alert('Add some line items first before saving as a template.'); return; }
+  if (lineItems.length === 0) { showToast('Add some line items first before saving as a template.','error'); return; }
   const jn  = (document.getElementById('qq-jn')||{}).value || '';
   const env = (document.getElementById('qq-env')||{}).value || 'office';
   const mk  = (document.getElementById('qq-mk')||{}).value || '35';
@@ -6879,7 +6528,7 @@ function saveAsTemplate() {
 
 function confirmSaveAsTemplate() {
   const name = document.getElementById('sat-name').value.trim();
-  if (!name) { alert('Template name is required.'); return; }
+  if (!name) { showToast('Template name is required.','error'); return; }
   const t = {
     id:     Date.now().toString(),
     name:   name,
@@ -6893,7 +6542,7 @@ function confirmSaveAsTemplate() {
   saveDB();
   closeModal('modal-save-template');
   renderTplLibrary();
-  alert('Template "' + name + '" saved in ' + t.cat + '!');
+  showToast('Template "'+name+'" saved in '+t.cat,'success');
 }
 
 // TEMPLATE LIBRARY — END
@@ -6916,7 +6565,7 @@ function delTplRow(idx){tplItems.splice(parseInt(idx),1);renderTplItems(tplItems
 function saveTemplate(){
   const id=document.getElementById('m-tplid').value;
   const name=document.getElementById('m-tplname').value;
-  if(!name.trim()){alert('Template name required.');return;}
+  if(!name.trim()){showToast('Template name required.','error'); return;}
   const body=document.getElementById('tpl-items-body');
   const rows=body?body.querySelectorAll('tr'):[];
   const items=Array.from(rows).map(function(row){
@@ -7453,7 +7102,7 @@ function populateInvDataLists() {
 function saveInventoryItem() {
   const id   = document.getElementById('inv-id').value;
   const name = document.getElementById('inv-name').value.trim();
-  if (!name) { alert('Item name is required.'); return; }
+  if (!name) { showToast('Item name is required.','error'); return; }
 
   let tag = document.getElementById('inv-tag').value.trim();
   if (!tag) { tag = nextAssetTag(); } else if (!id) { DB.invSeq++; } // advance seq if custom
@@ -7496,7 +7145,7 @@ function delInventoryItem(id) {
 function checkoutItem(id) {
   const item = DB.inventory.find(function(i){ return i.id==id; });
   if (!item) return;
-  if ((item.qty||0) <= 0) { alert('This item is out of stock and cannot be checked out.'); return; }
+  if ((item.qty||0) <= 0) { showToast('This item is out of stock and cannot be checked out.','error'); return; }
 
   document.getElementById('co-item-id').value = id;
   document.getElementById('checkout-item-info').innerHTML =
@@ -7524,12 +7173,12 @@ function checkoutItem(id) {
 function confirmCheckout() {
   const itemId = document.getElementById('co-item-id').value;
   const to     = document.getElementById('co-to').value.trim();
-  if (!to) { alert('Please enter who is checking this out.'); return; }
+  if (!to) { showToast('Please enter who is checking this out.','error'); return; }
   const qty = parseInt(document.getElementById('co-qty').value)||1;
 
   const item = DB.inventory.find(function(i){ return i.id==itemId; });
   if (!item) return;
-  if (item.qty < qty) { alert('Not enough stock. Available: '+item.qty); return; }
+  if (item.qty < qty) { showToast('Not enough stock. Available: '+item.qty,'error'); return; }
 
   // Reduce qty
   item.qty -= qty;
@@ -7964,16 +7613,15 @@ function editTool(id) {
 function saveToolItem() {
   var id   = document.getElementById('tool-id').value;
   var name = document.getElementById('tool-name').value.trim();
-  if (!name) { alert('Tool name is required.'); return; }
+  if (!name) { showToast('Tool name is required.','error'); return; }
   var tag  = (document.getElementById('tool-tag').value||'').trim();
   // Validate tag format
   if (tag && !/^TCSS -\d+$/.test(tag)) {
-    alert('Asset tag must be in format: TCSS -001');
-    return;
+    showToast('Asset tag must be in format: TCSS -001','error'); return;
   }
   // Check for duplicate tag
   var dupe = (DB.tools||[]).find(function(t){ return t.tag===tag && t.id!==id; });
-  if (dupe) { alert('Asset tag '+tag+' is already assigned to: '+dupe.name); return; }
+  if (dupe) { showToast('Asset tag '+tag+' already assigned to: '+dupe.name,'error'); return; }
 
   var data = {
     id:           id || Date.now().toString(),
@@ -8010,7 +7658,7 @@ function saveToolItem() {
 function delTool(id) {
   var t=(DB.tools||[]).find(function(x){return x.id==id}); if(!t) return;
   var active=(DB.toolCheckouts||[]).find(function(c){ return c.toolId===id && !c.returnedAt; });
-  if(active){alert('Cannot delete — tool is currently checked out to '+active.toName+'. Return it first.');return;}
+  if(active){showToast('Cannot delete — checked out to '+active.toName+'. Return it first.','error');return;}
   if (!confirm('Delete '+t.name+' ('+t.tag+')? This cannot be undone.')) return;
   DB.tools=DB.tools.filter(function(x){return x.id!=id});
   saveDB(); renderTools();
@@ -10353,7 +10001,7 @@ var _origSaveContact = saveContact;
 function saveContact() {
   var id=document.getElementById('m-ctid').value;
   var name=document.getElementById('m-ctname').value;
-  if(!name.trim()){alert('Name required.');return;}
+  if(!name.trim()){showToast('Name required.','error'); return;}
   var custId=(document.getElementById('m-ct-custid')||{}).value||'';
   var data={
     id:id||Date.now().toString(),
@@ -10374,7 +10022,6 @@ function saveContact() {
 
 // ---- UPGRADED CONVERT-TO-JOB ----
 // Patch the openConvertToJob trigger to populate new fields
-var _origConvertToJobAction = null; // handled via data-action
 
 function prepareConvertModal(qid) {
   var q=(DB.quotes||[]).find(function(x){return x.id==qid;});
@@ -10471,7 +10118,6 @@ function confirmConvertJob() {
 }
 
 // Wire prepareConvertModal into the convertToJob action
-var _origConvertToJobHandler = null;
 
 // ============================================================
 // END CRM MODULE
@@ -10541,26 +10187,10 @@ function printQRLabels() {
 
 // Record start time when tech opens check-off modal
 var _checkoffStartTime = null;
-
 var _origOpenCheckoffModal = openCheckoffModal;
-function openCheckoffModal(itemId, phase) {
-  _checkoffStartTime = Date.now();
-  _origOpenCheckoffModal(itemId, phase);
-}
-
 var _origSubmitWTCheckoff = submitWTCheckoff;
-function submitWTCheckoff() {
-  // Inject duration into the checkoff record
-  if (_checkoffStartTime) {
-    var duration = Math.round((Date.now() - _checkoffStartTime) / 1000); // seconds
-    window._pendingCheckoffDuration = duration;
-    _checkoffStartTime = null;
-  }
-  _origSubmitWTCheckoff();
-}
 
 // After checkoff is saved, store duration and check benchmarks
-var _origSubmitWTCheckoffCore = null; // patched below
 
 function getBenchmark(system, phase) {
   // Returns {avg, count} for this system+phase combo from all historical checkoffs
@@ -10917,7 +10547,6 @@ function saveFieldSettings(){
 }
 
 // Load GPS coords when settings page renders
-var _origLoadSettings = null; // patched after load
 
 // ============================================================
 // PHASE 3 — SETTINGS LOAD PATCH
@@ -10929,7 +10558,6 @@ function loadSettingsGPS() {
 }
 
 // Wire into goPage
-var _origGoPage = null;
 
 // ============================================================
 // PHASE 3 — INIT
@@ -13537,7 +13165,7 @@ function saveCloseout() {
   if (!job) return;
 
   var actHrs = parseFloat(document.getElementById('co-act-hrs').value)||0;
-  if (!actHrs) { alert('Please enter the actual hours worked.'); return; }
+  if (!actHrs) { showToast('Please enter the actual hours worked.','error'); return; }
 
   var closeoutData = {
     savedAt:    new Date().toISOString(),
@@ -13568,7 +13196,7 @@ function saveCloseout() {
     if (q) { q.closeout=closeoutData; saveDB(); }
   }
 
-  alert('Closeout saved! Variance: '+(closeoutData.variance>0?'+':'')+closeoutData.variance+'% ('+closeoutData.varianceHrs+' hrs). This feedback will help sharpen future estimates.');
+  showToast('Closeout saved! Variance: '+(closeoutData.variance>0?'+':'')+closeoutData.variance+'%','success',5000);
 }
 
 // ---- SETTINGS ----
@@ -13609,7 +13237,7 @@ function saveSettings() {
   });
   saveDB();
   const cb=document.getElementById('company-badge');if(cb)cb.textContent=(DB.settings.cname||'TCSS').substring(0,12);
-  alert('Settings saved!');
+  showToast('Settings saved','success');
 }
 
 // ---- EXPORT/IMPORT DATA ----
@@ -13757,18 +13385,18 @@ function importData() {
         saveDB();
         input.value='';
         if (_sb && _currentUser) {
-          alert('Backup restored! Pushing to cloud — please wait...');
+          showToast('Backup restored — pushing to cloud...','info');
           pushAllToCloud().then(function() {
             localStorage.setItem('_skipNextPull', '1');
-            alert('Pushed to cloud! Reloading...');
+            showToast('Pushed to cloud ✓','success');
             location.reload();
           }).catch(function() {
-            alert('Backup restored locally. Reloading...'); location.reload();
+            showToast('Backup restored locally','success'); location.reload();
           });
         } else {
-          alert('Backup restored successfully! Reloading...'); location.reload();
+          showToast('Backup restored','success'); location.reload();
         }
-      } catch(err){alert('Error reading backup: '+err.message);input.value='';}
+      } catch(err){showToast('Error reading backup: '+err.message,'error');input.value='';}
     };
     reader.readAsText(file);
   };
@@ -13777,7 +13405,7 @@ function importData() {
 function clearData() {
   if(!confirm('CLEAR ALL DATA?\n\nPermanently deletes ALL quotes, jobs, customers, contacts, catalog, templates, and settings.\n\nThis CANNOT be undone.')) return;
   if(!confirm('Last warning — everything will be gone. Are you absolutely sure?')) return;
-  localStorage.removeItem(DB_KEY); alert('All data cleared. Reloading...'); location.reload();
+  localStorage.removeItem(DB_KEY); showToast('All data cleared','info'); location.reload();
 }
 
 // ---- PROJECT ENVIRONMENT HANDLER ----
@@ -14444,127 +14072,6 @@ function buildAlerts() {
   }).join('');
 }
 
-// =============================================
-// V6 PHASE 2: ENHANCED renderDash
-// =============================================
-function renderDash() {
-  const today = new Date().toISOString().split('T')[0];
-  let tq=0, rev=0, wonRev=0, totalMargin=0, marginCount=0, followupsDue=0;
-  const pipeline = { draft:0, sent:0, followup:0, approved:0, declined:0 };
-
-  DB.quotes.forEach(function(q) {
-    tq++;
-    rev += q.total||0;
-    if (q.status==='approved') wonRev += q.total||0;
-    if (q.achievedMargin) { totalMargin += q.achievedMargin; marginCount++; }
-    pipeline[q.status||'draft'] = (pipeline[q.status||'draft']||0) + 1;
-    if (isFollowupDue(q)) followupsDue++;
-  });
-
-  const activeJobs = DB.jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; }).length;
-
-  function setT(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
-  setT('ds-tq', tq);
-  setT('ds-rev', '$' + Math.round(rev).toLocaleString());
-  setT('ds-won-rev', '$' + Math.round(wonRev).toLocaleString());
-  setT('ds-margin', marginCount>0 ? pct(totalMargin/marginCount) : '0%');
-  setT('ds-active-jobs', activeJobs);
-  setT('ds-followups', followupsDue);
-
-  // Pipeline bar
-  const pipelineBar = document.getElementById('pipeline-bar');
-  const pipelineLegend = document.getElementById('pipeline-legend');
-  const pipelineDetail = document.getElementById('pipeline-detail');
-  const PIPE_COLORS = { draft:'#607d8b', sent:'#1565c0', followup:'#6a1b9a', approved:'#2e7d32', declined:'#c62828' };
-  const PIPE_LABELS = { draft:'Draft', sent:'Sent', followup:'Follow-Up', approved:'Won', declined:'Lost' };
-  if (pipelineBar && tq > 0) {
-    pipelineBar.innerHTML = Object.keys(pipeline).map(function(k) {
-      var count = pipeline[k]||0;
-      if (!count) return '';
-      var pct2 = count / tq * 100;
-      var showNum = pct2 >= 6;
-      return '<div class="pipeline-seg ' + k + '" style="width:' + pct2 + '%;min-width:' + (count>0?'24px':'0') + '">' +
-        (showNum ? '<span style="pointer-events:none">' + count + '</span>' : '') +
-      '</div>';
-    }).join('');
-    pipelineLegend.innerHTML = Object.keys(pipeline).map(function(k) {
-      if (!pipeline[k]) return '';
-      return '<div class="pipeline-legend-item"><div class="pipeline-legend-dot" style="background:' + PIPE_COLORS[k] + '"></div><span>' + PIPE_LABELS[k] + ': <strong>' + pipeline[k] + '</strong></span></div>';
-    }).join('');
-    if (pipelineDetail) {
-      const winRate = tq > 0 ? ((pipeline.approved||0)/tq*100).toFixed(0) : 0;
-      const avgDeal = pipeline.approved > 0 ? '$' + Math.round(wonRev/(pipeline.approved)).toLocaleString() : '—';
-      pipelineDetail.innerHTML = 'Win rate: <strong>' + winRate + '%</strong> &nbsp;·&nbsp; Avg won deal: <strong>' + avgDeal + '</strong> &nbsp;·&nbsp; Total won: <strong>$' + Math.round(wonRev).toLocaleString() + '</strong>';
-    }
-  } else if (pipelineBar) {
-    pipelineBar.innerHTML = '<div style="width:100%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#90a4ae">No quotes yet</div>';
-    if (pipelineLegend) pipelineLegend.innerHTML = '';
-  }
-
-  // Recent quotes table
-  const dashTbl = document.getElementById('dash-tbl');
-  if (dashTbl) {
-    const recent = DB.quotes.slice(0, 8);
-    if (recent.length === 0) {
-      dashTbl.innerHTML = '<tr><td colspan="5" class="empty-state"><p>No quotes yet. Click + New Quote to start.</p></td></tr>';
-    } else {
-      dashTbl.innerHTML = recent.map(function(q) {
-        const fu = isFollowupDue(q) ? '<span class="followup-due' + (isFollowupOverdue(q)?' followup-overdue':'') + '">Follow-Up</span>' : '';
-        return '<tr><td style="font-weight:700;color:#1565c0;font-size:12px">' + escHtml(q.num||'') + '</td>' +
-          '<td style="font-size:12px">' + escHtml(q.cn||'') + '</td>' +
-          '<td style="font-weight:700;font-size:12px">' + fmt(q.total||0) + '</td>' +
-          '<td><span class="status-badge s-' + (q.status||'draft') + '">' + (q.status||'draft') + '</span>' + fu + '</td>' +
-          '<td style="white-space:nowrap">' +
-            '<button class="btn btn-ghost btn-sm" data-action="editQuote" data-id="' + q.id + '">Edit</button>' +
-            (q.status !== 'approved' && q.status !== 'declined' ? ' <button class="btn btn-convert btn-sm" data-action="convertToJob" data-id="' + q.id + '" title="Convert to Job">▶ Job</button>' : '') +
-          '</td></tr>';
-      }).join('');
-    }
-  }
-
-  // Active jobs table
-  const dashJobsTbl = document.getElementById('dash-jobs-tbl');
-  if (dashJobsTbl) {
-    const active = DB.jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; }).slice(0,6);
-    if (active.length === 0) {
-      dashJobsTbl.innerHTML = '<tr><td colspan="4" class="empty-state"><p>No active jobs.</p></td></tr>';
-    } else {
-      dashJobsTbl.innerHTML = active.map(function(j) {
-        const sc = j.status==='In Progress'?'s-inprogress':'s-pending';
-        return '<tr><td style="font-weight:700;font-size:12px">' + escHtml(j.name||'') + '</td>' +
-          '<td style="font-size:12px">' + escHtml(j.customer||'') + '</td>' +
-          '<td><span class="status-badge ' + sc + '" style="font-size:10px">' + escHtml(j.status) + '</span></td>' +
-          '<td><button class="btn btn-ghost btn-sm" data-action="goJobsPage">View</button></td></tr>';
-      }).join('');
-    }
-  }
-
-  // Follow-ups due card
-  const fuCard = document.getElementById('dash-followup-card');
-  const fuTbl = document.getElementById('dash-followup-tbl');
-  const dueFups = DB.quotes.filter(isFollowupDue);
-  if (fuCard) fuCard.style.display = dueFups.length > 0 ? 'block' : 'none';
-  if (fuTbl && dueFups.length > 0) {
-    fuTbl.innerHTML = dueFups.map(function(q) {
-      const overdue = isFollowupOverdue(q);
-      return '<tr style="' + (overdue?'background:#fff8f8':'') + '">' +
-        '<td style="font-weight:700;color:#1565c0;font-size:12px">' + escHtml(q.num||'') + '</td>' +
-        '<td>' + escHtml(q.cn||'') + '</td>' +
-        '<td>' + escHtml(q.jn||'') + '</td>' +
-        '<td style="font-weight:700;color:' + (overdue?'#c62828':'#e65100') + '">' + (q.followupDate||'') + (overdue?' ⚠️':'') + '</td>' +
-        '<td style="white-space:nowrap">' +
-          '<button class="btn btn-outline btn-sm" data-action="editQuote" data-id="' + q.id + '">Edit Quote</button> ' +
-          '<button class="btn btn-ghost btn-sm" data-action="snoozeFollowup" data-id="' + q.id + '">Snooze 3d</button>' +
-        '</td></tr>';
-    }).join('');
-  }
-
-  // Alerts
-  buildAlerts();
-
-  const cb = document.getElementById('company-badge');
-  if (cb) cb.textContent = (DB.settings.cname || 'TCSS').substring(0,12);
-}
 
 // =============================================
 // V6 PHASE 2: SNOOZE FOLLOW-UP
@@ -14588,7 +14095,7 @@ function initLogoUpload() {
   input.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { alert('Logo file must be under 2MB.'); return; }
+    if (file.size > 2 * 1024 * 1024) { showToast('Logo file must be under 2MB.','error'); return; }
     const reader = new FileReader();
     reader.onload = function(ev) {
       const dataUrl = ev.target.result;
@@ -14610,8 +14117,8 @@ function initLogoUpload() {
       e.preventDefault();
       zone.style.borderColor = '';
       const file = e.dataTransfer.files[0];
-      if (!file || !file.type.startsWith('image/')) { alert('Please drop an image file.'); return; }
-      if (file.size > 2 * 1024 * 1024) { alert('Logo file must be under 2MB.'); return; }
+      if (!file || !file.type.startsWith('image/')) { showToast('Please drop an image file.','error'); return; }
+      if (file.size > 2 * 1024 * 1024) { showToast('Logo file must be under 2MB.','error'); return; }
       const reader = new FileReader();
       reader.onload = function(ev) {
         DB.settings.logoDataUrl = ev.target.result;
@@ -14793,8 +14300,7 @@ function qqStage4Init(){
       var fuEl = document.getElementById('qq-followup');
       var dt = getQQQuoteDate();
       if (String((calcTotals().readiness||'').toUpperCase()) !== 'READY') {
-        alert('Complete required fields and pricing checks first.');
-        return;
+        showToast('Complete required fields and pricing checks first.','error'); return;
       }
       if (stage === 'ready') {
         if (statusEl) statusEl.value = 'sent';
@@ -14804,7 +14310,7 @@ function qqStage4Init(){
         if (statusEl) statusEl.value = 'followup';
       } else if (stage === 'followup') {
         if (fuEl && !fuEl.value) fuEl.value = calcFollowupDate(dt);
-        alert((fuEl && fuEl.value && fuEl.value <= getTodayISO()) ? 'Follow up with the customer now.' : 'Follow-up stage is active.');
+        showToast((fuEl&&fuEl.value&&fuEl.value<=getTodayISO())?'Follow up with the customer now!':'Follow-up stage is active','info');
       }
       updateQQStage3UI();
       qqStage4Init();
@@ -15126,7 +14632,7 @@ function saveQQ() {
   saveDB();
   clearQQDraft();
   setQQDirty(false, 'Quote ' + q.num + ' saved successfully');
-  alert('Quote ' + q.num + ' saved successfully!');
+  showToast('Quote '+q.num+' saved','success');
   renderDash();
   renderQuotes();
   updateQQStage3UI();
@@ -16248,7 +15754,7 @@ function hideUserMenuOutside(e) {
 
 function showForgotPassword() {
   var email = (document.getElementById('auth-email')||{}).value || '';
-  if (!email) { alert('Enter your email address first, then click Forgot Password.'); return; }
+  if (!email) { showToast('Enter your email address first, then click Forgot Password.','error'); return; }
   if (_sb) {
     // For local file usage, direct them to Supabase dashboard to set password
     if (window.location.protocol === 'file:') {
