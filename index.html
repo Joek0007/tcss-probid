@@ -468,45 +468,47 @@ label{display:block;font-size:12px;font-weight:700;color:#455a64;margin-bottom:5
 .autocomplete-item-sub{font-size:11px;color:#90a4ae}
 .autocomplete-item:hover .autocomplete-item-main,.autocomplete-item.active .autocomplete-item-main{color:#1565c0}
 /* ===== FIELD MODE / TIME CLOCK ===== */
-.field-page{max-width:480px;margin:0 auto;padding:0}
-.clock-card{background:#fff;border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid #e0e0e0}
-.clock-status-bar{display:flex;align-items:center;gap:8px;margin-bottom:4px}
-.clock-status-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.field-page{max-width:520px;margin:0 auto;padding:0 4px}
+.clock-card{background:#fff;border-radius:20px;padding:22px 20px;margin-bottom:14px;box-shadow:0 4px 24px rgba(0,0,0,.10);border:1px solid #e8e8e8}
+.clock-status-bar{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.clock-status-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
 .clock-status-dot.out{background:#90a4ae}
-.clock-status-dot.in{background:#2e7d32;box-shadow:0 0 0 4px rgba(46,125,50,.2);animation:gpulse 2s infinite}
-.clock-status-dot.break{background:#e65100}
-.clock-status-dot.lunch{background:#6a1b9a}
-@keyframes gpulse{0%,100%{box-shadow:0 0 0 4px rgba(46,125,50,.2)}50%{box-shadow:0 0 0 8px rgba(46,125,50,.05)}}
-.clock-status-text{font-size:13px;font-weight:700;color:#546e7a}
-.clock-timer{text-align:center;padding:18px 0 14px}
-.clock-timer-time{font-size:54px;font-weight:900;color:#0d1b2a;letter-spacing:-2px;font-variant-numeric:tabular-nums;line-height:1}
-.clock-timer-label{font-size:11px;color:#90a4ae;font-weight:600;text-transform:uppercase;letter-spacing:.8px;margin-top:4px}
-.clock-job-select{width:100%;padding:12px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:14px;font-weight:600;color:#0d1b2a;background:#f8fafc;margin-bottom:14px}
-.clock-job-select:focus{border-color:#1565c0;outline:none}
-.clock-btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.clock-btn{padding:16px;border-radius:12px;border:none;font-size:14px;font-weight:800;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:4px}
-.clock-btn .btn-icon{font-size:22px;line-height:1}
-.clock-btn.clock-in{background:linear-gradient(135deg,#2e7d32,#43a047);color:#fff;grid-column:1/-1;padding:22px;font-size:18px}
-.clock-btn.clock-out{background:linear-gradient(135deg,#c62828,#e53935);color:#fff;grid-column:1/-1;padding:22px;font-size:18px}
-.clock-btn.break-start{background:#fff3e0;color:#e65100;border:2px solid #ffb74d}
-.clock-btn.break-end{background:#e8f5e9;color:#2e7d32;border:2px solid #a5d6a7}
-.clock-btn.lunch-start{background:#f3e5f5;color:#6a1b9a;border:2px solid #ce93d8}
-.clock-btn.lunch-end{background:#e8f5e9;color:#2e7d32;border:2px solid #a5d6a7}
-.clock-btn:active{transform:scale(.96)}
+.clock-status-dot.in{background:#2e7d32;box-shadow:0 0 0 5px rgba(46,125,50,.2);animation:gpulse 2s infinite}
+.clock-status-dot.break{background:#e65100;box-shadow:0 0 0 5px rgba(230,81,0,.15)}
+.clock-status-dot.lunch{background:#6a1b9a;box-shadow:0 0 0 5px rgba(106,27,154,.15)}
+@keyframes gpulse{0%,100%{box-shadow:0 0 0 5px rgba(46,125,50,.2)}50%{box-shadow:0 0 0 9px rgba(46,125,50,.05)}}
+.clock-status-text{font-size:15px;font-weight:700;color:#37474f;letter-spacing:-.2px}
+.clock-timer{text-align:center;padding:20px 0 16px}
+.clock-timer-time{font-size:72px;font-weight:900;color:#0d1b2a;letter-spacing:-3px;font-variant-numeric:tabular-nums;line-height:1}
+.clock-timer-label{font-size:13px;color:#90a4ae;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-top:6px}
+.clock-job-select{width:100%;padding:16px 18px;border:2px solid #e0e0e0;border-radius:14px;font-size:16px;font-weight:600;color:#0d1b2a;background:#f8fafc;margin-bottom:14px;-webkit-appearance:none}
+.clock-job-select:focus{border-color:#1565c0;outline:none;background:#fff}
+.clock-btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.clock-btn{padding:20px 16px;border-radius:16px;border:none;font-size:15px;font-weight:800;cursor:pointer;transition:transform .12s,opacity .12s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:88px;-webkit-tap-highlight-color:transparent;letter-spacing:-.2px;touch-action:manipulation}
+.clock-btn .btn-icon{font-size:28px;line-height:1}
+.clock-btn.clock-in{background:#2e7d32;color:#fff;grid-column:1/-1;padding:28px;font-size:20px;min-height:110px;border-radius:18px;letter-spacing:-.3px}
+.clock-btn.clock-in .btn-icon{font-size:36px}
+.clock-btn.clock-out{background:#c62828;color:#fff;grid-column:1/-1;padding:28px;font-size:20px;min-height:110px;border-radius:18px}
+.clock-btn.clock-out .btn-icon{font-size:36px}
+.clock-btn.break-start{background:#fff8f0;color:#e65100;border:2.5px solid #ffb74d;min-height:96px;font-size:16px}
+.clock-btn.break-end{background:#e8f5e9;color:#2e7d32;border:2.5px solid #81c784;grid-column:1/-1;min-height:96px;font-size:18px}
+.clock-btn.lunch-start{background:#f8f0ff;color:#6a1b9a;border:2.5px solid #ce93d8;min-height:96px;font-size:16px}
+.clock-btn.lunch-end{background:#e8f5e9;color:#2e7d32;border:2.5px solid #81c784;grid-column:1/-1;min-height:96px;font-size:18px}
+.clock-btn:active{transform:scale(.96);opacity:.9}
 .clock-btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
-.gps-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:4px 10px;border-radius:10px;font-weight:700;margin-top:6px}
+.gps-badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:5px 12px;border-radius:20px;font-weight:700;margin-top:4px}
 .gps-badge.acquiring{background:#fff3e0;color:#e65100}
 .gps-badge.locked{background:#e8f5e9;color:#2e7d32}
 .gps-badge.failed{background:#ffebee;color:#c62828}
-.clock-log-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:12px}
+.clock-log-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
 .clock-log-item:last-child{border-bottom:none}
-.clock-log-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.clock-log-time{color:#546e7a;font-weight:600;min-width:55px}
+.clock-log-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.clock-log-time{color:#546e7a;font-weight:600;min-width:60px}
 .clock-log-event{color:#0d1b2a;font-weight:600;flex:1}
-.day-summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
-.day-stat{background:#f8fafc;border-radius:10px;padding:10px;text-align:center;border:1px solid #e0e0e0}
-.day-stat-val{font-size:20px;font-weight:900;color:#1565c0}
-.day-stat-lbl{font-size:10px;color:#90a4ae;font-weight:600;text-transform:uppercase;margin-top:2px}
+.day-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.day-stat{background:#f8fafc;border-radius:12px;padding:12px 8px;text-align:center;border:1px solid #e8e8e8}
+.day-stat-val{font-size:18px;font-weight:900;color:#1565c0;font-variant-numeric:tabular-nums}
+.day-stat-lbl{font-size:10px;color:#90a4ae;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px}
 .timesheet-row{display:grid;grid-template-columns:140px 1fr 70px 70px 60px 80px 80px;gap:6px;padding:10px 14px;border-bottom:1px solid #f0f0f0;font-size:12px;align-items:center}
 .timesheet-hdr{background:#f5f7fa;font-weight:700;font-size:11px;color:#455a64;text-transform:uppercase}
 .ts-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700}
@@ -8791,25 +8793,25 @@ function updateClockUI(){
     btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doStartTravel()" style="grid-column:1/-1"><span class="btn-icon">🚗</span>Start Travel to Site</button>';
   }
   else if(_clockState.status==='traveling'){
-    btnGrid.innerHTML='<button class="clock-btn clock-in" id="btn-arrive-site" onclick="doArriveOnSite()" style="grid-column:1/-1"><span class="btn-icon">📍</span>Arrive On Site — Clock In</button>';
+    btnGrid.innerHTML='<button class="clock-btn clock-in" style="grid-column:1/-1;background:#1565c0" id="btn-arrive-site" onclick="doArriveOnSite()"><span class="btn-icon">📍</span>Arrive On Site — Clock In</button>';
   }
   else if(_clockState.status==='onsite'){
     btnGrid.innerHTML=
       '<button class="clock-btn break-start" onclick="doBreakStart()"><span class="btn-icon">⏸</span>Break</button>'+
       '<button class="clock-btn lunch-start" onclick="doLunchStart()"><span class="btn-icon">🍽</span>Lunch</button>'+
       (nextJobOpts
-        ? nextJobSel+'<button class="clock-btn" onclick="doNextJob()" style="background:linear-gradient(135deg,#7b1fa2,#8e24aa);color:#fff;margin-top:8px"><span class="btn-icon">➡</span>Go to Next Job</button>'
+        ? nextJobSel+'<button class="clock-btn" onclick="doNextJob()" style="background:#e3f2fd;color:#1565c0;border:2.5px solid #90caf9;grid-column:1/-1;min-height:80px;font-size:16px"><span class="btn-icon">➡️</span>Go to Next Job</button>'
         : '')+
-      '<button class="clock-btn clock-out" onclick="doLeaveOnSite()" style="grid-column:1/-1;margin-top:8px"><span class="btn-icon">🚗</span>Leave Site — Return to Base</button>';
+      '<button class="clock-btn clock-out" onclick="doLeaveOnSite()" style="grid-column:1/-1;margin-top:4px"><span class="btn-icon">🚗</span>Leave Site — Return to Base</button>';
   }
   else if(_clockState.status==='break'){
-    btnGrid.innerHTML='<button class="clock-btn break-end" style="grid-column:1/-1" onclick="doBreakEnd()"><span class="btn-icon">▶</span>End Break — Back to Work</button>';
+    btnGrid.innerHTML='<button class="clock-btn break-end" style="grid-column:1/-1" onclick="doBreakEnd()"><span class="btn-icon">▶️</span>End Break — Back to Work</button>';
   }
   else if(_clockState.status==='lunch'){
-    btnGrid.innerHTML='<button class="clock-btn lunch-end" style="grid-column:1/-1" onclick="doLunchEnd()"><span class="btn-icon">▶</span>Back from Lunch</button>';
+    btnGrid.innerHTML='<button class="clock-btn lunch-end" style="grid-column:1/-1" onclick="doLunchEnd()"><span class="btn-icon">▶️</span>Back from Lunch</button>';
   }
   else if(_clockState.status==='returning'){
-    btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doArriveBack()" style="grid-column:1/-1;background:linear-gradient(135deg,#1565c0,#1976d2)"><span class="btn-icon">🏁</span>Arrived Back — End Day</button>';
+    btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doArriveBack()" style="grid-column:1/-1;background:#1565c0"><span class="btn-icon">🏁</span>Arrived Back — End Day</button>';
   }
   renderPunchLog();
 }
