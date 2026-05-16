@@ -3948,6 +3948,17 @@ function loadDB() {
     if (!DB.wtCheckoffs)     DB.wtCheckoffs     = [];
     if (!DB.wtReworks)       DB.wtReworks       = [];
 
+    // ONE-TIME MIGRATION: normalize quote status values to lowercase
+    // Fixes Supabase Title Case values ('Draft','Sent','Approved','Lost') → app lowercase
+    var statusNormMap = {
+      'Draft':'draft','Sent':'sent','Review':'followup','Followup':'followup',
+      'Approved':'approved','Won':'approved','Lost':'declined','Declined':'declined',
+      'Rejected':'declined','Expired':'declined'
+    };
+    (DB.quotes||[]).forEach(function(q){
+      if (q.status && statusNormMap[q.status]) q.status = statusNormMap[q.status];
+    });
+
     // ONE-TIME MIGRATION: backfill customerId and contactId on existing quotes
     var migrated = 0;
     (DB.quotes||[]).forEach(function(q){
@@ -5914,11 +5925,14 @@ function closeModal(id) { const m=document.getElementById(id); if(m) m.classList
 function deleteQuote(id) {
   if (!confirm('Delete this quote? This cannot be undone.')) return;
   if (_sb && _currentUser && String(id).length > 10) {
-    _sb.from('quotes').update({status:'deleted'}).eq('id',id).then(function(r){ if(r.error) console.warn('[Delete] Quote:',r.error.message); });
+    // Hard delete from Supabase - 'deleted' is not a valid status enum value
+    _sb.from('quotes').delete().eq('id', id).then(function(r){
+      if (r.error) console.warn('[Delete] Quote:', r.error.message);
+    });
   }
-  DB.quotes = DB.quotes.filter(function(q){return q.id!=id});
+  DB.quotes = DB.quotes.filter(function(q){ return q.id != id; });
   saveDB(); renderQuotes(); renderDash();
-  showToast('Quote deleted','info');
+  showToast('Quote deleted', 'info');
 }
 
 function exportCSV() {
@@ -15170,7 +15184,7 @@ function renderQuotes() {
   const sort   = (document.getElementById('q-sort')||{}).value || 'priority';
   let list = DB.quotes.slice();
   if (search) { const sl=search.toLowerCase(); list=list.filter(function(q){ return (q.cn||'').toLowerCase().includes(sl)||(q.jn||'').toLowerCase().includes(sl)||(q.num||'').toLowerCase().includes(sl); }); }
-  if (filter) list=list.filter(function(q){ return (q.status||'draft')===filter; });
+  if (filter) list=list.filter(function(q){ return (q.status||'draft').toLowerCase()===filter.toLowerCase(); });
 
   // Apply sort
   switch(sort) {
@@ -16171,11 +16185,16 @@ async function signIn(email, password) {
 }
 
 async function signOut() {
-  if (!_sb) return;
-  await pushAllToCloud();
-  await _sb.auth.signOut();
-  _currentUser = null;
-  showAuthModal();
+  if (!_sb) { window.location.reload(); return; }
+  try {
+    await pushAllToCloud();
+    await _sb.auth.signOut();
+  } catch(e) {
+    console.warn('[SignOut] Error:', e);
+  }
+  // Reload the page for a fully clean state — clears all in-memory data,
+  // forces fresh login, triggers syncAllFromCloud on next sign-in
+  window.location.reload();
 }
 
 async function loadCurrentUserProfile() {
@@ -16241,43 +16260,46 @@ function updateUserBadge(profile) {
 async function syncAllFromCloud() {
   if (!_sb || !_currentUser) return;
   showToast('Syncing...', 'info', 1500);
+  var errors = [];
+
+  // Status map — Supabase Title Case → app lowercase
+  var pullStatusMap = {
+    'Draft':'draft','draft':'draft',
+    'Sent':'sent','sent':'sent',
+    'Review':'followup','review':'followup','Followup':'followup',
+    'Approved':'approved','approved':'approved',
+    'Won':'approved','won':'approved',
+    'Lost':'declined','lost':'declined',
+    'Declined':'declined','declined':'declined',
+    'Rejected':'declined','rejected':'declined',
+    'Expired':'declined','expired':'declined'
+  };
+
+  // 1. Company settings
   try {
-    // Pull company settings
-    var { data: settingsRow } = await _sb.from('company_settings').select('*').eq('id', 1).single();
+    var { data: settingsRow, error: se } = await _sb.from('company_settings').select('*').eq('id', 1).single();
     if (settingsRow) {
       DB.settings = DB.settings || {};
       DB.settings.cname = settingsRow.company_name || DB.settings.cname;
       DB.settings.laborRate = settingsRow.default_labor_rate || DB.settings.laborRate;
       DB.settings.targetMargin = settingsRow.default_target_margin || DB.settings.targetMargin;
-      // Restore manager approval settings
       if (!DB.settings.managerApproval) DB.settings.managerApproval = {};
       DB.settings.managerApproval.enabled = settingsRow.ma_enabled;
       DB.settings.managerApproval.belowFloorOnly = settingsRow.ma_below_floor_only;
       DB.settings.managerApproval.pinHash = settingsRow.ma_pin_hash || '';
       DB.settings.managerApproval.pinSalt = settingsRow.ma_pin_salt || '';
     }
+  } catch(e) { errors.push('settings: '+e.message); }
 
-    if (_currentUser.role !== 'helper_tech' && _currentUser.role !== 'lead_tech') {
-      // Pull quotes with their line items
-      var { data: quotes } = await _sb.from('quotes')
+  if (_currentUser.role !== 'helper_tech' && _currentUser.role !== 'lead_tech') {
+
+    // 2. Quotes
+    try {
+      var { data: quotes, error: qe } = await _sb.from('quotes')
         .select('*, quote_line_items(*)')
-        .neq('status', 'deleted')
         .order('created_at', { ascending: false });
-
-      if (quotes && quotes.length) {
-        // Reverse-map Supabase enum values back to app status values
-        var pullStatusMap = {
-          'Draft':'draft', 'draft':'draft',
-          'Sent':'sent', 'sent':'sent',
-          'Review':'followup', 'review':'followup',
-          'Approved':'approved', 'approved':'approved',
-          'Won':'approved', 'won':'approved',
-          'Lost':'declined', 'lost':'declined',
-          'Declined':'declined', 'declined':'declined',
-          'Rejected':'declined', 'rejected':'declined',
-          'Expired':'declined', 'expired':'declined',
-          'deleted':'deleted'
-        };
+      if (qe) { errors.push('quotes: '+qe.message); }
+      else if (quotes && quotes.length) {
         DB.quotes = quotes.map(function(q) {
           return {
             id: q.id,
@@ -16311,90 +16333,65 @@ async function syncAllFromCloud() {
             lumpSum: q.lump_sum_enabled ? { enabled: true, label: q.lump_sum_label, showItems: true } : null,
             approval: q.approval_status ? { status: q.approval_status } : null,
             items: (q.quote_line_items || []).sort(function(a,b){ return a.sort_order - b.sort_order; }).map(function(li) {
-              return {
-                _id: li.id,
-                desc: li.description,
-                cat: li.category,
-                qty: li.qty,
-                unit: li.unit,
-                mc: li.material_cost,
-                lh: li.labor_hours
-              };
+              return { _id:li.id, desc:li.description, cat:li.category, qty:li.qty, unit:li.unit, mc:li.material_cost, lh:li.labor_hours };
             })
           };
         });
       }
+    } catch(e) { errors.push('quotes: '+e.message); }
 
-      // Pull customers
-      var { data: custs } = await _sb.from('customers').select('*').eq('is_active', true).order('name');
-      if (custs && custs.length) {
+    // 3. Customers
+    try {
+      var { data: custs, error: ce } = await _sb.from('customers').select('*').eq('is_active', true).order('name');
+      if (ce) { errors.push('customers: '+ce.message); }
+      else if (custs && custs.length) {
         DB.customers = custs.map(function(c) {
-          return {
-            id: c.id,
-            name: c.name,
-            company: c.company,
-            email: c.email,
-            phone: c.phone,
-            phone2: c.phone_alt,
-            address: c.address,
-            city: c.city,
-            state: c.state,
-            zip: c.zip,
-            notes: c.notes,
-            active: c.is_active
-          };
+          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, city:c.city, state:c.state, zip:c.zip, notes:c.notes, active:c.is_active };
         });
       }
+    } catch(e) { errors.push('customers: '+e.message); }
 
-      // Pull catalog
-      var { data: cat } = await _sb.from('catalog').select('*').eq('is_active', true).order('name');
-      if (cat && cat.length) {
+    // 4. Catalog
+    try {
+      var { data: cat, error: cate } = await _sb.from('catalog').select('*').eq('is_active', true).order('name');
+      if (cate) { errors.push('catalog: '+cate.message); }
+      else if (cat && cat.length) {
         DB.catalog = cat.map(function(item) {
-          return {
-            id: item.id,
-            name: item.name,
-            desc: item.description,
-            cat: item.category,
-            unit: item.unit,
-            cost: item.default_cost,
-            hours: item.default_hours,
-            notes: item.notes,
-            active: item.is_active
-          };
+          return { id:item.id, name:item.name, desc:item.description, cat:item.category, unit:item.unit, cost:item.default_cost, hours:item.default_hours, notes:item.notes, active:item.is_active };
         });
       }
+    } catch(e) { errors.push('catalog: '+e.message); }
 
-      // Pull templates
-      var { data: tmpl } = await _sb.from('templates').select('*').eq('is_active', true).order('name');
-      if (tmpl && tmpl.length) {
+    // 5. Templates
+    try {
+      var { data: tmpl, error: te } = await _sb.from('templates').select('*').eq('is_active', true).order('name');
+      if (te) { errors.push('templates: '+te.message); }
+      else if (tmpl && tmpl.length) {
         DB.templates = tmpl.map(function(t) {
-          return {
-            id: t.id,
-            name: t.name,
-            cat: t.category,
-            desc: t.description,
-            items: t.items || [],
-            active: t.is_active
-          };
+          return { id:t.id, name:t.name, cat:t.category, desc:t.description, items:t.items||[], active:t.is_active };
         });
       }
+    } catch(e) { errors.push('templates: '+e.message); }
 
-      // Pull margin floors
-      var { data: floors } = await _sb.from('margin_floors').select('*');
-      if (floors && floors.length) {
+    // 6. Margin floors
+    try {
+      var { data: floors, error: fe } = await _sb.from('margin_floors').select('*');
+      if (fe) { errors.push('margin_floors: '+fe.message); }
+      else if (floors && floors.length) {
         DB.marginFloors = DB.marginFloors || {};
-        floors.forEach(function(f) {
-          DB.marginFloors[f.job_type] = f.floor_pct;
-        });
+        floors.forEach(function(f) { DB.marginFloors[f.job_type] = f.floor_pct; });
       }
-    }
+    } catch(e) { errors.push('margin_floors: '+e.message); }
+  }
 
-    saveDB();
-    renderDash();
+  saveDB();
+  renderDash();
+
+  if (errors.length) {
+    console.warn('[Sync] Partial errors:', errors);
+    showToast('Synced with warnings — check console', 'warning', 3000);
+  } else {
     showToast('Synced ✓', 'success', 2000);
-  } catch(e) {
-    console.error('Sync error:', e);
-    showToast('Sync failed — working offline', 'warning');
   }
 }
 
