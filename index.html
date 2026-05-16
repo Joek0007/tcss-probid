@@ -1644,8 +1644,8 @@ table{font-size:12.5px}
   </div>
   <div class="card">
     <div class="filter-bar">
-      <input class="search-input" id="q-search" placeholder="🔍 Search quotes..." oninput="renderQuotes()">
-      <select id="q-filter" style="width:auto" onchange="renderQuotes()">
+      <input class="search-input" id="q-search" placeholder="🔍 Search quotes...">
+      <select id="q-filter" style="width:auto">
         <option value="">All Statuses</option>
         <option value="draft">Draft</option>
         <option value="sent">Sent</option>
@@ -1653,7 +1653,7 @@ table{font-size:12.5px}
         <option value="declined">Lost</option>
         <option value="followup">Follow-Up</option>
       </select>
-      <select id="q-sort" style="width:auto" onchange="renderQuotes()">
+      <select id="q-sort" style="width:auto">
         <option value="priority">Sort: Priority</option>
         <option value="date-desc">Sort: Newest First</option>
         <option value="date-asc">Sort: Oldest First</option>
@@ -14124,7 +14124,7 @@ document.addEventListener('input', function(e) {
   if (el.id === 'qq-mk') { onMarginManualChange(); return; }
   if (el.id === 'qq-env') { _envManualOverride = false; onEnvChange(); return; }
   // Search/filter on quotes/catalog
-  if (el.id === 'q-search' || el.id === 'q-filter') renderQuotes();
+  if (el.id === 'q-search' || el.id === 'q-filter' || el.id === 'q-sort') renderQuotes();
   if (el.id === 'cat-search' || el.id === 'cat-filter') renderCatalog();
   if (el.id === 'cp-search') renderCPick();
   if (el.id === 'tlib-search') tlibOnSearch(el.value);
@@ -14137,7 +14137,7 @@ document.addEventListener('input', function(e) {
 document.addEventListener('change', function(e) {
   if (e.target.id === 'qq-env') { _envManualOverride = false; onEnvChange(); }
   if (e.target.id === 'qq-mk') { onMarginManualChange(); }
-  if (e.target.id === 'q-filter') renderQuotes();
+  if (e.target.id === 'q-filter' || e.target.id === 'q-sort') renderQuotes();
   if (e.target.id === 'cat-filter') renderCatalog();
   if (e.target.id === 'cp-cat') renderCPick();
   if (e.target.id === 'rpt-date-filter') renderReports();
