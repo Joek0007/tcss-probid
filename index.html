@@ -482,6 +482,56 @@ label{display:block;font-size:12px;font-weight:700;color:#455a64;margin-bottom:5
 .rework-row.standard{border-left:4px solid #e65100}
 .rework-row.minor{border-left:4px solid #2e7d32}
 
+/* ===== REBUILT DASHBOARD ===== */
+.dash-stat-strip{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-bottom:16px}
+.dash-stat-tile{background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:12px 8px;text-align:center;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+.dash-stat-tile:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.dash-stat-tile.green{border-color:#a5d6a7;background:#f1f8f1}
+.dash-stat-tile.blue{border-color:#90caf9;background:#f0f6ff}
+.dash-stat-tile.purple{border-color:#ce93d8;background:#f8f0ff}
+.dash-stat-tile.teal{border-color:#80cbc4;background:#f0faf9}
+.dash-stat-tile.orange{border-color:#ffb74d;background:#fff8f0}
+.dash-stat-tile.red{border-color:#ef9a9a;background:#fff0f0}
+.dash-stat-icon{font-size:18px;margin-bottom:4px}
+.dash-stat-val{font-size:18px;font-weight:900;color:#0d1b2a;letter-spacing:-.5px;line-height:1}
+.dash-stat-lbl{font-size:9px;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-top:3px;font-weight:700}
+.dash-main-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.dash-col-left,.dash-col-right{display:flex;flex-direction:column;gap:14px}
+.dash-card{padding:14px 16px}
+.dash-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.dash-card-title{font-size:13px;font-weight:700;color:#0d1b2a}
+.dash-field-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5}
+.dash-field-row:last-child{border-bottom:none}
+.dash-field-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.dash-field-status{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.dash-field-status.in{background:#e8f5e9;color:#2e7d32}
+.dash-field-status.break{background:#fff3e0;color:#e65100}
+.dash-field-status.lunch{background:#f3e5f5;color:#6a1b9a}
+.dash-field-status.out{background:#f5f5f5;color:#90a4ae}
+.dash-job-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5}
+.dash-job-row:last-child{border-bottom:none}
+.dash-wt-row{padding:8px 0;border-bottom:1px solid #f5f5f5}
+.dash-wt-row:last-child{border-bottom:none}
+.dash-tool-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f5f5f5}
+.dash-tool-row:last-child{border-bottom:none}
+.dash-quote-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5}
+.dash-quote-row:last-child{border-bottom:none}
+@media(max-width:900px){
+  .dash-stat-strip{grid-template-columns:repeat(4,1fr)}
+  .dash-main-grid{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .dash-stat-strip{grid-template-columns:repeat(2,1fr)}
+}
+body.dark-mode .dash-stat-tile{background:#1e1e1e!important;border-color:#333!important}
+body.dark-mode .dash-stat-tile.green{background:#1a2e1a!important}
+body.dark-mode .dash-stat-tile.blue{background:#1a2040!important}
+body.dark-mode .dash-stat-tile.purple{background:#2a1a2e!important}
+body.dark-mode .dash-stat-tile.teal{background:#1a2a2a!important}
+body.dark-mode .dash-stat-tile.orange{background:#2a1e10!important}
+body.dark-mode .dash-stat-tile.red{background:#2a1a1a!important}
+body.dark-mode .dash-stat-val{color:#e0e0e0!important}
+
 /* ===== CUSTOMER PROFILE ===== */
 .cp-tab{padding:12px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#546e7a;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap}
 .cp-tab.active{color:#1565c0;border-bottom-color:#1565c0;background:#f8f9fa}
@@ -923,54 +973,146 @@ table{font-size:12.5px}
 
 <!-- DASHBOARD -->
 <div class="page active" id="page-dash">
-  <div class="page-header"><h2>📊 Dashboard</h2><div><button class="btn btn-outline btn-sm" data-action="refreshDash">↻ Refresh</button></div></div>
+  <div class="page-header">
+    <h2>📊 Dashboard</h2>
+    <div style="display:flex;gap:8px">
+      <span id="dash-last-updated" style="font-size:11px;color:#90a4ae;align-self:center"></span>
+      <button class="btn btn-outline btn-sm" data-action="refreshDash">↻ Refresh</button>
+    </div>
+  </div>
 
   <!-- Alert Bar -->
-  <div class="alert-bar" id="dash-alert-bar">
+  <div class="alert-bar" id="dash-alert-bar" style="display:none">
     <div class="alert-bar-title">⚠️ Needs Attention</div>
     <div id="dash-alert-list"></div>
   </div>
 
-  <!-- Absence alerts — top of dashboard, hard to miss -->
+  <!-- Absence alerts — always at top, high visibility -->
   <div id="dash-absence-alerts" style="display:none"></div>
 
-  <!-- Stats -->
-  <div class="stat-grid">
-    <div class="stat-card"><div class="stat-val" id="ds-tq">0</div><div class="stat-lbl">Total Quotes</div></div>
-    <div class="stat-card green"><div class="stat-val" id="ds-rev">$0</div><div class="stat-lbl">Revenue Quoted</div></div>
-    <div class="stat-card teal"><div class="stat-val" id="ds-won-rev">$0</div><div class="stat-lbl">Revenue Won</div></div>
-    <div class="stat-card orange"><div class="stat-val" id="ds-margin">0%</div><div class="stat-lbl">Avg Margin</div></div>
-    <div class="stat-card purple"><div class="stat-val" id="ds-active-jobs">0</div><div class="stat-lbl">Jobs Active</div></div>
-    <div class="stat-card red"><div class="stat-val" id="ds-followups">0</div><div class="stat-lbl">Follow-Ups Due</div></div>
-  </div>
-
-  <!-- Pipeline -->
-  <div class="card">
-    <div class="card-title">📊 Quote Pipeline</div>
-    <div class="pipeline-bar" id="pipeline-bar"></div>
-    <div class="pipeline-legend" id="pipeline-legend"></div>
-    <div id="pipeline-detail" style="margin-top:10px;font-size:12px;color:#546e7a"></div>
-  </div>
-
-  <!-- Recent quotes + Active jobs -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-    <div class="card">
-      <div class="card-title">📋 Recent Quotes</div>
-      <table><thead><tr><th>#</th><th>Customer</th><th>Total</th><th>Status</th><th></th></tr></thead>
-      <tbody id="dash-tbl"><tr><td colspan="5" class="empty-state"><p>No quotes yet.</p></td></tr></tbody></table>
+  <!-- TOP STAT STRIP -->
+  <div class="dash-stat-strip" id="dash-stat-strip">
+    <div class="dash-stat-tile" onclick="goPage('quotes')">
+      <div class="dash-stat-icon">📋</div>
+      <div class="dash-stat-val" id="ds-tq">0</div>
+      <div class="dash-stat-lbl">Total Quotes</div>
     </div>
-    <div class="card">
-      <div class="card-title">🔧 Active Jobs</div>
-      <table><thead><tr><th>Job</th><th>Customer</th><th>Status</th><th></th></tr></thead>
-      <tbody id="dash-jobs-tbl"><tr><td colspan="4" class="empty-state"><p>No active jobs.</p></td></tr></tbody></table>
+    <div class="dash-stat-tile green" onclick="goPage('quotes')">
+      <div class="dash-stat-icon">💰</div>
+      <div class="dash-stat-val" id="ds-won-rev">$0</div>
+      <div class="dash-stat-lbl">Revenue Won</div>
+    </div>
+    <div class="dash-stat-tile blue" onclick="goPage('jobs')">
+      <div class="dash-stat-icon">🔧</div>
+      <div class="dash-stat-val" id="ds-active-jobs">0</div>
+      <div class="dash-stat-lbl">Active Jobs</div>
+    </div>
+    <div class="dash-stat-tile purple" onclick="goPage('field')">
+      <div class="dash-stat-icon">👷</div>
+      <div class="dash-stat-val" id="ds-clocked-in">0</div>
+      <div class="dash-stat-lbl">Clocked In</div>
+    </div>
+    <div class="dash-stat-tile teal" onclick="goPage('worktracking')">
+      <div class="dash-stat-icon">✅</div>
+      <div class="dash-stat-val" id="ds-wt-pct">—</div>
+      <div class="dash-stat-lbl">Avg Project %</div>
+    </div>
+    <div class="dash-stat-tile orange" onclick="goPage('tools')">
+      <div class="dash-stat-icon">🔩</div>
+      <div class="dash-stat-val" id="ds-tools-out">0</div>
+      <div class="dash-stat-lbl">Tools Out</div>
+    </div>
+    <div class="dash-stat-tile red" onclick="goPage('quotes')">
+      <div class="dash-stat-icon">📅</div>
+      <div class="dash-stat-val" id="ds-followups">0</div>
+      <div class="dash-stat-lbl">Follow-Ups Due</div>
+    </div>
+    <div class="dash-stat-tile" onclick="goPage('timesheet')">
+      <div class="dash-stat-icon">⚠</div>
+      <div class="dash-stat-val" id="ds-flags">0</div>
+      <div class="dash-stat-lbl">Open Flags</div>
     </div>
   </div>
 
-  <!-- Follow-ups due -->
-  <div class="card" id="dash-followup-card" style="display:none">
-    <div class="card-title">📅 Follow-Ups Due</div>
-    <table><thead><tr><th>#</th><th>Customer</th><th>Job Name</th><th>Due Date</th><th>Actions</th></tr></thead>
-    <tbody id="dash-followup-tbl"></tbody></table>
+  <!-- MAIN GRID -->
+  <div class="dash-main-grid">
+
+    <!-- LEFT COLUMN -->
+    <div class="dash-col-left">
+
+      <!-- Field Activity -->
+      <div class="card dash-card" id="dash-field-card">
+        <div class="dash-card-head">
+          <span class="dash-card-title">👷 Field Activity</span>
+          <button class="btn btn-ghost btn-sm" onclick="goPage('field')">Time Clock →</button>
+        </div>
+        <div id="dash-field-activity"></div>
+      </div>
+
+      <!-- Today's Absences (only shows if any) -->
+      <div class="card dash-card" id="dash-absence-card" style="display:none">
+        <div class="dash-card-head">
+          <span class="dash-card-title">🚨 Out Today</span>
+          <span id="dash-absence-count" style="font-size:11px;color:#c62828;font-weight:700"></span>
+        </div>
+        <div id="dash-absence-detail"></div>
+      </div>
+
+      <!-- Active Jobs -->
+      <div class="card dash-card">
+        <div class="dash-card-head">
+          <span class="dash-card-title">🔧 Active Jobs</span>
+          <button class="btn btn-ghost btn-sm" onclick="goPage('jobs')">All Jobs →</button>
+        </div>
+        <div id="dash-jobs-list"></div>
+      </div>
+
+      <!-- Follow-ups due -->
+      <div class="card dash-card" id="dash-followup-card" style="display:none">
+        <div class="dash-card-head">
+          <span class="dash-card-title">📅 Follow-Ups Due</span>
+          <span id="dash-followup-count" style="font-size:11px;color:#e65100;font-weight:700"></span>
+        </div>
+        <table><thead><tr><th>#</th><th>Customer</th><th>Job Name</th><th>Due</th><th></th></tr></thead>
+        <tbody id="dash-followup-tbl"></tbody></table>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="dash-col-right">
+
+      <!-- Quote Pipeline -->
+      <div class="card dash-card">
+        <div class="dash-card-head">
+          <span class="dash-card-title">📊 Quote Pipeline</span>
+          <button class="btn btn-ghost btn-sm" onclick="goPage('quotes')">All Quotes →</button>
+        </div>
+        <div class="pipeline-bar" id="pipeline-bar"></div>
+        <div class="pipeline-legend" id="pipeline-legend"></div>
+        <div id="pipeline-detail" style="margin-top:8px;font-size:12px;color:#546e7a"></div>
+        <div id="dash-recent-quotes-list" style="margin-top:12px"></div>
+      </div>
+
+      <!-- Project Progress -->
+      <div class="card dash-card" id="dash-wt-card">
+        <div class="dash-card-head">
+          <span class="dash-card-title">✅ Project Progress</span>
+          <button class="btn btn-ghost btn-sm" onclick="goPage('worktracking')">All Projects →</button>
+        </div>
+        <div id="dash-wt-projects"></div>
+      </div>
+
+      <!-- Tools Overview -->
+      <div class="card dash-card">
+        <div class="dash-card-head">
+          <span class="dash-card-title">🔩 Tools</span>
+          <button class="btn btn-ghost btn-sm" onclick="goPage('tools')">Manage →</button>
+        </div>
+        <div id="dash-tools-overview"></div>
+      </div>
+
+    </div>
   </div>
 </div>
 
@@ -14546,69 +14688,320 @@ function renderQuotes() {
 
 function renderDash() {
   const today = getTodayISO();
-  let tq=0, rev=0, wonRev=0, totalMargin=0, marginCount=0, followupsDue=0, aging7=0, aging14=0, aging30=0, draftsNotReady=0;
+
+  // ---- QUOTE METRICS ----
+  let tq=0, rev=0, wonRev=0, totalMargin=0, marginCount=0, followupsDue=0,
+      aging7=0, aging14=0, aging30=0, draftsNotReady=0;
   const pipeline = { draft:0, sent:0, followup:0, approved:0, declined:0 };
   DB.quotes.forEach(function(q) {
-    tq++; rev += q.total||0; if (q.status==='approved') wonRev += q.total||0; if (q.achievedMargin!=null) { totalMargin += q.achievedMargin; marginCount++; }
+    tq++; rev += q.total||0;
+    if (q.status==='approved') wonRev += q.total||0;
+    if (q.achievedMargin!=null) { totalMargin += q.achievedMargin; marginCount++; }
     pipeline[q.status||'draft'] = (pipeline[q.status||'draft']||0) + 1;
     if (isFollowupDue(q)) followupsDue++;
-    var ageBase = q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || '';
-    if (ageBase && q.status !== 'approved' && q.status !== 'declined') {
-      var age = Math.floor((new Date(today) - new Date(ageBase))/86400000);
-      if (age >= 7) aging7++;
-      if (age >= 14) aging14++;
-      if (age >= 30) aging30++;
+    var ageBase = q.createdDate||((q.createdAt||'').split('T')[0])||q.dt||'';
+    if (ageBase && q.status!=='approved' && q.status!=='declined') {
+      var age = Math.floor((new Date(today)-new Date(ageBase))/86400000);
+      if (age>=7) aging7++; if (age>=14) aging14++; if (age>=30) aging30++;
     }
-    if ((q.status||'draft') === 'draft' && String(q.readiness||'').toUpperCase() !== 'READY') draftsNotReady++;
+    if ((q.status||'draft')==='draft'&&String(q.readiness||'').toUpperCase()!=='READY') draftsNotReady++;
   });
-  const activeJobs = DB.jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; }).length;
-  function setT(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
-  setT('ds-tq', tq); setT('ds-rev', '$' + Math.round(rev).toLocaleString()); setT('ds-won-rev', '$' + Math.round(wonRev).toLocaleString()); setT('ds-margin', marginCount>0 ? pct(totalMargin/marginCount) : '0%'); setT('ds-active-jobs', activeJobs); setT('ds-followups', followupsDue);
 
-  const pipelineBar = document.getElementById('pipeline-bar'); const pipelineLegend = document.getElementById('pipeline-legend'); const pipelineDetail = document.getElementById('pipeline-detail');
-  const PIPE_COLORS = { draft:'#607d8b', sent:'#1565c0', followup:'#6a1b9a', approved:'#2e7d32', declined:'#c62828' };
-  const PIPE_LABELS = { draft:'Draft', sent:'Sent', followup:'Follow-Up', approved:'Won', declined:'Lost' };
-  if (pipelineBar && tq > 0) {
-    pipelineBar.innerHTML = Object.keys(pipeline).map(function(k) {
-      var count = pipeline[k]||0; if (!count) return ''; var pct2 = count / tq * 100; var showNum = pct2 >= 6;
-      return '<div class="pipeline-seg ' + k + '" style="width:' + pct2 + '%;min-width:' + (count>0?'24px':'0') + '">' + (showNum ? '<span style="pointer-events:none">' + count + '</span>' : '') + '</div>';
+  // ---- JOB METRICS ----
+  const activeJobs = DB.jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; });
+
+  // ---- FIELD ACTIVITY ----
+  // Who's clocked in today (from workDays with no totalPaidMins = still active)
+  const todayWorkDays = (DB.workDays||[]).filter(function(d){ return d.date===today&&!d.totalPaidMins; });
+  // Also include current user if clocked in
+  var liveUsers = todayWorkDays.map(function(d){ return {name:d.techName,status:'onsite',job:''}; });
+  if (_clockState.status!=='out'&&_currentUser) {
+    var alreadyIn = liveUsers.find(function(u){ return u.name===_currentUser.full_name; });
+    if (!alreadyIn) liveUsers.unshift({name:_currentUser.full_name,status:_clockState.status,job:_clockState.jobName||''});
+    else { alreadyIn.status=_clockState.status; alreadyIn.job=_clockState.jobName||''; }
+  }
+  var teamTotal = (DB.team||[]).length;
+  var clockedInCount = liveUsers.length;
+
+  // ---- TOOLS ----
+  const toolsOut = (DB.toolCheckouts||[]).filter(function(c){ return !c.returnedAt&&c.status!=='verified'; }).length;
+  const pendingVerify = (DB.toolCheckouts||[]).filter(function(c){ return c.status==='pending_verify'; }).length;
+  const toolFlags = (DB.tools||[]).filter(function(t){ return t.flags&&t.flags.length; }).length;
+
+  // ---- WORK TRACKING ----
+  const wtProjects = (DB.wtProjects||[]);
+  var wtPcts = wtProjects.map(function(p){
+    var items=(DB.wtItems||[]).filter(function(i){return i.projectId===p.id;});
+    var done=items.filter(function(i){return i.status==='done';}).length;
+    return items.length?Math.round(done/items.length*100):0;
+  });
+  var wtAvg = wtPcts.length?Math.round(wtPcts.reduce(function(s,v){return s+v;},0)/wtPcts.length):null;
+
+  // ---- OPEN FLAGS ----
+  var openFlags = (DB.lunchFlags||[]).filter(function(f){return f.status==='pending_review';}).length;
+  openFlags += (DB.timeOffRequests||[]).filter(function(r){return r.status==='pending';}).length;
+
+  // ---- ABSENCES TODAY ----
+  var todayAbsences = (DB.absences||[]).filter(function(a){return a.date===today;});
+
+  // ---- UPDATE STAT TILES ----
+  function setT(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
+  setT('ds-tq', tq);
+  setT('ds-won-rev', '$'+Math.round(wonRev).toLocaleString());
+  setT('ds-active-jobs', activeJobs.length);
+  setT('ds-clocked-in', clockedInCount+(teamTotal?' / '+teamTotal:''));
+  setT('ds-wt-pct', wtAvg!==null?wtAvg+'%':'—');
+  setT('ds-tools-out', toolsOut);
+  setT('ds-followups', followupsDue);
+  setT('ds-flags', openFlags);
+  var lastUpdated = document.getElementById('dash-last-updated');
+  if (lastUpdated) lastUpdated.textContent = 'Updated '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+
+  // ---- ALERT BAR ----
+  buildAlerts();
+
+  // ---- ABSENCE CARD ----
+  var absCard = document.getElementById('dash-absence-card');
+  var absDetail = document.getElementById('dash-absence-detail');
+  var absCount = document.getElementById('dash-absence-count');
+  if (absCard) absCard.style.display = todayAbsences.length?'block':'none';
+  if (absCount) absCount.textContent = todayAbsences.length+' team member'+(todayAbsences.length!==1?'s':'')+' out';
+  if (absDetail && todayAbsences.length) {
+    var covLabels={pto:'PTO',vacation:'Vacation',makeup:'Make up',unpaid:'Unpaid'};
+    absDetail.innerHTML = todayAbsences.map(function(a){
+      return '<div class="dash-field-row">'+
+        '<div class="dash-field-avatar" style="background:#ffebee;color:#c62828">'+escHtml((a.techName||'?')[0].toUpperCase())+'</div>'+
+        '<div style="flex:1">'+
+          '<div style="font-weight:700;font-size:13px">'+escHtml(a.techName||'')+'</div>'+
+          '<div style="font-size:11px;color:#546e7a">'+escHtml(a.reasonLabel||a.reason||'')+(a.coverage?' · '+escHtml(covLabels[a.coverage]||a.coverage):'')+'</div>'+
+        '</div>'+
+        (a.isLate?'<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">Late</span>':
+                  '<span style="background:#e8f5e9;color:#2e7d32;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">On time</span>')+
+      '</div>';
     }).join('');
-    pipelineLegend.innerHTML = Object.keys(pipeline).map(function(k) { if (!pipeline[k]) return ''; return '<div class="pipeline-legend-item"><div class="pipeline-legend-dot" style="background:' + PIPE_COLORS[k] + '"></div><span>' + PIPE_LABELS[k] + ': <strong>' + pipeline[k] + '</strong></span></div>'; }).join('');
+  }
+  // Also update the old absence alerts div for compatibility
+  renderAbsenceDashboard();
+
+  // ---- FIELD ACTIVITY ----
+  var fieldEl = document.getElementById('dash-field-activity');
+  if (fieldEl) {
+    var statusLabels={at_homebase:'At Base',traveling:'Traveling',onsite:'On Site',break:'On Break',lunch:'At Lunch',returning:'Returning',out:'Not started'};
+    var statusColors={at_homebase:'#1565c0',traveling:'#1565c0',onsite:'#2e7d32',break:'#e65100',lunch:'#6a1b9a',returning:'#1565c0',out:'#90a4ae'};
+    var statusBgs={at_homebase:'#e3f2fd',traveling:'#e3f2fd',onsite:'#e8f5e9',break:'#fff3e0',lunch:'#f3e5f5',returning:'#e3f2fd',out:'#f5f5f5'};
+
+    // Show all team members with their status
+    var allTeam = (DB.team||[]).map(function(m){
+      var live = liveUsers.find(function(u){ return u.name===m.name; });
+      return {name:m.name, status:live?live.status:'out', job:live?live.job:''};
+    });
+    // Put clocked-in at top
+    allTeam.sort(function(a,b){ return (a.status==='out'?1:0)-(b.status==='out'?1:0); });
+    if (!allTeam.length && !liveUsers.length) {
+      fieldEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No team members configured.</div>';
+    } else {
+      var toShow = allTeam.slice(0,8);
+      fieldEl.innerHTML = toShow.map(function(t){
+        var initials=(t.name||'?').split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
+        var bgColor=statusBgs[t.status]||'#f5f5f5';
+        var txColor=statusColors[t.status]||'#90a4ae';
+        return '<div class="dash-field-row">'+
+          '<div class="dash-field-avatar" style="background:'+bgColor+';color:'+txColor+'">'+escHtml(initials)+'</div>'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-weight:700;font-size:13px">'+escHtml(t.name||'')+'</div>'+
+            (t.job?'<div style="font-size:11px;color:#546e7a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(t.job)+'</div>':'')+
+          '</div>'+
+          '<span class="dash-field-status '+(t.status==='out'?'out':t.status==='break'?'break':t.status==='lunch'?'lunch':'in')+'">'+
+            escHtml(statusLabels[t.status]||t.status)+
+          '</span>'+
+        '</div>';
+      }).join('');
+      if (allTeam.length > 8) fieldEl.innerHTML += '<div style="font-size:11px;color:#90a4ae;padding:6px 0">+'+( allTeam.length-8)+' more team members</div>';
+    }
+  }
+
+  // ---- ACTIVE JOBS ----
+  var jobsEl = document.getElementById('dash-jobs-list');
+  if (jobsEl) {
+    if (!activeJobs.length) {
+      jobsEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No active jobs right now.</div>';
+    } else {
+      jobsEl.innerHTML = activeJobs.slice(0,6).map(function(j){
+        // Find linked WT project progress
+        var wtProj = (DB.wtProjects||[]).find(function(p){ return p.jobId===j.id||(p.customer||'').toLowerCase()===(j.customer||'').toLowerCase(); });
+        var pct = null;
+        if (wtProj) {
+          var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
+          var done=items.filter(function(i){return i.status==='done';}).length;
+          pct=items.length?Math.round(done/items.length*100):0;
+        }
+        var scColor=j.status==='In Progress'?'#2e7d32':'#1565c0';
+        var scBg=j.status==='In Progress'?'#e8f5e9':'#e3f2fd';
+        return '<div class="dash-job-row">'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-weight:700;font-size:13px">'+escHtml(j.name||'')+'</div>'+
+            '<div style="font-size:11px;color:#546e7a">'+escHtml(j.customer||'—')+(j.assignedTo?' · '+escHtml(j.assignedTo):'')+'</div>'+
+            (pct!==null?'<div class="wt-progress-bar" style="width:120px;margin-top:4px;height:5px;border-radius:3px"><div class="wt-progress-fill" style="width:'+pct+'%;height:5px"></div></div>':'')+''+
+          '</div>'+
+          '<div style="display:flex;align-items:center;gap:6px">'+
+            (pct!==null?'<span style="font-size:11px;font-weight:700;color:#1565c0">'+pct+'%</span>':'')+
+            '<span style="background:'+scBg+';color:'+scColor+';border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">'+escHtml(j.status)+'</span>'+
+          '</div>'+
+        '</div>';
+      }).join('');
+      if (activeJobs.length>6) jobsEl.innerHTML+='<div style="font-size:11px;color:#90a4ae;padding:6px 0;text-align:center">+'+( activeJobs.length-6)+' more — <a href="#" onclick="goPage(\'jobs\');return false" style="color:#1565c0">view all</a></div>';
+    }
+  }
+
+  // ---- FOLLOW-UPS ----
+  const fuCard = document.getElementById('dash-followup-card');
+  const fuTbl  = document.getElementById('dash-followup-tbl');
+  const fuCount = document.getElementById('dash-followup-count');
+  const dueFups = DB.quotes.filter(isFollowupDue).sort(function(a,b){
+    return (isFollowupOverdue(b)?1:0)-(isFollowupOverdue(a)?1:0)||new Date(a.followupDate||today)-new Date(b.followupDate||today);
+  });
+  if (fuCard) fuCard.style.display = dueFups.length?'block':'none';
+  if (fuCount) fuCount.textContent = dueFups.length+' pending';
+  if (fuTbl && dueFups.length) {
+    fuTbl.innerHTML = dueFups.map(function(q){
+      var overdue=isFollowupOverdue(q);
+      return '<tr style="'+(overdue?'background:#fff8f8':'')+'">'+
+        '<td style="font-weight:700;color:#1565c0;font-size:12px">'+escHtml(q.num||'')+'</td>'+
+        '<td style="font-size:12px">'+escHtml(q.cn||'')+'</td>'+
+        '<td style="font-size:12px">'+escHtml(q.jn||'')+'</td>'+
+        '<td style="font-weight:700;color:'+(overdue?'#c62828':'#e65100')+'">'+escHtml(q.followupDate||'')+(overdue?' ⚠️':'')+'</td>'+
+        '<td style="white-space:nowrap">'+
+          '<button class="btn btn-outline btn-sm" data-action="editQuote" data-id="'+q.id+'">Edit</button> '+
+          '<button class="btn btn-ghost btn-sm" data-action="snoozeFollowup" data-id="'+q.id+'">Snooze 3d</button>'+
+        '</td>'+
+      '</tr>';
+    }).join('');
+  }
+
+  // ---- PIPELINE ----
+  const pipelineBar = document.getElementById('pipeline-bar');
+  const pipelineLegend = document.getElementById('pipeline-legend');
+  const pipelineDetail = document.getElementById('pipeline-detail');
+  const PIPE_COLORS={draft:'#607d8b',sent:'#1565c0',followup:'#6a1b9a',approved:'#2e7d32',declined:'#c62828'};
+  const PIPE_LABELS={draft:'Draft',sent:'Sent',followup:'Follow-Up',approved:'Won',declined:'Lost'};
+  if (pipelineBar&&tq>0) {
+    pipelineBar.innerHTML=Object.keys(pipeline).map(function(k){
+      var count=pipeline[k]||0;if(!count)return'';var pct2=count/tq*100;var showNum=pct2>=6;
+      return '<div class="pipeline-seg '+k+'" style="width:'+pct2+'%;min-width:'+(count>0?'24px':'0')+'">'+(showNum?'<span style="pointer-events:none">'+count+'</span>':'')+'</div>';
+    }).join('');
+    pipelineLegend.innerHTML=Object.keys(pipeline).map(function(k){
+      if(!pipeline[k])return'';
+      return '<div class="pipeline-legend-item"><div class="pipeline-legend-dot" style="background:'+PIPE_COLORS[k]+'"></div><span>'+PIPE_LABELS[k]+': <strong>'+pipeline[k]+'</strong></span></div>';
+    }).join('');
     if (pipelineDetail) {
-      const winRate = tq > 0 ? ((pipeline.approved||0)/tq*100).toFixed(0) : 0;
-      pipelineDetail.innerHTML = 'Win rate: <strong>' + winRate + '%</strong> &nbsp;·&nbsp; Follow-ups due: <strong>' + followupsDue + '</strong> &nbsp;·&nbsp; Aging 7/14/30: <strong>' + aging7 + ' / ' + aging14 + ' / ' + aging30 + '</strong> &nbsp;·&nbsp; Drafts not ready: <strong>' + draftsNotReady + '</strong>';
+      var winRate=tq>0?((pipeline.approved||0)/tq*100).toFixed(0):0;
+      pipelineDetail.innerHTML='Win rate: <strong>'+winRate+'%</strong> &nbsp;·&nbsp; Aging 7/14/30d: <strong>'+aging7+' / '+aging14+' / '+aging30+'</strong> &nbsp;·&nbsp; Avg margin: <strong>'+(marginCount>0?pct(totalMargin/marginCount):'—')+'</strong>';
     }
   } else if (pipelineBar) {
-    pipelineBar.innerHTML = '<div style="width:100%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#90a4ae">No quotes yet</div>'; if (pipelineLegend) pipelineLegend.innerHTML = '';
+    pipelineBar.innerHTML='<div style="width:100%;background:#f0f0f0;height:32px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#90a4ae;border-radius:6px">No quotes yet</div>';
+    if(pipelineLegend)pipelineLegend.innerHTML='';
   }
 
-  const dashTbl = document.getElementById('dash-tbl');
-  if (dashTbl) {
-    const recent = DB.quotes.slice().sort(function(a,b){ return getQuotePriority(a).sort - getQuotePriority(b).sort || (new Date(b.dt||b.createdAt||0)-new Date(a.dt||a.createdAt||0)); }).slice(0, 8);
-    if (recent.length === 0) dashTbl.innerHTML = '<tr><td colspan="5" class="empty-state"><p>No quotes yet. Click + New Quote to start.</p></td></tr>';
-    else dashTbl.innerHTML = recent.map(function(q) {
-      const fu = isFollowupDue(q) ? '<span class="followup-due' + (isFollowupOverdue(q)?' followup-overdue':'') + '">Follow-Up</span>' : '';
-      return '<tr><td style="font-weight:700;color:#1565c0;font-size:12px">' + escHtml(q.num||'') + '</td><td style="font-size:12px">' + escHtml(q.cn||'') + '</td><td style="font-weight:700;font-size:12px">' + fmt(q.total||0) + '</td><td><span class="status-badge s-' + (q.status||'draft') + '">' + (q.status||'draft') + '</span>' + fu + '</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-action="editQuote" data-id="' + q.id + '">Edit</button>' + (q.status !== 'approved' && q.status !== 'declined' ? ' <button class="btn btn-convert btn-sm" data-action="convertToJob" data-id="' + q.id + '" title="Convert to Job">▶ Job</button>' : '') + '</td></tr>';
-    }).join('');
+  // Recent quotes under pipeline
+  var rqEl = document.getElementById('dash-recent-quotes-list');
+  if (rqEl) {
+    var recentQ = DB.quotes.slice().sort(function(a,b){
+      return getQuotePriority(a).sort-getQuotePriority(b).sort||new Date(b.dt||b.createdAt||0)-new Date(a.dt||a.createdAt||0);
+    }).slice(0,5);
+    rqEl.innerHTML = recentQ.length ? recentQ.map(function(q){
+      var fu=isFollowupDue(q)?'<span class="followup-due'+(isFollowupOverdue(q)?' followup-overdue':'')+'"> FU</span>':'';
+      return '<div class="dash-quote-row">'+
+        '<div>'+
+          '<span style="font-weight:700;color:#1565c0;font-size:12px">'+escHtml(q.num||'')+'</span>'+
+          ' <span style="font-size:12px">'+escHtml(q.cn||'')+'</span>'+fu+
+          '<div style="font-size:11px;color:#546e7a">'+escHtml(q.jn||'')+'</div>'+
+        '</div>'+
+        '<div style="text-align:right">'+
+          '<div style="font-weight:700;font-size:13px">'+fmt(q.total||0)+'</div>'+
+          '<span class="status-badge s-'+(q.status||'draft')+'" style="font-size:9px">'+(q.status||'draft')+'</span>'+
+        '</div>'+
+      '</div>';
+    }).join('') : '<div style="color:#90a4ae;font-size:13px">No quotes yet.</div>';
   }
 
-  const dashJobsTbl = document.getElementById('dash-jobs-tbl');
-  if (dashJobsTbl) {
-    const active = DB.jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; }).slice(0,6);
-    if (active.length === 0) dashJobsTbl.innerHTML = '<tr><td colspan="4" class="empty-state"><p>No active jobs.</p></td></tr>';
-    else dashJobsTbl.innerHTML = active.map(function(j) { const sc = j.status==='In Progress'?'s-inprogress':'s-pending'; return '<tr><td style="font-weight:700;font-size:12px">' + escHtml(j.name||'') + '</td><td style="font-size:12px">' + escHtml(j.customer||'') + '</td><td><span class="status-badge ' + sc + '" style="font-size:10px">' + escHtml(j.status) + '</span></td><td><button class="btn btn-ghost btn-sm" data-action="goJobsPage">View</button></td></tr>'; }).join('');
+  // ---- WORK TRACKING PROJECTS ----
+  var wtEl = document.getElementById('dash-wt-projects');
+  var wtCard = document.getElementById('dash-wt-card');
+  if (wtEl) {
+    var activeWTP = (DB.wtProjects||[]).slice(0,4);
+    if (!activeWTP.length) {
+      wtEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No work tracking projects yet.</div>';
+      if(wtCard) wtCard.style.display='none';
+    } else {
+      if(wtCard) wtCard.style.display='block';
+      wtEl.innerHTML = activeWTP.map(function(p){
+        var items=(DB.wtItems||[]).filter(function(i){return i.projectId===p.id;});
+        var done=items.filter(function(i){return i.status==='done';}).length;
+        var rough=items.filter(function(i){return (i.phaseStatus&&i.phaseStatus.rough)==='done';}).length;
+        var device=items.filter(function(i){return (i.phaseStatus&&i.phaseStatus.device)==='done';}).length;
+        var test=items.filter(function(i){return (i.phaseStatus&&i.phaseStatus.test)==='done';}).length;
+        var pct2=items.length?Math.round(done/items.length*100):0;
+        var pending=(DB.wtCheckoffs||[]).filter(function(c){return c.projectId===p.id&&!c.confirmed;}).length;
+        return '<div class="dash-wt-row">'+
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'+
+            '<div style="font-weight:700;font-size:13px">'+escHtml(p.name||'')+'</div>'+
+            '<div style="display:flex;align-items:center;gap:6px">'+
+              (pending?'<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700">'+pending+' to confirm</span>':'')+
+              '<span style="font-weight:800;font-size:13px;color:#1565c0">'+pct2+'%</span>'+
+            '</div>'+
+          '</div>'+
+          '<div class="wt-progress-bar" style="height:6px;border-radius:3px;margin-bottom:4px"><div class="wt-progress-fill" style="width:'+pct2+'%;height:6px"></div></div>'+
+          '<div style="display:flex;gap:10px;font-size:10px;color:#90a4ae">'+
+            '<span>R: '+rough+'/'+items.length+'</span>'+
+            '<span>D: '+device+'/'+items.length+'</span>'+
+            '<span>T: '+test+'/'+items.length+'</span>'+
+            (p.leadTech?'<span>Lead: '+escHtml(p.leadTech)+'</span>':'')+
+          '</div>'+
+        '</div>';
+      }).join('');
+    }
   }
 
-  const fuCard = document.getElementById('dash-followup-card'); const fuTbl = document.getElementById('dash-followup-tbl');
-  const dueFups = DB.quotes.filter(isFollowupDue).sort(function(a,b){ return (isFollowupOverdue(b)?1:0) - (isFollowupOverdue(a)?1:0) || new Date(a.followupDate||today) - new Date(b.followupDate||today); });
-  if (fuCard) fuCard.style.display = dueFups.length > 0 ? 'block' : 'none';
-  if (fuTbl && dueFups.length > 0) {
-    fuTbl.innerHTML = dueFups.map(function(q) { const overdue = isFollowupOverdue(q); return '<tr style="' + (overdue?'background:#fff8f8':'') + '"><td style="font-weight:700;color:#1565c0;font-size:12px">' + escHtml(q.num||'') + '</td><td>' + escHtml(q.cn||'') + '</td><td>' + escHtml(q.jn||'') + '</td><td style="font-weight:700;color:' + (overdue?'#c62828':'#e65100') + '">' + (q.followupDate||'') + (overdue?' ⚠️':'') + '</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" data-action="editQuote" data-id="' + q.id + '">Edit Quote</button> <button class="btn btn-ghost btn-sm" data-action="snoozeFollowup" data-id="' + q.id + '">Snooze 3d</button></td></tr>'; }).join('');
+  // ---- TOOLS OVERVIEW ----
+  var toolsEl = document.getElementById('dash-tools-overview');
+  if (toolsEl) {
+    var checkedOut = (DB.toolCheckouts||[]).filter(function(c){return !c.returnedAt&&c.status!=='verified';});
+    var pv = checkedOut.filter(function(c){return c.status==='pending_verify';});
+    var overdue = checkedOut.filter(function(c){
+      return c.expectedReturn&&c.expectedReturn<today&&c.status!=='pending_verify';
+    });
+    if (!checkedOut.length) {
+      toolsEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">All tools accounted for.</div>';
+    } else {
+      toolsEl.innerHTML=
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">'+
+          dashMini(checkedOut.length,'Out','#1565c0','#e3f2fd')+
+          dashMini(pv.length,'Pending Verify',pv.length?'#e65100':'#2e7d32',pv.length?'#fff3e0':'#e8f5e9')+
+          dashMini(overdue.length,'Overdue',overdue.length?'#c62828':'#2e7d32',overdue.length?'#ffebee':'#e8f5e9')+
+        '</div>'+
+        (overdue.length?
+          '<div style="font-size:12px;font-weight:700;color:#c62828;margin-bottom:6px">⚠ Overdue Returns:</div>'+
+          overdue.slice(0,3).map(function(c){
+            var tool=(DB.tools||[]).find(function(t){return t.id===c.toolId;});
+            return '<div class="dash-tool-row">'+
+              '<span style="font-size:16px">'+(tool&&tool.photoUrl?'':'🔧')+'</span>'+
+              '<div style="flex:1"><div style="font-weight:700;font-size:12px">'+escHtml((tool&&tool.name)||'Tool')+'</div>'+
+              '<div style="font-size:11px;color:#546e7a">'+escHtml(c.toName||'')+'  · Due: '+escHtml(c.expectedReturn||'—')+'</div></div>'+
+            '</div>';
+          }).join(''):'')+
+        (pv.length?'<div style="font-size:12px;color:#e65100;margin-top:4px">'+pv.length+' tool'+(pv.length!==1?'s':'')+' returned, awaiting inspection</div>':'');
+    }
   }
 
-  buildAlerts();
-  const cb = document.getElementById('company-badge'); if (cb) cb.textContent = (DB.settings.cname || 'TCSS').substring(0,12);
-  renderAbsenceDashboard();
+  const cb = document.getElementById('company-badge');
+  if (cb) cb.textContent = (DB.settings.cname||'TCSS').substring(0,12);
+}
+
+function dashMini(val, label, color, bg) {
+  return '<div style="background:'+bg+';border-radius:8px;padding:8px;text-align:center">'+
+    '<div style="font-weight:800;font-size:16px;color:'+color+'">'+val+'</div>'+
+    '<div style="font-size:10px;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'+escHtml(label)+'</div>'+
+  '</div>';
 }
 
 function saveQQ() {
