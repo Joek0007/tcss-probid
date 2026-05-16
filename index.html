@@ -6743,6 +6743,10 @@ function renderToolHistory() {
       ? '<div style="font-size:10px;color:#c62828;margin-top:2px">⚠ '+escHtml(c.discrepancyNote)+'</div>'
       : '';
 
+    var toolPhotoHtml = (displayTool&&displayTool.photoUrl)
+      ? photoThumb(displayTool.photoUrl, (displayTool&&displayTool.name)||'', 40, 'display:block;margin-bottom:4px;flex-shrink:0')
+      : '<div style="width:40px;height:40px;background:#e8eaf6;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:4px;flex-shrink:0">🔧</div>';
+
     var toolLabel = c.isGroupSplit
       ? escHtml((displayTool&&displayTool.name)||c.splitFromTool||'Unknown')+' <span style="font-size:10px;color:#90a4ae">(accessories)</span>'
       : escHtml((displayTool&&displayTool.name)||'Unknown');
@@ -6753,7 +6757,7 @@ function renderToolHistory() {
 
     return '<tr>'+
       '<td>'+assetTag+'</td>'+
-      '<td>'+toolLabel+transferNote+itemsHtml+discrepHtml+'</td>'+
+      '<td><div style="display:flex;align-items:flex-start;gap:8px">'+toolPhotoHtml+'<div>'+toolLabel+transferNote+itemsHtml+discrepHtml+'</div></div></td>'+
       '<td>'+escHtml(c.toName||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.date||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.returnedAt||'—')+'</td>'+
