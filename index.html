@@ -442,6 +442,43 @@ label{display:block;font-size:12px;font-weight:700;color:#455a64;margin-bottom:5
 .ts-ot-chip { background: #fff3e0; color: #e65100; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 700; }
 .leave-bal-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f5f5f5; }
 
+/* ===== WORK TRACKING ===== */
+.wt-view{display:none}
+.wt-view.active{display:block}
+.wt-step-dot{width:30px;height:30px;border-radius:50%;background:#e0e0e0;color:#90a4ae;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;transition:all .2s}
+.wt-step-dot.active{background:#1565c0;color:#fff}
+.wt-step-dot.done{background:#2e7d32;color:#fff}
+.wt-step-line{flex:1;height:2px;background:#e0e0e0;transition:background .2s}
+.wt-step-line.done{background:#2e7d32}
+.wt-system-check{display:flex;align-items:center;gap:8px;padding:10px 12px;border:2px solid #e0e0e0;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;color:#37474f;transition:all .15s}
+.wt-system-check:has(input:checked){border-color:#1565c0;background:#e3f2fd;color:#1565c0}
+.wt-building-card{background:#fff;border:1px solid #e0e0e0;border-radius:14px;margin-bottom:12px;overflow:hidden}
+.wt-building-header{background:#f5f7fa;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-bottom:1px solid #e8e8e8}
+.wt-building-name{font-weight:800;font-size:14px;color:#0d1b2a}
+.wt-building-meta{font-size:11px;color:#546e7a;margin-top:2px}
+.wt-floor-section{padding:10px 16px;border-bottom:1px solid #f0f0f0}
+.wt-floor-label{font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.wt-room-chip{display:inline-flex;align-items:center;gap:4px;background:#f0f4f8;border:1px solid #dce3ea;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;color:#37474f;cursor:pointer;margin:2px;transition:all .12s}
+.wt-room-chip:hover{background:#e3f2fd;border-color:#90caf9;color:#1565c0}
+.wt-room-chip.done{background:#e8f5e9;border-color:#a5d6a7;color:#2e7d32}
+.wt-room-chip.partial{background:#fff3e0;border-color:#ffb74d;color:#e65100}
+.wt-item-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f5f5f5}
+.wt-item-row:last-child{border-bottom:none}
+.wt-phase-pill{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.wt-phase-pill.rough{background:#e3f2fd;color:#1565c0}
+.wt-phase-pill.device{background:#f3e5f5;color:#6a1b9a}
+.wt-phase-pill.test{background:#e8f5e9;color:#2e7d32}
+.wt-check-btn{width:32px;height:32px;border-radius:8px;border:2px solid #e0e0e0;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;transition:all .12s;touch-action:manipulation}
+.wt-check-btn.done{background:#2e7d32;border-color:#2e7d32;color:#fff}
+.wt-check-btn.pending{background:#fff;border-color:#e0e0e0}
+.wt-check-btn.in_progress{background:#fff3e0;border-color:#ffb74d}
+.wt-progress-bar{height:10px;border-radius:5px;background:#e0e0e0;overflow:hidden;margin-top:4px}
+.wt-progress-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#1565c0,#2e7d32);transition:width .3s}
+.rework-row{padding:12px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:8px}
+.rework-row.critical{border-left:4px solid #c62828}
+.rework-row.standard{border-left:4px solid #e65100}
+.rework-row.minor{border-left:4px solid #2e7d32}
+
 /* ===== ABSENCE REPORTING ===== */
 .abs-reason-btn{border:2px solid #e0e0e0;border-radius:12px;padding:14px 10px;text-align:center;cursor:pointer;font-size:13px;font-weight:700;color:#37474f;transition:all .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .abs-reason-btn:active,.abs-reason-btn.selected{border-color:#c62828;background:#ffebee;color:#c62828}
@@ -449,6 +486,69 @@ label{display:block;font-size:12px;font-weight:700;color:#455a64;margin-bottom:5
 .abs-dur-btn:active,.abs-dur-btn.selected{border-color:#1565c0;background:#e3f2fd;color:#1565c0}
 .abs-cov-btn{border:2px solid #e0e0e0;border-radius:12px;padding:14px 10px;text-align:center;cursor:pointer;font-size:13px;font-weight:700;color:#37474f;transition:all .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .abs-cov-btn:active,.abs-cov-btn.selected{border-color:#2e7d32;background:#e8f5e9;color:#2e7d32}
+
+/* ===== DARK MODE ===== */
+body.dark-mode{--bg:#121212;--bg2:#1e1e1e;--bg3:#252525;--border:#333;--text:#e0e0e0;--text2:#a0a0a0;--text3:#666;--card-bg:#1e1e1e;--card-border:#2a2a2a}
+body.dark-mode .clock-card,body.dark-mode .card{background:var(--bg2)!important;border-color:var(--border)!important;color:var(--text)!important}
+body.dark-mode .sidebar{background:#111!important;border-color:#222!important}
+body.dark-mode .nav-item{color:#888!important}
+body.dark-mode .nav-item.active{background:#1a1a2e!important;color:#90caf9!important}
+body.dark-mode .page-header h2{color:var(--text)!important}
+body.dark-mode .modal-box{background:#1e1e1e!important;border-color:#333!important;color:var(--text)!important}
+body.dark-mode .modal-head{background:#111!important;border-color:#333!important}
+body.dark-mode input,body.dark-mode select,body.dark-mode textarea{background:#252525!important;color:#e0e0e0!important;border-color:#444!important}
+body.dark-mode .clock-timer-time{color:#e0e0e0!important}
+body.dark-mode .clock-status-text{color:#a0a0a0!important}
+body.dark-mode .day-stat{background:#252525!important;border-color:#333!important}
+body.dark-mode .ts-stat{background:#252525!important}
+body.dark-mode .wt-building-card{background:#1e1e1e!important;border-color:#333!important}
+body.dark-mode .wt-building-header{background:#151515!important;border-color:#2a2a2a!important}
+body.dark-mode .wt-room-chip{background:#252525!important;border-color:#444!important;color:#a0a0a0!important}
+body.dark-mode .top-bar{background:#111!important;border-color:#222!important}
+body.dark-mode .app-content{background:#121212!important}
+body.dark-mode .page{background:#121212!important}
+/* Dark mode toggle button */
+.dark-toggle{background:none;border:none;cursor:pointer;font-size:18px;padding:4px 8px;border-radius:8px;transition:background .15s}
+.dark-toggle:hover{background:rgba(255,255,255,.1)}
+
+/* ===== IN-APP NOTIFICATIONS ===== */
+.notif-badge{position:absolute;top:-4px;right:-4px;background:#c62828;color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.notif-panel{position:fixed;top:56px;right:12px;width:320px;max-height:480px;background:#fff;border:1px solid #e0e0e0;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);z-index:1200;overflow:hidden;display:none}
+body.dark-mode .notif-panel{background:#1e1e1e;border-color:#333}
+.notif-panel.open{display:flex;flex-direction:column}
+.notif-panel-head{padding:12px 16px;font-weight:700;font-size:14px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between}
+.notif-panel-list{overflow-y:auto;flex:1}
+.notif-item{padding:12px 16px;border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .1s}
+.notif-item:hover{background:#f8f9fa}
+.notif-item.unread{background:#e3f2fd}
+body.dark-mode .notif-item.unread{background:#1a2744}
+.notif-item-title{font-weight:700;font-size:13px}
+.notif-item-body{font-size:12px;color:#546e7a;margin-top:2px}
+.notif-item-time{font-size:10px;color:#90a4ae;margin-top:2px}
+
+/* ===== LEAD TECH CONFIRMATION ===== */
+.confirm-badge{display:inline-flex;align-items:center;gap:3px;background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700}
+.confirmed-badge{display:inline-flex;align-items:center;gap:3px;background:#e8f5e9;color:#2e7d32;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700}
+
+/* ===== QR SCANNER ===== */
+.qr-scanner-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.qr-scanner-frame{width:260px;height:260px;border:3px solid #1565c0;border-radius:16px;position:relative;overflow:hidden;background:#000}
+.qr-scan-line{position:absolute;left:0;right:0;height:2px;background:#1565c0;animation:qrscan 2s linear infinite}
+@keyframes qrscan{0%{top:0}100%{top:100%}}
+
+/* ===== GEOFENCE MORNING PROMPT ===== */
+.geo-morning-prompt{position:fixed;top:0;left:0;right:0;background:#1565c0;color:#fff;padding:16px 20px;z-index:1100;display:flex;align-items:center;justify-content:space-between;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.geo-morning-btn{background:#fff;color:#1565c0;border:none;border-radius:10px;padding:10px 20px;font-weight:700;font-size:15px;cursor:pointer;touch-action:manipulation}
+.geo-morning-dismiss{background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer}
+
+/* ===== OFFLINE ENHANCED ===== */
+.offline-header-bar{display:none;background:#e65100;color:#fff;text-align:center;padding:6px;font-size:12px;font-weight:700;position:sticky;top:0;z-index:900}
+body.offline .offline-header-bar{display:block}
+body.offline .top-bar{border-top:3px solid #e65100}
+
+/* ===== TIMESHEET TABS FIX ===== */
+.ts-section{display:none}
+.ts-section.active{display:block}
 
 /* ===== TOOLS & BARCODE SCANNER ===== */
 .tool-section{display:none}
@@ -745,6 +845,7 @@ table{font-size:12.5px}
     <div class="nav-item" data-page="tools"><span class="nav-icon">🔧</span>Tools</div>
     <div class="nav-item" data-page="field"><span class="nav-icon">⏱</span>Time Clock</div>
     <div class="nav-item" data-page="timesheet" id="nav-timesheet"><span class="nav-icon">📋</span>Timesheets</div>
+    <div class="nav-item" data-page="worktracking"><span class="nav-icon">✅</span>Work Tracking</div>
     <div class="nav-item" data-page="settings"><span class="nav-icon">⚙️</span>Settings</div>
   </div>
 </div>
@@ -755,10 +856,44 @@ table{font-size:12.5px}
     <span class="version-badge">V9 — Cloud</span>
     <span class="badge-company" id="company-badge">TCSS</span>
     <span id="user-name-badge" style="font-size:12px;color:#546e7a;font-weight:600"></span>
+    <!-- Notification bell -->
+    <div style="position:relative;cursor:pointer" onclick="toggleNotifPanel()" id="notif-bell-wrap" title="Notifications">
+      <span style="font-size:20px">🔔</span>
+      <div class="notif-badge" id="notif-badge" style="display:none">0</div>
+    </div>
+    <!-- Dark mode toggle -->
+    <button class="dark-toggle" onclick="toggleDarkMode()" id="dark-mode-btn" title="Toggle dark mode">🌙</button>
     <div id="user-badge" onclick="showUserMenu()" title="Account" style="width:32px;height:32px;border-radius:50%;background:#1565c0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0">?</div>
     <button class="btn btn-primary btn-sm" data-action="newQuote">+ New Quote</button>
   </div>
 </div>
+
+<!-- Offline header bar -->
+<div class="offline-header-bar" id="offline-header-bar">📵 OFFLINE — changes saved locally, will sync when reconnected</div>
+
+<!-- Notification panel -->
+<div class="notif-panel" id="notif-panel">
+  <div class="notif-panel-head">
+    <span>🔔 Notifications</span>
+    <button onclick="markAllNotifsRead()" style="background:none;border:none;font-size:12px;color:#1565c0;cursor:pointer;font-weight:700">Mark all read</button>
+  </div>
+  <div class="notif-panel-list" id="notif-panel-list">
+    <div style="padding:20px;text-align:center;color:#90a4ae;font-size:13px">No notifications yet.</div>
+  </div>
+</div>
+
+<!-- GPS Morning Prompt (shown when GPS detects office) -->
+<div class="geo-morning-prompt" id="geo-morning-prompt" style="display:none">
+  <div>
+    <div style="font-weight:700;font-size:15px">📍 You're at the office</div>
+    <div style="font-size:12px;opacity:.85" id="geo-morning-time"></div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="geo-morning-btn" onclick="doStartDayFromPrompt()">☀️ Start Day</button>
+    <button class="geo-morning-dismiss" onclick="dismissMorningPrompt()">Not yet</button>
+  </div>
+</div>
+
 <div id="mobile-overlay" onclick="toggleMobileMenu()"></div>
 <div id="content">
 
@@ -1467,6 +1602,361 @@ table{font-size:12.5px}
       <div id="field-absence-status" style="margin-top:10px"></div>
     </div>
 
+  </div>
+</div>
+
+<!-- WORK TRACKING -->
+<div class="page" id="page-worktracking">
+  <div class="page-header">
+    <h2>✅ Work Tracking</h2>
+    <button class="btn btn-primary" onclick="openNewProjectWizard()">+ New Project</button>
+  </div>
+
+  <!-- Project list / selector -->
+  <div id="wt-project-list-card" class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="card-title" style="margin:0">📁 Projects</div>
+      <select id="wt-project-select" style="font-size:13px;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px" onchange="loadWTProject(this.value)">
+        <option value="">— Select a project —</option>
+      </select>
+    </div>
+    <div id="wt-project-cards"></div>
+  </div>
+
+  <!-- Active project view — hidden until project selected -->
+  <div id="wt-active-project" style="display:none">
+
+    <!-- Project header -->
+    <div class="card" style="margin-bottom:12px" id="wt-project-header-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:18px;font-weight:800;color:#0d1b2a" id="wt-proj-name"></div>
+          <div style="font-size:12px;color:#546e7a" id="wt-proj-meta"></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="openAddBuildingModal()">+ Building</button>
+          <button class="btn btn-outline btn-sm" onclick="switchWTView('progress')">📊 Progress</button>
+          <button class="btn btn-outline btn-sm" onclick="switchWTView('reworks')">🔄 Reworks</button>
+          <button class="btn btn-primary btn-sm" onclick="switchWTView('field')">📱 Field View</button>
+        </div>
+      </div>
+      <!-- Phase progress bar -->
+      <div style="margin-top:12px" id="wt-phase-bar"></div>
+    </div>
+
+    <!-- View tabs -->
+    <div class="inv-tab-nav" style="margin-bottom:12px" id="wt-view-tabs">
+      <button class="inv-tab active" onclick="switchWTView('structure')">🏗 Structure</button>
+      <button class="inv-tab" onclick="switchWTView('field')">📱 Field</button>
+      <button class="inv-tab" onclick="switchWTView('progress')">📊 Progress</button>
+      <button class="inv-tab" onclick="switchWTView('confirm')">✅ Confirm</button>
+      <button class="inv-tab" onclick="switchWTView('reworks')">🔄 Reworks</button>
+    </div>
+
+    <!-- STRUCTURE VIEW -->
+    <div class="wt-view active" id="wt-view-structure">
+      <div id="wt-building-list"></div>
+    </div>
+
+    <!-- FIELD VIEW -->
+    <div class="wt-view" id="wt-view-field">
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <input id="wt-field-search" placeholder="🔍 Search items, rooms..." style="flex:1;padding:12px;border:2px solid #e0e0e0;border-radius:10px;font-size:14px" oninput="renderWTFieldView()">
+          <button class="btn btn-outline btn-sm" style="padding:11px;flex-shrink:0" onclick="openQRScanner()" title="Scan room QR code">📷 Scan</button>
+          <select id="wt-field-phase" style="padding:10px;border:2px solid #e0e0e0;border-radius:10px;font-size:13px" onchange="renderWTFieldView()">
+            <option value="">All Phases</option>
+            <option value="rough">Rough-in</option>
+            <option value="device">Devicing</option>
+            <option value="test">Test+Label</option>
+          </select>
+          <select id="wt-field-status" style="padding:10px;border:2px solid #e0e0e0;border-radius:10px;font-size:13px" onchange="renderWTFieldView()">
+            <option value="">All Items</option>
+            <option value="pending">Pending</option>
+            <option value="in_progress">In Progress</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+        <div id="wt-field-items"></div>
+      </div>
+    </div>
+
+    <!-- PROGRESS VIEW -->
+    <div class="wt-view" id="wt-view-progress">
+      <div id="wt-progress-content"></div>
+    </div>
+
+    <!-- CONFIRM VIEW (lead tech / back office) -->
+    <div class="wt-view" id="wt-view-confirm">
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div class="card-title" style="margin:0">✅ Pending Confirmation</div>
+          <button class="btn btn-success btn-sm" onclick="confirmAllVisible()">✓ Confirm All Visible</button>
+        </div>
+        <p style="font-size:12px;color:#546e7a;margin-bottom:12px">Check-offs awaiting lead tech or back office confirmation. Once confirmed, the record is locked — only back office can reopen.</p>
+        <div id="wt-confirm-list"></div>
+      </div>
+    </div>
+
+    <!-- REWORKS VIEW -->
+    <div class="wt-view" id="wt-view-reworks">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div class="card-title" style="margin:0">🔄 Rework Log</div>
+          <button class="btn btn-outline btn-sm" onclick="openAddReworkModal()">+ Log Rework</button>
+        </div>
+        <div id="wt-reworks-list"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- QR SCANNER OVERLAY -->
+<div class="qr-scanner-overlay" id="qr-scanner-overlay" style="display:none">
+  <div style="color:#fff;font-weight:700;font-size:16px;margin-bottom:16px;text-align:center">
+    📷 Scan Room QR Code<br>
+    <span style="font-size:12px;font-weight:400;opacity:.7">Point camera at the room's QR label</span>
+  </div>
+  <div class="qr-scanner-frame">
+    <video id="qr-video" style="width:100%;height:100%;object-fit:cover"></video>
+    <div class="qr-scan-line"></div>
+  </div>
+  <div style="color:#fff;font-size:13px;margin-top:16px;text-align:center" id="qr-status">Initializing camera...</div>
+  <button onclick="closeQRScanner()" style="margin-top:20px;background:rgba(255,255,255,.15);color:#fff;border:2px solid rgba(255,255,255,.4);border-radius:12px;padding:12px 28px;font-size:15px;font-weight:700;cursor:pointer">Cancel</button>
+</div>
+
+<!-- WT: NEW PROJECT WIZARD MODAL -->
+<div class="modal-overlay" id="modal-wt-project">
+  <div class="modal-box" style="max-width:600px">
+    <div class="modal-head">
+      <h3>🏗 New Project Setup</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-wt-project">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- Step indicator -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:18px">
+        <div class="wt-step-dot active" id="wtp-dot-1">1</div>
+        <div class="wt-step-line" id="wtp-line-1"></div>
+        <div class="wt-step-dot" id="wtp-dot-2">2</div>
+        <div class="wt-step-line" id="wtp-line-2"></div>
+        <div class="wt-step-dot" id="wtp-dot-3">3</div>
+        <div class="wt-step-line" id="wtp-line-3"></div>
+        <div class="wt-step-dot" id="wtp-dot-4">4</div>
+      </div>
+
+      <!-- Step 1: Basic info -->
+      <div id="wtp-step-1">
+        <div style="font-weight:700;font-size:15px;margin-bottom:12px">Project Information</div>
+        <label>Project Name *</label>
+        <input id="wtp-name" placeholder="e.g. Smithfield Commons Phase 2">
+        <div class="form-row cols2" style="margin-top:10px">
+          <div><label>Customer</label><input id="wtp-customer" list="wtp-cust-list" placeholder="Customer name"><datalist id="wtp-cust-list"></datalist></div>
+          <div><label>Linked Job (optional)</label><select id="wtp-job-link"><option value="">— None —</option></select></div>
+        </div>
+        <div class="form-row cols2" style="margin-top:10px">
+          <div><label>Start Date</label><input id="wtp-start" type="date"></div>
+          <div><label>Lead Tech</label><input id="wtp-lead" list="wtp-team-list" placeholder="Lead tech name"><datalist id="wtp-team-list"></datalist></div>
+        </div>
+        <div style="margin-top:10px"><label>Project Address</label><input id="wtp-address" placeholder="Job site address"></div>
+      </div>
+
+      <!-- Step 2: Buildings -->
+      <div id="wtp-step-2" style="display:none">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">Buildings & Structures</div>
+        <div style="font-size:12px;color:#546e7a;margin-bottom:12px">Add each building, network closet, or common area on this project.</div>
+        <div id="wtp-building-entries"></div>
+        <button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px;padding:12px" onclick="addWTPBuilding()">+ Add Building / Structure</button>
+      </div>
+
+      <!-- Step 3: Systems -->
+      <div id="wtp-step-3" style="display:none">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">Systems on this Project</div>
+        <div style="font-size:12px;color:#546e7a;margin-bottom:12px">Check all systems being installed. Each adds standard work items to the project.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label class="wt-system-check"><input type="checkbox" id="sys-cat6"> Cat6 Data Outlets</label>
+          <label class="wt-system-check"><input type="checkbox" id="sys-coax"> Coax / Cable TV</label>
+          <label class="wt-system-check"><input type="checkbox" id="sys-wifi"> Wireless AP Wiring</label>
+          <label class="wt-system-check"><input type="checkbox" id="sys-fiber"> Interbuilding Fiber</label>
+          <label class="wt-system-check"><input type="checkbox" id="sys-access"> Access Control</label>
+          <label class="wt-system-check"><input type="checkbox" id="sys-cameras"> IP Cameras</label>
+          <label class="wt-system-check"><input type="checkbox" id="sys-intercoms"> Intercoms</label>
+          <label class="wt-system-check"><input type="checkbox" id="sys-audio"> Distributed Audio</label>
+          <label class="wt-system-check"><input type="checkbox" id="sys-tv"> TV Installs</label>
+          <label class="wt-system-check"><input type="checkbox" id="sys-deadbolts"> Electronic Deadbolts</label>
+        </div>
+      </div>
+
+      <!-- Step 4: Confirm -->
+      <div id="wtp-step-4" style="display:none">
+        <div style="font-weight:700;font-size:15px;margin-bottom:12px">Confirm Project Setup</div>
+        <div id="wtp-confirm-summary" style="background:#f8f9fa;border-radius:10px;padding:14px;font-size:13px;line-height:1.8"></div>
+        <div style="background:#e3f2fd;border-radius:8px;padding:10px;margin-top:10px;font-size:12px;color:#1565c0">
+          ✓ Project structure will be created. You can add rooms and items after setup.
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot" style="justify-content:space-between">
+      <button class="btn btn-ghost btn-sm" id="wtp-back-btn" onclick="wtpStepBack()" style="display:none">← Back</button>
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-wt-project" id="wtp-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="wtp-next-btn" onclick="wtpStepNext()">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- WT: ADD BUILDING MODAL -->
+<div class="modal-overlay" id="modal-wt-building">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>🏢 Add Building / Structure</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-wt-building">×</button>
+    </div>
+    <div class="modal-body">
+      <label>Building Name *</label>
+      <input id="wtb-name" placeholder="e.g. Building 1, Clubhouse, IDF-A">
+      <div class="form-row cols2" style="margin-top:10px">
+        <div>
+          <label>Type</label>
+          <select id="wtb-type">
+            <option value="residential">Residential Building</option>
+            <option value="clubhouse">Clubhouse</option>
+            <option value="amenity">Amenity / Common Area</option>
+            <option value="idf">IDF / Network Closet</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label>Number of Floors</label>
+          <input id="wtb-floors" type="number" min="1" max="20" value="3">
+        </div>
+      </div>
+      <div class="form-row cols2" style="margin-top:10px">
+        <div><label>Units per Floor</label><input id="wtb-units" type="number" min="1" max="50" value="8" placeholder="e.g. 8"></div>
+        <div><label>Unit Types (comma-separated)</label><input id="wtb-unit-types" placeholder="e.g. 1BR, 2BR, 3BR"></div>
+      </div>
+      <div style="margin-top:10px">
+        <label>Notes</label>
+        <input id="wtb-notes" placeholder="Any special details about this building">
+      </div>
+      <input type="hidden" id="wtb-project-id">
+      <input type="hidden" id="wtb-id">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-wt-building">Cancel</button>
+      <button class="btn btn-primary" onclick="saveWTBuilding()">Save Building</button>
+    </div>
+  </div>
+</div>
+
+<!-- WT: ADD ROOM / FLOOR MODAL -->
+<div class="modal-overlay" id="modal-wt-room">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>🚪 Add Rooms to Floor</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-wt-room">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:13px;color:#546e7a;margin-bottom:12px" id="wtr-context"></div>
+      <label>Room Numbers / Names *</label>
+      <input id="wtr-rooms" placeholder="e.g. 101,102,103,104 or 101-108">
+      <div style="font-size:11px;color:#90a4ae;margin-top:4px">Comma-separated or range. System will auto-generate items based on project systems.</div>
+      <div class="form-row cols2" style="margin-top:10px">
+        <div><label>Room Type</label>
+          <select id="wtr-type">
+            <option value="unit">Residential Unit</option>
+            <option value="common">Common Area</option>
+            <option value="closet">Network Closet / IDF</option>
+            <option value="office">Office</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div><label>Unit Layout (optional)</label>
+          <select id="wtr-layout">
+            <option value="">— Select —</option>
+            <option value="studio">Studio</option>
+            <option value="1br">1 Bedroom</option>
+            <option value="2br">2 Bedroom</option>
+            <option value="3br">3 Bedroom</option>
+            <option value="4br">4 Bedroom</option>
+          </select>
+        </div>
+      </div>
+      <input type="hidden" id="wtr-building-id">
+      <input type="hidden" id="wtr-floor">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-wt-room">Cancel</button>
+      <button class="btn btn-primary" onclick="saveWTRooms()">Add Rooms & Generate Items</button>
+    </div>
+  </div>
+</div>
+
+<!-- WT: CHECK-OFF MODAL -->
+<div class="modal-overlay" id="modal-wt-checkoff">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="wt-checkoff-title">✅ Complete Item</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-wt-checkoff">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="wt-checkoff-body"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-wt-checkoff">Cancel</button>
+      <button class="btn btn-success" onclick="submitWTCheckoff()">✓ Mark Complete</button>
+    </div>
+  </div>
+</div>
+
+<!-- WT: REWORK MODAL -->
+<div class="modal-overlay" id="modal-wt-rework">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>🔄 Log Rework</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-wt-rework">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row cols2">
+        <div><label>Category</label>
+          <select id="rw-category">
+            <option value="inspection">Inspection Failure</option>
+            <option value="complaint">Customer Complaint</option>
+            <option value="qc">Internal QC</option>
+            <option value="damage">Damage</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div><label>Severity</label>
+          <select id="rw-severity">
+            <option value="critical">🔴 Critical</option>
+            <option value="standard">🟡 Standard</option>
+            <option value="minor">🟢 Minor</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:10px"><label>Item / Location *</label><input id="rw-location" placeholder="e.g. Building 2 / Floor 3 / Room 304 / LR outlet"></div>
+      <div class="form-row cols2" style="margin-top:10px">
+        <div><label>Original Tech</label><input id="rw-orig-tech" list="rw-team-list" placeholder="Who did the original work"></div>
+        <div><label>Assigned To</label><input id="rw-assign-tech" list="rw-team-list" placeholder="Who does the rework"><datalist id="rw-team-list"></datalist></div>
+      </div>
+      <div style="margin-top:10px"><label>Fault Attribution</label>
+        <div style="display:flex;gap:10px;margin-top:6px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:700;font-size:13px">
+            <input type="radio" name="rw-fault" value="original" id="rw-fault-original" checked> Original Work (counts against tech)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="radio" name="rw-fault" value="external"> External Cause
+          </label>
+        </div>
+      </div>
+      <div style="margin-top:10px"><label>Description *</label><textarea id="rw-desc" rows="3" style="width:100%;padding:10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;box-sizing:border-box" placeholder="What needs to be fixed and why..."></textarea></div>
+      <input type="hidden" id="rw-project-id">
+      <input type="hidden" id="rw-item-id">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-wt-rework">Cancel</button>
+      <button class="btn btn-warning" onclick="saveRework()">Log Rework</button>
+    </div>
   </div>
 </div>
 
@@ -3114,6 +3604,12 @@ function loadDB() {
     if (!DB.leaveForfeiture) DB.leaveForfeiture = [];
     if (!DB.payrollLog)      DB.payrollLog      = [];
     if (!DB.absences)        DB.absences        = [];
+    if (!DB.wtProjects)      DB.wtProjects      = [];
+    if (!DB.wtBuildings)     DB.wtBuildings     = [];
+    if (!DB.wtRooms)         DB.wtRooms         = [];
+    if (!DB.wtItems)         DB.wtItems         = [];
+    if (!DB.wtCheckoffs)     DB.wtCheckoffs     = [];
+    if (!DB.wtReworks)       DB.wtReworks       = [];
     if (!DB.settings.followupDays) DB.settings.followupDays = 7;
     // Migrate old tool checkouts that lack status field
     (DB.toolCheckouts||[]).forEach(function(co){
@@ -3133,7 +3629,7 @@ function fmtSigned(n) { return (n < 0 ? '-' : '') + fmt(n); }
 function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 
 // ---- NAVIGATION ----
-const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets'};
+const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking'};
 
 function goPage(id) {
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
@@ -3161,6 +3657,7 @@ function goPage(id) {
 qqStage4Init();
   if (id==='field')      setTimeout(renderFieldPage, 50);
   if (id==='timesheet')  { var today=new Date().toISOString().split('T')[0]; var dtEl=document.getElementById('ts-date-filter'); if(dtEl&&!dtEl.value) dtEl.value=today; setTimeout(loadTimesheets,50); }
+  if (id==='worktracking') { setTimeout(renderWorkTracking, 50); }
   // Sync mobile bottom nav highlight
   var mobilePages = ['dash','qq','field','jobs','inventory'];
   document.querySelectorAll('.mob-nav-item').forEach(function(item){ item.classList.remove('active'); });
@@ -9475,7 +9972,1255 @@ async function loadTimesheets() {
 }
 
 // ============================================================
-// ABSENCE REPORTING
+// PHASE 2 — DARK MODE
+// ============================================================
+function toggleDarkMode() {
+  var isDark = document.body.classList.toggle('dark-mode');
+  DB.settings = Object.assign({}, DB.settings, {darkMode: isDark});
+  saveDB();
+  var btn = document.getElementById('dark-mode-btn');
+  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+  if (btn) btn.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+}
+
+function applyDarkMode() {
+  var isDark = DB.settings && DB.settings.darkMode;
+  if (isDark) {
+    document.body.classList.add('dark-mode');
+    var btn = document.getElementById('dark-mode-btn');
+    if (btn) { btn.textContent='☀️'; btn.title='Switch to light mode'; }
+  }
+}
+
+// ============================================================
+// PHASE 2 — IN-APP NOTIFICATION SYSTEM
+// ============================================================
+var _notifications = [];
+
+function addNotification(type, title, body, action) {
+  var notif = {
+    id:        'n-'+Date.now(),
+    type:      type,   // 'assignment'|'lunch'|'item_reopened'|'eod'|'message'|'absence'
+    title:     title,
+    body:      body,
+    action:    action||null,
+    time:      new Date().toISOString(),
+    read:      false
+  };
+  _notifications.unshift(notif);
+  // Keep last 50
+  if (_notifications.length > 50) _notifications = _notifications.slice(0,50);
+  updateNotifBadge();
+  renderNotifPanel();
+  // Also show as toast for urgent types
+  if (type==='item_reopened'||type==='absence'||type==='message') {
+    showToast('🔔 '+title, 'info', 5000);
+  }
+}
+
+function updateNotifBadge() {
+  var unread = _notifications.filter(function(n){ return !n.read; }).length;
+  var badge = document.getElementById('notif-badge');
+  if (!badge) return;
+  badge.style.display = unread > 0 ? 'flex' : 'none';
+  badge.textContent = unread > 9 ? '9+' : String(unread);
+}
+
+function toggleNotifPanel() {
+  var panel = document.getElementById('notif-panel');
+  if (!panel) return;
+  var isOpen = panel.classList.toggle('open');
+  if (isOpen) renderNotifPanel();
+  // Close on outside click
+  if (isOpen) {
+    setTimeout(function(){
+      document.addEventListener('click', function closePanel(e){
+        if (!panel.contains(e.target) && e.target.id!=='notif-bell-wrap') {
+          panel.classList.remove('open');
+          document.removeEventListener('click', closePanel);
+        }
+      });
+    }, 10);
+  }
+}
+
+function renderNotifPanel() {
+  var list = document.getElementById('notif-panel-list'); if(!list) return;
+  if (!_notifications.length) {
+    list.innerHTML='<div style="padding:20px;text-align:center;color:#90a4ae;font-size:13px">No notifications yet.</div>';
+    return;
+  }
+  var typeIcons = {assignment:'📅',lunch:'🍽',item_reopened:'🔄',eod:'📊',message:'💬',absence:'🚨',confirm:'✅'};
+  list.innerHTML = _notifications.slice(0,20).map(function(n){
+    var t = new Date(n.time);
+    var timeStr = t.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+    return '<div class="notif-item'+(n.read?'':' unread')+'" onclick="readNotif(\''+n.id+'\')">'+(n.action?'data-action="'+escHtml(n.action)+'"':'')+'>'+
+      '<div class="notif-item-title">'+(typeIcons[n.type]||'🔔')+' '+escHtml(n.title)+'</div>'+
+      '<div class="notif-item-body">'+escHtml(n.body||'')+'</div>'+
+      '<div class="notif-item-time">'+timeStr+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+function readNotif(id) {
+  var n = _notifications.find(function(x){ return x.id===id; });
+  if (n) n.read=true;
+  updateNotifBadge();
+  renderNotifPanel();
+}
+
+function markAllNotifsRead() {
+  _notifications.forEach(function(n){ n.read=true; });
+  updateNotifBadge();
+  renderNotifPanel();
+}
+
+// ============================================================
+// PHASE 2 — GPS MORNING AUTO-DETECT (Q70: C)
+// Detects when tech is at office → prompts "Start Day?"
+// ============================================================
+var _morningPromptShown = false;
+var _morningCheckInterval = null;
+
+function startMorningDetection() {
+  if (_morningPromptShown || _clockState.status !== 'out') return;
+  clearInterval(_morningCheckInterval);
+  _morningCheckInterval = setInterval(function(){
+    if (_clockState.status !== 'out' || _morningPromptShown) {
+      clearInterval(_morningCheckInterval); return;
+    }
+    var now = new Date();
+    var hour = now.getHours();
+    if (hour < 5 || hour > 10) return; // Only check 5am-10am window
+    var officeAnchor = DB.settings && DB.settings.officeGpsLat
+      ? {lat:DB.settings.officeGpsLat, lng:DB.settings.officeGpsLng} : null;
+    if (!officeAnchor && !_clockState.outOfTown) return;
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(function(pos){
+      var lat=pos.coords.latitude, lng=pos.coords.longitude;
+      var baseAnchor = _clockState.outOfTown && _clockState.hotelAddr
+        ? officeAnchor : officeAnchor;
+      if (!baseAnchor) return;
+      var dist = geoDistanceFt(lat,lng,baseAnchor.lat,baseAnchor.lng);
+      if (dist <= GEO_RADIUS_FT) {
+        showMorningPrompt(now);
+      }
+    }, null, {enableHighAccuracy:true,timeout:8000,maximumAge:60000});
+  }, 120000); // Check every 2 minutes
+}
+
+function showMorningPrompt(now) {
+  _morningPromptShown = true;
+  var prompt = document.getElementById('geo-morning-prompt');
+  var timeEl = document.getElementById('geo-morning-time');
+  if (!prompt) return;
+  if (timeEl) timeEl.textContent = 'GPS confirms you\'re at base — '+now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+  prompt.style.display='flex';
+  // Auto-dismiss after 60 seconds if no action
+  setTimeout(function(){ dismissMorningPrompt(); }, 60000);
+}
+
+function doStartDayFromPrompt() {
+  dismissMorningPrompt();
+  goPage('field');
+  setTimeout(doStartDay, 300);
+}
+
+function dismissMorningPrompt() {
+  var prompt = document.getElementById('geo-morning-prompt');
+  if (prompt) prompt.style.display='none';
+}
+
+// ============================================================
+// PHASE 2 — AUTO CLOCK-IN ON GEOFENCE (Q72: C)
+// Notification → auto clock-in after 30 seconds if no action
+// ============================================================
+var _autoClockInTimer = null;
+var _autoClockInCountdown = null;
+
+function triggerGeofenceArrival(lat, lng, acc) {
+  // Called when GPS detects entry into job site geofence
+  if (_clockState.status !== 'traveling') return;
+  clearTimeout(_autoClockInTimer);
+  clearInterval(_autoClockInCountdown);
+
+  var countdown = 30;
+  var geoEl = document.getElementById('geo-alert');
+  if (geoEl) {
+    geoEl.style.display='block';
+    geoEl.style.background='#e8f5e9';
+    geoEl.style.borderColor='#a5d6a7';
+    geoEl.style.color='#2e7d32';
+    geoEl.innerHTML='📍 You\'ve arrived at <strong>'+escHtml(_clockState.jobName||'job site')+'</strong>.<br>'+
+      'Clocking in automatically in <strong id="auto-ci-count">30</strong> seconds — '+
+      '<button onclick="doArriveOnSite()" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:700">Clock In Now</button> '+
+      '<button onclick="cancelAutoClockIn()" style="background:none;border:1px solid #2e7d32;color:#2e7d32;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer">Cancel</button>';
+  }
+  _autoClockInCountdown = setInterval(function(){
+    countdown--;
+    var el=document.getElementById('auto-ci-count');
+    if(el) el.textContent=countdown;
+    if(countdown<=0){
+      clearInterval(_autoClockInCountdown);
+      cancelAutoClockIn();
+    }
+  },1000);
+  _autoClockInTimer = setTimeout(function(){
+    clearInterval(_autoClockInCountdown);
+    doArriveOnSite();
+    addNotification('assignment','Clocked in — '+(_clockState.jobName||'Job'),'Auto clock-in from geofence detection');
+  }, 30000);
+}
+
+function cancelAutoClockIn() {
+  clearTimeout(_autoClockInTimer);
+  clearInterval(_autoClockInCountdown);
+  clearGeoAlert();
+}
+
+// ============================================================
+// PHASE 2 — LEAD TECH CONFIRMATION WORKFLOW (Q10, Q49, Q75)
+// Parallel: lead tech OR back office can confirm, first locks it
+// ============================================================
+function switchWTView(view) {
+  var tabMap = {structure:0,field:1,progress:2,confirm:3,reworks:4};
+  document.querySelectorAll('.wt-view').forEach(function(v){ v.classList.remove('active'); });
+  document.querySelectorAll('#wt-view-tabs .inv-tab').forEach(function(t){ t.classList.remove('active'); });
+  var viewEl = document.getElementById('wt-view-'+view);
+  if (viewEl) viewEl.classList.add('active');
+  var tabs = document.querySelectorAll('#wt-view-tabs .inv-tab');
+  if (tabMap[view]!==undefined && tabs[tabMap[view]]) tabs[tabMap[view]].classList.add('active');
+  if (view==='field')    renderWTFieldView();
+  if (view==='progress') renderWTProgressView();
+  if (view==='reworks')  renderWTReworksView();
+  if (view==='confirm')  renderWTConfirmView();
+  if (view==='structure') renderWTStructureView(_wtProjectId);
+}
+
+function renderWTConfirmView() {
+  var el = document.getElementById('wt-confirm-list'); if(!el) return;
+  var myRole = _currentUser ? _currentUser.role : '';
+  var myName = _currentUser ? _currentUser.full_name : '';
+  var isLeadOrAdmin = myRole==='owner'||myRole==='manager'||myRole==='back_office'||myRole==='lead_tech';
+  if (!isLeadOrAdmin) {
+    el.innerHTML='<div style="color:#90a4ae;padding:20px;text-align:center">Lead tech or admin access required to confirm check-offs.</div>';
+    return;
+  }
+  var pending = (DB.wtCheckoffs||[]).filter(function(c){
+    return c.projectId===_wtProjectId && !c.confirmed;
+  }).slice().reverse();
+  if (!pending.length) {
+    el.innerHTML='<div style="color:#2e7d32;font-weight:700;padding:16px;text-align:center">✓ All check-offs confirmed — nothing pending.</div>';
+    return;
+  }
+  el.innerHTML = pending.map(function(c){
+    var item = (DB.wtItems||[]).find(function(i){ return i.id===c.itemId; });
+    var room = (DB.wtRooms||[]).find(function(r){ return r.id===c.roomId; });
+    var bld  = (DB.wtBuildings||[]).find(function(b){ return b.id===c.buildingId; });
+    var phLabels={rough:'Rough-in',device:'Devicing',test:'Test+Label'};
+    var t = new Date(c.timestamp);
+    var timeStr = t.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+t.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+    return '<div style="background:#f8f9fa;border-radius:10px;padding:12px;margin-bottom:8px;border:1px solid #e0e0e0">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'+
+        '<div style="flex:1">'+
+          '<div style="font-weight:700;font-size:13px">'+(item?escHtml(item.icon||'')+' '+escHtml(item.label||''):'Item')+'</div>'+
+          '<div style="font-size:11px;color:#546e7a">'+(bld?escHtml(bld.name)+' / ':'')+( room?escHtml(room.name):'')+' · <span class="wt-phase-pill '+c.phase+'" style="font-size:10px">'+escHtml(phLabels[c.phase]||c.phase)+'</span></div>'+
+          '<div style="font-size:11px;color:#546e7a;margin-top:3px">By <strong>'+escHtml(c.techName||'')+'</strong> · '+timeStr+'</div>'+
+          (c.note?'<div style="font-size:11px;color:#90a4ae;font-style:italic;margin-top:2px">'+escHtml(c.note)+'</div>':'')+
+          (c.difficult?'<div style="font-size:10px;background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;margin-top:4px;display:inline-block">⚠ Flagged as difficult</div>':'')+
+          (c.photoUrl?'<div style="margin-top:6px">'+photoThumb(c.photoUrl,'Check-off photo',40)+'</div>':'')+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'+
+          '<button class="btn btn-success btn-sm" onclick="confirmCheckoff(\''+c.id+'\')">✓ Confirm</button>'+
+          '<button class="btn btn-danger btn-sm" onclick="reopenCheckoff(\''+c.id+'\')">↩ Reopen</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  // Update tab badge
+  var tabs = document.querySelectorAll('#wt-view-tabs .inv-tab');
+  if (tabs[3]) tabs[3].textContent = '✅ Confirm'+(pending.length?' ('+pending.length+')':'');
+}
+
+function confirmCheckoff(checkoffId) {
+  var c=(DB.wtCheckoffs||[]).find(function(x){ return x.id===checkoffId; }); if(!c) return;
+  c.confirmed=true;
+  c.confirmedBy=_currentUser?_currentUser.full_name:'Lead';
+  c.confirmedAt=new Date().toISOString();
+  saveDB();
+  renderWTConfirmView();
+  showToast('Check-off confirmed ✓','success');
+}
+
+function reopenCheckoff(checkoffId) {
+  var myRole = _currentUser?_currentUser.role:'';
+  var isAdmin = myRole==='owner'||myRole==='back_office'||myRole==='manager';
+  if (!isAdmin) { showToast('Only back office can reopen a check-off','error'); return; }
+  var c=(DB.wtCheckoffs||[]).find(function(x){ return x.id===checkoffId; }); if(!c) return;
+  var reason = prompt('Reason for reopening:')||'';
+  c.confirmed=false; c.reopened=true; c.reopenReason=reason; c.reopenedBy=_currentUser?_currentUser.full_name:'Admin'; c.reopenedAt=new Date().toISOString();
+  // Reset item phase status
+  var item=(DB.wtItems||[]).find(function(i){ return i.id===c.itemId; });
+  if(item&&item.phaseStatus) { item.phaseStatus[c.phase]='pending'; item.status='in_progress'; }
+  saveDB();
+  renderWTConfirmView();
+  // Notify the tech
+  addNotification('item_reopened','Item reopened: '+(item?item.label||'':''), 'Reason: '+(reason||'No reason given'));
+  showToast('Check-off reopened — tech notified','info');
+}
+
+function confirmAllVisible() {
+  var myName = _currentUser?_currentUser.full_name:'Lead';
+  var pending=(DB.wtCheckoffs||[]).filter(function(c){ return c.projectId===_wtProjectId&&!c.confirmed; });
+  var count=0;
+  pending.forEach(function(c){
+    if(!c.difficult) { // Don't auto-confirm difficult flags
+      c.confirmed=true; c.confirmedBy=myName; c.confirmedAt=new Date().toISOString(); count++;
+    }
+  });
+  saveDB();
+  renderWTConfirmView();
+  showToast(count+' check-offs confirmed','success');
+}
+
+// ============================================================
+// PHASE 2 — QR CODE SCANNER (Q61: D)
+// Scans room QR → jumps to that room's items in field view
+// ============================================================
+var _qrStream = null;
+var _qrScanInterval = null;
+
+function openQRScanner() {
+  var overlay = document.getElementById('qr-scanner-overlay');
+  if (!overlay) return;
+  overlay.style.display='flex';
+  var video = document.getElementById('qr-video');
+  var status = document.getElementById('qr-status');
+  if (!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) {
+    if(status) status.textContent='Camera not available on this device.';
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+    .then(function(stream){
+      _qrStream=stream;
+      if(video){ video.srcObject=stream; video.play(); }
+      if(status) status.textContent='Ready — point at a room QR label';
+      // QR decode requires jsQR library — load it dynamically
+      if(!window.jsQR) {
+        var script=document.createElement('script');
+        script.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+        script.onload=function(){ startQRScan(video,status); };
+        document.head.appendChild(script);
+      } else { startQRScan(video,status); }
+    })
+    .catch(function(){
+      if(status) status.textContent='Camera access denied. Try typing the room number in search instead.';
+    });
+}
+
+function startQRScan(video, status) {
+  var canvas=document.createElement('canvas');
+  var ctx=canvas.getContext('2d');
+  clearInterval(_qrScanInterval);
+  _qrScanInterval=setInterval(function(){
+    if(!video||!video.videoWidth) return;
+    canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+    ctx.drawImage(video,0,0);
+    try{
+      var imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+      var code=window.jsQR(imageData.data,imageData.width,imageData.height);
+      if(code&&code.data){
+        clearInterval(_qrScanInterval);
+        closeQRScanner();
+        handleQRResult(code.data);
+      }
+    }catch(e){}
+  },250);
+}
+
+function handleQRResult(data) {
+  // QR code format: "TCSS-ROOM:{roomId}" or just a room name
+  var roomId = null;
+  if (data.startsWith('TCSS-ROOM:')) {
+    roomId = data.replace('TCSS-ROOM:','').trim();
+  } else {
+    // Try to find room by name
+    var room=(DB.wtRooms||[]).find(function(r){ return r.projectId===_wtProjectId&&r.name===data.trim(); });
+    if(room) roomId=room.id;
+  }
+  if (roomId) {
+    switchWTViewWithConfirm('field');
+    var search=document.getElementById('wt-field-search');
+    var room2=(DB.wtRooms||[]).find(function(r){ return r.id===roomId; });
+    if(search&&room2) search.value=room2.name;
+    renderWTFieldView();
+    showToast('📍 Jumped to '+(room2?room2.name:roomId),'success');
+  } else {
+    showToast('QR code not recognized: '+data,'warning',4000);
+  }
+}
+
+function closeQRScanner() {
+  clearInterval(_qrScanInterval);
+  if(_qrStream){ _qrStream.getTracks().forEach(function(t){ t.stop(); }); _qrStream=null; }
+  var overlay=document.getElementById('qr-scanner-overlay');
+  if(overlay) overlay.style.display='none';
+}
+
+// Generate QR code data string for a room (for printing labels)
+function getRoomQRData(roomId) {
+  return 'TCSS-ROOM:'+roomId;
+}
+
+// ============================================================
+// PHASE 2 — EOD SUMMARY NOTIFICATION (Q77)
+// ============================================================
+function sendEODSummary() {
+  var myName=_currentUser?_currentUser.full_name:'';
+  var today=new Date().toISOString().split('T')[0];
+  var myCheckoffs=(DB.wtCheckoffs||[]).filter(function(c){ return c.techName===myName&&c.timestamp&&c.timestamp.startsWith(today); });
+  if(!myCheckoffs.length) return;
+  addNotification('eod','End of Day Summary','You completed '+myCheckoffs.length+' check-offs today. Great work!');
+}
+
+// Wire EOD summary into doArriveBack
+var _origDoArriveBack = doArriveBack;
+
+// ============================================================
+// PHASE 2 — OFFLINE ENHANCED VISUAL INDICATORS (Q67: D)
+// Banner + header color when offline
+// ============================================================
+window.addEventListener('online',  function(){
+  document.body.classList.remove('offline');
+  _isOnline=true;
+  checkOfflineStatus();
+  flushOfflineQueue();
+});
+window.addEventListener('offline', function(){
+  document.body.classList.add('offline');
+  _isOnline=false;
+  checkOfflineStatus();
+});
+
+// ============================================================
+// PHASE 2 — INIT HOOKS
+// ============================================================
+function initPhase2() {
+  applyDarkMode();
+  updateNotifBadge();
+  if (!navigator.onLine) document.body.classList.add('offline');
+  startMorningDetection();
+  // Check for pending confirmations — badge the confirm tab
+  setTimeout(function(){
+    if (_wtProjectId) renderWTConfirmView();
+  }, 1000);
+}
+
+// ============================================================
+// END PHASE 2
+// ============================================================
+// Spec: Q1-Q80 (TCSS-WorkTracking-MasterQA_R3.docx)
+// Phase 1: Data model, project setup, structure, field check-off
+// ============================================================
+
+// Item templates per system type — rough-in / devicing / test+label phases
+var WT_ITEM_TEMPLATES = {
+  cat6:     [{label:'Cat6 Outlet', phases:['rough','device','test'], icon:'🔌'}],
+  coax:     [{label:'Coax Outlet', phases:['rough','device','test'], icon:'📡'}],
+  wifi:     [{label:'AP Drop',     phases:['rough','device','test'], icon:'📶'}],
+  access:   [{label:'Door Reader', phases:['rough','device','test'], icon:'🚪'},{label:'Door Strike', phases:['rough','device','test'], icon:'🔒'}],
+  cameras:  [{label:'Camera Drop', phases:['rough','device','test'], icon:'📷'}],
+  intercoms:[{label:'Intercom Station', phases:['rough','device','test'], icon:'🔔'}],
+  audio:    [{label:'Speaker Drop', phases:['rough','device','test'], icon:'🔊'}],
+  tv:       [{label:'TV Drop',     phases:['rough','device','test'], icon:'📺'}],
+  deadbolts:[{label:'Electronic Deadbolt', phases:['device','test'], icon:'🔐'}],
+  fiber:    [{label:'Fiber Run',   phases:['rough','test'], icon:'🌐'}]
+};
+
+var _wtProjectId = null; // currently active project
+var _wtWizardStep = 1;
+var _wtWizardBuildings = [];
+
+// ---- RENDER MAIN PAGE ----
+function renderWorkTracking() {
+  var projSel = document.getElementById('wt-project-select');
+  if (projSel) {
+    var prev = projSel.value;
+    projSel.innerHTML = '<option value="">— Select a project —</option>';
+    (DB.wtProjects||[]).forEach(function(p){
+      var opt = document.createElement('option');
+      opt.value = p.id; opt.textContent = p.name;
+      projSel.appendChild(opt);
+    });
+    if (prev) { projSel.value = prev; if (projSel.value) loadWTProject(prev); }
+  }
+  renderWTProjectCards();
+  if (_wtProjectId) loadWTProject(_wtProjectId);
+}
+
+function renderWTProjectCards() {
+  var el = document.getElementById('wt-project-cards'); if (!el) return;
+  var projects = DB.wtProjects||[];
+  if (!projects.length) {
+    el.innerHTML = '<div style="color:#90a4ae;font-size:13px;padding:12px 0">No projects yet. Click + New Project to get started.</div>';
+    return;
+  }
+  el.innerHTML = projects.slice(0,6).map(function(p){
+    var items = (DB.wtItems||[]).filter(function(i){ return i.projectId===p.id; });
+    var done  = items.filter(function(i){ return i.status==='done'; }).length;
+    var pct   = items.length ? Math.round(done/items.length*100) : 0;
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5;cursor:pointer" onclick="loadWTProject(\''+p.id+'\')">'+
+      '<div>'+
+        '<div style="font-weight:700;font-size:13px">'+escHtml(p.name)+'</div>'+
+        '<div style="font-size:11px;color:#546e7a">'+escHtml(p.customer||'')+(p.leadTech?' · '+escHtml(p.leadTech):'')+'</div>'+
+      '</div>'+
+      '<div style="text-align:right">'+
+        '<div style="font-weight:700;font-size:13px;color:'+(pct===100?'#2e7d32':pct>0?'#e65100':'#90a4ae')+'">'+pct+'%</div>'+
+        '<div style="font-size:10px;color:#90a4ae">'+done+'/'+items.length+' items</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function loadWTProject(projectId) {
+  if (!projectId) return;
+  _wtProjectId = projectId;
+  var p = (DB.wtProjects||[]).find(function(x){ return x.id===projectId; });
+  if (!p) return;
+
+  // Show active project panel
+  var activeEl = document.getElementById('wt-active-project');
+  if (activeEl) activeEl.style.display='block';
+
+  // Update header
+  var nameEl = document.getElementById('wt-proj-name');
+  if (nameEl) nameEl.textContent = p.name;
+  var metaEl = document.getElementById('wt-proj-meta');
+  if (metaEl) metaEl.textContent = (p.customer||'')+(p.leadTech?' · Lead: '+p.leadTech:'')+(p.startDate?' · Started: '+p.startDate:'');
+
+  // Update project select
+  var sel = document.getElementById('wt-project-select');
+  if (sel) sel.value = projectId;
+
+  // Phase progress bar
+  renderWTPhaseBar(projectId);
+
+  // Render current view
+  renderWTStructureView(projectId);
+}
+
+function renderWTPhaseBar(projectId) {
+  var el = document.getElementById('wt-phase-bar'); if (!el) return;
+  var items = (DB.wtItems||[]).filter(function(i){ return i.projectId===projectId; });
+  if (!items.length) { el.innerHTML=''; return; }
+
+  function phasePct(phase) {
+    var phItems = items.filter(function(i){ return i.phases && i.phases.indexOf(phase)>=0; });
+    if (!phItems.length) return 0;
+    var done = phItems.filter(function(i){ return (i.phaseStatus&&i.phaseStatus[phase])==='done'; }).length;
+    return Math.round(done/phItems.length*100);
+  }
+  var roughPct  = phasePct('rough');
+  var devicePct = phasePct('device');
+  var testPct   = phasePct('test');
+  var totalDone = items.filter(function(i){ return i.status==='done'; }).length;
+  var totalPct  = Math.round(totalDone/items.length*100);
+
+  el.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-top:4px">'+
+      renderMiniPhaseBar('Rough-in',roughPct,'#1565c0')+
+      renderMiniPhaseBar('Devicing',devicePct,'#6a1b9a')+
+      renderMiniPhaseBar('Test+Label',testPct,'#2e7d32')+
+      renderMiniPhaseBar('Overall',totalPct,'#0d1b2a')+
+    '</div>';
+}
+
+function renderMiniPhaseBar(label, pct, color) {
+  return '<div style="background:#f8f9fa;border-radius:8px;padding:8px 10px">'+
+    '<div style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">'+label+'</div>'+
+    '<div style="font-weight:800;font-size:16px;color:'+color+'">'+pct+'%</div>'+
+    '<div class="wt-progress-bar"><div class="wt-progress-fill" style="width:'+pct+'%;background:'+color+'"></div></div>'+
+  '</div>';
+}
+
+// ---- STRUCTURE VIEW ----
+function _switchWTViewBase(view) {
+  document.querySelectorAll('.wt-view').forEach(function(v){ v.classList.remove('active'); });
+  document.querySelectorAll('#wt-view-tabs .inv-tab').forEach(function(t){ t.classList.remove('active'); });
+  var viewEl = document.getElementById('wt-view-'+view);
+  if (viewEl) viewEl.classList.add('active');
+  var tabMap = {structure:0,field:1,progress:2,confirm:3,reworks:4};
+  var tabs = document.querySelectorAll('#wt-view-tabs .inv-tab');
+  if (tabMap[view]!==undefined && tabs[tabMap[view]]) tabs[tabMap[view]].classList.add('active');
+  if (view==='field')    renderWTFieldView();
+  if (view==='progress') renderWTProgressView();
+  if (view==='reworks')  renderWTReworksView();
+  if (view==='structure') renderWTStructureView(_wtProjectId);
+}
+
+function renderWTStructureView(projectId) {
+  var el = document.getElementById('wt-building-list'); if (!el) return;
+  var buildings = (DB.wtBuildings||[]).filter(function(b){ return b.projectId===projectId; });
+  if (!buildings.length) {
+    el.innerHTML =
+      '<div class="card" style="text-align:center;padding:24px">'+
+        '<div style="font-size:40px;margin-bottom:8px">🏗</div>'+
+        '<div style="font-weight:700;margin-bottom:4px">No buildings yet</div>'+
+        '<div style="font-size:13px;color:#546e7a;margin-bottom:14px">Add your first building or structure to start building the project.</div>'+
+        '<button class="btn btn-primary" onclick="openAddBuildingModal()">+ Add Building</button>'+
+      '</div>';
+    return;
+  }
+  el.innerHTML = buildings.map(function(b){ return renderWTBuilding(b); }).join('');
+}
+
+function renderWTBuilding(b) {
+  var rooms  = (DB.wtRooms||[]).filter(function(r){ return r.buildingId===b.id; });
+  var items  = (DB.wtItems||[]).filter(function(i){ return i.buildingId===b.id; });
+  var done   = items.filter(function(i){ return i.status==='done'; }).length;
+  var pct    = items.length ? Math.round(done/items.length*100) : 0;
+
+  // Group rooms by floor
+  var floorMap = {};
+  rooms.forEach(function(r){
+    var f = r.floor||'1';
+    if (!floorMap[f]) floorMap[f]=[];
+    floorMap[f].push(r);
+  });
+
+  var floorsHtml = Object.keys(floorMap).sort().map(function(floor){
+    var floorRooms = floorMap[floor];
+    return '<div class="wt-floor-section">'+
+      '<div class="wt-floor-label">Floor '+escHtml(floor)+'</div>'+
+      '<div>'+
+      floorRooms.map(function(r){
+        var rItems = (DB.wtItems||[]).filter(function(i){ return i.roomId===r.id; });
+        var rDone  = rItems.filter(function(i){ return i.status==='done'; }).length;
+        var rPart  = rItems.filter(function(i){ return i.status==='in_progress'; }).length;
+        var cls    = rItems.length&&rDone===rItems.length?'done':rPart>0||rDone>0?'partial':'';
+        var icon   = cls==='done'?'✓':cls==='partial'?'◐':'○';
+        return '<span class="wt-room-chip '+cls+'" onclick="openRoomDetail(\''+r.id+'\')">'+
+          icon+' '+escHtml(r.name)+
+          (rItems.length?'<span style="font-size:10px;opacity:.7"> '+rDone+'/'+rItems.length+'</span>':'')+
+        '</span>';
+      }).join('')+
+      '</div>'+
+      '<button class="btn btn-ghost btn-sm" style="margin-top:6px;font-size:11px" onclick="openAddRoomModal(\''+b.id+'\',\''+escHtml(floor)+'\')">+ Add Rooms to Floor '+escHtml(floor)+'</button>'+
+    '</div>';
+  }).join('');
+
+  var typeIcons = {residential:'🏢',clubhouse:'🏛',amenity:'🏊',idf:'🖧',other:'📦'};
+
+  return '<div class="wt-building-card">'+
+    '<div class="wt-building-header" onclick="toggleWTBuilding(\''+b.id+'\')">'+
+      '<div>'+
+        '<div class="wt-building-name">'+(typeIcons[b.type]||'🏢')+' '+escHtml(b.name)+'</div>'+
+        '<div class="wt-building-meta">'+rooms.length+' rooms · '+items.length+' items · '+pct+'% complete</div>'+
+        '<div class="wt-progress-bar" style="width:140px;margin-top:4px"><div class="wt-progress-fill" style="width:'+pct+'%"></div></div>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openAddRoomModal(\''+b.id+'\',\''+(Object.keys(floorMap).length+1)+'\')" style="font-size:11px">+ Floor / Rooms</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editWTBuilding(\''+b.id+'\')" style="font-size:11px">Edit</button>'+
+        '<span style="font-size:18px;color:#546e7a" id="wt-building-toggle-'+b.id+'">▼</span>'+
+      '</div>'+
+    '</div>'+
+    '<div id="wt-building-body-'+b.id+'" style="display:block">'+
+      (floorsHtml||'<div style="padding:14px;color:#90a4ae;font-size:13px">No rooms yet. Click + Floor / Rooms to add.</div>')+
+    '</div>'+
+  '</div>';
+}
+
+function toggleWTBuilding(id) {
+  var body = document.getElementById('wt-building-body-'+id);
+  var icon = document.getElementById('wt-building-toggle-'+id);
+  if (!body) return;
+  var isOpen = body.style.display!=='none';
+  body.style.display = isOpen?'none':'block';
+  if (icon) icon.textContent = isOpen?'▶':'▼';
+}
+
+// ---- FIELD VIEW ----
+function renderWTFieldView() {
+  var el = document.getElementById('wt-field-items'); if (!el) return;
+  var search = ((document.getElementById('wt-field-search')||{}).value||'').toLowerCase();
+  var phase  = (document.getElementById('wt-field-phase')||{}).value||'';
+  var status = (document.getElementById('wt-field-status')||{}).value||'';
+  var myName = _currentUser ? _currentUser.full_name : '';
+
+  var items = (DB.wtItems||[]).filter(function(i){
+    if (i.projectId !== _wtProjectId) return false;
+    if (phase  && (!i.phases||i.phases.indexOf(phase)<0)) return false;
+    if (status && i.status!==status) return false;
+    if (search) {
+      var room = (DB.wtRooms||[]).find(function(r){ return r.id===i.roomId; });
+      var building = (DB.wtBuildings||[]).find(function(b){ return b.id===i.buildingId; });
+      var text = [(room&&room.name)||'',(building&&building.name)||'',i.label||''].join(' ').toLowerCase();
+      if (text.indexOf(search)<0) return false;
+    }
+    return true;
+  });
+
+  if (!items.length) {
+    el.innerHTML='<div style="color:#90a4ae;text-align:center;padding:20px">No items match your filters.</div>';
+    return;
+  }
+
+  // Group by building → room
+  var grouped = {};
+  items.forEach(function(i){
+    var bld = (DB.wtBuildings||[]).find(function(b){ return b.id===i.buildingId; });
+    var room = (DB.wtRooms||[]).find(function(r){ return r.id===i.roomId; });
+    var key = (bld&&bld.name)||'Unknown';
+    var subKey = (room&&room.name)||'Unknown';
+    if (!grouped[key]) grouped[key]={};
+    if (!grouped[key][subKey]) grouped[key][subKey]=[];
+    grouped[key][subKey].push(i);
+  });
+
+  el.innerHTML = Object.keys(grouped).map(function(bldName){
+    return '<div style="margin-bottom:16px">'+
+      '<div style="font-weight:700;font-size:13px;color:#0d1b2a;margin-bottom:8px;padding:8px 12px;background:#f5f7fa;border-radius:8px">🏢 '+escHtml(bldName)+'</div>'+
+      Object.keys(grouped[bldName]).map(function(roomName){
+        var roomItems = grouped[bldName][roomName];
+        return '<div style="margin-bottom:10px;padding:0 4px">'+
+          '<div style="font-weight:700;font-size:12px;color:#546e7a;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px">'+escHtml(roomName)+'</div>'+
+          roomItems.map(function(i){ return renderWTFieldItem(i); }).join('')+
+          // Bulk complete button for room
+          '<button class="btn btn-ghost btn-sm" style="font-size:11px;margin-top:4px" onclick="bulkCompleteRoom(\''+roomItems[0].roomId+'\')">✓ Complete all in room for phase</button>'+
+        '</div>';
+      }).join('')+
+    '</div>';
+  }).join('');
+}
+
+function renderWTFieldItem(i) {
+  var statusIcon = i.status==='done'?'✓':i.status==='in_progress'?'◐':'○';
+  var statusCls  = i.status==='done'?'done':i.status==='in_progress'?'in_progress':'pending';
+  var phases = (i.phases||[]).map(function(ph){
+    var phStatus = (i.phaseStatus&&i.phaseStatus[ph])||'pending';
+    var phColor  = phStatus==='done'?'#2e7d32':phStatus==='in_progress'?'#e65100':'#90a4ae';
+    var phBg     = phStatus==='done'?'#e8f5e9':phStatus==='in_progress'?'#fff3e0':'#f5f5f5';
+    var phLabels = {rough:'Rough',device:'Device',test:'Test'};
+    return '<span class="wt-phase-pill" style="background:'+phBg+';color:'+phColor+'" onclick="openCheckoffModal(\''+i.id+'\',\''+ph+'\')">'+
+      (phStatus==='done'?'✓ ':'')+escHtml(phLabels[ph]||ph)+
+    '</span>';
+  }).join('');
+
+  return '<div class="wt-item-row">'+
+    '<div class="wt-check-btn '+statusCls+'" onclick="openCheckoffModal(\''+i.id+'\',null)">'+statusIcon+'</div>'+
+    '<div style="flex:1;min-width:0">'+
+      '<div style="font-weight:700;font-size:13px">'+escHtml(i.icon||'')+'  '+escHtml(i.label||'')+'</div>'+
+      '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">'+phases+'</div>'+
+      (i.note?'<div style="font-size:11px;color:#546e7a;margin-top:2px;font-style:italic">'+escHtml(i.note)+'</div>':'')+
+    '</div>'+
+    '<button class="btn btn-ghost btn-sm" style="font-size:11px;flex-shrink:0" onclick="openReworkFromItem(\''+i.id+'\')">⚠</button>'+
+  '</div>';
+}
+
+function openCheckoffModal(itemId, phase) {
+  var item = (DB.wtItems||[]).find(function(i){ return i.id===itemId; }); if(!item) return;
+  var room = (DB.wtRooms||[]).find(function(r){ return r.id===item.roomId; });
+  var building = (DB.wtBuildings||[]).find(function(b){ return b.id===item.buildingId; });
+  var teamOpts = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
+  var myName = _currentUser ? _currentUser.full_name : '';
+  var phaseToUse = phase || (item.phases&&item.phases[0])||'rough';
+
+  var titleEl = document.getElementById('wt-checkoff-title');
+  if (titleEl) titleEl.textContent = '✅ '+escHtml(item.label||'');
+
+  var phLabels = {rough:'Rough-in',device:'Devicing',test:'Test + Label'};
+  var phaseOpts = (item.phases||[]).map(function(ph){
+    var done = (item.phaseStatus&&item.phaseStatus[ph])==='done';
+    return '<option value="'+ph+'"'+(ph===phaseToUse?' selected':'')+
+      (done?' disabled':'')+'>'+escHtml(phLabels[ph]||ph)+(done?' (done)':'')+'</option>';
+  }).join('');
+
+  document.getElementById('wt-checkoff-body').innerHTML =
+    '<div style="background:#f8f9fa;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;color:#546e7a">'+
+      '📍 '+(building?escHtml(building.name)+' / ':'')+(room?escHtml(room.name)+' / ':'')+'<strong>'+escHtml(item.label||'')+'</strong>'+
+    '</div>'+
+    '<label>Phase *</label>'+
+    '<select id="co-phase" style="width:100%;padding:10px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:10px">'+phaseOpts+'</select>'+
+    '<label>Completed by *</label>'+
+    '<input id="co-tech" list="co-team-list" value="'+escHtml(myName)+'" style="margin-bottom:10px">'+
+    '<datalist id="co-team-list">'+teamOpts+'</datalist>'+
+    '<label>Note (optional)</label>'+
+    '<div style="display:flex;gap:6px;margin-bottom:10px">'+
+      '<input id="co-note" placeholder="Type or select a quick note..." style="flex:1">'+
+      '<select onchange="document.getElementById(\'co-note\').value=this.value;this.value=\'\'" style="padding:8px;border:1px solid #e0e0e0;border-radius:8px;font-size:12px">'+
+        '<option value="">Quick notes...</option>'+
+        '<option value="Plumber pipe in the way">Plumber pipe in way</option>'+
+        '<option value="Design change required">Design change</option>'+
+        '<option value="Inspector callout">Inspector callout</option>'+
+        '<option value="Damage by other trade">Damage by other trade</option>'+
+        '<option value="Abnormally difficult">Abnormally difficult</option>'+
+      '</select>'+
+    '</div>'+
+    '<label>Photo (optional)</label>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'+
+      '<div id="co-photo-preview" onclick="document.getElementById(\'co-photo-input\').click()" style="width:56px;height:56px;border:2px dashed #e0e0e0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;overflow:hidden;background:#f8f9fa">📷</div>'+
+      '<div>'+
+        '<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById(\'co-photo-input\').click()">📷 Add Photo</button>'+
+        '<input type="file" id="co-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onCoPhotoSelected(this)">'+
+        '<input type="hidden" id="co-photo-url">'+
+        '<div style="font-size:11px;color:#90a4ae;margin-top:4px">Auto-compressed. GPS + timestamp tagged.</div>'+
+      '</div>'+
+    '</div>'+
+    '<input type="hidden" id="co-item-id" value="'+escHtml(itemId)+'">'+
+    '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">'+
+      '<input type="checkbox" id="co-difficult" style="width:16px;height:16px">'+
+      '⚠ Flag as abnormally difficult (excluded from benchmarks, reviewed by back office)'+
+    '</label>';
+
+  openModal('modal-wt-checkoff');
+}
+
+function onCoPhotoSelected(input) {
+  var file=input.files[0]; if(!file) return;
+  if(file.size>5*1024*1024){showToast('Photo must be under 5MB','error');return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var compressed=e.target.result; // future: compress before storing
+    document.getElementById('co-photo-url').value=compressed;
+    var prev=document.getElementById('co-photo-preview');
+    if(prev) prev.innerHTML='<img src="'+compressed+'" style="width:100%;height:100%;object-fit:cover">';
+  };
+  reader.readAsDataURL(file);
+}
+
+function submitWTCheckoff() {
+  var itemId  = (document.getElementById('co-item-id')||{}).value||'';
+  var phase   = (document.getElementById('co-phase')||{}).value||'';
+  var tech    = ((document.getElementById('co-tech')||{}).value||'').trim();
+  var note    = (document.getElementById('co-note')||{}).value||'';
+  var photo   = (document.getElementById('co-photo-url')||{}).value||'';
+  var hard    = (document.getElementById('co-difficult')||{}).checked||false;
+  if (!tech)  { showToast('Please enter who completed this','error'); return; }
+
+  var item = (DB.wtItems||[]).find(function(i){ return i.id===itemId; }); if(!item) return;
+
+  // Update phase status
+  if (!item.phaseStatus) item.phaseStatus={};
+  item.phaseStatus[phase]='done';
+
+  // Check if all phases done
+  var allDone = (item.phases||[]).every(function(ph){ return item.phaseStatus[ph]==='done'; });
+  item.status = allDone ? 'done' : 'in_progress';
+  item.note = note || item.note;
+
+  // Log checkoff record
+  if (!DB.wtCheckoffs) DB.wtCheckoffs=[];
+  DB.wtCheckoffs.push({
+    id:        'co-'+Date.now(),
+    itemId:    itemId,
+    projectId: item.projectId,
+    buildingId:item.buildingId,
+    roomId:    item.roomId,
+    phase:     phase,
+    techName:  tech,
+    note:      note,
+    photoUrl:  photo,
+    difficult: hard,
+    timestamp: new Date().toISOString(),
+    confirmed: false,
+    confirmedBy:null
+  });
+
+  saveDB();
+  closeModal('modal-wt-checkoff');
+  renderWTPhaseBar(_wtProjectId);
+  renderWTFieldView();
+  showToast((allDone?'✓ Item complete':'◐ Phase marked done')+' — '+escHtml(item.label||''), 'success');
+}
+
+function bulkCompleteRoom(roomId) {
+  var phase = (document.getElementById('wt-field-phase')||{}).value||'rough';
+  if (!phase) { showToast('Select a phase first using the filter above','warning'); return; }
+  var myName = _currentUser ? _currentUser.full_name : '';
+  var count = 0;
+  (DB.wtItems||[]).forEach(function(i){
+    if (i.roomId!==roomId||!i.phases||i.phases.indexOf(phase)<0) return;
+    if ((i.phaseStatus&&i.phaseStatus[phase])==='done') return;
+    if (!i.phaseStatus) i.phaseStatus={};
+    i.phaseStatus[phase]='done';
+    var allDone=(i.phases||[]).every(function(ph){ return i.phaseStatus[ph]==='done'; });
+    i.status=allDone?'done':'in_progress';
+    if (!DB.wtCheckoffs) DB.wtCheckoffs=[];
+    DB.wtCheckoffs.push({id:'co-'+Date.now()+'-'+count,itemId:i.id,projectId:i.projectId,buildingId:i.buildingId,roomId:roomId,phase:phase,techName:myName||'Unknown',note:'Bulk complete',timestamp:new Date().toISOString(),confirmed:false});
+    count++;
+  });
+  saveDB();
+  renderWTPhaseBar(_wtProjectId);
+  renderWTFieldView();
+  showToast(count+' items marked complete for '+phase,'success');
+}
+
+// ---- PROGRESS VIEW ----
+function renderWTProgressView() {
+  var el = document.getElementById('wt-progress-content'); if (!el) return;
+  var buildings = (DB.wtBuildings||[]).filter(function(b){ return b.projectId===_wtProjectId; });
+
+  el.innerHTML = buildings.map(function(b){
+    var items  = (DB.wtItems||[]).filter(function(i){ return i.buildingId===b.id; });
+    var checkoffs = (DB.wtCheckoffs||[]).filter(function(c){ return c.buildingId===b.id; });
+
+    // Per-tech stats
+    var techMap = {};
+    checkoffs.forEach(function(c){
+      if (!techMap[c.techName]) techMap[c.techName]={name:c.techName,count:0,phases:{rough:0,device:0,test:0}};
+      techMap[c.techName].count++;
+      if (c.phase) techMap[c.techName].phases[c.phase]=(techMap[c.techName].phases[c.phase]||0)+1;
+    });
+    var techs = Object.values(techMap).sort(function(a,b){ return b.count-a.count; });
+
+    var done = items.filter(function(i){ return i.status==='done'; }).length;
+    var pct  = items.length ? Math.round(done/items.length*100) : 0;
+
+    return '<div class="card" style="margin-bottom:12px">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
+        '<div style="font-weight:700;font-size:14px">🏢 '+escHtml(b.name)+'</div>'+
+        '<div style="font-weight:800;font-size:16px;color:'+(pct===100?'#2e7d32':'#1565c0')+'">'+pct+'%</div>'+
+      '</div>'+
+      '<div class="wt-progress-bar" style="height:12px;margin-bottom:12px"><div class="wt-progress-fill" style="width:'+pct+'%"></div></div>'+
+      (techs.length?
+        '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Tech Activity</div>'+
+        techs.map(function(t){
+          return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:12px;border-bottom:1px solid #f5f5f5">'+
+            '<span style="font-weight:700">'+escHtml(t.name)+'</span>'+
+            '<span style="color:#546e7a">'+t.count+' check-offs · R:'+t.phases.rough+' D:'+t.phases.device+' T:'+t.phases.test+'</span>'+
+          '</div>';
+        }).join(''):
+        '<div style="color:#90a4ae;font-size:13px">No activity yet.</div>')+
+    '</div>';
+  }).join('');
+
+  if (!buildings.length) el.innerHTML='<div style="color:#90a4ae;padding:20px;text-align:center">No buildings on this project yet.</div>';
+}
+
+// ---- REWORKS VIEW ----
+function renderWTReworksView() {
+  var el = document.getElementById('wt-reworks-list'); if (!el) return;
+  var reworks = (DB.wtReworks||[]).filter(function(r){ return r.projectId===_wtProjectId; });
+  if (!reworks.length) { el.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No reworks logged for this project.</div>'; return; }
+  el.innerHTML = reworks.map(function(r){
+    var sevIcons = {critical:'🔴',standard:'🟡',minor:'🟢'};
+    return '<div class="rework-row '+r.severity+'">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'+
+        '<span style="font-weight:700;font-size:13px">'+escHtml(sevIcons[r.severity]||'')+'  '+escHtml(r.location||'')+'</span>'+
+        '<span style="font-size:11px;color:#90a4ae">'+escHtml(r.loggedAt||'')+'</span>'+
+      '</div>'+
+      '<div style="font-size:12px;color:#546e7a;margin-bottom:4px">'+escHtml(r.description||'')+'</div>'+
+      '<div style="font-size:11px;display:flex;gap:12px">'+
+        '<span>Category: <strong>'+escHtml(r.category||'')+'</strong></span>'+
+        '<span>Original: <strong>'+escHtml(r.origTech||'—')+'</strong></span>'+
+        '<span>Assigned to: <strong>'+escHtml(r.assignTech||'—')+'</strong></span>'+
+        '<span>Fault: <strong style="color:'+(r.fault==='original'?'#c62828':'#2e7d32')+'">'+escHtml(r.fault==='original'?'Original Work':'External')+'</strong></span>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function openReworkFromItem(itemId) {
+  var item = (DB.wtItems||[]).find(function(i){ return i.id===itemId; });
+  var room = item ? (DB.wtRooms||[]).find(function(r){ return r.id===item.roomId; }) : null;
+  var bld  = item ? (DB.wtBuildings||[]).find(function(b){ return b.id===item.buildingId; }) : null;
+  var loc  = [(bld&&bld.name)||'',(room&&room.name)||'',(item&&item.label)||''].filter(Boolean).join(' / ');
+  var el = document.getElementById('rw-location'); if(el) el.value=loc;
+  var el2 = document.getElementById('rw-project-id'); if(el2) el2.value=_wtProjectId;
+  var el3 = document.getElementById('rw-item-id'); if(el3) el3.value=itemId||'';
+  var tl = document.getElementById('rw-team-list');
+  if (tl) tl.innerHTML=(DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'; }).join('');
+  openModal('modal-wt-rework');
+}
+
+function openAddReworkModal() {
+  var el = document.getElementById('rw-project-id'); if(el) el.value=_wtProjectId;
+  var el2 = document.getElementById('rw-location'); if(el2) el2.value='';
+  var tl = document.getElementById('rw-team-list');
+  if (tl) tl.innerHTML=(DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'; }).join('');
+  openModal('modal-wt-rework');
+}
+
+function saveRework() {
+  var loc  = ((document.getElementById('rw-location')||{}).value||'').trim();
+  var desc = ((document.getElementById('rw-desc')||{}).value||'').trim();
+  if (!loc)  { showToast('Please enter the item location','error'); return; }
+  if (!desc) { showToast('Please describe what needs to be fixed','error'); return; }
+  var fault = document.querySelector('input[name="rw-fault"]:checked');
+  if (!DB.wtReworks) DB.wtReworks=[];
+  DB.wtReworks.push({
+    id:          'rw-'+Date.now(),
+    projectId:   (document.getElementById('rw-project-id')||{}).value||_wtProjectId,
+    itemId:      (document.getElementById('rw-item-id')||{}).value||'',
+    category:    (document.getElementById('rw-category')||{}).value||'',
+    severity:    (document.getElementById('rw-severity')||{}).value||'standard',
+    location:    loc,
+    description: desc,
+    origTech:    (document.getElementById('rw-orig-tech')||{}).value||'',
+    assignTech:  (document.getElementById('rw-assign-tech')||{}).value||'',
+    fault:       fault?fault.value:'original',
+    loggedAt:    new Date().toISOString().split('T')[0],
+    loggedBy:    _currentUser?_currentUser.full_name:'',
+    status:      'open'
+  });
+  saveDB();
+  closeModal('modal-wt-rework');
+  renderWTReworksView();
+  showToast('Rework logged','success');
+}
+
+// ---- ROOM DETAIL ----
+function openRoomDetail(roomId) {
+  var room = (DB.wtRooms||[]).find(function(r){ return r.id===roomId; }); if(!room) return;
+  // Switch to field view filtered to this room
+  switchWTView('field');
+  var search = document.getElementById('wt-field-search');
+  if (search) { search.value = room.name; }
+  renderWTFieldView();
+}
+
+// ---- ADD BUILDING MODAL ----
+function openAddBuildingModal() {
+  ['wtb-name','wtb-notes'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+  var f=document.getElementById('wtb-floors'); if(f) f.value=3;
+  var u=document.getElementById('wtb-units'); if(u) u.value=8;
+  var ut=document.getElementById('wtb-unit-types'); if(ut) ut.value='1BR,2BR,3BR';
+  var pid=document.getElementById('wtb-project-id'); if(pid) pid.value=_wtProjectId;
+  var bid=document.getElementById('wtb-id'); if(bid) bid.value='';
+  openModal('modal-wt-building');
+}
+
+function editWTBuilding(buildingId) {
+  var b=(DB.wtBuildings||[]).find(function(x){ return x.id===buildingId; }); if(!b) return;
+  function sv(id,v){ var e=document.getElementById(id); if(e) e.value=v||''; }
+  sv('wtb-name',b.name); sv('wtb-notes',b.notes); sv('wtb-floors',b.floors||3); sv('wtb-units',b.unitsPerFloor||8); sv('wtb-unit-types',b.unitTypes||'');
+  var tp=document.getElementById('wtb-type'); if(tp) tp.value=b.type||'residential';
+  var pid=document.getElementById('wtb-project-id'); if(pid) pid.value=b.projectId;
+  var bid=document.getElementById('wtb-id'); if(bid) bid.value=b.id;
+  openModal('modal-wt-building');
+}
+
+function saveWTBuilding() {
+  var name = ((document.getElementById('wtb-name')||{}).value||'').trim();
+  if (!name) { showToast('Building name required','error'); return; }
+  var id  = (document.getElementById('wtb-id')||{}).value||'';
+  var pid = (document.getElementById('wtb-project-id')||{}).value||_wtProjectId;
+  var data = {
+    id:           id||'wtb-'+Date.now(),
+    projectId:    pid,
+    name:         name,
+    type:         (document.getElementById('wtb-type')||{}).value||'residential',
+    floors:       parseInt((document.getElementById('wtb-floors')||{}).value)||3,
+    unitsPerFloor:parseInt((document.getElementById('wtb-units')||{}).value)||8,
+    unitTypes:    (document.getElementById('wtb-unit-types')||{}).value||'',
+    notes:        (document.getElementById('wtb-notes')||{}).value||''
+  };
+  if (!DB.wtBuildings) DB.wtBuildings=[];
+  if (id) { var idx=DB.wtBuildings.findIndex(function(b){ return b.id===id; }); if(idx>=0) DB.wtBuildings[idx]=data; else DB.wtBuildings.push(data); }
+  else DB.wtBuildings.push(data);
+  saveDB();
+  closeModal('modal-wt-building');
+  renderWTStructureView(pid);
+  showToast('Building saved','success');
+}
+
+// ---- ADD ROOMS MODAL ----
+function openAddRoomModal(buildingId, floor) {
+  var b=(DB.wtBuildings||[]).find(function(x){ return x.id===buildingId; });
+  var ctx=document.getElementById('wtr-context');
+  if (ctx) ctx.textContent = 'Building: '+(b?b.name:'')+(floor?' · Floor '+floor:'');
+  var bid=document.getElementById('wtr-building-id'); if(bid) bid.value=buildingId;
+  var fl=document.getElementById('wtr-floor'); if(fl) fl.value=floor||'1';
+  var rm=document.getElementById('wtr-rooms'); if(rm) rm.value='';
+  openModal('modal-wt-room');
+}
+
+function saveWTRooms() {
+  var buildingId = (document.getElementById('wtr-building-id')||{}).value||'';
+  var floor      = (document.getElementById('wtr-floor')||{}).value||'1';
+  var roomsRaw   = ((document.getElementById('wtr-rooms')||{}).value||'').trim();
+  var roomType   = (document.getElementById('wtr-type')||{}).value||'unit';
+  var layout     = (document.getElementById('wtr-layout')||{}).value||'';
+  if (!roomsRaw) { showToast('Please enter room numbers','error'); return; }
+
+  // Parse room list — supports ranges (101-108) and comma-separated
+  var roomNames = [];
+  roomsRaw.split(',').forEach(function(part){
+    part = part.trim();
+    var rangeMatch = part.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch) {
+      var from=parseInt(rangeMatch[1]), to=parseInt(rangeMatch[2]);
+      for(var n=from;n<=to;n++) roomNames.push(String(n));
+    } else if (part) {
+      roomNames.push(part);
+    }
+  });
+
+  if (!roomNames.length) { showToast('No valid room numbers found','error'); return; }
+
+  // Get project systems to know which items to generate
+  var building = (DB.wtBuildings||[]).find(function(b){ return b.id===buildingId; });
+  var project  = building ? (DB.wtProjects||[]).find(function(p){ return p.id===building.projectId; }) : null;
+  var systems  = (project&&project.systems)||[];
+
+  if (!DB.wtRooms)  DB.wtRooms=[];
+  if (!DB.wtItems)  DB.wtItems=[];
+
+  var addedRooms=0, addedItems=0;
+  roomNames.forEach(function(rName){
+    // Skip if room already exists in this building/floor
+    var existing = DB.wtRooms.find(function(r){ return r.buildingId===buildingId&&r.floor===floor&&r.name===rName; });
+    if (existing) return;
+
+    var roomId = 'wtr-'+Date.now()+'-'+Math.random().toString(36).substr(2,5);
+    DB.wtRooms.push({
+      id:buildingId+'-f'+floor+'-'+rName.replace(/\s/g,''),
+      projectId: building?building.projectId:'',
+      buildingId:buildingId, floor:floor,
+      name:rName, type:roomType, layout:layout
+    });
+    addedRooms++;
+
+    // Generate items from project systems
+    systems.forEach(function(sys){
+      var templates = WT_ITEM_TEMPLATES[sys]||[];
+      templates.forEach(function(tpl){
+        DB.wtItems.push({
+          id:        'wti-'+Date.now()+'-'+Math.random().toString(36).substr(2,6),
+          projectId: building?building.projectId:'',
+          buildingId:buildingId, roomId:roomId,
+          label:     tpl.label, icon:tpl.icon||'🔌',
+          phases:    tpl.phases, phaseStatus:{},
+          status:    'pending', note:'', system:sys
+        });
+        addedItems++;
+      });
+    });
+  });
+
+  saveDB();
+  closeModal('modal-wt-room');
+  renderWTStructureView(building?building.projectId:_wtProjectId);
+  renderWTPhaseBar(_wtProjectId);
+  showToast(addedRooms+' rooms added · '+addedItems+' items generated','success');
+}
+
+// ---- PROJECT WIZARD ----
+function openNewProjectWizard() {
+  _wtWizardStep=1; _wtWizardBuildings=[];
+  // Populate datalists
+  var custDl=document.getElementById('wtp-cust-list');
+  if(custDl) custDl.innerHTML=(DB.customers||[]).map(function(c){ return '<option value="'+escHtml(c.name)+'">'; }).join('');
+  var teamDl=document.getElementById('wtp-team-list');
+  if(teamDl) teamDl.innerHTML=(DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'; }).join('');
+  var jobSel=document.getElementById('wtp-job-link');
+  if(jobSel){ jobSel.innerHTML='<option value="">— None —</option>';(DB.jobs||[]).forEach(function(j){ var o=document.createElement('option');o.value=j.id;o.textContent=j.name+(j.customer?' — '+j.customer:'');jobSel.appendChild(o); }); }
+  // Clear fields
+  ['wtp-name','wtp-customer','wtp-lead','wtp-address'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+  var s=document.getElementById('wtp-start'); if(s) s.value=new Date().toISOString().split('T')[0];
+  // Reset steps
+  showWTPStep(1);
+  document.getElementById('wtp-building-entries').innerHTML='';
+  openModal('modal-wt-project');
+}
+
+function showWTPStep(step) {
+  [1,2,3,4].forEach(function(n){
+    var s=document.getElementById('wtp-step-'+n); if(s) s.style.display=n===step?'block':'none';
+    var dot=document.getElementById('wtp-dot-'+n); if(dot){
+      if(n<step){dot.className='wt-step-dot done';dot.textContent='✓';}
+      else if(n===step){dot.className='wt-step-dot active';dot.textContent=String(n);}
+      else{dot.className='wt-step-dot';dot.textContent=String(n);}
+    }
+    var line=document.getElementById('wtp-line-'+n); if(line) line.className='wt-step-line'+(n<step?' done':'');
+  });
+  var back=document.getElementById('wtp-back-btn'); if(back) back.style.display=step>1?'inline-flex':'none';
+  var next=document.getElementById('wtp-next-btn'); if(next) next.textContent=step===4?'✓ Create Project':'Next →';
+  _wtWizardStep=step;
+
+  if(step===2 && !document.getElementById('wtp-building-entries').children.length) addWTPBuilding();
+  if(step===4) buildWTPSummary();
+}
+
+function wtpStepNext() {
+  if(_wtWizardStep===1){
+    var name=((document.getElementById('wtp-name')||{}).value||'').trim();
+    if(!name){showToast('Project name required','error');return;}
+  }
+  if(_wtWizardStep===4){ createWTProject(); return; }
+  showWTPStep(_wtWizardStep+1);
+}
+function wtpStepBack(){ if(_wtWizardStep>1) showWTPStep(_wtWizardStep-1); }
+
+function addWTPBuilding() {
+  var container=document.getElementById('wtp-building-entries');
+  var idx=container.children.length;
+  var div=document.createElement('div');
+  div.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:8px';
+  div.innerHTML='<input placeholder="Building name (e.g. Building '+( idx+1)+')" style="flex:1;padding:10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px" class="wtp-bld-name">'+
+    '<select style="padding:10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px" class="wtp-bld-type"><option value="residential">Residential</option><option value="clubhouse">Clubhouse</option><option value="idf">IDF</option><option value="amenity">Amenity</option></select>'+
+    '<input type="number" min="1" max="20" value="3" style="width:60px;padding:10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;text-align:center" class="wtp-bld-floors" title="Floors">'+
+    '<button type="button" onclick="this.parentNode.remove()" style="background:none;border:none;color:#c62828;font-size:18px;cursor:pointer;padding:0 4px">×</button>';
+  container.appendChild(div);
+}
+
+function buildWTPSummary() {
+  var name     = ((document.getElementById('wtp-name')||{}).value||'').trim();
+  var customer = (document.getElementById('wtp-customer')||{}).value||'';
+  var lead     = (document.getElementById('wtp-lead')||{}).value||'';
+  var systems  = ['cat6','coax','wifi','fiber','access','cameras','intercoms','audio','tv','deadbolts']
+    .filter(function(s){ var cb=document.getElementById('sys-'+s); return cb&&cb.checked; });
+  var buildings = Array.from(document.querySelectorAll('#wtp-building-entries>div')).map(function(div){
+    return {
+      name:   (div.querySelector('.wtp-bld-name')||{}).value||'',
+      type:   (div.querySelector('.wtp-bld-type')||{}).value||'residential',
+      floors: parseInt((div.querySelector('.wtp-bld-floors')||{}).value)||3
+    };
+  }).filter(function(b){ return b.name.trim(); });
+
+  var sysLabels={cat6:'Cat6 Data',coax:'Coax/TV',wifi:'Wireless AP',fiber:'Fiber',access:'Access Control',cameras:'Cameras',intercoms:'Intercoms',audio:'Audio',tv:'TV Installs',deadbolts:'Electronic Deadbolts'};
+  var el=document.getElementById('wtp-confirm-summary');
+  if(el) el.innerHTML=
+    '<div><strong>Project:</strong> '+escHtml(name)+'</div>'+
+    (customer?'<div><strong>Customer:</strong> '+escHtml(customer)+'</div>':'')+
+    (lead?'<div><strong>Lead Tech:</strong> '+escHtml(lead)+'</div>':'')+
+    '<div><strong>Buildings:</strong> '+buildings.length+' — '+buildings.map(function(b){ return escHtml(b.name)+' ('+b.floors+'fl)'; }).join(', ')+'</div>'+
+    '<div><strong>Systems:</strong> '+(systems.length?systems.map(function(s){ return sysLabels[s]||s; }).join(', '):'None selected')+'</div>';
+}
+
+function createWTProject() {
+  var name     = ((document.getElementById('wtp-name')||{}).value||'').trim();
+  var customer = (document.getElementById('wtp-customer')||{}).value||'';
+  var lead     = (document.getElementById('wtp-lead')||{}).value||'';
+  var start    = (document.getElementById('wtp-start')||{}).value||'';
+  var address  = (document.getElementById('wtp-address')||{}).value||'';
+  var jobLink  = (document.getElementById('wtp-job-link')||{}).value||'';
+  var systems  = ['cat6','coax','wifi','fiber','access','cameras','intercoms','audio','tv','deadbolts']
+    .filter(function(s){ var cb=document.getElementById('sys-'+s); return cb&&cb.checked; });
+  var buildings = Array.from(document.querySelectorAll('#wtp-building-entries>div')).map(function(div){
+    return { name:(div.querySelector('.wtp-bld-name')||{}).value||'', type:(div.querySelector('.wtp-bld-type')||{}).value||'residential', floors:parseInt((div.querySelector('.wtp-bld-floors')||{}).value)||3 };
+  }).filter(function(b){ return b.name.trim(); });
+
+  if (!DB.wtProjects)  DB.wtProjects=[];
+  if (!DB.wtBuildings) DB.wtBuildings=[];
+
+  var projectId = 'wtp-'+Date.now();
+  DB.wtProjects.push({ id:projectId, name:name, customer:customer, leadTech:lead, startDate:start, address:address, jobId:jobLink, systems:systems, createdAt:new Date().toISOString() });
+
+  buildings.forEach(function(b){
+    DB.wtBuildings.push({ id:'wtb-'+Date.now()+'-'+Math.random().toString(36).substr(2,5), projectId:projectId, name:b.name, type:b.type, floors:b.floors, unitsPerFloor:8, unitTypes:'1BR,2BR,3BR', notes:'' });
+  });
+
+  saveDB();
+  closeModal('modal-wt-project');
+  _wtProjectId = projectId;
+  renderWorkTracking();
+  loadWTProject(projectId);
+  showToast('Project "'+name+'" created with '+buildings.length+' buildings','success');
+}
+
+// ============================================================
+// END WORK TRACKING PHASE 1
 // ============================================================
 var _absenceStep = 1;
 var _absenceData = {};
@@ -13005,6 +14750,7 @@ async function signIn(email, password) {
     startClockInReminder();
     checkYearEndForfeiture();
     setTimeout(flushOfflineQueue, 2000);
+    setTimeout(initPhase2, 500);
   }
   return result;
 }
