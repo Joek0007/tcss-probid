@@ -2,11 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="TCSS ProBid">
 <meta name="theme-color" content="#1565c0">
+<meta name="description" content="TCSS ProBid — Field management, time tracking, and work tracking for TCSS technicians">
+<link rel="manifest" href="manifest.json">
 <title>TCSS ProBid v9</title>
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
@@ -478,6 +481,27 @@ label{display:block;font-size:12px;font-weight:700;color:#455a64;margin-bottom:5
 .rework-row.critical{border-left:4px solid #c62828}
 .rework-row.standard{border-left:4px solid #e65100}
 .rework-row.minor{border-left:4px solid #2e7d32}
+
+/* ===== CUSTOMER PROFILE ===== */
+.cp-tab{padding:12px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#546e7a;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap}
+.cp-tab.active{color:#1565c0;border-bottom-color:#1565c0;background:#f8f9fa}
+.cp-tab:hover{background:#f5f7fa}
+.cp-stat-card{background:rgba(255,255,255,.15);border-radius:10px;padding:10px;text-align:center}
+.cp-stat-val{font-size:20px;font-weight:800}
+.cp-stat-lbl{font-size:10px;opacity:.8;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.cp-section-title{font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;margin:0 0 10px}
+.cp-quote-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid #e0e0e0;border-radius:10px;margin-bottom:8px;cursor:pointer;transition:background .1s}
+.cp-quote-row:hover{background:#f5f7fa}
+.cp-contact-card{background:#f8f9fa;border-radius:10px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.cp-contact-avatar{width:36px;height:36px;border-radius:50%;background:#e3f2fd;color:#1565c0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+
+/* ===== DARK MODE CUSTOMER PROFILE ===== */
+body.dark-mode #customer-profile-box{background:#1e1e1e!important}
+body.dark-mode .cp-tab{color:#888!important}
+body.dark-mode .cp-tab.active{color:#90caf9!important;background:#252525!important}
+body.dark-mode .cp-quote-row{border-color:#333!important}
+body.dark-mode .cp-quote-row:hover{background:#252525!important}
+body.dark-mode .cp-contact-card{background:#252525!important}
 
 /* ===== ABSENCE REPORTING ===== */
 .abs-reason-btn{border:2px solid #e0e0e0;border-radius:12px;padding:14px 10px;text-align:center;cursor:pointer;font-size:13px;font-weight:700;color:#37474f;transition:all .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -1650,6 +1674,7 @@ table{font-size:12.5px}
       <button class="inv-tab" onclick="switchWTView('field')">📱 Field</button>
       <button class="inv-tab" onclick="switchWTView('progress')">📊 Progress</button>
       <button class="inv-tab" onclick="switchWTView('confirm')">✅ Confirm</button>
+      <button class="inv-tab" onclick="switchWTView('reports')">📈 Reports</button>
       <button class="inv-tab" onclick="switchWTView('reworks')">🔄 Reworks</button>
     </div>
 
@@ -1696,6 +1721,21 @@ table{font-size:12.5px}
         <p style="font-size:12px;color:#546e7a;margin-bottom:12px">Check-offs awaiting lead tech or back office confirmation. Once confirmed, the record is locked — only back office can reopen.</p>
         <div id="wt-confirm-list"></div>
       </div>
+    </div>
+
+    <!-- REPORTS VIEW -->
+    <div class="wt-view" id="wt-view-reports">
+      <!-- Report selector -->
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="renderWTReport('weekly')" id="rpt-btn-weekly">📅 Tech Weekly</button>
+          <button class="btn btn-outline btn-sm" onclick="renderWTReport('leaderboard')" id="rpt-btn-leaderboard">🏆 Leaderboard</button>
+          <button class="btn btn-outline btn-sm" onclick="renderWTReport('benchmarks')" id="rpt-btn-benchmarks">⏱ Benchmarks</button>
+          <button class="btn btn-outline btn-sm" onclick="renderWTReport('difficult')" id="rpt-btn-difficult">⚠ Difficult Flags</button>
+          <button class="btn btn-outline btn-sm" onclick="printQRLabels()" id="rpt-btn-qr">🏷 Print QR Labels</button>
+        </div>
+      </div>
+      <div id="wt-reports-content"></div>
     </div>
 
     <!-- REWORKS VIEW -->
@@ -2087,7 +2127,7 @@ table{font-size:12.5px}
 <!-- CUSTOMERS -->
 <div class="page" id="page-customers">
   <div class="page-header"><h2>👥 Customers</h2><button class="btn btn-primary" data-action="newCustomer">+ New Customer</button></div>
-  <div class="card"><table><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th>Quotes</th><th>Actions</th></tr></thead>
+  <div class="card"><table><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th>Activity</th><th>Won Revenue</th><th>Actions</th></tr></thead>
   <tbody id="cust-tbl"></tbody></table></div>
 </div>
 
@@ -2973,6 +3013,16 @@ table{font-size:12.5px}
         <div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:4px">Office / Home Base</div>
         <div style="font-size:12px;color:#546e7a;margin-bottom:8px">Used to calculate travel time from shop to job sites.</div>
         <div class="form-row"><div><label>Office Address</label><input id="s-office-addr" placeholder="e.g. 1100 Commerce Dr, Asheboro, NC 27203"></div></div>
+        <div style="margin-top:10px">
+          <label style="font-size:12px;font-weight:700;color:#546e7a">Office GPS Coordinates</label>
+          <div style="font-size:11px;color:#90a4ae;margin-bottom:6px">Required for morning auto-detect and geofence enforcement. Click "Pin My Location" from the office to set automatically.</div>
+          <div class="form-row cols2">
+            <div><label>Latitude</label><input id="s-office-lat" type="number" step="any" placeholder="e.g. 35.7071"></div>
+            <div><label>Longitude</label><input id="s-office-lng" type="number" step="any" placeholder="e.g. -79.8120"></div>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" style="margin-top:6px" onclick="pinOfficeLocation()">📍 Pin My Current Location as Office</button>
+          <span id="office-pin-status" style="font-size:11px;color:#2e7d32;margin-left:8px;display:none">✓ Location pinned!</span>
+        </div>
       </div>
       <div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-top:4px">
         <div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:4px">⏰ Clock-In Reminder</div>
@@ -3317,16 +3367,31 @@ table{font-size:12.5px}
 
 <!-- CONVERT TO JOB MODAL -->
 <div class="modal-overlay" id="modal-convert-job">
-  <div class="modal-box sm">
-    <div class="modal-head"><h3>▶ Convert to Job</h3><button class="close-btn" data-action="closeModal" data-modal="modal-convert-job">×</button></div>
+  <div class="modal-box">
+    <div class="modal-head"><h3>▶ Convert Quote to Job</h3><button class="close-btn" data-action="closeModal" data-modal="modal-convert-job">×</button></div>
     <div class="modal-body">
-      <p style="font-size:13px;color:#546e7a;margin-bottom:14px">This will create a job record linked to this quote. The quote status will be set to <strong>Won</strong>.</p>
+      <div style="background:#e8f5e9;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#2e7d32">
+        ✓ Quote will be marked <strong>Won</strong> and a full job record created.
+      </div>
       <div class="form-row"><div><label>Job Name *</label><input id="ctj-name" placeholder="Job name"></div></div>
       <div class="form-row cols2">
-        <div><label>Scheduled Start Date</label><input id="ctj-start" type="date"></div>
-        <div><label>Assigned To</label><input id="ctj-assign" placeholder="Technician name"></div>
+        <div><label>Customer</label><input id="ctj-customer" placeholder="Customer name" list="ctj-cust-list"><datalist id="ctj-cust-list"></datalist></div>
+        <div><label>Primary Contact</label><select id="ctj-contact"><option value="">— None —</option></select></div>
       </div>
-      <div class="form-row"><div><label>Job Notes</label><textarea id="ctj-notes" rows="2" placeholder="Special instructions, access info..."></textarea></div></div>
+      <div class="form-row cols2">
+        <div><label>Scheduled Start Date</label><input id="ctj-start" type="date"></div>
+        <div><label>Lead Technician</label><input id="ctj-assign" placeholder="Lead tech" list="ctj-tech-list"><datalist id="ctj-tech-list"></datalist></div>
+      </div>
+      <div class="form-row"><div><label>Job Site Address</label><input id="ctj-address" placeholder="Street address for GPS geofencing"></div></div>
+      <div class="form-row"><div><label>Job Notes</label><textarea id="ctj-notes" rows="2" placeholder="Special instructions, access info, scope notes..."></textarea></div></div>
+      <!-- Work Tracking project creation option -->
+      <div style="border:1px solid #e0e0e0;border-radius:10px;padding:12px;margin-top:8px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700;font-size:13px">
+          <input type="checkbox" id="ctj-create-wtp" style="width:16px;height:16px">
+          Also create a Work Tracking project for this job
+        </label>
+        <div style="font-size:11px;color:#90a4ae;margin-top:4px">Creates a WT project linked to this job so techs can log check-offs from day one. You can add buildings and items after.</div>
+      </div>
       <input type="hidden" id="ctj-qid">
     </div>
     <div class="modal-foot">
@@ -3392,7 +3457,36 @@ table{font-size:12.5px}
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-customer">
+<!-- CUSTOMER PROFILE OVERLAY -->
+<div id="customer-profile-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1300;overflow-y:auto">
+  <div style="background:#fff;max-width:900px;margin:20px auto;border-radius:16px;min-height:calc(100vh - 40px);overflow:hidden" id="customer-profile-box">
+    <!-- Profile header -->
+    <div style="background:linear-gradient(135deg,#1565c0,#1976d2);color:#fff;padding:24px;position:relative">
+      <button onclick="closeCustomerProfile()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:6px 12px;font-size:14px;cursor:pointer">✕ Close</button>
+      <div style="display:flex;align-items:flex-start;gap:16px">
+        <div style="width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;flex-shrink:0" id="cp-avatar">TC</div>
+        <div style="flex:1">
+          <div style="font-size:22px;font-weight:800" id="cp-name">Customer</div>
+          <div style="font-size:13px;opacity:.85;margin-top:4px" id="cp-meta"></div>
+        </div>
+      </div>
+      <!-- Quick stats -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px" id="cp-stats"></div>
+    </div>
+    <!-- Profile tabs -->
+    <div style="display:flex;gap:0;border-bottom:1px solid #e0e0e0;background:#fff;position:sticky;top:0;z-index:10">
+      <button class="cp-tab active" onclick="switchCPTab('overview')" id="cpt-overview">📊 Overview</button>
+      <button class="cp-tab" onclick="switchCPTab('quotes')" id="cpt-quotes">📋 Quotes</button>
+      <button class="cp-tab" onclick="switchCPTab('jobs')" id="cpt-jobs">🔧 Jobs</button>
+      <button class="cp-tab" onclick="switchCPTab('contacts')" id="cpt-contacts">👤 Contacts</button>
+      <button class="cp-tab" onclick="switchCPTab('projects')" id="cpt-projects">✅ Projects</button>
+    </div>
+    <!-- Tab content -->
+    <div style="padding:20px" id="cp-content"></div>
+  </div>
+</div>
+
+<!-- CUSTOMER MODAL -->
   <div class="modal-box sm">
     <div class="modal-head"><h3 id="modal-cust-title">New Customer</h3><button class="close-btn" data-action="closeModal" data-modal="modal-customer">×</button></div>
     <div class="modal-body">
@@ -3408,28 +3502,35 @@ table{font-size:12.5px}
 
 <div class="modal-overlay" id="modal-contact">
   <div class="modal-box sm">
-    <div class="modal-head"><h3>New Contact</h3><button class="close-btn" data-action="closeModal" data-modal="modal-contact">×</button></div>
+    <div class="modal-head"><h3>Contact</h3><button class="close-btn" data-action="closeModal" data-modal="modal-contact">×</button></div>
     <div class="modal-body">
-      <div class="form-row cols2"><div><label>Name *</label><input id="m-ctname"></div><div><label>Company</label><input id="m-ctco"></div></div>
+      <div class="form-row cols2"><div><label>Name *</label><input id="m-ctname"></div><div><label>Company</label><input id="m-ctco" list="m-ctco-list"><datalist id="m-ctco-list"></datalist></div></div>
       <div class="form-row cols2"><div><label>Phone</label><input id="m-ctph"></div><div><label>Email</label><input id="m-ctem" type="email"></div></div>
-      <div class="form-row"><div><label>Title / Role</label>
-        <select id="m-ctrole">
-          <option value="">-- Select Title --</option>
-          <option>Owner</option>
-          <option>Facilities Manager</option>
-          <option>Property Manager</option>
-          <option>General Contractor</option>
-          <option>IT Director</option>
-          <option>Office Manager</option>
-          <option>Project Manager</option>
-          <option>Superintendent</option>
-          <option>Purchasing Agent</option>
-          <option>Operations Manager</option>
-          <option>Director of Facilities</option>
-          <option>Financial Manager</option>
-          <option>Other</option>
-        </select>
-      </div></div>
+      <div class="form-row cols2">
+        <div><label>Title / Role</label>
+          <select id="m-ctrole">
+            <option value="">-- Select Title --</option>
+            <option>Owner</option>
+            <option>Facilities Manager</option>
+            <option>Property Manager</option>
+            <option>General Contractor</option>
+            <option>IT Director</option>
+            <option>Office Manager</option>
+            <option>Project Manager</option>
+            <option>Superintendent</option>
+            <option>Purchasing Agent</option>
+            <option>Operations Manager</option>
+            <option>Director of Facilities</option>
+            <option>Financial Manager</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div><label>Linked Customer</label>
+          <select id="m-ct-custid">
+            <option value="">— Not linked —</option>
+          </select>
+        </div>
+      </div>
       <input type="hidden" id="m-ctid">
     </div>
     <div class="modal-foot"><button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-contact">Cancel</button><button class="btn btn-primary" data-action="saveContact">Save</button></div>
@@ -5876,8 +5977,27 @@ function renderCustomers() {
   if (!tbody) return;
   if (DB.customers.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><p>No customers yet.</p></td></tr>'; return; }
   tbody.innerHTML = DB.customers.map(function(c){
-    const qct = DB.quotes.filter(function(q){return (q.cn||'').toLowerCase()===(c.name||'').toLowerCase()}).length;
-    return '<tr><td style="font-weight:700">' + escHtml(c.name||'') + '</td><td>' + escHtml(c.phone||'') + '</td><td>' + escHtml(c.email||'') + '</td><td>' + escHtml(c.address||'') + '</td><td>' + qct + '</td><td><button class="btn btn-outline btn-sm" data-action="editCustomer" data-id="' + c.id + '">Edit</button> <button class="btn btn-danger btn-sm" data-action="delCustomer" data-id="' + c.id + '">Del</button></td></tr>';
+    const qct  = DB.quotes.filter(function(q){return (q.cn||'').toLowerCase()===(c.name||'').toLowerCase()}).length;
+    const jct  = DB.jobs.filter(function(j){return (j.customer||'').toLowerCase()===(c.name||'').toLowerCase()}).length;
+    const cct  = DB.contacts.filter(function(x){return x.customerId===c.id}).length;
+    const wonRev = DB.quotes.filter(function(q){return (q.cn||'').toLowerCase()===(c.name||'').toLowerCase()&&q.status==='approved'}).reduce(function(s,q){return s+(q.total||0);},0);
+    return '<tr>'+
+      '<td style="font-weight:700"><a href="#" onclick="openCustomerProfile(\''+c.id+'\');return false" style="color:#1565c0;text-decoration:none">'+escHtml(c.name||'')+'</a></td>'+
+      '<td>'+escHtml(c.phone||'')+'</td>'+
+      '<td>'+escHtml(c.email||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(c.address||'')+'</td>'+
+      '<td style="text-align:center">'+
+        '<span title="Quotes" style="margin-right:6px">📋 '+qct+'</span>'+
+        '<span title="Jobs" style="margin-right:6px">🔧 '+jct+'</span>'+
+        '<span title="Contacts">👤 '+cct+'</span>'+
+      '</td>'+
+      '<td style="font-weight:700;color:#2e7d32">$'+Math.round(wonRev).toLocaleString()+'</td>'+
+      '<td style="white-space:nowrap">'+
+        '<button class="btn btn-primary btn-sm" onclick="openCustomerProfile(\''+c.id+'\')">Profile</button> '+
+        '<button class="btn btn-outline btn-sm" data-action="editCustomer" data-id="'+c.id+'">Edit</button> '+
+        '<button class="btn btn-danger btn-sm" data-action="delCustomer" data-id="'+c.id+'">Del</button>'+
+      '</td>'+
+    '</tr>';
   }).join('');
 }
 function newCustomer() { document.getElementById('modal-cust-title').textContent='New Customer';['m-cname','m-cphone','m-cemail','m-caddr','m-cnotes','m-cid'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';}); openModal('modal-customer'); }
@@ -9687,20 +9807,8 @@ function toggleGeofenceEnforcement(){
   if(note)note.innerHTML=on?'<span style="color:#c62828;font-weight:700">🔒 Hard mode ON</span> — techs blocked if outside 500 ft.':'Currently: <strong>Soft mode</strong> — GPS captured and flagged, techs never blocked.';
 }
 
-function saveFieldSettings(){
-  var cb=document.getElementById('s-geofence-enforce');
-  var addr=document.getElementById('s-office-addr');
-  var reminder=document.getElementById('s-clockin-reminder');
-  DB.settings=Object.assign({},DB.settings,{
-    geofenceEnforce:cb?cb.checked:false,
-    officeAddr:addr?addr.value:'',
-    clockInReminderTime:reminder?reminder.value:''
-  });
-  saveDB();
-  startClockInReminder();
-  var savedEl=document.getElementById('field-settings-saved');
-  if(savedEl){savedEl.style.display='inline';setTimeout(function(){savedEl.style.display='none';},2000);}
-  showToast('Field settings saved','success');
+function _saveFieldSettingsOld(){
+  // Replaced by Phase 3 version below
 }
 
 // EOD REMINDER
@@ -9972,7 +10080,872 @@ async function loadTimesheets() {
 }
 
 // ============================================================
-// PHASE 2 — DARK MODE
+// CRM MODULE — Customer Profile, Contact Linking, Quote-to-Job
+// ============================================================
+
+// ---- CUSTOMER PROFILE OVERLAY ----
+var _cpCustomerId = null;
+var _cpTab = 'overview';
+
+function openCustomerProfile(customerId) {
+  _cpCustomerId = customerId;
+  _cpTab = 'overview';
+  var customer = (DB.customers||[]).find(function(c){ return c.id===customerId; });
+  if (!customer) return;
+
+  // Header
+  var initials = (customer.name||'?').split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+  var av = document.getElementById('cp-avatar'); if(av) av.textContent=initials;
+  var nm = document.getElementById('cp-name');   if(nm) nm.textContent=customer.name||'';
+  var mt = document.getElementById('cp-meta');
+  if (mt) mt.textContent = [customer.phone,customer.email,customer.address].filter(Boolean).join(' · ');
+
+  // Stats
+  var quotes   = DB.quotes.filter(function(q){ return (q.cn||'').toLowerCase()===(customer.name||'').toLowerCase(); });
+  var jobs     = DB.jobs.filter(function(j){ return (j.customer||'').toLowerCase()===(customer.name||'').toLowerCase(); });
+  var contacts = DB.contacts.filter(function(x){ return x.customerId===customerId; });
+  var wonRev   = quotes.filter(function(q){ return q.status==='approved'; }).reduce(function(s,q){ return s+(q.total||0); }, 0);
+
+  var statsEl = document.getElementById('cp-stats');
+  if (statsEl) statsEl.innerHTML =
+    cpStat(quotes.length,'Quotes','📋')+
+    cpStat(jobs.length,'Jobs','🔧')+
+    cpStat(contacts.length,'Contacts','👤')+
+    cpStat('$'+Math.round(wonRev).toLocaleString(),'Won Revenue','💰');
+
+  // Show
+  var overlay = document.getElementById('customer-profile-overlay');
+  if (overlay) { overlay.style.display='block'; document.body.style.overflow='hidden'; }
+
+  switchCPTab('overview');
+}
+
+function cpStat(val, label, icon) {
+  return '<div class="cp-stat-card">'+
+    '<div class="cp-stat-val">'+icon+' '+escHtml(String(val))+'</div>'+
+    '<div class="cp-stat-lbl">'+escHtml(label)+'</div>'+
+  '</div>';
+}
+
+function closeCustomerProfile() {
+  var overlay = document.getElementById('customer-profile-overlay');
+  if (overlay) overlay.style.display='none';
+  document.body.style.overflow='';
+}
+
+function switchCPTab(tab) {
+  _cpTab = tab;
+  document.querySelectorAll('.cp-tab').forEach(function(t){ t.classList.remove('active'); });
+  var btn = document.getElementById('cpt-'+tab);
+  if (btn) btn.classList.add('active');
+  var content = document.getElementById('cp-content');
+  if (!content) return;
+  var customer = (DB.customers||[]).find(function(c){ return c.id===_cpCustomerId; });
+  if (!customer) return;
+
+  var quotes   = DB.quotes.filter(function(q){ return (q.cn||'').toLowerCase()===(customer.name||'').toLowerCase(); });
+  var jobs     = DB.jobs.filter(function(j){ return (j.customer||'').toLowerCase()===(customer.name||'').toLowerCase(); });
+  var contacts = DB.contacts.filter(function(x){ return x.customerId===_cpCustomerId; });
+  var projects = (DB.wtProjects||[]).filter(function(p){ return (p.customer||'').toLowerCase()===(customer.name||'').toLowerCase(); });
+
+  if (tab==='overview') content.innerHTML = renderCPOverview(customer, quotes, jobs, contacts, projects);
+  else if (tab==='quotes')   content.innerHTML = renderCPQuotes(quotes);
+  else if (tab==='jobs')     content.innerHTML = renderCPJobs(jobs);
+  else if (tab==='contacts') content.innerHTML = renderCPContacts(contacts, customer);
+  else if (tab==='projects') content.innerHTML = renderCPProjects(projects);
+}
+
+function renderCPOverview(customer, quotes, jobs, contacts, projects) {
+  var wonQuotes   = quotes.filter(function(q){ return q.status==='approved'; });
+  var openQuotes  = quotes.filter(function(q){ return q.status!=='approved'&&q.status!=='declined'; });
+  var activeJobs  = jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; });
+  var wonRev      = wonQuotes.reduce(function(s,q){ return s+(q.total||0); }, 0);
+  var winRate     = quotes.length ? Math.round(wonQuotes.length/quotes.length*100) : 0;
+  var recentQuote = quotes.slice().sort(function(a,b){ return (b.dt||'').localeCompare(a.dt||''); })[0];
+  var recentJob   = jobs.slice().sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); })[0];
+
+  var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">';
+
+  // Left: quick facts
+  html += '<div>'+
+    '<div class="cp-section-title">Customer Details</div>'+
+    '<div style="background:#f8f9fa;border-radius:10px;padding:14px;font-size:13px;line-height:2">'+
+      (customer.phone?'<div>📞 <a href="tel:'+escHtml(customer.phone)+'" style="color:#1565c0">'+escHtml(customer.phone)+'</a></div>':'')+
+      (customer.email?'<div>✉️ <a href="mailto:'+escHtml(customer.email)+'" style="color:#1565c0">'+escHtml(customer.email)+'</a></div>':'')+
+      (customer.address?'<div>📍 '+escHtml(customer.address)+'</div>':'')+
+      (customer.notes?'<div style="margin-top:8px;color:#546e7a;font-size:12px;font-style:italic">'+escHtml(customer.notes)+'</div>':'')+
+    '</div>'+
+    '<div style="margin-top:12px;display:flex;gap:8px">'+
+      '<button class="btn btn-primary btn-sm" onclick="editCustomer(\''+_cpCustomerId+'\')">✏ Edit</button>'+
+      '<button class="btn btn-outline btn-sm" onclick="openQuoteForCustomer(\''+escHtml(customer.name)+'\')">+ New Quote</button>'+
+    '</div>'+
+  '</div>';
+
+  // Right: activity summary
+  html += '<div>'+
+    '<div class="cp-section-title">Activity Summary</div>'+
+    '<div style="background:#f8f9fa;border-radius:10px;padding:14px">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'+
+        miniStat(wonRev,'$','Won Revenue','#2e7d32')+
+        miniStat(winRate,'%','Win Rate','#1565c0')+
+        miniStat(openQuotes.length,'','Open Quotes','#e65100')+
+        miniStat(activeJobs.length,'','Active Jobs','#6a1b9a')+
+      '</div>'+
+      (recentQuote?'<div style="font-size:12px;color:#546e7a">Last quote: <strong>'+escHtml(recentQuote.jn||recentQuote.num||'')+'</strong> '+escHtml(recentQuote.dt||'')+'</div>':'')+
+      (recentJob?'<div style="font-size:12px;color:#546e7a;margin-top:2px">Last job: <strong>'+escHtml(recentJob.name||'')+'</strong></div>':'')+
+    '</div>'+
+    // Primary contact quick view
+    (contacts.length?
+      '<div class="cp-section-title" style="margin-top:14px">Primary Contact</div>'+
+      '<div class="cp-contact-card">'+
+        '<div class="cp-contact-avatar">'+escHtml((contacts[0].name||'?')[0].toUpperCase())+'</div>'+
+        '<div><div style="font-weight:700;font-size:13px">'+escHtml(contacts[0].name||'')+'</div>'+
+        '<div style="font-size:12px;color:#546e7a">'+escHtml(contacts[0].role||contacts[0].title||'')+'</div>'+
+        (contacts[0].phone?'<div style="font-size:12px;color:#1565c0">'+escHtml(contacts[0].phone)+'</div>':'')+
+      '</div></div>':'')+
+  '</div>';
+
+  html += '</div>';
+  return html;
+}
+
+function miniStat(val, prefix, label, color) {
+  var display = prefix==='$' ? '$'+Math.round(val).toLocaleString() : (prefix==='%' ? val+'%' : val);
+  return '<div style="text-align:center;background:#fff;border-radius:8px;padding:8px">'+
+    '<div style="font-weight:800;font-size:15px;color:'+color+'">'+escHtml(String(display))+'</div>'+
+    '<div style="font-size:10px;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'+escHtml(label)+'</div>'+
+  '</div>';
+}
+
+function renderCPQuotes(quotes) {
+  if (!quotes.length) return '<div style="color:#90a4ae;padding:20px;text-align:center">No quotes yet for this customer.</div>';
+  var statusColors = {draft:'#546e7a',sent:'#1565c0',approved:'#2e7d32',declined:'#c62828',followup:'#e65100'};
+  var sorted = quotes.slice().sort(function(a,b){ return (b.dt||'').localeCompare(a.dt||''); });
+  return '<div class="cp-section-title">All Quotes ('+quotes.length+')</div>'+
+    sorted.map(function(q){
+      var sc = statusColors[q.status||'draft']||'#546e7a';
+      return '<div class="cp-quote-row" onclick="editQuote(\''+q.id+'\')">'+
+        '<div>'+
+          '<div style="font-weight:700;font-size:13px">'+escHtml(q.jn||q.num||'Untitled')+'</div>'+
+          '<div style="font-size:11px;color:#546e7a">'+escHtml(q.num||'')+' · '+escHtml(q.dt||'')+(q.contactName?' · '+escHtml(q.contactName):'')+'</div>'+
+        '</div>'+
+        '<div style="text-align:right">'+
+          '<div style="font-weight:700;font-size:14px">$'+Math.round(q.total||0).toLocaleString()+'</div>'+
+          '<span style="background:'+sc+'20;color:'+sc+';border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">'+escHtml(q.status||'draft')+'</span>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+}
+
+function renderCPJobs(jobs) {
+  if (!jobs.length) return '<div style="color:#90a4ae;padding:20px;text-align:center">No jobs yet for this customer.</div>';
+  var statusColors={'Scheduled':'#1565c0','In Progress':'#2e7d32','Complete':'#546e7a','Closed':'#90a4ae','On Hold':'#e65100'};
+  return '<div class="cp-section-title">All Jobs ('+jobs.length+')</div>'+
+    jobs.map(function(j){
+      var sc = statusColors[j.status]||'#546e7a';
+      var items = (DB.wtItems||[]).filter(function(i){ return i.projectId && (DB.wtProjects||[]).find(function(p){ return p.id===i.projectId&&(p.jobId===j.id||(p.customer||'').toLowerCase()===(j.customer||'').toLowerCase()); }); });
+      var done  = items.filter(function(i){ return i.status==='done'; }).length;
+      var pct   = items.length ? Math.round(done/items.length*100) : null;
+      return '<div class="cp-quote-row">'+
+        '<div style="flex:1">'+
+          '<div style="font-weight:700;font-size:13px">'+escHtml(j.name||'')+'</div>'+
+          '<div style="font-size:11px;color:#546e7a">'+escHtml(j.num||'')+' · Started: '+escHtml(j.startDate||j.createdAt&&j.createdAt.split('T')[0]||'—')+(j.assignedTo?' · '+escHtml(j.assignedTo):'')+'</div>'+
+          (pct!==null?'<div class="wt-progress-bar" style="width:160px;margin-top:4px"><div class="wt-progress-fill" style="width:'+pct+'%"></div></div>':'')+''+
+        '</div>'+
+        '<span style="background:'+sc+'20;color:'+sc+';border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">'+escHtml(j.status)+'</span>'+
+      '</div>';
+    }).join('');
+}
+
+function renderCPContacts(contacts, customer) {
+  return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
+      '<div class="cp-section-title" style="margin:0">Contacts ('+contacts.length+')</div>'+
+      '<button class="btn btn-primary btn-sm" onclick="newContactForCustomer(\''+_cpCustomerId+'\',\''+escHtml(customer.name)+'\')">+ Add Contact</button>'+
+    '</div>'+
+    (contacts.length?
+      contacts.map(function(c){
+        return '<div class="cp-contact-card">'+
+          '<div class="cp-contact-avatar">'+escHtml((c.name||'?')[0].toUpperCase())+'</div>'+
+          '<div style="flex:1">'+
+            '<div style="font-weight:700;font-size:13px">'+escHtml(c.name||'')+'</div>'+
+            '<div style="font-size:12px;color:#546e7a">'+escHtml(c.role||c.title||'')+(c.company?' · '+escHtml(c.company):'')+'</div>'+
+            '<div style="font-size:12px;margin-top:2px;display:flex;gap:12px">'+
+              (c.phone?'<a href="tel:'+escHtml(c.phone)+'" style="color:#1565c0">'+escHtml(c.phone)+'</a>':'')+
+              (c.email?'<a href="mailto:'+escHtml(c.email)+'" style="color:#1565c0">'+escHtml(c.email)+'</a>':'')+
+            '</div>'+
+          '</div>'+
+          '<div style="display:flex;gap:4px">'+
+            '<button class="btn btn-outline btn-sm" onclick="editContact(\''+c.id+'\')">Edit</button>'+
+          '</div>'+
+        '</div>';
+      }).join('') :
+      '<div style="color:#90a4ae;font-size:13px;padding:12px 0">No contacts linked to this customer yet. Add one above.</div>');
+}
+
+function renderCPProjects(projects) {
+  if (!projects.length) return '<div style="color:#90a4ae;padding:20px;text-align:center">No work tracking projects for this customer yet.</div>';
+  return '<div class="cp-section-title">Work Tracking Projects ('+projects.length+')</div>'+
+    projects.map(function(p){
+      var items = (DB.wtItems||[]).filter(function(i){ return i.projectId===p.id; });
+      var done  = items.filter(function(i){ return i.status==='done'; }).length;
+      var pct   = items.length ? Math.round(done/items.length*100) : 0;
+      return '<div class="cp-quote-row" onclick="loadWTProject(\''+p.id+'\');closeCustomerProfile();goPage(\'worktracking\')">'+
+        '<div style="flex:1">'+
+          '<div style="font-weight:700;font-size:13px">'+escHtml(p.name||'')+'</div>'+
+          '<div style="font-size:11px;color:#546e7a">Lead: '+escHtml(p.leadTech||'—')+' · '+escHtml(p.startDate||'')+'</div>'+
+          '<div class="wt-progress-bar" style="width:200px;margin-top:4px"><div class="wt-progress-fill" style="width:'+pct+'%"></div></div>'+
+        '</div>'+
+        '<div style="font-weight:800;font-size:14px;color:#1565c0">'+pct+'%</div>'+
+      '</div>';
+    }).join('');
+}
+
+// ---- CONTACT LINKING ----
+function newContactForCustomer(customerId, customerName) {
+  newContact();
+  var custSel = document.getElementById('m-ct-custid');
+  if (custSel) custSel.value = customerId;
+  var coEl = document.getElementById('m-ctco');
+  if (coEl) coEl.value = customerName||'';
+}
+
+function openQuoteForCustomer(customerName) {
+  closeCustomerProfile();
+  goPage('qq');
+  setTimeout(function(){
+    var cnEl = document.getElementById('qq-cn');
+    if (cnEl) { cnEl.value=customerName; cnEl.dispatchEvent(new Event('input')); }
+  }, 200);
+}
+
+// Patch newContact and editContact to populate customer dropdown
+var _origNewContact = newContact;
+function newContact() {
+  _origNewContact();
+  populateContactCustomerDropdown('');
+  // Populate company datalist from customers
+  var dl = document.getElementById('m-ctco-list');
+  if (dl) dl.innerHTML=(DB.customers||[]).map(function(c){ return '<option value="'+escHtml(c.name)+'">'; }).join('');
+}
+
+var _origEditContact = editContact;
+function editContact(id) {
+  _origEditContact(id);
+  var c=(DB.contacts||[]).find(function(x){ return x.id==id; });
+  populateContactCustomerDropdown(c&&c.customerId||'');
+  var dl = document.getElementById('m-ctco-list');
+  if (dl) dl.innerHTML=(DB.customers||[]).map(function(cx){ return '<option value="'+escHtml(cx.name)+'">'; }).join('');
+}
+
+function populateContactCustomerDropdown(selectedId) {
+  var sel = document.getElementById('m-ct-custid'); if(!sel) return;
+  sel.innerHTML='<option value="">— Not linked —</option>';
+  (DB.customers||[]).forEach(function(c){
+    var opt=document.createElement('option');
+    opt.value=c.id; opt.textContent=c.name;
+    if(c.id===selectedId) opt.selected=true;
+    sel.appendChild(opt);
+  });
+}
+
+// Patch saveContact to save customerId
+var _origSaveContact = saveContact;
+function saveContact() {
+  var id=document.getElementById('m-ctid').value;
+  var name=document.getElementById('m-ctname').value;
+  if(!name.trim()){alert('Name required.');return;}
+  var custId=(document.getElementById('m-ct-custid')||{}).value||'';
+  var data={
+    id:id||Date.now().toString(),
+    name:name,
+    company:document.getElementById('m-ctco').value,
+    phone:document.getElementById('m-ctph').value,
+    email:document.getElementById('m-ctem').value,
+    role:document.getElementById('m-ctrole').value,
+    title:document.getElementById('m-ctrole').value,
+    customerId:custId
+  };
+  if(id){var idx=DB.contacts.findIndex(function(c){return c.id==id});if(idx>=0)DB.contacts[idx]=data;else DB.contacts.push(data);}
+  else DB.contacts.push(data);
+  saveDB();closeModal('modal-contact');renderContacts();
+  // Refresh customer profile if open
+  if(_cpCustomerId) switchCPTab(_cpTab);
+}
+
+// ---- UPGRADED CONVERT-TO-JOB ----
+// Patch the openConvertToJob trigger to populate new fields
+var _origConvertToJobAction = null; // handled via data-action
+
+function prepareConvertModal(qid) {
+  var q=(DB.quotes||[]).find(function(x){return x.id==qid;});
+  if(!q) return;
+  var el=document.getElementById('ctj-qid'); if(el) el.value=qid;
+  var nm=document.getElementById('ctj-name'); if(nm) nm.value=q.jn||'';
+  var cu=document.getElementById('ctj-customer'); if(cu) cu.value=q.cn||'';
+  var ad=document.getElementById('ctj-address'); if(ad) ad.value=q.ad||'';
+  var st=document.getElementById('ctj-start'); if(st) st.value=new Date().toISOString().split('T')[0];
+  // Populate customer datalist
+  var cdl=document.getElementById('ctj-cust-list'); if(cdl) cdl.innerHTML=(DB.customers||[]).map(function(c){ return '<option value="'+escHtml(c.name)+'">'; }).join('');
+  // Populate tech datalist
+  var tdl=document.getElementById('ctj-tech-list'); if(tdl) tdl.innerHTML=(DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'; }).join('');
+  // Populate contacts for this customer
+  var contactSel=document.getElementById('ctj-contact'); if(contactSel){
+    contactSel.innerHTML='<option value="">— None —</option>';
+    var custContacts=(DB.contacts||[]).filter(function(c){ return (c.company||'').toLowerCase()===(q.cn||'').toLowerCase()||c.customerId===((DB.customers||[]).find(function(x){ return (x.name||'').toLowerCase()===(q.cn||'').toLowerCase(); })||{}).id; });
+    custContacts.forEach(function(c){ var o=document.createElement('option');o.value=c.id;o.textContent=c.name+(c.role?' ('+c.role+')':'');contactSel.appendChild(o); });
+    // Pre-select if quote already has a contact
+    if(q.contactId) contactSel.value=q.contactId;
+  }
+}
+
+// Override confirmConvertJob to use new fields
+function confirmConvertJob() {
+  const qid  = document.getElementById('ctj-qid').value;
+  const name = document.getElementById('ctj-name').value.trim();
+  if (!name) { showToast('Job name is required','error'); return; }
+  const q = DB.quotes.find(function(x){ return x.id == qid; });
+  if (!q) return;
+
+  const contactId  = (document.getElementById('ctj-contact')||{}).value||'';
+  const contactName= contactId ? ((DB.contacts||[]).find(function(c){ return c.id===contactId; })||{}).name||'' : '';
+  const leadTech   = (document.getElementById('ctj-assign')||{}).value||'';
+  const address    = (document.getElementById('ctj-address')||{}).value||'';
+  const customer   = (document.getElementById('ctj-customer')||{}).value||q.cn||'';
+  const createWTP  = (document.getElementById('ctj-create-wtp')||{}).checked||false;
+
+  // Mark quote Won
+  q.status    = 'approved';
+  q.wonDate   = new Date().toISOString().split('T')[0];
+  q.contactId = contactId;
+
+  // Create job
+  const job = {
+    id:              Date.now().toString(),
+    num:             'J-' + (++DB.jobSeq),
+    name:            name,
+    customer:        customer,
+    contactId:       contactId,
+    contactName:     contactName,
+    qid:             qid,
+    qnum:            q.num||'',
+    env:             q.env||'office',
+    envLabel:        q.envLabel||'',
+    jt:              q.jt||'',
+    address:         address||q.ad||'',
+    assignedTo:      leadTech,
+    estLaborHours:   q.totalLaborHours||0,
+    actualLaborHours:0,
+    estCost:         q.totalCost||0,
+    estTotal:        q.total||0,
+    achievedMargin:  q.achievedMargin||0,
+    items:           q.items ? JSON.parse(JSON.stringify(q.items)) : [],
+    status:          'Scheduled',
+    startDate:       (document.getElementById('ctj-start')||{}).value||'',
+    notes:           (document.getElementById('ctj-notes')||{}).value||'',
+    createdAt:       new Date().toISOString()
+  };
+
+  DB.jobs.unshift(job);
+
+  // Optionally create WT project
+  if (createWTP) {
+    if (!DB.wtProjects) DB.wtProjects=[];
+    DB.wtProjects.push({
+      id:        'wtp-'+Date.now(),
+      name:      name,
+      customer:  customer,
+      leadTech:  leadTech,
+      startDate: job.startDate,
+      address:   address,
+      jobId:     job.id,
+      systems:   [],
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  saveDB();
+  closeModal('modal-convert-job');
+  showToast('Job '+job.num+' created'+(createWTP?' + Work Tracking project':'')+' ✓','success',5000);
+  renderDash();
+  renderJobs();
+}
+
+// Wire prepareConvertModal into the convertToJob action
+var _origConvertToJobHandler = null;
+
+// ============================================================
+// END CRM MODULE
+// ============================================================
+function printQRLabels() {
+  if (!_wtProjectId) { showToast('Select a project first','warning'); return; }
+  var project  = (DB.wtProjects||[]).find(function(p){ return p.id===_wtProjectId; });
+  var buildings = (DB.wtBuildings||[]).filter(function(b){ return b.projectId===_wtProjectId; });
+  if (!buildings.length) { showToast('No buildings on this project yet','warning'); return; }
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'+
+    '<title>QR Labels — '+(project?project.name:'Project')+'</title>'+
+    '<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>'+
+    '<style>'+
+      'body{font-family:Arial,sans-serif;margin:0;padding:16px;background:#fff}'+
+      'h2{font-size:16px;margin:0 0 16px;color:#1565c0}'+
+      '.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}'+
+      '.label{border:2px solid #1565c0;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}'+
+      '.label-bld{font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px}'+
+      '.label-room{font-size:16px;font-weight:900;color:#0d1b2a;margin:4px 0}'+
+      '.label-floor{font-size:10px;color:#90a4ae}'+
+      'canvas{margin:6px 0}'+
+      '.bld-title{font-size:14px;font-weight:700;color:#0d1b2a;margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid #1565c0}'+
+      '@media print{.no-print{display:none}@page{margin:10mm}}'+
+    '</style></head><body>'+
+    '<div class="no-print" style="margin-bottom:16px">'+
+      '<h2>🏷 QR Room Labels — '+(project?escHtml(project.name):'')+'</h2>'+
+      '<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;margin-right:8px">🖨 Print Labels</button>'+
+      '<button onclick="window.close()" style="background:none;border:1px solid #e0e0e0;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer">Close</button>'+
+    '</div>';
+
+  buildings.forEach(function(b){
+    var rooms = (DB.wtRooms||[]).filter(function(r){ return r.buildingId===b.id; });
+    if (!rooms.length) return;
+    html += '<div class="bld-title">🏢 '+escHtml(b.name)+'</div><div class="grid">';
+    rooms.forEach(function(r){
+      var qrData = 'TCSS-ROOM:'+r.id;
+      html += '<div class="label" id="lbl-'+r.id+'">'+
+        '<div class="label-bld">'+escHtml(b.name)+'</div>'+
+        '<div class="label-room">'+escHtml(r.name)+'</div>'+
+        '<div class="label-floor">Floor '+escHtml(r.floor||'')+(r.layout?' · '+escHtml(r.layout):'')+'</div>'+
+        '<canvas id="qr-'+r.id+'"></canvas>'+
+        '<div style="font-size:8px;color:#90a4ae;margin-top:2px">'+escHtml(qrData)+'</div>'+
+      '</div>';
+    });
+    html += '</div>';
+  });
+
+  html += '<script>'+
+    'document.addEventListener("DOMContentLoaded",function(){'+
+    'document.querySelectorAll("canvas[id^=\'qr-\']").forEach(function(canvas){'+
+      'var roomId=canvas.id.replace("qr-","");'+
+      'QRCode.toCanvas(canvas,"TCSS-ROOM:"+roomId,{width:90,margin:1},function(){});'+
+    '});});'+
+  '<\/script></body></html>';
+
+  var win = window.open('','_blank','width=900,height=700');
+  if (win) { win.document.write(html); win.document.close(); }
+  else showToast('Allow popups to print QR labels','warning');
+}
+
+// ============================================================
+// PHASE 3 — TIME PER ITEM + BENCHMARK SYSTEM (Q40, Q50)
+// Tracks duration of each check-off, flags techs >50% slower
+// 30-day grace period for new hires
+// ============================================================
+
+// Record start time when tech opens check-off modal
+var _checkoffStartTime = null;
+
+var _origOpenCheckoffModal = openCheckoffModal;
+function openCheckoffModal(itemId, phase) {
+  _checkoffStartTime = Date.now();
+  _origOpenCheckoffModal(itemId, phase);
+}
+
+var _origSubmitWTCheckoff = submitWTCheckoff;
+function submitWTCheckoff() {
+  // Inject duration into the checkoff record
+  if (_checkoffStartTime) {
+    var duration = Math.round((Date.now() - _checkoffStartTime) / 1000); // seconds
+    window._pendingCheckoffDuration = duration;
+    _checkoffStartTime = null;
+  }
+  _origSubmitWTCheckoff();
+}
+
+// After checkoff is saved, store duration and check benchmarks
+var _origSubmitWTCheckoffCore = null; // patched below
+
+function getBenchmark(system, phase) {
+  // Returns {avg, count} for this system+phase combo from all historical checkoffs
+  var checkoffs = (DB.wtCheckoffs||[]).filter(function(c){
+    return c.system===system && c.phase===phase && c.durationSecs && c.durationSecs>30;
+  });
+  if (checkoffs.length < 5) return null; // need at least 5 data points
+  var total = checkoffs.reduce(function(s,c){ return s+(c.durationSecs||0); }, 0);
+  return { avg: Math.round(total/checkoffs.length), count: checkoffs.length };
+}
+
+function checkBenchmarkFlag(techName, system, phase, durationSecs) {
+  var benchmark = getBenchmark(system, phase);
+  if (!benchmark) return; // not enough data yet
+  // Check 30-day new hire grace period (Q50)
+  var tech = (DB.team||[]).find(function(m){ return m.name===techName; });
+  if (tech && tech.hireDate) {
+    var daysSinceHire = (Date.now()-new Date(tech.hireDate))/(1000*60*60*24);
+    if (daysSinceHire < 30) return; // grace period — don't flag
+  }
+  // Flag if >50% slower than average
+  if (durationSecs > benchmark.avg * 1.5) {
+    addNotification('benchmarks',
+      techName+' flagged: slow on '+phase,
+      system+' '+phase+' took '+Math.round(durationSecs/60)+'min vs avg '+Math.round(benchmark.avg/60)+'min'
+    );
+  }
+}
+
+// ============================================================
+// PHASE 3 — REPORTS (Weekly Summary, Leaderboard, Benchmarks, Difficult)
+// ============================================================
+function switchWTReportBtn(type) {
+  ['weekly','leaderboard','benchmarks','difficult'].forEach(function(t){
+    var btn=document.getElementById('rpt-btn-'+t);
+    if(btn) btn.className='btn btn-'+(t===type?'primary':'outline')+' btn-sm';
+  });
+}
+
+function renderWTReport(type) {
+  switchWTReportBtn(type);
+  var el = document.getElementById('wt-reports-content'); if(!el) return;
+  if (type==='weekly')      el.innerHTML = renderWTWeeklyReport();
+  else if (type==='leaderboard') el.innerHTML = renderWTLeaderboard();
+  else if (type==='benchmarks')  el.innerHTML = renderWTBenchmarks();
+  else if (type==='difficult')   el.innerHTML = renderWTDifficultFlags();
+}
+
+// Tech Weekly Summary Report (Q38)
+function renderWTWeeklyReport() {
+  var project = (DB.wtProjects||[]).find(function(p){ return p.id===_wtProjectId; });
+  var now = new Date();
+  var weekStart = new Date(now); weekStart.setDate(now.getDate()-now.getDay());
+  weekStart.setHours(0,0,0,0);
+  var weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6);
+  var weekStartStr = weekStart.toISOString().split('T')[0];
+  var weekEndStr   = weekEnd.toISOString().split('T')[0];
+
+  // All checkoffs this week for this project
+  var weekCheckoffs = (DB.wtCheckoffs||[]).filter(function(c){
+    return c.projectId===_wtProjectId && c.timestamp && c.timestamp.split('T')[0]>=weekStartStr && c.timestamp.split('T')[0]<=weekEndStr;
+  });
+
+  // Reworks this week
+  var weekReworks = (DB.wtReworks||[]).filter(function(r){
+    return r.projectId===_wtProjectId && r.loggedAt>=weekStartStr && r.loggedAt<=weekEndStr && r.fault==='original';
+  });
+
+  // Group by tech
+  var techMap = {};
+  weekCheckoffs.forEach(function(c){
+    if (!techMap[c.techName]) techMap[c.techName]={name:c.techName,checkoffs:0,phases:{rough:0,device:0,test:0},reworks:0,difficult:0};
+    techMap[c.techName].checkoffs++;
+    if(c.phase) techMap[c.techName].phases[c.phase]=(techMap[c.techName].phases[c.phase]||0)+1;
+    if(c.difficult) techMap[c.techName].difficult++;
+  });
+  weekReworks.forEach(function(r){
+    if(r.origTech&&techMap[r.origTech]) techMap[r.origTech].reworks++;
+  });
+
+  var techs = Object.values(techMap).sort(function(a,b){ return b.checkoffs-a.checkoffs; });
+  var teamAvg = techs.length ? Math.round(techs.reduce(function(s,t){ return s+t.checkoffs; },0)/techs.length) : 0;
+
+  var html = '<div class="card" style="margin-bottom:12px">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'+
+      '<div class="card-title" style="margin:0">📅 Tech Weekly Summary</div>'+
+      '<div style="font-size:12px;color:#546e7a">'+formatDate(weekStartStr)+' — '+formatDate(weekEndStr)+'</div>'+
+    '</div>';
+
+  if (!techs.length) {
+    html += '<div style="color:#90a4ae;padding:16px;text-align:center">No check-offs recorded this week.</div>';
+  } else {
+    html += '<div style="font-size:11px;color:#546e7a;margin-bottom:10px">Team average: <strong>'+teamAvg+' check-offs</strong> this week</div>'+
+    techs.map(function(t){
+      var reworkRate = t.checkoffs ? Math.round(t.reworks/t.checkoffs*100) : 0;
+      var vsAvg = t.checkoffs-teamAvg;
+      var vsColor = vsAvg>0?'#2e7d32':vsAvg<0?'#c62828':'#546e7a';
+      var vsTxt = vsAvg>0?'+'+vsAvg:String(vsAvg);
+      return '<div style="background:#f8f9fa;border-radius:10px;padding:12px;margin-bottom:8px">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+          '<div style="font-weight:700;font-size:14px">'+escHtml(t.name)+'</div>'+
+          '<div style="display:flex;gap:10px;align-items:center">'+
+            '<span style="font-size:12px;color:'+vsColor+';font-weight:700">'+vsTxt+' vs avg</span>'+
+            '<span style="font-weight:800;font-size:16px;color:#1565c0">'+t.checkoffs+' items</span>'+
+          '</div>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">'+
+          '<div class="ts-stat"><div class="ts-stat-val">'+t.phases.rough+'</div><div class="ts-stat-lbl">Rough</div></div>'+
+          '<div class="ts-stat"><div class="ts-stat-val">'+t.phases.device+'</div><div class="ts-stat-lbl">Device</div></div>'+
+          '<div class="ts-stat"><div class="ts-stat-val">'+t.phases.test+'</div><div class="ts-stat-lbl">Test</div></div>'+
+          '<div class="ts-stat" style="'+(reworkRate>10?'background:#ffebee':'')+'">'+'<div class="ts-stat-val" style="'+(reworkRate>10?'color:#c62828':'')+'">'+reworkRate+'%</div><div class="ts-stat-lbl">Rework</div></div>'+
+        '</div>'+
+        (t.difficult?'<div style="font-size:11px;color:#e65100;margin-top:6px">⚠ '+t.difficult+' item(s) flagged as difficult — pending back office review</div>':'')+
+      '</div>';
+    }).join('');
+  }
+  html += '</div>';
+  return html;
+}
+
+// Project Leaderboard (Q39 — admin only by default)
+function renderWTLeaderboard() {
+  var myRole = _currentUser?_currentUser.role:'';
+  var isAdmin = myRole==='owner'||myRole==='manager'||myRole==='back_office';
+  var project = (DB.wtProjects||[]).find(function(p){ return p.id===_wtProjectId; });
+  var isPublic = project && project.leaderboardPublic;
+
+  if (!isAdmin && !isPublic) {
+    return '<div class="card"><div style="text-align:center;padding:24px;color:#90a4ae">'+
+      '<div style="font-size:32px;margin-bottom:8px">🔒</div>'+
+      '<div style="font-weight:700">Leaderboard is admin-only for this project.</div>'+
+    '</div></div>';
+  }
+
+  var checkoffs = (DB.wtCheckoffs||[]).filter(function(c){ return c.projectId===_wtProjectId; });
+  var reworks   = (DB.wtReworks||[]).filter(function(r){ return r.projectId===_wtProjectId&&r.fault==='original'; });
+
+  var techMap = {};
+  checkoffs.forEach(function(c){
+    if(!techMap[c.techName]) techMap[c.techName]={name:c.techName,total:0,confirmed:0,reworks:0};
+    techMap[c.techName].total++;
+    if(c.confirmed) techMap[c.techName].confirmed++;
+  });
+  reworks.forEach(function(r){
+    if(r.origTech&&techMap[r.origTech]) techMap[r.origTech].reworks++;
+  });
+
+  var ranked = Object.values(techMap).sort(function(a,b){ return b.total-a.total; });
+  var medals = ['🥇','🥈','🥉'];
+
+  return '<div class="card">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'+
+      '<div class="card-title" style="margin:0">🏆 Project Leaderboard</div>'+
+      (isAdmin?'<label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px">'+
+        '<input type="checkbox" '+(isPublic?'checked':'')+' onchange="toggleLeaderboardPublic(this.checked)" style="width:14px;height:14px"> Make public to techs'+
+      '</label>':'')+
+    '</div>'+
+    (ranked.length?
+      ranked.map(function(t,i){
+        var reworkRate=t.total?Math.round(t.reworks/t.total*100):0;
+        var confRate=t.total?Math.round(t.confirmed/t.total*100):0;
+        return '<div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:10px;margin-bottom:8px;background:'+(i===0?'#fff8e1':i===1?'#f5f5f5':i===2?'#fbe9e7':'#f8f9fa')+'">'+
+          '<div style="font-size:28px;min-width:36px;text-align:center">'+(medals[i]||('#'+(i+1)))+'</div>'+
+          '<div style="flex:1">'+
+            '<div style="font-weight:700;font-size:14px">'+escHtml(t.name)+'</div>'+
+            '<div style="font-size:12px;color:#546e7a">'+confRate+'% confirmed · '+reworkRate+'% rework rate</div>'+
+          '</div>'+
+          '<div style="font-weight:800;font-size:20px;color:#1565c0">'+t.total+'</div>'+
+        '</div>';
+      }).join(''):
+      '<div style="color:#90a4ae;padding:16px;text-align:center">No check-offs recorded yet.</div>')+
+  '</div>';
+}
+
+function toggleLeaderboardPublic(isPublic) {
+  var project=(DB.wtProjects||[]).find(function(p){ return p.id===_wtProjectId; });
+  if(project){ project.leaderboardPublic=isPublic; saveDB(); showToast(isPublic?'Leaderboard now visible to all techs':'Leaderboard restricted to admin','info'); }
+}
+
+// Benchmark Report (Q40)
+function renderWTBenchmarks() {
+  var systems = ['cat6','coax','wifi','access','cameras','intercoms','audio','tv','deadbolts','fiber'];
+  var phases  = ['rough','device','test'];
+  var phLabels= {rough:'Rough-in',device:'Devicing',test:'Test+Label'};
+  var sysLabels={cat6:'Cat6',coax:'Coax',wifi:'WiFi AP',access:'Access Control',cameras:'Cameras',intercoms:'Intercoms',audio:'Audio',tv:'TV',deadbolts:'Deadbolts',fiber:'Fiber'};
+
+  var rows = [];
+  systems.forEach(function(sys){
+    phases.forEach(function(ph){
+      var b = getBenchmark(sys,ph);
+      if(b) rows.push({sys:sys,ph:ph,avg:b.avg,count:b.count});
+    });
+  });
+
+  if (!rows.length) {
+    return '<div class="card"><div style="text-align:center;padding:24px;color:#90a4ae">'+
+      '<div style="font-size:32px;margin-bottom:8px">⏱</div>'+
+      '<div style="font-weight:700;margin-bottom:4px">Not enough data yet</div>'+
+      '<div style="font-size:13px">Benchmarks are built automatically as techs complete check-offs. Need at least 5 of each type to establish a baseline.</div>'+
+    '</div></div>';
+  }
+
+  return '<div class="card">'+
+    '<div class="card-title">⏱ Time Benchmarks</div>'+
+    '<p style="font-size:12px;color:#546e7a;margin-bottom:12px">Average time per item by system and phase. Techs more than 50% slower than average are flagged. New hires have a 30-day grace period.</p>'+
+    '<table><thead><tr><th>System</th><th>Phase</th><th>Avg Time</th><th>Sample Size</th></tr></thead><tbody>'+
+    rows.map(function(r){
+      var mins=Math.floor(r.avg/60), secs=r.avg%60;
+      return '<tr>'+
+        '<td style="font-weight:700">'+escHtml(sysLabels[r.sys]||r.sys)+'</td>'+
+        '<td><span class="wt-phase-pill '+r.ph+'">'+escHtml(phLabels[r.ph]||r.ph)+'</span></td>'+
+        '<td style="font-weight:700;color:#1565c0">'+mins+'m '+secs+'s</td>'+
+        '<td style="color:#90a4ae">'+r.count+' check-offs</td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+}
+
+// Difficult Flags Review (Q50 — back office reviews)
+function renderWTDifficultFlags() {
+  var myRole = _currentUser?_currentUser.role:'';
+  var isAdmin = myRole==='owner'||myRole==='manager'||myRole==='back_office';
+  if (!isAdmin) return '<div class="card"><div style="color:#90a4ae;padding:20px;text-align:center">Admin access required.</div></div>';
+
+  var difficult = (DB.wtCheckoffs||[]).filter(function(c){
+    return c.projectId===_wtProjectId && c.difficult && !c.difficultReviewed;
+  });
+
+  if (!difficult.length) {
+    return '<div class="card"><div style="color:#2e7d32;font-weight:700;padding:20px;text-align:center">✓ No difficult flags pending review.</div></div>';
+  }
+
+  return '<div class="card">'+
+    '<div class="card-title">⚠ Difficult Flag Review</div>'+
+    '<p style="font-size:12px;color:#546e7a;margin-bottom:12px">Techs flagged these items as abnormally difficult. Review each one — if legitimate, it\'s excluded from benchmarks. If it\'s a pattern, it\'s a conversation.</p>'+
+    difficult.map(function(c){
+      var item=(DB.wtItems||[]).find(function(i){ return i.id===c.itemId; });
+      var room=(DB.wtRooms||[]).find(function(r){ return r.id===c.roomId; });
+      var bld=(DB.wtBuildings||[]).find(function(b){ return b.id===c.buildingId; });
+      var phLabels={rough:'Rough-in',device:'Devicing',test:'Test+Label'};
+      return '<div style="background:#fff8f0;border:1px solid #ffcc02;border-radius:10px;padding:12px;margin-bottom:8px">'+
+        '<div style="font-weight:700;font-size:13px;margin-bottom:4px">'+(item?escHtml(item.label||''):'Item')+'</div>'+
+        '<div style="font-size:12px;color:#546e7a">'+(bld?escHtml(bld.name)+' / ':'')+( room?escHtml(room.name)+' / ':'')+escHtml(phLabels[c.phase]||c.phase)+'</div>'+
+        '<div style="font-size:12px;margin-top:4px">By <strong>'+escHtml(c.techName||'')+'</strong> · '+(c.note?escHtml(c.note):'No note')+'</div>'+
+        '<div style="display:flex;gap:6px;margin-top:8px">'+
+          '<button class="btn btn-success btn-sm" onclick="reviewDifficultFlag(\''+c.id+'\',true)">✓ Legitimate — exclude from benchmarks</button>'+
+          '<button class="btn btn-outline btn-sm" onclick="reviewDifficultFlag(\''+c.id+'\',false)">✗ Not legitimate — include in benchmarks</button>'+
+        '</div>'+
+      '</div>';
+    }).join('')+
+  '</div>';
+}
+
+function reviewDifficultFlag(checkoffId, isLegitimate) {
+  var c=(DB.wtCheckoffs||[]).find(function(x){ return x.id===checkoffId; }); if(!c) return;
+  c.difficultReviewed=true;
+  c.difficultLegitimate=isLegitimate;
+  c.difficultReviewedBy=_currentUser?_currentUser.full_name:'Admin';
+  c.difficultReviewedAt=new Date().toISOString();
+  if(!isLegitimate) c.difficult=false; // include in benchmarks
+  saveDB();
+  renderWTReport('difficult');
+  showToast(isLegitimate?'Flag accepted — excluded from benchmarks':'Flag dismissed — counted in benchmarks','success');
+}
+
+// ============================================================
+// PHASE 3 — OFFICE GPS PIN + SETTINGS SAVE
+// ============================================================
+function pinOfficeLocation() {
+  var status = document.getElementById('office-pin-status');
+  if (!navigator.geolocation) { showToast('GPS not available','error'); return; }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var lat=pos.coords.latitude, lng=pos.coords.longitude;
+    var latEl=document.getElementById('s-office-lat'); if(latEl) latEl.value=lat.toFixed(6);
+    var lngEl=document.getElementById('s-office-lng'); if(lngEl) lngEl.value=lng.toFixed(6);
+    if(status){ status.style.display='inline'; setTimeout(function(){ status.style.display='none'; },3000); }
+    showToast('Office location pinned — save settings to apply','success');
+  },function(){ showToast('GPS denied — enable location and try again','error'); },{enableHighAccuracy:true,timeout:10000});
+}
+
+// ============================================================
+// PHASE 3 — PWA INSTALL PROMPT
+// ============================================================
+var _pwaInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', function(e){
+  e.preventDefault();
+  _pwaInstallPrompt = e;
+  // Show install banner after 30 seconds if not already installed
+  setTimeout(function(){
+    if (_pwaInstallPrompt) showPWAInstallBanner();
+  }, 30000);
+});
+
+function showPWAInstallBanner() {
+  if (document.getElementById('pwa-install-banner')) return;
+  var banner = document.createElement('div');
+  banner.id = 'pwa-install-banner';
+  banner.style.cssText='position:fixed;bottom:80px;left:12px;right:12px;background:#1565c0;color:#fff;border-radius:14px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;z-index:1000;box-shadow:0 8px 24px rgba(0,0,0,.2)';
+  banner.innerHTML=
+    '<div>'+
+      '<div style="font-weight:700;font-size:14px">📱 Add TCSS ProBid to Home Screen</div>'+
+      '<div style="font-size:12px;opacity:.85;margin-top:2px">Install for faster access — works offline</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px">'+
+      '<button onclick="installPWA()" style="background:#fff;color:#1565c0;border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer">Install</button>'+
+      '<button onclick="dismissPWABanner()" style="background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer">Not now</button>'+
+    '</div>';
+  document.body.appendChild(banner);
+}
+
+function installPWA() {
+  if (!_pwaInstallPrompt) return;
+  _pwaInstallPrompt.prompt();
+  _pwaInstallPrompt.userChoice.then(function(){ _pwaInstallPrompt=null; dismissPWABanner(); });
+}
+
+function dismissPWABanner() {
+  var b=document.getElementById('pwa-install-banner'); if(b) b.remove();
+}
+
+// iOS "Add to Home Screen" hint (no API, just guide)
+function showiOSInstallHint() {
+  var isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+  var isStandalone = window.navigator.standalone;
+  if (!isIOS || isStandalone) return;
+  setTimeout(function(){
+    showToast('📱 Tip: Tap the Share button → "Add to Home Screen" to install TCSS ProBid','info',8000);
+  }, 45000);
+}
+
+// ============================================================
+// PHASE 3 — SAVE SETTINGS (includes GPS coords)
+// ============================================================
+function saveFieldSettings(){
+  var cb=document.getElementById('s-geofence-enforce');
+  var addr=document.getElementById('s-office-addr');
+  var reminder=document.getElementById('s-clockin-reminder');
+  var lat=document.getElementById('s-office-lat');
+  var lng=document.getElementById('s-office-lng');
+  DB.settings=Object.assign({},DB.settings,{
+    geofenceEnforce:cb?cb.checked:false,
+    officeAddr:addr?addr.value:'',
+    clockInReminderTime:reminder?reminder.value:'',
+    officeGpsLat:lat&&lat.value?parseFloat(lat.value):DB.settings.officeGpsLat||null,
+    officeGpsLng:lng&&lng.value?parseFloat(lng.value):DB.settings.officeGpsLng||null
+  });
+  saveDB();
+  startClockInReminder();
+  startMorningDetection();
+  var savedEl=document.getElementById('field-settings-saved');
+  if(savedEl){savedEl.style.display='inline';setTimeout(function(){savedEl.style.display='none';},2000);}
+  showToast('Field settings saved','success');
+}
+
+// Load GPS coords when settings page renders
+var _origLoadSettings = null; // patched after load
+
+// ============================================================
+// PHASE 3 — SETTINGS LOAD PATCH
+// ============================================================
+function loadSettingsGPS() {
+  var s = DB.settings||{};
+  var lat=document.getElementById('s-office-lat'); if(lat&&s.officeGpsLat) lat.value=s.officeGpsLat;
+  var lng=document.getElementById('s-office-lng'); if(lng&&s.officeGpsLng) lng.value=s.officeGpsLng;
+}
+
+// Wire into goPage
+var _origGoPage = null;
+
+// ============================================================
+// PHASE 3 — INIT
+// ============================================================
+function initPhase3() {
+  showiOSInstallHint();
+  // Patch settings load
+  var origGoPage = window.goPage;
+  window.goPage = function(id) {
+    origGoPage(id);
+    if (id==='settings') setTimeout(loadSettingsGPS, 100);
+  };
+}
+
+// ============================================================
+// END PHASE 3
 // ============================================================
 function toggleDarkMode() {
   var isDark = document.body.classList.toggle('dark-mode');
@@ -10183,7 +11156,7 @@ function cancelAutoClockIn() {
 // Parallel: lead tech OR back office can confirm, first locks it
 // ============================================================
 function switchWTView(view) {
-  var tabMap = {structure:0,field:1,progress:2,confirm:3,reworks:4};
+  var tabMap = {structure:0,field:1,progress:2,confirm:3,reports:4,reworks:5};
   document.querySelectorAll('.wt-view').forEach(function(v){ v.classList.remove('active'); });
   document.querySelectorAll('#wt-view-tabs .inv-tab').forEach(function(t){ t.classList.remove('active'); });
   var viewEl = document.getElementById('wt-view-'+view);
@@ -10194,6 +11167,7 @@ function switchWTView(view) {
   if (view==='progress') renderWTProgressView();
   if (view==='reworks')  renderWTReworksView();
   if (view==='confirm')  renderWTConfirmView();
+  if (view==='reports')  renderWTReport('weekly');
   if (view==='structure') renderWTStructureView(_wtProjectId);
 }
 
@@ -13349,63 +14323,14 @@ function isFollowupOverdue(q) {
 }
 
 // =============================================
-// V6 PHASE 2: CONVERT QUOTE TO JOB
+// V6 PHASE 2: CONVERT QUOTE TO JOB (upgraded in CRM module)
 // =============================================
 function openConvertToJob(qid) {
-  const q = DB.quotes.find(function(x){ return x.id == qid; });
-  if (!q) return;
-  document.getElementById('ctj-qid').value = qid;
-  document.getElementById('ctj-name').value = q.jn || '';
-  document.getElementById('ctj-assign').value = DB.settings.uname || '';
-  document.getElementById('ctj-notes').value = '';
-  const today = new Date().toISOString().split('T')[0];
-  document.getElementById('ctj-start').value = today;
+  prepareConvertModal(qid);
   openModal('modal-convert-job');
 }
 
-function confirmConvertJob() {
-  const qid = document.getElementById('ctj-qid').value;
-  const name = document.getElementById('ctj-name').value.trim();
-  if (!name) { alert('Job name is required.'); return; }
-  const q = DB.quotes.find(function(x){ return x.id == qid; });
-  if (!q) return;
-
-  // Mark quote as Won
-  q.status = 'approved';
-  q.wonDate = new Date().toISOString().split('T')[0];
-
-  // Create job record
-  const job = {
-    id: Date.now().toString(),
-    num: 'J-' + (++DB.jobSeq),
-    name: name,
-    customer: q.cn || '',
-    qid: qid,
-    qnum: q.num || '',
-    env: q.env || 'office',
-    envLabel: q.envLabel || '',
-    jt: q.jt || '',
-    address: q.ad || '',
-    estLaborHours: q.totalLaborHours || 0,
-    actualLaborHours: 0,
-    estCost: q.totalCost || 0,
-    estTotal: q.total || 0,
-    achievedMargin: q.achievedMargin || 0,
-    items: q.items ? JSON.parse(JSON.stringify(q.items)) : [],
-    status: 'Scheduled',
-    startDate: document.getElementById('ctj-start').value || '',
-    assignedTo: document.getElementById('ctj-assign').value || '',
-    notes: document.getElementById('ctj-notes').value || '',
-    createdAt: new Date().toISOString()
-  };
-
-  DB.jobs.unshift(job);
-  saveDB();
-  closeModal('modal-convert-job');
-  alert('Job ' + job.num + ' created successfully! Quote marked as Won.');
-  renderDash();
-  renderJobs();
-}
+// confirmConvertJob is defined in CRM MODULE above
 
 // =============================================
 // V6 PHASE 2: JOBS PAGE - CARD VIEW
@@ -14751,6 +15676,7 @@ async function signIn(email, password) {
     checkYearEndForfeiture();
     setTimeout(flushOfflineQueue, 2000);
     setTimeout(initPhase2, 500);
+    setTimeout(initPhase3, 800);
   }
   return result;
 }
