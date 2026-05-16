@@ -1388,6 +1388,7 @@ table{font-size:12.5px}
         <div class="day-stat"><div class="day-stat-val" id="ds-travel">0:00</div><div class="day-stat-lbl">Travel</div></div>
         <div class="day-stat"><div class="day-stat-val" id="ds-worked">0:00</div><div class="day-stat-lbl">On Site</div></div>
         <div class="day-stat"><div class="day-stat-val" id="ds-break">0:00</div><div class="day-stat-lbl">Break</div></div>
+        <div class="day-stat"><div class="day-stat-val" id="ds-lunch">0:00</div><div class="day-stat-lbl">Lunch</div></div>
       </div>
     </div>
 
@@ -2745,6 +2746,7 @@ function loadDB() {
     if (!DB.checkoutLog)   DB.checkoutLog   = [];
     if (!DB.invSeq)        DB.invSeq        = 1;
     if (!DB.toolLoans)     DB.toolLoans     = [];
+    if (!DB.lunchFlags)    DB.lunchFlags    = [];
     if (!DB.settings.followupDays) DB.settings.followupDays = 7;
     // Migrate old tool checkouts that lack status field
     (DB.toolCheckouts||[]).forEach(function(co){
@@ -8277,9 +8279,10 @@ function stopCamera() {
 // =============================================
 
 var _clockState = {
-  status: 'out',        // out | traveling | onsite | break | lunch | returning
+  status: 'out',        // out | at_homebase | traveling | onsite | break | lunch | returning
   sessionId: null,
   dayStart: null,
+  homebaseStart: null,
   travelOutStart: null, travelOutMins: 0,
   onsiteStart: null,    onsiteMins: 0,
   breakStart: null,     breakMins: 0,
@@ -8289,7 +8292,8 @@ var _clockState = {
   gpsLat: null, gpsLng: null, gpsAccuracy: null,
   timerInterval: null,
   todayEvents: [],
-  outOfTown: false, hotelAddr: ''
+  outOfTown: false, hotelAddr: '',
+  lunchCount: 0  // number of lunch periods taken today
 };
 
 var _eodReminderShown = false;
@@ -8357,7 +8361,37 @@ async function logTimeEvent(type,lat,lng,acc,note){
   });
 }
 
-// PHASE 1 — START TRAVEL
+// PHASE 0 — START OF DAY (GPS required, must be at office/hotel)
+async function doStartDay() {
+  getGPS(async function(lat, lng, acc) {
+    if (!lat || !lng) {
+      showToast('GPS required to start your day. Enable location and try again.', 'error', 4000);
+      return;
+    }
+    // Check if at office (soft mode — warn but allow; hard mode — block)
+    var officeAnchor = DB.settings && DB.settings.officeGpsLat ? {lat: DB.settings.officeGpsLat, lng: DB.settings.officeGpsLng} : null;
+    if (officeAnchor) {
+      var dist = geoDistanceFt(lat, lng, officeAnchor.lat, officeAnchor.lng);
+      var enforce = !!(DB.settings && DB.settings.geofenceEnforce);
+      if (dist > GEO_RADIUS_FT) {
+        if (enforce) { showGeoAlert('🔒 Must be at the office or hotel to start your day. You are '+dist+' ft away.'); return; }
+        else { showGeoAlert('⚠️ You appear to be '+dist+' ft from the office. Proceeding — flagged for review.'); }
+      } else { clearGeoAlert(); }
+    }
+    var now = new Date();
+    _clockState.status = 'at_homebase';
+    _clockState.dayStart = now;
+    _clockState.homebaseStart = now;
+    _clockState.gpsLat = lat; _clockState.gpsLng = lng; _clockState.gpsAccuracy = acc;
+    _clockState.todayEvents.push({type:'day_start', time:now, lat:lat, lng:lng, label:'Started Day at Base'});
+    await logTimeEvent('day_start', lat, lng, acc);
+    updateClockUI(); startClockTimer();
+    showToast('Day started — select a job and start travel when ready', 'success');
+    scheduleEodReminder();
+  });
+}
+
+// PHASE 1 — START TRAVEL (from homebase or from a job to next job)
 async function doStartTravel(){
   var jobSel=document.getElementById('clock-job-select');
   var jobId=jobSel?jobSel.value:'';
@@ -8427,39 +8461,121 @@ async function doLeaveOnSite(){
 
 // PHASE 4 — ARRIVE BACK / END DAY
 async function doArriveBack(){
-  if(!confirm('End your workday and clock out?')) return;
   getGPS(async function(lat,lng,acc){
     var now=new Date();
-    _clockState.travelBackMins=Math.round((now-_clockState.travelBackStart)/60000);
+    var travelBackMins=_clockState.travelBackStart?Math.round((now-_clockState.travelBackStart)/60000):0;
+    _clockState.travelBackMins+=travelBackMins;
     var totalTravel=_clockState.travelOutMins+_clockState.travelBackMins;
     var totalOnsite=_clockState.onsiteMins;
-    var totalPaid=totalTravel+totalOnsite;
-    if(_clockState.sessionId&&_sb){
-      await _sb.from('clock_sessions').update({
-        status:'clocked_out',clock_out_at:now.toISOString(),
-        clock_out_lat:lat,clock_out_lng:lng,
-        break_minutes:_clockState.breakMins,lunch_minutes:_clockState.lunchMins,
-        total_minutes:totalPaid,travel_out_mins:_clockState.travelOutMins,
-        onsite_mins:totalOnsite,travel_back_mins:_clockState.travelBackMins
-      }).eq('id',_clockState.sessionId);
+    var totalPaid=totalTravel+totalOnsite+_clockState.breakMins;
+    // Lunch enforcement — spec Section 5
+    var lunchFlag=false;
+    if(totalPaid>360&&_clockState.lunchCount===0) lunchFlag=true;
+    if(_clockState.lunchCount>0&&_clockState.lunchMins<30) lunchFlag=true;
+    if(lunchFlag){
+      var confirmed=await showLunchFlagModal(totalPaid);
+      if(!confirmed) return;
     }
     await logTimeEvent('day_end',lat,lng,acc);
-    _clockState.todayEvents.push({type:'day_end',time:now,label:'Arrived Back'});
+    _clockState.todayEvents.push({type:'day_end',time:now,label:'Arrived Back — Day Complete'});
     showToast('Day complete — '+formatMinutes(totalPaid)+' total paid ('+formatMinutes(totalOnsite)+' on site, '+formatMinutes(totalTravel)+' travel)','success',6000);
     clearInterval(_clockState.timerInterval);
     _clockState.status='out';_clockState.sessionId=null;
     _clockState.travelOutStart=null;_clockState.onsiteStart=null;_clockState.travelBackStart=null;
-    _clockState.dayStart=null;_clockState.travelOutMins=0;_clockState.onsiteMins=0;
-    _clockState.travelBackMins=0;_clockState.breakMins=0;_clockState.lunchMins=0;
+    _clockState.dayStart=null;_clockState.homebaseStart=null;
+    _clockState.travelOutMins=0;_clockState.onsiteMins=0;
+    _clockState.travelBackMins=0;_clockState.breakMins=0;_clockState.lunchMins=0;_clockState.lunchCount=0;
     _eodReminderShown=false;hideEodReminder();updateClockUI();
   });
+}
+
+// NEXT JOB — Done at current site, heading to another job
+async function doNextJob(){
+  var sel=document.getElementById('clock-next-job-select');
+  var nextId=sel?sel.value:'';
+  var nextName=sel&&sel.selectedIndex>0?sel.options[sel.selectedIndex].text:'';
+  if(!nextId){showToast('Please select your next job','warning');return;}
+  getGPS(async function(lat,lng,acc){
+    var now=new Date();
+    _clockState.onsiteMins+=Math.round((now-(_clockState.onsiteStart||now))/60000);
+    var prev=_clockState.jobName;
+    _clockState.jobId=nextId;_clockState.jobName=nextName;
+    _clockState.status='traveling';_clockState.travelOutStart=now;_clockState.onsiteStart=null;
+    await logTimeEvent('job_change',lat,lng,acc,'Left '+prev+' → '+nextName);
+    _clockState.todayEvents.push({type:'job_change',time:now,lat:lat,lng:lng,label:'Left '+prev+' → '+nextName});
+    updateClockUI();startClockTimer();
+    showToast('Heading to '+nextName,'success');
+  });
+}
+
+// LUNCH FLAG MODAL
+function showLunchFlagModal(totalPaidMins){
+  return new Promise(function(resolve){
+    var adminOpts=(DB.team||[]).filter(function(m){return m.role==='owner'||m.role==='manager';}).map(function(m){return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';}).join('');
+    var reason=_clockState.lunchMins>0?'Your lunch was only '+_clockState.lunchMins+' min (30 min minimum required).':'You did not record a lunch break today.';
+    var div=document.createElement('div');
+    div.className='modal-overlay';div.id='modal-lunch-flag';div.style.display='flex';
+    div.innerHTML='<div class="modal-box"><div class="modal-head"><h3>⚠ Lunch Break Required</h3></div>'+
+      '<div class="modal-body">'+
+        '<div style="background:#fff3e0;border:1px solid #ffcc02;border-radius:8px;padding:12px;margin-bottom:14px"><strong>'+reason+'</strong><br><span style="font-size:12px;color:#555">Policy requires a minimum 30-minute uninterrupted lunch break.</span></div>'+
+        '<label>Did you get permission from the office to skip or shorten lunch?</label>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">'+
+          '<div id="lf-yes" onclick="selectLunchFlag(\'yes\')" style="border:2px solid #e0e0e0;border-radius:8px;padding:12px;cursor:pointer;text-align:center;font-weight:700">Yes — office cleared it</div>'+
+          '<div id="lf-no" onclick="selectLunchFlag(\'no\')" style="border:2px solid #1565c0;background:#e3f2fd;border-radius:8px;padding:12px;cursor:pointer;text-align:center;font-weight:700;color:#1565c0">No</div>'+
+        '</div>'+
+        '<div id="lf-cleared" style="display:none;margin-top:12px">'+
+          '<label>Who cleared it? *</label>'+
+          '<select id="lf-approver" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:6px"><option value="">Select name</option>'+adminOpts+'</select>'+
+          '<div style="margin-top:8px"><label>Notes</label><input id="lf-note" placeholder="Emergency call, customer waiting, etc."></div>'+
+        '</div>'+
+        '<input type="hidden" id="lf-choice" value="no">'+
+      '</div>'+
+      '<div class="modal-foot">'+
+        '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'modal-lunch-flag\').remove();window._lfResolve&&window._lfResolve(false)">Cancel — Stay Clocked In</button>'+
+        '<button class="btn btn-primary" onclick="submitLunchFlag()">Submit & End Day</button>'+
+      '</div></div>';
+    document.body.appendChild(div);
+    window._lfResolve=resolve;
+  });
+}
+
+function selectLunchFlag(choice){
+  document.getElementById('lf-choice').value=choice;
+  var y=document.getElementById('lf-yes'),n=document.getElementById('lf-no'),f=document.getElementById('lf-cleared');
+  if(choice==='yes'){y.style.border='2px solid #2e7d32';y.style.background='#e8f5e9';y.style.color='#2e7d32';n.style.border='2px solid #e0e0e0';n.style.background='';n.style.color='';f.style.display='block';}
+  else{n.style.border='2px solid #1565c0';n.style.background='#e3f2fd';n.style.color='#1565c0';y.style.border='2px solid #e0e0e0';y.style.background='';y.style.color='';f.style.display='none';}
+}
+
+function submitLunchFlag(){
+  var choice=(document.getElementById('lf-choice')||{}).value||'no';
+  var approver=((document.getElementById('lf-approver')||{}).value||'').trim();
+  var note=(document.getElementById('lf-note')||{}).value||'';
+  if(choice==='yes'&&!approver){showToast('Please select who cleared it','error');return;}
+  if(!DB.lunchFlags) DB.lunchFlags=[];
+  DB.lunchFlags.push({id:'lf-'+Date.now(),techName:_currentUser?_currentUser.full_name:'Unknown',date:new Date().toISOString().split('T')[0],lunchMins:_clockState.lunchMins,cleared:choice==='yes',approver:approver,note:note,status:'pending_review'});
+  saveDB();
+  var m=document.getElementById('modal-lunch-flag');if(m)m.remove();
+  if(window._lfResolve){window._lfResolve(true);window._lfResolve=null;}
 }
 
 // BREAK & LUNCH
 async function doBreakStart(){var now=new Date();_clockState.breakStart=now;_clockState.status='break';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'on_break'}).eq('id',_clockState.sessionId);await logTimeEvent('break_start',null,null,null);_clockState.todayEvents.push({type:'break_start',time:now,label:'Break Started'});updateClockUI();showToast('Break started','info');}
 async function doBreakEnd(){var now=new Date();_clockState.breakMins+=Math.round((now-_clockState.breakStart)/60000);_clockState.breakStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'clocked_in',break_minutes:_clockState.breakMins}).eq('id',_clockState.sessionId);await logTimeEvent('break_end',null,null,null);_clockState.todayEvents.push({type:'break_end',time:now,label:'Break Ended'});updateClockUI();showToast('Back on the clock','success');}
 async function doLunchStart(){var now=new Date();_clockState.lunchStart=now;_clockState.status='lunch';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'at_lunch'}).eq('id',_clockState.sessionId);await logTimeEvent('lunch_start',null,null,null);_clockState.todayEvents.push({type:'lunch_start',time:now,label:'Lunch Started'});updateClockUI();showToast('Lunch started','info');}
-async function doLunchEnd(){var now=new Date();_clockState.lunchMins+=Math.round((now-_clockState.lunchStart)/60000);_clockState.lunchStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'clocked_in',lunch_minutes:_clockState.lunchMins}).eq('id',_clockState.sessionId);await logTimeEvent('lunch_end',null,null,null);_clockState.todayEvents.push({type:'lunch_end',time:now,label:'Lunch Ended'});updateClockUI();showToast('Back from lunch','success');}
+async function doLunchEnd(){
+  getGPS(async function(lat,lng,acc){
+    var now=new Date();
+    var lunchMins=Math.round((now-_clockState.lunchStart)/60000);
+    _clockState.lunchMins+=lunchMins;
+    _clockState.lunchCount+=1;
+    _clockState.lunchStart=null;_clockState.status='onsite';
+    await logTimeEvent('lunch_end',lat,lng,acc);
+    _clockState.todayEvents.push({type:'lunch_end',time:now,label:'Back from Lunch ('+lunchMins+' min)'});
+    if(lunchMins<30){showToast('Lunch was only '+lunchMins+' min — 30 min required. This will be flagged.','warning',5000);}
+    else{showToast('Back from lunch','success');}
+    updateClockUI();
+  });
+}
 
 // TIMER
 function startClockTimer(){
@@ -8477,8 +8593,9 @@ function startClockTimer(){
     var travelMs=(_clockState.travelOutMins*60000)+(_clockState.status==='traveling'?now-_clockState.travelOutStart:0)+(_clockState.travelBackMins*60000)+(_clockState.status==='returning'?now-_clockState.travelBackStart:0);
     var onsiteMs=(_clockState.onsiteMins*60000)+(_clockState.status==='onsite'?Math.max(0,now-_clockState.onsiteStart-(_clockState.breakMins+_clockState.lunchMins)*60000):0);
     var breakMs=_clockState.breakMins*60000+(_clockState.breakStart?now-_clockState.breakStart:0);
+    var lunchMs=_clockState.lunchMins*60000+(_clockState.lunchStart?now-_clockState.lunchStart:0);
     function setDs(id,ms){var el=document.getElementById(id);if(el)el.textContent=formatMs(ms);}
-    setDs('ds-travel',travelMs);setDs('ds-worked',onsiteMs);setDs('ds-break',breakMs);
+    setDs('ds-travel',travelMs);setDs('ds-worked',onsiteMs);setDs('ds-break',breakMs);setDs('ds-lunch',lunchMs);
   },1000);
 }
 
@@ -8493,21 +8610,60 @@ function updateClockUI(){
   var jobWrap=document.getElementById('clock-job-wrap');
   var daySumm=document.getElementById('day-summary');
   var punchCard=document.getElementById('punch-log-card');
-  var statusMap={out:{cls:'out',text:'Not Started'},traveling:{cls:'in',text:'🚗 Traveling to '+(_clockState.jobName||'Job')},onsite:{cls:'in',text:'🔧 On Site — '+(_clockState.jobName||'')},break:{cls:'break',text:'⏸ On Break'},lunch:{cls:'lunch',text:'🍽 At Lunch'},returning:{cls:'in',text:'🚗 Returning'}};
+  var statusMap={
+    out:         {cls:'out',   text:'Not Started'},
+    at_homebase: {cls:'in',   text:'🏠 At Base — Ready to Travel'},
+    traveling:   {cls:'in',   text:'🚗 Traveling to '+(_clockState.jobName||'Job')},
+    onsite:      {cls:'in',   text:'🔧 On Site — '+(_clockState.jobName||'')},
+    break:       {cls:'break',text:'⏸ On Break'},
+    lunch:       {cls:'lunch',text:'🍽 At Lunch'},
+    returning:   {cls:'in',   text:'🚗 Returning to Base'}
+  };
   var s=statusMap[_clockState.status]||statusMap.out;
   if(dot)dot.className='clock-status-dot '+s.cls;
   if(txt)txt.textContent=s.text;
-  if(jobWrap)jobWrap.style.display=_clockState.status==='out'?'block':'none';
+  // Job wrap — show when out (to select job) or at_homebase (to select job before traveling)
+  if(jobWrap)jobWrap.style.display=(_clockState.status==='out'||_clockState.status==='at_homebase')?'block':'none';
   if(daySumm)daySumm.style.display=_clockState.status!=='out'?'grid':'none';
   if(punchCard)punchCard.style.display=_clockState.todayEvents.length?'block':'none';
   if(_clockState.status==='out'){var el=document.getElementById('clock-timer-display');if(el)el.textContent='0:00:00';}
   if(!btnGrid) return;
-  if(_clockState.status==='out'){btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doStartTravel()" style="grid-column:1/-1"><span class="btn-icon">🚗</span>Start Travel to Site</button>';}
-  else if(_clockState.status==='traveling'){btnGrid.innerHTML='<button class="clock-btn clock-in" id="btn-arrive-site" onclick="doArriveOnSite()" style="grid-column:1/-1"><span class="btn-icon">📍</span>Arrive On Site — Clock In</button>';}
-  else if(_clockState.status==='onsite'){btnGrid.innerHTML='<button class="clock-btn break-start" onclick="doBreakStart()"><span class="btn-icon">⏸</span>Break</button><button class="clock-btn lunch-start" onclick="doLunchStart()"><span class="btn-icon">🍽</span>Lunch</button><button class="clock-btn clock-out" onclick="doLeaveOnSite()" style="grid-column:1/-1"><span class="btn-icon">🚗</span>Leave Site — Start Return</button>';}
-  else if(_clockState.status==='break'){btnGrid.innerHTML='<button class="clock-btn break-end" style="grid-column:1/-1" onclick="doBreakEnd()"><span class="btn-icon">▶</span>End Break — Back to Work</button>';}
-  else if(_clockState.status==='lunch'){btnGrid.innerHTML='<button class="clock-btn lunch-end" style="grid-column:1/-1" onclick="doLunchEnd()"><span class="btn-icon">▶</span>Back from Lunch</button>';}
-  else if(_clockState.status==='returning'){btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doArriveBack()" style="grid-column:1/-1;background:linear-gradient(135deg,#1565c0,#1976d2)"><span class="btn-icon">🏁</span>Arrived Back — End Day</button>';}
+
+  // Build next-job options for multi-job day
+  var otherJobs=DB.jobs.filter(function(j){return (j.status==='Scheduled'||j.status==='In Progress')&&j.id!==_clockState.jobId;});
+  var nextJobOpts=otherJobs.map(function(j){return '<option value="'+escHtml(j.id)+'">'+escHtml(j.name+(j.customer?' — '+j.customer:''))+'</option>';}).join('');
+  var nextJobSel=otherJobs.length
+    ? '<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Next Job</div>'+
+      '<select id="clock-next-job-select" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px"><option value="">-- Select next job --</option>'+nextJobOpts+'</select></div>'
+    : '';
+
+  if(_clockState.status==='out'){
+    btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doStartDay()" style="grid-column:1/-1"><span class="btn-icon">☀️</span>Start Day at Base</button>';
+  }
+  else if(_clockState.status==='at_homebase'){
+    btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doStartTravel()" style="grid-column:1/-1"><span class="btn-icon">🚗</span>Start Travel to Site</button>';
+  }
+  else if(_clockState.status==='traveling'){
+    btnGrid.innerHTML='<button class="clock-btn clock-in" id="btn-arrive-site" onclick="doArriveOnSite()" style="grid-column:1/-1"><span class="btn-icon">📍</span>Arrive On Site — Clock In</button>';
+  }
+  else if(_clockState.status==='onsite'){
+    btnGrid.innerHTML=
+      '<button class="clock-btn break-start" onclick="doBreakStart()"><span class="btn-icon">⏸</span>Break</button>'+
+      '<button class="clock-btn lunch-start" onclick="doLunchStart()"><span class="btn-icon">🍽</span>Lunch</button>'+
+      (nextJobOpts
+        ? nextJobSel+'<button class="clock-btn" onclick="doNextJob()" style="background:linear-gradient(135deg,#7b1fa2,#8e24aa);color:#fff;margin-top:8px"><span class="btn-icon">➡</span>Go to Next Job</button>'
+        : '')+
+      '<button class="clock-btn clock-out" onclick="doLeaveOnSite()" style="grid-column:1/-1;margin-top:8px"><span class="btn-icon">🚗</span>Leave Site — Return to Base</button>';
+  }
+  else if(_clockState.status==='break'){
+    btnGrid.innerHTML='<button class="clock-btn break-end" style="grid-column:1/-1" onclick="doBreakEnd()"><span class="btn-icon">▶</span>End Break — Back to Work</button>';
+  }
+  else if(_clockState.status==='lunch'){
+    btnGrid.innerHTML='<button class="clock-btn lunch-end" style="grid-column:1/-1" onclick="doLunchEnd()"><span class="btn-icon">▶</span>Back from Lunch</button>';
+  }
+  else if(_clockState.status==='returning'){
+    btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doArriveBack()" style="grid-column:1/-1;background:linear-gradient(135deg,#1565c0,#1976d2)"><span class="btn-icon">🏁</span>Arrived Back — End Day</button>';
+  }
   renderPunchLog();
 }
 
@@ -8568,12 +8724,53 @@ function showEodReminder(){if(document.getElementById('eod-reminder'))return;var
 function hideEodReminder(){var el=document.getElementById('eod-reminder');if(el)el.remove();}
 
 // TIMESHEET (office view)
-async function loadTimesheets(){
-  // Stubbed — will be implemented in time tracking module build
+async function loadTimesheets() {
   var body=document.getElementById('timesheet-body');
   var liveEl=document.getElementById('live-activity');
-  if(body) body.innerHTML='<div style="padding:20px;text-align:center;color:#90a4ae">Time tracking coming soon.</div>';
-  if(liveEl) liveEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">Nobody clocked in right now.</div>';
+
+  // Live activity — pull from DB.lunchFlags and any active clock states
+  if(liveEl){
+    // Show who started day (based on todayEvents in localStorage — field techs share same origin)
+    liveEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">Live activity syncs from Supabase — connect field devices to see real-time status.</div>';
+  }
+
+  // Timesheet — show lunch flags pending review
+  if(body){
+    var flags=(DB.lunchFlags||[]).filter(function(f){return f.status==='pending_review';});
+    var dateEl=document.getElementById('ts-date-filter');
+    var date=dateEl?dateEl.value:new Date().toISOString().split('T')[0];
+
+    if(!flags.length){
+      body.innerHTML='<tr><td colspan="6" style="padding:20px;text-align:center;color:#90a4ae">No flagged items pending review for this period.</td></tr>';
+      return;
+    }
+
+    body.innerHTML=flags.map(function(f){
+      return '<tr>'+
+        '<td style="font-weight:700">'+escHtml(f.techName||'')+'</td>'+
+        '<td>'+escHtml(f.date||'')+'</td>'+
+        '<td><span style="background:#ffebee;color:#c62828;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">⚠ Lunch: '+f.lunchMins+' min</span></td>'+
+        '<td style="font-size:12px">'+(f.cleared?'Cleared by <strong>'+escHtml(f.approver)+'</strong>':'<span style="color:#c62828">Not cleared</span>')+'</td>'+
+        '<td style="font-size:12px">'+escHtml(f.note||'—')+'</td>'+
+        '<td>'+
+          '<button class="btn btn-success btn-sm" onclick="resolveLunchFlag(\''+f.id+'\',\'approve\')">✓ Approve</button> '+
+          '<button class="btn btn-outline btn-sm" onclick="resolveLunchFlag(\''+f.id+'\',\'deduct\')">Deduct 30min</button>'+
+        '</td>'+
+      '</tr>';
+    }).join('');
+  }
+}
+
+function resolveLunchFlag(flagId, action) {
+  var flag=(DB.lunchFlags||[]).find(function(f){return f.id===flagId;});
+  if(!flag) return;
+  flag.status='resolved';
+  flag.resolution=action;
+  flag.resolvedAt=new Date().toISOString().split('T')[0];
+  flag.resolvedBy=_currentUser?_currentUser.full_name:'Office';
+  saveDB();
+  loadTimesheets();
+  showToast('Flag resolved — '+action,'success');
 }
 
 // RESTORE SESSION ON LOGIN
