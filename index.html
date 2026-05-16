@@ -442,6 +442,14 @@ label{display:block;font-size:12px;font-weight:700;color:#455a64;margin-bottom:5
 .ts-ot-chip { background: #fff3e0; color: #e65100; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 700; }
 .leave-bal-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f5f5f5; }
 
+/* ===== ABSENCE REPORTING ===== */
+.abs-reason-btn{border:2px solid #e0e0e0;border-radius:12px;padding:14px 10px;text-align:center;cursor:pointer;font-size:13px;font-weight:700;color:#37474f;transition:all .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.abs-reason-btn:active,.abs-reason-btn.selected{border-color:#c62828;background:#ffebee;color:#c62828}
+.abs-dur-btn{border:2px solid #e0e0e0;border-radius:12px;padding:16px 14px;cursor:pointer;font-size:14px;font-weight:700;color:#37474f;transition:all .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.abs-dur-btn:active,.abs-dur-btn.selected{border-color:#1565c0;background:#e3f2fd;color:#1565c0}
+.abs-cov-btn{border:2px solid #e0e0e0;border-radius:12px;padding:14px 10px;text-align:center;cursor:pointer;font-size:13px;font-weight:700;color:#37474f;transition:all .15s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.abs-cov-btn:active,.abs-cov-btn.selected{border-color:#2e7d32;background:#e8f5e9;color:#2e7d32}
+
 /* ===== TOOLS & BARCODE SCANNER ===== */
 .tool-section{display:none}
 .tool-section.active{display:block}
@@ -763,6 +771,9 @@ table{font-size:12.5px}
     <div class="alert-bar-title">⚠️ Needs Attention</div>
     <div id="dash-alert-list"></div>
   </div>
+
+  <!-- Absence alerts — top of dashboard, hard to miss -->
+  <div id="dash-absence-alerts" style="display:none"></div>
 
   <!-- Stats -->
   <div class="stat-grid">
@@ -1389,7 +1400,12 @@ table{font-size:12.5px}
           <span style="font-size:12px;color:#546e7a;font-weight:600">Out of town job (hotel as base)</span>
         </div>
         <div id="hotel-addr-wrap" style="display:none;margin-top:8px">
-          <input id="clock-hotel-addr" class="clock-job-select" style="font-size:13px" placeholder="Hotel name or address...">
+          <input id="clock-hotel-addr" class="clock-job-select" style="font-size:13px;margin-bottom:8px" placeholder="Hotel name or address..." onblur="saveHotelAddress()">
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn btn-success btn-sm" style="flex:1;padding:10px" onclick="saveHotelAddress()">💾 Save Hotel Base</button>
+            <button type="button" class="btn btn-outline btn-sm" style="padding:10px" onclick="clearHotelBase()">✕ Clear</button>
+          </div>
+          <div style="font-size:11px;color:#546e7a;margin-top:6px">Hotel base persists across consecutive out-of-town days.</div>
         </div>
       </div>
 
@@ -1421,6 +1437,36 @@ table{font-size:12.5px}
       <div id="field-my-jobs"></div>
     </div>
 
+    <!-- Offline sync banner -->
+    <div id="offline-banner" style="display:none;background:#fff3e0;border:2px solid #ffcc02;border-radius:14px;padding:14px 16px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:14px;color:#e65100">📵 No Connection — Offline Mode</div>
+      <div style="font-size:12px;color:#546e7a;margin-top:4px">Your time entries are saved locally. They will sync automatically when you reconnect.</div>
+      <div id="offline-queue-count" style="font-size:12px;color:#e65100;font-weight:700;margin-top:4px"></div>
+    </div>
+
+    <!-- Quick time off request -->
+    <div class="clock-card" id="field-time-off-card">
+      <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">🏖 Request Time Off</div>
+      <div style="font-size:13px;color:#546e7a;margin-bottom:12px">Need a day off? Submit a request and your manager will approve it.</div>
+      <button class="btn btn-outline btn-sm" style="width:100%;padding:14px;font-size:15px;border-radius:12px" onclick="openTimeOffModal()">+ Request Time Off</button>
+      <div id="field-timeoff-status" style="margin-top:10px"></div>
+    </div>
+
+    <!-- Report Absence — prominent red card -->
+    <div class="clock-card" id="field-absence-card" style="border:2px solid #ffcdd2">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:28px">🚨</span>
+        <div>
+          <div style="font-size:14px;font-weight:800;color:#c62828">Not Coming In Today?</div>
+          <div style="font-size:12px;color:#546e7a">Report your absence now so the team can plan.</div>
+        </div>
+      </div>
+      <button class="clock-btn clock-out" style="min-height:70px;font-size:17px;border-radius:14px" onclick="openAbsenceModal()">
+        <span class="btn-icon">📵</span>Report Absence
+      </button>
+      <div id="field-absence-status" style="margin-top:10px"></div>
+    </div>
+
   </div>
 </div>
 
@@ -1435,7 +1481,9 @@ table{font-size:12.5px}
   <div class="inv-tab-nav" style="margin-bottom:14px">
     <button class="inv-tab active" onclick="switchTsTab('my-hours')">👤 My Hours</button>
     <button class="inv-tab" onclick="switchTsTab('pay-period')">💰 Pay Period</button>
+    <button class="inv-tab" onclick="switchTsTab('time-off')">🏖 Time Off</button>
     <button class="inv-tab" onclick="switchTsTab('all-timesheets')">📋 All Timesheets</button>
+    <button class="inv-tab" onclick="switchTsTab('payroll')">💵 Payroll</button>
     <button class="inv-tab" onclick="switchTsTab('flags')">⚠ Flags</button>
   </div>
 
@@ -1473,6 +1521,43 @@ table{font-size:12.5px}
     <div class="card" style="margin-top:12px">
       <div class="card-title">📊 Leave Balances</div>
       <div id="ts-leave-balances"></div>
+    </div>
+  </div>
+
+  <!-- TIME OFF TAB -->
+  <div class="ts-section" id="ts-time-off">
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin:0">🏖 My Time Off Requests</div>
+        <button class="btn btn-primary btn-sm" onclick="openTimeOffModal()">+ Request Time Off</button>
+      </div>
+      <div id="ts-my-timeoff"></div>
+    </div>
+    <div class="card" id="ts-admin-timeoff-card" style="display:none">
+      <div class="card-title">📥 Pending Approvals</div>
+      <p style="font-size:12px;color:#546e7a;margin-bottom:12px">Approve or deny time off requests from your team.</p>
+      <div id="ts-admin-timeoff"></div>
+    </div>
+  </div>
+
+  <!-- PAYROLL TAB -->
+  <div class="ts-section" id="ts-payroll">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin:0">💵 Payroll Summary</div>
+        <div style="display:flex;gap:8px">
+          <select id="payroll-period-select" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:8px" onchange="renderPayrollTab()">
+            <option value="current">Current Period</option>
+            <option value="prev1">Previous Period</option>
+            <option value="prev2">2 Periods Ago</option>
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="exportPayrollCSV()">⬇ Export CSV</button>
+        </div>
+      </div>
+      <div id="ts-payroll-lock-warning" style="display:none;background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#c62828;font-weight:700">
+        🔒 Payroll cannot be processed — unresolved flags exist. Resolve all items in the Flags tab first.
+      </div>
+      <div id="ts-payroll-content"></div>
     </div>
   </div>
 
@@ -1951,6 +2036,179 @@ table{font-size:12.5px}
   </div>
 </div>
 
+<!-- ABSENCE REPORT MODAL -->
+<div class="modal-overlay" id="modal-absence">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-head">
+      <h3>📵 Report Absence</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-absence">×</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Step indicator -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:18px">
+        <div id="abs-step-dot-1" style="width:28px;height:28px;border-radius:50%;background:#1565c0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">1</div>
+        <div style="flex:1;height:2px;background:#e0e0e0" id="abs-line-1"></div>
+        <div id="abs-step-dot-2" style="width:28px;height:28px;border-radius:50%;background:#e0e0e0;color:#90a4ae;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">2</div>
+        <div style="flex:1;height:2px;background:#e0e0e0" id="abs-line-2"></div>
+        <div id="abs-step-dot-3" style="width:28px;height:28px;border-radius:50%;background:#e0e0e0;color:#90a4ae;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">3</div>
+        <div style="flex:1;height:2px;background:#e0e0e0" id="abs-line-3"></div>
+        <div id="abs-step-dot-4" style="width:28px;height:28px;border-radius:50%;background:#e0e0e0;color:#90a4ae;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">4</div>
+      </div>
+
+      <!-- STEP 1: Who & Reason -->
+      <div id="abs-step-1">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">Who are you?</div>
+        <input id="abs-name" list="abs-team-list" placeholder="Your name" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;font-size:15px;margin-bottom:14px">
+        <datalist id="abs-team-list"></datalist>
+        <div style="font-weight:700;font-size:15px;margin-bottom:10px">What's going on?</div>
+        <div id="abs-reason-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="abs-reason-btn" onclick="selectAbsReason('sick','🤒 Sick / Not feeling well')">
+            <div style="font-size:24px">🤒</div><div>Sick</div>
+          </div>
+          <div class="abs-reason-btn" onclick="selectAbsReason('family','👨‍👩‍👧 Family emergency')">
+            <div style="font-size:24px">👨‍👩‍👧</div><div>Family emergency</div>
+          </div>
+          <div class="abs-reason-btn" onclick="selectAbsReason('car','🚗 Car / transportation')">
+            <div style="font-size:24px">🚗</div><div>Car trouble</div>
+          </div>
+          <div class="abs-reason-btn" onclick="selectAbsReason('medical','⚕️ Medical appointment')">
+            <div style="font-size:24px">⚕️</div><div>Medical appt</div>
+          </div>
+          <div class="abs-reason-btn" onclick="selectAbsReason('hospital','🏥 Hospital / ER')">
+            <div style="font-size:24px">🏥</div><div>Hospital / ER</div>
+          </div>
+          <div class="abs-reason-btn" onclick="selectAbsReason('other','📋 Other')">
+            <div style="font-size:24px">📋</div><div>Other</div>
+          </div>
+        </div>
+        <input type="hidden" id="abs-reason-val">
+        <input type="hidden" id="abs-reason-label">
+      </div>
+
+      <!-- STEP 2: Duration -->
+      <div id="abs-step-2" style="display:none">
+        <div style="font-weight:700;font-size:15px;margin-bottom:10px">How long will you be out?</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="abs-dur-btn" onclick="selectAbsDuration('today','Just today')">Just today</div>
+          <div class="abs-dur-btn" onclick="selectAbsDuration('today_tomorrow','Today and tomorrow')">Today and tomorrow</div>
+          <div class="abs-dur-btn" onclick="selectAbsDuration('unsure','Not sure yet — I\'ll update the team')">Not sure yet — I'll update</div>
+          <div class="abs-dur-btn" onclick="selectAbsDuration('multiple','Multiple days')">Multiple days (specify below)</div>
+        </div>
+        <input id="abs-duration-detail" type="text" placeholder="How many days or return date..." style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;font-size:14px;margin-top:10px;display:none">
+        <input type="hidden" id="abs-duration-val">
+      </div>
+
+      <!-- STEP 3: Details -->
+      <div id="abs-step-3" style="display:none">
+        <div style="font-weight:700;font-size:15px;margin-bottom:6px">Anything the team needs to know?</div>
+        <div style="font-size:12px;color:#546e7a;margin-bottom:10px">Job impacts, tools at your location, materials to be picked up, things that need to be handed off...</div>
+        <textarea id="abs-details" rows="4" placeholder="e.g. I have the key to the Oakwood job box in my truck, parked at my house. Marcus can pick it up.&#10;&#10;Also I was supposed to get materials from Fastenal at 7am — someone else needs to handle that." style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;font-size:14px;resize:vertical;box-sizing:border-box"></textarea>
+        <div style="margin-top:12px;font-weight:700;font-size:14px;margin-bottom:8px">Leave coverage</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="abs-cov-btn" onclick="selectAbsCoverage('pto','Use PTO')">🏥 Use PTO</div>
+          <div class="abs-cov-btn" onclick="selectAbsCoverage('vacation','Use Vacation')">🏖 Use Vacation</div>
+          <div class="abs-cov-btn" onclick="selectAbsCoverage('makeup','Make up time this week')">🔄 Make up time</div>
+          <div class="abs-cov-btn" onclick="selectAbsCoverage('unpaid','Unpaid — no coverage')">💸 Unpaid</div>
+        </div>
+        <input type="hidden" id="abs-coverage-val">
+      </div>
+
+      <!-- STEP 4: Confirm -->
+      <div id="abs-step-4" style="display:none">
+        <div style="font-weight:700;font-size:15px;margin-bottom:12px">Confirm your absence report</div>
+        <div style="background:#ffebee;border:1px solid #ffcdd2;border-radius:10px;padding:14px;margin-bottom:14px">
+          <div id="abs-confirm-summary" style="font-size:13px;line-height:1.7"></div>
+        </div>
+        <div id="abs-late-warning" style="display:none;background:#fff3e0;border:1px solid #ffcc02;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#e65100;font-weight:700">
+          ⚠ This is a late notice — submitted after 5:30am. Your manager will be notified of the late submission.
+        </div>
+        <div style="font-size:12px;color:#546e7a">
+          Submitting this will immediately alert your manager and back office by SMS and email.
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-foot" style="justify-content:space-between">
+      <button class="btn btn-ghost btn-sm" id="abs-back-btn" onclick="absenceStepBack()" style="display:none">← Back</button>
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-absence" id="abs-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="abs-next-btn" onclick="absenceStepNext()">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- TIME OFF REQUEST MODAL -->
+<div class="modal-overlay" id="modal-time-off">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>🏖 Request Time Off</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-time-off">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row cols2">
+        <div><label>Your Name *</label><input id="toff-name" list="toff-team-list" placeholder="Your name"><datalist id="toff-team-list"></datalist></div>
+        <div><label>Type</label>
+          <select id="toff-type">
+            <option value="vacation">Vacation</option>
+            <option value="pto">PTO</option>
+            <option value="unpaid">Unpaid</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row cols2">
+        <div><label>Start Date *</label><input id="toff-start" type="date"></div>
+        <div><label>End Date *</label><input id="toff-end" type="date"></div>
+      </div>
+      <div><label>Hours Requested</label>
+        <input id="toff-hours" type="number" min="4" step="4" placeholder="e.g. 8 for one day, 40 for a week">
+        <div style="font-size:11px;color:#90a4ae;margin-top:4px">Minimum 4 hours. Vacation and PTO are deducted from your accrued balance.</div>
+      </div>
+      <div style="margin-top:10px"><label>Notes (optional)</label>
+        <input id="toff-note" placeholder="Reason or details...">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-time-off">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTimeOffRequest()">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- MANUAL TIME CORRECTION MODAL -->
+<div class="modal-overlay" id="modal-time-correction">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>✏ Manual Time Correction</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-time-correction">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:#fff3e0;border:1px solid #ffcc02;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px">
+        ⚠ All corrections are logged in the audit trail with your name and reason. Original record is preserved.
+      </div>
+      <div class="form-row cols2">
+        <div><label>Tech Name</label><input id="tc-tech" placeholder="Tech name"></div>
+        <div><label>Date</label><input id="tc-date" type="date"></div>
+      </div>
+      <div class="form-row cols2">
+        <div><label>Corrected Total Paid (mins)</label><input id="tc-total" type="number" min="0" placeholder="e.g. 480 for 8 hours"></div>
+        <div><label>On Site (mins)</label><input id="tc-onsite" type="number" min="0" placeholder="e.g. 360"></div>
+      </div>
+      <div class="form-row cols2">
+        <div><label>Travel (mins)</label><input id="tc-travel" type="number" min="0" placeholder="e.g. 120"></div>
+        <div><label>Lunch (mins)</label><input id="tc-lunch" type="number" min="0" placeholder="e.g. 30"></div>
+      </div>
+      <div style="margin-top:10px"><label>Reason for Correction *</label>
+        <input id="tc-reason" placeholder="e.g. Tech forgot to clock out, device error, etc.">
+      </div>
+      <input type="hidden" id="tc-workday-id">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-time-correction">Cancel</button>
+      <button class="btn btn-warning" onclick="saveTimeCorrection()">Save Correction</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOOL RETURN MODAL -->
 <div class="modal-overlay" id="modal-tool-return">
   <div class="modal-box">
@@ -2225,6 +2483,11 @@ table{font-size:12.5px}
         <div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:4px">Office / Home Base</div>
         <div style="font-size:12px;color:#546e7a;margin-bottom:8px">Used to calculate travel time from shop to job sites.</div>
         <div class="form-row"><div><label>Office Address</label><input id="s-office-addr" placeholder="e.g. 1100 Commerce Dr, Asheboro, NC 27203"></div></div>
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-top:4px">
+        <div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:4px">⏰ Clock-In Reminder</div>
+        <div style="font-size:12px;color:#546e7a;margin-bottom:8px">Alert techs who haven't started their day by this time. Leave blank to disable.</div>
+        <div class="form-row"><div><label>Reminder Time</label><input id="s-clockin-reminder" type="time" placeholder="e.g. 08:00"></div></div>
       </div>
       <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="saveFieldSettings()">💾 Save Field Settings</button>
       <span id="field-settings-saved" style="display:none;font-size:12px;color:#2e7d32;margin-left:8px">✓ Saved!</span>
@@ -2846,6 +3109,11 @@ function loadDB() {
     if (!DB.toolLoans)     DB.toolLoans     = [];
     if (!DB.lunchFlags)    DB.lunchFlags    = [];
     if (!DB.workDays)      DB.workDays      = [];
+    if (!DB.timeOffRequests) DB.timeOffRequests = [];
+    if (!DB.timeCorrections) DB.timeCorrections = [];
+    if (!DB.leaveForfeiture) DB.leaveForfeiture = [];
+    if (!DB.payrollLog)      DB.payrollLog      = [];
+    if (!DB.absences)        DB.absences        = [];
     if (!DB.settings.followupDays) DB.settings.followupDays = 7;
     // Migrate old tool checkouts that lack status field
     (DB.toolCheckouts||[]).forEach(function(co){
@@ -8479,6 +8747,36 @@ function toggleOutOfTown(){
   var wrap=document.getElementById('hotel-addr-wrap');
   _clockState.outOfTown=cb?cb.checked:false;
   if(wrap) wrap.style.display=_clockState.outOfTown?'block':'none';
+  // Persist hotel setting across days — saved until explicitly cleared
+  if (!_clockState.outOfTown) {
+    DB.settings = Object.assign({}, DB.settings, {currentHotel:''});
+    _clockState.hotelAddr = '';
+    saveDB();
+  }
+}
+
+function saveHotelAddress() {
+  var inp = document.getElementById('clock-hotel-addr');
+  var addr = inp ? inp.value.trim() : '';
+  if (!addr) return;
+  _clockState.hotelAddr = addr;
+  DB.settings = Object.assign({}, DB.settings, {currentHotel: addr});
+  saveDB();
+  showToast('Hotel base saved — will persist for consecutive days', 'success', 3000);
+}
+
+function clearHotelBase() {
+  var cb = document.getElementById('clock-out-of-town');
+  var wrap = document.getElementById('hotel-addr-wrap');
+  var inp = document.getElementById('clock-hotel-addr');
+  if (cb) cb.checked = false;
+  if (wrap) wrap.style.display = 'none';
+  if (inp) inp.value = '';
+  _clockState.outOfTown = false;
+  _clockState.hotelAddr = '';
+  DB.settings = Object.assign({}, DB.settings, {currentHotel:''});
+  saveDB();
+  showToast('Hotel base cleared — using office as home base', 'info');
 }
 
 async function logTimeEvent(type,lat,lng,acc,note){
@@ -8836,12 +9134,47 @@ function renderFieldPage(){
     myJobs.forEach(function(j){var opt=document.createElement('option');opt.value=j.id;opt.textContent=j.name+(j.customer?' — '+j.customer:'');sel.appendChild(opt);});
     if(_clockState.jobId) sel.value=_clockState.jobId;
   }
+
+  // Restore multi-day out-of-town hotel setting
+  var hotelCb = document.getElementById('clock-out-of-town');
+  var hotelWrap = document.getElementById('hotel-addr-wrap');
+  var hotelInput = document.getElementById('clock-hotel-addr');
+  var savedHotel = DB.settings && DB.settings.currentHotel;
+  if (savedHotel && hotelCb) {
+    hotelCb.checked = true;
+    _clockState.outOfTown = true;
+    _clockState.hotelAddr = savedHotel;
+    if (hotelWrap) hotelWrap.style.display='block';
+    if (hotelInput) hotelInput.value=savedHotel;
+  }
+
   var myJobsEl=document.getElementById('field-my-jobs');
   if(myJobsEl){
     var active=DB.jobs.filter(function(j){return j.status==='Scheduled'||j.status==='In Progress';});
     if(!active.length){myJobsEl.innerHTML='<div style="color:#90a4ae;font-size:13px">No active jobs assigned.</div>';}
     else{myJobsEl.innerHTML=active.map(function(j){var ha=!!j.gpsAnchor;return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5"><div><div style="font-weight:700;font-size:13px">'+escHtml(j.name||'')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(j.customer||'')+(j.address?' · '+escHtml(j.address):'')+' · '+(ha?'<span style="color:#2e7d32">📍 Anchor set</span>':'<span style="color:#90a4ae">No anchor yet</span>')+'</div></div><span class="status-badge '+(j.status==='In Progress'?'s-inprogress':'s-pending')+'" style="font-size:10px">'+escHtml(j.status)+'</span></div>';}).join('');}
   }
+
+  // Show recent time off requests for this tech
+  var toffEl = document.getElementById('field-timeoff-status');
+  if (toffEl) {
+    var myName = _currentUser ? _currentUser.full_name : '';
+    var recent = (DB.timeOffRequests||[]).filter(function(r){ return r.techName===myName; }).slice(-3).reverse();
+    toffEl.innerHTML = recent.length
+      ? recent.map(function(r){
+          var color = r.status==='approved'?'#2e7d32':r.status==='denied'?'#c62828':'#e65100';
+          var label = r.status==='approved'?'✓ Approved':r.status==='denied'?'✗ Denied':'⏳ Pending';
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;border-bottom:1px solid #f5f5f5">'+
+            '<span>'+escHtml(r.startDate)+(r.endDate&&r.endDate!==r.startDate?' — '+escHtml(r.endDate):'')+'</span>'+
+            '<span style="color:'+color+';font-weight:700">'+label+'</span>'+
+          '</div>';
+        }).join('')
+      : '';
+  }
+
+  // Offline banner
+  checkOfflineStatus();
+
   if(_clockState.status!=='out'&&!_clockState.timerInterval) startClockTimer();
   updateClockUI();
   getGPS(function(){});
@@ -8860,8 +9193,14 @@ function toggleGeofenceEnforcement(){
 function saveFieldSettings(){
   var cb=document.getElementById('s-geofence-enforce');
   var addr=document.getElementById('s-office-addr');
-  DB.settings=Object.assign({},DB.settings,{geofenceEnforce:cb?cb.checked:false,officeAddr:addr?addr.value:''});
+  var reminder=document.getElementById('s-clockin-reminder');
+  DB.settings=Object.assign({},DB.settings,{
+    geofenceEnforce:cb?cb.checked:false,
+    officeAddr:addr?addr.value:'',
+    clockInReminderTime:reminder?reminder.value:''
+  });
   saveDB();
+  startClockInReminder();
   var savedEl=document.getElementById('field-settings-saved');
   if(savedEl){savedEl.style.display='inline';setTimeout(function(){savedEl.style.display='none';},2000);}
   showToast('Field settings saved','success');
@@ -8878,7 +9217,7 @@ function switchTsTab(tab) {
   document.querySelectorAll('#page-timesheet .inv-tab').forEach(function(b){ b.classList.remove('active'); });
   var section = document.getElementById('ts-'+tab);
   if (section) section.classList.add('active');
-  var map = {'my-hours':0,'pay-period':1,'all-timesheets':2,'flags':3};
+  var map = {'my-hours':0,'pay-period':1,'time-off':2,'all-timesheets':3,'payroll':4,'flags':5};
   var tabs = document.querySelectorAll('#page-timesheet .inv-tab');
   var idx = map[tab];
   if (idx !== undefined && tabs[idx]) tabs[idx].classList.add('active');
@@ -9036,17 +9375,21 @@ async function loadTimesheets() {
       var vacAccrued = Math.round(vacTier * 8 / 26 * ppElapsed * 10) / 10;
       var ptoAccrued = ptoEligible ? Math.round(20 / 26 * ppElapsed * 10) / 10 : 0;
 
+      var balances = getLeaveBalanceDisplay(myName);
+      var vacAccrued = balances.vacAccrued;
+      var ptoAccrued = balances.ptoAccrued;
+
       var html = '';
       if (isAdminView || showVac) {
         html += '<div class="leave-bal-row">'+
           '<div><strong>🏖 Vacation</strong><div style="font-size:11px;color:#90a4ae">Tier '+vacTier+' days/yr · '+Math.round(yearsWorked*10)/10+' years seniority</div></div>'+
-          '<div style="font-weight:800;font-size:16px;color:#1565c0">'+vacAccrued+' hrs accrued</div>'+
+          '<div style="text-align:right"><div class="leave-val vac">'+vacAccrued+' hrs</div><div style="font-size:10px;color:#90a4ae">available after used</div></div>'+
         '</div>';
       }
       if (isAdminView || showPto) {
         html += '<div class="leave-bal-row">'+
           '<div><strong>🏥 PTO</strong><div style="font-size:11px;color:#90a4ae">'+(ptoEligible?'Eligible (90+ days)':'Waiting period — eligible day 90')+'</div></div>'+
-          '<div style="font-weight:800;font-size:16px;color:#2e7d32">'+ptoAccrued+' hrs accrued</div>'+
+          '<div style="text-align:right"><div class="leave-val pto">'+ptoAccrued+' hrs</div><div style="font-size:10px;color:#90a4ae">available after used</div></div>'+
         '</div>';
       }
       if (!isAdminView && !showVac) html += '<div style="font-size:12px;color:#90a4ae;padding:6px 0">Vacation balance — contact back office.</div>';
@@ -9055,6 +9398,15 @@ async function loadTimesheets() {
       balEl.innerHTML = html || '<div style="color:#90a4ae;font-size:13px;padding:12px 0">No leave data configured yet.</div>';
     }
   }
+
+  // ---- TIME OFF TAB ----
+  renderTimeOffTab();
+
+  // ---- PAYROLL TAB ----
+  renderPayrollTab();
+
+  // ---- LIVE ACTIVITY ----
+  renderLiveActivity();
 
   // ---- ALL TIMESHEETS TAB (admin) ----
   var allEl = document.getElementById('ts-all-content');
@@ -9075,10 +9427,13 @@ async function loadTimesheets() {
         return d.date === filterDate && (!filterTech || d.techName === filterTech);
       });
       allEl.innerHTML = filtered.length
-        ? '<table><thead><tr><th>Tech</th><th>Job</th><th>Total</th><th>On Site</th><th>Travel</th><th>Lunch</th><th>Status</th></tr></thead><tbody>'+
+        ? '<table><thead><tr><th>Tech</th><th>Job</th><th>Total</th><th>On Site</th><th>Travel</th><th>Lunch</th><th>Status</th><th>Action</th></tr></thead><tbody>'+
           filtered.map(function(d){
             var ot = d.totalPaidMins > 480 ? '<span class="ts-ot-chip">OT</span>' : '';
             var flag = d.lunchFlagged ? '<span class="ts-flag-chip">⚠ Lunch</span>' : '';
+            var corrected = d.corrected ? '<span style="background:#e3f2fd;color:#1565c0;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700">✏ Corrected</span>' : '';
+            var holiday = isHoliday(d.date);
+            var holidayBadge = holiday ? '<span style="background:#e8f5e9;color:#2e7d32;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700">🎉 '+escHtml(holiday.name)+'</span>' : '';
             return '<tr>'+
               '<td style="font-weight:700">'+escHtml(d.techName||'')+'</td>'+
               '<td style="font-size:12px">'+escHtml(d.jobName||'—')+'</td>'+
@@ -9086,7 +9441,8 @@ async function loadTimesheets() {
               '<td style="font-size:12px">'+fmtMins(d.onsiteMins)+'</td>'+
               '<td style="font-size:12px">'+fmtMins(d.travelMins)+'</td>'+
               '<td style="font-size:12px">'+fmtMins(d.lunchMins)+'</td>'+
-              '<td>'+ot+' '+flag+'</td>'+
+              '<td>'+ot+' '+flag+' '+corrected+' '+holidayBadge+'</td>'+
+              '<td><button class="btn btn-outline btn-sm" onclick="openTimeCorrectionModal(\''+d.id+'\')">✏ Correct</button></td>'+
             '</tr>';
           }).join('')+'</tbody></table>'
         : '<div style="color:#90a4ae;padding:20px;text-align:center">No timesheet data for '+filterDate+(filterTech?' — '+filterTech:'')+'.</div>';
@@ -9118,7 +9474,800 @@ async function loadTimesheets() {
   }
 }
 
-// Render a single day row (compact)
+// ============================================================
+// ABSENCE REPORTING
+// ============================================================
+var _absenceStep = 1;
+var _absenceData = {};
+
+function openAbsenceModal() {
+  _absenceStep = 1;
+  _absenceData = {};
+  // Populate team datalist
+  var dl = document.getElementById('abs-team-list');
+  if (dl) dl.innerHTML = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'; }).join('');
+  // Pre-fill name if logged in
+  var nameEl = document.getElementById('abs-name');
+  if (nameEl && _currentUser) nameEl.value = _currentUser.full_name||'';
+  // Reset all steps
+  [1,2,3,4].forEach(function(n){
+    var s = document.getElementById('abs-step-'+n);
+    if (s) s.style.display = n===1 ? 'block' : 'none';
+    var dot = document.getElementById('abs-step-dot-'+n);
+    if (dot) { dot.style.background = n===1?'#1565c0':'#e0e0e0'; dot.style.color = n===1?'#fff':'#90a4ae'; }
+  });
+  // Reset selections
+  document.querySelectorAll('.abs-reason-btn,.abs-dur-btn,.abs-cov-btn').forEach(function(b){ b.classList.remove('selected'); });
+  ['abs-reason-val','abs-reason-label','abs-duration-val','abs-coverage-val'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+  var det = document.getElementById('abs-details'); if(det) det.value='';
+  var dd = document.getElementById('abs-duration-detail'); if(dd){ dd.value=''; dd.style.display='none'; }
+  // Button state
+  var back = document.getElementById('abs-back-btn'); if(back) back.style.display='none';
+  var next = document.getElementById('abs-next-btn'); if(next) next.textContent='Next →';
+  var cancel = document.getElementById('abs-cancel-btn'); if(cancel) cancel.style.display='inline-flex';
+  openModal('modal-absence');
+}
+
+function absenceStepNext() {
+  // Validate current step
+  if (_absenceStep === 1) {
+    var name = ((document.getElementById('abs-name')||{}).value||'').trim();
+    var reason = (document.getElementById('abs-reason-val')||{}).value||'';
+    if (!name)   { showToast('Please enter your name','error'); return; }
+    if (!reason) { showToast('Please select a reason','error'); return; }
+    _absenceData.name   = name;
+    _absenceData.reason = reason;
+    _absenceData.reasonLabel = (document.getElementById('abs-reason-label')||{}).value||reason;
+  }
+  else if (_absenceStep === 2) {
+    var dur = (document.getElementById('abs-duration-val')||{}).value||'';
+    if (!dur) { showToast('Please select how long you\'ll be out','error'); return; }
+    _absenceData.duration = dur;
+    _absenceData.durationDetail = ((document.getElementById('abs-duration-detail')||{}).value||'').trim();
+  }
+  else if (_absenceStep === 3) {
+    var cov = (document.getElementById('abs-coverage-val')||{}).value||'';
+    if (!cov) { showToast('Please select your leave coverage','error'); return; }
+    _absenceData.coverage = cov;
+    _absenceData.details  = ((document.getElementById('abs-details')||{}).value||'').trim();
+  }
+  else if (_absenceStep === 4) {
+    submitAbsence();
+    return;
+  }
+
+  _absenceStep++;
+  showAbsenceStep(_absenceStep);
+}
+
+function absenceStepBack() {
+  if (_absenceStep <= 1) return;
+  _absenceStep--;
+  showAbsenceStep(_absenceStep);
+}
+
+function showAbsenceStep(step) {
+  [1,2,3,4].forEach(function(n){
+    var s = document.getElementById('abs-step-'+n);
+    if (s) s.style.display = n===step ? 'block' : 'none';
+    var dot = document.getElementById('abs-step-dot-'+n);
+    if (dot) {
+      if (n < step)  { dot.style.background='#2e7d32'; dot.style.color='#fff'; dot.textContent='✓'; }
+      else if (n===step){ dot.style.background='#1565c0'; dot.style.color='#fff'; dot.textContent=String(n); }
+      else           { dot.style.background='#e0e0e0'; dot.style.color='#90a4ae'; dot.textContent=String(n); }
+    }
+  });
+  var back = document.getElementById('abs-back-btn'); if(back) back.style.display = step>1?'inline-flex':'none';
+  var next = document.getElementById('abs-next-btn');
+  if (next) next.textContent = step===4 ? '🚨 Submit Absence Report' : 'Next →';
+
+  // Build confirm summary on step 4
+  if (step === 4) {
+    var now = new Date();
+    var isLate = now.getHours() > 5 || (now.getHours()===5 && now.getMinutes()>=30);
+    var timeStr = now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+    var durLabels = {today:'Today only',today_tomorrow:'Today and tomorrow',unsure:'Not sure — will update',multiple:'Multiple days'};
+    var covLabels = {pto:'Using PTO',vacation:'Using Vacation',makeup:'Will make up time',unpaid:'Unpaid'};
+    var summary = document.getElementById('abs-confirm-summary');
+    if (summary) {
+      summary.innerHTML =
+        '<div style="margin-bottom:6px"><strong>'+escHtml(_absenceData.name)+'</strong> is reporting an absence</div>'+
+        '<div>📋 <strong>Reason:</strong> '+escHtml(_absenceData.reasonLabel)+'</div>'+
+        '<div>⏱ <strong>Duration:</strong> '+escHtml(durLabels[_absenceData.duration]||_absenceData.duration)+(_absenceData.durationDetail?' — '+escHtml(_absenceData.durationDetail):'')+'</div>'+
+        '<div>💰 <strong>Coverage:</strong> '+escHtml(covLabels[_absenceData.coverage]||_absenceData.coverage)+'</div>'+
+        (_absenceData.details?'<div style="margin-top:6px;padding-top:6px;border-top:1px solid #ffcdd2">📝 '+escHtml(_absenceData.details)+'</div>':'')+
+        '<div style="margin-top:8px;font-size:11px;color:#90a4ae">Submitted at '+timeStr+'</div>';
+    }
+    var lateWarn = document.getElementById('abs-late-warning');
+    if (lateWarn) lateWarn.style.display = isLate ? 'block' : 'none';
+    _absenceData.isLate = isLate;
+    _absenceData.submittedAt = now.toISOString();
+  }
+}
+
+function selectAbsReason(val, label) {
+  document.querySelectorAll('.abs-reason-btn').forEach(function(b){ b.classList.remove('selected'); });
+  event.currentTarget.classList.add('selected');
+  var v = document.getElementById('abs-reason-val'); if(v) v.value=val;
+  var l = document.getElementById('abs-reason-label'); if(l) l.value=label;
+}
+
+function selectAbsDuration(val, label) {
+  document.querySelectorAll('.abs-dur-btn').forEach(function(b){ b.classList.remove('selected'); });
+  event.currentTarget.classList.add('selected');
+  var v = document.getElementById('abs-duration-val'); if(v) v.value=val;
+  var det = document.getElementById('abs-duration-detail');
+  if (det) det.style.display = val==='multiple' ? 'block' : 'none';
+}
+
+function selectAbsCoverage(val, label) {
+  document.querySelectorAll('.abs-cov-btn').forEach(function(b){ b.classList.remove('selected'); });
+  event.currentTarget.classList.add('selected');
+  var v = document.getElementById('abs-coverage-val'); if(v) v.value=val;
+}
+
+function submitAbsence() {
+  var record = {
+    id:           'abs-'+Date.now(),
+    techName:     _absenceData.name,
+    reason:       _absenceData.reason,
+    reasonLabel:  _absenceData.reasonLabel,
+    duration:     _absenceData.duration,
+    durationDetail: _absenceData.durationDetail||'',
+    coverage:     _absenceData.coverage,
+    details:      _absenceData.details||'',
+    isLate:       _absenceData.isLate,
+    submittedAt:  _absenceData.submittedAt||new Date().toISOString(),
+    date:         new Date().toISOString().split('T')[0],
+    status:       'reported',
+    alertSent:    false  // will be true once Twilio is wired
+  };
+
+  if (!DB.absences) DB.absences=[];
+  DB.absences.push(record);
+  saveDB();
+
+  // SEND ALERTS — stubbed, ready for Twilio wiring
+  sendAbsenceAlert(record);
+
+  closeModal('modal-absence');
+
+  // Show confirmation on field page
+  var statusEl = document.getElementById('field-absence-status');
+  if (statusEl) {
+    statusEl.innerHTML =
+      '<div style="background:#e8f5e9;border-radius:8px;padding:10px 12px;font-size:12px;color:#2e7d32;font-weight:700">'+
+        '✓ Absence reported at '+new Date(record.submittedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})+
+        (record.isLate?' <span style="color:#e65100">(Late notice)</span>':'')+
+      '</div>';
+  }
+
+  showToast('Absence reported — your manager has been notified','success',5000);
+}
+
+function sendAbsenceAlert(record) {
+  // TWILIO STUB — replace with Supabase Edge Function call when ready
+  // The edge function will:
+  //   1. Send SMS to critical list (Joe + dispatcher)
+  //   2. Send email to Joe + 4 others
+  // Message format:
+  //   TCSS [LATE NOTICE if late] — HH:MMam
+  //   {name} is OUT today — {reason}
+  //   Duration: {duration}
+  //   Coverage: {coverage}
+  //   Notes: {details if any}
+  //   Submitted: {time}
+  console.log('[ABSENCE ALERT STUB] Would send SMS+email for:', record.techName, record.reasonLabel, record.isLate?'LATE':'on time');
+  // When Twilio is ready, call:
+  // await supabase.functions.invoke('send-absence-alert', { body: record });
+}
+
+// ---- ABSENCE DASHBOARD (back office) ----
+function renderAbsenceDashboard() {
+  var el = document.getElementById('dash-absence-alerts'); if(!el) return;
+  var today = new Date().toISOString().split('T')[0];
+  var todayAbs = (DB.absences||[]).filter(function(a){ return a.date===today; });
+  if (!todayAbs.length) { el.style.display='none'; return; }
+  el.style.display='block';
+  el.innerHTML =
+    '<div style="background:#ffebee;border:2px solid #ffcdd2;border-radius:12px;padding:14px;margin-bottom:14px">'+
+      '<div style="font-weight:800;font-size:14px;color:#c62828;margin-bottom:10px">🚨 '+todayAbs.length+' Absence Report'+(todayAbs.length>1?'s':'')+' Today</div>'+
+      todayAbs.map(function(a){
+        var covLabels={pto:'PTO',vacation:'Vacation',makeup:'Make up',unpaid:'Unpaid'};
+        var durLabels={today:'Today only',today_tomorrow:'2 days',unsure:'Duration TBD',multiple:a.durationDetail||'Multiple days'};
+        return '<div style="background:#fff;border-radius:8px;padding:10px;margin-bottom:8px;border:1px solid #ffcdd2">'+
+          '<div style="display:flex;align-items:center;justify-content:space-between">'+
+            '<div style="font-weight:700;font-size:13px">'+escHtml(a.techName)+'</div>'+
+            (a.isLate?'<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">⚠ Late notice</span>':
+                      '<span style="background:#e8f5e9;color:#2e7d32;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">On time</span>')+
+          '</div>'+
+          '<div style="font-size:12px;color:#546e7a;margin-top:4px">'+
+            escHtml(a.reasonLabel)+' · '+escHtml(durLabels[a.duration]||a.duration)+' · '+escHtml(covLabels[a.coverage]||a.coverage)+
+          '</div>'+
+          (a.details?'<div style="font-size:11px;color:#546e7a;margin-top:4px;font-style:italic">'+escHtml(a.details)+'</div>':'')+
+          '<div style="font-size:10px;color:#90a4ae;margin-top:4px">Reported '+new Date(a.submittedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})+'</div>'+
+        '</div>';
+      }).join('')+
+    '</div>';
+}
+
+// ============================================================
+// END ABSENCE REPORTING
+// ============================================================
+var _offlineQueue = [];
+var _isOnline = navigator.onLine;
+
+window.addEventListener('online',  function(){ _isOnline=true;  checkOfflineStatus(); flushOfflineQueue(); });
+window.addEventListener('offline', function(){ _isOnline=false; checkOfflineStatus(); });
+
+function checkOfflineStatus() {
+  var banner = document.getElementById('offline-banner');
+  var countEl = document.getElementById('offline-queue-count');
+  if (!banner) return;
+  var queue = loadOfflineQueue();
+  banner.style.display = (!_isOnline || queue.length > 0) ? 'block' : 'none';
+  if (countEl) countEl.textContent = queue.length > 0 ? queue.length+' event(s) pending sync' : (_isOnline ? 'Back online — syncing...' : '');
+}
+
+function loadOfflineQueue() {
+  try { return JSON.parse(localStorage.getItem('tcss_offline_queue')||'[]'); } catch(e){ return []; }
+}
+
+function saveOfflineQueue(q) {
+  try { localStorage.setItem('tcss_offline_queue', JSON.stringify(q)); } catch(e){}
+}
+
+function queueOfflineEvent(eventData) {
+  var q = loadOfflineQueue();
+  q.push(Object.assign({}, eventData, {queuedAt: new Date().toISOString()}));
+  saveOfflineQueue(q);
+  checkOfflineStatus();
+}
+
+async function flushOfflineQueue() {
+  if (!_sb || !_currentUser || !_isOnline) return;
+  var q = loadOfflineQueue();
+  if (!q.length) return;
+  showToast('Syncing '+q.length+' offline events...', 'info', 3000);
+  var failed = [];
+  for (var i=0; i<q.length; i++) {
+    var ev = q[i];
+    try {
+      await _sb.from('time_events').insert({
+        user_id: _currentUser.id,
+        user_name: _currentUser.full_name,
+        event_type: ev.type,
+        job_id: ev.jobId||null,
+        job_name: ev.jobName||null,
+        lat: ev.lat||null,
+        lng: ev.lng||null,
+        accuracy: ev.accuracy||null,
+        timestamp: ev.timestamp||ev.queuedAt,
+        note: ev.note||'Offline sync'
+      });
+    } catch(e) {
+      failed.push(ev);
+    }
+  }
+  saveOfflineQueue(failed);
+  checkOfflineStatus();
+  if (!failed.length) showToast('All offline events synced ✓', 'success');
+  else showToast(failed.length+' events failed to sync — will retry', 'warning', 4000);
+}
+
+// Override logTimeEvent to queue when offline
+var _origLogTimeEvent = logTimeEvent;
+async function logTimeEvent(type,lat,lng,acc,note){
+  if (!_isOnline) {
+    queueOfflineEvent({type:type,lat:lat,lng:lng,accuracy:acc,note:note,jobId:_clockState.jobId,jobName:_clockState.jobName,timestamp:new Date().toISOString()});
+    return;
+  }
+  return _origLogTimeEvent(type,lat,lng,acc,note);
+}
+
+// ============================================================
+// CLOCK-IN REMINDER
+// ============================================================
+var _clockInReminderInterval = null;
+
+function startClockInReminder() {
+  clearInterval(_clockInReminderInterval);
+  var reminderTime = DB.settings && DB.settings.clockInReminderTime;
+  if (!reminderTime) return; // not configured
+  _clockInReminderInterval = setInterval(function(){
+    if (_clockState.status !== 'out') { clearInterval(_clockInReminderInterval); return; }
+    var now = new Date();
+    var parts = reminderTime.split(':');
+    var rH = parseInt(parts[0]), rM = parseInt(parts[1])||0;
+    if (now.getHours() === rH && now.getMinutes() === rM) {
+      showToast('⏰ Reminder: You haven\'t started your day yet!', 'warning', 8000);
+      // Show on field page if visible
+      var geo = document.getElementById('geo-alert');
+      if (geo) { geo.innerHTML='⏰ You haven\'t clocked in yet today. Tap Start Day when you arrive at base.'; geo.style.display='block'; }
+      clearInterval(_clockInReminderInterval);
+    }
+  }, 60000);
+}
+
+// ============================================================
+// PTO/VACATION BALANCE DEDUCTION
+// ============================================================
+function getLeaveBalance(techName, type) {
+  // Accrued from pay periods
+  var tech = (DB.team||[]).find(function(m){ return m.name===techName; });
+  var hireDate = tech && tech.hireDate ? new Date(tech.hireDate) : null;
+  var now = new Date();
+  var yearStart = new Date(now.getFullYear(), 0, 1);
+  var ppElapsed = Math.floor((now-yearStart)/(1000*60*60*24*14));
+
+  var accrued = 0;
+  if (type==='vacation') {
+    var yearsWorked = hireDate ? (now-hireDate)/(1000*60*60*24*365.25) : 0;
+    var vacTier = yearsWorked>=10?15:yearsWorked>=2?10:yearsWorked>=1?5:0;
+    accrued = Math.round(vacTier*8/26*ppElapsed*10)/10;
+  } else if (type==='pto') {
+    var ptoEligible = hireDate && (now-hireDate)/(1000*60*60*24)>=90;
+    accrued = ptoEligible ? Math.round(20/26*ppElapsed*10)/10 : 0;
+  }
+
+  // Subtract used hours from approved requests this year
+  var used = (DB.timeOffRequests||[]).filter(function(r){
+    return r.techName===techName && r.type===type && r.status==='approved' &&
+           r.startDate && r.startDate.startsWith(String(now.getFullYear()));
+  }).reduce(function(s,r){ return s+(r.hours||0); }, 0);
+
+  return Math.max(0, accrued - used);
+}
+
+// Update leave balances display to use real deducted balance
+function getLeaveBalanceDisplay(techName) {
+  var vac = getLeaveBalance(techName, 'vacation');
+  var pto = getLeaveBalance(techName, 'pto');
+  return {vacAccrued: vac, ptoAccrued: pto};
+}
+
+// ============================================================
+// YEAR-END FORFEITURE WORKFLOW
+// ============================================================
+function checkYearEndForfeiture() {
+  var now = new Date();
+  // Only relevant in December
+  if (now.getMonth() !== 11) return;
+  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office');
+  if (!isAdmin) return;
+  // Check if already processed this year
+  var processed = DB.settings && DB.settings.yearEndForfeitureYear;
+  if (processed === now.getFullYear()) return;
+
+  // Build forfeiture review list
+  var techsWithBalance = (DB.team||[]).filter(function(m){
+    return getLeaveBalance(m.name,'vacation')>0 || getLeaveBalance(m.name,'pto')>0;
+  });
+  if (!techsWithBalance.length) return;
+
+  // Show alert on dashboard
+  setTimeout(function(){
+    var msg = techsWithBalance.length+' team member(s) have unused leave expiring Dec 31. Review in Timesheets → Year End.';
+    showToast('📅 Year-End: '+msg, 'warning', 10000);
+  }, 2000);
+}
+
+function renderYearEndReview() {
+  var now = new Date();
+  var techs = (DB.team||[]).map(function(m){
+    var vac = getLeaveBalance(m.name,'vacation');
+    var pto = getLeaveBalance(m.name,'pto');
+    return {name:m.name, vac:vac, pto:pto};
+  }).filter(function(t){ return t.vac>0||t.pto>0; });
+
+  if (!techs.length) return '<div style="color:#90a4ae;padding:12px 0">No unused leave balances — nothing to forfeit.</div>';
+
+  return '<div style="font-size:12px;color:#546e7a;margin-bottom:12px">Unused balances expire Dec 31. Choose to forfeit (default) or roll over for each tech.</div>'+
+    techs.map(function(t){
+      return '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:8px">'+
+        '<div style="font-weight:700;font-size:13px;margin-bottom:8px">'+escHtml(t.name)+'</div>'+
+        '<div style="display:flex;gap:14px;font-size:12px;color:#546e7a;margin-bottom:8px">'+
+          (t.vac?'<span>🏖 Vacation: <strong>'+t.vac+' hrs</strong></span>':'')+
+          (t.pto?'<span>🏥 PTO: <strong>'+t.pto+' hrs</strong></span>':'')+
+        '</div>'+
+        '<div style="display:flex;gap:6px">'+
+          '<button class="btn btn-danger btn-sm" onclick="forfeitLeave(\''+escHtml(t.name)+'\')">✗ Forfeit (default)</button>'+
+          '<button class="btn btn-outline btn-sm" onclick="rolloverLeave(\''+escHtml(t.name)+'\')">↻ Roll Over</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+}
+
+function forfeitLeave(techName) {
+  if (!DB.leaveForfeiture) DB.leaveForfeiture=[];
+  var now = new Date();
+  DB.leaveForfeiture.push({
+    techName:techName, year:now.getFullYear(),
+    vacForfeited:getLeaveBalance(techName,'vacation'),
+    ptoForfeited:getLeaveBalance(techName,'pto'),
+    action:'forfeit', processedBy:_currentUser?_currentUser.full_name:'Admin',
+    processedAt:now.toISOString()
+  });
+  DB.settings = Object.assign({},DB.settings,{yearEndForfeitureYear:now.getFullYear()});
+  saveDB();
+  showToast(techName+' — unused leave forfeited','info');
+}
+
+function rolloverLeave(techName) {
+  var hours = prompt('How many hours to roll over for '+techName+'?','');
+  if (!hours||isNaN(parseFloat(hours))) return;
+  if (!DB.leaveForfeiture) DB.leaveForfeiture=[];
+  var now = new Date();
+  DB.leaveForfeiture.push({
+    techName:techName, year:now.getFullYear(),
+    vacRolled:getLeaveBalance(techName,'vacation'),
+    ptoRolled:getLeaveBalance(techName,'pto'),
+    hoursRolled:parseFloat(hours),
+    action:'rollover', processedBy:_currentUser?_currentUser.full_name:'Admin',
+    processedAt:now.toISOString()
+  });
+  DB.settings = Object.assign({},DB.settings,{yearEndForfeitureYear:now.getFullYear()});
+  saveDB();
+  showToast(techName+' — '+hours+' hours rolled over','success');
+}
+
+// ============================================================
+// END TIME TRACKING GAPS
+// ============================================================
+// 8 TCSS holidays per spec Section 12
+// ============================================================
+function getTCSSHolidays(year) {
+  var y = year || new Date().getFullYear();
+  function easterSunday(y) {
+    var a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=(h+l-7*m+114)%31+1;
+    return new Date(y,mo-1,da);
+  }
+  var easter = easterSunday(y);
+  var easterFri = new Date(easter); easterFri.setDate(easter.getDate()-2);
+  // Memorial Day: last Monday in May
+  var memDay = new Date(y,4,31);
+  while(memDay.getDay()!==1) memDay.setDate(memDay.getDate()-1);
+  // Labor Day: first Monday in September
+  var laborDay = new Date(y,8,1);
+  while(laborDay.getDay()!==1) laborDay.setDate(laborDay.getDate()+1);
+  // Thanksgiving: 4th Thursday in November
+  var thanksgiving = new Date(y,10,1);
+  while(thanksgiving.getDay()!==4) thanksgiving.setDate(thanksgiving.getDate()+1);
+  thanksgiving.setDate(thanksgiving.getDate()+21);
+
+  return [
+    {name:"New Year's Day",      date:new Date(y,0,1).toISOString().split('T')[0]},
+    {name:"Easter Friday",        date:easterFri.toISOString().split('T')[0]},
+    {name:"Memorial Day",         date:memDay.toISOString().split('T')[0]},
+    {name:"Independence Day",     date:new Date(y,6,4).toISOString().split('T')[0]},
+    {name:"Labor Day",            date:laborDay.toISOString().split('T')[0]},
+    {name:"Thanksgiving",         date:thanksgiving.toISOString().split('T')[0]},
+    {name:"Christmas Eve",        date:new Date(y,11,24).toISOString().split('T')[0]},
+    {name:"Christmas Day",        date:new Date(y,11,25).toISOString().split('T')[0]}
+  ];
+}
+
+function isHoliday(dateStr) {
+  var year = parseInt((dateStr||'').split('-')[0]);
+  return getTCSSHolidays(year).find(function(h){ return h.date === dateStr; }) || null;
+}
+
+// ============================================================
+// FEATURE 2: TIME OFF REQUEST WORKFLOW
+// ============================================================
+function openTimeOffModal() {
+  var teamOpts = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
+  var dl = document.getElementById('toff-team-list'); if(dl) dl.innerHTML=teamOpts;
+  var today = new Date().toISOString().split('T')[0];
+  ['toff-name','toff-hours','toff-note'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+  var s=document.getElementById('toff-start'); if(s) s.value=today;
+  var e=document.getElementById('toff-end');   if(e) e.value=today;
+  var myName = _currentUser ? _currentUser.full_name : '';
+  var nm=document.getElementById('toff-name'); if(nm&&myName) nm.value=myName;
+  openModal('modal-time-off');
+}
+
+function submitTimeOffRequest() {
+  var name   = ((document.getElementById('toff-name')||{}).value||'').trim();
+  var type   = (document.getElementById('toff-type')||{}).value||'vacation';
+  var start  = (document.getElementById('toff-start')||{}).value||'';
+  var end    = (document.getElementById('toff-end')||{}).value||'';
+  var hours  = parseFloat((document.getElementById('toff-hours')||{}).value)||8;
+  var note   = (document.getElementById('toff-note')||{}).value||'';
+  if (!name)  { showToast('Please enter your name','error'); return; }
+  if (!start) { showToast('Please select a start date','error'); return; }
+  if (hours < 4) { showToast('Minimum 4 hours per request','error'); return; }
+  if (!DB.timeOffRequests) DB.timeOffRequests=[];
+  DB.timeOffRequests.push({
+    id:          'tor-'+Date.now(),
+    techName:    name,
+    type:        type,
+    startDate:   start,
+    endDate:     end||start,
+    hours:       hours,
+    note:        note,
+    status:      'pending',
+    submittedAt: new Date().toISOString().split('T')[0]
+  });
+  saveDB();
+  closeModal('modal-time-off');
+  renderTimeOffTab();
+  showToast('Time off request submitted — pending approval','success');
+}
+
+function renderTimeOffTab() {
+  var myName  = _currentUser ? _currentUser.full_name : '';
+  var myRole  = _currentUser ? _currentUser.role : '';
+  var isAdmin = myRole==='owner'||myRole==='manager'||myRole==='back_office';
+  var requests = DB.timeOffRequests||[];
+
+  // My requests
+  var myEl = document.getElementById('ts-my-timeoff');
+  if (myEl) {
+    var mine = requests.filter(function(r){ return r.techName===myName; }).slice().reverse();
+    myEl.innerHTML = mine.length ? mine.map(function(r){ return renderTimeOffRow(r, false); }).join('')
+      : '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No time off requests yet. Click + Request Time Off to submit one.</div>';
+  }
+
+  // Admin pending queue
+  var adminCard = document.getElementById('ts-admin-timeoff-card');
+  var adminEl   = document.getElementById('ts-admin-timeoff');
+  if (adminCard) adminCard.style.display = isAdmin ? 'block' : 'none';
+  if (adminEl && isAdmin) {
+    var pending = requests.filter(function(r){ return r.status==='pending'; });
+    adminEl.innerHTML = pending.length ? pending.map(function(r){ return renderTimeOffRow(r, true); }).join('')
+      : '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No pending requests.</div>';
+  }
+}
+
+function renderTimeOffRow(r, showActions) {
+  var typeLabels = {vacation:'🏖 Vacation',pto:'🏥 PTO',unpaid:'Unpaid'};
+  var statusBadge = r.status==='pending'  ? '<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">⏳ Pending</span>'
+                  : r.status==='approved' ? '<span style="background:#e8f5e9;color:#2e7d32;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">✓ Approved</span>'
+                  : '<span style="background:#ffebee;color:#c62828;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">✗ Denied</span>';
+  var actions = showActions && r.status==='pending'
+    ? '<div style="display:flex;gap:6px;margin-top:8px">'+
+        '<button class="btn btn-success btn-sm" onclick="resolveTimeOff(\''+r.id+'\',\'approved\')">✓ Approve</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="resolveTimeOff(\''+r.id+'\',\'denied\')">✗ Deny</button>'+
+      '</div>' : '';
+  return '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:8px">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'+
+      '<div style="font-weight:700;font-size:13px">'+escHtml(typeLabels[r.type]||r.type)+'</div>'+
+      statusBadge+
+    '</div>'+
+    '<div style="font-size:12px;color:#546e7a">'+
+      (showActions?'<strong>'+escHtml(r.techName)+'</strong> · ':'')+
+      escHtml(r.startDate)+(r.endDate&&r.endDate!==r.startDate?' — '+escHtml(r.endDate):'')+
+      ' · <strong>'+r.hours+' hrs</strong>'+
+    '</div>'+
+    (r.note?'<div style="font-size:11px;color:#90a4ae;margin-top:3px">'+escHtml(r.note)+'</div>':'')+
+    (r.denyReason?'<div style="font-size:11px;color:#c62828;margin-top:3px">Denied: '+escHtml(r.denyReason)+'</div>':'')+
+    actions+
+  '</div>';
+}
+
+function resolveTimeOff(id, status) {
+  var r = (DB.timeOffRequests||[]).find(function(x){ return x.id===id; }); if(!r) return;
+  if (status==='denied') {
+    var reason = prompt('Reason for denial (optional):','')||'';
+    r.denyReason = reason;
+  }
+  r.status = status;
+  r.resolvedAt = new Date().toISOString().split('T')[0];
+  r.resolvedBy = _currentUser ? _currentUser.full_name : 'Admin';
+  // If approved vacation/PTO, log it as a work day entry
+  if (status==='approved' && (r.type==='vacation'||r.type==='pto')) {
+    if (!DB.workDays) DB.workDays=[];
+    DB.workDays.push({
+      id:'wd-toff-'+Date.now(), techName:r.techName, date:r.startDate,
+      totalPaidMins:r.hours*60, onsiteMins:0, travelMins:0, lunchMins:0,
+      breakMins:0, jobName:'', dayType:r.type, approved:true,
+      approvedBy:_currentUser?_currentUser.full_name:'Admin'
+    });
+  }
+  saveDB(); renderTimeOffTab();
+  showToast('Request '+status,'success');
+}
+
+// ============================================================
+// FEATURE 3: PAYROLL SUMMARY + EXPORT
+// ============================================================
+function getPayPeriodByOffset(offset) {
+  var anchor = new Date('2025-01-06');
+  var now = new Date();
+  var diffDays = Math.floor((now-anchor)/(1000*60*60*24));
+  var periodNum = Math.floor(diffDays/14) - (offset||0);
+  var start = new Date(anchor); start.setDate(start.getDate()+periodNum*14);
+  var end = new Date(start); end.setDate(end.getDate()+13);
+  return {start:start,end:end};
+}
+
+function renderPayrollTab() {
+  var el = document.getElementById('ts-payroll-content'); if(!el) return;
+  var lockEl = document.getElementById('ts-payroll-lock-warning');
+  var myRole = _currentUser ? _currentUser.role : '';
+  var isAdmin = myRole==='owner'||myRole==='manager'||myRole==='back_office';
+  if (!isAdmin) { el.innerHTML='<div style="color:#90a4ae;padding:20px;text-align:center">Admin access required.</div>'; return; }
+
+  var offsetSel = document.getElementById('payroll-period-select');
+  var offset = offsetSel ? {current:0,prev1:1,prev2:2}[offsetSel.value]||0 : 0;
+  var pp = getPayPeriodByOffset(offset);
+  var ppStart = pp.start.toISOString().split('T')[0];
+  var ppEnd   = pp.end.toISOString().split('T')[0];
+
+  // Check for open flags — block payroll if any unresolved
+  var openFlags = (DB.lunchFlags||[]).filter(function(f){ return f.status==='pending_review' && f.date>=ppStart && f.date<=ppEnd; });
+  if (lockEl) lockEl.style.display = openFlags.length ? 'block' : 'none';
+
+  // Gather work days for this period, grouped by tech
+  var days = (DB.workDays||[]).filter(function(d){ return d.date>=ppStart && d.date<=ppEnd; });
+  var holidays = getTCSSHolidays(pp.start.getFullYear());
+
+  // Build per-tech summaries
+  var techMap = {};
+  (DB.team||[]).forEach(function(m){ techMap[m.name]={name:m.name,rate:parseFloat(m.rate)||0,workedMins:0,vacMins:0,ptoMins:0,holidayMins:0,days:[]}; });
+
+  days.forEach(function(d){
+    if (!techMap[d.techName]) techMap[d.techName]={name:d.techName,rate:0,workedMins:0,vacMins:0,ptoMins:0,holidayMins:0,days:[]};
+    var t = techMap[d.techName];
+    t.days.push(d);
+    if (d.dayType==='vacation')      t.vacMins     += d.totalPaidMins||0;
+    else if (d.dayType==='pto')      t.ptoMins     += d.totalPaidMins||0;
+    else if (d.dayType==='holiday')  t.holidayMins += d.totalPaidMins||0;
+    else                             t.workedMins  += d.totalPaidMins||0;
+  });
+
+  // Auto-add holidays that fall in this period
+  holidays.forEach(function(h){ if(h.date>=ppStart&&h.date<=ppEnd){
+    Object.keys(techMap).forEach(function(name){
+      var alreadyHas = techMap[name].days.find(function(d){ return d.date===h.date; });
+      if(!alreadyHas) techMap[name].holidayMins+=480;
+    });
+  }});
+
+  var techs = Object.values(techMap).filter(function(t){ return t.workedMins||t.vacMins||t.ptoMins||t.holidayMins; });
+  if (!techs.length) { el.innerHTML='<div style="color:#90a4ae;padding:20px;text-align:center">No data for this pay period.</div>'; return; }
+
+  el.innerHTML =
+    '<div style="font-size:12px;color:#546e7a;margin-bottom:14px">'+formatDate(ppStart)+' — '+formatDate(ppEnd)+'</div>'+
+    techs.map(function(t){
+      var regMins  = Math.min(t.workedMins, 4800);
+      var otMins   = Math.max(0, t.workedMins - 4800);
+      var totalPay = (regMins/60*t.rate) + (otMins/60*t.rate*1.5) +
+                     ((t.vacMins+t.ptoMins+t.holidayMins)/60*t.rate);
+      var hasFlags = openFlags.find(function(f){ return f.techName===t.name; });
+      return '<div style="background:#f8f9fa;border-radius:10px;padding:14px;margin-bottom:10px">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
+          '<div style="font-weight:700;font-size:14px">'+escHtml(t.name)+'</div>'+
+          '<div style="display:flex;align-items:center;gap:8px">'+
+            (hasFlags?'<span style="background:#ffebee;color:#c62828;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">⚠ Flags</span>':'')+
+            '<span style="font-weight:800;font-size:16px;color:#2e7d32">$'+totalPay.toFixed(2)+'</span>'+
+          '</div>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">'+
+          '<div class="ts-stat"><div class="ts-stat-val">'+fmtMins(t.workedMins)+'</div><div class="ts-stat-lbl">Worked</div></div>'+
+          '<div class="ts-stat" style="'+(otMins>0?'background:#fff3e0':'')+'"><div class="ts-stat-val" style="'+(otMins>0?'color:#e65100':'')+'">'+fmtMins(otMins)+'</div><div class="ts-stat-lbl">Overtime</div></div>'+
+          '<div class="ts-stat"><div class="ts-stat-val">'+fmtMins(t.vacMins+t.ptoMins+t.holidayMins)+'</div><div class="ts-stat-lbl">Leave/Holiday</div></div>'+
+        '</div>'+
+        '<div style="font-size:11px;color:#546e7a;display:flex;gap:14px">'+
+          (t.rate?'<span>$'+t.rate+'/hr</span>':'<span style="color:#c62828">No rate set</span>')+
+          '<span>Reg: $'+(regMins/60*t.rate).toFixed(2)+'</span>'+
+          (otMins?'<span>OT: $'+(otMins/60*t.rate*1.5).toFixed(2)+'</span>':'')+
+          (t.vacMins?'<span>Vac: $'+(t.vacMins/60*t.rate).toFixed(2)+'</span>':'')+
+          (t.ptoMins?'<span>PTO: $'+(t.ptoMins/60*t.rate).toFixed(2)+'</span>':'')+
+          (t.holidayMins?'<span>Hol: $'+(t.holidayMins/60*t.rate).toFixed(2)+'</span>':'')+
+        '</div>'+
+        (!hasFlags?'<button class="btn btn-success btn-sm" style="margin-top:10px" onclick="markPayrollProcessed(\''+escHtml(t.name)+'\',\''+ppStart+'\',\''+ppEnd+'\')">✓ Mark Processed</button>':'')+
+      '</div>';
+    }).join('');
+}
+
+function markPayrollProcessed(techName, ppStart, ppEnd) {
+  if (!DB.payrollLog) DB.payrollLog=[];
+  DB.payrollLog.push({tech:techName,ppStart:ppStart,ppEnd:ppEnd,processedAt:new Date().toISOString(),processedBy:_currentUser?_currentUser.full_name:'Admin'});
+  saveDB();
+  showToast(techName+' payroll marked as processed','success');
+}
+
+function exportPayrollCSV() {
+  var offsetSel=document.getElementById('payroll-period-select');
+  var offset={current:0,prev1:1,prev2:2}[(offsetSel&&offsetSel.value)||'current']||0;
+  var pp=getPayPeriodByOffset(offset);
+  var ppStart=pp.start.toISOString().split('T')[0];
+  var ppEnd=pp.end.toISOString().split('T')[0];
+  var days=(DB.workDays||[]).filter(function(d){return d.date>=ppStart&&d.date<=ppEnd;});
+  var rows=[['Tech','Date','Total Paid Hrs','On Site Hrs','Travel Hrs','Vacation Hrs','PTO Hrs','Holiday Hrs','Day Type','Job']];
+  days.forEach(function(d){
+    rows.push([d.techName,d.date,((d.totalPaidMins||0)/60).toFixed(2),((d.onsiteMins||0)/60).toFixed(2),((d.travelMins||0)/60).toFixed(2),(d.dayType==='vacation'?(d.totalPaidMins||0)/60:0).toFixed(2),(d.dayType==='pto'?(d.totalPaidMins||0)/60:0).toFixed(2),(d.dayType==='holiday'?(d.totalPaidMins||0)/60:0).toFixed(2),d.dayType||'work',d.jobName||'']);
+  });
+  var csv=rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  downloadCSV('TCSS-Payroll-'+ppStart+'-to-'+ppEnd+'.csv',[csv]);
+  showToast('Payroll CSV exported','success');
+}
+
+// ============================================================
+// FEATURE 4: LIVE ACTIVITY PANEL
+// ============================================================
+function renderLiveActivity() {
+  var el = document.getElementById('live-activity'); if(!el) return;
+  // Pull from DB.workDays for today — incomplete days = still clocked in
+  var today = new Date().toISOString().split('T')[0];
+  var activeToday = (DB.workDays||[]).filter(function(d){
+    return d.date===today && !d.totalPaidMins; // no totalPaid means still in progress
+  });
+  // Also check if current user is clocked in
+  var liveEntries = [];
+  if (_clockState.status!=='out' && _currentUser) {
+    liveEntries.push({
+      name: _currentUser.full_name,
+      status: _clockState.status,
+      job: _clockState.jobName||'—',
+      since: _clockState.dayStart ? _clockState.dayStart.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '—'
+    });
+  }
+  if (!liveEntries.length) {
+    el.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No one currently clocked in. Live status syncs when field devices connect.</div>';
+    return;
+  }
+  var statusLabels={at_homebase:'🏠 At Base',traveling:'🚗 Traveling',onsite:'🔧 On Site',break:'⏸ On Break',lunch:'🍽 At Lunch',returning:'🚗 Returning'};
+  el.innerHTML=liveEntries.map(function(e){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5">'+
+      '<div>'+
+        '<div style="font-weight:700;font-size:13px">'+escHtml(e.name)+'</div>'+
+        '<div style="font-size:11px;color:#546e7a">'+escHtml(e.job)+' · Since '+escHtml(e.since)+'</div>'+
+      '</div>'+
+      '<span style="font-size:12px;font-weight:700;color:#2e7d32">'+escHtml(statusLabels[e.status]||e.status)+'</span>'+
+    '</div>';
+  }).join('');
+}
+
+// ============================================================
+// FEATURE 5: MANUAL TIME CORRECTION
+// ============================================================
+function openTimeCorrectionModal(workDayId) {
+  var wd = (DB.workDays||[]).find(function(d){ return d.id===workDayId; });
+  if (!wd) return;
+  function sv(id,v){ var e=document.getElementById(id); if(e) e.value=v||''; }
+  sv('tc-tech',  wd.techName);
+  sv('tc-date',  wd.date);
+  sv('tc-total', wd.totalPaidMins||0);
+  sv('tc-onsite',wd.onsiteMins||0);
+  sv('tc-travel',wd.travelMins||0);
+  sv('tc-lunch', wd.lunchMins||0);
+  sv('tc-reason','');
+  sv('tc-workday-id', workDayId);
+  openModal('modal-time-correction');
+}
+
+function saveTimeCorrection() {
+  var id     = (document.getElementById('tc-workday-id')||{}).value||'';
+  var reason = ((document.getElementById('tc-reason')||{}).value||'').trim();
+  if (!reason) { showToast('Please enter a reason for the correction','error'); return; }
+  var wd = (DB.workDays||[]).find(function(d){ return d.id===id; });
+  if (!wd) { showToast('Work day not found','error'); return; }
+  // Archive original
+  if (!wd.corrections) wd.corrections=[];
+  wd.corrections.push({
+    correctedAt:  new Date().toISOString(),
+    correctedBy:  _currentUser ? _currentUser.full_name : 'Admin',
+    reason:       reason,
+    original:     {totalPaidMins:wd.totalPaidMins,onsiteMins:wd.onsiteMins,travelMins:wd.travelMins,lunchMins:wd.lunchMins}
+  });
+  // Apply correction
+  wd.totalPaidMins = parseInt((document.getElementById('tc-total')||{}).value)||0;
+  wd.onsiteMins    = parseInt((document.getElementById('tc-onsite')||{}).value)||0;
+  wd.travelMins    = parseInt((document.getElementById('tc-travel')||{}).value)||0;
+  wd.lunchMins     = parseInt((document.getElementById('tc-lunch')||{}).value)||0;
+  wd.corrected     = true;
+  saveDB();
+  closeModal('modal-time-correction');
+  loadTimesheets();
+  showToast('Time correction saved — original preserved in audit trail','success');
+}
+
+// ============================================================
+// END TIME MANAGEMENT FEATURES
+// ============================================================
 function renderDayRow(d) {
   var flagStr = d.lunchFlagged ? '<span class="ts-flag-chip">⚠ Lunch</span>' : '';
   var otMins = Math.max(0, (d.totalPaidMins||0) - 480);
@@ -9714,6 +10863,7 @@ function loadSettings() {
   sv('s-uname',s.uname);sv('s-utitle',s.utitle);sv('s-uphone',s.uphone);sv('s-uemail',s.uemail);
   // Geofence settings
   sv('s-office-addr', s.officeAddr||'');
+  sv('s-clockin-reminder', s.clockInReminderTime||'');
   var gfCb  = document.getElementById('s-geofence-enforce');
   var gfLbl = document.getElementById('s-geofence-label');
   var gfNote= document.getElementById('geofence-status-note');
@@ -11282,6 +12432,7 @@ function renderDash() {
 
   buildAlerts();
   const cb = document.getElementById('company-badge'); if (cb) cb.textContent = (DB.settings.cname || 'TCSS').substring(0,12);
+  renderAbsenceDashboard();
 }
 
 function saveQQ() {
@@ -11851,6 +13002,9 @@ async function signIn(email, password) {
     } else {
       syncAllFromCloud();
     }
+    startClockInReminder();
+    checkYearEndForfeiture();
+    setTimeout(flushOfflineQueue, 2000);
   }
   return result;
 }
