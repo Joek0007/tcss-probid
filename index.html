@@ -3629,6 +3629,7 @@ table{font-size:12.5px}
 </div>
 
 <!-- CUSTOMER MODAL -->
+<div class="modal-overlay" id="modal-customer">
   <div class="modal-box sm">
     <div class="modal-head"><h3 id="modal-cust-title">New Customer</h3><button class="close-btn" data-action="closeModal" data-modal="modal-customer">×</button></div>
     <div class="modal-body">
@@ -3638,7 +3639,11 @@ table{font-size:12.5px}
       <div class="form-row"><div><label>Notes</label><textarea id="m-cnotes" rows="2"></textarea></div></div>
       <input type="hidden" id="m-cid">
     </div>
-    <div class="modal-foot"><button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-customer">Cancel</button><button class="btn btn-primary" data-action="saveCustomer">Save</button></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-customer">Cancel</button>
+      <button class="btn btn-outline btn-sm" onclick="saveCustomerAndAnother()">Save + Add Another</button>
+      <button class="btn btn-primary" data-action="saveCustomer">Save</button>
+    </div>
   </div>
 </div>
 
@@ -5849,11 +5854,31 @@ function editCustomer(id) {
 function saveCustomer() {
   const id = document.getElementById('m-cid').value;
   const name = document.getElementById('m-cname').value;
-  if (!name.trim()) { showToast('Customer name required.','error'); return; }
+  if (!name.trim()) { showToast('Customer name required','error'); return; }
   const data = { id:id||Date.now().toString(), name, phone:document.getElementById('m-cphone').value, email:document.getElementById('m-cemail').value, address:document.getElementById('m-caddr').value, notes:document.getElementById('m-cnotes').value };
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
   else DB.customers.push(data);
   saveDB(); closeModal('modal-customer'); renderCustomers();
+  showToast('"'+name+'" saved','success');
+}
+
+function saveCustomerAndAnother() {
+  const id = document.getElementById('m-cid').value;
+  const name = document.getElementById('m-cname').value;
+  if (!name.trim()) { showToast('Customer name required','error'); return; }
+  const data = { id:id||Date.now().toString(), name, phone:document.getElementById('m-cphone').value, email:document.getElementById('m-cemail').value, address:document.getElementById('m-caddr').value, notes:document.getElementById('m-cnotes').value };
+  if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
+  else DB.customers.push(data);
+  saveDB(); renderCustomers();
+  // Clear fields, keep modal open, ready for next entry
+  ['m-cname','m-cphone','m-cemail','m-caddr','m-cnotes','m-cid'].forEach(function(fid){
+    const el=document.getElementById(fid); if(el) el.value='';
+  });
+  const titleEl=document.getElementById('modal-cust-title');
+  if(titleEl) titleEl.textContent='New Customer';
+  const nameEl=document.getElementById('m-cname');
+  if(nameEl) nameEl.focus();
+  showToast('"'+name+'" saved — ready for next customer','success');
 }
 function delCustomer(id) { if(!confirm('Delete customer?')) return; DB.customers=DB.customers.filter(function(c){return c.id!=id}); saveDB(); renderCustomers(); }
 
