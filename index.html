@@ -2397,6 +2397,8 @@ table{font-size:12.5px}
     <button class="rpt-tab" onclick="switchRptTab('margins')">💰 Margins</button>
     <button class="rpt-tab" onclick="switchRptTab('jobs')">🔧 Job Performance</button>
     <button class="rpt-tab" onclick="switchRptTab('techs')">👷 Technicians</button>
+    <button class="rpt-tab" onclick="switchRptTab('tools')">🔩 Tool Utilization</button>
+    <button class="rpt-tab" onclick="switchRptTab('payroll')">💵 Payroll Summary</button>
   </div>
 
   <!-- OVERVIEW TAB -->
@@ -2522,9 +2524,67 @@ table{font-size:12.5px}
       </table>
     </div>
   </div>
-</div>
+  <!-- TOOL UTILIZATION TAB -->
+  <div class="rpt-section" id="rpt-tools">
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-val" id="rtl-total">0</div><div class="kpi-lbl">Total Tools</div></div>
+      <div class="kpi-card orange"><div class="kpi-val" id="rtl-out">0</div><div class="kpi-lbl">Currently Out</div></div>
+      <div class="kpi-card red"><div class="kpi-val" id="rtl-overdue">0</div><div class="kpi-lbl">Overdue Returns</div></div>
+      <div class="kpi-card teal"><div class="kpi-val" id="rtl-checkouts">0</div><div class="kpi-lbl">Total Checkouts</div></div>
+      <div class="kpi-card green"><div class="kpi-val" id="rtl-utilization">0%</div><div class="kpi-lbl">Utilization Rate</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="card">
+        <div class="card-title">🔩 Most Used Tools</div>
+        <div class="bar-chart" id="rtl-most-used"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">👷 Checkouts by Technician</div>
+        <div class="bar-chart" id="rtl-by-tech"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚠ Overdue Returns</div>
+      <table><thead><tr><th>Tool</th><th>Checked Out To</th><th>Checkout Date</th><th>Expected Return</th><th>Days Overdue</th></tr></thead>
+      <tbody id="rtl-overdue-tbl"></tbody></table>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="card-title">📋 Full Checkout History</div>
+      <table><thead><tr><th>Tool</th><th>Checked Out To</th><th>Date Out</th><th>Date Back</th><th>Duration</th><th>Job</th></tr></thead>
+      <tbody id="rtl-history-tbl"></tbody></table>
+    </div>
+  </div>
 
-<!-- INVENTORY & TOOL TRACKING -->
+  <!-- PAYROLL SUMMARY TAB -->
+  <div class="rpt-section" id="rpt-payroll">
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-val" id="rpr-total-hrs">0</div><div class="kpi-lbl">Total Hours</div></div>
+      <div class="kpi-card orange"><div class="kpi-val" id="rpr-ot-hrs">0</div><div class="kpi-lbl">Overtime Hours</div></div>
+      <div class="kpi-card green"><div class="kpi-val" id="rpr-reg-hrs">0</div><div class="kpi-lbl">Regular Hours</div></div>
+      <div class="kpi-card purple"><div class="kpi-val" id="rpr-labor-cost">$0</div><div class="kpi-lbl">Est. Labor Cost</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <select id="rpr-period-filter" style="font-size:13px;padding:8px 12px;border:1px solid #e0e0e0;border-radius:8px" onchange="renderReports()">
+        <option value="current">Current Pay Period</option>
+        <option value="last">Last Pay Period</option>
+        <option value="month">This Month</option>
+        <option value="all">All Time</option>
+      </select>
+      <button class="btn btn-outline btn-sm" onclick="exportPayrollCSV()">📥 Export CSV</button>
+    </div>
+    <div class="card">
+      <div class="card-title">👷 Hours by Technician</div>
+      <table><thead><tr><th>Name</th><th>Regular Hrs</th><th>OT Hrs</th><th>Total Hrs</th><th>PTO/Leave</th><th>Est. Cost</th><th>Flags</th></tr></thead>
+      <tbody id="rpr-tech-tbl"></tbody></table>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="card-title">📅 Daily Breakdown</div>
+      <table><thead><tr><th>Date</th><th>Tech</th><th>Clock In</th><th>Clock Out</th><th>Regular</th><th>OT</th><th>Job</th><th>Flags</th></tr></thead>
+      <tbody id="rpr-daily-tbl"></tbody></table>
+    </div>
+  </div>
+
+</div>
 <!-- MATERIALS & STOCK -->
 <div class="page" id="page-inventory">
   <div class="page-header"><h2>📦 Inventory</h2>
@@ -6848,7 +6908,7 @@ let _rptDateFilter = 'all';
 function switchRptTab(tab) {
   _rptActiveTab = tab;
   document.querySelectorAll('.rpt-tab').forEach(function(b,i){
-    const tabs = ['overview','pipeline','margins','jobs','techs'];
+    const tabs = ['overview','pipeline','margins','jobs','techs','tools','payroll'];
     b.classList.toggle('active', tabs[i] === tab);
   });
   document.querySelectorAll('.rpt-section').forEach(function(s){
@@ -6928,14 +6988,24 @@ function renderReports() {
       if (lblEl) lblEl.innerHTML = months.map(function(m){ return '<div style="flex:1;text-align:center">'+m.substring(5)+'</div>'; }).join('');
     }
 
-    // Top customers
+    // Top customers — group by customerId if available, else by name
     const custRev = {};
-    quotes.forEach(function(q){ if(q.cn) custRev[q.cn]=(custRev[q.cn]||0)+(q.total||0); });
+    const custNames = {};
+    quotes.forEach(function(q){
+      var key = q.customerId || q.cn || '';
+      if (!key) return;
+      custRev[key]  = (custRev[key]||0)+(q.total||0);
+      // Store display name — prefer customer record name, fall back to q.cn
+      if (!custNames[key]) {
+        var cust = q.customerId ? (DB.customers||[]).find(function(c){ return c.id===q.customerId; }) : null;
+        custNames[key] = cust ? cust.name : (q.cn||key);
+      }
+    });
     const topCust = Object.keys(custRev).sort(function(a,b){ return custRev[b]-custRev[a]; }).slice(0,6);
     const maxCR   = topCust.length>0 ? custRev[topCust[0]] : 1;
     const tcEl    = document.getElementById('ko-top-customers');
-    if (tcEl) tcEl.innerHTML = topCust.length>0 ? topCust.map(function(c){
-      return makeBar(c, custRev[c], maxCR, '#1565c0', '$'+Math.round(custRev[c]/1000)+'k');
+    if (tcEl) tcEl.innerHTML = topCust.length>0 ? topCust.map(function(k){
+      return makeBar(escHtml(custNames[k]||k), custRev[k], maxCR, '#1565c0', '$'+Math.round(custRev[k]/1000)+'k');
     }).join('') : '<div style="color:#90a4ae;font-size:12px">No data yet.</div>';
 
     // All quotes table
@@ -7080,6 +7150,7 @@ function renderReports() {
   // ---- JOB PERFORMANCE TAB ----
   if (tab === 'jobs') {
     const jobs   = DB.jobs;
+    const today  = getTodayISO();
     const total  = jobs.length;
     const done   = jobs.filter(function(j){ return j.status==='Complete'||j.status==='Closed'; }).length;
     const active = jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; }).length;
@@ -7094,67 +7165,336 @@ function renderReports() {
     if (kjTbl) kjTbl.innerHTML = jobs.length>0 ? jobs.map(function(j){
       const est  = parseFloat(j.estLaborHours)||0;
       const act  = parseFloat(j.actualLaborHours)||0;
-      let varHTML= '—';
-      if (act>0 && est>0) {
-        const v   = ((act-est)/est*100).toFixed(1);
-        const cls = act>est*1.05?'perf-over':act<est*0.95?'perf-good':'perf-watch';
-        const lbl = act>est*1.05?'▲ Over':'▼ Under';
+      // Try to get actual hours from workDays
+      var actualFromWD = (DB.workDays||[]).filter(function(d){
+        return d.jobId===j.id || (d.jobName&&d.jobName===j.name);
+      }).reduce(function(s,d){ return s+(d.totalPaidMins||0)/60; }, 0);
+      var displayAct = actualFromWD>0 ? actualFromWD : act;
+      var laborRate = (DB.settings&&DB.settings.laborRate)||100;
+
+      let varHTML='—';
+      if (displayAct>0 && est>0) {
+        const v   = ((displayAct-est)/est*100).toFixed(1);
+        const cls = displayAct>est*1.05?'perf-over':displayAct<est*0.95?'perf-good':'perf-watch';
+        const lbl = displayAct>est*1.05?'▲ Over':'▼ Under';
         varHTML   = '<span class="perf-badge '+cls+'">'+lbl+' '+Math.abs(v)+'%</span>';
       }
+      // WT progress
+      var wtProj = (DB.wtProjects||[]).find(function(p){ return p.jobId===j.id||(p.customer||'').toLowerCase()===(j.customer||'').toLowerCase(); });
+      var wtPct  = null;
+      if (wtProj) {
+        var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
+        var wdone=items.filter(function(i){return i.status==='done';}).length;
+        wtPct = items.length?Math.round(wdone/items.length*100):0;
+      }
+      var estCost = est * laborRate;
+      var actCost = displayAct * laborRate;
+      var costVar = estCost>0 ? ((actCost-estCost)/estCost*100).toFixed(0) : null;
+
       const sc = j.status==='Scheduled'?'s-pending':j.status==='In Progress'?'s-inprogress':j.status==='Complete'?'s-approved':'s-draft';
-      return '<tr><td style="font-weight:700;font-size:12px">'+escHtml(j.name||'')+'</td>' +
-        '<td style="font-size:12px">'+escHtml(j.customer||'')+'</td>' +
-        '<td>'+est.toFixed(1)+'</td><td>'+( act>0?act.toFixed(1):'&mdash;')+'</td>' +
-        '<td>'+varHTML+'</td>' +
-        '<td>'+fmt(j.estTotal||j.estCost||0)+'</td>' +
-        '<td><span class="status-badge '+sc+'" style="font-size:10px">'+escHtml(j.status||'')+'</span></td></tr>';
-    }).join('') : empty(7,'No jobs yet. Convert a won quote to create your first job.');
+      return '<tr>'+
+        '<td style="font-weight:700;font-size:12px">'+escHtml(j.name||'')+'</td>'+
+        '<td style="font-size:12px">'+escHtml(j.customer||'')+'</td>'+
+        '<td>'+est.toFixed(1)+'</td>'+
+        '<td>'+(displayAct>0?displayAct.toFixed(1):'—')+'</td>'+
+        '<td>'+varHTML+'</td>'+
+        '<td>'+fmt(estCost)+'</td>'+
+        '<td>'+(costVar!==null?'<span style="color:'+(parseFloat(costVar)>10?'#c62828':parseFloat(costVar)<-5?'#2e7d32':'#e65100')+'">'+( parseFloat(costVar)>0?'+':'')+costVar+'%</span>':'—')+'</td>'+
+        '<td>'+(wtPct!==null?'<div class="wt-progress-bar" style="width:80px;height:6px;display:inline-block;vertical-align:middle"><div class="wt-progress-fill" style="width:'+wtPct+'%;height:6px"></div></div> '+wtPct+'%':'—')+'</td>'+
+        '<td><span class="status-badge '+sc+'" style="font-size:10px">'+escHtml(j.status||'')+'</span></td>'+
+      '</tr>';
+    }).join('') : empty(9,'No jobs yet. Convert a won quote to create your first job.');
+
+    // Update table header to match new columns
+    var kjHead = document.querySelector('#kj-tbl')&&document.querySelector('#kj-tbl').closest('table')&&document.querySelector('#kj-tbl').closest('table').querySelector('thead tr');
+    if (kjHead) kjHead.innerHTML = '<th>Job</th><th>Customer</th><th>Est Hrs</th><th>Actual Hrs</th><th>Hrs Var</th><th>Est Cost</th><th>Cost Var</th><th>WT %</th><th>Status</th>';
   }
 
   // ---- TECHNICIAN PERFORMANCE TAB ----
   if (tab === 'techs') {
     setT('kt-count', DB.team.length);
 
-    // Build perf map from jobs
+    // Pull hours from workDays (actual clock data)
     const techMap = {};
+    (DB.workDays||[]).forEach(function(d){
+      if (!d.techName||!d.totalPaidMins) return;
+      const name = d.techName;
+      if (!techMap[name]) techMap[name]={regMins:0,otMins:0,jobs:new Set(),checkoffs:0,reworks:0};
+      techMap[name].regMins += d.regularMins||d.totalPaidMins||0;
+      techMap[name].otMins  += d.otMins||0;
+      if (d.jobName) techMap[name].jobs.add(d.jobName);
+    });
+    // Add check-off data from WT
+    (DB.wtCheckoffs||[]).forEach(function(c){
+      if (!c.techName) return;
+      if (!techMap[c.techName]) techMap[c.techName]={regMins:0,otMins:0,jobs:new Set(),checkoffs:0,reworks:0};
+      techMap[c.techName].checkoffs++;
+    });
+    // Add rework attribution
+    (DB.wtReworks||[]).forEach(function(r){
+      if (!r.origTech||r.fault!=='original') return;
+      if (!techMap[r.origTech]) techMap[r.origTech]={regMins:0,otMins:0,jobs:new Set(),checkoffs:0,reworks:0};
+      techMap[r.origTech].reworks++;
+    });
+    // Fall back to job assignments if no time tracking data
     DB.jobs.forEach(function(j){
       if (!j.assignedTo) return;
       const name = j.assignedTo.trim();
-      if (!techMap[name]) techMap[name] = {jobs:0,estHrs:0,actHrs:0,done:0};
-      techMap[name].jobs++;
-      techMap[name].estHrs += parseFloat(j.estLaborHours)||0;
-      techMap[name].actHrs += parseFloat(j.actualLaborHours)||0;
-      if (j.status==='Complete'||j.status==='Closed') techMap[name].done++;
+      if (!techMap[name]) techMap[name]={regMins:0,otMins:0,jobs:new Set(),checkoffs:0,reworks:0};
+      techMap[name].jobs.add(j.name||j.id);
     });
 
     const techEntries = Object.keys(techMap);
-    const totalDone   = techEntries.reduce(function(s,k){ return s+techMap[k].done; },0);
-    const avgHrsJ     = techEntries.length>0 ? (DB.jobs.reduce(function(s,j){ return s+(parseFloat(j.actualLaborHours)||0); },0) / Math.max(1,DB.jobs.length)).toFixed(1) : 0;
+    const totalDone = DB.jobs.filter(function(j){ return j.status==='Complete'||j.status==='Closed'; }).length;
+    const avgHrsJ   = techEntries.length>0 ? (Object.values(techMap).reduce(function(s,t){ return s+(t.regMins+t.otMins)/60; },0)/Math.max(1,techEntries.length)).toFixed(1) : 0;
+    setT('kt-jobs-done', totalDone); setT('kt-avg-hrs', avgHrsJ);
 
-    setT('kt-jobs-done', totalDone);
-    setT('kt-avg-hrs', avgHrsJ);
-
+    const laborRate = (DB.settings&&DB.settings.laborRate)||100;
     const ktTbl = document.getElementById('kt-tbl');
     if (ktTbl) {
-      if (!techEntries.length) { ktTbl.innerHTML = empty(7,'No job assignments yet. Assign technicians on job records.'); return; }
-      ktTbl.innerHTML = techEntries.sort(function(a,b){ return techMap[b].done-techMap[a].done; }).map(function(name){
-        const t      = techMap[name];
-        const avgH   = t.jobs>0 ? (t.actHrs/t.jobs).toFixed(1) : '—';
-        const varPct = t.estHrs>0 ? ((t.actHrs-t.estHrs)/t.estHrs*100).toFixed(1) : null;
-        const rating = varPct===null?'—' : parseFloat(varPct)<=-5?'<span class="perf-badge perf-good">Efficient</span>' : parseFloat(varPct)<=10?'<span class="perf-badge perf-watch">On Track</span>' : '<span class="perf-badge perf-over">Over</span>';
+      if (!techEntries.length) { ktTbl.innerHTML = empty(8,'No technician data yet. Time tracking data appears here automatically.'); return; }
+      // Update header
+      var ktHead = ktTbl.closest('table')&&ktTbl.closest('table').querySelector('thead tr');
+      if (ktHead) ktHead.innerHTML = '<th>Name</th><th>Role</th><th>Reg Hrs</th><th>OT Hrs</th><th>Check-offs</th><th>Reworks</th><th>Est Cost</th><th>Rating</th>';
+
+      ktTbl.innerHTML = techEntries.sort(function(a,b){
+        return (techMap[b].regMins+techMap[b].otMins)-(techMap[a].regMins+techMap[a].otMins);
+      }).map(function(name){
+        const t        = techMap[name];
+        const regHrs   = (t.regMins/60).toFixed(1);
+        const otHrs    = (t.otMins/60).toFixed(1);
+        const estCost  = fmt((t.regMins/60)*laborRate + (t.otMins/60)*laborRate*1.5);
+        const reworkRate = t.checkoffs>0 ? Math.round(t.reworks/t.checkoffs*100) : 0;
+        const rating   = reworkRate>15 ? '<span class="perf-badge perf-over">High Rework</span>' :
+                         reworkRate>5  ? '<span class="perf-badge perf-watch">Watch</span>' :
+                         t.checkoffs>0 ? '<span class="perf-badge perf-good">Good</span>' : '—';
         const teamMember = DB.team.find(function(tm){ return tm.name===name; });
-        const role = teamMember ? teamMember.role : '—';
-        return '<tr class="perf-table">' +
-          '<td style="font-weight:700">'+escHtml(name)+'</td>' +
-          '<td style="font-size:11px;color:#607d8b">'+escHtml(role)+'</td>' +
-          '<td>'+t.jobs+'</td>' +
-          '<td>'+( t.actHrs>0?t.actHrs.toFixed(1):'—')+'</td>' +
-          '<td>'+avgH+'</td>' +
-          '<td>'+(varPct!==null?(parseFloat(varPct)>0?'+':'')+varPct+'%':'—')+'</td>' +
-          '<td>'+rating+'</td></tr>';
+        const role = teamMember ? escHtml(teamMember.role||'Tech') : '—';
+        return '<tr>'+
+          '<td style="font-weight:700">'+escHtml(name)+'</td>'+
+          '<td style="font-size:11px;color:#607d8b">'+role+'</td>'+
+          '<td>'+regHrs+'</td>'+
+          '<td style="color:'+(parseFloat(otHrs)>0?'#e65100':'inherit')+'">'+otHrs+'</td>'+
+          '<td>'+t.checkoffs+'</td>'+
+          '<td style="color:'+(t.reworks>0?'#c62828':'inherit')+'">'+t.reworks+'</td>'+
+          '<td>'+estCost+'</td>'+
+          '<td>'+rating+'</td>'+
+        '</tr>';
       }).join('');
     }
   }
+
+  // ---- TOOL UTILIZATION TAB ----
+  if (tab === 'tools') {
+    const tools    = DB.tools||[];
+    const checkouts= DB.toolCheckouts||[];
+    const today    = getTodayISO();
+    const active   = checkouts.filter(function(c){ return !c.returnedAt&&c.status!=='verified'; });
+    const overdue  = active.filter(function(c){ return c.expectedReturn&&c.expectedReturn<today; });
+
+    // Utilization = tools currently out / total tools
+    const utilRate = tools.length>0 ? Math.round(active.length/tools.length*100) : 0;
+    setT('rtl-total', tools.length);
+    setT('rtl-out', active.length);
+    setT('rtl-overdue', overdue.length);
+    setT('rtl-checkouts', checkouts.length);
+    setT('rtl-utilization', utilRate+'%');
+
+    // Most used tools by checkout count
+    const toolUsage = {};
+    checkouts.forEach(function(c){
+      if (!c.toolId) return;
+      toolUsage[c.toolId] = (toolUsage[c.toolId]||0)+1;
+    });
+    const muEl = document.getElementById('rtl-most-used');
+    if (muEl) {
+      const sorted = Object.keys(toolUsage).sort(function(a,b){ return toolUsage[b]-toolUsage[a]; }).slice(0,8);
+      const maxU = sorted.length ? toolUsage[sorted[0]] : 1;
+      muEl.innerHTML = sorted.length ? sorted.map(function(tid){
+        const t = tools.find(function(x){ return x.id===tid; });
+        const name = t ? t.name : tid;
+        return makeBar(escHtml(name), toolUsage[tid], maxU, '#1565c0', toolUsage[tid]+' uses');
+      }).join('') : '<div style="color:#90a4ae;font-size:12px">No checkout history yet.</div>';
+    }
+
+    // Checkouts by tech
+    const techUsage = {};
+    checkouts.forEach(function(c){
+      if (!c.toName) return;
+      techUsage[c.toName] = (techUsage[c.toName]||0)+1;
+    });
+    const btEl = document.getElementById('rtl-by-tech');
+    if (btEl) {
+      const sorted2 = Object.keys(techUsage).sort(function(a,b){ return techUsage[b]-techUsage[a]; }).slice(0,8);
+      const maxT = sorted2.length ? techUsage[sorted2[0]] : 1;
+      btEl.innerHTML = sorted2.length ? sorted2.map(function(name){
+        return makeBar(escHtml(name), techUsage[name], maxT, '#2e7d32', techUsage[name]+' checkouts');
+      }).join('') : '<div style="color:#90a4ae;font-size:12px">No data yet.</div>';
+    }
+
+    // Overdue table
+    const odEl = document.getElementById('rtl-overdue-tbl');
+    if (odEl) odEl.innerHTML = overdue.length ? overdue.map(function(c){
+      const t = tools.find(function(x){ return x.id===c.toolId; });
+      const days = c.expectedReturn ? Math.floor((new Date(today)-new Date(c.expectedReturn))/86400000) : '?';
+      return '<tr>'+
+        '<td style="font-weight:700">'+escHtml((t&&t.name)||'Unknown')+'</td>'+
+        '<td>'+escHtml(c.toName||'')+'</td>'+
+        '<td style="font-size:11px">'+escHtml(c.checkoutDate||'')+'</td>'+
+        '<td style="color:#c62828;font-weight:700">'+escHtml(c.expectedReturn||'—')+'</td>'+
+        '<td style="font-weight:700;color:#c62828">'+days+' days</td>'+
+      '</tr>';
+    }).join('') : empty(5,'No overdue returns — all tools accounted for!');
+
+    // History table (last 20)
+    const histEl = document.getElementById('rtl-history-tbl');
+    if (histEl) {
+      const hist = checkouts.slice().sort(function(a,b){ return (b.checkoutDate||'').localeCompare(a.checkoutDate||''); }).slice(0,20);
+      histEl.innerHTML = hist.length ? hist.map(function(c){
+        const t = tools.find(function(x){ return x.id===c.toolId; });
+        const dur = c.checkoutDate&&c.returnedAt ?
+          Math.round((new Date(c.returnedAt)-new Date(c.checkoutDate))/86400000)+' days' : c.returnedAt?'Same day':'—';
+        return '<tr>'+
+          '<td style="font-weight:700;font-size:12px">'+escHtml((t&&t.name)||'Unknown')+'</td>'+
+          '<td>'+escHtml(c.toName||'')+'</td>'+
+          '<td style="font-size:11px">'+escHtml(c.checkoutDate||'')+'</td>'+
+          '<td style="font-size:11px">'+escHtml(c.returnedAt||'—')+'</td>'+
+          '<td>'+dur+'</td>'+
+          '<td style="font-size:11px">'+escHtml(c.jobName||'—')+'</td>'+
+        '</tr>';
+      }).join('') : empty(6,'No checkout history yet.');
+    }
+  }
+
+  // ---- PAYROLL SUMMARY TAB ----
+  if (tab === 'payroll') {
+    var period = (document.getElementById('rpr-period-filter')||{}).value || 'current';
+    var today2 = getTodayISO();
+
+    // Determine date range
+    function getPayPeriodBounds(offsetPeriods) {
+      var anchor = new Date('2025-01-06');
+      var now    = new Date();
+      var msIn2Weeks = 14*24*60*60*1000;
+      var periodsElapsed = Math.floor((now-anchor)/msIn2Weeks);
+      var start = new Date(anchor.getTime()+(periodsElapsed-offsetPeriods)*msIn2Weeks);
+      var end   = new Date(start.getTime()+msIn2Weeks-1);
+      return {
+        start: start.toISOString().split('T')[0],
+        end:   end.toISOString().split('T')[0]
+      };
+    }
+    var bounds = null;
+    if (period==='current')  bounds = getPayPeriodBounds(0);
+    else if (period==='last') bounds = getPayPeriodBounds(1);
+    else if (period==='month') {
+      var now2 = new Date();
+      bounds = { start: now2.getFullYear()+'-'+(String(now2.getMonth()+1).padStart(2,'0'))+'-01', end: today2 };
+    }
+
+    // Filter workDays
+    var days = (DB.workDays||[]).filter(function(d){
+      if (!d.totalPaidMins) return false;
+      if (bounds && d.date < bounds.start) return false;
+      if (bounds && d.date > bounds.end) return false;
+      return true;
+    });
+
+    // Aggregate totals
+    var totalReg=0, totalOT=0;
+    days.forEach(function(d){
+      totalReg += d.regularMins||d.totalPaidMins||0;
+      totalOT  += d.otMins||0;
+    });
+    var laborRate2 = (DB.settings&&DB.settings.laborRate)||100;
+    var estCost = (totalReg/60)*laborRate2 + (totalOT/60)*laborRate2*1.5;
+    setT('rpr-total-hrs', ((totalReg+totalOT)/60).toFixed(1));
+    setT('rpr-reg-hrs',   (totalReg/60).toFixed(1));
+    setT('rpr-ot-hrs',    (totalOT/60).toFixed(1));
+    setT('rpr-labor-cost', fmt(estCost));
+
+    // Per-tech summary
+    var techPayMap = {};
+    days.forEach(function(d){
+      var n = d.techName||'Unknown';
+      if (!techPayMap[n]) techPayMap[n]={reg:0,ot:0,days:0,flags:0,pto:0};
+      techPayMap[n].reg  += d.regularMins||d.totalPaidMins||0;
+      techPayMap[n].ot   += d.otMins||0;
+      techPayMap[n].days++;
+      if (d.flag) techPayMap[n].flags++;
+    });
+    // Add leave hours from timeOffRequests
+    (DB.timeOffRequests||[]).filter(function(r){ return r.status==='approved'; }).forEach(function(r){
+      if (bounds && r.startDate < bounds.start) return;
+      if (bounds && r.startDate > bounds.end) return;
+      var n = r.techName||'';
+      if (!techPayMap[n]) techPayMap[n]={reg:0,ot:0,days:0,flags:0,pto:0};
+      techPayMap[n].pto += (r.hours||8);
+    });
+
+    var rprTbl = document.getElementById('rpr-tech-tbl');
+    if (rprTbl) {
+      var entries = Object.keys(techPayMap);
+      rprTbl.innerHTML = entries.length ? entries.sort(function(a,b){
+        return (techPayMap[b].reg+techPayMap[b].ot)-(techPayMap[a].reg+techPayMap[a].ot);
+      }).map(function(name){
+        var t    = techPayMap[name];
+        var regH = (t.reg/60).toFixed(1);
+        var otH  = (t.ot/60).toFixed(1);
+        var cost = fmt((t.reg/60)*laborRate2 + (t.ot/60)*laborRate2*1.5);
+        var flagBadge = t.flags>0 ? '<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">'+t.flags+' flagged</span>' : '✓';
+        return '<tr>'+
+          '<td style="font-weight:700">'+escHtml(name)+'</td>'+
+          '<td>'+regH+'</td>'+
+          '<td style="color:'+(parseFloat(otH)>0?'#e65100':'inherit')+'">'+otH+'</td>'+
+          '<td style="font-weight:700">'+(  (parseFloat(regH)+parseFloat(otH)).toFixed(1))+'</td>'+
+          '<td style="color:#6a1b9a">'+( t.pto>0?t.pto+' hrs':'—')+'</td>'+
+          '<td style="font-weight:700;color:#2e7d32">'+cost+'</td>'+
+          '<td>'+flagBadge+'</td>'+
+        '</tr>';
+      }).join('') : empty(7,'No time tracking data for this period.');
+    }
+
+    // Daily detail (last 30 rows)
+    var dailyTbl = document.getElementById('rpr-daily-tbl');
+    if (dailyTbl) {
+      var sorted3 = days.slice().sort(function(a,b){ return b.date.localeCompare(a.date); }).slice(0,30);
+      dailyTbl.innerHTML = sorted3.length ? sorted3.map(function(d){
+        var reg = ((d.regularMins||d.totalPaidMins||0)/60).toFixed(2);
+        var ot  = ((d.otMins||0)/60).toFixed(2);
+        var flagEl = d.flag ? '<span style="color:#e65100;font-size:10px;font-weight:700">⚠ '+escHtml(d.flagReason||'flagged')+'</span>' : '';
+        return '<tr>'+
+          '<td style="font-size:11px">'+escHtml(d.date||'')+'</td>'+
+          '<td style="font-weight:700">'+escHtml(d.techName||'')+'</td>'+
+          '<td style="font-size:11px">'+escHtml(d.clockInTime||'')+'</td>'+
+          '<td style="font-size:11px">'+escHtml(d.clockOutTime||'—')+'</td>'+
+          '<td>'+reg+'</td>'+
+          '<td style="color:'+(parseFloat(ot)>0?'#e65100':'inherit')+'">'+ot+'</td>'+
+          '<td style="font-size:11px">'+escHtml(d.jobName||'—')+'</td>'+
+          '<td>'+flagEl+'</td>'+
+        '</tr>';
+      }).join('') : empty(8,'No daily records for this period.');
+    }
+  }
+}
+
+function exportPayrollCSV() {
+  var days = (DB.workDays||[]).filter(function(d){ return d.totalPaidMins; });
+  var laborRate = (DB.settings&&DB.settings.laborRate)||100;
+  var rows = [['Date','Tech Name','Clock In','Clock Out','Regular Hrs','OT Hrs','Total Hrs','Est Cost','Job','Flagged']];
+  days.sort(function(a,b){ return b.date.localeCompare(a.date); }).forEach(function(d){
+    var reg = ((d.regularMins||d.totalPaidMins||0)/60).toFixed(2);
+    var ot  = ((d.otMins||0)/60).toFixed(2);
+    var tot = (parseFloat(reg)+parseFloat(ot)).toFixed(2);
+    var cost= (parseFloat(reg)*laborRate + parseFloat(ot)*laborRate*1.5).toFixed(2);
+    rows.push([d.date||'',d.techName||'',d.clockInTime||'',d.clockOutTime||'',reg,ot,tot,cost,d.jobName||'',d.flag?'Yes':'No']);
+  });
+  var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  var blob = new Blob([csv],{type:'text/csv'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href=url; a.download='TCSS_Payroll_'+getTodayISO()+'.csv'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('Payroll CSV exported','success');
 }
 
 function exportReportCSV() {
@@ -15044,8 +15384,12 @@ function renderDash() {
       jobsEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No active jobs right now.</div>';
     } else {
       jobsEl.innerHTML = activeJobs.slice(0,6).map(function(j){
-        // Find linked WT project progress
-        var wtProj = (DB.wtProjects||[]).find(function(p){ return p.jobId===j.id||(p.customer||'').toLowerCase()===(j.customer||'').toLowerCase(); });
+        // Find linked WT project — job ID first, then customer ID, then name
+        var wtProj = (DB.wtProjects||[]).find(function(p){
+          return p.jobId===j.id ||
+            (j.customerId && p.customerId===j.customerId) ||
+            (p.customer||'').toLowerCase()===(j.customer||'').toLowerCase();
+        });
         var pct = null;
         if (wtProj) {
           var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
@@ -15054,10 +15398,14 @@ function renderDash() {
         }
         var scColor=j.status==='In Progress'?'#2e7d32':'#1565c0';
         var scBg=j.status==='In Progress'?'#e8f5e9':'#e3f2fd';
+        var custId = j.customerId || '';
+        var custDisplay = custId
+          ? '<a href="#" onclick="openCustomerProfile(\''+custId+'\');return false" style="color:#1565c0;text-decoration:none">'+escHtml(j.customer||'—')+'</a>'
+          : escHtml(j.customer||'—');
         return '<div class="dash-job-row">'+
           '<div style="flex:1;min-width:0">'+
             '<div style="font-weight:700;font-size:13px">'+escHtml(j.name||'')+'</div>'+
-            '<div style="font-size:11px;color:#546e7a">'+escHtml(j.customer||'—')+(j.assignedTo?' · '+escHtml(j.assignedTo):'')+'</div>'+
+            '<div style="font-size:11px;color:#546e7a">'+custDisplay+(j.assignedTo?' · '+escHtml(j.assignedTo):'')+'</div>'+
             (pct!==null?'<div class="wt-progress-bar" style="width:120px;margin-top:4px;height:5px;border-radius:3px"><div class="wt-progress-fill" style="width:'+pct+'%;height:5px"></div></div>':'')+''+
           '</div>'+
           '<div style="display:flex;align-items:center;gap:6px">'+
@@ -15082,9 +15430,12 @@ function renderDash() {
   if (fuTbl && dueFups.length) {
     fuTbl.innerHTML = dueFups.map(function(q){
       var overdue=isFollowupOverdue(q);
+      var custLink = q.customerId
+        ? '<a href="#" onclick="openCustomerProfile(\''+q.customerId+'\');return false" style="color:#1565c0;text-decoration:none">'+escHtml(q.cn||'')+'</a>'
+        : escHtml(q.cn||'');
       return '<tr style="'+(overdue?'background:#fff8f8':'')+'">'+
         '<td style="font-weight:700;color:#1565c0;font-size:12px">'+escHtml(q.num||'')+'</td>'+
-        '<td style="font-size:12px">'+escHtml(q.cn||'')+'</td>'+
+        '<td style="font-size:12px">'+custLink+'</td>'+
         '<td style="font-size:12px">'+escHtml(q.jn||'')+'</td>'+
         '<td style="font-weight:700;color:'+(overdue?'#c62828':'#e65100')+'">'+escHtml(q.followupDate||'')+(overdue?' ⚠️':'')+'</td>'+
         '<td style="white-space:nowrap">'+
@@ -15127,10 +15478,14 @@ function renderDash() {
     }).slice(0,5);
     rqEl.innerHTML = recentQ.length ? recentQ.map(function(q){
       var fu=isFollowupDue(q)?'<span class="followup-due'+(isFollowupOverdue(q)?' followup-overdue':'')+'"> FU</span>':'';
+      var custId = q.customerId || '';
+      var custLink = custId
+        ? '<a href="#" onclick="openCustomerProfile(\''+custId+'\');return false" style="color:#1565c0;text-decoration:none;font-size:12px">'+escHtml(q.cn||'')+'</a>'
+        : '<span style="font-size:12px">'+escHtml(q.cn||'')+'</span>';
       return '<div class="dash-quote-row">'+
         '<div>'+
-          '<span style="font-weight:700;color:#1565c0;font-size:12px">'+escHtml(q.num||'')+'</span>'+
-          ' <span style="font-size:12px">'+escHtml(q.cn||'')+'</span>'+fu+
+          '<span style="font-weight:700;color:#1565c0;font-size:12px;cursor:pointer" onclick="editQuote(\''+q.id+'\')">'+escHtml(q.num||'')+'</span>'+
+          ' '+custLink+fu+
           '<div style="font-size:11px;color:#546e7a">'+escHtml(q.jn||'')+'</div>'+
         '</div>'+
         '<div style="text-align:right">'+
@@ -15159,9 +15514,17 @@ function renderDash() {
         var test=items.filter(function(i){return (i.phaseStatus&&i.phaseStatus.test)==='done';}).length;
         var pct2=items.length?Math.round(done/items.length*100):0;
         var pending=(DB.wtCheckoffs||[]).filter(function(c){return c.projectId===p.id&&!c.confirmed;}).length;
-        return '<div class="dash-wt-row">'+
+        // Find customer for this project — use customerId if set
+        var custId = p.customerId || (p.customer ? ((DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(p.customer||'').toLowerCase(); })||{}).id : null);
+        var custLink = custId
+          ? '<a href="#" onclick="openCustomerProfile(\''+custId+'\');return false" style="font-size:10px;color:#1565c0;text-decoration:none">'+escHtml(p.customer||'')+'</a>'
+          : (p.customer?'<span style="font-size:10px;color:#90a4ae">'+escHtml(p.customer)+'</span>':'');
+        return '<div class="dash-wt-row" style="cursor:pointer" onclick="loadWTProject(\''+p.id+'\');goPage(\'worktracking\')">'+
           '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'+
-            '<div style="font-weight:700;font-size:13px">'+escHtml(p.name||'')+'</div>'+
+            '<div>'+
+              '<div style="font-weight:700;font-size:13px">'+escHtml(p.name||'')+'</div>'+
+              (custLink?'<div>'+custLink+'</div>':'')+
+            '</div>'+
             '<div style="display:flex;align-items:center;gap:6px">'+
               (pending?'<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700">'+pending+' to confirm</span>':'')+
               '<span style="font-weight:800;font-size:13px;color:#1565c0">'+pct2+'%</span>'+
