@@ -16265,13 +16265,26 @@ async function syncAllFromCloud() {
         .order('created_at', { ascending: false });
 
       if (quotes && quotes.length) {
+        // Reverse-map Supabase enum values back to app status values
+        var pullStatusMap = {
+          'Draft':'draft', 'draft':'draft',
+          'Sent':'sent', 'sent':'sent',
+          'Review':'followup', 'review':'followup',
+          'Approved':'approved', 'approved':'approved',
+          'Won':'approved', 'won':'approved',
+          'Lost':'declined', 'lost':'declined',
+          'Declined':'declined', 'declined':'declined',
+          'Rejected':'declined', 'rejected':'declined',
+          'Expired':'declined', 'expired':'declined',
+          'deleted':'deleted'
+        };
         DB.quotes = quotes.map(function(q) {
           return {
             id: q.id,
             num: q.quote_number,
             cn: q.customer_name,
             rep: q.sales_rep_name,
-            status: q.status,
+            status: pullStatusMap[q.status] || 'draft',
             dt: q.quote_date,
             vu: q.valid_until,
             jt: q.quote_type,
