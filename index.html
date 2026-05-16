@@ -1644,8 +1644,8 @@ table{font-size:12.5px}
   </div>
   <div class="card">
     <div class="filter-bar">
-      <input class="search-input" id="q-search" placeholder="🔍 Search quotes...">
-      <select id="q-filter" style="width:auto">
+      <input class="search-input" id="q-search" placeholder="🔍 Search quotes..." oninput="renderQuotes()">
+      <select id="q-filter" style="width:auto" onchange="renderQuotes()">
         <option value="">All Statuses</option>
         <option value="draft">Draft</option>
         <option value="sent">Sent</option>
@@ -1653,7 +1653,7 @@ table{font-size:12.5px}
         <option value="declined">Lost</option>
         <option value="followup">Follow-Up</option>
       </select>
-      <select id="q-sort" style="width:auto">
+      <select id="q-sort" style="width:auto" onchange="renderQuotes()">
         <option value="num-desc">Quote # Newest</option>
         <option value="num-asc">Quote # Oldest</option>
         <option value="priority">Priority</option>
@@ -3941,23 +3941,13 @@ function goPage(id) {
   // Render page content
   if (id==='dash')       renderDash();
   if (id==='quotes') {
+    // Apply saved default sort on page visit
+    var qs = document.getElementById('q-sort');
+    if (qs) {
+      var savedSort = (DB.settings && DB.settings.quoteDefaultSort) || 'num-desc';
+      qs.value = savedSort;
+    }
     renderQuotes();
-    // Wire sort/filter directly — more reliable than delegated listeners for selects
-    setTimeout(function(){
-      var qs = document.getElementById('q-sort');
-      var qf = document.getElementById('q-filter');
-      var qq = document.getElementById('q-search');
-      // Apply saved default sort (fallback to num-desc)
-      var savedSort = DB.settings && DB.settings.quoteDefaultSort || 'num-desc';
-      if (qs && !qs._wired) {
-        qs.value = savedSort;
-        qs.addEventListener('change', renderQuotes);
-        qs._wired = true;
-      }
-      if (qf && !qf._wired) { qf.addEventListener('change', renderQuotes); qf._wired=true; }
-      if (qq && !qq._wired) { qq.addEventListener('input',  renderQuotes); qq._wired=true; }
-      renderQuotes();
-    }, 50);
   }
   if (id==='customers')  renderCustomers();
   if (id==='contacts')   renderContacts();
@@ -8642,6 +8632,12 @@ function removeLinkedGroup(idx) {
 
 function updateGroupMode(idx,mode) {
   if (window._editingToolGroups&&window._editingToolGroups[idx]) window._editingToolGroups[idx].mode=mode;
+}
+
+function onOwnerTypeChange() {
+  var isPersonal = document.getElementById('tool-owner-personal').checked;
+  var row = document.getElementById('tool-owner-name-row');
+  if (row) row.style.display = isPersonal ? 'block' : 'none';
 }
 
 // ---- TOOL LOAN SYSTEM ----
@@ -13992,6 +13988,7 @@ document.addEventListener('click', function(e) {
     case 'checkinTool':    checkinTool(id); break;
     case 'saveCloseout':   saveCloseout(); break;
     case 'cqqAppend':      cqqAppend(); break;
+    case 'convertToJob': openConvertToJob(id); break;
     case 'confirmConvertJob': confirmConvertJob(); break;
     case 'snoozeFollowup': snoozeFollowup(id); break;
     case 'goJobsPage': goPage('jobs'); break;
@@ -14036,6 +14033,7 @@ document.addEventListener('click', function(e) {
     case 'newJob': newJob(); break;
     case 'editJob': editJob(id); break;
     case 'saveJob': saveJob(); break;
+    case 'openCloseout': openCloseout(id); break;
     case 'delJob': delJob(id); break;
     case 'newCatalogItem': newCatalogItem(); break;
     case 'editCatalogItem': editCatalogItem(id); break;
@@ -14145,7 +14143,6 @@ document.addEventListener('input', function(e) {
   if (el.id === 'qq-mk') { onMarginManualChange(); return; }
   if (el.id === 'qq-env') { _envManualOverride = false; onEnvChange(); return; }
   // Search/filter on quotes/catalog
-  if (el.id === 'q-search' || el.id === 'q-filter' || el.id === 'q-sort') renderQuotes();
   if (el.id === 'cat-search' || el.id === 'cat-filter') renderCatalog();
   if (el.id === 'cp-search') renderCPick();
   if (el.id === 'tlib-search') tlibOnSearch(el.value);
@@ -14158,7 +14155,6 @@ document.addEventListener('input', function(e) {
 document.addEventListener('change', function(e) {
   if (e.target.id === 'qq-env') { _envManualOverride = false; onEnvChange(); }
   if (e.target.id === 'qq-mk') { onMarginManualChange(); }
-  if (e.target.id === 'q-filter' || e.target.id === 'q-sort') renderQuotes();
   if (e.target.id === 'cat-filter') renderCatalog();
   if (e.target.id === 'cp-cat') renderCPick();
   if (e.target.id === 'rpt-date-filter') renderReports();
