@@ -1181,11 +1181,13 @@ table{font-size:12.5px}
             <label>Customer / Company *</label>
             <input id="qq-cn" placeholder="Type company name..." autocomplete="off" oninput="onCustomerInput(this.value)" onblur="setTimeout(closeCustomerDropdown,200)">
             <div id="customer-dropdown" class="autocomplete-dropdown" style="display:none"></div>
+            <input type="hidden" id="qq-customer-id">
           </div>
           <div class="autocomplete-wrap">
             <label>Contact Person</label>
             <input id="qq-contact-name" placeholder="Select customer first..." autocomplete="off" oninput="onContactInput(this.value)" onblur="setTimeout(closeContactDropdown,200)">
             <div id="contact-dropdown" class="autocomplete-dropdown" style="display:none"></div>
+            <input type="hidden" id="qq-contact-id">
           </div>
         </div>
         <div class="form-row cols3">
@@ -1642,15 +1644,38 @@ table{font-size:12.5px}
   </div>
   <div class="card">
     <div class="filter-bar">
-      <input class="search-input" id="q-search" placeholder="🔍 Search quotes...">
-      <select id="q-filter" style="width:auto"><option value="">All Statuses</option>
-        <option value="draft">Draft</option><option value="sent">Sent</option>
-        <option value="approved">Won</option><option value="declined">Lost</option>
+      <input class="search-input" id="q-search" placeholder="🔍 Search quotes..." oninput="renderQuotes()">
+      <select id="q-filter" style="width:auto" onchange="renderQuotes()">
+        <option value="">All Statuses</option>
+        <option value="draft">Draft</option>
+        <option value="sent">Sent</option>
+        <option value="approved">Won</option>
+        <option value="declined">Lost</option>
         <option value="followup">Follow-Up</option>
+      </select>
+      <select id="q-sort" style="width:auto" onchange="renderQuotes()">
+        <option value="priority">Sort: Priority</option>
+        <option value="date-desc">Sort: Newest First</option>
+        <option value="date-asc">Sort: Oldest First</option>
+        <option value="total-desc">Sort: Highest Value</option>
+        <option value="total-asc">Sort: Lowest Value</option>
+        <option value="customer">Sort: Customer A–Z</option>
+        <option value="margin-desc">Sort: Highest Margin</option>
+        <option value="followup">Sort: Follow-Up Due</option>
       </select>
       <button class="btn btn-ghost btn-sm" data-action="refreshQuotes">↻ Refresh</button>
     </div>
-    <table><thead><tr><th>#</th><th>Customer</th><th>Job Name</th><th>Environment</th><th>Total</th><th>Margin</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+    <table><thead><tr>
+      <th onclick="setSortQuotes('num')" style="cursor:pointer" title="Sort by quote number"># <span id="qsort-num"></span></th>
+      <th onclick="setSortQuotes('customer')" style="cursor:pointer" title="Sort by customer">Customer <span id="qsort-customer"></span></th>
+      <th>Job Name</th>
+      <th>Environment</th>
+      <th onclick="setSortQuotes('total-desc')" style="cursor:pointer" title="Sort by value">Total <span id="qsort-total-desc"></span></th>
+      <th onclick="setSortQuotes('margin-desc')" style="cursor:pointer" title="Sort by margin">Margin <span id="qsort-margin-desc"></span></th>
+      <th>Status</th>
+      <th onclick="setSortQuotes('date-desc')" style="cursor:pointer" title="Sort by date">Date <span id="qsort-date-desc"></span></th>
+      <th>Actions</th>
+    </tr></thead>
     <tbody id="quotes-tbl"></tbody></table>
   </div>
 </div>
@@ -3859,6 +3884,27 @@ function loadDB() {
     if (!DB.wtItems)         DB.wtItems         = [];
     if (!DB.wtCheckoffs)     DB.wtCheckoffs     = [];
     if (!DB.wtReworks)       DB.wtReworks       = [];
+
+    // ONE-TIME MIGRATION: backfill customerId and contactId on existing quotes
+    var migrated = 0;
+    (DB.quotes||[]).forEach(function(q){
+      if (!q.customerId && q.cn) {
+        var mc = (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(q.cn||'').toLowerCase(); });
+        if (mc) { q.customerId = mc.id; migrated++; }
+      }
+      if (!q.contactId && q.contactName) {
+        var mct = (DB.contacts||[]).find(function(c){ return (c.name||'').toLowerCase()===(q.contactName||'').toLowerCase(); });
+        if (mct) { q.contactId = mct.id; }
+      }
+    });
+    // Backfill customerId on contacts that have matching company name
+    (DB.contacts||[]).forEach(function(c){
+      if (!c.customerId && c.company) {
+        var mc2 = (DB.customers||[]).find(function(x){ return (x.name||'').toLowerCase()===(c.company||'').toLowerCase(); });
+        if (mc2) c.customerId = mc2.id;
+      }
+    });
+    if (migrated > 0) { console.log('[Migration] Backfilled customerId on '+migrated+' quotes'); }
     if (!DB.settings.followupDays) DB.settings.followupDays = 7;
     // Migrate old tool checkouts that lack status field
     (DB.toolCheckouts||[]).forEach(function(co){
@@ -5796,10 +5842,12 @@ function closeModal(id) { const m=document.getElementById(id); if(m) m.classList
 
 function deleteQuote(id) {
   if (!confirm('Delete this quote? This cannot be undone.')) return;
+  if (_sb && _currentUser && String(id).length > 10) {
+    _sb.from('quotes').update({status:'deleted'}).eq('id',id).then(function(r){ if(r.error) console.warn('[Delete] Quote:',r.error.message); });
+  }
   DB.quotes = DB.quotes.filter(function(q){return q.id!=id});
-  saveDB();
-  renderQuotes();
-  renderDash();
+  saveDB(); renderQuotes(); renderDash();
+  showToast('Quote deleted','info');
 }
 
 function exportCSV() {
@@ -5819,10 +5867,10 @@ function renderCustomers() {
   if (!tbody) return;
   if (DB.customers.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><p>No customers yet.</p></td></tr>'; return; }
   tbody.innerHTML = DB.customers.map(function(c){
-    const qct  = DB.quotes.filter(function(q){return (q.cn||'').toLowerCase()===(c.name||'').toLowerCase()}).length;
-    const jct  = DB.jobs.filter(function(j){return (j.customer||'').toLowerCase()===(c.name||'').toLowerCase()}).length;
+    const qct  = DB.quotes.filter(function(q){return q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase()}).length;
+    const jct  = DB.jobs.filter(function(j){return j.customerId===c.id||(j.customer||'').toLowerCase()===(c.name||'').toLowerCase()}).length;
     const cct  = DB.contacts.filter(function(x){return x.customerId===c.id}).length;
-    const wonRev = DB.quotes.filter(function(q){return (q.cn||'').toLowerCase()===(c.name||'').toLowerCase()&&q.status==='approved'}).reduce(function(s,q){return s+(q.total||0);},0);
+    const wonRev = DB.quotes.filter(function(q){return (q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase())&&q.status==='approved'}).reduce(function(s,q){return s+(q.total||0);},0);
     return '<tr>'+
       '<td style="font-weight:700"><a href="#" onclick="openCustomerProfile(\''+c.id+'\');return false" style="color:#1565c0;text-decoration:none">'+escHtml(c.name||'')+'</a></td>'+
       '<td>'+escHtml(c.phone||'')+'</td>'+
@@ -5880,7 +5928,24 @@ function saveCustomerAndAnother() {
   if(nameEl) nameEl.focus();
   showToast('"'+name+'" saved — ready for next customer','success');
 }
-function delCustomer(id) { if(!confirm('Delete customer?')) return; DB.customers=DB.customers.filter(function(c){return c.id!=id}); saveDB(); renderCustomers(); }
+function delCustomer(id) {
+  if (!confirm('Delete customer? This cannot be undone.')) return;
+  // Soft-delete in Supabase first (mark is_active=false so pull never restores it)
+  if (_sb && _currentUser) {
+    var uuid = id;
+    // Only hit Supabase if this looks like a real UUID (not a demo timestamp ID)
+    if (String(id).length > 10) {
+      _sb.from('customers').update({is_active: false}).eq('id', uuid).then(function(res){
+        if (res.error) console.warn('[Delete] Customer soft-delete failed:', res.error.message);
+      });
+    }
+  }
+  // Remove from local DB
+  DB.customers = DB.customers.filter(function(c){ return c.id != id; });
+  saveDB();
+  renderCustomers();
+  showToast('Customer deleted','info');
+}
 
 // ---- RENDER CONTACTS ----
 function renderContacts() {
@@ -5891,7 +5956,15 @@ function renderContacts() {
     return '<tr><td style="font-weight:700">' + escHtml(c.name||'') + '</td><td>' + escHtml(c.company||'') + '</td><td>' + escHtml(c.phone||'') + '</td><td>' + escHtml(c.email||'') + '</td><td>' + escHtml(c.role||'') + '</td><td><button class="btn btn-outline btn-sm" data-action="editContact" data-id="' + c.id + '">Edit</button> <button class="btn btn-danger btn-sm" data-action="delContact" data-id="' + c.id + '">Del</button></td></tr>';
   }).join('');
 }
-function delContact(id){if(!confirm('Delete contact?'))return;DB.contacts=DB.contacts.filter(function(c){return c.id!=id});saveDB();renderContacts();}
+function delContact(id) {
+  if (!confirm('Delete contact?')) return;
+  if (_sb && _currentUser && String(id).length > 10) {
+    _sb.from('contacts').update({is_active:false}).eq('id',id).then(function(r){ if(r.error) console.warn('[Delete] Contact:',r.error.message); });
+  }
+  DB.contacts = DB.contacts.filter(function(c){return c.id!=id});
+  saveDB(); renderContacts();
+  showToast('Contact deleted','info');
+}
 function newJob(){
   ['m-jname','m-jcust','m-jqnum','m-jnotes','m-jid','m-jassign'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});
   const lh=document.getElementById('m-jlh');if(lh)lh.value=0;
@@ -5933,7 +6006,15 @@ function saveJob(){
   else DB.jobs.push(data);
   saveDB();closeModal('modal-job');renderJobs();renderDash();
 }
-function delJob(id){if(!confirm('Delete job?'))return;DB.jobs=DB.jobs.filter(function(j){return j.id!=id});saveDB();renderJobs();}
+function delJob(id) {
+  if (!confirm('Delete job?')) return;
+  if (_sb && _currentUser && String(id).length > 10) {
+    _sb.from('jobs').update({is_active:false}).eq('id',id).then(function(r){ if(r.error) console.warn('[Delete] Job:',r.error.message); });
+  }
+  DB.jobs = DB.jobs.filter(function(j){return j.id!=id});
+  saveDB(); renderJobs();
+  showToast('Job deleted','info');
+}
 
 // ---- RENDER TEAM ----
 function renderTeam(){
@@ -9958,10 +10039,10 @@ function switchCPTab(tab) {
   var customer = (DB.customers||[]).find(function(c){ return c.id===_cpCustomerId; });
   if (!customer) return;
 
-  var quotes   = DB.quotes.filter(function(q){ return (q.cn||'').toLowerCase()===(customer.name||'').toLowerCase(); });
-  var jobs     = DB.jobs.filter(function(j){ return (j.customer||'').toLowerCase()===(customer.name||'').toLowerCase(); });
+  var quotes   = DB.quotes.filter(function(q){ return q.customerId===_cpCustomerId || (q.cn||'').toLowerCase()===(customer.name||'').toLowerCase(); });
+  var jobs     = DB.jobs.filter(function(j){ return j.customerId===_cpCustomerId || (j.customer||'').toLowerCase()===(customer.name||'').toLowerCase(); });
   var contacts = DB.contacts.filter(function(x){ return x.customerId===_cpCustomerId; });
-  var projects = (DB.wtProjects||[]).filter(function(p){ return (p.customer||'').toLowerCase()===(customer.name||'').toLowerCase(); });
+  var projects = (DB.wtProjects||[]).filter(function(p){ return p.customerId===_cpCustomerId || (p.customer||'').toLowerCase()===(customer.name||'').toLowerCase(); });
 
   if (tab==='overview') content.innerHTML = renderCPOverview(customer, quotes, jobs, contacts, projects);
   else if (tab==='quotes')   content.innerHTML = renderCPQuotes(quotes);
@@ -13020,24 +13101,31 @@ function onCustomerInput(val) {
 function selectCustomer(id) {
   var cust = DB.customers.find(function(c){ return c.id===id; });
   if (!cust) return;
-  var cnEl=document.getElementById('qq-cn');    if(cnEl) cnEl.value=cust.name||'';
-  var phEl=document.getElementById('qq-ph');    if(phEl&&cust.phone&&!phEl.value) phEl.value=cust.phone;
-  var emEl=document.getElementById('qq-em');    if(emEl&&cust.email&&!emEl.value) emEl.value=cust.email;
-  var adEl=document.getElementById('qq-ad');    if(adEl&&cust.address&&!adEl.value) adEl.value=cust.address;
+  var cnEl=document.getElementById('qq-cn');       if(cnEl) cnEl.value=cust.name||'';
+  var cidEl=document.getElementById('qq-customer-id'); if(cidEl) cidEl.value=cust.id||'';
+  var phEl=document.getElementById('qq-ph');       if(phEl&&cust.phone&&!phEl.value) phEl.value=cust.phone;
+  var emEl=document.getElementById('qq-em');       if(emEl&&cust.email&&!emEl.value) emEl.value=cust.email;
+  var adEl=document.getElementById('qq-ad');       if(adEl&&cust.address&&!adEl.value) adEl.value=cust.address;
   closeCustomerDropdown();
-  // Auto-populate contact if only one exists for this customer
+  // Clear old contact selection
+  var ctEl=document.getElementById('qq-contact-name');
+  var ctIdEl=document.getElementById('qq-contact-id');
+  if(ctIdEl) ctIdEl.value='';
+  // Find contacts — prefer customerId match, fall back to company name match
   var contacts = DB.contacts.filter(function(c){
-    return (c.company||'').toLowerCase()===(cust.name||'').toLowerCase();
+    return c.customerId===cust.id ||
+      (!c.customerId && (c.company||'').toLowerCase()===(cust.name||'').toLowerCase());
   });
-  var ctEl = document.getElementById('qq-contact-name');
   if (contacts.length===1) {
     selectContact(contacts[0].id);
   } else if (contacts.length>1 && ctEl) {
     ctEl.placeholder='Select contact...';
+    ctEl.value='';
     ctEl.focus();
     showContactsForCustomer(contacts);
   } else if (ctEl) {
     ctEl.placeholder='No contacts on file';
+    ctEl.value='';
   }
 }
 
@@ -13080,6 +13168,7 @@ function selectContact(id) {
   var contact=DB.contacts.find(function(c){ return c.id===id; });
   if (!contact) return;
   var ctEl=document.getElementById('qq-contact-name');   if(ctEl)   ctEl.value=contact.name||'';
+  var ctIdEl=document.getElementById('qq-contact-id');   if(ctIdEl) ctIdEl.value=contact.id||'';
   var tiEl=document.getElementById('qq-contact-title');  if(tiEl)   tiEl.value=contact.title||contact.role||'';
   var phEl=document.getElementById('qq-ph');             if(phEl&&contact.phone&&!phEl.value) phEl.value=contact.phone;
   var emEl=document.getElementById('qq-em');             if(emEl&&contact.email&&!emEl.value) emEl.value=contact.email;
@@ -14527,10 +14616,12 @@ function getQData(id) {
     id: id || null,
     num: (document.getElementById('qq-num')||{}).value || '',
     cn:  (document.getElementById('qq-cn')||{}).value || '',
+    customerId: (document.getElementById('qq-customer-id')||{}).value || '',
     ph:  (document.getElementById('qq-ph')||{}).value || '',
     em:  (document.getElementById('qq-em')||{}).value || '',
     ad:  (document.getElementById('qq-ad')||{}).value || '',
     contactName:  (document.getElementById('qq-contact-name')||{}).value || '',
+    contactId:    (document.getElementById('qq-contact-id')||{}).value || '',
     contactTitle: (document.getElementById('qq-contact-title')||{}).value || '',
     jn:  (document.getElementById('qq-jn')||{}).value || '',
     jt:  (document.getElementById('qq-jt')||{}).value || 'New Construction',
@@ -14646,6 +14737,19 @@ function editQuote(id) {
   function setV(elId, val) { const el=document.getElementById(elId); if(el) el.value = (val!==undefined&&val!==null) ? val : ''; }
   setV('qq-cn', q.cn); setV('qq-ph', q.ph); setV('qq-em', q.em); setV('qq-ad', q.ad);
   setV('qq-contact-name', q.contactName||''); setV('qq-contact-title', q.contactTitle||'');
+  // Populate hidden ID fields
+  setV('qq-customer-id', q.customerId||'');
+  setV('qq-contact-id', q.contactId||'');
+  // If no customerId yet, try to resolve from name
+  if (!q.customerId && q.cn) {
+    var mc=DB.customers.find(function(c){return (c.name||'').toLowerCase()===(q.cn||'').toLowerCase();});
+    if(mc){setV('qq-customer-id',mc.id);}
+  }
+  // If no contactId yet, try to resolve from name
+  if (!q.contactId && q.contactName) {
+    var mct=DB.contacts.find(function(c){return (c.name||'').toLowerCase()===(q.contactName||'').toLowerCase();});
+    if(mct){setV('qq-contact-id',mct.id);}
+  }
   setV('qq-jn', q.jn); setV('qq-jt', q.jt); setV('qq-env', q.env||'office');
   setV('qq-dt', q.dt); setV('qq-vu', q.vu); setV('qq-num', q.num); setV('qq-followup', q.followupDate || calcFollowupDate(q.dt || getTodayISO()));
   setV('qq-created', q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || getTodayISO());
@@ -14683,17 +14787,52 @@ function editQuote(id) {
   goPage('qq');
 }
 
+function setSortQuotes(sortVal) {
+  var sel = document.getElementById('q-sort');
+  if (sel) sel.value = sortVal;
+  renderQuotes();
+}
+
 function renderQuotes() {
   const search = (document.getElementById('q-search')||{}).value || '';
   const filter = (document.getElementById('q-filter')||{}).value || '';
+  const sort   = (document.getElementById('q-sort')||{}).value || 'priority';
   let list = DB.quotes.slice();
-  if (search) { const sl = search.toLowerCase(); list = list.filter(function(q){ return (q.cn||'').toLowerCase().includes(sl)||(q.jn||'').toLowerCase().includes(sl)||(q.num||'').toLowerCase().includes(sl); }); }
-  if (filter) list = list.filter(function(q){ return (q.status||'draft') === filter; });
-  list.sort(function(a,b){
-    var pa = getQuotePriority(a), pb = getQuotePriority(b);
-    if (pa.sort !== pb.sort) return pa.sort - pb.sort;
-    return new Date(b.dt || b.createdAt || 0) - new Date(a.dt || a.createdAt || 0);
+  if (search) { const sl=search.toLowerCase(); list=list.filter(function(q){ return (q.cn||'').toLowerCase().includes(sl)||(q.jn||'').toLowerCase().includes(sl)||(q.num||'').toLowerCase().includes(sl); }); }
+  if (filter) list=list.filter(function(q){ return (q.status||'draft')===filter; });
+
+  // Apply sort
+  switch(sort) {
+    case 'priority':
+      list.sort(function(a,b){
+        var pa=getQuotePriority(a),pb=getQuotePriority(b);
+        if(pa.sort!==pb.sort) return pa.sort-pb.sort;
+        return new Date(b.dt||b.createdAt||0)-new Date(a.dt||a.createdAt||0);
+      }); break;
+    case 'date-desc':
+      list.sort(function(a,b){ return new Date(b.dt||b.createdAt||0)-new Date(a.dt||a.createdAt||0); }); break;
+    case 'date-asc':
+      list.sort(function(a,b){ return new Date(a.dt||a.createdAt||0)-new Date(b.dt||b.createdAt||0); }); break;
+    case 'total-desc':
+      list.sort(function(a,b){ return (b.total||0)-(a.total||0); }); break;
+    case 'total-asc':
+      list.sort(function(a,b){ return (a.total||0)-(b.total||0); }); break;
+    case 'customer':
+      list.sort(function(a,b){ return (a.cn||'').localeCompare(b.cn||''); }); break;
+    case 'margin-desc':
+      list.sort(function(a,b){ return (b.achievedMargin||0)-(a.achievedMargin||0); }); break;
+    case 'followup':
+      list.sort(function(a,b){ return (a.followupDate||'9999').localeCompare(b.followupDate||'9999'); }); break;
+    case 'num':
+      list.sort(function(a,b){ return (a.num||'').localeCompare(b.num||'',undefined,{numeric:true}); }); break;
+  }
+
+  // Update column header sort indicators
+  ['num','customer','total-desc','margin-desc','date-desc'].forEach(function(k){
+    var el=document.getElementById('qsort-'+k);
+    if(el) el.textContent=sort===k?'▲':'';
   });
+
   const tbody = document.getElementById('quotes-tbl');
   if (!tbody) return;
   if (list.length === 0) {
@@ -14703,11 +14842,29 @@ function renderQuotes() {
   const healthColor = function(q){ return q.pricingHealth==='Healthy'?'color:#2e7d32':q.pricingHealth==='Watch'?'color:#e65100':'color:#c62828'; };
   tbody.innerHTML = list.map(function(q){
     const envLabel = q.envLabel || (ENV_PRESETS[q.env] ? ENV_PRESETS[q.env].label : q.env || '');
-    const fuBadge = isFollowupDue(q) ? '<span class="followup-due'+(isFollowupOverdue(q)?' followup-overdue':'')+'" style="margin-left:4px">'+( isFollowupOverdue(q)?'Overdue':'Follow-Up')+'</span>' : '';
+    const fuBadge = isFollowupDue(q) ? '<span class="followup-due'+(isFollowupOverdue(q)?' followup-overdue':'')+'" style="margin-left:4px">'+(isFollowupOverdue(q)?'Overdue':'Follow-Up')+'</span>' : '';
     const pr = getQuotePriority(q);
-    const prColor = pr.tone==='critical' ? '#c62828' : pr.tone==='high' ? '#e65100' : pr.tone==='needswork' ? '#e65100' : pr.tone==='ready' ? '#2e7d32' : '#607d8b';
+    const prColor = pr.tone==='critical'?'#c62828':pr.tone==='high'?'#e65100':pr.tone==='needswork'?'#e65100':pr.tone==='ready'?'#2e7d32':'#607d8b';
     const convertBtn = (q.status!=='approved'&&q.status!=='declined') ? ' <button class="btn btn-convert btn-sm" data-action="convertToJob" data-id="'+q.id+'" title="Mark Won &amp; Create Job">▶</button>' : '';
-    return '<tr><td style="font-weight:700;color:#1565c0">' + escHtml(q.num||'') + '</td><td>' + escHtml(q.cn||'') + '</td><td>' + escHtml(q.jn||'') + '</td><td style="font-size:11px">' + escHtml(envLabel) + '</td><td style="font-weight:700">' + fmt(q.total||0) + '</td><td style="font-weight:700;' + healthColor(q) + '">' + pct(q.achievedMargin||0) + '</td><td><span class="status-badge s-' + (q.status||'draft') + '">' + (q.status||'draft') + '</span>'+fuBadge+'<div style="font-size:10px;color:'+prColor+';font-weight:700;margin-top:3px">' + pr.label + '</div></td><td style="color:#90a4ae;font-size:11px">' + (q.followupDate ? '📅 '+q.followupDate : (q.dt||'')) + '</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-action="viewQuote" data-id="' + q.id + '">View</button> <button class="btn btn-outline btn-sm" data-action="editQuote" data-id="' + q.id + '">Edit</button> <button class="btn btn-ghost btn-sm" data-action="dupQuote" data-id="' + q.id + '">Dup</button>'+convertBtn+' <button class="btn btn-success btn-sm" data-action="emailSavedQuote" data-id="' + q.id + '" title="Email to customer">📧</button> <button class="btn btn-danger btn-sm" data-action="deleteQuote" data-id="' + q.id + '">Del</button></td></tr>';
+    return '<tr>'+
+      '<td style="font-weight:700;color:#1565c0">'+escHtml(q.num||'')+'</td>'+
+      '<td>'+escHtml(q.cn||'')+'</td>'+
+      '<td>'+escHtml(q.jn||'')+'</td>'+
+      '<td style="font-size:11px">'+escHtml(envLabel)+'</td>'+
+      '<td style="font-weight:700">'+fmt(q.total||0)+'</td>'+
+      '<td style="font-weight:700;'+healthColor(q)+'">'+pct(q.achievedMargin||0)+'</td>'+
+      '<td><span class="status-badge s-'+(q.status||'draft')+'">'+(q.status||'draft')+'</span>'+fuBadge+
+        '<div style="font-size:10px;color:'+prColor+';font-weight:700;margin-top:3px">'+pr.label+'</div></td>'+
+      '<td style="color:#90a4ae;font-size:11px">'+(q.followupDate?'📅 '+q.followupDate:(q.dt||''))+'</td>'+
+      '<td style="white-space:nowrap">'+
+        '<button class="btn btn-ghost btn-sm" data-action="viewQuote" data-id="'+q.id+'">View</button> '+
+        '<button class="btn btn-outline btn-sm" data-action="editQuote" data-id="'+q.id+'">Edit</button> '+
+        '<button class="btn btn-ghost btn-sm" data-action="dupQuote" data-id="'+q.id+'">Dup</button>'+
+        convertBtn+
+        ' <button class="btn btn-success btn-sm" data-action="emailSavedQuote" data-id="'+q.id+'" title="Email to customer">📧</button> '+
+        '<button class="btn btn-danger btn-sm" data-action="deleteQuote" data-id="'+q.id+'">Del</button>'+
+      '</td>'+
+    '</tr>';
   }).join('');
 }
 
@@ -15034,6 +15191,16 @@ function saveQQ() {
   const num = (document.getElementById('qq-num')||{}).value || '';
   if (num) { existing = DB.quotes.find(function(q){return q.num===num}); }
   const q = getQData(existing ? existing.id : Date.now().toString());
+  // Auto-resolve customerId if not set (name typed manually without dropdown)
+  if (!q.customerId && q.cn) {
+    var matched = DB.customers.find(function(c){ return (c.name||'').toLowerCase()===(q.cn||'').toLowerCase(); });
+    if (matched) q.customerId = matched.id;
+  }
+  // Auto-resolve contactId if not set
+  if (!q.contactId && q.contactName) {
+    var matchedContact = DB.contacts.find(function(c){ return (c.name||'').toLowerCase()===(q.contactName||'').toLowerCase(); });
+    if (matchedContact) q.contactId = matchedContact.id;
+  }
   if (!q.num || !existing) { q.num = nextQNum(); if(document.getElementById('qq-num')) document.getElementById('qq-num').value = q.num; }
   q.id = existing ? existing.id : q.id;
   if (!q.followupDate) q.followupDate = calcFollowupDate(q.dt || getTodayISO());
@@ -15696,6 +15863,7 @@ async function syncAllFromCloud() {
       // Pull quotes with their line items
       var { data: quotes } = await _sb.from('quotes')
         .select('*, quote_line_items(*)')
+        .neq('status', 'deleted')
         .order('created_at', { ascending: false });
 
       if (quotes && quotes.length) {
