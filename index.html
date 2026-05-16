@@ -4997,11 +4997,31 @@ function wrapQQStage3Mutations(){
 }
 
 function upsertCustomer(q) {
-  if (!q.cn) return;
-  const existing = DB.customers.find(function(c){ return c.name.toLowerCase() === q.cn.toLowerCase(); });
-  if (!existing) {
-    DB.customers.push({ id: Date.now().toString(), name: q.cn, phone: q.ph, email: q.em, address: q.ad, notes: '', createdAt: new Date().toISOString() });
+  if (!q.cn) return null;
+  // Look for existing customer by ID first, then name
+  var existing = q.customerId
+    ? DB.customers.find(function(c){ return c.id === q.customerId; })
+    : DB.customers.find(function(c){ return (c.name||'').toLowerCase() === (q.cn||'').toLowerCase(); });
+  if (existing) {
+    // Update phone/email/address if the customer record is missing them
+    if (!existing.phone && q.ph) existing.phone = q.ph;
+    if (!existing.email && q.em) existing.email = q.em;
+    if (!existing.address && q.ad) existing.address = q.ad;
+    return existing;
   }
+  // Create new customer record
+  var newCust = {
+    id: 'cust-' + Date.now(),
+    name: q.cn,
+    phone: q.ph || '',
+    email: q.em || '',
+    address: q.ad || '',
+    notes: '',
+    createdAt: new Date().toISOString()
+  };
+  DB.customers.push(newCust);
+  showToast('New customer "'+q.cn+'" added to your customer list','info', 3000);
+  return newCust;
 }
 
 
@@ -13459,13 +13479,24 @@ function onCustomerInput(val) {
   var matches = DB.customers.filter(function(c){
     return (c.name||'').toLowerCase().includes(sl);
   }).slice(0,8);
-  if (!matches.length) { dropdown.style.display='none'; return; }
-  dropdown.innerHTML = matches.map(function(c){
-    return '<div class="autocomplete-item" onmousedown="selectCustomer(\''+c.id+'\')">' +
-      '<span class="autocomplete-item-main">'+escHtml(c.name||'')+'</span>' +
-      '<span class="autocomplete-item-sub">'+(c.phone||'')+(c.email?' · '+c.email:'')+'</span>' +
+
+  var html = matches.map(function(c){
+    return '<div class="autocomplete-item" onmousedown="selectCustomer(\''+c.id+'\')">'+
+      '<span class="autocomplete-item-main">'+escHtml(c.name||'')+'</span>'+
+      '<span class="autocomplete-item-sub">'+(c.phone||'')+(c.email?' · '+c.email:'')+'</span>'+
     '</div>';
   }).join('');
+
+  // Exact match exists — no need for "create" option
+  var exactMatch = DB.customers.find(function(c){ return (c.name||'').toLowerCase()===sl; });
+  if (!exactMatch) {
+    html += '<div class="autocomplete-item" onmousedown="createCustomerFromQuote(\''+escHtml(val)+'\')" style="border-top:1px solid #e0e0e0;color:#1565c0">'+
+      '<span class="autocomplete-item-main">✚ Create new customer: <strong>'+escHtml(val)+'</strong></span>'+
+      '<span class="autocomplete-item-sub">Adds to your customer list automatically</span>'+
+    '</div>';
+  }
+
+  dropdown.innerHTML = html;
   dropdown.style.display = 'block';
 }
 
@@ -13500,6 +13531,25 @@ function selectCustomer(id) {
   }
 }
 
+function createCustomerFromQuote(name) {
+  // Create the customer immediately and select them
+  var newCust = {
+    id: 'cust-' + Date.now(),
+    name: name,
+    phone: (document.getElementById('qq-ph')||{}).value || '',
+    email: (document.getElementById('qq-em')||{}).value || '',
+    address: (document.getElementById('qq-ad')||{}).value || '',
+    notes: '',
+    createdAt: new Date().toISOString()
+  };
+  DB.customers.push(newCust);
+  saveDB();
+  renderCustomers();
+  // Now select them — fills form fields and sets hidden ID
+  selectCustomer(newCust.id);
+  showToast('Customer "'+name+'" created and linked','success');
+}
+
 function closeCustomerDropdown() {
   var d=document.getElementById('customer-dropdown'); if(d) d.style.display='none';
 }
@@ -13508,30 +13558,60 @@ function onContactInput(val) {
   var dropdown=document.getElementById('contact-dropdown');
   if (!dropdown) return;
   if (!val||val.length<1) { dropdown.style.display='none'; return; }
-  var sl=val.toLowerCase();
-  var cnVal=(document.getElementById('qq-cn')||{}).value||'';
-  var matches=DB.contacts.filter(function(c){
+
+  var sl = val.toLowerCase();
+  // Get currently selected customer ID
+  var custId = (document.getElementById('qq-customer-id')||{}).value||'';
+  var custName = (document.getElementById('qq-cn')||{}).value||'';
+
+  // Filter contacts — if customer selected, show only their contacts
+  // If no customer yet, search all contacts
+  var pool = DB.contacts.filter(function(c){
+    if (custId) return c.customerId===custId ||
+      (!c.customerId && (c.company||'').toLowerCase()===(custName||'').toLowerCase());
+    return true;
+  });
+
+  var matches = pool.filter(function(c){
     return (c.name||'').toLowerCase().includes(sl);
   }).slice(0,8);
-  if (!matches.length) { dropdown.style.display='none'; return; }
-  dropdown.innerHTML = matches.map(function(c){
+
+  var html = matches.map(function(c){
     return '<div class="autocomplete-item" onmousedown="selectContact(\''+c.id+'\')">' +
       '<span class="autocomplete-item-main">'+escHtml(c.name||'')+'</span>' +
-      '<span class="autocomplete-item-sub">'+(c.title||'')+(c.company?' · '+c.company:'')+(c.phone?' · '+c.phone:'')+'</span>' +
+      '<span class="autocomplete-item-sub">'+(c.title||c.role||'')+(c.phone?' · '+c.phone:'')+'</span>' +
     '</div>';
   }).join('');
+
+  // Add "Create new contact" if no exact match
+  var exactMatch = pool.find(function(c){ return (c.name||'').toLowerCase()===sl; });
+  if (!exactMatch && val.trim().length > 1) {
+    html += '<div class="autocomplete-item" onmousedown="createContactFromQuote(\''+escHtml(val)+'\')" style="border-top:1px solid #e0e0e0;color:#1565c0">'+
+      '<span class="autocomplete-item-main">✚ Create new contact: <strong>'+escHtml(val)+'</strong></span>'+
+      '<span class="autocomplete-item-sub">'+(custName?'Will be linked to '+escHtml(custName):'Add customer first to link')+'</span>'+
+    '</div>';
+  }
+
+  if (!html) { dropdown.style.display='none'; return; }
+  dropdown.innerHTML = html;
   dropdown.style.display='block';
 }
 
 function showContactsForCustomer(contacts) {
   var dropdown=document.getElementById('contact-dropdown');
   if (!dropdown) return;
-  dropdown.innerHTML=contacts.map(function(c){
-    return '<div class="autocomplete-item" onmousedown="selectContact(\''+c.id+'\')">' +
-      '<span class="autocomplete-item-main">'+escHtml(c.name||'')+'</span>' +
-      '<span class="autocomplete-item-sub">'+(c.title||'')+(c.phone?' · '+c.phone:'')+'</span>' +
+  var custName = (document.getElementById('qq-cn')||{}).value||'';
+  var custId = (document.getElementById('qq-customer-id')||{}).value||'';
+  dropdown.innerHTML=
+    contacts.map(function(c){
+      return '<div class="autocomplete-item" onmousedown="selectContact(\''+c.id+'\')">' +
+        '<span class="autocomplete-item-main">'+escHtml(c.name||'')+'</span>' +
+        '<span class="autocomplete-item-sub">'+(c.title||c.role||'')+(c.phone?' · '+c.phone:'')+(c.email?' · '+c.email:'')+'</span>' +
+      '</div>';
+    }).join('')+
+    '<div class="autocomplete-item" onmousedown="createContactFromQuote(\'\')" style="border-top:1px solid #e0e0e0;color:#1565c0">'+
+      '<span class="autocomplete-item-main">✚ Add new contact for '+escHtml(custName)+'</span>'+
     '</div>';
-  }).join('');
   dropdown.style.display='block';
 }
 
@@ -13544,6 +13624,39 @@ function selectContact(id) {
   var phEl=document.getElementById('qq-ph');             if(phEl&&contact.phone&&!phEl.value) phEl.value=contact.phone;
   var emEl=document.getElementById('qq-em');             if(emEl&&contact.email&&!emEl.value) emEl.value=contact.email;
   closeContactDropdown();
+}
+
+function createContactFromQuote(name) {
+  var custId   = (document.getElementById('qq-customer-id')||{}).value||'';
+  var custName = (document.getElementById('qq-cn')||{}).value||'';
+  var phone    = (document.getElementById('qq-ph')||{}).value||'';
+  var email    = (document.getElementById('qq-em')||{}).value||'';
+  var title    = (document.getElementById('qq-contact-title')||{}).value||'';
+
+  // If name is empty (clicked "Add new contact") open the contact modal pre-filled
+  if (!name.trim()) {
+    newContactForCustomer(custId, custName);
+    closeContactDropdown();
+    return;
+  }
+
+  // Create inline
+  var newContact = {
+    id:         'ct-' + Date.now(),
+    name:       name.trim(),
+    company:    custName,
+    customerId: custId,
+    phone:      phone,
+    email:      email,
+    role:       title,
+    title:      title,
+    createdAt:  new Date().toISOString()
+  };
+  if (!DB.contacts) DB.contacts = [];
+  DB.contacts.push(newContact);
+  saveDB();
+  selectContact(newContact.id);
+  showToast('Contact "'+name+'" created and linked','success');
 }
 
 function closeContactDropdown() {
@@ -15622,9 +15735,14 @@ function saveQQ() {
     if (existing.execSummary && !q.execSummary) q.execSummary = existing.execSummary;
     if (existing.createdAt && !q.createdAt) q.createdAt = existing.createdAt;
     DB.quotes[idx] = q;
+    // Still upsert customer in case phone/email/address changed
+    var cust = upsertCustomer(q);
+    if (cust && !q.customerId) { q.customerId = cust.id; DB.quotes[idx] = q; }
   } else {
+    // New quote — upsert customer first so we get the ID back
+    var newCust = upsertCustomer(q);
+    if (newCust) q.customerId = newCust.id;
     DB.quotes.unshift(q);
-    upsertCustomer(q);
   }
   saveDB();
   clearQQDraft();
