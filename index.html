@@ -1737,6 +1737,7 @@ table{font-size:12.5px}
     <button class="inv-tab active" onclick="switchToolTab('assets')">🔧 All Tools</button>
     <button class="inv-tab" onclick="switchToolTab('checkouts')">🔄 Checked Out</button>
     <button class="inv-tab" onclick="switchToolTab('pendingverify')">⏳ Pending Verify</button>
+    <button class="inv-tab" onclick="switchToolTab('borrows')">👤 Borrow Requests</button>
     <button class="inv-tab" onclick="switchToolTab('history')">📋 History</button>
   </div>
 
@@ -1783,6 +1784,15 @@ table{font-size:12.5px}
     </div>
   </div>
 
+  <!-- BORROW REQUESTS TAB -->
+  <div class="tool-section" id="tool-borrows">
+    <div class="card">
+      <div class="card-title">👤 Personal Tool Borrow Requests</div>
+      <p style="font-size:12px;color:#546e7a;margin-bottom:14px">Requests to borrow personal tools. Owners approve or deny. Borrowers are responsible for damage.</p>
+      <div id="borrow-requests-list"></div>
+    </div>
+  </div>
+
   <!-- HISTORY TAB -->
   <div class="tool-section" id="tool-history">
     <div class="card">
@@ -1791,6 +1801,21 @@ table{font-size:12.5px}
         <th>Asset Tag</th><th>Tool</th><th>Who</th>
         <th>Date Out</th><th>Date In</th><th>Job</th><th>Status</th>
       </tr></thead><tbody id="tool-hist-tbl"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- BORROW REQUEST MODAL -->
+<div class="modal-overlay" id="modal-borrow-request">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Request to Borrow Personal Tool</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-borrow-request">×</button>
+    </div>
+    <div class="modal-body" id="modal-borrow-body"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-borrow-request">Cancel</button>
+      <button class="btn btn-primary" onclick="submitBorrowRequest()">Send Request</button>
     </div>
   </div>
 </div>
@@ -1870,6 +1895,29 @@ table{font-size:12.5px}
             <input id="tool-tag" placeholder="TCSS -001" style="font-family:monospace;font-weight:700;color:#1565c0;flex:1">
             <button type="button" class="btn btn-outline btn-sm" onclick="autoAssignTag()" title="Auto-assign next available tag">Auto</button>
           </div>
+        </div>
+      </div>
+
+      <!-- Ownership -->
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:6px">Ownership</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:2px solid #1565c0;border-radius:8px;background:#e3f2fd;font-weight:700;font-size:13px">
+            <input type="radio" name="tool-owner-type" id="tool-owner-company" value="company" checked onchange="onOwnerTypeChange()"> 🏢 Company Tool
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:2px solid #e0e0e0;border-radius:8px;font-weight:700;font-size:13px">
+            <input type="radio" name="tool-owner-type" id="tool-owner-personal" value="personal" onchange="onOwnerTypeChange()"> 👤 Personal Tool
+          </label>
+        </div>
+        <div id="tool-owner-name-row" style="display:none;margin-top:8px">
+          <label>Owner Name *</label>
+          <input id="tool-owner-name" list="tool-owner-list" placeholder="Which team member owns this tool?">
+          <datalist id="tool-owner-list"></datalist>
+          <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="tool-require-return-photo" style="width:15px;height:15px">
+            <label for="tool-require-return-photo" style="font-size:12px;color:#546e7a;cursor:pointer">Require return photo for this tool</label>
+          </div>
+          <p style="font-size:11px;color:#90a4ae;margin-top:6px">Personal tools can be borrowed by other techs with owner approval. Damage during borrowing is the borrower's responsibility.</p>
         </div>
       </div>
       <div class="form-row cols3">
@@ -6562,6 +6610,11 @@ function _renderToolsInner() {
       ? '<span style="background:#e3f2fd;color:#1565c0;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700">'+lgCount+'</span>'
       : '—';
 
+    // Personal tool badge
+    var personalBadge = t.ownerType==='personal'
+      ? ' <span style="background:#e8eaf6;color:#3949ab;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">👤 '+escHtml(t.ownerId||'Personal')+'</span>'
+      : '';
+
     // Unresolved flags on this tool
     var openFlags = (t.flags||[]).filter(function(f){ return !f.resolved; });
     var flagBadge = openFlags.length > 0
@@ -6570,11 +6623,24 @@ function _renderToolsInner() {
 
     // Action buttons
     var actions = '';
+    var isMyPersonalTool = t.ownerType==='personal' && t.ownerId===(_currentUser&&_currentUser.full_name);
+    var isPersonalOther  = t.ownerType==='personal' && !isMyPersonalTool;
     if (isPV) {
       actions = '<button class="btn btn-success btn-sm" onclick="verifyToolReturn(\''+co.id+'\')">🔍 Inspect & Verify</button> ';
     } else if (isOut) {
       actions = '<button class="btn btn-success btn-sm" data-action="checkinTool" data-id="'+co.id+'">✓ Return</button> '+
                 '<button class="btn btn-sm" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px" onclick="openTransferModal(\''+t.id+'\')">⇄ Transfer</button> ';
+    } else if (isPersonalOther) {
+      // Check for pending/approved borrow request from current user
+      var myRequest = (t.personalShareRequests||[]).find(function(r){
+        return r.requesterName===(_currentUser&&_currentUser.full_name) && (r.status==='pending'||r.status==='approved');
+      });
+      if (myRequest) {
+        var reqLabel = myRequest.status==='pending' ? '⏳ Request Pending' : '✓ Approved — Pick Up';
+        actions = '<span style="font-size:11px;color:#546e7a;font-style:italic">'+reqLabel+'</span> ';
+      } else {
+        actions = '<button class="btn btn-outline btn-sm" onclick="openBorrowRequestModal(\''+t.id+'\')">👤 Request to Borrow</button> ';
+      }
     } else {
       actions = '<button class="btn btn-outline btn-sm" data-action="checkoutTool" data-id="'+t.id+'">Check Out</button> ';
     }
@@ -6583,7 +6649,7 @@ function _renderToolsInner() {
 
     return '<tr>'+
       '<td><span class="asset-tag-badge">'+escHtml(t.tag||'—')+'</span></td>'+
-      '<td style="display:flex;align-items:center;gap:8px;padding:8px 12px">'+photoHtml+' <div><span style="font-weight:700">'+escHtml(t.name||'')+'</span>'+flagBadge+'</div></td>'+
+      '<td style="display:flex;align-items:center;gap:8px;padding:8px 12px">'+photoHtml+' <div><span style="font-weight:700">'+escHtml(t.name||'')+'</span>'+personalBadge+flagBadge+'</div></td>'+
       '<td style="font-size:12px">'+escHtml(t.cat||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(t.location||'')+'</td>'+
       '<td>'+lgBadge+'</td>'+
@@ -6604,9 +6670,10 @@ function switchToolTab(tab) {
   var section = document.getElementById('tool-'+tab);
   if (section) section.classList.add('active');
   var tabs = document.querySelectorAll('#page-tools .inv-tab');
-  var map = {'assets':0,'checkouts':1,'pendingverify':2,'history':3};
+  var map = {'assets':0,'checkouts':1,'pendingverify':2,'borrows':3,'history':4};
   var idx = map[tab];
   if (idx !== undefined && tabs[idx]) tabs[idx].classList.add('active');
+  if (tab === 'borrows') renderBorrowRequestsTab();
 }
 
 function renderToolCheckouts() {
@@ -6782,6 +6849,18 @@ function newToolItem() {
   var locDl=document.getElementById('tool-loc-list');
   if(locDl) locDl.innerHTML='<option value="Shop"><option value="Warehouse">'+
     (DB.team||[]).map(function(t){return '<option value="'+escHtml(t.name)+'">'; }).join('');
+  // Reset ownership
+  var companyRadio = document.getElementById('tool-owner-company');
+  if (companyRadio) companyRadio.checked = true;
+  var ownerRow = document.getElementById('tool-owner-name-row');
+  if (ownerRow) ownerRow.style.display = 'none';
+  var ownerName = document.getElementById('tool-owner-name');
+  if (ownerName) ownerName.value = '';
+  var reqPhoto = document.getElementById('tool-require-return-photo');
+  if (reqPhoto) reqPhoto.checked = false;
+  // Populate owner datalist from team
+  var ownerDl = document.getElementById('tool-owner-list');
+  if (ownerDl) ownerDl.innerHTML = (DB.team||[]).map(function(t){ return '<option value="'+escHtml(t.name)+'">'; }).join('');
   // Reset photo preview
   var preview=document.getElementById('tool-photo-preview'); if(preview) preview.innerHTML='📷';
   var clr=document.getElementById('tool-photo-clear'); if(clr) clr.style.display='none';
@@ -6799,6 +6878,20 @@ function editTool(id) {
   sv('tool-loc',t.location); sv('tool-cost',t.cost||0); sv('tool-serial',t.serial);
   sv('tool-notes',t.notes); sv('tool-id',t.id);
   var pd=document.getElementById('tool-purchase-date'); if(pd) pd.value=t.purchaseDate||'';
+  // Load ownership
+  var isPersonal = t.ownerType === 'personal';
+  var companyR = document.getElementById('tool-owner-company');
+  var personalR = document.getElementById('tool-owner-personal');
+  if (companyR) companyR.checked = !isPersonal;
+  if (personalR) personalR.checked = isPersonal;
+  var ownerRow = document.getElementById('tool-owner-name-row');
+  if (ownerRow) ownerRow.style.display = isPersonal ? 'block' : 'none';
+  var ownerNameEl = document.getElementById('tool-owner-name');
+  if (ownerNameEl) ownerNameEl.value = t.ownerId||'';
+  var reqPhotoEl = document.getElementById('tool-require-return-photo');
+  if (reqPhotoEl) reqPhotoEl.checked = t.requireReturnPhoto||false;
+  var ownerDl = document.getElementById('tool-owner-list');
+  if (ownerDl) ownerDl.innerHTML = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'; }).join('');
   // Load photo
   var urlEl=document.getElementById('tool-photo-url'); if(urlEl) urlEl.value=t.photoUrl||'';
   var preview=document.getElementById('tool-photo-preview');
@@ -6836,6 +6929,10 @@ function saveToolItem() {
     purchaseDate: document.getElementById('tool-purchase-date').value||'',
     photoUrl:     (document.getElementById('tool-photo-url')||{}).value||'',
     linkedGroups: window._editingToolGroups||[],
+    ownerType:    document.getElementById('tool-owner-personal').checked ? 'personal' : 'company',
+    ownerId:      (document.getElementById('tool-owner-name')||{}).value||'',
+    requireReturnPhoto: (document.getElementById('tool-require-return-photo')||{}).checked||false,
+    personalShareRequests: id ? ((DB.tools||[]).find(function(t){return t.id===id;})||{}).personalShareRequests||[] : [],
     createdAt:    id ? undefined : new Date().toISOString()
   };
 
@@ -7155,9 +7252,11 @@ function confirmTransfer(modalId) {
   });
 
   // Close current checkout for the tool
-  co.returnedAt    = now;
-  co.status        = 'verified';
-  co.transferredTo = toName;
+  // Update groupsIncluded to only the items that traveled — history accurately shows what left with the tool
+  co.returnedAt      = now;
+  co.status          = 'verified';
+  co.transferredTo   = toName;
+  co.groupsIncluded  = travelGroups.map(function(g){ return Object.assign({}, g, {included:true}); });
 
   // New checkout for receiver — only groups that traveled
   DB.toolCheckouts.push({
@@ -7318,6 +7417,7 @@ function verifyToolReturn(coId) {
             '<span class="asset-tag-badge">'+escHtml(tool&&tool.tag||'—')+'</span>'+
             '<div style="font-size:12px;color:#546e7a;margin-top:2px">Returned by <strong>'+escHtml(co.returnSubmittedBy||co.toName||'')+'</strong></div>'+
             (co.dropoffLocation?'<div style="font-size:11px;color:#546e7a">Drop-off: '+escHtml(co.dropoffLocation)+'</div>':'')+
+            (co.isPersonalBorrow?'<div style="font-size:11px;background:#fff3e0;border-radius:4px;padding:3px 8px;margin-top:4px;color:#e65100">👤 Personal tool — owner: <strong>'+escHtml(co.ownerName||'')+'</strong>. Borrower is responsible for damage.</div>':'')+
           '</div>'+
         '</div>'+
         '<div style="font-size:12px;color:#546e7a;margin-bottom:10px;font-weight:600">Tap each item\'s photo to enlarge. Mark each item as Present, Damaged, or Missing:</div>'+
@@ -7568,6 +7668,148 @@ function removeLinkedGroup(idx) {
 function updateGroupMode(idx,mode) {
   if (window._editingToolGroups&&window._editingToolGroups[idx]) window._editingToolGroups[idx].mode=mode;
 }
+
+// ---- PERSONAL TOOL SHARING ----
+
+function onOwnerTypeChange() {
+  var isPersonal = document.getElementById('tool-owner-personal').checked;
+  var row = document.getElementById('tool-owner-name-row');
+  if (row) row.style.display = isPersonal ? 'block' : 'none';
+}
+
+function renderBorrowRequestsTab() {
+  var container = document.getElementById('borrow-requests-list');
+  if (!container) return;
+  var allRequests = [];
+  (DB.tools||[]).forEach(function(t) {
+    if (t.ownerType !== 'personal') return;
+    (t.personalShareRequests||[]).forEach(function(r) {
+      allRequests.push(Object.assign({}, r, { toolId:t.id, toolName:t.name, toolTag:t.tag, ownerName:t.ownerId, toolPhotoUrl:t.photoUrl }));
+    });
+  });
+  if (!allRequests.length) {
+    container.innerHTML = '<div style="text-align:center;color:#90a4ae;padding:24px">No borrow requests yet.</div>';
+    return;
+  }
+  var pending  = allRequests.filter(function(r){ return r.status==='pending'; });
+  var approved = allRequests.filter(function(r){ return r.status==='approved'||r.status==='picked_up'; });
+  var denied   = allRequests.filter(function(r){ return r.status==='denied'; });
+
+  function renderRequest(r) {
+    var ph = r.toolPhotoUrl ? photoThumb(r.toolPhotoUrl, r.toolName, 40) : '<div style="width:40px;height:40px;background:#e8eaf6;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px">🔧</div>';
+    var statusBadge = r.status==='pending'   ? '<span style="background:#ff9800;color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">⏳ Pending</span>'
+                    : r.status==='approved'  ? '<span style="background:#2e7d32;color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">✓ Approved</span>'
+                    : r.status==='picked_up' ? '<span style="background:#1565c0;color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">📦 Out</span>'
+                    : '<span style="background:#c62828;color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">✗ Denied</span>';
+    var isOwnerOrAdmin = r.ownerName===(_currentUser&&_currentUser.full_name) || (_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='manager'));
+    var actions = '';
+    if (r.status==='pending' && isOwnerOrAdmin) {
+      actions = '<div style="display:flex;gap:6px;margin-top:8px">'+
+        '<button class="btn btn-success btn-sm" onclick="approveBorrowRequest(\''+escHtml(r.toolId)+'\',\''+escHtml(r.id)+'\')">✓ Approve</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="denyBorrowRequest(\''+escHtml(r.toolId)+'\',\''+escHtml(r.id)+'\')">✗ Deny</button>'+
+      '</div>';
+    }
+    if (r.status==='approved') {
+      actions = '<div style="margin-top:8px"><button class="btn btn-outline btn-sm" onclick="convertBorrowToCheckout(\''+escHtml(r.toolId)+'\',\''+escHtml(r.id)+'\')">📦 Mark as Picked Up</button></div>';
+    }
+    return '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:12px;margin-bottom:10px">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+ph+
+        '<div style="flex:1"><div style="font-weight:800;font-size:14px">'+escHtml(r.toolName)+'</div>'+
+        '<div style="font-size:11px;color:#546e7a">Owner: <strong>'+escHtml(r.ownerName||'')+'</strong></div></div>'+
+        statusBadge+'</div>'+
+      '<div style="margin-top:8px;font-size:12px;color:#546e7a"><strong>'+escHtml(r.requesterName||'')+'</strong> wants to borrow'+
+        (r.duration?' for <strong>'+escHtml(r.duration)+'</strong>':'')+' · '+escHtml(r.requestedAt||'')+'</div>'+
+      (r.note?'<div style="font-size:12px;color:#546e7a;margin-top:4px;font-style:italic">'+escHtml(r.note)+'</div>':'')+
+      (r.denyReason?'<div style="font-size:12px;color:#c62828;margin-top:4px">Denied: '+escHtml(r.denyReason)+'</div>':'')+
+      actions+'</div>';
+  }
+  var html = '';
+  if (pending.length)  html += '<div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#e65100">⏳ Pending ('+pending.length+')</div>'+pending.map(renderRequest).join('');
+  if (approved.length) html += '<div style="font-weight:700;font-size:13px;margin:12px 0 8px;color:#2e7d32">✓ Approved / Out</div>'+approved.map(renderRequest).join('');
+  if (denied.length)   html += '<div style="font-weight:700;font-size:13px;margin:12px 0 8px;color:#c62828">✗ Denied</div>'+denied.map(renderRequest).join('');
+  container.innerHTML = html;
+}
+
+function openBorrowRequestModal(toolId) {
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; }); if(!tool) return;
+  var teamOpts = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
+  var ph = tool.photoUrl ? photoThumb(tool.photoUrl, tool.name, 48) : '<span style="font-size:30px">🔧</span>';
+  document.getElementById('modal-borrow-body').innerHTML =
+    '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:14px;display:flex;align-items:center;gap:12px">'+
+      ph+'<div><div style="font-weight:800;font-size:15px">'+escHtml(tool.name)+'</div>'+
+      '<div style="font-size:12px;color:#546e7a">Personal tool owned by <strong>'+escHtml(tool.ownerId||'')+'</strong></div>'+
+      (tool.tag?'<span class="asset-tag-badge">'+escHtml(tool.tag)+'</span>':'')+'</div></div>'+
+    '<div style="background:#fff3e0;border:1px solid #ffcc02;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px">'+
+      '⚠ <strong>Your responsibility:</strong> You are accountable for any damage while this tool is in your possession.</div>'+
+    '<label>Your Name *</label>'+
+    '<input id="borrow-requester" list="borrow-team-list" placeholder="Your name">'+
+    '<datalist id="borrow-team-list">'+teamOpts+'</datalist>'+
+    '<div style="margin-top:10px"><label>How Long Do You Need It? *</label>'+
+    '<input id="borrow-duration" placeholder="e.g. 2 days, this week, until Friday"></div>'+
+    '<div style="margin-top:10px"><label>Reason / Note</label>'+
+    '<input id="borrow-note" placeholder="What job or purpose? (optional)"></div>'+
+    '<input type="hidden" id="borrow-tool-id" value="'+escHtml(toolId)+'">';
+  openModal('modal-borrow-request');
+}
+
+function submitBorrowRequest() {
+  var toolId    = (document.getElementById('borrow-tool-id')||{}).value||'';
+  var requester = ((document.getElementById('borrow-requester')||{}).value||'').trim();
+  var duration  = ((document.getElementById('borrow-duration')||{}).value||'').trim();
+  if (!requester) { showToast('Please enter your name','error'); return; }
+  if (!duration)  { showToast('Please enter how long you need it','error'); return; }
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; }); if(!tool) return;
+  if (requester===tool.ownerId) { showToast('You own this tool!','info'); return; }
+  if (!tool.personalShareRequests) tool.personalShareRequests=[];
+  tool.personalShareRequests.push({
+    id:            'br-'+Date.now(),
+    requesterId:   requester,
+    requesterName: requester,
+    duration:      duration,
+    note:          (document.getElementById('borrow-note')||{}).value||'',
+    status:        'pending',
+    requestedAt:   new Date().toISOString().split('T')[0]
+  });
+  saveDB();
+  closeModal('modal-borrow-request');
+  renderTools();
+  showToast('Borrow request sent to '+tool.ownerId,'success');
+}
+
+function approveBorrowRequest(toolId, requestId) {
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; }); if(!tool) return;
+  var req  = (tool.personalShareRequests||[]).find(function(r){ return r.id===requestId; }); if(!req) return;
+  req.status='approved'; req.approvedAt=new Date().toISOString().split('T')[0];
+  saveDB(); renderBorrowRequestsTab();
+  showToast('Approved — '+req.requesterName+' can pick it up','success');
+}
+
+function denyBorrowRequest(toolId, requestId) {
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; }); if(!tool) return;
+  var req  = (tool.personalShareRequests||[]).find(function(r){ return r.id===requestId; }); if(!req) return;
+  var reason = prompt('Reason for denying (optional):','')||'';
+  req.status='denied'; req.denyReason=reason; req.deniedAt=new Date().toISOString().split('T')[0];
+  saveDB(); renderBorrowRequestsTab(); showToast('Request denied','info');
+}
+
+function convertBorrowToCheckout(toolId, requestId) {
+  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; }); if(!tool) return;
+  var req  = (tool.personalShareRequests||[]).find(function(r){ return r.id===requestId; }); if(!req) return;
+  if (!DB.toolCheckouts) DB.toolCheckouts=[];
+  var ret=new Date(); ret.setDate(ret.getDate()+7);
+  DB.toolCheckouts.push({
+    id:'co-'+Date.now(), toolId:toolId, toName:req.requesterName, jobName:req.note||'',
+    date:new Date().toISOString().split('T')[0], expectedReturn:ret.toISOString().split('T')[0],
+    returnedAt:null, status:'checked_out', groupsIncluded:[],
+    isPersonalBorrow:true, ownerName:tool.ownerId||'', borrowRequestId:requestId
+  });
+  req.status='picked_up'; req.pickedUpAt=new Date().toISOString().split('T')[0];
+  saveDB(); renderTools();
+  showToast(req.requesterName+' picked up '+tool.name,'success');
+}
+
+// ---- END PERSONAL TOOL SHARING ----
+
 var _barcodeInterval = null;
 
 function openBarcodeScanner() {
