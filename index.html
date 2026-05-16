@@ -6612,38 +6612,53 @@ function switchToolTab(tab) {
 function renderToolCheckouts() {
   var tbl = document.getElementById('tool-co-tbl');
   if (!tbl) return;
-  var active = getToolCheckouts().filter(function(c){ return !c.returnedAt && c.status !== 'pending_verify' && c.status !== 'verified'; });
+  var active = getToolCheckouts().filter(function(c){
+    return !c.returnedAt && c.status !== 'pending_verify' && c.status !== 'verified';
+  });
   if (!active.length) { tbl.innerHTML='<tr><td colspan="7" class="empty-state"><p>No tools currently checked out.</p></td></tr>'; return; }
   var today = new Date().toISOString().split('T')[0];
+
   tbl.innerHTML = active.map(function(c){
+    // Resolve tool — for group split records, use the parent tool
     var tool = (DB.tools||[]).find(function(t){ return t.id===c.toolId; });
+    var parentTool = c.isGroupSplit ? (DB.tools||[]).find(function(t){ return t.id===c.splitFromToolId; }) : tool;
+    var displayTool = parentTool || tool;
     var overdue = c.expectedReturn && c.expectedReturn < today;
 
-    // Tool photo — tappable, prominent
-    var toolPhotoHtml = (tool&&tool.photoUrl)
-      ? photoThumb(tool.photoUrl, (tool&&tool.name)||'', 48, 'display:block;margin-bottom:4px')
+    // Tool photo
+    var toolPhotoHtml = (displayTool&&displayTool.photoUrl)
+      ? photoThumb(displayTool.photoUrl, (displayTool&&displayTool.name)||'', 48, 'display:block;margin-bottom:4px')
       : '<div style="width:48px;height:48px;background:#e8eaf6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:4px">🔧</div>';
 
-    // Linked groups — larger photos so people can actually see what they look like
+    // Tool name display
+    var toolNameHtml = c.isGroupSplit
+      ? '<span style="font-weight:700;font-size:13px">'+escHtml((displayTool&&displayTool.name)||c.splitFromTool||'Unknown')+'</span>'+
+        '<div style="font-size:10px;background:#e3f2fd;color:#1565c0;border-radius:4px;padding:1px 6px;display:inline-block;margin-top:2px">📦 Accessories only (tool with '+escHtml(c.transferredTo||'another tech')+')</div>'
+      : '<span style="font-weight:700;font-size:13px">'+escHtml((displayTool&&displayTool.name)||'Unknown')+'</span>'+
+        (c.transferredFrom?'<div style="font-size:10px;color:#90a4ae">Transferred from '+escHtml(c.transferredFrom)+'</div>':'');
+
+    // Linked items with photos — pull from parent tool's linkedGroups
     var included = (c.groupsIncluded||[]).filter(function(g){ return g.included; });
     var groupsHtml = '';
     if (included.length > 0) {
-      var toolGroups = (tool&&tool.linkedGroups)||[];
+      var toolGroups = (displayTool&&displayTool.linkedGroups)||[];
       groupsHtml = '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e0e0e0">'+
-        '<div style="font-size:10px;font-weight:700;color:#90a4ae;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Items checked out with this tool:</div>'+
+        '<div style="font-size:10px;font-weight:700;color:#90a4ae;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">'+
+        (c.isGroupSplit ? 'Accessories held by this tech:' : 'Items checked out with this tool:')+
+        '</div>'+
         included.map(function(g){
           var tg = toolGroups.find(function(x){ return x.id===g.groupId; })||{};
-          var photoHtml = tg.photoUrl
+          var ph = tg.photoUrl
             ? photoThumb(tg.photoUrl, g.label, 40)
             : '<div style="width:40px;height:40px;background:#f0f0f0;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📦</div>';
           var badge = g.mode==='required'
             ? '<span style="background:#c62828;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">REQ</span>'
             : '<span style="background:#e65100;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">OPT</span>';
           return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f5f5f5">'+
-            photoHtml+
+            ph+
             '<div style="flex:1;min-width:0">'+
               '<div style="font-size:12px;font-weight:700">'+escHtml(g.label)+'</div>'+
-              (tg.description?'<div style="font-size:10px;color:#90a4ae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(tg.description)+'</div>':'')+
+              (tg.description?'<div style="font-size:10px;color:#90a4ae">'+escHtml(tg.description)+'</div>':'')+
             '</div>'+
             badge+
           '</div>';
@@ -6651,14 +6666,13 @@ function renderToolCheckouts() {
       '</div>';
     }
 
+    var assetTag = (displayTool&&displayTool.tag)
+      ? '<span class="asset-tag-badge">'+escHtml(displayTool.tag)+'</span>'
+      : (c.isGroupSplit ? '<span style="font-size:10px;color:#90a4ae">accessories</span>' : '<span class="asset-tag-badge">—</span>');
+
     return '<tr>'+
-      '<td><span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span></td>'+
-      '<td>'+
-        toolPhotoHtml+
-        '<span style="font-weight:700;font-size:13px">'+escHtml((tool&&tool.name)||'Unknown')+'</span>'+
-        (c.transferredFrom?'<div style="font-size:10px;color:#90a4ae">From: '+escHtml(c.transferredFrom)+'</div>':'')+
-        groupsHtml+
-      '</td>'+
+      '<td>'+assetTag+'</td>'+
+      '<td>'+toolPhotoHtml+toolNameHtml+groupsHtml+'</td>'+
       '<td>'+escHtml(c.toName||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.jobName||'—')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.date||'')+'</td>'+
@@ -6671,18 +6685,80 @@ function renderToolCheckouts() {
 function renderToolHistory() {
   var tbl = document.getElementById('tool-hist-tbl');
   if (!tbl) return;
-  var history = getToolCheckouts().slice().reverse().slice(0,50);
+  var history = getToolCheckouts().slice().reverse().slice(0,100);
   if (!history.length) { tbl.innerHTML='<tr><td colspan="7" class="empty-state"><p>No checkout history yet.</p></td></tr>'; return; }
+
   tbl.innerHTML = history.map(function(c){
+    // Resolve tool — group splits reference parent via splitFromToolId
     var tool = (DB.tools||[]).find(function(t){ return t.id===c.toolId; });
+    var parentTool = c.isGroupSplit ? (DB.tools||[]).find(function(t){ return t.id===c.splitFromToolId; }) : tool;
+    var displayTool = parentTool || tool;
+    var toolGroups = (displayTool&&displayTool.linkedGroups)||[];
+
+    // Status
+    var statusBadge = '';
+    if (c.status === 'verified') {
+      statusBadge = c.discrepancyNote
+        ? '<span class="ts-badge" style="background:#ff9800;color:#fff">⚠ Issues</span>'
+        : '<span class="ts-badge ts-in">✓ Verified</span>';
+    } else if (c.returnedAt) {
+      statusBadge = '<span class="ts-badge ts-in">Returned</span>';
+    } else {
+      statusBadge = '<span class="ts-badge ts-break">Out</span>';
+    }
+
+    // Transfer chain note
+    var transferNote = '';
+    if (c.transferredFrom) transferNote += '<div style="font-size:10px;color:#1565c0">← From: '+escHtml(c.transferredFrom)+'</div>';
+    if (c.transferredTo)   transferNote += '<div style="font-size:10px;color:#e65100">→ To: '+escHtml(c.transferredTo)+'</div>';
+
+    // Linked items summary
+    var included = (c.groupsIncluded||[]).filter(function(g){ return g.included; });
+    var itemsHtml = '';
+    if (included.length > 0) {
+      itemsHtml = '<div style="margin-top:4px">'+
+        included.map(function(g){
+          var tg = toolGroups.find(function(x){ return x.id===g.groupId; })||{};
+          var ph = tg.photoUrl
+            ? photoThumb(tg.photoUrl, g.label, 20)
+            : '<span style="font-size:12px">📦</span>';
+          // Check inspection result if verified
+          var inspResult = '';
+          if (c.itemInspection) {
+            var insp = c.itemInspection.find(function(x){ return x.id===g.groupId; });
+            if (insp && insp.status === 'missing') inspResult = ' <span style="color:#c62828;font-size:9px;font-weight:700">MISSING</span>';
+            if (insp && insp.status === 'damaged') inspResult = ' <span style="color:#f57c00;font-size:9px;font-weight:700">DAMAGED</span>';
+          }
+          return '<span style="display:inline-flex;align-items:center;gap:3px;margin-right:6px;margin-bottom:2px;background:#f5f5f5;border-radius:4px;padding:1px 5px">'+
+            ph+
+            '<span style="font-size:10px">'+escHtml(g.label)+'</span>'+
+            inspResult+
+          '</span>';
+        }).join('')+
+      '</div>';
+    }
+
+    // Discrepancy note
+    var discrepHtml = c.discrepancyNote
+      ? '<div style="font-size:10px;color:#c62828;margin-top:2px">⚠ '+escHtml(c.discrepancyNote)+'</div>'
+      : '';
+
+    var toolLabel = c.isGroupSplit
+      ? escHtml((displayTool&&displayTool.name)||c.splitFromTool||'Unknown')+' <span style="font-size:10px;color:#90a4ae">(accessories)</span>'
+      : escHtml((displayTool&&displayTool.name)||'Unknown');
+
+    var assetTag = (displayTool&&displayTool.tag)
+      ? '<span class="asset-tag-badge">'+escHtml(displayTool.tag)+'</span>'
+      : '<span style="font-size:10px;color:#90a4ae">—</span>';
+
     return '<tr>'+
-      '<td><span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span></td>'+
-      '<td>'+escHtml((tool&&tool.name)||'Unknown')+'</td>'+
+      '<td>'+assetTag+'</td>'+
+      '<td>'+toolLabel+transferNote+itemsHtml+discrepHtml+'</td>'+
       '<td>'+escHtml(c.toName||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.date||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.returnedAt||'—')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.jobName||'—')+'</td>'+
-      '<td><span class="ts-badge '+(c.returnedAt?'ts-in':'ts-break')+'">'+(c.returnedAt?'Returned':'Out')+'</span></td>'+
+      '<td>'+statusBadge+'</td>'+
     '</tr>';
   }).join('');
 }
