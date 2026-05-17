@@ -1183,11 +1183,43 @@ table{font-size:12.5px}
             <div id="customer-dropdown" class="autocomplete-dropdown" style="display:none"></div>
             <input type="hidden" id="qq-customer-id">
           </div>
+          <!-- Quick-add customer panel -->
+          <div id="qq-new-customer-panel" style="display:none;background:#f0fff4;border:2px solid #a5d6a7;border-radius:10px;padding:12px;margin-top:6px">
+            <div style="font-size:12px;font-weight:700;color:#2e7d32;margin-bottom:10px">✚ New Customer Details</div>
+            <div class="form-row cols2">
+              <div><label style="font-size:11px">Company Name *</label><input id="ncust-name" placeholder="Company or individual name"></div>
+              <div><label style="font-size:11px">Phone</label><input id="ncust-phone" placeholder="Main phone" type="tel"></div>
+            </div>
+            <div class="form-row cols2">
+              <div><label style="font-size:11px">Email</label><input id="ncust-email" placeholder="Main email" type="email"></div>
+              <div><label style="font-size:11px">Address</label><input id="ncust-address" placeholder="Street address"></div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button type="button" class="btn btn-primary btn-sm" onclick="saveNewCustomerFromQuote()">✓ Save Customer</button>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="cancelNewCustomerFromQuote()">Cancel</button>
+            </div>
+          </div>
           <div class="autocomplete-wrap">
             <label>Contact Person</label>
             <input id="qq-contact-name" placeholder="Select customer first..." autocomplete="off" oninput="onContactInput(this.value)" onblur="setTimeout(closeContactDropdown,200)">
             <div id="contact-dropdown" class="autocomplete-dropdown" style="display:none"></div>
             <input type="hidden" id="qq-contact-id">
+          </div>
+          <!-- Quick-add contact panel — slides in when creating a new contact -->
+          <div id="qq-new-contact-panel" style="display:none;background:#f0f6ff;border:2px solid #90caf9;border-radius:10px;padding:12px;margin-top:6px">
+            <div style="font-size:12px;font-weight:700;color:#1565c0;margin-bottom:10px">✚ New Contact Details</div>
+            <div class="form-row cols2">
+              <div><label style="font-size:11px">Name *</label><input id="nc-name" placeholder="Full name"></div>
+              <div><label style="font-size:11px">Title / Role</label><input id="nc-title" placeholder="e.g. Facilities Manager"></div>
+            </div>
+            <div class="form-row cols2">
+              <div><label style="font-size:11px">Phone</label><input id="nc-phone" placeholder="Phone number" type="tel"></div>
+              <div><label style="font-size:11px">Email</label><input id="nc-email" placeholder="Email address" type="email"></div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button type="button" class="btn btn-primary btn-sm" onclick="saveNewContactFromQuote()">✓ Save Contact</button>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="cancelNewContactFromQuote()">Cancel</button>
+            </div>
           </div>
         </div>
         <div class="form-row cols3">
@@ -13532,22 +13564,62 @@ function selectCustomer(id) {
 }
 
 function createCustomerFromQuote(name) {
-  // Create the customer immediately and select them
+  closeCustomerDropdown();
+  // Pre-fill name with what was typed
+  var nameEl  = document.getElementById('ncust-name');
+  var phoneEl = document.getElementById('ncust-phone');
+  var emailEl = document.getElementById('ncust-email');
+  var addrEl  = document.getElementById('ncust-address');
+  if (nameEl)  nameEl.value  = name.trim();
+  if (phoneEl) phoneEl.value = '';
+  if (emailEl) emailEl.value = '';
+  if (addrEl)  addrEl.value  = '';
+  // Show panel
+  var panel = document.getElementById('qq-new-customer-panel');
+  if (panel) { panel.style.display='block'; if(nameEl) nameEl.focus(); }
+}
+
+function saveNewCustomerFromQuote() {
+  var name  = ((document.getElementById('ncust-name')||{}).value||'').trim();
+  var phone = (document.getElementById('ncust-phone')||{}).value||'';
+  var email = (document.getElementById('ncust-email')||{}).value||'';
+  var addr  = (document.getElementById('ncust-address')||{}).value||'';
+  if (!name) { showToast('Customer name is required','error'); return; }
+
+  // Check not a duplicate
+  var existing = DB.customers.find(function(c){ return (c.name||'').toLowerCase()===name.toLowerCase(); });
+  if (existing) {
+    showToast('"'+name+'" already exists — selecting them','info');
+    selectCustomer(existing.id);
+    cancelNewCustomerFromQuote();
+    return;
+  }
+
   var newCust = {
-    id: 'cust-' + Date.now(),
-    name: name,
-    phone: (document.getElementById('qq-ph')||{}).value || '',
-    email: (document.getElementById('qq-em')||{}).value || '',
-    address: (document.getElementById('qq-ad')||{}).value || '',
-    notes: '',
+    id:        'cust-' + Date.now(),
+    name:      name,
+    phone:     phone,
+    email:     email,
+    address:   addr,
+    notes:     '',
     createdAt: new Date().toISOString()
   };
   DB.customers.push(newCust);
   saveDB();
   renderCustomers();
-  // Now select them — fills form fields and sets hidden ID
+
+  // Select them — fills form fields and sets hidden customer ID
   selectCustomer(newCust.id);
+  cancelNewCustomerFromQuote();
   showToast('Customer "'+name+'" created and linked','success');
+}
+
+function cancelNewCustomerFromQuote() {
+  var panel = document.getElementById('qq-new-customer-panel');
+  if (panel) panel.style.display='none';
+  ['ncust-name','ncust-phone','ncust-email','ncust-address'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
 }
 
 function closeCustomerDropdown() {
@@ -13611,6 +13683,7 @@ function showContactsForCustomer(contacts) {
     }).join('')+
     '<div class="autocomplete-item" onmousedown="createContactFromQuote(\'\')" style="border-top:1px solid #e0e0e0;color:#1565c0">'+
       '<span class="autocomplete-item-main">✚ Add new contact for '+escHtml(custName)+'</span>'+
+      '<span class="autocomplete-item-sub">Fill in name, title, phone and email</span>'+
     '</div>';
   dropdown.style.display='block';
 }
@@ -13627,23 +13700,34 @@ function selectContact(id) {
 }
 
 function createContactFromQuote(name) {
+  closeContactDropdown();
+  // Pre-fill the name field with whatever was typed
+  var nameEl = document.getElementById('nc-name');
+  var titleEl = document.getElementById('nc-title');
+  var phoneEl = document.getElementById('nc-phone');
+  var emailEl = document.getElementById('nc-email');
+  if (nameEl)  nameEl.value  = name.trim();
+  if (titleEl) titleEl.value = (document.getElementById('qq-contact-title')||{}).value||'';
+  if (phoneEl) phoneEl.value = '';
+  if (emailEl) emailEl.value = '';
+  // Show the panel
+  var panel = document.getElementById('qq-new-contact-panel');
+  if (panel) { panel.style.display='block'; if(nameEl) nameEl.focus(); }
+}
+
+function saveNewContactFromQuote() {
+  var name  = ((document.getElementById('nc-name')||{}).value||'').trim();
+  var title = (document.getElementById('nc-title')||{}).value||'';
+  var phone = (document.getElementById('nc-phone')||{}).value||'';
+  var email = (document.getElementById('nc-email')||{}).value||'';
+  if (!name) { showToast('Contact name is required','error'); return; }
+
   var custId   = (document.getElementById('qq-customer-id')||{}).value||'';
   var custName = (document.getElementById('qq-cn')||{}).value||'';
-  var phone    = (document.getElementById('qq-ph')||{}).value||'';
-  var email    = (document.getElementById('qq-em')||{}).value||'';
-  var title    = (document.getElementById('qq-contact-title')||{}).value||'';
 
-  // If name is empty (clicked "Add new contact") open the contact modal pre-filled
-  if (!name.trim()) {
-    newContactForCustomer(custId, custName);
-    closeContactDropdown();
-    return;
-  }
-
-  // Create inline
   var newContact = {
     id:         'ct-' + Date.now(),
-    name:       name.trim(),
+    name:       name,
     company:    custName,
     customerId: custId,
     phone:      phone,
@@ -13655,8 +13739,26 @@ function createContactFromQuote(name) {
   if (!DB.contacts) DB.contacts = [];
   DB.contacts.push(newContact);
   saveDB();
+
+  // Fill contact into the quote form
   selectContact(newContact.id);
-  showToast('Contact "'+name+'" created and linked','success');
+
+  // Update title field in case it was set
+  var titEl = document.getElementById('qq-contact-title');
+  if (titEl && title) titEl.value = title;
+
+  // Hide panel
+  cancelNewContactFromQuote();
+  showToast('Contact "'+name+'" saved and linked to quote','success');
+}
+
+function cancelNewContactFromQuote() {
+  var panel = document.getElementById('qq-new-contact-panel');
+  if (panel) panel.style.display='none';
+  // Clear panel fields
+  ['nc-name','nc-title','nc-phone','nc-email'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
 }
 
 function closeContactDropdown() {
@@ -15173,6 +15275,11 @@ function clearQQ(skipConfirm) {
   const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
   updatePermitStatus();
   ['qq-cn','qq-ph','qq-em','qq-ad','qq-jn','qq-num','qq-notes','qq-int','qq-tc','qq-contact-name','qq-contact-title'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+  // Clear hidden ID fields and hide new contact panel
+  var cidEl=document.getElementById('qq-customer-id'); if(cidEl) cidEl.value='';
+  var ctidEl=document.getElementById('qq-contact-id'); if(ctidEl) ctidEl.value='';
+  cancelNewContactFromQuote();
+  cancelNewCustomerFromQuote();
   const lr = document.getElementById('qq-lr'); if(lr) lr.value = DB.settings.laborRate || 100;
   const mk = document.getElementById('qq-mk'); if(mk) mk.value = DB.settings.targetMargin || 35;
   const tx = document.getElementById('qq-tx'); if(tx) tx.value = DB.settings.taxRate || 0;
