@@ -532,6 +532,44 @@ body.dark-mode .dash-stat-tile.orange{background:#2a1e10!important}
 body.dark-mode .dash-stat-tile.red{background:#2a1a1a!important}
 body.dark-mode .dash-stat-val{color:#e0e0e0!important}
 
+/* ===== CUSTOMERS PAGE ===== */
+.cust-summary-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+.cust-summary-tile{background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:12px;text-align:center}
+.cust-summary-tile.green{border-color:#a5d6a7;background:#f1f8f1}
+.cust-summary-tile.blue{border-color:#90caf9;background:#f0f6ff}
+.cust-summary-tile.purple{border-color:#ce93d8;background:#f8f0ff}
+.cust-summary-tile.orange{border-color:#ffb74d;background:#fff8f0}
+.cust-summary-val{font-size:20px;font-weight:900;color:#0d1b2a}
+.cust-summary-lbl{font-size:10px;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;font-weight:700}
+.cust-card{display:grid;grid-template-columns:2fr 1.1fr 1.4fr 0.8fr 0.8fr auto;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #f0f0f0;transition:background .1s}
+.cust-card:last-child{border-bottom:none}
+.cust-card:hover{background:#f8f9fa}
+.cust-card-name{font-weight:700;font-size:14px;color:#1565c0;cursor:pointer}
+.cust-card-name:hover{text-decoration:underline}
+.cust-card-sub{font-size:11px;color:#90a4ae;margin-top:2px}
+.cust-phone-link{color:#0d1b2a;text-decoration:none;font-size:13px}
+.cust-phone-link:hover{color:#1565c0;text-decoration:underline}
+.cust-activity-badges{display:flex;flex-wrap:wrap;gap:4px}
+.cust-badge{display:inline-flex;align-items:center;gap:3px;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700}
+.cust-badge.quotes{background:#e3f2fd;color:#1565c0}
+.cust-badge.jobs{background:#e8f5e9;color:#2e7d32}
+.cust-badge.contacts{background:#f3e5f5;color:#6a1b9a}
+.cust-won{font-weight:800;font-size:13px;color:#2e7d32}
+.cust-won.zero{color:#90a4ae;font-weight:400;font-size:13px}
+.cust-actions{display:flex;gap:4px;flex-shrink:0}
+.cust-col-header{display:grid;grid-template-columns:2fr 1.1fr 1.4fr 0.8fr 0.8fr auto;gap:12px;padding:8px 14px;border-bottom:2px solid #e8e8e8;background:#f8f9fa;border-radius:8px 8px 0 0}
+.cust-col-header span{font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none}
+.cust-col-header span:hover{color:#1565c0}
+@media(max-width:768px){
+  .cust-summary-strip{grid-template-columns:repeat(2,1fr)}
+  .cust-card{grid-template-columns:1fr auto}
+  .cust-card-email{display:none}
+}
+body.dark-mode .cust-card:hover{background:#252525!important}
+body.dark-mode .cust-col-header{background:#1a1a1a!important}
+body.dark-mode .cust-summary-tile{background:#1e1e1e!important;border-color:#333!important}
+body.dark-mode .cust-summary-val{color:#e0e0e0!important}
+
 /* ===== CUSTOMER PROFILE ===== */
 .cp-tab{padding:12px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#546e7a;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap}
 .cp-tab.active{color:#1565c0;border-bottom-color:#1565c0;background:#f8f9fa}
@@ -2328,9 +2366,43 @@ table{font-size:12.5px}
 
 <!-- CUSTOMERS -->
 <div class="page" id="page-customers">
-  <div class="page-header"><h2>👥 Customers</h2><button class="btn btn-primary" data-action="newCustomer">+ New Customer</button></div>
-  <div class="card"><table><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th>Activity</th><th>Won Revenue</th><th>Actions</th></tr></thead>
-  <tbody id="cust-tbl"></tbody></table></div>
+  <div class="page-header">
+    <h2>👥 Customers</h2>
+    <button class="btn btn-primary" data-action="newCustomer">+ New Customer</button>
+  </div>
+
+  <!-- Summary strip -->
+  <div class="cust-summary-strip" id="cust-summary-strip">
+    <div class="cust-summary-tile"><div class="cust-summary-val" id="cs-total">0</div><div class="cust-summary-lbl">Total Customers</div></div>
+    <div class="cust-summary-tile green"><div class="cust-summary-val" id="cs-won">$0</div><div class="cust-summary-lbl">Total Won Revenue</div></div>
+    <div class="cust-summary-tile blue"><div class="cust-summary-val" id="cs-quotes">0</div><div class="cust-summary-lbl">Total Quotes</div></div>
+    <div class="cust-summary-tile purple"><div class="cust-summary-val" id="cs-jobs">0</div><div class="cust-summary-lbl">Active Jobs</div></div>
+    <div class="cust-summary-tile orange"><div class="cust-summary-val" id="cs-contacts">0</div><div class="cust-summary-lbl">Total Contacts</div></div>
+  </div>
+
+  <div class="card">
+    <!-- Filter / sort bar -->
+    <div class="filter-bar" style="margin-bottom:12px">
+      <input class="search-input" id="cust-search" placeholder="🔍 Search customers..." oninput="renderCustomers()">
+      <select id="cust-sort" style="width:auto" onchange="renderCustomers()">
+        <option value="name-asc">Name A–Z</option>
+        <option value="name-desc">Name Z–A</option>
+        <option value="won-desc">Highest Revenue</option>
+        <option value="quotes-desc">Most Quotes</option>
+        <option value="recent">Recently Added</option>
+      </select>
+      <select id="cust-filter" style="width:auto" onchange="renderCustomers()">
+        <option value="">All Customers</option>
+        <option value="active">Has Quotes</option>
+        <option value="won">Has Won Revenue</option>
+        <option value="jobs">Has Active Jobs</option>
+        <option value="no-contact">No Contacts</option>
+      </select>
+    </div>
+
+    <!-- Customer cards grid -->
+    <div id="cust-tbl"></div>
+  </div>
 </div>
 
 <!-- CONTACTS -->
@@ -6000,32 +6072,135 @@ function exportCSV() {
 
 // ---- RENDER CUSTOMERS ----
 function renderCustomers() {
-  const tbody = document.getElementById('cust-tbl');
-  if (!tbody) return;
-  if (DB.customers.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><p>No customers yet.</p></td></tr>'; return; }
-  tbody.innerHTML = DB.customers.map(function(c){
-    const qct  = DB.quotes.filter(function(q){return q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase()}).length;
-    const jct  = DB.jobs.filter(function(j){return j.customerId===c.id||(j.customer||'').toLowerCase()===(c.name||'').toLowerCase()}).length;
-    const cct  = DB.contacts.filter(function(x){return x.customerId===c.id}).length;
-    const wonRev = DB.quotes.filter(function(q){return (q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase())&&q.status==='approved'}).reduce(function(s,q){return s+(q.total||0);},0);
-    return '<tr>'+
-      '<td style="font-weight:700"><a href="#" onclick="openCustomerProfile(\''+c.id+'\');return false" style="color:#1565c0;text-decoration:none">'+escHtml(c.name||'')+'</a></td>'+
-      '<td>'+escHtml(c.phone||'')+'</td>'+
-      '<td>'+escHtml(c.email||'')+'</td>'+
-      '<td style="font-size:12px">'+escHtml(c.address||'')+'</td>'+
-      '<td style="text-align:center">'+
-        '<span title="Quotes" style="margin-right:6px">📋 '+qct+'</span>'+
-        '<span title="Jobs" style="margin-right:6px">🔧 '+jct+'</span>'+
-        '<span title="Contacts">👤 '+cct+'</span>'+
-      '</td>'+
-      '<td style="font-weight:700;color:#2e7d32">$'+Math.round(wonRev).toLocaleString()+'</td>'+
-      '<td style="white-space:nowrap">'+
-        '<button class="btn btn-primary btn-sm" onclick="openCustomerProfile(\''+c.id+'\')">Profile</button> '+
-        '<button class="btn btn-outline btn-sm" data-action="editCustomer" data-id="'+c.id+'">Edit</button> '+
-        '<button class="btn btn-danger btn-sm" data-action="delCustomer" data-id="'+c.id+'">Del</button>'+
-      '</td>'+
-    '</tr>';
+  var search  = (document.getElementById('cust-search')||{}).value||'';
+  var sort    = (document.getElementById('cust-sort')||{}).value||'name-asc';
+  var filter  = (document.getElementById('cust-filter')||{}).value||'';
+  var sl      = search.toLowerCase();
+
+  // Build enriched customer list
+  var customers = DB.customers.map(function(c){
+    var qct    = DB.quotes.filter(function(q){ return q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase(); });
+    var jct    = DB.jobs.filter(function(j){ return (j.customerId===c.id||(j.customer||'').toLowerCase()===(c.name||'').toLowerCase())&&(j.status==='Scheduled'||j.status==='In Progress'); });
+    var cct    = DB.contacts.filter(function(x){ return x.customerId===c.id; });
+    var wonRev = qct.filter(function(q){ return q.status==='approved'; }).reduce(function(s,q){ return s+(q.total||0); }, 0);
+    return Object.assign({}, c, {_qct:qct.length, _jct:jct.length, _cct:cct.length, _wonRev:wonRev});
+  });
+
+  // Summary strip
+  var totalWon   = customers.reduce(function(s,c){ return s+c._wonRev; }, 0);
+  var totalQ     = customers.reduce(function(s,c){ return s+c._qct; }, 0);
+  var totalJ     = customers.reduce(function(s,c){ return s+c._jct; }, 0);
+  var totalCont  = customers.reduce(function(s,c){ return s+c._cct; }, 0);
+  function setS(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
+  setS('cs-total',    customers.length);
+  setS('cs-won',      '$'+Math.round(totalWon).toLocaleString());
+  setS('cs-quotes',   totalQ);
+  setS('cs-jobs',     totalJ);
+  setS('cs-contacts', totalCont);
+
+  // Search
+  if (sl) customers = customers.filter(function(c){
+    return (c.name||'').toLowerCase().includes(sl)||
+           (c.phone||'').toLowerCase().includes(sl)||
+           (c.email||'').toLowerCase().includes(sl)||
+           (c.address||'').toLowerCase().includes(sl);
+  });
+
+  // Filter
+  if (filter==='active')     customers = customers.filter(function(c){ return c._qct>0; });
+  if (filter==='won')        customers = customers.filter(function(c){ return c._wonRev>0; });
+  if (filter==='jobs')       customers = customers.filter(function(c){ return c._jct>0; });
+  if (filter==='no-contact') customers = customers.filter(function(c){ return c._cct===0; });
+
+  // Sort
+  customers.sort(function(a,b){
+    if (sort==='name-asc')    return (a.name||'').localeCompare(b.name||'');
+    if (sort==='name-desc')   return (b.name||'').localeCompare(a.name||'');
+    if (sort==='won-desc')    return b._wonRev - a._wonRev;
+    if (sort==='quotes-desc') return b._qct - a._qct;
+    if (sort==='recent')      return (b.createdAt||'').localeCompare(a.createdAt||'');
+    return (a.name||'').localeCompare(b.name||'');
+  });
+
+  var el = document.getElementById('cust-tbl');
+  if (!el) return;
+
+  if (!customers.length) {
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#90a4ae">'+
+      (search||filter?'No customers match your search.':'No customers yet. Click + New Customer to add one.')+
+    '</div>';
+    return;
+  }
+
+  // Column headers
+  var header = '<div class="cust-col-header">'+
+    '<span onclick="setCustSort(\'name-asc\')">Customer '+(sort==='name-asc'?'▲':sort==='name-desc'?'▼':'')+'</span>'+
+    '<span onclick="setCustSort(\'name-asc\')">Phone / Email</span>'+
+    '<span>Address</span>'+
+    '<span onclick="setCustSort(\'quotes-desc\')">Activity</span>'+
+    '<span onclick="setCustSort(\'won-desc\')">Won Rev '+(sort==='won-desc'?'▼':'')+'</span>'+
+    '<span>Actions</span>'+
+  '</div>';
+
+  var rows = customers.map(function(c){
+    var phone = c.phone||'';
+    var email = c.email||'';
+    var phoneHtml = phone
+      ? '<a href="tel:'+escHtml(phone)+'" class="cust-phone-link">'+escHtml(phone)+'</a>'
+      : '<span style="color:#d0d0d0;font-size:12px">—</span>';
+    var emailHtml = email
+      ? '<a href="mailto:'+escHtml(email)+'" class="cust-phone-link" style="font-size:11px;color:#546e7a">'+escHtml(email)+'</a>'
+      : '';
+
+    var activityHtml = '<div class="cust-activity-badges">'+
+      (c._qct>0?'<span class="cust-badge quotes">📋 '+c._qct+'</span>':'')+
+      (c._jct>0?'<span class="cust-badge jobs">🔧 '+c._jct+'</span>':'')+
+      (c._cct>0?'<span class="cust-badge contacts">👤 '+c._cct+'</span>':'')+
+      (!c._qct&&!c._jct&&!c._cct?'<span style="color:#d0d0d0;font-size:12px">No activity</span>':'')+
+    '</div>';
+
+    var wonHtml = c._wonRev>0
+      ? '<span class="cust-won">$'+Math.round(c._wonRev).toLocaleString()+'</span>'
+      : '<span class="cust-won zero">$0</span>';
+
+    var lastActivity = '';
+    var lastQ = DB.quotes.filter(function(q){ return q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase(); })
+      .sort(function(a,b){ return (b.dt||'').localeCompare(a.dt||''); })[0];
+    if (lastQ) lastActivity = 'Last quote: '+escHtml(lastQ.dt||'');
+
+    return '<div class="cust-card">'+
+      // Name + last activity
+      '<div>'+
+        '<div class="cust-card-name" onclick="openCustomerProfile(\''+c.id+'\')">'+escHtml(c.name||'')+'</div>'+
+        (lastActivity?'<div class="cust-card-sub">'+lastActivity+'</div>':'')+
+      '</div>'+
+      // Phone + email
+      '<div>'+
+        '<div>'+phoneHtml+'</div>'+
+        '<div class="cust-card-email">'+emailHtml+'</div>'+
+      '</div>'+
+      // Address
+      '<div style="font-size:12px;color:#546e7a;line-height:1.4">'+escHtml(c.address||'')+'</div>'+
+      // Activity badges
+      '<div>'+activityHtml+'</div>'+
+      // Won revenue
+      '<div>'+wonHtml+'</div>'+
+      // Actions
+      '<div class="cust-actions">'+
+        '<button class="btn btn-primary btn-sm" onclick="openCustomerProfile(\''+c.id+'\')" title="View profile">Profile</button>'+
+        '<button class="btn btn-outline btn-sm" data-action="editCustomer" data-id="'+c.id+'" title="Edit">✏</button>'+
+        '<button class="btn btn-danger btn-sm" data-action="delCustomer" data-id="'+c.id+'" title="Delete">✕</button>'+
+      '</div>'+
+    '</div>';
   }).join('');
+
+  el.innerHTML = header + rows;
+}
+
+function setCustSort(val) {
+  var sel = document.getElementById('cust-sort');
+  if (sel) sel.value = val;
+  renderCustomers();
 }
 function newCustomer() { document.getElementById('modal-cust-title').textContent='New Customer';['m-cname','m-cphone','m-cemail','m-caddr','m-cnotes','m-cid'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';}); openModal('modal-customer'); }
 function editCustomer(id) {
