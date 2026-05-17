@@ -570,6 +570,29 @@ body.dark-mode .cust-col-header{background:#1a1a1a!important}
 body.dark-mode .cust-summary-tile{background:#1e1e1e!important;border-color:#333!important}
 body.dark-mode .cust-summary-val{color:#e0e0e0!important}
 
+/* ===== CONTACTS PAGE ===== */
+.cont-card{display:grid;grid-template-columns:1.6fr 1.2fr 1fr 1.2fr 0.8fr auto;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #f0f0f0;transition:background .1s}
+.cont-card:last-child{border-bottom:none}
+.cont-card:hover{background:#f8f9fa}
+.cont-col-header{display:grid;grid-template-columns:1.6fr 1.2fr 1fr 1.2fr 0.8fr auto;gap:12px;padding:8px 14px;border-bottom:2px solid #e8e8e8;background:#f8f9fa;border-radius:8px 8px 0 0}
+.cont-col-header span{font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none}
+.cont-col-header span:hover{color:#1565c0}
+.cont-name{font-weight:700;font-size:14px;color:#0d1b2a}
+.cont-sub{font-size:11px;color:#90a4ae;margin-top:2px}
+.cont-company-link{color:#1565c0;text-decoration:none;font-size:13px;font-weight:600}
+.cont-company-link:hover{text-decoration:underline}
+.cont-type-badge{display:inline-flex;align-items:center;gap:3px;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700}
+.cont-type-badge.decision{background:#fff8e1;color:#f57f17;border:1px solid #ffe082}
+.cont-type-badge.billing{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7}
+.cont-type-badge.site{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9}
+.cont-type-badge.technical{background:#f3e5f5;color:#6a1b9a;border:1px solid #ce93d8}
+.cont-quick-actions{display:flex;gap:4px}
+.cont-quick-btn{width:30px;height:30px;border-radius:8px;border:1px solid #e0e0e0;background:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;text-decoration:none;transition:all .12s;flex-shrink:0}
+.cont-quick-btn:hover{background:#e3f2fd;border-color:#90caf9}
+body.dark-mode .cont-card:hover{background:#252525!important}
+body.dark-mode .cont-col-header{background:#1a1a1a!important}
+body.dark-mode .cont-quick-btn{background:#252525!important;border-color:#444!important}
+
 /* ===== CUSTOMER PROFILE ===== */
 .cp-tab{padding:12px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#546e7a;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap}
 .cp-tab.active{color:#1565c0;border-bottom-color:#1565c0;background:#f8f9fa}
@@ -2407,9 +2430,40 @@ table{font-size:12.5px}
 
 <!-- CONTACTS -->
 <div class="page" id="page-contacts">
-  <div class="page-header"><h2>📞 Contacts</h2><button class="btn btn-primary" data-action="newContact">+ New Contact</button></div>
-  <div class="card"><table><thead><tr><th>Name</th><th>Company</th><th>Phone</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
-  <tbody id="cont-tbl"></tbody></table></div>
+  <div class="page-header">
+    <h2>📞 Contacts</h2>
+    <button class="btn btn-primary" data-action="newContact">+ New Contact</button>
+  </div>
+
+  <!-- Summary strip -->
+  <div class="cust-summary-strip" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+    <div class="cust-summary-tile"><div class="cust-summary-val" id="ct-total">0</div><div class="cust-summary-lbl">Total Contacts</div></div>
+    <div class="cust-summary-tile blue"><div class="cust-summary-val" id="ct-linked">0</div><div class="cust-summary-lbl">Linked to Customer</div></div>
+    <div class="cust-summary-tile green"><div class="cust-summary-val" id="ct-decision">0</div><div class="cust-summary-lbl">Decision Makers</div></div>
+    <div class="cust-summary-tile orange"><div class="cust-summary-val" id="ct-no-email">0</div><div class="cust-summary-lbl">Missing Email</div></div>
+  </div>
+
+  <div class="card">
+    <div class="filter-bar" style="margin-bottom:12px">
+      <input class="search-input" id="cont-search" placeholder="🔍 Search contacts..." oninput="renderContacts()">
+      <select id="cont-sort" style="width:auto" onchange="renderContacts()">
+        <option value="name-asc">Name A–Z</option>
+        <option value="name-desc">Name Z–A</option>
+        <option value="company">Company A–Z</option>
+        <option value="recent">Recently Added</option>
+      </select>
+      <select id="cont-filter" style="width:auto" onchange="renderContacts()">
+        <option value="">All Contacts</option>
+        <option value="decision">Decision Makers</option>
+        <option value="billing">Billing Contacts</option>
+        <option value="site">Site Contacts</option>
+        <option value="no-email">Missing Email</option>
+        <option value="no-phone">Missing Phone</option>
+        <option value="unlinked">Not Linked to Customer</option>
+      </select>
+    </div>
+    <div id="cont-tbl"></div>
+  </div>
 </div>
 
 <!-- TEAM -->
@@ -3840,11 +3894,17 @@ table{font-size:12.5px}
 </div>
 
 <div class="modal-overlay" id="modal-contact">
-  <div class="modal-box sm">
-    <div class="modal-head"><h3>Contact</h3><button class="close-btn" data-action="closeModal" data-modal="modal-contact">×</button></div>
+  <div class="modal-box">
+    <div class="modal-head"><h3 id="modal-ct-title">New Contact</h3><button class="close-btn" data-action="closeModal" data-modal="modal-contact">×</button></div>
     <div class="modal-body">
-      <div class="form-row cols2"><div><label>Name *</label><input id="m-ctname"></div><div><label>Company</label><input id="m-ctco" list="m-ctco-list"><datalist id="m-ctco-list"></datalist></div></div>
-      <div class="form-row cols2"><div><label>Phone</label><input id="m-ctph"></div><div><label>Email</label><input id="m-ctem" type="email"></div></div>
+      <div class="form-row cols2">
+        <div><label>Name *</label><input id="m-ctname" placeholder="Full name"></div>
+        <div><label>Company</label><input id="m-ctco" list="m-ctco-list" placeholder="Company name"><datalist id="m-ctco-list"></datalist></div>
+      </div>
+      <div class="form-row cols2">
+        <div><label>Phone</label><input id="m-ctph" type="tel" placeholder="Phone number"></div>
+        <div><label>Email</label><input id="m-ctem" type="email" placeholder="Email address"></div>
+      </div>
       <div class="form-row cols2">
         <div><label>Title / Role</label>
           <select id="m-ctrole">
@@ -3861,18 +3921,44 @@ table{font-size:12.5px}
             <option>Operations Manager</option>
             <option>Director of Facilities</option>
             <option>Financial Manager</option>
+            <option>CEO</option>
             <option>Other</option>
           </select>
         </div>
+        <div><label>Contact Type</label>
+          <select id="m-ct-type">
+            <option value="">-- Select Type --</option>
+            <option value="decision">⭐ Decision Maker</option>
+            <option value="billing">💳 Billing Contact</option>
+            <option value="site">📍 Site Contact</option>
+            <option value="technical">🔧 Technical Contact</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row cols2">
         <div><label>Linked Customer</label>
           <select id="m-ct-custid">
             <option value="">— Not linked —</option>
           </select>
         </div>
+        <div><label>Best Contact Method</label>
+          <select id="m-ct-pref">
+            <option value="">-- Preference --</option>
+            <option value="phone">📞 Phone Call</option>
+            <option value="text">💬 Text Message</option>
+            <option value="email">✉️ Email</option>
+          </select>
+        </div>
       </div>
+      <div class="form-row"><div><label>Notes</label><textarea id="m-ct-notes" rows="2" placeholder="Any notes about this contact..."></textarea></div></div>
       <input type="hidden" id="m-ctid">
     </div>
-    <div class="modal-foot"><button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-contact">Cancel</button><button class="btn btn-primary" data-action="saveContact">Save</button></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-contact">Cancel</button>
+      <button class="btn btn-outline btn-sm" onclick="saveContactAndAnother()">Save + Add Another</button>
+      <button class="btn btn-primary" data-action="saveContact">Save</button>
+    </div>
   </div>
 </div>
 
@@ -6261,12 +6347,163 @@ function delCustomer(id) {
 
 // ---- RENDER CONTACTS ----
 function renderContacts() {
-  const tbody = document.getElementById('cont-tbl');
-  if (!tbody) return;
-  if (DB.contacts.length===0) { tbody.innerHTML='<tr><td colspan="6" class="empty-state"><p>No contacts yet.</p></td></tr>'; return; }
-  tbody.innerHTML = DB.contacts.map(function(c){
-    return '<tr><td style="font-weight:700">' + escHtml(c.name||'') + '</td><td>' + escHtml(c.company||'') + '</td><td>' + escHtml(c.phone||'') + '</td><td>' + escHtml(c.email||'') + '</td><td>' + escHtml(c.role||'') + '</td><td><button class="btn btn-outline btn-sm" data-action="editContact" data-id="' + c.id + '">Edit</button> <button class="btn btn-danger btn-sm" data-action="delContact" data-id="' + c.id + '">Del</button></td></tr>';
+  var search = (document.getElementById('cont-search')||{}).value||'';
+  var sort   = (document.getElementById('cont-sort')||{}).value||'name-asc';
+  var filter = (document.getElementById('cont-filter')||{}).value||'';
+  var sl     = search.toLowerCase();
+
+  var contacts = DB.contacts.slice();
+
+  // Summary
+  var linked    = contacts.filter(function(c){ return c.customerId; }).length;
+  var decisions = contacts.filter(function(c){ return c.contactType==='decision'; }).length;
+  var noEmail   = contacts.filter(function(c){ return !c.email; }).length;
+  function setS(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
+  setS('ct-total',    contacts.length);
+  setS('ct-linked',   linked);
+  setS('ct-decision', decisions);
+  setS('ct-no-email', noEmail);
+
+  // Search
+  if (sl) contacts = contacts.filter(function(c){
+    return (c.name||'').toLowerCase().includes(sl)||
+           (c.company||'').toLowerCase().includes(sl)||
+           (c.phone||'').toLowerCase().includes(sl)||
+           (c.email||'').toLowerCase().includes(sl)||
+           (c.role||'').toLowerCase().includes(sl);
+  });
+
+  // Filter
+  if (filter==='decision')  contacts=contacts.filter(function(c){ return c.contactType==='decision'; });
+  if (filter==='billing')   contacts=contacts.filter(function(c){ return c.contactType==='billing'; });
+  if (filter==='site')      contacts=contacts.filter(function(c){ return c.contactType==='site'; });
+  if (filter==='no-email')  contacts=contacts.filter(function(c){ return !c.email; });
+  if (filter==='no-phone')  contacts=contacts.filter(function(c){ return !c.phone; });
+  if (filter==='unlinked')  contacts=contacts.filter(function(c){ return !c.customerId; });
+
+  // Sort
+  contacts.sort(function(a,b){
+    if (sort==='name-asc')  return (a.name||'').localeCompare(b.name||'');
+    if (sort==='name-desc') return (b.name||'').localeCompare(a.name||'');
+    if (sort==='company')   return (a.company||'').localeCompare(b.company||'');
+    if (sort==='recent')    return (b.createdAt||'').localeCompare(a.createdAt||'');
+    return (a.name||'').localeCompare(b.name||'');
+  });
+
+  var el = document.getElementById('cont-tbl');
+  if (!el) return;
+
+  if (!contacts.length) {
+    el.innerHTML='<div style="padding:40px;text-align:center;color:#90a4ae">'+
+      (search||filter?'No contacts match your search.':'No contacts yet. Click + New Contact to add one.')+
+    '</div>';
+    return;
+  }
+
+  var typeLabels = {decision:'⭐ Decision Maker',billing:'💳 Billing',site:'📍 Site',technical:'🔧 Technical'};
+  var prefIcons  = {phone:'📞',text:'💬',email:'✉️'};
+
+  var header = '<div class="cont-col-header">'+
+    '<span onclick="setContSort(\'name-asc\')">Contact</span>'+
+    '<span onclick="setContSort(\'company\')">Company</span>'+
+    '<span>Phone</span>'+
+    '<span>Email</span>'+
+    '<span>Type / Role</span>'+
+    '<span>Actions</span>'+
+  '</div>';
+
+  var rows = contacts.map(function(c){
+    // Find linked customer
+    var cust = c.customerId ? (DB.customers||[]).find(function(x){ return x.id===c.customerId; }) : null;
+    var custName = cust ? cust.name : (c.company||'');
+
+    // Last quote involving this contact
+    var lastQ = (DB.quotes||[]).filter(function(q){ return q.contactId===c.id; })
+      .sort(function(a,b){ return (b.dt||'').localeCompare(a.dt||''); })[0];
+
+    var phoneHtml = c.phone
+      ? '<a href="tel:'+escHtml(c.phone)+'" class="cust-phone-link">'+escHtml(c.phone)+'</a>'
+      : '<span style="color:#d0d0d0;font-size:12px">—</span>';
+
+    var emailHtml = c.email
+      ? '<a href="mailto:'+escHtml(c.email)+'" class="cust-phone-link" style="color:#546e7a;font-size:12px">'+escHtml(c.email)+'</a>'
+      : '<span style="color:#ffb74d;font-size:11px;font-weight:700">⚠ No email</span>';
+
+    var companyHtml = cust
+      ? '<a href="#" class="cont-company-link" onclick="openCustomerProfile(\''+cust.id+'\');return false">'+escHtml(custName)+'</a>'
+      : (custName?'<span style="font-size:13px;color:#546e7a">'+escHtml(custName)+'</span>':'<span style="color:#d0d0d0;font-size:12px">—</span>');
+
+    var typeBadge = c.contactType && typeLabels[c.contactType]
+      ? '<span class="cont-type-badge '+c.contactType+'">'+typeLabels[c.contactType]+'</span>'
+      : '';
+    var roleTxt = c.role||c.title||'';
+
+    var prefHtml = c.contactPref ? '<span style="font-size:10px;color:#90a4ae;margin-left:4px">'+( prefIcons[c.contactPref]||'')+' Prefers '+c.contactPref+'</span>' : '';
+
+    var newQuoteUrl = 'javascript:void(0)';
+
+    return '<div class="cont-card">'+
+      // Name + last activity
+      '<div>'+
+        '<div class="cont-name">'+escHtml(c.name||'')+'</div>'+
+        (lastQ?'<div class="cont-sub">Last quote: '+escHtml(lastQ.dt||'')+'</div>':'')+
+        (c.notes?'<div class="cont-sub" style="font-style:italic">'+escHtml(c.notes.slice(0,60))+(c.notes.length>60?'…':'')+'</div>':'')+
+      '</div>'+
+      // Company (clickable)
+      '<div>'+companyHtml+'</div>'+
+      // Phone
+      '<div>'+phoneHtml+'</div>'+
+      // Email
+      '<div>'+emailHtml+'</div>'+
+      // Type + Role
+      '<div>'+
+        (typeBadge?typeBadge+'<br>':'')+
+        (roleTxt?'<span style="font-size:11px;color:#546e7a">'+escHtml(roleTxt)+'</span>':'')+
+        prefHtml+
+      '</div>'+
+      // Quick actions
+      '<div class="cont-quick-actions">'+
+        (c.phone?'<a href="tel:'+escHtml(c.phone)+'" class="cont-quick-btn" title="Call">📞</a>':'')+
+        (c.phone?'<a href="sms:'+escHtml(c.phone)+'" class="cont-quick-btn" title="Text">💬</a>':'')+
+        (c.email?'<a href="mailto:'+escHtml(c.email)+'" class="cont-quick-btn" title="Email">✉️</a>':'')+
+        '<button class="cont-quick-btn" onclick="newQuoteForContact(\''+c.id+'\')" title="New Quote">📋</button>'+
+        '<button class="btn btn-outline btn-sm" data-action="editContact" data-id="'+c.id+'" title="Edit">✏</button>'+
+        '<button class="btn btn-danger btn-sm" data-action="delContact" data-id="'+c.id+'" title="Delete">✕</button>'+
+      '</div>'+
+    '</div>';
   }).join('');
+
+  el.innerHTML = header + rows;
+}
+
+function setContSort(val) {
+  var sel = document.getElementById('cont-sort');
+  if (sel) sel.value = val;
+  renderContacts();
+}
+
+function newQuoteForContact(contactId) {
+  var c = (DB.contacts||[]).find(function(x){ return x.id===contactId; });
+  if (!c) return;
+  goPage('qq');
+  setTimeout(function(){
+    var cnEl = document.getElementById('qq-cn');
+    var cidEl = document.getElementById('qq-customer-id');
+    var ctEl  = document.getElementById('qq-contact-name');
+    var ctIdEl= document.getElementById('qq-contact-id');
+    var ttEl  = document.getElementById('qq-contact-title');
+    if (cnEl)   cnEl.value   = c.company||'';
+    if (cidEl)  cidEl.value  = c.customerId||'';
+    if (ctEl)   ctEl.value   = c.name||'';
+    if (ctIdEl) ctIdEl.value = c.id||'';
+    if (ttEl)   ttEl.value   = c.role||c.title||'';
+    // Also fill phone/email if blank
+    var phEl = document.getElementById('qq-ph');
+    var emEl = document.getElementById('qq-em');
+    if (phEl && !phEl.value && c.phone) phEl.value = c.phone;
+    if (emEl && !emEl.value && c.email) emEl.value = c.email;
+  }, 300);
+  showToast('New quote for '+escHtml(c.name||''), 'info');
 }
 function delContact(id) {
   if (!confirm('Delete contact?')) return;
@@ -10815,20 +11052,39 @@ function openQuoteForCustomer(customerName) {
 // Patch newContact and editContact to populate customer dropdown
 var _origNewContact = newContact;
 function newContact() {
-  _origNewContact();
+  // Clear all fields
+  ['m-ctname','m-ctph','m-ctem','m-ctco','m-ct-notes','m-ctid'].forEach(function(fid){
+    var e=document.getElementById(fid); if(e) e.value='';
+  });
+  ['m-ctrole','m-ct-type','m-ct-pref'].forEach(function(fid){
+    var e=document.getElementById(fid); if(e) e.value='';
+  });
+  var titleEl=document.getElementById('modal-ct-title'); if(titleEl) titleEl.textContent='New Contact';
   populateContactCustomerDropdown('');
-  // Populate company datalist from customers
   var dl = document.getElementById('m-ctco-list');
   if (dl) dl.innerHTML=(DB.customers||[]).map(function(c){ return '<option value="'+escHtml(c.name)+'">'; }).join('');
+  openModal('modal-contact');
 }
 
 var _origEditContact = editContact;
 function editContact(id) {
-  _origEditContact(id);
   var c=(DB.contacts||[]).find(function(x){ return x.id==id; });
-  populateContactCustomerDropdown(c&&c.customerId||'');
+  if (!c) return;
+  function sv(eid,v){ var e=document.getElementById(eid); if(e) e.value=v||''; }
+  sv('m-ctname', c.name);
+  sv('m-ctco',   c.company);
+  sv('m-ctph',   c.phone);
+  sv('m-ctem',   c.email);
+  sv('m-ctrole', c.role||c.title);
+  sv('m-ct-type',c.contactType);
+  sv('m-ct-pref',c.contactPref);
+  sv('m-ct-notes',c.notes);
+  sv('m-ctid',   c.id);
+  var titleEl=document.getElementById('modal-ct-title'); if(titleEl) titleEl.textContent='Edit Contact';
+  populateContactCustomerDropdown(c.customerId||'');
   var dl = document.getElementById('m-ctco-list');
   if (dl) dl.innerHTML=(DB.customers||[]).map(function(cx){ return '<option value="'+escHtml(cx.name)+'">'; }).join('');
+  openModal('modal-contact');
 }
 
 function populateContactCustomerDropdown(selectedId) {
@@ -10845,25 +11101,63 @@ function populateContactCustomerDropdown(selectedId) {
 // Patch saveContact to save customerId
 var _origSaveContact = saveContact;
 function saveContact() {
-  var id=document.getElementById('m-ctid').value;
-  var name=document.getElementById('m-ctname').value;
-  if(!name.trim()){showToast('Name required.','error'); return;}
-  var custId=(document.getElementById('m-ct-custid')||{}).value||'';
-  var data={
-    id:id||Date.now().toString(),
-    name:name,
-    company:document.getElementById('m-ctco').value,
-    phone:document.getElementById('m-ctph').value,
-    email:document.getElementById('m-ctem').value,
-    role:document.getElementById('m-ctrole').value,
-    title:document.getElementById('m-ctrole').value,
-    customerId:custId
+  var id   = document.getElementById('m-ctid').value;
+  var name = (document.getElementById('m-ctname')||{}).value||'';
+  if (!name.trim()) { showToast('Name required','error'); return; }
+  var custId = (document.getElementById('m-ct-custid')||{}).value||'';
+  var data = {
+    id:          id || ('ct-'+Date.now()),
+    name:        name.trim(),
+    company:     (document.getElementById('m-ctco')||{}).value||'',
+    phone:       (document.getElementById('m-ctph')||{}).value||'',
+    email:       (document.getElementById('m-ctem')||{}).value||'',
+    role:        (document.getElementById('m-ctrole')||{}).value||'',
+    title:       (document.getElementById('m-ctrole')||{}).value||'',
+    contactType: (document.getElementById('m-ct-type')||{}).value||'',
+    contactPref: (document.getElementById('m-ct-pref')||{}).value||'',
+    notes:       (document.getElementById('m-ct-notes')||{}).value||'',
+    customerId:  custId
   };
-  if(id){var idx=DB.contacts.findIndex(function(c){return c.id==id});if(idx>=0)DB.contacts[idx]=data;else DB.contacts.push(data);}
+  if (id) { var idx=DB.contacts.findIndex(function(c){ return c.id==id; }); if(idx>=0) DB.contacts[idx]=data; else DB.contacts.push(data); }
   else DB.contacts.push(data);
-  saveDB();closeModal('modal-contact');renderContacts();
-  // Refresh customer profile if open
-  if(_cpCustomerId) switchCPTab(_cpTab);
+  saveDB(); closeModal('modal-contact'); renderContacts();
+  if (_cpCustomerId) switchCPTab(_cpTab);
+  showToast('"'+name+'" saved','success');
+}
+
+function saveContactAndAnother() {
+  var name = (document.getElementById('m-ctname')||{}).value||'';
+  if (!name.trim()) { showToast('Name required','error'); return; }
+  var custId = (document.getElementById('m-ct-custid')||{}).value||'';
+  var data = {
+    id:          'ct-'+Date.now(),
+    name:        name.trim(),
+    company:     (document.getElementById('m-ctco')||{}).value||'',
+    phone:       (document.getElementById('m-ctph')||{}).value||'',
+    email:       (document.getElementById('m-ctem')||{}).value||'',
+    role:        (document.getElementById('m-ctrole')||{}).value||'',
+    title:       (document.getElementById('m-ctrole')||{}).value||'',
+    contactType: (document.getElementById('m-ct-type')||{}).value||'',
+    contactPref: (document.getElementById('m-ct-pref')||{}).value||'',
+    notes:       (document.getElementById('m-ct-notes')||{}).value||'',
+    customerId:  custId
+  };
+  DB.contacts.push(data);
+  saveDB(); renderContacts();
+  // Clear fields but keep company/customer for next contact at same company
+  var keepCo = (document.getElementById('m-ctco')||{}).value||'';
+  var keepCustId = custId;
+  ['m-ctname','m-ctph','m-ctem','m-ct-notes'].forEach(function(fid){
+    var e=document.getElementById(fid); if(e) e.value='';
+  });
+  ['m-ctrole','m-ct-type','m-ct-pref'].forEach(function(fid){
+    var e=document.getElementById(fid); if(e) e.value='';
+  });
+  document.getElementById('m-ctid').value='';
+  var coEl=document.getElementById('m-ctco'); if(coEl) coEl.value=keepCo;
+  var cidEl=document.getElementById('m-ct-custid'); if(cidEl) cidEl.value=keepCustId;
+  var nameEl=document.getElementById('m-ctname'); if(nameEl) nameEl.focus();
+  showToast('"'+name+'" saved — ready for next contact','success');
 }
 
 // ---- UPGRADED CONVERT-TO-JOB ----
