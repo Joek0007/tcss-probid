@@ -570,6 +570,27 @@ body.dark-mode .cust-col-header{background:#1a1a1a!important}
 body.dark-mode .cust-summary-tile{background:#1e1e1e!important;border-color:#333!important}
 body.dark-mode .cust-summary-val{color:#e0e0e0!important}
 
+/* ===== ROLE PERMISSIONS EDITOR ===== */
+.perm-section-header{font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;padding:10px 8px 6px;border-bottom:2px solid #e0e0e0;margin-bottom:4px;margin-top:12px;grid-column:1/-1}
+.perm-table{width:100%;border-collapse:collapse;font-size:12px}
+.perm-table th{background:#f5f7fa;padding:8px 10px;font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e0e0e0;text-align:center;white-space:nowrap}
+.perm-table th:first-child{text-align:left;min-width:200px}
+.perm-table td{padding:6px 10px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+.perm-table tr:hover td{background:#f8f9fa}
+.perm-table td:first-child{font-size:12px;color:#37474f;font-weight:600}
+.perm-table td.perm-center{text-align:center}
+.perm-toggle{position:relative;display:inline-block;width:36px;height:20px;cursor:pointer}
+.perm-toggle input{opacity:0;width:0;height:0;position:absolute}
+.perm-slider{position:absolute;inset:0;background:#ccc;border-radius:20px;transition:.2s}
+.perm-slider:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.perm-toggle input:checked+.perm-slider{background:#1565c0}
+.perm-toggle input:checked+.perm-slider:before{transform:translateX(16px)}
+.perm-fixed{font-size:16px;line-height:1}
+.perm-group-row td{background:#f0f4ff!important;font-weight:700;color:#1565c0;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:6px 10px}
+body.dark-mode .perm-table th{background:#252525!important}
+body.dark-mode .perm-table tr:hover td{background:#252525!important}
+body.dark-mode .perm-group-row td{background:#1a2040!important}
+
 /* ===== CONTACTS PAGE ===== */
 .cont-card{display:grid;grid-template-columns:1.6fr 1.2fr 1fr 1.2fr 0.8fr auto;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #f0f0f0;transition:background .1s}
 .cont-card:last-child{border-bottom:none}
@@ -3657,6 +3678,33 @@ table{font-size:12.5px}
     </div>
   </div>
 
+  <!-- ROLE PERMISSIONS EDITOR — Owner only -->
+  <div class="card" id="role-permissions-card" style="grid-column:1/-1;display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div>
+        <div class="card-title" style="margin:0">🔐 Role Permissions</div>
+        <div style="font-size:12px;color:#546e7a;margin-top:2px">Toggle permissions for each role. Structural permissions (which pages load) are fixed. Changes take effect immediately.</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="resetPermissionsToDefault()">↺ Reset to Defaults</button>
+        <button class="btn btn-outline btn-sm" onclick="exportPermissionsDoc()">📄 Export Reference Doc</button>
+      </div>
+    </div>
+
+    <!-- Role legend -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <span style="background:#e3f2fd;color:#1565c0;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700">Owner</span>
+      <span style="background:#e8f5e9;color:#2e7d32;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700">Manager</span>
+      <span style="background:#fff3e0;color:#e65100;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700">Back Office</span>
+      <span style="background:#f3e5f5;color:#6a1b9a;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700">Estimator</span>
+      <span style="background:#e0f2f1;color:#00695c;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700">Lead Tech</span>
+      <span style="background:#f5f5f5;color:#546e7a;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700">Helper Tech</span>
+      <span style="background:#fce4ec;color:#ad1457;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700">Subcontractor</span>
+    </div>
+
+    <div id="perm-grid"></div>
+  </div>
+
 </div><!-- end page-settings -->
 
 <!-- SAVE AS TEMPLATE MODAL -->
@@ -4219,7 +4267,7 @@ function goPage(id) {
   if (id==='reports')    renderReports();
   if (id==='inventory')  renderInventory();
   if (id==='tools')      { setTimeout(renderTools, 50); }
-  if (id==='settings')   loadSettings();
+  if (id==='settings')   { loadSettings(); setTimeout(renderPermissionsEditor, 150); }
   if (id==='qq')         renderTplLibrary();
 qqStage4Init();
   if (id==='field')      setTimeout(renderFieldPage, 50);
@@ -11262,6 +11310,200 @@ function confirmConvertJob() {
 // ============================================================
 // END CRM MODULE
 // ============================================================
+// ============================================================
+// ROLE PERMISSIONS SYSTEM
+// ============================================================
+
+var ROLES = ['owner','manager','back_office','estimator','lead_tech','helper_tech','subcontractor'];
+
+var ROLE_LABELS = {
+  owner:'Owner', manager:'Manager', back_office:'Back Office',
+  estimator:'Estimator', lead_tech:'Lead Tech',
+  helper_tech:'Helper Tech', subcontractor:'Subcontractor'
+};
+
+var PERM_DEFS = [
+  {key:'quote.create',    label:'Create / Edit Quotes',       group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.view',      label:'View Quotes',                group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.delete',    label:'Delete Quotes',              group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.send',      label:'Send Quote to Customer',     group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.convert',   label:'Convert Quote to Job',       group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.export',    label:'Export Quotes CSV',          group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.bypass',    label:'Bypass Margin Floor',        group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'cust.view',       label:'View Customers & Contacts',  group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'cust.edit',       label:'Add / Edit Customers',       group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'cust.delete',     label:'Delete Customers',           group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'contact.edit',    label:'Add / Edit Contacts',        group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'job.create',      label:'Create / Edit Jobs',         group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'job.delete',      label:'Delete Jobs',                group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'job.closeout',    label:'Job Closeout / Sign-off',    group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'wt.create',       label:'Create WT Projects',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'wt.checkoff',     label:'Field Check-off Items',      group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
+  {key:'wt.confirm',      label:'Confirm Check-offs',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'wt.reopen',       label:'Reopen Check-offs',          group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'wt.rework',       label:'Log Reworks',                group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
+  {key:'wt.flags',        label:'Review Difficult Flags',     group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'wt.leaderboard',  label:'View Leaderboard',           group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'time.clock',      label:'Clock In / Out (own)',        group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
+  {key:'time.clockteam',  label:'Clock Team In / Out',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'time.correct',    label:'Edit Time Corrections',       group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'time.approveflag',label:'Approve Lunch Flags',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'time.viewall',    label:'View All Timesheets',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'leave.request',   label:'Request Time Off',            group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:0}},
+  {key:'leave.approve',   label:'Approve Time Off',            group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'payroll.view',    label:'View Payroll Summary',        group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'payroll.process', label:'Mark Payroll Processed',      group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'payroll.export',  label:'Export Payroll CSV',          group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'tool.edit',       label:'Add / Edit Tools',            group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'tool.checkout',   label:'Check Out / Return Tools',    group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
+  {key:'tool.transfer',   label:'Transfer Tools',              group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'tool.inspect',    label:'Inspect Returned Tools',      group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'rpt.quotes',      label:'Quoting / Pipeline Reports',  group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'rpt.jobs',        label:'Job Performance Reports',     group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'rpt.tech',        label:'Tech Performance Reports',    group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'rpt.tools',       label:'Tool Utilization Reports',    group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'rpt.payroll',     label:'Payroll Reports',             group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'settings.team',   label:'Manage Team / Users',         group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'settings.margin', label:'Set Margin Floors',           group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'settings.catalog',label:'Edit Price Catalog',          group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'settings.company',label:'Company Settings',            group:'Settings',       fixed:true,  defaults:{owner:1,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+];
+
+function getPermMatrix() {
+  var saved = (DB.settings && DB.settings.rolePermissions) || {};
+  var matrix = {};
+  PERM_DEFS.forEach(function(p){
+    matrix[p.key] = {};
+    ROLES.forEach(function(r){
+      if (p.fixed) {
+        matrix[p.key][r] = p.defaults[r] ? true : false;
+      } else {
+        matrix[p.key][r] = (saved[p.key] && saved[p.key][r] !== undefined)
+          ? saved[p.key][r]
+          : (p.defaults[r] ? true : false);
+      }
+    });
+  });
+  return matrix;
+}
+
+function hasPermission(permKey) {
+  if (!_currentUser) return false;
+  var role = _currentUser.role || 'helper_tech';
+  if (role === 'owner') return true;
+  var matrix = getPermMatrix();
+  if (!matrix[permKey]) return false;
+  return matrix[permKey][role] === true;
+}
+
+function renderPermissionsEditor() {
+  var card = document.getElementById('role-permissions-card');
+  if (!card) return;
+  var role = _currentUser ? _currentUser.role : '';
+  card.style.display = role === 'owner' ? 'block' : 'none';
+  if (role !== 'owner') return;
+
+  var matrix = getPermMatrix();
+  var grid = document.getElementById('perm-grid');
+  if (!grid) return;
+
+  var html = '<table class="perm-table"><thead><tr>'+
+    '<th style="text-align:left;min-width:180px">Permission</th>'+
+    ROLES.map(function(r){ return '<th>'+ROLE_LABELS[r]+'</th>'; }).join('')+
+  '</tr></thead><tbody>';
+
+  var lastGroup = '';
+  PERM_DEFS.forEach(function(p){
+    if (p.group !== lastGroup) {
+      lastGroup = p.group;
+      html += '<tr class="perm-group-row"><td colspan="'+(ROLES.length+1)+'">'+escHtml(p.group)+'</td></tr>';
+    }
+    html += '<tr><td>'+(p.fixed?'🔒 ':'')+escHtml(p.label)+(p.fixed?' <span style="font-size:10px;color:#90a4ae">(structural)</span>':'')+'</td>';
+    ROLES.forEach(function(r){
+      var val = matrix[p.key][r];
+      if (p.fixed) {
+        html += '<td class="perm-center"><span class="perm-fixed" style="color:'+(val?'#2e7d32':'#d0d0d0')+'">'+(val?'✓':'✗')+'</span></td>';
+      } else {
+        var tid = 'perm-'+p.key.replace(/\./g,'-')+'-'+r;
+        html += '<td class="perm-center">'+
+          '<label class="perm-toggle">'+
+            '<input type="checkbox" id="'+tid+'" '+(val?'checked':'')+
+            ' onchange="savePermChange(\''+p.key+'\',\''+r+'\',this.checked)">'+
+            '<span class="perm-slider"></span>'+
+          '</label>'+
+        '</td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  grid.innerHTML = html;
+}
+
+function savePermChange(permKey, role, value) {
+  if (!DB.settings) DB.settings={};
+  if (!DB.settings.rolePermissions) DB.settings.rolePermissions={};
+  if (!DB.settings.rolePermissions[permKey]) DB.settings.rolePermissions[permKey]={};
+  DB.settings.rolePermissions[permKey][role] = value;
+  saveDB();
+  showToast(ROLE_LABELS[role]+': '+(value?'✓ Granted':'✗ Revoked'),'info',2000);
+}
+
+function resetPermissionsToDefault() {
+  if (!confirm('Reset ALL permissions to factory defaults? This cannot be undone.')) return;
+  if (!DB.settings) DB.settings={};
+  DB.settings.rolePermissions = {};
+  saveDB();
+  renderPermissionsEditor();
+  showToast('Permissions reset to defaults','success');
+}
+
+function exportPermissionsDoc() {
+  var matrix = getPermMatrix();
+  var groups = {};
+  PERM_DEFS.forEach(function(p){ if(!groups[p.group]) groups[p.group]=[]; groups[p.group].push(p); });
+  var roleColors = {owner:'#1565c0',manager:'#2e7d32',back_office:'#e65100',estimator:'#6a1b9a',lead_tech:'#00695c',helper_tech:'#546e7a',subcontractor:'#ad1457'};
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>TCSS ProBid — Role Permissions</title>'+
+    '<style>body{font-family:Arial,sans-serif;margin:20px;font-size:12px}h1{color:#1565c0;margin-bottom:2px}h2{font-size:11px;color:#546e7a;font-weight:400;margin-top:0;margin-bottom:16px}'+
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px}th{background:#1565c0;color:#fff;padding:6px 10px;font-size:11px;text-align:center}th:first-child{text-align:left}'+
+    'td{padding:5px 10px;border-bottom:1px solid #eee;font-size:11px}tr:hover td{background:#f8f9fa}'+
+    '.grp td{background:#e3f0ff!important;font-weight:700;color:#1565c0;font-size:10px;text-transform:uppercase;letter-spacing:.5px}'+
+    '.yes{color:#2e7d32;font-weight:700;text-align:center}.no{color:#d0d0d0;text-align:center}.fixed{color:#90a4ae;text-align:center}'+
+    '.no-print{margin-bottom:16px}@media print{.no-print{display:none}@page{margin:10mm;size:landscape}}'+
+    '</style></head><body>'+
+    '<div class="no-print"><button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;margin-right:8px">🖨 Print</button>'+
+    '<button onclick="window.close()" style="border:1px solid #ddd;background:#fff;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">Close</button></div>'+
+    '<h1>TCSS ProBid V9 — Role Permissions Reference</h1>'+
+    '<h2>Generated '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'  ·  Confidential — Internal Use Only</h2>'+
+    '<table><thead><tr><th>Permission</th>'+
+      ROLES.map(function(r){ return '<th style="background:'+roleColors[r]+'">'+ROLE_LABELS[r]+'</th>'; }).join('')+
+    '</tr></thead><tbody>';
+
+  Object.keys(groups).forEach(function(grp){
+    html += '<tr class="grp"><td colspan="'+(ROLES.length+1)+'">'+grp+'</td></tr>';
+    groups[grp].forEach(function(p){
+      html += '<tr><td>'+(p.fixed?'🔒 ':'')+escHtml(p.label)+'</td>';
+      ROLES.forEach(function(r){
+        var val = matrix[p.key][r];
+        html += p.fixed
+          ? '<td class="fixed">'+(val?'●':'○')+'</td>'
+          : '<td class="'+(val?'yes':'no')+'">'+(val?'✓':'✗')+'</td>';
+      });
+      html += '</tr>';
+    });
+  });
+  html += '</tbody></table><p style="font-size:10px;color:#90a4ae">✓ Full Access  ✗ No Access  🔒 Structural (fixed)  ● Fixed On  ○ Fixed Off</p></body></html>';
+
+  var win = window.open('','_blank','width=1100,height=750');
+  if (win) { win.document.write(html); win.document.close(); setTimeout(function(){ win.print(); },500); }
+  else showToast('Allow popups to export','warning');
+}
+
+// ============================================================
+// END ROLE PERMISSIONS SYSTEM
+// ============================================================
+
 function printQRLabels() {
   if (!_wtProjectId) { showToast('Select a project first','warning'); return; }
   var project  = (DB.wtProjects||[]).find(function(p){ return p.id===_wtProjectId; });
@@ -16921,21 +17163,23 @@ async function loadCurrentUserProfile() {
 }
 
 function applyRolePermissions(role) {
-  // Field techs get a restricted view
+  // Nav visibility based on role
+  var fieldRoles = ['helper_tech','lead_tech','subcontractor'];
   var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings'];
+  var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
   var nav = document.querySelectorAll('.nav-item[data-page]');
   nav.forEach(function(item) {
     var page = item.getAttribute('data-page');
-    if (role === 'field' && fieldOnlyHide.includes(page)) {
+    if (fieldRoles.indexOf(role) >= 0 && fieldOnlyHide.indexOf(page) >= 0) {
+      item.style.display = 'none';
+    } else if (role === 'estimator' && estimatorShow.indexOf(page) < 0) {
       item.style.display = 'none';
     } else {
       item.style.display = '';
     }
   });
-  // Hide financial elements from field
-  if (role === 'field') {
-    document.querySelectorAll('.field-hide').forEach(function(el){ el.style.display='none'; });
-  }
+  // Render permissions editor if on settings page
+  if (role === 'owner') setTimeout(renderPermissionsEditor, 200);
 }
 
 function updateUserBadge(profile) {
