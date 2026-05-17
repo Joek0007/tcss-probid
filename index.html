@@ -570,6 +570,76 @@ body.dark-mode .cust-col-header{background:#1a1a1a!important}
 body.dark-mode .cust-summary-tile{background:#1e1e1e!important;border-color:#333!important}
 body.dark-mode .cust-summary-val{color:#e0e0e0!important}
 
+/* ===== DISPATCH BOARD ===== */
+#page-dispatch{display:flex;flex-direction:column;height:calc(100vh - 56px);overflow:hidden;padding:0}
+.dispatch-topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#fff;border-bottom:1px solid #e0e0e0;flex-shrink:0;gap:12px;flex-wrap:wrap}
+.dispatch-date-nav{display:flex;align-items:center;gap:4px}
+.dispatch-nav-btn{background:#f5f7fa;border:1px solid #e0e0e0;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.dispatch-nav-btn:hover{background:#e3f2fd;border-color:#90caf9}
+.dispatch-today-btn{background:#1565c0;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;transition:all .12s}
+.dispatch-today-btn:hover{background:#1976d2}
+.dispatch-date-input{border:1px solid #e0e0e0;border-radius:6px;padding:4px 8px;font-size:12px;color:#0d1b2a;background:#f8f9fa}
+.dispatch-layout{display:flex;flex:1;overflow:hidden;gap:0}
+/* Pool sidebar */
+.dispatch-pool{width:220px;flex-shrink:0;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;background:#f8f9fa;overflow:hidden}
+.dispatch-pool-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;font-size:12px;font-weight:700;color:#0d1b2a;border-bottom:1px solid #e0e0e0;background:#fff}
+.dispatch-pool-subtitle{font-size:10px;color:#90a4ae;padding:4px 12px 6px;background:#fff;border-bottom:1px solid #e0e0e0}
+.dispatch-pool-count{background:#c62828;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px}
+#dispatch-pool-jobs{flex:1;overflow-y:auto;padding:8px}
+.dispatch-pool-card{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:grab;transition:all .15s;border-left:3px solid #1565c0}
+.dispatch-pool-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.12);transform:translateY(-1px)}
+.dispatch-pool-card.dragging{opacity:.5;cursor:grabbing}
+.dispatch-pool-card-name{font-weight:700;font-size:12px;color:#0d1b2a}
+.dispatch-pool-card-sub{font-size:10px;color:#546e7a;margin-top:2px}
+.dispatch-pool-card-dur{font-size:10px;font-weight:700;color:#1565c0;margin-top:4px}
+/* Board */
+.dispatch-board-wrap{flex:1;overflow:auto;position:relative;background:#fff}
+.dispatch-ruler-wrap{display:flex;position:sticky;top:0;z-index:20;background:#fff;border-bottom:2px solid #e0e0e0}
+.dispatch-ruler-spacer{width:180px;flex-shrink:0;background:#f5f7fa;border-right:1px solid #e0e0e0}
+.dispatch-ruler{flex:1;display:flex;position:relative;height:32px}
+.dispatch-ruler-tick{position:absolute;top:0;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding-left:4px}
+.dispatch-ruler-tick-label{font-size:10px;font-weight:700;color:#546e7a;white-space:nowrap}
+.dispatch-ruler-tick-line{position:absolute;top:0;width:1px;height:100%;background:#e0e0e0}
+/* Tech rows */
+.dispatch-tech-row{display:flex;border-bottom:1px solid #f0f0f0;min-height:56px;position:relative}
+.dispatch-tech-row:hover{background:#fafafa}
+.dispatch-tech-label{width:180px;flex-shrink:0;padding:8px 10px;border-right:1px solid #e0e0e0;background:#f5f7fa;display:flex;flex-direction:column;justify-content:center;position:sticky;left:0;z-index:10}
+.dispatch-tech-name{font-weight:700;font-size:12px;color:#0d1b2a}
+.dispatch-tech-status{font-size:10px;margin-top:2px;display:flex;align-items:center;gap:4px}
+.dispatch-tech-status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dispatch-tech-timeline{flex:1;position:relative;min-height:56px}
+/* Job blocks on timeline */
+.dispatch-job-block{position:absolute;top:6px;height:44px;border-radius:8px;cursor:pointer;overflow:hidden;transition:all .15s;box-shadow:0 1px 4px rgba(0,0,0,.15);display:flex;flex-direction:column;justify-content:center;padding:0 8px;min-width:40px}
+.dispatch-job-block:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.2);z-index:5}
+.dispatch-job-block-name{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dispatch-job-block-sub{font-size:9px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.dispatch-job-block-pct{font-size:9px;font-weight:700;margin-top:2px}
+/* Status segments */
+.dispatch-seg{position:absolute;top:22px;height:10px;border-radius:3px;opacity:.6}
+/* Drop zone */
+.dispatch-tech-timeline.drag-over{background:#e3f2fd;border:2px dashed #1565c0}
+/* Now line */
+.dispatch-now-line{position:absolute;top:32px;bottom:0;width:2px;background:#c62828;z-index:15;pointer-events:none}
+.dispatch-now-label{position:absolute;top:-16px;left:50%;transform:translateX(-50%);background:#c62828;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;white-space:nowrap}
+/* Detail panel */
+.dispatch-detail-panel{position:fixed;right:0;top:56px;bottom:0;width:300px;background:#fff;border-left:1px solid #e0e0e0;box-shadow:-4px 0 16px rgba(0,0,0,.1);z-index:100;overflow-y:auto}
+.dispatch-detail-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e0e0e0;background:#f5f7fa}
+/* Status colors */
+.status-scheduled{background:#e3f2fd;color:#1565c0}
+.status-inprogress{background:#e8f5e9;color:#2e7d32}
+.status-complete{background:#f5f5f5;color:#546e7a}
+.status-onhold{background:#fff3e0;color:#e65100}
+/* Dark mode */
+body.dark-mode .dispatch-topbar{background:#1e1e1e!important;border-color:#333!important}
+body.dark-mode .dispatch-pool{background:#151515!important;border-color:#333!important}
+body.dark-mode .dispatch-pool-header{background:#1e1e1e!important}
+body.dark-mode .dispatch-pool-card{background:#252525!important;border-color:#444!important}
+body.dark-mode .dispatch-tech-label{background:#1a1a1a!important;border-color:#333!important}
+body.dark-mode .dispatch-tech-row:hover{background:#1a1a1a!important}
+body.dark-mode .dispatch-ruler-spacer{background:#1a1a1a!important}
+body.dark-mode .dispatch-board-wrap{background:#121212!important}
+body.dark-mode .dispatch-detail-panel{background:#1e1e1e!important;border-color:#333!important}
+
 /* ===== ROLE PERMISSIONS EDITOR ===== */
 .perm-section-header{font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;padding:10px 8px 6px;border-bottom:2px solid #e0e0e0;margin-bottom:4px;margin-top:12px;grid-column:1/-1}
 .perm-table{width:100%;border-collapse:collapse;font-size:12px}
@@ -1001,6 +1071,7 @@ table{font-size:12.5px}
     <div class="nav-item" data-page="tools"><span class="nav-icon">🔧</span>Tools</div>
     <div class="nav-item" data-page="field"><span class="nav-icon">⏱</span>Time Clock</div>
     <div class="nav-item" data-page="timesheet" id="nav-timesheet"><span class="nav-icon">📋</span>Timesheets</div>
+    <div class="nav-item" data-page="dispatch"><span class="nav-icon">🗂</span>Dispatch Board</div>
     <div class="nav-item" data-page="worktracking"><span class="nav-icon">✅</span>Work Tracking</div>
     <div class="nav-item" data-page="settings"><span class="nav-icon">⚙️</span>Settings</div>
   </div>
@@ -2282,6 +2353,107 @@ table{font-size:12.5px}
       <button class="btn btn-warning" onclick="saveRework()">Log Rework</button>
     </div>
   </div>
+</div>
+
+<!-- DISPATCH BOARD -->
+<div class="page" id="page-dispatch">
+
+  <!-- Top control bar -->
+  <div class="dispatch-topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <h2 style="margin:0;font-size:16px;font-weight:800;color:#0d1b2a">🗂 Dispatch Board</h2>
+      <!-- Date navigation -->
+      <div class="dispatch-date-nav">
+        <button class="dispatch-nav-btn" onclick="dispatchChangeDate(-1)" title="Previous day">◀</button>
+        <button class="dispatch-today-btn" onclick="dispatchGoToday()">Today</button>
+        <input type="date" id="dispatch-date" onchange="renderDispatchBoard()" class="dispatch-date-input">
+        <button class="dispatch-nav-btn" onclick="dispatchChangeDate(1)" title="Next day">▶</button>
+      </div>
+      <!-- Day summary pills -->
+      <div id="dispatch-day-summary" style="display:flex;gap:6px"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="dispatch-last-refresh" style="font-size:11px;color:#90a4ae"></span>
+      <button class="btn btn-outline btn-sm" onclick="renderDispatchBoard()">↻ Refresh</button>
+      <button class="btn btn-primary btn-sm" onclick="openScheduleJobModal()">+ Schedule Job</button>
+    </div>
+  </div>
+
+  <!-- Main board layout -->
+  <div class="dispatch-layout">
+
+    <!-- Unassigned job pool (left sidebar) -->
+    <div class="dispatch-pool" id="dispatch-pool">
+      <div class="dispatch-pool-header">
+        <span>📋 Unassigned</span>
+        <span id="dispatch-unassigned-count" class="dispatch-pool-count">0</span>
+      </div>
+      <div class="dispatch-pool-subtitle">Drag to assign a tech</div>
+      <div id="dispatch-pool-jobs"></div>
+    </div>
+
+    <!-- Timeline board -->
+    <div class="dispatch-board-wrap">
+      <!-- Time ruler -->
+      <div class="dispatch-ruler-wrap">
+        <div class="dispatch-ruler-spacer"></div><!-- aligns with tech label column -->
+        <div class="dispatch-ruler" id="dispatch-ruler"></div>
+      </div>
+      <!-- Tech rows -->
+      <div id="dispatch-tech-rows"></div>
+      <!-- Now line (positioned absolutely) -->
+      <div id="dispatch-now-line" class="dispatch-now-line" style="display:none">
+        <div class="dispatch-now-label">NOW</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SCHEDULE JOB MODAL -->
+<div class="modal-overlay" id="modal-schedule-job">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="modal-sj-title">📅 Schedule Job</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-schedule-job">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><div><label>Job *</label>
+        <select id="sj-job-select" onchange="onScheduleJobSelect(this.value)">
+          <option value="">— Select a job —</option>
+        </select>
+      </div></div>
+      <div id="sj-job-preview" style="display:none;background:#f8f9fa;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px"></div>
+      <div class="form-row cols2">
+        <div><label>Date *</label><input id="sj-date" type="date"></div>
+        <div><label>Start Time</label><input id="sj-start-time" type="time" value="08:00"></div>
+      </div>
+      <div class="form-row cols2">
+        <div><label>Estimated Duration (hrs)</label><input id="sj-duration" type="number" min="0.5" max="12" step="0.5" value="4"></div>
+        <div><label>Assigned Tech</label>
+          <select id="sj-tech">
+            <option value="">— Unassigned —</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row"><div><label>Dispatch Notes</label>
+        <textarea id="sj-notes" rows="2" placeholder="Access codes, special instructions, contact on arrival..."></textarea>
+      </div></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-schedule-job">Cancel</button>
+      <button class="btn btn-primary" onclick="saveScheduledJob()">📅 Schedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- DISPATCH JOB DETAIL PANEL (slide-in) -->
+<div id="dispatch-detail-panel" class="dispatch-detail-panel" style="display:none">
+  <div class="dispatch-detail-head">
+    <span id="dsp-job-name" style="font-weight:700;font-size:14px"></span>
+    <button onclick="closeDispatchDetail()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#546e7a">×</button>
+  </div>
+  <div id="dsp-body"></div>
 </div>
 
 <!-- TIMESHEET VIEW -->
@@ -4236,7 +4408,7 @@ function fmtSigned(n) { return (n < 0 ? '-' : '') + fmt(n); }
 function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 
 // ---- NAVIGATION ----
-const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking'};
+const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board'};
 
 function goPage(id) {
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
@@ -4273,6 +4445,7 @@ qqStage4Init();
   if (id==='field')      setTimeout(renderFieldPage, 50);
   if (id==='timesheet')  { var today=new Date().toISOString().split('T')[0]; var dtEl=document.getElementById('ts-date-filter'); if(dtEl&&!dtEl.value) dtEl.value=today; setTimeout(loadTimesheets,50); }
   if (id==='worktracking') { setTimeout(renderWorkTracking, 50); }
+  if (id==='dispatch')     { setTimeout(initDispatchBoard, 50); }
   // Sync mobile bottom nav highlight
   var mobilePages = ['dash','qq','field','jobs','inventory'];
   document.querySelectorAll('.mob-nav-item').forEach(function(item){ item.classList.remove('active'); });
@@ -11311,7 +11484,547 @@ function confirmConvertJob() {
 // END CRM MODULE
 // ============================================================
 // ============================================================
-// ROLE PERMISSIONS SYSTEM
+// DISPATCH BOARD
+// ============================================================
+
+var _dispatchRefreshTimer = null;
+var _dispatchDragJob      = null;
+var _dispatchDragSource   = null; // 'pool' or 'board'
+var _dispatchDragTechRow  = null;
+
+// Board config
+var DISPATCH_START_HOUR = 6;  // 6am
+var DISPATCH_END_HOUR   = 20; // 8pm
+var DISPATCH_TOTAL_HRS  = DISPATCH_END_HOUR - DISPATCH_START_HOUR; // 14hrs
+var DISPATCH_MINS_TOTAL = DISPATCH_TOTAL_HRS * 60;
+
+// Job block colors by status
+var DISPATCH_COLORS = {
+  'Scheduled':   { bg:'#1565c0', text:'#fff', border:'#0d47a1' },
+  'In Progress': { bg:'#2e7d32', text:'#fff', border:'#1b5e20' },
+  'Complete':    { bg:'#607d8b', text:'#fff', border:'#455a64' },
+  'On Hold':     { bg:'#e65100', text:'#fff', border:'#bf360c' },
+  'default':     { bg:'#1565c0', text:'#fff', border:'#0d47a1' }
+};
+
+// Tech status colors
+var TECH_STATUS_COLORS = {
+  out:         { dot:'#d0d0d0', label:'Off Clock',  text:'#90a4ae' },
+  at_homebase: { dot:'#1565c0', label:'At Base',    text:'#1565c0' },
+  traveling:   { dot:'#1565c0', label:'Traveling',  text:'#1565c0' },
+  onsite:      { dot:'#2e7d32', label:'On Site',    text:'#2e7d32' },
+  break:       { dot:'#e65100', label:'On Break',   text:'#e65100' },
+  lunch:       { dot:'#6a1b9a', label:'At Lunch',   text:'#6a1b9a' },
+  returning:   { dot:'#1565c0', label:'Returning',  text:'#1565c0' }
+};
+
+function initDispatchBoard() {
+  // Set today's date
+  var dateEl = document.getElementById('dispatch-date');
+  if (dateEl && !dateEl.value) dateEl.value = getTodayISO();
+  renderDispatchBoard();
+  // Auto-refresh every 60 seconds while on this page
+  clearInterval(_dispatchRefreshTimer);
+  _dispatchRefreshTimer = setInterval(function(){
+    var page = document.getElementById('page-dispatch');
+    if (page && page.classList.contains('active')) {
+      renderDispatchBoard();
+    } else {
+      clearInterval(_dispatchRefreshTimer);
+    }
+  }, 60000);
+}
+
+function dispatchChangeDate(delta) {
+  var dateEl = document.getElementById('dispatch-date');
+  if (!dateEl) return;
+  var d = new Date(dateEl.value || getTodayISO());
+  d.setDate(d.getDate() + delta);
+  dateEl.value = d.toISOString().split('T')[0];
+  renderDispatchBoard();
+}
+
+function dispatchGoToday() {
+  var dateEl = document.getElementById('dispatch-date');
+  if (dateEl) dateEl.value = getTodayISO();
+  renderDispatchBoard();
+}
+
+function renderDispatchBoard() {
+  var dateEl = document.getElementById('dispatch-date');
+  var boardDate = dateEl ? dateEl.value : getTodayISO();
+  var today     = getTodayISO();
+  var isToday   = boardDate === today;
+
+  // Update last refresh
+  var lrEl = document.getElementById('dispatch-last-refresh');
+  if (lrEl) lrEl.textContent = 'Updated '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+
+  // ── GET DATA ──
+  var team = (DB.team||[]);
+  var jobs = DB.jobs||[];
+
+  // Get scheduled jobs for this date
+  var dayJobs = jobs.filter(function(j){
+    var jDate = j.scheduledDate || j.startDate || '';
+    return jDate === boardDate;
+  });
+
+  // Unassigned jobs for this date (or no date set)
+  var unassigned = jobs.filter(function(j){
+    var jDate = j.scheduledDate || j.startDate || '';
+    var hasAssign = j.assignedTo && j.assignedTo.trim();
+    return (!jDate || jDate === boardDate) && !hasAssign &&
+           j.status !== 'Complete' && j.status !== 'Closed';
+  });
+
+  // Day summary pills
+  var summaryEl = document.getElementById('dispatch-day-summary');
+  if (summaryEl) {
+    var scheduled = dayJobs.filter(function(j){ return j.status==='Scheduled'; }).length;
+    var inprog    = dayJobs.filter(function(j){ return j.status==='In Progress'; }).length;
+    summaryEl.innerHTML =
+      '<span style="background:#e3f2fd;color:#1565c0;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">📅 '+scheduled+' Scheduled</span>'+
+      (inprog?'<span style="background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">▶ '+inprog+' Active</span>':'')+
+      (unassigned.length?'<span style="background:#ffebee;color:#c62828;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">⚠ '+unassigned.length+' Unassigned</span>':'');
+  }
+
+  // ── UNASSIGNED POOL ──
+  renderDispatchPool(unassigned);
+
+  // ── TIME RULER ──
+  renderDispatchRuler();
+
+  // ── TECH ROWS ──
+  renderDispatchTechRows(team, dayJobs, boardDate, isToday);
+
+  // ── NOW LINE ──
+  if (isToday) updateNowLine();
+}
+
+function renderDispatchPool(jobs) {
+  var countEl = document.getElementById('dispatch-unassigned-count');
+  if (countEl) countEl.textContent = jobs.length;
+  var pool = document.getElementById('dispatch-pool-jobs');
+  if (!pool) return;
+
+  if (!jobs.length) {
+    pool.innerHTML = '<div style="text-align:center;padding:20px;color:#90a4ae;font-size:12px">'+
+      '<div style="font-size:24px;margin-bottom:6px">✓</div>All jobs assigned</div>';
+    return;
+  }
+
+  pool.innerHTML = jobs.map(function(j){
+    var wtProj = (DB.wtProjects||[]).find(function(p){ return p.jobId===j.id; });
+    var pct = null;
+    if (wtProj) {
+      var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
+      var done=items.filter(function(i){return i.status==='done';}).length;
+      pct = items.length?Math.round(done/items.length*100):0;
+    }
+    var dur = j.estLaborHours || 4;
+    return '<div class="dispatch-pool-card" draggable="true" '+
+      'data-job-id="'+j.id+'" '+
+      'ondragstart="onDispatchDragStart(event,\''+j.id+'\',\'pool\')" '+
+      'ondragend="onDispatchDragEnd(event)" '+
+      'onclick="openDispatchDetail(\''+j.id+'\')" '+
+      '>'+
+      '<div class="dispatch-pool-card-name">'+escHtml(j.name||'')+'</div>'+
+      '<div class="dispatch-pool-card-sub">'+escHtml(j.customer||'')+'</div>'+
+      (pct!==null?'<div class="dispatch-pool-card-sub">WT: '+pct+'%</div>':'')+
+      '<div class="dispatch-pool-card-dur">⏱ '+dur+'h est</div>'+
+    '</div>';
+  }).join('');
+}
+
+function renderDispatchRuler() {
+  var ruler = document.getElementById('dispatch-ruler');
+  if (!ruler) return;
+  var html = '';
+  for (var h = DISPATCH_START_HOUR; h <= DISPATCH_END_HOUR; h++) {
+    var pct = ((h - DISPATCH_START_HOUR) / DISPATCH_TOTAL_HRS) * 100;
+    var label = h === 12 ? '12 PM' : h < 12 ? h+'am' : (h-12)+'pm';
+    html += '<div class="dispatch-ruler-tick" style="left:'+pct+'%">'+
+      '<div class="dispatch-ruler-tick-line"></div>'+
+      '<div class="dispatch-ruler-tick-label">'+label+'</div>'+
+    '</div>';
+  }
+  ruler.innerHTML = html;
+}
+
+function renderDispatchTechRows(team, dayJobs, boardDate, isToday) {
+  var container = document.getElementById('dispatch-tech-rows');
+  if (!container) return;
+
+  if (!team.length) {
+    container.innerHTML = '<div style="padding:40px;text-align:center;color:#90a4ae">No team members. Add your crew in the Team section.</div>';
+    return;
+  }
+
+  // Get today's clock data per tech
+  var clockMap = {};
+  (DB.workDays||[]).filter(function(d){ return d.date===boardDate; }).forEach(function(d){
+    clockMap[d.techName] = d;
+  });
+
+  container.innerHTML = team.map(function(member){
+    var name = member.name||'';
+    var clockData = clockMap[name];
+
+    // Current live status (only for today)
+    var liveStatus = 'out';
+    if (isToday && _currentUser && _currentUser.full_name === name) {
+      liveStatus = _clockState.status || 'out';
+    } else if (clockData && !clockData.clockOutTime) {
+      liveStatus = 'onsite';
+    } else if (clockData && clockData.clockOutTime) {
+      liveStatus = 'complete';
+    }
+
+    var statusInfo = TECH_STATUS_COLORS[liveStatus] || TECH_STATUS_COLORS.out;
+
+    // Check if absent today
+    var absent = (DB.absences||[]).find(function(a){ return a.date===boardDate&&a.techName===name; });
+
+    // Jobs assigned to this tech today
+    var techJobs = dayJobs.filter(function(j){
+      return (j.assignedTo||'').trim() === name.trim();
+    });
+
+    // Build job blocks HTML
+    var blocksHtml = techJobs.map(function(j){ return buildJobBlock(j); }).join('');
+
+    // Clock in/out segment
+    var segHtml = '';
+    if (clockData && clockData.clockInTime && boardDate === getTodayISO()) {
+      var inMins = timeStrToMins(clockData.clockInTime) - DISPATCH_START_HOUR*60;
+      var outMins = clockData.clockOutTime
+        ? timeStrToMins(clockData.clockOutTime) - DISPATCH_START_HOUR*60
+        : (new Date().getHours()*60+new Date().getMinutes()) - DISPATCH_START_HOUR*60;
+      if (inMins >= 0 && outMins > inMins) {
+        var inPct  = Math.max(0, inMins / DISPATCH_MINS_TOTAL * 100);
+        var widPct = Math.min(100-inPct, (outMins-inMins) / DISPATCH_MINS_TOTAL * 100);
+        segHtml = '<div class="dispatch-seg" style="left:'+inPct+'%;width:'+widPct+'%;background:#2e7d32;top:42px;height:6px;border-radius:3px"></div>';
+      }
+    }
+
+    return '<div class="dispatch-tech-row" id="dispatch-row-'+escHtml(name.replace(/\s/g,'-'))+'">'+
+      // Tech label
+      '<div class="dispatch-tech-label">'+
+        '<div class="dispatch-tech-name">'+
+          (absent?'<span style="font-size:10px;color:#c62828;margin-right:4px">🚫</span>':'')+
+          escHtml(name)+
+        '</div>'+
+        '<div class="dispatch-tech-status">'+
+          '<div class="dispatch-tech-status-dot" style="background:'+statusInfo.dot+'"></div>'+
+          '<span style="font-size:10px;color:'+statusInfo.text+'">'+
+            (absent?'Out Today':statusInfo.label)+
+          '</span>'+
+        '</div>'+
+        (clockData&&clockData.clockInTime?
+          '<div style="font-size:9px;color:#90a4ae;margin-top:2px">In: '+clockData.clockInTime+
+          (clockData.clockOutTime?' Out: '+clockData.clockOutTime:'')+'</div>':'')+
+      '</div>'+
+      // Timeline
+      '<div class="dispatch-tech-timeline" '+
+        'data-tech="'+escHtml(name)+'" '+
+        'ondragover="onDispatchDragOver(event)" '+
+        'ondragleave="onDispatchDragLeave(event)" '+
+        'ondrop="onDispatchDrop(event,\''+escHtml(name)+'\')" '+
+        '>'+
+        blocksHtml+
+        segHtml+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function buildJobBlock(job) {
+  var startTime = job.scheduledTime || '08:00';
+  var dur       = parseFloat(job.estLaborHours||job.scheduledDuration||4);
+  var color     = DISPATCH_COLORS[job.status] || DISPATCH_COLORS.default;
+
+  var startMins = timeStrToMins(startTime) - DISPATCH_START_HOUR*60;
+  var durMins   = dur * 60;
+  var leftPct   = Math.max(0, startMins / DISPATCH_MINS_TOTAL * 100);
+  var widPct    = Math.min(100-leftPct, durMins / DISPATCH_MINS_TOTAL * 100);
+  if (widPct < 1) widPct = 1;
+
+  // WT progress
+  var wtProj = (DB.wtProjects||[]).find(function(p){ return p.jobId===job.id; });
+  var pctHtml = '';
+  if (wtProj) {
+    var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
+    var done=items.filter(function(i){return i.status==='done';}).length;
+    var pct=items.length?Math.round(done/items.length*100):0;
+    pctHtml = '<div class="dispatch-job-block-pct">'+pct+'% done</div>';
+    // Progress bar inside block
+    pctHtml += '<div style="position:absolute;bottom:0;left:0;height:3px;width:'+pct+'%;background:rgba(255,255,255,.5);border-radius:0 0 0 8px"></div>';
+  }
+
+  return '<div class="dispatch-job-block" '+
+    'style="left:'+leftPct+'%;width:'+widPct+'%;background:'+color.bg+';border:1px solid '+color.border+';color:'+color.text+'" '+
+    'draggable="true" '+
+    'data-job-id="'+job.id+'" '+
+    'ondragstart="onDispatchDragStart(event,\''+job.id+'\',\'board\')" '+
+    'ondragend="onDispatchDragEnd(event)" '+
+    'onclick="openDispatchDetail(\''+job.id+'\')" '+
+    '>'+
+    '<div class="dispatch-job-block-name">'+escHtml(job.name||'')+'</div>'+
+    '<div class="dispatch-job-block-sub">'+escHtml(job.customer||'')+(job.scheduledTime?' · '+job.scheduledTime:'')+'</div>'+
+    pctHtml+
+  '</div>';
+}
+
+function updateNowLine() {
+  var line = document.getElementById('dispatch-now-line');
+  var board = document.querySelector('.dispatch-board-wrap');
+  if (!line || !board) return;
+  var now = new Date();
+  var nowMins = now.getHours()*60+now.getMinutes() - DISPATCH_START_HOUR*60;
+  if (nowMins < 0 || nowMins > DISPATCH_MINS_TOTAL) { line.style.display='none'; return; }
+  var pct = nowMins / DISPATCH_MINS_TOTAL * 100;
+  // Position relative to board width (excluding tech label column)
+  var boardWidth = board.scrollWidth;
+  var labelWidth = 180;
+  var timelineWidth = boardWidth - labelWidth;
+  var leftPx = labelWidth + (pct/100)*timelineWidth;
+  line.style.display = 'block';
+  line.style.left = leftPx+'px';
+}
+
+// ── DRAG & DROP ──
+function onDispatchDragStart(e, jobId, source) {
+  _dispatchDragJob    = jobId;
+  _dispatchDragSource = source;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', jobId);
+  var el = e.currentTarget;
+  el.style.opacity = '0.5';
+  setTimeout(function(){ el.classList.add('dragging'); }, 0);
+}
+
+function onDispatchDragEnd(e) {
+  _dispatchDragJob    = null;
+  _dispatchDragSource = null;
+  document.querySelectorAll('.dispatch-job-block,.dispatch-pool-card').forEach(function(el){
+    el.style.opacity='1'; el.classList.remove('dragging');
+  });
+  document.querySelectorAll('.dispatch-tech-timeline').forEach(function(el){
+    el.classList.remove('drag-over');
+  });
+}
+
+function onDispatchDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+
+function onDispatchDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+function onDispatchDrop(e, techName) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  var jobId = _dispatchDragJob || e.dataTransfer.getData('text/plain');
+  if (!jobId) return;
+
+  var job = (DB.jobs||[]).find(function(j){ return j.id===jobId; });
+  if (!job) return;
+
+  // Calculate drop time from horizontal position
+  var rect = e.currentTarget.getBoundingClientRect();
+  var xPct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  var dropMins = Math.round(xPct * DISPATCH_MINS_TOTAL / 30) * 30; // snap to 30min
+  var dropHour = DISPATCH_START_HOUR + Math.floor(dropMins/60);
+  var dropMin  = dropMins % 60;
+  var dropTime = String(dropHour).padStart(2,'0')+':'+String(dropMin).padStart(2,'0');
+
+  // Assign tech + time
+  var dateEl = document.getElementById('dispatch-date');
+  var boardDate = dateEl ? dateEl.value : getTodayISO();
+  job.assignedTo      = techName;
+  job.scheduledDate   = boardDate;
+  job.scheduledTime   = dropTime;
+  if (job.status === 'Scheduled' || !job.status) job.status = 'Scheduled';
+
+  saveDB();
+  renderDispatchBoard();
+  showToast(escHtml(job.name||'')+' assigned to '+escHtml(techName)+' at '+dropTime,'success');
+}
+
+// ── JOB DETAIL PANEL ──
+function openDispatchDetail(jobId) {
+  var job = (DB.jobs||[]).find(function(j){ return j.id===jobId; });
+  if (!job) return;
+  var panel = document.getElementById('dispatch-detail-panel');
+  var nameEl = document.getElementById('dsp-job-name');
+  var bodyEl = document.getElementById('dsp-body');
+  if (!panel||!nameEl||!bodyEl) return;
+
+  nameEl.textContent = job.name||'';
+
+  var color = DISPATCH_COLORS[job.status]||DISPATCH_COLORS.default;
+  var wtProj = (DB.wtProjects||[]).find(function(p){ return p.jobId===job.id; });
+  var pct = null;
+  if (wtProj) {
+    var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
+    var done=items.filter(function(i){return i.status==='done';}).length;
+    pct=items.length?Math.round(done/items.length*100):0;
+  }
+
+  bodyEl.innerHTML =
+    '<div style="padding:14px">'+
+    // Status badge
+    '<div style="margin-bottom:12px">'+
+      '<span style="background:'+color.bg+';color:'+color.text+';border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700">'+escHtml(job.status||'')+'</span>'+
+    '</div>'+
+    // Key info
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'+
+      dspInfoTile('Customer',   job.customer||'—')+
+      dspInfoTile('Assigned',   job.assignedTo||'Unassigned')+
+      dspInfoTile('Date',       job.scheduledDate||job.startDate||'—')+
+      dspInfoTile('Start Time', job.scheduledTime||'—')+
+      dspInfoTile('Est Hours',  (job.estLaborHours||'—')+' hrs')+
+      dspInfoTile('Est Value',  '$'+(job.estTotal||0).toLocaleString())+
+    '</div>'+
+    // WT progress
+    (pct!==null?
+      '<div style="margin-bottom:14px">'+
+        '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:4px">WORK TRACKING</div>'+
+        '<div class="wt-progress-bar"><div class="wt-progress-fill" style="width:'+pct+'%"></div></div>'+
+        '<div style="font-size:11px;color:#546e7a;margin-top:2px">'+pct+'% complete</div>'+
+      '</div>':'')+
+    // Address
+    (job.address?'<div style="margin-bottom:14px;font-size:12px;color:#546e7a">📍 '+escHtml(job.address)+'</div>':'')+
+    // Notes
+    (job.notes?'<div style="background:#f8f9fa;border-radius:6px;padding:10px;font-size:12px;color:#37474f;margin-bottom:14px">'+escHtml(job.notes)+'</div>':'')+
+    // Quick reschedule
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px">'+
+      '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:8px">RESCHEDULE</div>'+
+      '<div style="display:flex;gap:8px;margin-bottom:8px">'+
+        '<input type="date" id="dsp-new-date" value="'+(job.scheduledDate||'')+'" style="flex:1;padding:6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
+        '<input type="time" id="dsp-new-time" value="'+(job.scheduledTime||'')+'" style="flex:1;padding:6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
+      '</div>'+
+      '<div style="margin-bottom:8px">'+
+        '<select id="dsp-new-tech" style="width:100%;padding:6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
+          '<option value="">— Unassigned —</option>'+
+          (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'"'+(m.name===job.assignedTo?' selected':'')+'>'+escHtml(m.name)+'</option>'; }).join('')+
+        '</select>'+
+      '</div>'+
+      '<button class="btn btn-primary btn-sm" style="width:100%" onclick="rescheduleJobFromDetail(\''+jobId+'\')">Update Schedule</button>'+
+    '</div>'+
+    // Actions
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">'+
+      '<button class="btn btn-outline btn-sm" onclick="goPage(\'jobs\');closeDispatchDetail()">Open Job</button>'+
+      (wtProj?'<button class="btn btn-outline btn-sm" onclick="loadWTProject(\''+wtProj.id+'\');goPage(\'worktracking\');closeDispatchDetail()">Work Tracking</button>':'')+
+    '</div>'+
+  '</div>';
+
+  panel.style.display='block';
+}
+
+function dspInfoTile(label, val) {
+  return '<div style="background:#f8f9fa;border-radius:6px;padding:8px">'+
+    '<div style="font-size:9px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'+escHtml(label)+'</div>'+
+    '<div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-top:2px">'+escHtml(String(val))+'</div>'+
+  '</div>';
+}
+
+function closeDispatchDetail() {
+  var panel=document.getElementById('dispatch-detail-panel');
+  if(panel) panel.style.display='none';
+}
+
+function rescheduleJobFromDetail(jobId) {
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;});
+  if(!job) return;
+  var newDate=(document.getElementById('dsp-new-date')||{}).value||'';
+  var newTime=(document.getElementById('dsp-new-time')||{}).value||'';
+  var newTech=(document.getElementById('dsp-new-tech')||{}).value||'';
+  if(newDate) job.scheduledDate=newDate;
+  if(newTime) job.scheduledTime=newTime;
+  job.assignedTo=newTech;
+  saveDB();
+  closeDispatchDetail();
+  renderDispatchBoard();
+  showToast('Job rescheduled','success');
+}
+
+// ── SCHEDULE JOB MODAL ──
+function openScheduleJobModal(jobId) {
+  var sel=document.getElementById('sj-job-select');
+  if(sel){
+    sel.innerHTML='<option value="">— Select a job —</option>'+
+      (DB.jobs||[]).filter(function(j){ return j.status!=='Complete'&&j.status!=='Closed'; })
+      .map(function(j){ return '<option value="'+j.id+'"'+(j.id===jobId?' selected':'')+'>'+escHtml(j.num||'')+'  '+escHtml(j.name||'')+'</option>'; }).join('');
+    if(jobId) { sel.value=jobId; onScheduleJobSelect(jobId); }
+  }
+  var techSel=document.getElementById('sj-tech');
+  if(techSel){
+    techSel.innerHTML='<option value="">— Unassigned —</option>'+
+      (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
+  }
+  var dateEl=document.getElementById('dispatch-date');
+  var sjDate=document.getElementById('sj-date');
+  if(sjDate) sjDate.value=dateEl?dateEl.value:getTodayISO();
+  openModal('modal-schedule-job');
+}
+
+function onScheduleJobSelect(jobId) {
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;});
+  var prev=document.getElementById('sj-job-preview');
+  if(!prev) return;
+  if(!job){prev.style.display='none';return;}
+  prev.style.display='block';
+  prev.innerHTML=
+    '<div style="font-weight:700">'+escHtml(job.name||'')+'</div>'+
+    '<div style="color:#546e7a">'+escHtml(job.customer||'')+(job.address?' · '+escHtml(job.address):'')+'</div>'+
+    '<div style="color:#1565c0;margin-top:4px">Est: '+(job.estLaborHours||'?')+'hrs · $'+(job.estTotal||0).toLocaleString()+'</div>';
+  var techSel=document.getElementById('sj-tech');
+  if(techSel&&job.assignedTo) techSel.value=job.assignedTo;
+  var durEl=document.getElementById('sj-duration');
+  if(durEl&&job.estLaborHours) durEl.value=job.estLaborHours;
+}
+
+function saveScheduledJob() {
+  var jobId=(document.getElementById('sj-job-select')||{}).value||'';
+  var date =(document.getElementById('sj-date')||{}).value||'';
+  var time =(document.getElementById('sj-start-time')||{}).value||'08:00';
+  var dur  =parseFloat((document.getElementById('sj-duration')||{}).value||4);
+  var tech =(document.getElementById('sj-tech')||{}).value||'';
+  var notes=(document.getElementById('sj-notes')||{}).value||'';
+  if(!jobId){showToast('Please select a job','error');return;}
+  if(!date) {showToast('Please select a date','error');return;}
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;});
+  if(!job){return;}
+  job.scheduledDate    = date;
+  job.scheduledTime    = time;
+  job.assignedTo       = tech;
+  job.estLaborHours    = dur;
+  job.scheduledDuration= dur;
+  if(notes) job.dispatchNotes=notes;
+  if(!job.status||job.status==='') job.status='Scheduled';
+  saveDB();
+  closeModal('modal-schedule-job');
+  // Jump to that date on board
+  var dateEl=document.getElementById('dispatch-date');
+  if(dateEl) dateEl.value=date;
+  renderDispatchBoard();
+  showToast('Job scheduled for '+date+(tech?' → '+tech:''),'success');
+}
+
+// ── UTILITIES ──
+function timeStrToMins(str) {
+  if (!str) return DISPATCH_START_HOUR*60;
+  var parts=str.split(':');
+  return parseInt(parts[0])*60+(parseInt(parts[1])||0);
+}
+
+// ============================================================
+// END DISPATCH BOARD
 // ============================================================
 
 var ROLES = ['owner','manager','back_office','estimator','lead_tech','helper_tech','subcontractor'];
