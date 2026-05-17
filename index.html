@@ -572,73 +572,104 @@ body.dark-mode .cust-summary-val{color:#e0e0e0!important}
 
 /* ===== DISPATCH BOARD ===== */
 #page-dispatch{display:flex;flex-direction:column;height:calc(100vh - 56px);overflow:hidden;padding:0}
-.dispatch-topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#fff;border-bottom:1px solid #e0e0e0;flex-shrink:0;gap:12px;flex-wrap:wrap}
+.dispatch-topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#fff;border-bottom:1px solid #e0e0e0;flex-shrink:0;gap:12px;flex-wrap:wrap;z-index:30}
 .dispatch-date-nav{display:flex;align-items:center;gap:4px}
 .dispatch-nav-btn{background:#f5f7fa;border:1px solid #e0e0e0;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .12s}
 .dispatch-nav-btn:hover{background:#e3f2fd;border-color:#90caf9}
-.dispatch-today-btn{background:#1565c0;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;transition:all .12s}
-.dispatch-today-btn:hover{background:#1976d2}
+.dispatch-today-btn{background:#1565c0;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer}
 .dispatch-date-input{border:1px solid #e0e0e0;border-radius:6px;padding:4px 8px;font-size:12px;color:#0d1b2a;background:#f8f9fa}
-.dispatch-layout{display:flex;flex:1;overflow:hidden;gap:0}
+.dispatch-layout{display:flex;flex:1;overflow:hidden}
 /* Pool sidebar */
 .dispatch-pool{width:220px;flex-shrink:0;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;background:#f8f9fa;overflow:hidden}
 .dispatch-pool-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;font-size:12px;font-weight:700;color:#0d1b2a;border-bottom:1px solid #e0e0e0;background:#fff}
 .dispatch-pool-subtitle{font-size:10px;color:#90a4ae;padding:4px 12px 6px;background:#fff;border-bottom:1px solid #e0e0e0}
 .dispatch-pool-count{background:#c62828;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px}
 #dispatch-pool-jobs{flex:1;overflow-y:auto;padding:8px}
-.dispatch-pool-card{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:grab;transition:all .15s;border-left:3px solid #1565c0}
+.dispatch-pool-card{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:grab;transition:all .15s;border-left:3px solid #1565c0;position:relative}
 .dispatch-pool-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.12);transform:translateY(-1px)}
-.dispatch-pool-card.dragging{opacity:.5;cursor:grabbing}
+.dispatch-pool-card.dragging{opacity:.4;cursor:grabbing}
 .dispatch-pool-card-name{font-weight:700;font-size:12px;color:#0d1b2a}
 .dispatch-pool-card-sub{font-size:10px;color:#546e7a;margin-top:2px}
-.dispatch-pool-card-dur{font-size:10px;font-weight:700;color:#1565c0;margin-top:4px}
+.dispatch-pool-card-crew{display:flex;gap:2px;flex-wrap:wrap;margin-top:4px}
+.dispatch-crew-pip{width:20px;height:20px;border-radius:50%;background:#e3f2fd;color:#1565c0;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;border:1px solid #90caf9}
+.dispatch-crew-pip.lead{background:#1565c0;color:#fff;border-color:#0d47a1}
 /* Board */
-.dispatch-board-wrap{flex:1;overflow:auto;position:relative;background:#fff}
-.dispatch-ruler-wrap{display:flex;position:sticky;top:0;z-index:20;background:#fff;border-bottom:2px solid #e0e0e0}
-.dispatch-ruler-spacer{width:180px;flex-shrink:0;background:#f5f7fa;border-right:1px solid #e0e0e0}
-.dispatch-ruler{flex:1;display:flex;position:relative;height:32px}
-.dispatch-ruler-tick{position:absolute;top:0;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding-left:4px}
+.dispatch-board-wrap{flex:1;overflow:auto;position:relative;background:#fafafa}
+.dispatch-ruler-wrap{display:flex;position:sticky;top:0;z-index:20;background:#fff;border-bottom:2px solid #e0e0e0;box-shadow:0 2px 4px rgba(0,0,0,.06)}
+.dispatch-ruler-spacer{width:200px;flex-shrink:0;background:#f5f7fa;border-right:1px solid #e0e0e0;display:flex;align-items:center;padding:0 10px;font-size:10px;color:#90a4ae;font-weight:700}
+.dispatch-ruler{flex:1;display:flex;position:relative;height:32px;background:#fff}
+.dispatch-ruler-tick{position:absolute;top:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;padding-bottom:4px;padding-left:4px}
 .dispatch-ruler-tick-label{font-size:10px;font-weight:700;color:#546e7a;white-space:nowrap}
-.dispatch-ruler-tick-line{position:absolute;top:0;width:1px;height:100%;background:#e0e0e0}
+.dispatch-ruler-col{position:absolute;top:0;width:1px;background:#e8e8e8;bottom:0;pointer-events:none}
+.dispatch-ruler-col.hour{background:#d0d7e0}
 /* Tech rows */
-.dispatch-tech-row{display:flex;border-bottom:1px solid #f0f0f0;min-height:56px;position:relative}
-.dispatch-tech-row:hover{background:#fafafa}
-.dispatch-tech-label{width:180px;flex-shrink:0;padding:8px 10px;border-right:1px solid #e0e0e0;background:#f5f7fa;display:flex;flex-direction:column;justify-content:center;position:sticky;left:0;z-index:10}
-.dispatch-tech-name{font-weight:700;font-size:12px;color:#0d1b2a}
-.dispatch-tech-status{font-size:10px;margin-top:2px;display:flex;align-items:center;gap:4px}
-.dispatch-tech-status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.dispatch-tech-timeline{flex:1;position:relative;min-height:56px}
-/* Job blocks on timeline */
-.dispatch-job-block{position:absolute;top:6px;height:44px;border-radius:8px;cursor:pointer;overflow:hidden;transition:all .15s;box-shadow:0 1px 4px rgba(0,0,0,.15);display:flex;flex-direction:column;justify-content:center;padding:0 8px;min-width:40px}
-.dispatch-job-block:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.2);z-index:5}
-.dispatch-job-block-name{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dispatch-job-block-sub{font-size:9px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
-.dispatch-job-block-pct{font-size:9px;font-weight:700;margin-top:2px}
-/* Status segments */
-.dispatch-seg{position:absolute;top:22px;height:10px;border-radius:3px;opacity:.6}
+.dispatch-tech-row{display:flex;border-bottom:1px solid #ebebeb;min-height:64px;position:relative;transition:background .1s}
+.dispatch-tech-row:hover{background:#f0f4ff}
+.dispatch-tech-label{width:200px;flex-shrink:0;padding:8px 10px;border-right:1px solid #e0e0e0;background:#fff;display:flex;align-items:center;gap:8px;position:sticky;left:0;z-index:10;box-shadow:2px 0 4px rgba(0,0,0,.04)}
+.dispatch-tech-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;border:2px solid #e0e0e0}
+.dispatch-tech-info{flex:1;min-width:0}
+.dispatch-tech-name{font-weight:700;font-size:12px;color:#0d1b2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dispatch-tech-status{font-size:10px;margin-top:2px;display:flex;align-items:center;gap:3px}
+.dispatch-tech-status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;animation:none}
+.dispatch-tech-status-dot.pulse{animation:statusPulse 2s infinite}
+@keyframes statusPulse{0%,100%{opacity:1}50%{opacity:.4}}
+.dispatch-tech-timeline{flex:1;position:relative;min-height:64px;background:repeating-linear-gradient(90deg,transparent,transparent calc(100%/14 - 1px),#efefef calc(100%/14 - 1px),#efefef calc(100%/14))}
+/* Job blocks */
+.dispatch-job-block{position:absolute;top:8px;height:48px;border-radius:8px;cursor:pointer;overflow:hidden;transition:box-shadow .15s,transform .15s;box-shadow:0 1px 4px rgba(0,0,0,.2);display:flex;flex-direction:column;justify-content:center;padding:0 8px;min-width:48px;border-left:4px solid rgba(0,0,0,.2)}
+.dispatch-job-block:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.25);z-index:8}
+.dispatch-job-block.is-lead{border-top:3px solid rgba(255,255,255,.6)}
+.dispatch-job-block.is-helper{opacity:.85}
+.dispatch-job-block-name{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.dispatch-job-block-sub{font-size:9px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.dispatch-job-block-badges{display:flex;gap:3px;margin-top:2px;align-items:center}
+.dispatch-role-badge{font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;background:rgba(255,255,255,.25)}
+/* Travel dotted line */
+.dispatch-travel-line{position:absolute;top:50%;height:2px;border-top:2px dashed;opacity:.5;pointer-events:none;transform:translateY(-50%)}
+/* Clock segment */
+.dispatch-clock-seg{position:absolute;bottom:2px;height:4px;border-radius:2px;background:rgba(46,125,50,.5)}
 /* Drop zone */
-.dispatch-tech-timeline.drag-over{background:#e3f2fd;border:2px dashed #1565c0}
+.dispatch-tech-timeline.drag-over{background:#e8f0fe!important;outline:2px dashed #1565c0;outline-offset:-2px}
 /* Now line */
-.dispatch-now-line{position:absolute;top:32px;bottom:0;width:2px;background:#c62828;z-index:15;pointer-events:none}
-.dispatch-now-label{position:absolute;top:-16px;left:50%;transform:translateX(-50%);background:#c62828;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;white-space:nowrap}
+.dispatch-now-line{position:absolute;top:0;bottom:0;width:2px;background:#c62828;z-index:15;pointer-events:none}
+.dispatch-now-label{position:absolute;top:32px;left:50%;transform:translateX(-50%);background:#c62828;color:#fff;font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;white-space:nowrap}
 /* Detail panel */
-.dispatch-detail-panel{position:fixed;right:0;top:56px;bottom:0;width:300px;background:#fff;border-left:1px solid #e0e0e0;box-shadow:-4px 0 16px rgba(0,0,0,.1);z-index:100;overflow-y:auto}
-.dispatch-detail-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e0e0e0;background:#f5f7fa}
-/* Status colors */
-.status-scheduled{background:#e3f2fd;color:#1565c0}
-.status-inprogress{background:#e8f5e9;color:#2e7d32}
-.status-complete{background:#f5f5f5;color:#546e7a}
-.status-onhold{background:#fff3e0;color:#e65100}
+.dispatch-detail-panel{position:fixed;right:0;top:56px;bottom:0;width:320px;background:#fff;border-left:1px solid #e0e0e0;box-shadow:-4px 0 20px rgba(0,0,0,.12);z-index:100;overflow-y:auto;transition:transform .2s}
+.dispatch-detail-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e0e0e0;background:#f5f7fa;position:sticky;top:0;z-index:5}
+/* Status filter bar */
+.dispatch-status-bar{display:flex;align-items:center;gap:0;border-top:1px solid #e0e0e0;background:#fff;flex-shrink:0;overflow-x:auto}
+.dispatch-status-pill{padding:8px 14px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;border-right:1px solid #e0e0e0;transition:all .12s;color:#546e7a;display:flex;align-items:center;gap:5px}
+.dispatch-status-pill:hover{background:#f0f4ff;color:#1565c0}
+.dispatch-status-pill.active{background:#1565c0;color:#fff}
+.dispatch-status-pill .dp-count{background:rgba(255,255,255,.3);border-radius:8px;padding:0 5px;font-size:10px}
+.dispatch-status-pill:not(.active) .dp-count{background:#e0e0e0;color:#546e7a}
+/* Crew editor in detail */
+.crew-member-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f5f5}
+.crew-member-row:last-child{border-bottom:none}
+.crew-avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
 /* Dark mode */
 body.dark-mode .dispatch-topbar{background:#1e1e1e!important;border-color:#333!important}
 body.dark-mode .dispatch-pool{background:#151515!important;border-color:#333!important}
-body.dark-mode .dispatch-pool-header{background:#1e1e1e!important}
+body.dark-mode .dispatch-pool-header,.dispatch-pool-subtitle{background:#1e1e1e!important}
 body.dark-mode .dispatch-pool-card{background:#252525!important;border-color:#444!important}
 body.dark-mode .dispatch-tech-label{background:#1a1a1a!important;border-color:#333!important}
-body.dark-mode .dispatch-tech-row:hover{background:#1a1a1a!important}
-body.dark-mode .dispatch-ruler-spacer{background:#1a1a1a!important}
 body.dark-mode .dispatch-board-wrap{background:#121212!important}
+body.dark-mode .dispatch-ruler-wrap{background:#1a1a1a!important}
+body.dark-mode .dispatch-tech-row:hover{background:#1a2040!important}
 body.dark-mode .dispatch-detail-panel{background:#1e1e1e!important;border-color:#333!important}
+body.dark-mode .dispatch-status-bar{background:#1a1a1a!important;border-color:#333!important}
+body.dark-mode .dispatch-status-pill{color:#888!important;border-color:#333!important}
+body.dark-mode .dispatch-status-pill.active{background:#1565c0!important;color:#fff!important}
+
+/* ===== DISPATCH BOARD IMPROVEMENTS ===== */
+.dispatch-pool-card,.dispatch-job-block{-webkit-user-select:none;user-select:none;touch-action:none}
+.dispatch-touch-ghost{position:fixed;pointer-events:none;z-index:9999;opacity:.9;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;color:#fff;box-shadow:0 8px 28px rgba(0,0,0,.35);transform:translate(-50%,-50%);white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.dispatch-capacity-bar{height:4px;border-radius:2px;background:#e8e8e8;margin-top:4px;overflow:hidden;width:100%}
+.dispatch-capacity-fill{height:100%;border-radius:2px;transition:width .4s}
+.dispatch-multiday-badge{position:absolute;top:4px;right:5px;background:rgba(0,0,0,.25);border-radius:3px;padding:0 3px;font-size:8px;font-weight:700;letter-spacing:.3px}
+.dispatch-needs-sched .dispatch-pool-card-name{color:#e65100}
+.dispatch-sms-btn{width:28px;height:28px;border-radius:6px;border:1px solid #e0e0e0;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;transition:all .12s;flex-shrink:0}
+.dispatch-sms-btn:hover{background:#e8f5e9;border-color:#a5d6a7}
+body.dark-mode .dispatch-capacity-bar{background:#333!important}
 
 /* ===== ROLE PERMISSIONS EDITOR ===== */
 .perm-section-header{font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;padding:10px 8px 6px;border-bottom:2px solid #e0e0e0;margin-bottom:4px;margin-top:12px;grid-column:1/-1}
@@ -2388,25 +2419,31 @@ table{font-size:12.5px}
         <span>📋 Unassigned</span>
         <span id="dispatch-unassigned-count" class="dispatch-pool-count">0</span>
       </div>
-      <div class="dispatch-pool-subtitle">Drag to assign a tech</div>
+      <div class="dispatch-pool-subtitle">Drop onto a tech to assign</div>
       <div id="dispatch-pool-jobs"></div>
     </div>
 
-    <!-- Timeline board -->
-    <div class="dispatch-board-wrap">
-      <!-- Time ruler -->
-      <div class="dispatch-ruler-wrap">
-        <div class="dispatch-ruler-spacer"></div><!-- aligns with tech label column -->
-        <div class="dispatch-ruler" id="dispatch-ruler"></div>
-      </div>
-      <!-- Tech rows -->
-      <div id="dispatch-tech-rows"></div>
-      <!-- Now line (positioned absolutely) -->
-      <div id="dispatch-now-line" class="dispatch-now-line" style="display:none">
-        <div class="dispatch-now-label">NOW</div>
-      </div>
-    </div>
+    <!-- Timeline board + status bar -->
+    <div style="display:flex;flex-direction:column;flex:1;overflow:hidden">
 
+      <!-- Timeline board -->
+      <div class="dispatch-board-wrap" id="dispatch-board-wrap">
+        <!-- Time ruler -->
+        <div class="dispatch-ruler-wrap">
+          <div class="dispatch-ruler-spacer">TECHNICIAN</div>
+          <div class="dispatch-ruler" id="dispatch-ruler"></div>
+        </div>
+        <!-- Tech rows -->
+        <div id="dispatch-tech-rows" style="position:relative"></div>
+        <!-- Now line -->
+        <div id="dispatch-now-line" class="dispatch-now-line" style="display:none">
+          <div class="dispatch-now-label">NOW</div>
+        </div>
+      </div>
+
+      <!-- Status filter bar (ServiceTitan-style, bottom) -->
+      <div class="dispatch-status-bar" id="dispatch-status-bar"></div>
+    </div>
   </div>
 </div>
 
@@ -11483,63 +11520,112 @@ function confirmConvertJob() {
 // ============================================================
 // END CRM MODULE
 // ============================================================
-// ============================================================
-// DISPATCH BOARD
+// DISPATCH BOARD — Full Multi-Crew Edition
 // ============================================================
 
 var _dispatchRefreshTimer = null;
 var _dispatchDragJob      = null;
-var _dispatchDragSource   = null; // 'pool' or 'board'
-var _dispatchDragTechRow  = null;
+var _dispatchDragSource   = null;
+var _dispatchStatusFilter = '';
 
-// Board config
-var DISPATCH_START_HOUR = 6;  // 6am
-var DISPATCH_END_HOUR   = 20; // 8pm
-var DISPATCH_TOTAL_HRS  = DISPATCH_END_HOUR - DISPATCH_START_HOUR; // 14hrs
-var DISPATCH_MINS_TOTAL = DISPATCH_TOTAL_HRS * 60;
+var DISPATCH_START_HOUR  = 6;
+var DISPATCH_END_HOUR    = 20;
+var DISPATCH_TOTAL_HRS   = DISPATCH_END_HOUR - DISPATCH_START_HOUR;
+var DISPATCH_MINS_TOTAL  = DISPATCH_TOTAL_HRS * 60;
 
-// Job block colors by status
-var DISPATCH_COLORS = {
-  'Scheduled':   { bg:'#1565c0', text:'#fff', border:'#0d47a1' },
-  'In Progress': { bg:'#2e7d32', text:'#fff', border:'#1b5e20' },
-  'Complete':    { bg:'#607d8b', text:'#fff', border:'#455a64' },
-  'On Hold':     { bg:'#e65100', text:'#fff', border:'#bf360c' },
-  'default':     { bg:'#1565c0', text:'#fff', border:'#0d47a1' }
+var JOB_PALETTE = [
+  {bg:'#1565c0',border:'#0d47a1',text:'#fff'},
+  {bg:'#2e7d32',border:'#1b5e20',text:'#fff'},
+  {bg:'#6a1b9a',border:'#4a148c',text:'#fff'},
+  {bg:'#e65100',border:'#bf360c',text:'#fff'},
+  {bg:'#00695c',border:'#004d40',text:'#fff'},
+  {bg:'#ad1457',border:'#880e4f',text:'#fff'},
+  {bg:'#37474f',border:'#263238',text:'#fff'},
+  {bg:'#558b2f',border:'#33691e',text:'#fff'},
+  {bg:'#4527a0',border:'#311b92',text:'#fff'},
+  {bg:'#c62828',border:'#b71c1c',text:'#fff'},
+];
+var _jobColorMap = {};
+
+function getJobColor(jobId) {
+  if (_jobColorMap[jobId] === undefined) {
+    _jobColorMap[jobId] = Object.keys(_jobColorMap).length % JOB_PALETTE.length;
+  }
+  return JOB_PALETTE[_jobColorMap[jobId]];
+}
+
+var TECH_STATUS = {
+  out:         {dot:'#d0d0d0',label:'Off Clock',  text:'#90a4ae',pulse:false},
+  at_homebase: {dot:'#1565c0',label:'At Base',    text:'#1565c0',pulse:false},
+  traveling:   {dot:'#1565c0',label:'Traveling',  text:'#1565c0',pulse:true},
+  onsite:      {dot:'#2e7d32',label:'On Site',    text:'#2e7d32',pulse:true},
+  break:       {dot:'#e65100',label:'On Break',   text:'#e65100',pulse:false},
+  lunch:       {dot:'#6a1b9a',label:'At Lunch',   text:'#6a1b9a',pulse:false},
+  returning:   {dot:'#1565c0',label:'Returning',  text:'#1565c0',pulse:true},
+  complete:    {dot:'#90a4ae',label:'Done Today', text:'#90a4ae',pulse:false},
 };
 
-// Tech status colors
-var TECH_STATUS_COLORS = {
-  out:         { dot:'#d0d0d0', label:'Off Clock',  text:'#90a4ae' },
-  at_homebase: { dot:'#1565c0', label:'At Base',    text:'#1565c0' },
-  traveling:   { dot:'#1565c0', label:'Traveling',  text:'#1565c0' },
-  onsite:      { dot:'#2e7d32', label:'On Site',    text:'#2e7d32' },
-  break:       { dot:'#e65100', label:'On Break',   text:'#e65100' },
-  lunch:       { dot:'#6a1b9a', label:'At Lunch',   text:'#6a1b9a' },
-  returning:   { dot:'#1565c0', label:'Returning',  text:'#1565c0' }
-};
+function getJobCrew(job) {
+  if (job.crew && job.crew.length) return job.crew;
+  if (job.assignedTo) return [{techName:job.assignedTo,role:'lead',addedDate:job.scheduledDate||getTodayISO()}];
+  return [];
+}
+
+function getJobLead(job) {
+  var crew = getJobCrew(job);
+  var lead = crew.find(function(c){return c.role==='lead';});
+  return lead ? lead.techName : (crew[0]?crew[0].techName:'');
+}
+
+function isCrewMember(job, techName) {
+  return getJobCrew(job).some(function(c){return c.techName===techName;});
+}
+
+function addCrewMember(job, techName, role) {
+  if (!job.crew) job.crew = getJobCrew(job);
+  var existing = job.crew.find(function(c){return c.techName===techName;});
+  if (existing) { existing.role=role||existing.role; return; }
+  job.crew.push({techName:techName,role:role||'helper',addedDate:getTodayISO()});
+  job.assignedTo = getJobLead(job);
+}
+
+function removeCrewMember(job, techName) {
+  if (!job.crew) job.crew = getJobCrew(job);
+  job.crew = job.crew.filter(function(c){return c.techName!==techName;});
+  if (job.crew.length && !job.crew.find(function(c){return c.role==='lead';})) {
+    job.crew[0].role = 'lead';
+  }
+  job.assignedTo = getJobLead(job)||'';
+}
+
+function setCrewLead(job, techName) {
+  if (!job.crew) job.crew = getJobCrew(job);
+  job.crew.forEach(function(c){c.role=c.techName===techName?'lead':'helper';});
+  job.assignedTo = techName;
+}
 
 function initDispatchBoard() {
-  // Set today's date
   var dateEl = document.getElementById('dispatch-date');
   if (dateEl && !dateEl.value) dateEl.value = getTodayISO();
+  _dispatchStatusFilter = '';
   renderDispatchBoard();
-  // Auto-refresh every 60 seconds while on this page
   clearInterval(_dispatchRefreshTimer);
   _dispatchRefreshTimer = setInterval(function(){
     var page = document.getElementById('page-dispatch');
-    if (page && page.classList.contains('active')) {
-      renderDispatchBoard();
-    } else {
-      clearInterval(_dispatchRefreshTimer);
-    }
+    if (page && page.classList.contains('active')) { renderDispatchBoard(); }
+    else clearInterval(_dispatchRefreshTimer);
   }, 60000);
+  // Wire resize observer for accurate NOW line positioning
+  setTimeout(attachDispatchResizeObserver, 300);
+  // Wire touch drag
+  setTimeout(attachTouchDrag, 300);
 }
 
 function dispatchChangeDate(delta) {
   var dateEl = document.getElementById('dispatch-date');
   if (!dateEl) return;
-  var d = new Date(dateEl.value || getTodayISO());
-  d.setDate(d.getDate() + delta);
+  var d = new Date((dateEl.value||getTodayISO())+'T12:00:00');
+  d.setDate(d.getDate()+delta);
   dateEl.value = d.toISOString().split('T')[0];
   renderDispatchBoard();
 }
@@ -11551,55 +11637,51 @@ function dispatchGoToday() {
 }
 
 function renderDispatchBoard() {
-  var dateEl = document.getElementById('dispatch-date');
+  var dateEl    = document.getElementById('dispatch-date');
   var boardDate = dateEl ? dateEl.value : getTodayISO();
-  var today     = getTodayISO();
-  var isToday   = boardDate === today;
-
-  // Update last refresh
-  var lrEl = document.getElementById('dispatch-last-refresh');
+  var isToday   = boardDate === getTodayISO();
+  var lrEl      = document.getElementById('dispatch-last-refresh');
   if (lrEl) lrEl.textContent = 'Updated '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
 
-  // ── GET DATA ──
-  var team = (DB.team||[]);
-  var jobs = DB.jobs||[];
+  var team    = DB.team||[];
+  var allJobs = DB.jobs||[];
 
-  // Get scheduled jobs for this date
-  var dayJobs = jobs.filter(function(j){
-    var jDate = j.scheduledDate || j.startDate || '';
-    return jDate === boardDate;
+  var dayJobs = allJobs.filter(function(j){
+    var jDate=j.scheduledDate||j.startDate||'';
+    return jDate===boardDate && j.status!=='Complete' && j.status!=='Closed';
   });
 
-  // Unassigned jobs for this date (or no date set)
-  var unassigned = jobs.filter(function(j){
-    var jDate = j.scheduledDate || j.startDate || '';
-    var hasAssign = j.assignedTo && j.assignedTo.trim();
-    return (!jDate || jDate === boardDate) && !hasAssign &&
-           j.status !== 'Complete' && j.status !== 'Closed';
+  var unassigned = allJobs.filter(function(j){
+    var jDate=j.scheduledDate||j.startDate||'';
+    return (!jDate||jDate===boardDate) && !getJobCrew(j).length &&
+           j.status!=='Complete' && j.status!=='Closed';
   });
 
-  // Day summary pills
-  var summaryEl = document.getElementById('dispatch-day-summary');
-  if (summaryEl) {
-    var scheduled = dayJobs.filter(function(j){ return j.status==='Scheduled'; }).length;
-    var inprog    = dayJobs.filter(function(j){ return j.status==='In Progress'; }).length;
-    summaryEl.innerHTML =
-      '<span style="background:#e3f2fd;color:#1565c0;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">📅 '+scheduled+' Scheduled</span>'+
-      (inprog?'<span style="background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">▶ '+inprog+' Active</span>':'')+
-      (unassigned.length?'<span style="background:#ffebee;color:#c62828;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">⚠ '+unassigned.length+' Unassigned</span>':'');
+  if (_dispatchStatusFilter) {
+    dayJobs = dayJobs.filter(function(j){
+      return (j.status||'Scheduled')===_dispatchStatusFilter;
+    });
   }
 
-  // ── UNASSIGNED POOL ──
+  var summaryEl = document.getElementById('dispatch-day-summary');
+  if (summaryEl) {
+    var sc=dayJobs.filter(function(j){return j.status==='Scheduled';}).length;
+    var ip=dayJobs.filter(function(j){return j.status==='In Progress';}).length;
+    summaryEl.innerHTML =
+      pill(sc,'Scheduled','#e3f2fd','#1565c0')+
+      (ip?pill(ip,'Active','#e8f5e9','#2e7d32'):'')+
+      (unassigned.length?pill(unassigned.length,'Unassigned','#ffebee','#c62828'):'');
+  }
+
   renderDispatchPool(unassigned);
-
-  // ── TIME RULER ──
   renderDispatchRuler();
-
-  // ── TECH ROWS ──
   renderDispatchTechRows(team, dayJobs, boardDate, isToday);
+  renderStatusBar(allJobs, boardDate);
+  if (isToday) setTimeout(updateNowLine,100);
+}
 
-  // ── NOW LINE ──
-  if (isToday) updateNowLine();
+function pill(count,label,bg,color) {
+  return '<span style="background:'+bg+';color:'+color+';border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;margin-right:4px">'+count+' '+label+'</span>';
 }
 
 function renderDispatchPool(jobs) {
@@ -11607,317 +11689,341 @@ function renderDispatchPool(jobs) {
   if (countEl) countEl.textContent = jobs.length;
   var pool = document.getElementById('dispatch-pool-jobs');
   if (!pool) return;
-
   if (!jobs.length) {
-    pool.innerHTML = '<div style="text-align:center;padding:20px;color:#90a4ae;font-size:12px">'+
-      '<div style="font-size:24px;margin-bottom:6px">✓</div>All jobs assigned</div>';
+    pool.innerHTML='<div style="text-align:center;padding:24px 12px;color:#90a4ae;font-size:12px"><div style="font-size:28px;margin-bottom:6px">✓</div>All jobs assigned</div>';
     return;
   }
-
   pool.innerHTML = jobs.map(function(j){
-    var wtProj = (DB.wtProjects||[]).find(function(p){ return p.jobId===j.id; });
-    var pct = null;
-    if (wtProj) {
-      var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
-      var done=items.filter(function(i){return i.status==='done';}).length;
-      pct = items.length?Math.round(done/items.length*100):0;
-    }
-    var dur = j.estLaborHours || 4;
-    return '<div class="dispatch-pool-card" draggable="true" '+
-      'data-job-id="'+j.id+'" '+
+    var dur=j.estLaborHours||j.scheduledDuration||4;
+    var color=getJobColor(j.id);
+    // Needs scheduling = has crew but no date set
+    var crew=getJobCrew(j);
+    var hasCrew=crew.length>0;
+    var hasDate=!!(j.scheduledDate||j.startDate);
+    var needsSched=hasCrew&&!hasDate;
+    var cardClass='dispatch-pool-card'+(needsSched?' dispatch-needs-sched':'');
+    return '<div class="'+cardClass+'" draggable="true" data-job-id="'+j.id+'" '+
+      'style="border-left-color:'+color.bg+'" '+
       'ondragstart="onDispatchDragStart(event,\''+j.id+'\',\'pool\')" '+
-      'ondragend="onDispatchDragEnd(event)" '+
-      'onclick="openDispatchDetail(\''+j.id+'\')" '+
-      '>'+
+      'ondragend="onDispatchDragEnd(event)" onclick="openDispatchDetail(\''+j.id+'\')">'+
       '<div class="dispatch-pool-card-name">'+escHtml(j.name||'')+'</div>'+
       '<div class="dispatch-pool-card-sub">'+escHtml(j.customer||'')+'</div>'+
-      (pct!==null?'<div class="dispatch-pool-card-sub">WT: '+pct+'%</div>':'')+
-      '<div class="dispatch-pool-card-dur">⏱ '+dur+'h est</div>'+
-    '</div>';
+      (j.address?'<div class="dispatch-pool-card-sub">📍 '+escHtml(j.address.split(',')[0])+'</div>':'')+
+      (needsSched?'<div style="font-size:9px;color:#e65100;font-weight:700;margin-top:3px">⚠ Has crew — set a date</div>':'')+
+      (hasCrew&&hasDate?'<div style="font-size:9px;color:#2e7d32;font-weight:700;margin-top:3px">'+crew.length+' crew · '+j.scheduledDate+'</div>':'')+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:5px">'+
+        '<span style="font-size:10px;font-weight:700;color:'+color.bg+'">⏱ '+dur+'h</span>'+
+        '<span style="font-size:10px;color:#90a4ae">'+(j.estTotal?'$'+Math.round(j.estTotal).toLocaleString():'')+'</span>'+
+      '</div></div>';
   }).join('');
 }
 
 function renderDispatchRuler() {
   var ruler = document.getElementById('dispatch-ruler');
   if (!ruler) return;
-  var html = '';
-  for (var h = DISPATCH_START_HOUR; h <= DISPATCH_END_HOUR; h++) {
-    var pct = ((h - DISPATCH_START_HOUR) / DISPATCH_TOTAL_HRS) * 100;
-    var label = h === 12 ? '12 PM' : h < 12 ? h+'am' : (h-12)+'pm';
-    html += '<div class="dispatch-ruler-tick" style="left:'+pct+'%">'+
-      '<div class="dispatch-ruler-tick-line"></div>'+
-      '<div class="dispatch-ruler-tick-label">'+label+'</div>'+
-    '</div>';
+  var html='';
+  for (var h=DISPATCH_START_HOUR;h<=DISPATCH_END_HOUR;h++) {
+    var pct=((h-DISPATCH_START_HOUR)/DISPATCH_TOTAL_HRS)*100;
+    var label=h===12?'12 PM':h<12?h+' AM':(h-12)+' PM';
+    html+='<div style="position:absolute;left:'+pct+'%;top:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:4px;padding-left:4px">'+
+      '<div style="position:absolute;top:0;left:0;width:1px;height:100%;background:'+(h%2===0?'#d0d7e0':'#ebebeb')+'"></div>'+
+      '<span style="font-size:10px;font-weight:700;color:#546e7a;white-space:nowrap">'+label+'</span></div>';
   }
-  ruler.innerHTML = html;
+  ruler.innerHTML=html;
 }
 
 function renderDispatchTechRows(team, dayJobs, boardDate, isToday) {
   var container = document.getElementById('dispatch-tech-rows');
   if (!container) return;
+  if (!team.length) { container.innerHTML='<div style="padding:60px;text-align:center;color:#90a4ae">No team members. Add your crew in Team.</div>'; return; }
 
-  if (!team.length) {
-    container.innerHTML = '<div style="padding:40px;text-align:center;color:#90a4ae">No team members. Add your crew in the Team section.</div>';
-    return;
-  }
+  var clockMap={};
+  (DB.workDays||[]).filter(function(d){return d.date===boardDate;}).forEach(function(d){clockMap[d.techName]=d;});
 
-  // Get today's clock data per tech
-  var clockMap = {};
-  (DB.workDays||[]).filter(function(d){ return d.date===boardDate; }).forEach(function(d){
-    clockMap[d.techName] = d;
+  var techJobMap={};
+  team.forEach(function(m){techJobMap[m.name]=[];});
+  dayJobs.forEach(function(j){
+    getJobCrew(j).forEach(function(cm){
+      if (!techJobMap[cm.techName]) techJobMap[cm.techName]=[];
+      techJobMap[cm.techName].push({job:j,crewEntry:cm});
+    });
   });
 
-  container.innerHTML = team.map(function(member){
-    var name = member.name||'';
-    var clockData = clockMap[name];
+  var avatarColors=['#1565c0','#2e7d32','#6a1b9a','#e65100','#00695c','#ad1457','#37474f'];
+  var WORK_DAY_HRS = 8;
 
-    // Current live status (only for today)
-    var liveStatus = 'out';
-    if (isToday && _currentUser && _currentUser.full_name === name) {
-      liveStatus = _clockState.status || 'out';
-    } else if (clockData && !clockData.clockOutTime) {
-      liveStatus = 'onsite';
-    } else if (clockData && clockData.clockOutTime) {
-      liveStatus = 'complete';
-    }
+  container.innerHTML = team.map(function(member,idx){
+    var name=member.name||'';
+    var clockData=clockMap[name];
+    var initials=name.split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
+    var avatarBg=avatarColors[idx%avatarColors.length];
 
-    var statusInfo = TECH_STATUS_COLORS[liveStatus] || TECH_STATUS_COLORS.out;
+    var liveStatus='out';
+    if (isToday&&_currentUser&&_currentUser.full_name===name) liveStatus=_clockState.status||'out';
+    else if (clockData&&!clockData.clockOutTime&&clockData.clockInTime) liveStatus='onsite';
+    else if (clockData&&clockData.clockOutTime) liveStatus='complete';
+    var statusInfo=TECH_STATUS[liveStatus]||TECH_STATUS.out;
 
-    // Check if absent today
-    var absent = (DB.absences||[]).find(function(a){ return a.date===boardDate&&a.techName===name; });
+    var absent=(DB.absences||[]).find(function(a){return a.date===boardDate&&a.techName===name;});
+    var myJobs=techJobMap[name]||[];
 
-    // Jobs assigned to this tech today
-    var techJobs = dayJobs.filter(function(j){
-      return (j.assignedTo||'').trim() === name.trim();
-    });
+    // Capacity calculation
+    var bookedHrs=myJobs.reduce(function(s,e){return s+parseFloat(e.job.estLaborHours||e.job.scheduledDuration||4);},0);
+    var capPct=Math.min(100,Math.round(bookedHrs/WORK_DAY_HRS*100));
+    var capColor=capPct>=100?'#c62828':capPct>=80?'#e65100':'#2e7d32';
 
-    // Build job blocks HTML
-    var blocksHtml = techJobs.map(function(j){ return buildJobBlock(j); }).join('');
+    var blocksHtml=myJobs.map(function(e){return buildJobBlock(e.job,e.crewEntry,name);}).join('');
 
-    // Clock in/out segment
-    var segHtml = '';
-    if (clockData && clockData.clockInTime && boardDate === getTodayISO()) {
-      var inMins = timeStrToMins(clockData.clockInTime) - DISPATCH_START_HOUR*60;
-      var outMins = clockData.clockOutTime
-        ? timeStrToMins(clockData.clockOutTime) - DISPATCH_START_HOUR*60
-        : (new Date().getHours()*60+new Date().getMinutes()) - DISPATCH_START_HOUR*60;
-      if (inMins >= 0 && outMins > inMins) {
-        var inPct  = Math.max(0, inMins / DISPATCH_MINS_TOTAL * 100);
-        var widPct = Math.min(100-inPct, (outMins-inMins) / DISPATCH_MINS_TOTAL * 100);
-        segHtml = '<div class="dispatch-seg" style="left:'+inPct+'%;width:'+widPct+'%;background:#2e7d32;top:42px;height:6px;border-radius:3px"></div>';
+    // Travel dotted line: clock-in → first job
+    var travelHtml='';
+    if (clockData&&clockData.clockInTime&&myJobs.length) {
+      var first=myJobs.slice().sort(function(a,b){return timeStrToMins(a.job.scheduledTime||'08:00')-timeStrToMins(b.job.scheduledTime||'08:00');})[0];
+      var ciM=timeStrToMins(clockData.clockInTime)-DISPATCH_START_HOUR*60;
+      var jM=timeStrToMins(first.job.scheduledTime||'08:00')-DISPATCH_START_HOUR*60;
+      if (jM>ciM+15) {
+        var lP=Math.max(0,ciM/DISPATCH_MINS_TOTAL*100);
+        var wP=Math.min(100-lP,(jM-ciM)/DISPATCH_MINS_TOTAL*100);
+        travelHtml='<div class="dispatch-travel-line" style="left:'+lP+'%;width:'+wP+'%;border-color:#1565c0;top:36px"></div>';
       }
     }
 
-    return '<div class="dispatch-tech-row" id="dispatch-row-'+escHtml(name.replace(/\s/g,'-'))+'">'+
-      // Tech label
+    // Clock worked segment (green bar at bottom)
+    var segHtml='';
+    if (clockData&&clockData.clockInTime) {
+      var iM=timeStrToMins(clockData.clockInTime)-DISPATCH_START_HOUR*60;
+      var oM=clockData.clockOutTime?timeStrToMins(clockData.clockOutTime)-DISPATCH_START_HOUR*60:(isToday?(new Date().getHours()*60+new Date().getMinutes())-DISPATCH_START_HOUR*60:iM);
+      if (iM>=0&&oM>iM) {
+        var iP2=Math.max(0,iM/DISPATCH_MINS_TOTAL*100);
+        var wP2=Math.min(100-iP2,(oM-iM)/DISPATCH_MINS_TOTAL*100);
+        segHtml='<div class="dispatch-clock-seg" style="left:'+iP2+'%;width:'+wP2+'%"></div>';
+      }
+    }
+
+    return '<div class="dispatch-tech-row" id="drow-'+escHtml(name.replace(/\W/g,'-'))+'">'+
       '<div class="dispatch-tech-label">'+
-        '<div class="dispatch-tech-name">'+
-          (absent?'<span style="font-size:10px;color:#c62828;margin-right:4px">🚫</span>':'')+
-          escHtml(name)+
+        '<div class="dispatch-tech-avatar" style="background:'+avatarBg+';color:#fff;border-color:rgba(0,0,0,.1)">'+
+          (absent?'<span style="font-size:16px">🚫</span>':escHtml(initials))+
         '</div>'+
-        '<div class="dispatch-tech-status">'+
-          '<div class="dispatch-tech-status-dot" style="background:'+statusInfo.dot+'"></div>'+
-          '<span style="font-size:10px;color:'+statusInfo.text+'">'+
-            (absent?'Out Today':statusInfo.label)+
-          '</span>'+
+        '<div class="dispatch-tech-info">'+
+          '<div class="dispatch-tech-name">'+escHtml(name)+'</div>'+
+          '<div class="dispatch-tech-status">'+
+            '<div class="dispatch-tech-status-dot'+(statusInfo.pulse?' pulse':'')+'" style="background:'+statusInfo.dot+'"></div>'+
+            '<span style="color:'+statusInfo.text+';font-size:10px">'+(absent?'<span style="color:#c62828">Out</span>':statusInfo.label)+'</span>'+
+          '</div>'+
+          (myJobs.length?
+            '<div style="margin-top:3px">'+
+              '<div style="display:flex;justify-content:space-between;align-items:center">'+
+                '<span style="font-size:9px;color:'+capColor+';font-weight:700">'+bookedHrs.toFixed(1)+'h booked</span>'+
+                (capPct>=100?'<span style="font-size:8px;background:#ffebee;color:#c62828;border-radius:3px;padding:1px 4px;font-weight:700">FULL</span>':
+                 capPct>=80?'<span style="font-size:8px;background:#fff3e0;color:#e65100;border-radius:3px;padding:1px 4px;font-weight:700">BUSY</span>':'')+
+              '</div>'+
+              '<div class="dispatch-capacity-bar">'+
+                '<div class="dispatch-capacity-fill" style="width:'+capPct+'%;background:'+capColor+'"></div>'+
+              '</div>'+
+            '</div>':
+            '<div style="font-size:9px;color:#90a4ae;margin-top:2px">Available</div>'
+          )+
         '</div>'+
-        (clockData&&clockData.clockInTime?
-          '<div style="font-size:9px;color:#90a4ae;margin-top:2px">In: '+clockData.clockInTime+
-          (clockData.clockOutTime?' Out: '+clockData.clockOutTime:'')+'</div>':'')+
       '</div>'+
-      // Timeline
-      '<div class="dispatch-tech-timeline" '+
-        'data-tech="'+escHtml(name)+'" '+
-        'ondragover="onDispatchDragOver(event)" '+
-        'ondragleave="onDispatchDragLeave(event)" '+
-        'ondrop="onDispatchDrop(event,\''+escHtml(name)+'\')" '+
-        '>'+
-        blocksHtml+
-        segHtml+
+      '<div class="dispatch-tech-timeline" data-tech="'+escHtml(name)+'" '+
+        'ondragover="onDispatchDragOver(event)" ondragleave="onDispatchDragLeave(event)" '+
+        'ondrop="onDispatchDrop(event,\''+escHtml(name)+'\')">'+
+        travelHtml+blocksHtml+segHtml+
       '</div>'+
     '</div>';
   }).join('');
+
+  // Re-attach touch drag listeners after DOM update
+  setTimeout(attachTouchDrag, 50);
 }
 
-function buildJobBlock(job) {
-  var startTime = job.scheduledTime || '08:00';
-  var dur       = parseFloat(job.estLaborHours||job.scheduledDuration||4);
-  var color     = DISPATCH_COLORS[job.status] || DISPATCH_COLORS.default;
 
-  var startMins = timeStrToMins(startTime) - DISPATCH_START_HOUR*60;
-  var durMins   = dur * 60;
-  var leftPct   = Math.max(0, startMins / DISPATCH_MINS_TOTAL * 100);
-  var widPct    = Math.min(100-leftPct, durMins / DISPATCH_MINS_TOTAL * 100);
-  if (widPct < 1) widPct = 1;
 
-  // WT progress
-  var wtProj = (DB.wtProjects||[]).find(function(p){ return p.jobId===job.id; });
-  var pctHtml = '';
+function buildJobBlock(job, crewEntry, techName) {
+  var startTime=job.scheduledTime||'08:00';
+  var dur=parseFloat(job.estLaborHours||job.scheduledDuration||4);
+  var color=getJobColor(job.id);
+  var isLead=crewEntry&&crewEntry.role==='lead';
+  var startMins=timeStrToMins(startTime)-DISPATCH_START_HOUR*60;
+  var durMins=dur*60;
+  var leftPct=Math.max(0,startMins/DISPATCH_MINS_TOTAL*100);
+  var widPct=Math.min(100-leftPct,durMins/DISPATCH_MINS_TOTAL*100);
+  if (widPct<0.5) widPct=0.5;
+
+  // WT progress bar
+  var wtProj=(DB.wtProjects||[]).find(function(p){return p.jobId===job.id;});
+  var pctBar='';
   if (wtProj) {
     var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
     var done=items.filter(function(i){return i.status==='done';}).length;
     var pct=items.length?Math.round(done/items.length*100):0;
-    pctHtml = '<div class="dispatch-job-block-pct">'+pct+'% done</div>';
-    // Progress bar inside block
-    pctHtml += '<div style="position:absolute;bottom:0;left:0;height:3px;width:'+pct+'%;background:rgba(255,255,255,.5);border-radius:0 0 0 8px"></div>';
+    pctBar='<div style="position:absolute;bottom:0;left:0;height:3px;width:'+pct+'%;background:rgba(255,255,255,.5);border-radius:0 0 0 8px"></div>';
   }
 
-  return '<div class="dispatch-job-block" '+
-    'style="left:'+leftPct+'%;width:'+widPct+'%;background:'+color.bg+';border:1px solid '+color.border+';color:'+color.text+'" '+
-    'draggable="true" '+
-    'data-job-id="'+job.id+'" '+
+  // Multi-day indicator
+  var isMultiDay = job.scheduledEndDate && job.scheduledEndDate !== job.scheduledDate;
+  var multiDayBadge = isMultiDay ? '<span class="dispatch-multiday-badge">∞</span>' : '';
+
+  // Crew badges
+  var crew=getJobCrew(job);
+  var crewBadge=crew.length>1?'<span class="dispatch-role-badge">👥'+crew.length+'</span>':'';
+  var roleBadge=isLead?'<span class="dispatch-role-badge">♛</span>':'<span class="dispatch-role-badge" style="opacity:.6">+</span>';
+
+  return '<div class="dispatch-job-block'+(isLead?' is-lead':' is-helper')+'" '+
+    'style="left:'+leftPct+'%;width:'+widPct+'%;background:'+color.bg+';border-color:'+color.border+';color:'+color.text+';opacity:'+(isLead?1:0.88)+';" '+
+    'draggable="true" data-job-id="'+job.id+'" '+
     'ondragstart="onDispatchDragStart(event,\''+job.id+'\',\'board\')" '+
-    'ondragend="onDispatchDragEnd(event)" '+
-    'onclick="openDispatchDetail(\''+job.id+'\')" '+
+    'ondragend="onDispatchDragEnd(event)" onclick="openDispatchDetail(\''+job.id+'\')" '+
     '>'+
+    multiDayBadge+
     '<div class="dispatch-job-block-name">'+escHtml(job.name||'')+'</div>'+
     '<div class="dispatch-job-block-sub">'+escHtml(job.customer||'')+(job.scheduledTime?' · '+job.scheduledTime:'')+'</div>'+
-    pctHtml+
+    '<div class="dispatch-job-block-badges">'+roleBadge+crewBadge+'</div>'+
+    pctBar+
   '</div>';
 }
 
-function updateNowLine() {
-  var line = document.getElementById('dispatch-now-line');
-  var board = document.querySelector('.dispatch-board-wrap');
-  if (!line || !board) return;
-  var now = new Date();
-  var nowMins = now.getHours()*60+now.getMinutes() - DISPATCH_START_HOUR*60;
-  if (nowMins < 0 || nowMins > DISPATCH_MINS_TOTAL) { line.style.display='none'; return; }
-  var pct = nowMins / DISPATCH_MINS_TOTAL * 100;
-  // Position relative to board width (excluding tech label column)
-  var boardWidth = board.scrollWidth;
-  var labelWidth = 180;
-  var timelineWidth = boardWidth - labelWidth;
-  var leftPx = labelWidth + (pct/100)*timelineWidth;
-  line.style.display = 'block';
-  line.style.left = leftPx+'px';
+
+
+function renderStatusBar(allJobs, boardDate) {
+  var bar=document.getElementById('dispatch-status-bar');
+  if (!bar) return;
+  var dayJobs=allJobs.filter(function(j){return (j.scheduledDate||j.startDate||'')===boardDate;});
+  var statuses=[
+    {key:'',label:'All',icon:''},
+    {key:'Scheduled',label:'Scheduled',icon:'📅'},
+    {key:'In Progress',label:'Working',icon:'▶'},
+    {key:'Paused',label:'Paused',icon:'⏸'},
+    {key:'On Hold',label:'Hold',icon:'⏳'},
+    {key:'Complete',label:'Done',icon:'✓'},
+  ];
+  bar.innerHTML=statuses.map(function(s){
+    var count=s.key===''?dayJobs.length:dayJobs.filter(function(j){return (j.status||'Scheduled')===s.key;}).length;
+    var isActive=_dispatchStatusFilter===s.key;
+    return '<div class="dispatch-status-pill'+(isActive?' active':'')+'" onclick="setDispatchFilter(\''+escHtml(s.key)+'\')">'+
+      (s.icon?s.icon+' ':'')+s.label+' <span class="dp-count">'+count+'</span></div>';
+  }).join('');
 }
 
-// ── DRAG & DROP ──
-function onDispatchDragStart(e, jobId, source) {
-  _dispatchDragJob    = jobId;
-  _dispatchDragSource = source;
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', jobId);
-  var el = e.currentTarget;
-  el.style.opacity = '0.5';
-  setTimeout(function(){ el.classList.add('dragging'); }, 0);
-}
+function setDispatchFilter(status){_dispatchStatusFilter=status;renderDispatchBoard();}
 
-function onDispatchDragEnd(e) {
-  _dispatchDragJob    = null;
-  _dispatchDragSource = null;
-  document.querySelectorAll('.dispatch-job-block,.dispatch-pool-card').forEach(function(el){
-    el.style.opacity='1'; el.classList.remove('dragging');
-  });
-  document.querySelectorAll('.dispatch-tech-timeline').forEach(function(el){
-    el.classList.remove('drag-over');
-  });
+function onDispatchDragStart(e,jobId,source){
+  _dispatchDragJob=jobId;_dispatchDragSource=source;
+  e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',jobId);
+  var el=e.currentTarget;
+  setTimeout(function(){el.style.opacity='0.4';el.classList.add('dragging');},0);
 }
-
-function onDispatchDragOver(e) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  e.currentTarget.classList.add('drag-over');
+function onDispatchDragEnd(e){
+  _dispatchDragJob=null;_dispatchDragSource=null;
+  document.querySelectorAll('.dispatch-job-block,.dispatch-pool-card').forEach(function(el){el.style.opacity='1';el.classList.remove('dragging');});
+  document.querySelectorAll('.dispatch-tech-timeline').forEach(function(el){el.classList.remove('drag-over');});
 }
-
-function onDispatchDragLeave(e) {
-  e.currentTarget.classList.remove('drag-over');
-}
+function onDispatchDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';e.currentTarget.classList.add('drag-over');}
+function onDispatchDragLeave(e){e.currentTarget.classList.remove('drag-over');}
 
 function onDispatchDrop(e, techName) {
-  e.preventDefault();
-  e.currentTarget.classList.remove('drag-over');
-  var jobId = _dispatchDragJob || e.dataTransfer.getData('text/plain');
+  e.preventDefault();e.currentTarget.classList.remove('drag-over');
+  var jobId=_dispatchDragJob||e.dataTransfer.getData('text/plain');
   if (!jobId) return;
-
-  var job = (DB.jobs||[]).find(function(j){ return j.id===jobId; });
-  if (!job) return;
-
-  // Calculate drop time from horizontal position
-  var rect = e.currentTarget.getBoundingClientRect();
-  var xPct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-  var dropMins = Math.round(xPct * DISPATCH_MINS_TOTAL / 30) * 30; // snap to 30min
-  var dropHour = DISPATCH_START_HOUR + Math.floor(dropMins/60);
-  var dropMin  = dropMins % 60;
-  var dropTime = String(dropHour).padStart(2,'0')+':'+String(dropMin).padStart(2,'0');
-
-  // Assign tech + time
-  var dateEl = document.getElementById('dispatch-date');
-  var boardDate = dateEl ? dateEl.value : getTodayISO();
-  job.assignedTo      = techName;
-  job.scheduledDate   = boardDate;
-  job.scheduledTime   = dropTime;
-  if (job.status === 'Scheduled' || !job.status) job.status = 'Scheduled';
-
-  saveDB();
-  renderDispatchBoard();
-  showToast(escHtml(job.name||'')+' assigned to '+escHtml(techName)+' at '+dropTime,'success');
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var rect=e.currentTarget.getBoundingClientRect();
+  var xPct=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+  var dropMins=Math.round(xPct*DISPATCH_MINS_TOTAL/30)*30;
+  var dropHour=DISPATCH_START_HOUR+Math.floor(dropMins/60);
+  var dropMin=dropMins%60;
+  var dropTime=String(dropHour).padStart(2,'0')+':'+String(dropMin).padStart(2,'0');
+  var dateEl=document.getElementById('dispatch-date');
+  var boardDate=dateEl?dateEl.value:getTodayISO();
+  var already=isCrewMember(job,techName);
+  if (!already) {
+    var crew=getJobCrew(job);
+    addCrewMember(job,techName,crew.length===0?'lead':'helper');
+  }
+  job.scheduledDate=boardDate;job.scheduledTime=dropTime;
+  if(!job.status||job.status==='') job.status='Scheduled';
+  saveDB();renderDispatchBoard();
+  showToast(already?escHtml(job.name||'')+' rescheduled to '+dropTime:escHtml(techName)+' added to '+escHtml(job.name||'')+(getJobCrew(job).length>1?' (crew)':''),'success');
 }
 
-// ── JOB DETAIL PANEL ──
 function openDispatchDetail(jobId) {
-  var job = (DB.jobs||[]).find(function(j){ return j.id===jobId; });
-  if (!job) return;
-  var panel = document.getElementById('dispatch-detail-panel');
-  var nameEl = document.getElementById('dsp-job-name');
-  var bodyEl = document.getElementById('dsp-body');
-  if (!panel||!nameEl||!bodyEl) return;
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var panel=document.getElementById('dispatch-detail-panel');
+  var nameEl=document.getElementById('dsp-job-name');
+  var bodyEl=document.getElementById('dsp-body');
+  if(!panel||!bodyEl) return;
+  if(nameEl) nameEl.textContent=job.name||'';
+  var color=getJobColor(job.id);
+  var crew=getJobCrew(job);
+  var wtProj=(DB.wtProjects||[]).find(function(p){return p.jobId===job.id;});
+  var pct=null;
+  if (wtProj){var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});var done=items.filter(function(i){return i.status==='done';}).length;pct=items.length?Math.round(done/items.length*100):0;}
+  var avatarColors=['#1565c0','#2e7d32','#6a1b9a','#e65100','#00695c','#ad1457'];
 
-  nameEl.textContent = job.name||'';
-
-  var color = DISPATCH_COLORS[job.status]||DISPATCH_COLORS.default;
-  var wtProj = (DB.wtProjects||[]).find(function(p){ return p.jobId===job.id; });
-  var pct = null;
-  if (wtProj) {
-    var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
-    var done=items.filter(function(i){return i.status==='done';}).length;
-    pct=items.length?Math.round(done/items.length*100):0;
-  }
-
-  bodyEl.innerHTML =
-    '<div style="padding:14px">'+
-    // Status badge
-    '<div style="margin-bottom:12px">'+
-      '<span style="background:'+color.bg+';color:'+color.text+';border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700">'+escHtml(job.status||'')+'</span>'+
+  bodyEl.innerHTML='<div style="padding:14px">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">'+
+      '<div style="width:12px;height:12px;border-radius:3px;background:'+color.bg+'"></div>'+
+      '<span style="font-size:12px;color:#546e7a">'+(job.scheduledDate||'')+(job.scheduledTime?' · '+job.scheduledTime:'')+'</span>'+
+      '<span style="background:'+color.bg+'22;color:'+color.bg+';border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">'+escHtml(job.status||'Scheduled')+'</span>'+
     '</div>'+
-    // Key info
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'+
-      dspInfoTile('Customer',   job.customer||'—')+
-      dspInfoTile('Assigned',   job.assignedTo||'Unassigned')+
-      dspInfoTile('Date',       job.scheduledDate||job.startDate||'—')+
-      dspInfoTile('Start Time', job.scheduledTime||'—')+
-      dspInfoTile('Est Hours',  (job.estLaborHours||'—')+' hrs')+
-      dspInfoTile('Est Value',  '$'+(job.estTotal||0).toLocaleString())+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">'+
+      dspInfoTile('Customer',job.customer||'—')+dspInfoTile('Est Hrs',(job.estLaborHours||'—')+'h')+
+      dspInfoTile('Est Value','$'+(job.estTotal||0).toLocaleString())+dspInfoTile('Job #',job.num||'—')+
     '</div>'+
-    // WT progress
-    (pct!==null?
-      '<div style="margin-bottom:14px">'+
-        '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:4px">WORK TRACKING</div>'+
-        '<div class="wt-progress-bar"><div class="wt-progress-fill" style="width:'+pct+'%"></div></div>'+
-        '<div style="font-size:11px;color:#546e7a;margin-top:2px">'+pct+'% complete</div>'+
-      '</div>':'')+
-    // Address
-    (job.address?'<div style="margin-bottom:14px;font-size:12px;color:#546e7a">📍 '+escHtml(job.address)+'</div>':'')+
-    // Notes
-    (job.notes?'<div style="background:#f8f9fa;border-radius:6px;padding:10px;font-size:12px;color:#37474f;margin-bottom:14px">'+escHtml(job.notes)+'</div>':'')+
-    // Quick reschedule
-    '<div style="border-top:1px solid #f0f0f0;padding-top:12px">'+
-      '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:8px">RESCHEDULE</div>'+
-      '<div style="display:flex;gap:8px;margin-bottom:8px">'+
+    (pct!==null?'<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:#546e7a;margin-bottom:4px">WORK TRACKING</div>'+
+      '<div style="display:flex;align-items:center;gap:8px"><div class="wt-progress-bar" style="flex:1"><div class="wt-progress-fill" style="width:'+pct+'%"></div></div><span style="font-weight:700;color:#1565c0">'+pct+'%</span></div></div>':'')+
+    (job.address?'<div style="background:#f8f9fa;border-radius:6px;padding:8px;font-size:12px;color:#546e7a;margin-bottom:14px">📍 '+escHtml(job.address)+'</div>':'')+
+    (job.dispatchNotes?'<div style="background:#fff8e1;border-radius:6px;padding:8px;font-size:12px;color:#f57f17;margin-bottom:14px;border-left:3px solid #ffb300">📋 '+escHtml(job.dispatchNotes)+'</div>':'')+
+    // Crew
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-bottom:14px">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+        '<div style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">CREW ('+crew.length+')</div>'+
+        '<button class="btn btn-outline btn-sm" onclick="openAddCrewPanel(\''+jobId+'\')">+ Add</button>'+
+      '</div>'+
+      (crew.length?crew.map(function(cm,ci){
+        var abb=(cm.techName||'?').split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
+        var bg=avatarColors[ci%avatarColors.length];
+        return '<div class="crew-member-row">'+
+          '<div class="crew-avatar" style="background:'+bg+';color:#fff">'+escHtml(abb)+'</div>'+
+          '<div style="flex:1"><div style="font-weight:700;font-size:12px">'+escHtml(cm.techName||'')+'</div>'+
+          '<div style="font-size:10px;color:#546e7a">'+(cm.role==='lead'?'♛ Lead':'Helper')+(cm.addedDate?' · '+cm.addedDate:'')+'</div></div>'+
+          '<div style="display:flex;gap:4px">'+
+            '<button class="dispatch-sms-btn" onclick="dispatchSendSMS(\''+escHtml(cm.techName)+'\',\''+jobId+'\')" title="Send dispatch SMS">💬</button>'+
+            (cm.role!=='lead'?'<button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="dispatchSetLead(\''+jobId+'\',\''+escHtml(cm.techName)+'\')">♛</button>':'<span style="font-size:12px;color:#1565c0;padding:4px">♛</span>')+
+            '<button class="btn btn-danger btn-sm" style="font-size:10px" onclick="dispatchRemoveCrew(\''+jobId+'\',\''+escHtml(cm.techName)+'\')">✕</button>'+
+          '</div></div>';
+      }).join(''):'<div style="color:#90a4ae;font-size:12px;padding:8px 0">No crew assigned. Drag onto a row or click + Add.</div>')+
+      '<div id="add-crew-panel-'+jobId+'" style="display:none;margin-top:8px">'+
+        '<select id="add-crew-select-'+jobId+'" style="width:100%;padding:7px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;margin-bottom:6px">'+
+          '<option value="">— Select tech —</option>'+
+          (DB.team||[]).filter(function(m){return !isCrewMember(job,m.name);}).map(function(m){return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';}).join('')+
+        '</select>'+
+        '<div style="display:flex;gap:6px">'+
+          '<button class="btn btn-primary btn-sm" onclick="dispatchAddCrewMember(\''+jobId+'\')">Add to Crew</button>'+
+          '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'add-crew-panel-'+jobId+'\').style.display=\'none\'">Cancel</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+    // Reschedule
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-bottom:14px">'+
+      '<div style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">RESCHEDULE</div>'+
+      '<div style="display:flex;gap:6px;margin-bottom:6px">'+
         '<input type="date" id="dsp-new-date" value="'+(job.scheduledDate||'')+'" style="flex:1;padding:6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
         '<input type="time" id="dsp-new-time" value="'+(job.scheduledTime||'')+'" style="flex:1;padding:6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
       '</div>'+
-      '<div style="margin-bottom:8px">'+
-        '<select id="dsp-new-tech" style="width:100%;padding:6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
-          '<option value="">— Unassigned —</option>'+
-          (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'"'+(m.name===job.assignedTo?' selected':'')+'>'+escHtml(m.name)+'</option>'; }).join('')+
-        '</select>'+
-      '</div>'+
+      '<input type="number" id="dsp-new-dur" value="'+(job.estLaborHours||4)+'" min="0.5" max="24" step="0.5" placeholder="Duration hrs" style="width:100%;padding:6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box">'+
       '<button class="btn btn-primary btn-sm" style="width:100%" onclick="rescheduleJobFromDetail(\''+jobId+'\')">Update Schedule</button>'+
     '</div>'+
-    // Actions
-    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">'+
+    // Quick status
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-bottom:14px">'+
+      '<div style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">QUICK STATUS</div>'+
+      '<div style="display:flex;gap:4px;flex-wrap:wrap">'+
+        ['Scheduled','In Progress','Paused','On Hold','Complete'].map(function(s){
+          var active=(job.status||'Scheduled')===s;
+          return '<button class="btn btn-sm" style="font-size:10px;'+(active?'background:#1565c0;color:#fff;border-color:#1565c0;':'')+'" onclick="dispatchSetStatus(\''+jobId+'\',\''+s+'\')">'+escHtml(s)+'</button>';
+        }).join('')+
+      '</div>'+
+    '</div>'+
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;display:flex;gap:6px;flex-wrap:wrap">'+
       '<button class="btn btn-outline btn-sm" onclick="goPage(\'jobs\');closeDispatchDetail()">Open Job</button>'+
       (wtProj?'<button class="btn btn-outline btn-sm" onclick="loadWTProject(\''+wtProj.id+'\');goPage(\'worktracking\');closeDispatchDetail()">Work Tracking</button>':'')+
     '</div>'+
@@ -11926,106 +12032,290 @@ function openDispatchDetail(jobId) {
   panel.style.display='block';
 }
 
-function dspInfoTile(label, val) {
-  return '<div style="background:#f8f9fa;border-radius:6px;padding:8px">'+
-    '<div style="font-size:9px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'+escHtml(label)+'</div>'+
-    '<div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-top:2px">'+escHtml(String(val))+'</div>'+
-  '</div>';
+function dspInfoTile(label,val){
+  return '<div style="background:#f8f9fa;border-radius:6px;padding:8px"><div style="font-size:9px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'+escHtml(label)+'</div><div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-top:2px">'+escHtml(String(val))+'</div></div>';
 }
 
-function closeDispatchDetail() {
-  var panel=document.getElementById('dispatch-detail-panel');
-  if(panel) panel.style.display='none';
+function openAddCrewPanel(jobId){var p=document.getElementById('add-crew-panel-'+jobId);if(p)p.style.display=p.style.display==='none'||!p.style.display?'block':'none';}
+
+function dispatchAddCrewMember(jobId){
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var sel=document.getElementById('add-crew-select-'+jobId);
+  var techName=sel?sel.value:''; if(!techName){showToast('Select a team member','error');return;}
+  addCrewMember(job,techName,'helper');
+  saveDB();renderDispatchBoard();openDispatchDetail(jobId);
+  showToast(escHtml(techName)+' added to crew','success');
 }
 
-function rescheduleJobFromDetail(jobId) {
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;});
-  if(!job) return;
-  var newDate=(document.getElementById('dsp-new-date')||{}).value||'';
-  var newTime=(document.getElementById('dsp-new-time')||{}).value||'';
-  var newTech=(document.getElementById('dsp-new-tech')||{}).value||'';
-  if(newDate) job.scheduledDate=newDate;
-  if(newTime) job.scheduledTime=newTime;
-  job.assignedTo=newTech;
-  saveDB();
-  closeDispatchDetail();
-  renderDispatchBoard();
-  showToast('Job rescheduled','success');
+function dispatchRemoveCrew(jobId,techName){
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  if(!confirm('Remove '+techName+' from this job?')) return;
+  removeCrewMember(job,techName);
+  saveDB();renderDispatchBoard();openDispatchDetail(jobId);
+  showToast(escHtml(techName)+' removed','info');
 }
 
-// ── SCHEDULE JOB MODAL ──
-function openScheduleJobModal(jobId) {
+function dispatchSetLead(jobId,techName){
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  setCrewLead(job,techName);
+  saveDB();renderDispatchBoard();openDispatchDetail(jobId);
+  showToast(escHtml(techName)+' is now Lead ♛','success');
+}
+
+function dispatchSetStatus(jobId,status){
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  job.status=status;saveDB();renderDispatchBoard();openDispatchDetail(jobId);
+  showToast('Status → '+status,'info');
+}
+
+function closeDispatchDetail(){var p=document.getElementById('dispatch-detail-panel');if(p)p.style.display='none';}
+
+function rescheduleJobFromDetail(jobId){
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var d=(document.getElementById('dsp-new-date')||{}).value||'';
+  var t=(document.getElementById('dsp-new-time')||{}).value||'';
+  var dur=parseFloat((document.getElementById('dsp-new-dur')||{}).value||job.estLaborHours||4);
+  if(d) job.scheduledDate=d;if(t) job.scheduledTime=t;if(dur){job.estLaborHours=dur;job.scheduledDuration=dur;}
+  saveDB();closeDispatchDetail();renderDispatchBoard();showToast('Rescheduled','success');
+}
+
+function updateNowLine(){
+  var line=document.getElementById('dispatch-now-line');
+  var wrap=document.getElementById('dispatch-board-wrap');
+  if(!line||!wrap) return;
+  var now=new Date();
+  var nowMins=now.getHours()*60+now.getMinutes()-DISPATCH_START_HOUR*60;
+  if(nowMins<0||nowMins>DISPATCH_MINS_TOTAL){line.style.display='none';return;}
+  var pct=nowMins/DISPATCH_MINS_TOTAL;
+  var labelW=200;
+  var timelineW=Math.max(wrap.clientWidth-labelW, wrap.scrollWidth-labelW);
+  line.style.display='block';
+  line.style.left=(labelW+pct*timelineW)+'px';
+}
+
+// ResizeObserver — reposition NOW line when board is resized (window resize, panel open/close)
+var _dispatchResizeObserver = null;
+function attachDispatchResizeObserver() {
+  var wrap = document.getElementById('dispatch-board-wrap');
+  if (!wrap || !window.ResizeObserver) return;
+  if (_dispatchResizeObserver) _dispatchResizeObserver.disconnect();
+  _dispatchResizeObserver = new ResizeObserver(function(){
+    var page = document.getElementById('page-dispatch');
+    if (page && page.classList.contains('active')) updateNowLine();
+  });
+  _dispatchResizeObserver.observe(wrap);
+}
+
+function openScheduleJobModal(jobId){
   var sel=document.getElementById('sj-job-select');
-  if(sel){
-    sel.innerHTML='<option value="">— Select a job —</option>'+
-      (DB.jobs||[]).filter(function(j){ return j.status!=='Complete'&&j.status!=='Closed'; })
-      .map(function(j){ return '<option value="'+j.id+'"'+(j.id===jobId?' selected':'')+'>'+escHtml(j.num||'')+'  '+escHtml(j.name||'')+'</option>'; }).join('');
-    if(jobId) { sel.value=jobId; onScheduleJobSelect(jobId); }
-  }
+  if(sel){sel.innerHTML='<option value="">— Select a job —</option>'+(DB.jobs||[]).filter(function(j){return j.status!=='Complete'&&j.status!=='Closed';}).map(function(j){return '<option value="'+j.id+'"'+(j.id===jobId?' selected':'')+'>'+escHtml((j.num||'')+' '+j.name)+'</option>';}).join('');if(jobId){sel.value=jobId;onScheduleJobSelect(jobId);}}
   var techSel=document.getElementById('sj-tech');
-  if(techSel){
-    techSel.innerHTML='<option value="">— Unassigned —</option>'+
-      (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
-  }
+  if(techSel) techSel.innerHTML='<option value="">— Unassigned —</option>'+(DB.team||[]).map(function(m){return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';}).join('');
   var dateEl=document.getElementById('dispatch-date');
   var sjDate=document.getElementById('sj-date');
   if(sjDate) sjDate.value=dateEl?dateEl.value:getTodayISO();
   openModal('modal-schedule-job');
 }
 
-function onScheduleJobSelect(jobId) {
+function onScheduleJobSelect(jobId){
   var job=(DB.jobs||[]).find(function(j){return j.id===jobId;});
   var prev=document.getElementById('sj-job-preview');
   if(!prev) return;
   if(!job){prev.style.display='none';return;}
+  var crew=getJobCrew(job);
   prev.style.display='block';
-  prev.innerHTML=
-    '<div style="font-weight:700">'+escHtml(job.name||'')+'</div>'+
-    '<div style="color:#546e7a">'+escHtml(job.customer||'')+(job.address?' · '+escHtml(job.address):'')+'</div>'+
-    '<div style="color:#1565c0;margin-top:4px">Est: '+(job.estLaborHours||'?')+'hrs · $'+(job.estTotal||0).toLocaleString()+'</div>';
+  prev.innerHTML='<div style="font-weight:700">'+escHtml(job.name||'')+'</div>'+
+    '<div style="color:#546e7a">'+escHtml(job.customer||'')+(job.address?' · '+escHtml(job.address):'')+' </div>'+
+    '<div style="color:#1565c0;margin-top:4px">Est: '+(job.estLaborHours||'?')+'hrs · $'+(job.estTotal||0).toLocaleString()+'</div>'+
+    (crew.length?'<div style="color:#546e7a;font-size:11px;margin-top:2px">Crew: '+crew.map(function(c){return escHtml(c.techName+(c.role==='lead'?' ♛':''));}).join(', ')+'</div>':'');
   var techSel=document.getElementById('sj-tech');
-  if(techSel&&job.assignedTo) techSel.value=job.assignedTo;
+  var lead=getJobLead(job);
+  if(techSel&&lead) techSel.value=lead;
   var durEl=document.getElementById('sj-duration');
   if(durEl&&job.estLaborHours) durEl.value=job.estLaborHours;
 }
 
-function saveScheduledJob() {
+function saveScheduledJob(){
   var jobId=(document.getElementById('sj-job-select')||{}).value||'';
-  var date =(document.getElementById('sj-date')||{}).value||'';
-  var time =(document.getElementById('sj-start-time')||{}).value||'08:00';
-  var dur  =parseFloat((document.getElementById('sj-duration')||{}).value||4);
-  var tech =(document.getElementById('sj-tech')||{}).value||'';
+  var date=(document.getElementById('sj-date')||{}).value||'';
+  var time=(document.getElementById('sj-start-time')||{}).value||'08:00';
+  var dur=parseFloat((document.getElementById('sj-duration')||{}).value||4);
+  var tech=(document.getElementById('sj-tech')||{}).value||'';
   var notes=(document.getElementById('sj-notes')||{}).value||'';
   if(!jobId){showToast('Please select a job','error');return;}
-  if(!date) {showToast('Please select a date','error');return;}
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;});
-  if(!job){return;}
-  job.scheduledDate    = date;
-  job.scheduledTime    = time;
-  job.assignedTo       = tech;
-  job.estLaborHours    = dur;
-  job.scheduledDuration= dur;
+  if(!date){showToast('Please select a date','error');return;}
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  job.scheduledDate=date;job.scheduledTime=time;job.estLaborHours=dur;job.scheduledDuration=dur;
   if(notes) job.dispatchNotes=notes;
   if(!job.status||job.status==='') job.status='Scheduled';
-  saveDB();
-  closeModal('modal-schedule-job');
-  // Jump to that date on board
+  if(tech){if(!isCrewMember(job,tech)) addCrewMember(job,tech,'lead'); else setCrewLead(job,tech);}
+  saveDB();closeModal('modal-schedule-job');
   var dateEl=document.getElementById('dispatch-date');
   if(dateEl) dateEl.value=date;
   renderDispatchBoard();
-  showToast('Job scheduled for '+date+(tech?' → '+tech:''),'success');
+  showToast('Job scheduled'+(tech?' → '+tech:''),'success');
 }
 
-// ── UTILITIES ──
-function timeStrToMins(str) {
-  if (!str) return DISPATCH_START_HOUR*60;
-  var parts=str.split(':');
-  return parseInt(parts[0])*60+(parseInt(parts[1])||0);
+function timeStrToMins(str){
+  if(!str) return DISPATCH_START_HOUR*60;
+  var p=str.split(':');
+  return parseInt(p[0])*60+(parseInt(p[1])||0);
 }
 
-// ============================================================
-// END DISPATCH BOARD
-// ============================================================
+// ── TOUCH DRAG POLYFILL ──
+// Makes drag-and-drop work on iOS Safari and Android Chrome
+var _touchDragJobId = null;
+var _touchGhost     = null;
+var _touchDragSrc   = null;
+
+function attachTouchDrag() {
+  // Attach to pool cards
+  document.querySelectorAll('.dispatch-pool-card[data-job-id]').forEach(function(el){
+    el.removeEventListener('touchstart', _onTouchStart);
+    el.addEventListener('touchstart', _onTouchStart, {passive:false});
+  });
+  // Attach to job blocks on board
+  document.querySelectorAll('.dispatch-job-block[data-job-id]').forEach(function(el){
+    el.removeEventListener('touchstart', _onTouchStart);
+    el.addEventListener('touchstart', _onTouchStart, {passive:false});
+  });
+}
+
+function _onTouchStart(e) {
+  var el = e.currentTarget;
+  _touchDragJobId = el.getAttribute('data-job-id');
+  _touchDragSrc = el.classList.contains('dispatch-pool-card') ? 'pool' : 'board';
+  if (!_touchDragJobId) return;
+
+  var job = (DB.jobs||[]).find(function(j){return j.id===_touchDragJobId;});
+  if (!job) return;
+
+  e.preventDefault();
+
+  // Create ghost element
+  _touchGhost = document.createElement('div');
+  _touchGhost.className = 'dispatch-touch-ghost';
+  var color = getJobColor(job.id);
+  _touchGhost.style.background = color.bg;
+  _touchGhost.textContent = (job.name||'').slice(0,25);
+  document.body.appendChild(_touchGhost);
+
+  var touch = e.touches[0];
+  _touchGhost.style.left = touch.clientX + 'px';
+  _touchGhost.style.top  = touch.clientY + 'px';
+
+  el.style.opacity = '0.4';
+
+  document.addEventListener('touchmove',  _onTouchMove,  {passive:false});
+  document.addEventListener('touchend',   _onTouchEnd,   {passive:false});
+  document.addEventListener('touchcancel',_onTouchCancel,{passive:false});
+}
+
+function _onTouchMove(e) {
+  e.preventDefault();
+  if (!_touchGhost) return;
+  var touch = e.touches[0];
+  _touchGhost.style.left = touch.clientX + 'px';
+  _touchGhost.style.top  = touch.clientY + 'px';
+
+  // Highlight drop target
+  document.querySelectorAll('.dispatch-tech-timeline').forEach(function(el){el.classList.remove('drag-over');});
+  var target = document.elementFromPoint(touch.clientX, touch.clientY);
+  var timeline = target ? target.closest('.dispatch-tech-timeline') : null;
+  if (timeline) timeline.classList.add('drag-over');
+}
+
+function _onTouchEnd(e) {
+  if (!_touchGhost || !_touchDragJobId) { _cleanTouchDrag(); return; }
+  var touch = e.changedTouches[0];
+  var target = document.elementFromPoint(touch.clientX, touch.clientY);
+  var timeline = target ? target.closest('.dispatch-tech-timeline') : null;
+
+  if (timeline) {
+    var techName = timeline.getAttribute('data-tech');
+    var rect = timeline.getBoundingClientRect();
+    var xPct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+    var dropMins = Math.round(xPct * DISPATCH_MINS_TOTAL / 30) * 30;
+    var dropHour = DISPATCH_START_HOUR + Math.floor(dropMins/60);
+    var dropMin  = dropMins % 60;
+    var dropTime = String(dropHour).padStart(2,'0')+':'+String(dropMin).padStart(2,'0');
+    var dateEl   = document.getElementById('dispatch-date');
+    var boardDate= dateEl ? dateEl.value : getTodayISO();
+
+    var job = (DB.jobs||[]).find(function(j){return j.id===_touchDragJobId;});
+    if (job && techName) {
+      var already = isCrewMember(job, techName);
+      if (!already) {
+        var crew = getJobCrew(job);
+        addCrewMember(job, techName, crew.length===0?'lead':'helper');
+      }
+      job.scheduledDate = boardDate;
+      job.scheduledTime = dropTime;
+      if (!job.status) job.status = 'Scheduled';
+      saveDB();
+      renderDispatchBoard();
+      showToast(already?'Rescheduled to '+dropTime:escHtml(techName)+' added to '+escHtml(job.name||''), 'success');
+    }
+  }
+
+  _cleanTouchDrag();
+}
+
+function _onTouchCancel() { _cleanTouchDrag(); }
+
+function _cleanTouchDrag() {
+  if (_touchGhost) { _touchGhost.remove(); _touchGhost=null; }
+  _touchDragJobId=null; _touchDragSrc=null;
+  document.querySelectorAll('.dispatch-pool-card,.dispatch-job-block').forEach(function(el){el.style.opacity='1';});
+  document.querySelectorAll('.dispatch-tech-timeline').forEach(function(el){el.classList.remove('drag-over');});
+  document.removeEventListener('touchmove',  _onTouchMove);
+  document.removeEventListener('touchend',   _onTouchEnd);
+  document.removeEventListener('touchcancel',_onTouchCancel);
+}
+
+// ── DISPATCH SMS ──
+// Called when assigning a tech — optionally sends them a text via Twilio Edge Function
+function dispatchSendSMS(techName, jobId) {
+  var job = (DB.jobs||[]).find(function(j){return j.id===jobId;});
+  var tech = (DB.team||[]).find(function(m){return m.name===techName;});
+  if (!job||!tech||!tech.phone) {
+    showToast('No phone number on file for '+techName,'warning');
+    return;
+  }
+
+  var msg = 'TCSS Dispatch: You\'ve been assigned to '+
+    (job.name||'a job')+
+    (job.customer?' for '+job.customer:'')+
+    (job.address?' at '+job.address:'')+
+    (job.scheduledDate?' on '+job.scheduledDate:'')+
+    (job.scheduledTime?' at '+job.scheduledTime:'')+'.'+
+    (job.dispatchNotes?' Note: '+job.dispatchNotes:'');
+
+  if (!confirm('Send dispatch SMS to '+techName+' ('+tech.phone+')?\n\n"'+msg+'"')) return;
+
+  // Call Twilio via Supabase Edge Function (same pattern as absence alerts)
+  if (_sb && _currentUser) {
+    _sb.functions.invoke('send-sms', {
+      body: { to: tech.phone, message: msg }
+    }).then(function(r){
+      if (r.error) { console.warn('[SMS]', r.error); showToast('SMS failed — check Twilio setup','error'); }
+      else showToast('SMS sent to '+techName,'success');
+    });
+  } else {
+    showToast('SMS requires Supabase connection','warning');
+  }
+}
+
+function openScheduleJobModal(jobId){
+  var sel=document.getElementById('sj-job-select');
+  if(sel){sel.innerHTML='<option value="">— Select a job —</option>'+(DB.jobs||[]).filter(function(j){return j.status!=='Complete'&&j.status!=='Closed';}).map(function(j){return '<option value="'+j.id+'"'+(j.id===jobId?' selected':'')+'>'+escHtml((j.num||'')+' '+j.name)+'</option>';}).join('');if(jobId){sel.value=jobId;onScheduleJobSelect(jobId);}}
+  var techSel=document.getElementById('sj-tech');
+  if(techSel) techSel.innerHTML='<option value="">— Unassigned —</option>'+(DB.team||[]).map(function(m){return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';}).join('');
+  var dateEl=document.getElementById('dispatch-date');
+  var sjDate=document.getElementById('sj-date');
+  if(sjDate) sjDate.value=dateEl?dateEl.value:getTodayISO();
+  openModal('modal-schedule-job');
+}
 
 var ROLES = ['owner','manager','back_office','estimator','lead_tech','helper_tech','subcontractor'];
 
