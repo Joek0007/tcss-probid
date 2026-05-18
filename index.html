@@ -1073,6 +1073,7 @@ table{font-size:12.5px}
     <div class="nav-item" data-page="quotes"><span class="nav-icon">📋</span>Quotes</div>
     <div class="nav-item" data-page="jobs"><span class="nav-icon">🔧</span>Active Jobs</div>
     <div class="nav-item" data-page="dispatch"><span class="nav-icon">🗂</span>Dispatch Board</div>
+    <div class="nav-item" data-page="invoices"><span class="nav-icon">🧾</span>Invoices</div>
   </div>
   <div class="nav-group">
     <div class="nav-group-title">People</div>
@@ -1926,6 +1927,33 @@ table{font-size:12.5px}
       </select>
     </div>
     <div id="jobs-list"></div>
+  </div>
+</div>
+
+<!-- INVOICES PAGE -->
+<div class="page" id="page-invoices">
+  <div class="page-header">
+    <h2>🧾 Invoices</h2>
+  </div>
+
+  <div class="cust-summary-strip" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+    <div class="cust-summary-tile"><div class="cust-summary-val" id="invp-total">0</div><div class="cust-summary-lbl">Total Invoices</div></div>
+    <div class="cust-summary-tile orange"><div class="cust-summary-val" id="invp-unpaid">$0</div><div class="cust-summary-lbl">Outstanding</div></div>
+    <div class="cust-summary-tile green"><div class="cust-summary-val" id="invp-paid">$0</div><div class="cust-summary-lbl">Paid</div></div>
+    <div class="cust-summary-tile red"><div class="cust-summary-val" id="invp-overdue">0</div><div class="cust-summary-lbl">Overdue</div></div>
+  </div>
+
+  <div class="card">
+    <div class="filter-bar" style="margin-bottom:12px">
+      <input class="search-input" id="invp-search" placeholder="🔍 Search invoices..." oninput="renderInvoicesPage()">
+      <select id="invp-filter" style="width:auto" onchange="renderInvoicesPage()">
+        <option value="">All Invoices</option>
+        <option value="sent">Unpaid</option>
+        <option value="paid">Paid</option>
+        <option value="overdue">Overdue</option>
+      </select>
+    </div>
+    <div id="invp-list"></div>
   </div>
 </div>
 

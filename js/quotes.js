@@ -1318,8 +1318,134 @@ function deleteQuote(id) {
 }
 
 // ============================================================
-// INVOICE SYSTEM
+// INVOICES PAGE
 // ============================================================
+function renderInvoicesPage() {
+  var search = ((document.getElementById('invp-search')||{}).value||'').toLowerCase();
+  var filter = (document.getElementById('invp-filter')||{}).value||'';
+  var today  = getTodayISO();
+  var invs   = (DB.invoices||[]).slice();
+
+  // Enrich with overdue status
+  invs = invs.map(function(inv){
+    var isOverdue = inv.status!=='paid' && inv.due && inv.due < today;
+    return Object.assign({}, inv, {isOverdue: isOverdue});
+  });
+
+  // Summary
+  var unpaid  = invs.filter(function(i){ return i.status!=='paid'; }).reduce(function(s,i){ return s+(i.total||0); },0);
+  var paid    = invs.filter(function(i){ return i.status==='paid'; }).reduce(function(s,i){ return s+(i.total||0); },0);
+  var overdue = invs.filter(function(i){ return i.isOverdue; }).length;
+  function setS(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
+  setS('invp-total',  invs.length);
+  setS('invp-unpaid', '$'+Math.round(unpaid).toLocaleString());
+  setS('invp-paid',   '$'+Math.round(paid).toLocaleString());
+  setS('invp-overdue',overdue);
+
+  // Search + filter
+  if (search) invs = invs.filter(function(i){
+    return (i.num||'').toLowerCase().includes(search)||
+           (i.job&&(i.job.customer||'').toLowerCase().includes(search))||
+           (i.job&&(i.job.name||'').toLowerCase().includes(search));
+  });
+  if (filter==='sent')    invs = invs.filter(function(i){ return i.status!=='paid'; });
+  if (filter==='paid')    invs = invs.filter(function(i){ return i.status==='paid'; });
+  if (filter==='overdue') invs = invs.filter(function(i){ return i.isOverdue; });
+
+  var cont = document.getElementById('invp-list');
+  if (!cont) return;
+
+  if (!invs.length) {
+    cont.innerHTML = '<div style="padding:40px;text-align:center;color:#90a4ae">'+
+      (search||filter?'No invoices match your search.':'No invoices yet. Generate one from any job using the 🧾 button.')+
+    '</div>';
+    return;
+  }
+
+  var header = '<div style="display:grid;grid-template-columns:1fr 1.5fr 0.8fr 0.8fr 0.8fr auto;gap:12px;padding:8px 14px;border-bottom:2px solid #e8e8e8;background:#f8f9fa;border-radius:8px 8px 0 0">'+
+    ['Invoice','Job / Customer','Date','Due','Amount','Actions'].map(function(h){
+      return '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px">'+h+'</span>';
+    }).join('')+
+  '</div>';
+
+  var rows = invs.sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); })
+  .map(function(inv){
+    var isPaid    = inv.status==='paid';
+    var isOverdue = inv.isOverdue;
+    var statusBg  = isPaid?'#e8f5e9':isOverdue?'#ffebee':'#fff3e0';
+    var statusCol = isPaid?'#2e7d32':isOverdue?'#c62828':'#e65100';
+    var statusLbl = isPaid?'✓ Paid':isOverdue?'⚠ Overdue':'Unpaid';
+
+    return '<div style="display:grid;grid-template-columns:1fr 1.5fr 0.8fr 0.8fr 0.8fr auto;gap:12px;padding:12px 14px;border-bottom:1px solid #f0f0f0;align-items:center" onmouseover="this.style.background=\'#f8f9fa\'" onmouseout="this.style.background=\'\'">'+
+      '<div>'+
+        '<div style="font-weight:700;font-size:13px;color:#1565c0">'+escHtml(inv.num||'')+'</div>'+
+        (inv.po?'<div style="font-size:11px;color:#90a4ae">PO: '+escHtml(inv.po)+'</div>':'')+
+      '</div>'+
+      '<div>'+
+        '<div style="font-weight:600;font-size:13px">'+escHtml((inv.job&&inv.job.name)||'')+'</div>'+
+        '<div style="font-size:11px;color:#546e7a">'+escHtml((inv.job&&inv.job.customer)||'')+'</div>'+
+      '</div>'+
+      '<div style="font-size:12px;color:#546e7a">'+escHtml(inv.date||'')+'</div>'+
+      '<div style="font-size:12px;color:'+(isOverdue?'#c62828':'#546e7a')+'">'+escHtml(inv.due||'—')+'</div>'+
+      '<div>'+
+        '<div style="font-weight:700;font-size:14px;color:#0d1b2a">'+fmt(inv.total||0)+'</div>'+
+        '<span style="background:'+statusBg+';color:'+statusCol+';border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">'+statusLbl+'</span>'+
+      '</div>'+
+      '<div style="display:flex;gap:4px">'+
+        '<button class="btn btn-outline btn-sm" onclick="reprintInvoice(\''+inv.id+'\')" title="Reprint">🖨</button>'+
+        (!isPaid?'<button class="btn btn-primary btn-sm" onclick="markInvoicePaid(\''+inv.id+'\')" title="Mark Paid">✓ Paid</button>':'')+
+        '<button class="btn btn-danger btn-sm" onclick="deleteInvoice(\''+inv.id+'\')" title="Delete">✕</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+
+  cont.innerHTML = header + rows;
+}
+
+function reprintInvoice(invId) {
+  var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
+  if (!inv) return;
+  var html = buildInvoiceHTML(inv);
+  var win = window.open('','_blank','width=900,height=700');
+  if (win) { win.document.write(html); win.document.close(); setTimeout(function(){ win.print(); },500); }
+}
+
+function markInvoicePaid(invId) {
+  var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
+  if (!inv) return;
+  inv.status = 'paid';
+  inv.paidDate = getTodayISO();
+  // Update linked job status
+  var job = (DB.jobs||[]).find(function(j){ return j.id===inv.jobId; });
+  if (job) { job.status='Closed'; job.invoicePaid=true; }
+  saveDB();
+  renderInvoicesPage();
+  renderJobs();
+  showToast('Invoice '+inv.num+' marked as paid ✓','success');
+}
+
+function deleteInvoice(invId) {
+  if (!confirm('Delete this invoice? This cannot be undone.')) return;
+  DB.invoices = (DB.invoices||[]).filter(function(i){ return i.id!==invId; });
+  saveDB();
+  renderInvoicesPage();
+  showToast('Invoice deleted','info');
+}
+
+// ============================================================
+// END INVOICES PAGE
+// ============================================================
+
+function exportCSV() {
+  const rows = [['Quote#','Customer','Job Name','Environment','Total','Target Margin','Achieved Margin','Health','Status','Date']];
+  DB.quotes.forEach(function(q){
+    const envLabel = q.envLabel || (ENV_PRESETS[q.env] ? ENV_PRESETS[q.env].label : q.env||'');
+    rows.push([q.num||'',q.cn||'',q.jn||'',envLabel,q.total||0,pct(q.targetMargin||35),pct(q.achievedMargin||0),q.pricingHealth||'',q.status||'',q.dt||'']);
+  });
+  const csv = rows.map(function(r){return r.map(function(c){return '"'+(c+'').replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tcss-quotes.csv'; a.click();
+}
 
 var _invoiceJobId = null;
 

@@ -3691,10 +3691,10 @@ function renderJobs() {
         (estH?'<div style="font-size:11px;color:#90a4ae">'+estH.toFixed(1)+'h est '+varHtml+'</div>':'')+
       '</div>'+
       // Actions
-      '<div style="display:flex;gap:4px;flex-shrink:0">'+
-        '<button class="btn btn-outline btn-sm" onclick="openDispatchDetail(\''+j.id+'\')" title="Dispatch">🗂</button>'+
+      '<div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">'+
+        '<button class="btn btn-outline btn-sm" onclick="openDispatchDetail(\''+j.id+'\')" title="Dispatch Board">🗂</button>'+
         (wtProj?'<button class="btn btn-outline btn-sm" onclick="loadWTProject(\''+wtProj.id+'\');goPage(\'worktracking\')" title="Work Tracking">✅</button>':'')+
-        '<button class="btn btn-outline btn-sm" onclick="openInvoiceModal(\''+j.id+'\')" title="Generate Invoice">🧾</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="openInvoiceModal(\''+j.id+'\')" title="Generate Invoice" style="color:#1565c0;border-color:#1565c0">🧾</button>'+
         '<button class="btn btn-outline btn-sm" data-action="editJob" data-id="'+j.id+'" title="Edit">✏</button>'+
         '<button class="btn btn-danger btn-sm" data-action="delJob" data-id="'+j.id+'" title="Delete">✕</button>'+
         (j.status==='Complete'||j.status==='Closed'?
