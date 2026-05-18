@@ -67,8 +67,14 @@ function printQRLabels() {
 
 // Record start time when tech opens check-off modal
 var _checkoffStartTime = null;
-var _origOpenCheckoffModal = openCheckoffModal;
-var _origSubmitWTCheckoff = submitWTCheckoff;
+var _origOpenCheckoffModal = null;
+var _origSubmitWTCheckoff  = null;
+
+// Deferred patch — runs after all scripts load
+window.addEventListener('load', function() {
+  if (typeof openCheckoffModal === 'function')  _origOpenCheckoffModal = openCheckoffModal;
+  if (typeof submitWTCheckoff  === 'function')  _origSubmitWTCheckoff  = submitWTCheckoff;
+});
 
 // After checkoff is saved, store duration and check benchmarks
 

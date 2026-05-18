@@ -377,20 +377,19 @@ async function syncAllFromCloud() {
       }
     } catch(e) { errors.push('jobs: '+e.message); }
 
-    // 9. Team
+    // 9. Team — pull from profiles table (all team members)
     try {
-      var { data: teamRows, error: te2 } = await _sb.from('team').select('*').eq('is_active', true).order('name');
+      var { data: teamRows, error: te2 } = await _sb.from('profiles').select('*').order('full_name');
       if (te2) { errors.push('team: '+te2.message); }
       else if (teamRows && teamRows.length) {
         DB.team = teamRows.map(function(m) {
           return {
             id:    m.id,
-            name:  m.name,
-            role:  m.role,
-            phone: m.phone,
-            email: m.email,
-            pin:   m.pin_hash,
-            active:m.is_active
+            name:  m.full_name || m.name || '',
+            role:  m.role || 'helper_tech',
+            phone: m.phone || '',
+            email: m.email || '',
+            active: true
           };
         });
       }
@@ -597,11 +596,10 @@ async function pushAllToCloud() {
           contact_type: ct.contactType || null,
           contact_pref: ct.contactPref || null,
           notes:        ct.notes || null,
-          is_active:    true,
-          created_by:   _currentUser.id
+          is_active:    true
         });
       } catch(ctErr) {
-        console.warn('[Push] Contact error for', ct.name, ctErr);
+        console.warn('[Push] Contact error for', ct.name, ctErr.message || ctErr);
       }
     }
 
@@ -610,38 +608,43 @@ async function pushAllToCloud() {
       if (!jb || !jb.name) continue;
       try {
         var jbId = ensureUUID(jb);
+        // Map app status to Supabase enum — only use values that exist in the enum
+        var jobStatusMap = {
+          'Scheduled':'Scheduled','scheduled':'Scheduled',
+          'In Progress':'In Progress','in_progress':'In Progress',
+          'Complete':'Complete','complete':'Complete','Closed':'Complete',
+          'On Hold':'On Hold','on_hold':'On Hold','Paused':'On Hold',
+          'Cancelled':'Cancelled','cancelled':'Cancelled'
+        };
         await _sb.from('jobs').upsert({
-          id:                 jbId,
-          job_number:         jb.num || null,
-          name:               jb.name || '',
-          customer_id:        jb.customerId || null,
-          contact_id:         jb.contactId || null,
-          assigned_to:        jb.assignedTo || null,
-          crew:               jb.crew || [],
-          status:             jb.status || 'Scheduled',
-          scheduled_date:     jb.scheduledDate || null,
-          scheduled_time:     jb.scheduledTime || null,
+          id:               jbId,
+          job_number:       jb.num || null,
+          name:             jb.name || '',
+          customer_id:      jb.customerId || null,
+          primary_quote_id: jb.quoteId || null,
+          status:           jobStatusMap[jb.status] || 'Scheduled',
+          site_address:     jb.address || null,
+          scheduled_start:  jb.scheduledDate || jb.startDate || null,
+          scheduled_end:    jb.endDate || null,
+          // Custom columns we added via SQL
+          assigned_to:      jb.assignedTo || null,
+          crew:             jb.crew || [],
+          scheduled_date:   jb.scheduledDate || null,
+          scheduled_time:   jb.scheduledTime || null,
           scheduled_duration: jb.scheduledDuration || null,
-          // Map to Supabase column names
-          site_address:       jb.address || null,
-          scheduled_start:    jb.scheduledDate || jb.startDate || null,
-          scheduled_end:      jb.endDate || null,
-          actual_start:       jb.startDate || null,
-          actual_end:         jb.endDate || null,
-          primary_quote_id:   jb.quoteId || null,
-          // Custom columns we added
-          address:            jb.address || null,
-          est_labor_hours:    jb.estLaborHours || null,
+          est_labor_hours:  jb.estLaborHours || null,
           actual_labor_hours: jb.actualLaborHours || null,
-          est_total:          jb.estTotal || null,
-          notes:              jb.notes || null,
-          dispatch_notes:     jb.dispatchNotes || null,
-          quote_id:           jb.quoteId || null,
-          is_active:          true,
-          created_by:         _currentUser.id
+          est_total:        jb.estTotal || null,
+          address:          jb.address || null,
+          notes:            jb.notes || null,
+          dispatch_notes:   jb.dispatchNotes || null,
+          contact_id:       jb.contactId || null,
+          quote_id:         jb.quoteId || null,
+          is_active:        true,
+          created_by:       _currentUser.id
         });
       } catch(jbErr) {
-        console.warn('[Push] Job error for', jb.name, jbErr);
+        console.warn('[Push] Job error for', jb.name, jbErr.message || jbErr);
       }
     }
 
