@@ -1896,12 +1896,13 @@ table{font-size:12.5px}
   </div>
 
   <!-- Summary strip -->
-  <div class="cust-summary-strip" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
+  <div class="cust-summary-strip" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px">
     <div class="cust-summary-tile"><div class="cust-summary-val" id="js-total">0</div><div class="cust-summary-lbl">Total Jobs</div></div>
     <div class="cust-summary-tile blue"><div class="cust-summary-val" id="js-scheduled">0</div><div class="cust-summary-lbl">Scheduled</div></div>
     <div class="cust-summary-tile green"><div class="cust-summary-val" id="js-active">0</div><div class="cust-summary-lbl">In Progress</div></div>
     <div class="cust-summary-tile orange"><div class="cust-summary-val" id="js-onhold">0</div><div class="cust-summary-lbl">On Hold</div></div>
     <div class="cust-summary-tile purple"><div class="cust-summary-val" id="js-value">$0</div><div class="cust-summary-lbl">Total Est. Value</div></div>
+    <div class="cust-summary-tile teal"><div class="cust-summary-val" id="js-invoiced">0</div><div class="cust-summary-lbl">Invoiced</div></div>
   </div>
 
   <div class="card">
@@ -1925,6 +1926,47 @@ table{font-size:12.5px}
       </select>
     </div>
     <div id="jobs-list"></div>
+  </div>
+</div>
+
+<!-- INVOICE MODAL -->
+<div class="modal-overlay" id="modal-invoice">
+  <div class="modal-box" style="max-width:680px">
+    <div class="modal-head">
+      <h3>🧾 Generate Invoice</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-invoice">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row cols2">
+        <div><label>Invoice #</label><input id="inv-num" placeholder="e.g. INV-1001"></div>
+        <div><label>Invoice Date</label><input id="inv-date" type="date"></div>
+      </div>
+      <div class="form-row cols2">
+        <div><label>Due Date</label><input id="inv-due" type="date"></div>
+        <div><label>Payment Terms</label>
+          <select id="inv-terms">
+            <option value="Due on Receipt">Due on Receipt</option>
+            <option value="Net 15">Net 15</option>
+            <option value="Net 30">Net 30</option>
+            <option value="Net 45">Net 45</option>
+            <option value="Net 60">Net 60</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row cols2">
+        <div><label>PO Number (optional)</label><input id="inv-po" placeholder="Customer PO #"></div>
+        <div><label>Tax Rate %</label><input id="inv-tax" type="number" min="0" max="20" step="0.1" value="0"></div>
+      </div>
+      <div class="form-row"><div><label>Invoice Notes</label>
+        <textarea id="inv-notes" rows="2" placeholder="Payment instructions, bank details, thank you message..."></textarea>
+      </div></div>
+      <div id="inv-line-preview" style="background:#f8f9fa;border-radius:8px;padding:12px;margin-top:4px;font-size:12px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-invoice">Cancel</button>
+      <button class="btn btn-outline btn-sm" onclick="previewInvoice()">👁 Preview</button>
+      <button class="btn btn-primary" onclick="saveAndPrintInvoice()">🧾 Generate & Print</button>
+    </div>
   </div>
 </div>
 

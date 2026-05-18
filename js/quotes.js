@@ -1317,6 +1317,266 @@ function deleteQuote(id) {
   showToast('Quote deleted', 'info');
 }
 
+// ============================================================
+// INVOICE SYSTEM
+// ============================================================
+
+var _invoiceJobId = null;
+
+function openInvoiceModal(jobId) {
+  var job = (DB.jobs||[]).find(function(j){ return j.id===jobId; });
+  if (!job) return;
+  _invoiceJobId = jobId;
+
+  // Auto-generate invoice number
+  var invCount = (DB.invoices||[]).length + 1;
+  var invNum = 'INV-' + String(invCount).padStart(4,'0');
+  // Check if this job already has an invoice
+  var existing = (DB.invoices||[]).find(function(i){ return i.jobId===jobId; });
+  if (existing) invNum = existing.num;
+
+  var today = getTodayISO();
+  var due = new Date(); due.setDate(due.getDate()+30);
+  var dueStr = due.toISOString().split('T')[0];
+
+  function sv(id,v){ var e=document.getElementById(id); if(e) e.value=v||''; }
+  sv('inv-num',   existing ? existing.num : invNum);
+  sv('inv-date',  existing ? existing.date : today);
+  sv('inv-due',   existing ? existing.due : dueStr);
+  sv('inv-terms', existing ? existing.terms : 'Net 30');
+  sv('inv-po',    existing ? existing.po : (job.poNumber||''));
+  sv('inv-tax',   existing ? existing.taxRate : 0);
+  sv('inv-notes', existing ? existing.notes : (DB.settings.payTerms||''));
+
+  // Show line item preview
+  var quote = job.quoteId ? (DB.quotes||[]).find(function(q){ return q.id===job.quoteId; }) : null;
+  var prevEl = document.getElementById('inv-line-preview');
+  if (prevEl) {
+    if (quote && quote.items && quote.items.length) {
+      var subtotal = quote.total || 0;
+      prevEl.innerHTML =
+        '<div style="font-weight:700;margin-bottom:6px;color:#0d1b2a">Line Items from Quote '+escHtml(quote.num||'')+'</div>'+
+        quote.items.slice(0,5).map(function(li){
+          return '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #e8e8e8">'+
+            '<span>'+escHtml(li.desc||'')+'</span>'+
+            '<span style="font-weight:700">'+fmt((li.mc||0)*(li.qty||1))+'</span>'+
+          '</div>';
+        }).join('')+
+        (quote.items.length>5?'<div style="color:#90a4ae;font-size:11px;margin-top:4px">+ '+(quote.items.length-5)+' more items</div>':'')+
+        '<div style="display:flex;justify-content:space-between;padding:6px 0 0;font-weight:700;font-size:14px;border-top:2px solid #e0e0e0;margin-top:4px">'+
+          '<span>Subtotal</span><span style="color:#2e7d32">'+fmt(subtotal)+'</span>'+
+        '</div>';
+    } else {
+      prevEl.innerHTML = '<div style="color:#90a4ae;font-size:12px">No linked quote — invoice will show job summary only.</div>';
+    }
+  }
+
+  openModal('modal-invoice');
+}
+
+function previewInvoice() {
+  var job = (DB.jobs||[]).find(function(j){ return j.id===_invoiceJobId; });
+  if (!job) return;
+  var invData = buildInvoiceData(job);
+  var html = buildInvoiceHTML(invData);
+  var win = window.open('','_blank','width:900,height:700');
+  if (win) { win.document.write(html); win.document.close(); }
+}
+
+function saveAndPrintInvoice() {
+  var job = (DB.jobs||[]).find(function(j){ return j.id===_invoiceJobId; });
+  if (!job) return;
+  var invData = buildInvoiceData(job);
+
+  // Save to DB
+  if (!DB.invoices) DB.invoices = [];
+  var idx = DB.invoices.findIndex(function(i){ return i.jobId===_invoiceJobId; });
+  if (idx>=0) DB.invoices[idx] = invData;
+  else DB.invoices.push(invData);
+
+  // Mark job as invoiced
+  job.status = 'Complete';
+  job.invoiced = true;
+  job.invoiceNum = invData.num;
+
+  saveDB();
+  closeModal('modal-invoice');
+  renderJobs();
+
+  // Open print window
+  var html = buildInvoiceHTML(invData);
+  var win = window.open('','_blank','width=900,height=700');
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    setTimeout(function(){ win.print(); }, 500);
+  }
+  showToast('Invoice '+invData.num+' generated','success');
+}
+
+function buildInvoiceData(job) {
+  var num     = (document.getElementById('inv-num')||{}).value || 'INV-0001';
+  var date    = (document.getElementById('inv-date')||{}).value || getTodayISO();
+  var due     = (document.getElementById('inv-due')||{}).value || '';
+  var terms   = (document.getElementById('inv-terms')||{}).value || 'Net 30';
+  var po      = (document.getElementById('inv-po')||{}).value || '';
+  var taxRate = parseFloat((document.getElementById('inv-tax')||{}).value||0);
+  var notes   = (document.getElementById('inv-notes')||{}).value || '';
+
+  var quote = job.quoteId ? (DB.quotes||[]).find(function(q){ return q.id===job.quoteId; }) : null;
+  var subtotal = quote ? (quote.total||0) : (job.estTotal||0);
+  var taxAmt = subtotal * (taxRate/100);
+  var total = subtotal + taxAmt;
+
+  return {
+    id:       'inv-'+Date.now(),
+    jobId:    job.id,
+    quoteId:  job.quoteId||null,
+    num:      num,
+    date:     date,
+    due:      due,
+    terms:    terms,
+    po:       po,
+    taxRate:  taxRate,
+    taxAmt:   taxAmt,
+    subtotal: subtotal,
+    total:    total,
+    notes:    notes,
+    status:   'sent',
+    job:      { name:job.name, customer:job.customer, address:job.address, num:job.num },
+    quote:    quote ? { num:quote.num, items:quote.items||[] } : null,
+    createdAt:getTodayISO()
+  };
+}
+
+function buildInvoiceHTML(inv) {
+  var s = DB.settings||{};
+  var cname  = s.cname  || 'TCSS';
+  var cphone = s.cphone || '';
+  var cemail = s.cemail || '';
+  var caddr  = s.caddr  || '';
+  var clic   = s.clic   || '';
+
+  // Line items
+  var lineItemRows = '';
+  var items = inv.quote ? inv.quote.items : [];
+  if (items.length) {
+    lineItemRows = items.map(function(li){
+      var lineTotal = (li.mc||0)*(li.qty||1);
+      return '<tr>'+
+        '<td style="padding:8px 12px;border-bottom:1px solid #f0f0f0">'+escHtml(li.desc||'')+'</td>'+
+        '<td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center">'+escHtml(li.cat||'')+'</td>'+
+        '<td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center">'+(li.qty||1)+'</td>'+
+        '<td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right">'+fmt(li.mc||0)+'</td>'+
+        '<td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700">'+fmt(lineTotal)+'</td>'+
+      '</tr>';
+    }).join('');
+  } else {
+    lineItemRows = '<tr><td colspan="5" style="padding:12px;color:#546e7a;font-style:italic">'+
+      escHtml(inv.job.name||'')+(inv.job.address?' — '+escHtml(inv.job.address):'')+'</td></tr>';
+  }
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8">'+
+    '<title>Invoice '+escHtml(inv.num)+'</title>'+
+    '<style>'+
+      'body{font-family:Arial,sans-serif;margin:0;padding:32px;color:#1a1a1a;font-size:13px}'+
+      '.inv-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:3px solid #1565c0}'+
+      '.inv-company{font-size:22px;font-weight:900;color:#1565c0;margin-bottom:4px}'+
+      '.inv-meta{font-size:12px;color:#546e7a;line-height:1.6}'+
+      '.inv-title{font-size:32px;font-weight:900;color:#1565c0;text-align:right}'+
+      '.inv-num{font-size:14px;color:#546e7a;text-align:right;margin-top:4px}'+
+      '.inv-addresses{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;margin-bottom:28px}'+
+      '.inv-addr-block label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#90a4ae;display:block;margin-bottom:4px}'+
+      '.inv-addr-block div{font-size:13px;line-height:1.6}'+
+      '.inv-details{display:flex;gap:0;margin-bottom:28px;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden}'+
+      '.inv-detail-cell{flex:1;padding:10px 16px;border-right:1px solid #e0e0e0;background:#f8f9fa}'+
+      '.inv-detail-cell:last-child{border-right:none}'+
+      '.inv-detail-label{font-size:10px;font-weight:700;text-transform:uppercase;color:#90a4ae;letter-spacing:.5px}'+
+      '.inv-detail-val{font-size:13px;font-weight:700;color:#0d1b2a;margin-top:2px}'+
+      'table{width:100%;border-collapse:collapse;margin-bottom:24px}'+
+      'thead th{background:#1565c0;color:#fff;padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px}'+
+      'thead th:last-child,thead th:nth-child(3),thead th:nth-child(4){text-align:right}'+
+      'thead th:nth-child(3){text-align:center}'+
+      'tbody tr:nth-child(even){background:#f8f9fa}'+
+      '.inv-totals{margin-left:auto;width:280px}'+
+      '.inv-total-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px}'+
+      '.inv-total-final{display:flex;justify-content:space-between;padding:12px 0 0;font-size:18px;font-weight:900;color:#1565c0;border-top:2px solid #1565c0;margin-top:8px}'+
+      '.inv-notes{background:#f8f9fa;border-radius:8px;padding:16px;margin-top:24px;font-size:12px;color:#546e7a;line-height:1.6}'+
+      '.inv-footer{margin-top:32px;padding-top:16px;border-top:1px solid #e0e0e0;text-align:center;font-size:11px;color:#90a4ae}'+
+      '.no-print{margin-bottom:16px}'+
+      '@media print{.no-print{display:none}@page{margin:15mm}}'+
+    '</style></head><body>'+
+
+    '<div class="no-print">'+
+      '<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;cursor:pointer;margin-right:8px">🖨 Print</button>'+
+      '<button onclick="window.close()" style="border:1px solid #ddd;background:#fff;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">Close</button>'+
+    '</div>'+
+
+    '<div class="inv-header">'+
+      '<div>'+
+        '<div class="inv-company">'+escHtml(cname)+'</div>'+
+        '<div class="inv-meta">'+
+          (caddr?escHtml(caddr)+'<br>':'')+
+          (cphone?'📞 '+escHtml(cphone)+'<br>':'')+
+          (cemail?'✉️ '+escHtml(cemail)+'<br>':'')+
+          (clic?'License: '+escHtml(clic):'')+'</div>'+
+      '</div>'+
+      '<div>'+
+        '<div class="inv-title">INVOICE</div>'+
+        '<div class="inv-num">'+escHtml(inv.num)+'</div>'+
+      '</div>'+
+    '</div>'+
+
+    '<div class="inv-addresses">'+
+      '<div class="inv-addr-block"><label>Bill To</label><div>'+
+        '<strong>'+escHtml(inv.job.customer||'')+'</strong>'+
+        (inv.job.address?'<br>'+escHtml(inv.job.address):'')+
+      '</div></div>'+
+      '<div class="inv-addr-block"><label>Project</label><div>'+
+        escHtml(inv.job.name||'')+
+        (inv.job.num?'<br>Job #'+escHtml(inv.job.num):'')+
+        (inv.quoteId&&inv.quote?'<br>Quote: '+escHtml(inv.quote.num||''):'')+'</div></div>'+
+      '<div class="inv-addr-block"><label>Payment</label><div>'+
+        '<strong>'+escHtml(inv.terms)+'</strong>'+
+        (inv.due?'<br>Due: '+escHtml(inv.due):'')+
+        (inv.po?'<br>PO: '+escHtml(inv.po):'')+
+      '</div></div>'+
+    '</div>'+
+
+    '<div class="inv-details">'+
+      '<div class="inv-detail-cell"><div class="inv-detail-label">Invoice Date</div><div class="inv-detail-val">'+escHtml(inv.date)+'</div></div>'+
+      '<div class="inv-detail-cell"><div class="inv-detail-label">Due Date</div><div class="inv-detail-val" style="color:#c62828">'+( inv.due||'On Receipt')+'</div></div>'+
+      '<div class="inv-detail-cell"><div class="inv-detail-label">Status</div><div class="inv-detail-val" style="color:#e65100">Unpaid</div></div>'+
+      '<div class="inv-detail-cell"><div class="inv-detail-label">Amount Due</div><div class="inv-detail-val" style="color:#1565c0;font-size:16px">'+fmt(inv.total)+'</div></div>'+
+    '</div>'+
+
+    '<table>'+
+      '<thead><tr>'+
+        '<th>Description</th><th>Category</th><th style="text-align:center">Qty</th>'+
+        '<th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th>'+
+      '</tr></thead>'+
+      '<tbody>'+lineItemRows+'</tbody>'+
+    '</table>'+
+
+    '<div class="inv-totals">'+
+      '<div class="inv-total-row"><span>Subtotal</span><span>'+fmt(inv.subtotal)+'</span></div>'+
+      (inv.taxRate>0?'<div class="inv-total-row"><span>Tax ('+inv.taxRate+'%)</span><span>'+fmt(inv.taxAmt)+'</span></div>':'')+
+      '<div class="inv-total-final"><span>Total Due</span><span>'+fmt(inv.total)+'</span></div>'+
+    '</div>'+
+
+    (inv.notes?'<div class="inv-notes"><strong>Notes &amp; Payment Instructions:</strong><br>'+escHtml(inv.notes).replace(/\n/g,'<br>')+'</div>':'')+
+
+    '<div class="inv-footer">'+
+      escHtml(cname)+' · Thank you for your business!'+
+      (clic?' · '+escHtml(clic):'')+
+    '</div>'+
+  '</body></html>';
+}
+
+// ============================================================
+// END INVOICE SYSTEM
+// ============================================================
+
 function exportCSV() {
   const rows = [['Quote#','Customer','Job Name','Environment','Total','Target Margin','Achieved Margin','Health','Status','Date']];
   DB.quotes.forEach(function(q){

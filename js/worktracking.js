@@ -3574,7 +3574,8 @@ function renderJobs() {
   setS('js-active',    DB.jobs.filter(function(j){ return j.status==='In Progress'; }).length);
   setS('js-onhold',    DB.jobs.filter(function(j){ return j.status==='On Hold'; }).length);
   var totalVal = DB.jobs.reduce(function(s,j){ return s+(j.estTotal||0); },0);
-  setS('js-value', '$'+Math.round(totalVal).toLocaleString());
+  setS('js-value',    '$'+Math.round(totalVal).toLocaleString());
+  setS('js-invoiced', (DB.invoices||[]).length);
 
   // Search
   if (search) list = list.filter(function(j){
@@ -3693,6 +3694,7 @@ function renderJobs() {
       '<div style="display:flex;gap:4px;flex-shrink:0">'+
         '<button class="btn btn-outline btn-sm" onclick="openDispatchDetail(\''+j.id+'\')" title="Dispatch">🗂</button>'+
         (wtProj?'<button class="btn btn-outline btn-sm" onclick="loadWTProject(\''+wtProj.id+'\');goPage(\'worktracking\')" title="Work Tracking">✅</button>':'')+
+        '<button class="btn btn-outline btn-sm" onclick="openInvoiceModal(\''+j.id+'\')" title="Generate Invoice">🧾</button>'+
         '<button class="btn btn-outline btn-sm" data-action="editJob" data-id="'+j.id+'" title="Edit">✏</button>'+
         '<button class="btn btn-danger btn-sm" data-action="delJob" data-id="'+j.id+'" title="Delete">✕</button>'+
         (j.status==='Complete'||j.status==='Closed'?
