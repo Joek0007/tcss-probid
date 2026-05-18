@@ -112,11 +112,15 @@ async function signIn(email, password) {
     setTimeout(flushOfflineQueue, 2000);
     setTimeout(initPhase2, 500);
     setTimeout(initPhase3, 800);
+    startSessionTimeout();
+    startAutoSync();
   }
   return result;
 }
 
 async function signOut() {
+  stopAutoSync();
+  clearTimeout(_sessionTimer);
   if (!_sb) { window.location.reload(); return; }
   try {
     await pushAllToCloud();
@@ -124,8 +128,6 @@ async function signOut() {
   } catch(e) {
     console.warn('[SignOut] Error:', e);
   }
-  // Reload the page for a fully clean state — clears all in-memory data,
-  // forces fresh login, triggers syncAllFromCloud on next sign-in
   window.location.reload();
 }
 
@@ -316,6 +318,84 @@ async function syncAllFromCloud() {
         floors.forEach(function(f) { DB.marginFloors[f.job_type] = f.floor_pct; });
       }
     } catch(e) { errors.push('margin_floors: '+e.message); }
+
+    // 7. Contacts
+    try {
+      var { data: conts, error: cone } = await _sb.from('contacts').select('*').eq('is_active', true).order('name');
+      if (cone) { errors.push('contacts: '+cone.message); }
+      else if (conts && conts.length) {
+        DB.contacts = conts.map(function(c) {
+          return {
+            id:          c.id,
+            name:        c.name,
+            company:     c.company,
+            customerId:  c.customer_id,
+            phone:       c.phone,
+            email:       c.email,
+            role:        c.title,
+            title:       c.title,
+            contactType: c.contact_type,
+            contactPref: c.contact_pref,
+            notes:       c.notes,
+            createdAt:   c.created_at
+          };
+        });
+      }
+    } catch(e) { errors.push('contacts: '+e.message); }
+
+    // 8. Jobs
+    try {
+      var { data: jobRows, error: je } = await _sb.from('jobs').select('*').eq('is_active', true).order('created_at', {ascending:false});
+      if (je) { errors.push('jobs: '+je.message); }
+      else if (jobRows && jobRows.length) {
+        DB.jobs = jobRows.map(function(j) {
+          return {
+            id:                j.id,
+            num:               j.job_number,
+            name:              j.name,
+            customer:          j.customer_name || (j.customer_id ? j.customer_id : ''),
+            customerId:        j.customer_id,
+            contactId:         j.contact_id,
+            assignedTo:        j.assigned_to,
+            crew:              j.crew || [],
+            status:            j.status || 'Scheduled',
+            scheduledDate:     j.scheduled_date || (j.scheduled_start ? j.scheduled_start : null),
+            scheduledTime:     j.scheduled_time,
+            scheduledDuration: j.scheduled_duration,
+            startDate:         j.actual_start || j.scheduled_start,
+            endDate:           j.actual_end || j.scheduled_end,
+            address:           j.address || j.site_address || (j.site_city ? [j.site_address,j.site_city,j.site_state].filter(Boolean).join(', ') : null),
+            estLaborHours:     j.est_labor_hours,
+            actualLaborHours:  j.actual_labor_hours,
+            estTotal:          j.est_total,
+            notes:             j.notes || j.description,
+            dispatchNotes:     j.dispatch_notes,
+            quoteId:           j.quote_id || j.primary_quote_id,
+            createdAt:         j.created_at
+          };
+        });
+      }
+    } catch(e) { errors.push('jobs: '+e.message); }
+
+    // 9. Team
+    try {
+      var { data: teamRows, error: te2 } = await _sb.from('team').select('*').eq('is_active', true).order('name');
+      if (te2) { errors.push('team: '+te2.message); }
+      else if (teamRows && teamRows.length) {
+        DB.team = teamRows.map(function(m) {
+          return {
+            id:    m.id,
+            name:  m.name,
+            role:  m.role,
+            phone: m.phone,
+            email: m.email,
+            pin:   m.pin_hash,
+            active:m.is_active
+          };
+        });
+      }
+    } catch(e) { errors.push('team: '+e.message); }
+
   }
 
   saveDB();
@@ -498,6 +578,70 @@ async function pushAllToCloud() {
         });
       } catch(tErr) {
         console.warn('[Push] Template error for', t.name, tErr);
+      }
+    }
+
+    // Push contacts
+    for (var ct of (DB.contacts || [])) {
+      if (!ct || !ct.name) continue;
+      try {
+        var ctId = ensureUUID(ct);
+        await _sb.from('contacts').upsert({
+          id:           ctId,
+          name:         ct.name || '',
+          company:      ct.company || null,
+          customer_id:  ct.customerId || null,
+          phone:        ct.phone || null,
+          email:        ct.email || null,
+          title:        ct.role || ct.title || null,
+          contact_type: ct.contactType || null,
+          contact_pref: ct.contactPref || null,
+          notes:        ct.notes || null,
+          is_active:    true,
+          created_by:   _currentUser.id
+        });
+      } catch(ctErr) {
+        console.warn('[Push] Contact error for', ct.name, ctErr);
+      }
+    }
+
+    // Push jobs
+    for (var jb of (DB.jobs || [])) {
+      if (!jb || !jb.name) continue;
+      try {
+        var jbId = ensureUUID(jb);
+        await _sb.from('jobs').upsert({
+          id:                 jbId,
+          job_number:         jb.num || null,
+          name:               jb.name || '',
+          customer_id:        jb.customerId || null,
+          contact_id:         jb.contactId || null,
+          assigned_to:        jb.assignedTo || null,
+          crew:               jb.crew || [],
+          status:             jb.status || 'Scheduled',
+          scheduled_date:     jb.scheduledDate || null,
+          scheduled_time:     jb.scheduledTime || null,
+          scheduled_duration: jb.scheduledDuration || null,
+          // Map to Supabase column names
+          site_address:       jb.address || null,
+          scheduled_start:    jb.scheduledDate || jb.startDate || null,
+          scheduled_end:      jb.endDate || null,
+          actual_start:       jb.startDate || null,
+          actual_end:         jb.endDate || null,
+          primary_quote_id:   jb.quoteId || null,
+          // Custom columns we added
+          address:            jb.address || null,
+          est_labor_hours:    jb.estLaborHours || null,
+          actual_labor_hours: jb.actualLaborHours || null,
+          est_total:          jb.estTotal || null,
+          notes:              jb.notes || null,
+          dispatch_notes:     jb.dispatchNotes || null,
+          quote_id:           jb.quoteId || null,
+          is_active:          true,
+          created_by:         _currentUser.id
+        });
+      } catch(jbErr) {
+        console.warn('[Push] Job error for', jb.name, jbErr);
       }
     }
 
@@ -697,6 +841,64 @@ function showForgotPassword() {
 function continueOffline() {
   hideAuthModal();
   showToast('Working offline — data saves locally and syncs when connected', 'warning', 4000);
+}
+
+// ============================================================
+// SESSION TIMEOUT — auto sign-out after 30 min inactivity
+// ============================================================
+var _sessionTimer    = null;
+var _sessionWarned   = false;
+var SESSION_TIMEOUT  = 30 * 60 * 1000;  // 30 minutes
+var SESSION_WARN     = 29 * 60 * 1000;  // warn at 29 minutes
+
+function startSessionTimeout() {
+  clearTimeout(_sessionTimer);
+  _sessionWarned = false;
+  _sessionTimer = setTimeout(function() {
+    if (!_sessionWarned) {
+      _sessionWarned = true;
+      showToast('Session expiring in 1 minute due to inactivity', 'warning', 8000);
+      _sessionTimer = setTimeout(function() {
+        showToast('Session expired — signing out', 'warning', 3000);
+        setTimeout(function() { signOut(); }, 1500);
+      }, 60 * 1000);
+    }
+  }, SESSION_WARN);
+}
+
+function resetSessionTimeout() {
+  if (!_currentUser) return;
+  startSessionTimeout();
+}
+
+// Reset timer on any user interaction
+['mousedown','keydown','touchstart','scroll'].forEach(function(evt) {
+  document.addEventListener(evt, function() {
+    if (_currentUser) resetSessionTimeout();
+  }, { passive: true });
+});
+
+// ============================================================
+// AUTO-SYNC — every 15 minutes while logged in
+// ============================================================
+var _autoSyncTimer = null;
+var AUTO_SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
+
+function startAutoSync() {
+  clearInterval(_autoSyncTimer);
+  _autoSyncTimer = setInterval(function() {
+    if (_currentUser && _sb) {
+      console.log('[AutoSync] Running background sync');
+      syncAllFromCloud();
+    } else {
+      clearInterval(_autoSyncTimer);
+    }
+  }, AUTO_SYNC_INTERVAL);
+}
+
+function stopAutoSync() {
+  clearInterval(_autoSyncTimer);
+  _autoSyncTimer = null;
 }
 
 // ---- INIT ----
