@@ -1890,13 +1890,42 @@ table{font-size:12.5px}
 
 <!-- JOBS -->
 <div class="page" id="page-jobs">
-  <div class="page-header"><h2>🔧 Jobs</h2>
-    <div style="display:flex;gap:8px">
-      <select id="job-filter-status" style="width:auto;font-size:12px;padding:5px 10px"><option value="">All Statuses</option><option value="Scheduled">Scheduled</option><option value="In Progress">In Progress</option><option value="Complete">Complete</option><option value="Closed">Closed</option></select>
-      <button class="btn btn-primary btn-sm" data-action="newJob">+ New Job</button>
-    </div>
+  <div class="page-header">
+    <h2>🔧 Active Jobs</h2>
+    <button class="btn btn-primary" data-action="newJob">+ New Job</button>
   </div>
-  <div id="jobs-list"><div class="empty-state"><div class="empty-icon">🔧</div><p>No jobs yet. Convert a won quote or create manually.</p></div></div>
+
+  <!-- Summary strip -->
+  <div class="cust-summary-strip" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
+    <div class="cust-summary-tile"><div class="cust-summary-val" id="js-total">0</div><div class="cust-summary-lbl">Total Jobs</div></div>
+    <div class="cust-summary-tile blue"><div class="cust-summary-val" id="js-scheduled">0</div><div class="cust-summary-lbl">Scheduled</div></div>
+    <div class="cust-summary-tile green"><div class="cust-summary-val" id="js-active">0</div><div class="cust-summary-lbl">In Progress</div></div>
+    <div class="cust-summary-tile orange"><div class="cust-summary-val" id="js-onhold">0</div><div class="cust-summary-lbl">On Hold</div></div>
+    <div class="cust-summary-tile purple"><div class="cust-summary-val" id="js-value">$0</div><div class="cust-summary-lbl">Total Est. Value</div></div>
+  </div>
+
+  <div class="card">
+    <div class="filter-bar" style="margin-bottom:12px">
+      <input class="search-input" id="job-search" placeholder="🔍 Search jobs, customers, address..." oninput="renderJobs()">
+      <select id="job-filter-status" style="width:auto" onchange="renderJobs()">
+        <option value="">All Statuses</option>
+        <option value="Scheduled">Scheduled</option>
+        <option value="In Progress">In Progress</option>
+        <option value="On Hold">On Hold</option>
+        <option value="Complete">Complete</option>
+        <option value="Closed">Closed</option>
+      </select>
+      <select id="job-sort" style="width:auto" onchange="renderJobs()">
+        <option value="date-desc">Newest First</option>
+        <option value="date-asc">Oldest First</option>
+        <option value="name-asc">Name A–Z</option>
+        <option value="customer-asc">Customer A–Z</option>
+        <option value="value-desc">Highest Value</option>
+        <option value="scheduled">Scheduled Date</option>
+      </select>
+    </div>
+    <div id="jobs-list"></div>
+  </div>
 </div>
 
 <!-- FIELD TIME CLOCK -->

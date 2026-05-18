@@ -3561,68 +3561,147 @@ function openConvertToJob(qid) {
 // V6 PHASE 2: JOBS PAGE - CARD VIEW
 // =============================================
 function renderJobs() {
-  const filter = (document.getElementById('job-filter-status')||{}).value || '';
-  let list = DB.jobs.slice();
-  if (filter) list = list.filter(function(j){ return j.status === filter; });
+  var search = ((document.getElementById('job-search')||{}).value||'').toLowerCase();
+  var filter = (document.getElementById('job-filter-status')||{}).value||'';
+  var sort   = (document.getElementById('job-sort')||{}).value||'date-desc';
 
-  const cont = document.getElementById('jobs-list');
+  var list = DB.jobs.slice();
+
+  // Summary strip
+  function setS(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
+  setS('js-total',     DB.jobs.length);
+  setS('js-scheduled', DB.jobs.filter(function(j){ return j.status==='Scheduled'; }).length);
+  setS('js-active',    DB.jobs.filter(function(j){ return j.status==='In Progress'; }).length);
+  setS('js-onhold',    DB.jobs.filter(function(j){ return j.status==='On Hold'; }).length);
+  var totalVal = DB.jobs.reduce(function(s,j){ return s+(j.estTotal||0); },0);
+  setS('js-value', '$'+Math.round(totalVal).toLocaleString());
+
+  // Search
+  if (search) list = list.filter(function(j){
+    return (j.name||'').toLowerCase().includes(search)||
+           (j.customer||'').toLowerCase().includes(search)||
+           (j.address||'').toLowerCase().includes(search)||
+           (j.num||'').toLowerCase().includes(search)||
+           (j.assignedTo||'').toLowerCase().includes(search);
+  });
+
+  // Filter
+  if (filter) list = list.filter(function(j){ return j.status===filter; });
+
+  // Sort
+  list.sort(function(a,b){
+    if (sort==='date-desc')    return (b.createdAt||'').localeCompare(a.createdAt||'');
+    if (sort==='date-asc')     return (a.createdAt||'').localeCompare(b.createdAt||'');
+    if (sort==='name-asc')     return (a.name||'').localeCompare(b.name||'');
+    if (sort==='customer-asc') return (a.customer||'').localeCompare(b.customer||'');
+    if (sort==='value-desc')   return (b.estTotal||0)-(a.estTotal||0);
+    if (sort==='scheduled')    return (a.scheduledDate||'9999').localeCompare(b.scheduledDate||'9999');
+    return 0;
+  });
+
+  var cont = document.getElementById('jobs-list');
   if (!cont) return;
-  if (list.length === 0) {
-    cont.innerHTML = '<div class="empty-state"><div class="empty-icon">🔧</div><p>No jobs found. Convert a won quote or create a job manually.</p></div>';
+
+  if (!list.length) {
+    cont.innerHTML = '<div style="padding:40px;text-align:center;color:#90a4ae">'+
+      (search||filter?'No jobs match your search.':'No jobs yet. Convert a won quote or create one manually.')+
+    '</div>';
     return;
   }
 
-  cont.innerHTML = list.map(function(j) {
-    const statusClass = j.status === 'Scheduled' ? 'scheduled' : j.status === 'In Progress' ? 'inprogress' : j.status === 'Complete' ? 'complete' : 'closed';
-    const estH = parseFloat(j.estLaborHours) || 0;
-    const actH = parseFloat(j.actualLaborHours) || 0;
-    let varianceHTML = '';
-    if (actH > 0 && estH > 0) {
-      const varPct = ((actH - estH) / estH * 100).toFixed(1);
-      const varClass = actH > estH * 1.05 ? 'over' : actH < estH * 0.95 ? 'under' : 'exact';
-      const varLabel = actH > estH * 1.05 ? '▲ Over' : actH < estH * 0.95 ? '▼ Under' : '✓ On Target';
-      varianceHTML = '<span class="job-variance ' + varClass + '">' + varLabel + ' ' + Math.abs(varPct) + '%</span>';
+  // Column header
+  var header = '<div style="display:grid;grid-template-columns:2fr 1.2fr 0.8fr 0.8fr 0.8fr auto;gap:12px;padding:8px 14px;border-bottom:2px solid #e8e8e8;background:#f8f9fa;border-radius:8px 8px 0 0">'+
+    '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px">Job</span>'+
+    '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px">Customer</span>'+
+    '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px">Status</span>'+
+    '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px">Scheduled</span>'+
+    '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px">Value</span>'+
+    '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px">Actions</span>'+
+  '</div>';
+
+  var rows = list.map(function(j){
+    var statusColors = {
+      'Scheduled':  {bg:'#e3f2fd',color:'#1565c0'},
+      'In Progress':{bg:'#e8f5e9',color:'#2e7d32'},
+      'On Hold':    {bg:'#fff3e0',color:'#e65100'},
+      'Complete':   {bg:'#f5f5f5',color:'#546e7a'},
+      'Closed':     {bg:'#f5f5f5',color:'#546e7a'},
+    };
+    var sc = statusColors[j.status]||{bg:'#f5f5f5',color:'#546e7a'};
+
+    // WT progress
+    var wtProj = (DB.wtProjects||[]).find(function(p){ return p.jobId===j.id; });
+    var wtPct = null;
+    if (wtProj) {
+      var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
+      var done=items.filter(function(i){return i.status==='done';}).length;
+      wtPct=items.length?Math.round(done/items.length*100):0;
     }
-    return '<div class="job-card ' + statusClass + '">' +
-      '<div>' +
-        '<div style="display:flex;align-items:center;gap:8px">' +
-          '<span style="font-size:11px;font-weight:700;color:#607d8b">' + escHtml(j.num||'') + '</span>' +
-          '<span class="status-badge s-' + statusClass + '" style="font-size:10px">' + escHtml(j.status) + '</span>' +
-          (j.qnum ? '<span style="font-size:11px;color:#1565c0">← ' + escHtml(j.qnum) + '</span>' : '') +
-        '</div>' +
-        '<div class="job-card-title">' + escHtml(j.name||'') + '</div>' +
-        '<div class="job-card-meta">' +
-          escHtml(j.customer||'') +
-          (j.startDate ? ' &nbsp;·&nbsp; Start: ' + j.startDate : '') +
-          (j.assignedTo ? ' &nbsp;·&nbsp; 👷 ' + escHtml(j.assignedTo) : '') +
-          (j.address ? ' &nbsp;·&nbsp; 📍 ' + escHtml(j.address) : '') +
-        '</div>' +
-        '<div class="hours-input-row">' +
-          '<span style="color:#546e7a">Est: <strong>' + estH.toFixed(1) + ' hrs</strong></span>' +
-          '<span style="color:#546e7a;margin:0 4px">|</span>' +
-          '<span style="color:#546e7a">Actual:</span>' +
-          '<input type="number" min="0" step="0.5" value="' + actH + '" data-jobid="' + j.id + '" class="actual-hrs-input" style="width:70px;padding:3px 7px;font-size:12px">' +
-          '<span style="color:#546e7a">hrs</span>' +
-          varianceHTML +
-        '</div>' +
-      '</div>' +
-      '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">' +
-        '<select data-jobid="' + j.id + '" class="job-status-select" style="font-size:12px;padding:4px 8px;width:130px">' +
-          ['Scheduled','In Progress','Complete','Closed'].map(function(s){ return '<option' + (j.status===s?' selected':'') + '>' + s + '</option>'; }).join('') +
-        '</select>' +
-        '<div style="font-size:12px;font-weight:700;color:#1565c0">' + fmt(j.estTotal||0) + '</div>' +
-        '<div style="display:flex;gap:4px">' +
-          '<button class="btn btn-outline btn-sm" data-action="editJob" data-id="' + j.id + '">Edit</button>' +
-          '<button class="btn btn-danger btn-sm" data-action="delJob" data-id="' + j.id + '">Del</button>' +
-        '</div>' +
-        (j.closeout
-          ? '<span class="closeout-badge closeout-done" style="cursor:pointer" data-action="openCloseout" data-id="'+j.id+'">✓ Closeout</span>'
-          : (j.status==='Complete'||j.status==='Closed')
-          ? '<button class="closeout-badge closeout-open" data-action="openCloseout" data-id="'+j.id+'">📋 Closeout</button>'
-          : '') +
-      '</div>' +
+
+    // Crew badges
+    var crew = (j.crew||[]);
+    var lead = j.assignedTo||'';
+    var crewHtml = lead
+      ? '<span style="font-size:11px;color:#546e7a">👷 '+escHtml(lead)+(crew.length>1?' +'+( crew.length-1):'')+'</span>'
+      : '<span style="font-size:11px;color:#d0d0d0">Unassigned</span>';
+
+    // Customer link
+    var custLink = j.customerId
+      ? '<a href="#" onclick="openCustomerProfile(\''+j.customerId+'\');return false" style="color:#1565c0;text-decoration:none;font-size:13px">'+escHtml(j.customer||'')+'</a>'
+      : '<span style="font-size:13px;color:#546e7a">'+escHtml(j.customer||'—')+'</span>';
+
+    var estH = parseFloat(j.estLaborHours)||0;
+    var actH = parseFloat(j.actualLaborHours)||0;
+    var varHtml = '';
+    if (actH>0 && estH>0) {
+      var vp = ((actH-estH)/estH*100).toFixed(0);
+      var vc = actH>estH*1.05?'#c62828':actH<estH*0.95?'#2e7d32':'#546e7a';
+      varHtml = '<span style="font-size:10px;color:'+vc+';">'+(parseFloat(vp)>0?'+':'')+vp+'%</span>';
+    }
+
+    return '<div style="display:grid;grid-template-columns:2fr 1.2fr 0.8fr 0.8fr 0.8fr auto;gap:12px;padding:12px 14px;border-bottom:1px solid #f0f0f0;align-items:center;transition:background .1s" onmouseover="this.style.background=\'#f8f9fa\'" onmouseout="this.style.background=\'\'">'+
+      // Job name + meta
+      '<div>'+
+        '<div style="font-weight:700;font-size:14px;color:#0d1b2a">'+escHtml(j.name||'')+'</div>'+
+        '<div style="font-size:11px;color:#90a4ae;margin-top:2px">'+
+          (j.num?escHtml(j.num)+' · ':'')+
+          crewHtml+
+          (j.address?' · 📍'+escHtml(j.address.split(',')[0]):'')+ 
+        '</div>'+
+        (wtPct!==null?'<div style="display:flex;align-items:center;gap:6px;margin-top:4px">'+
+          '<div class="wt-progress-bar" style="width:80px;height:4px"><div class="wt-progress-fill" style="width:'+wtPct+'%;height:4px"></div></div>'+
+          '<span style="font-size:10px;color:#1565c0;font-weight:700">'+wtPct+'%</span>'+
+        '</div>':'')+
+      '</div>'+
+      // Customer
+      '<div>'+custLink+'</div>'+
+      // Status
+      '<div>'+
+        '<span style="background:'+sc.bg+';color:'+sc.color+';border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700">'+escHtml(j.status||'')+'</span>'+
+      '</div>'+
+      // Scheduled date
+      '<div style="font-size:12px;color:#546e7a">'+
+        (j.scheduledDate?'📅 '+j.scheduledDate:'<span style="color:#d0d0d0">—</span>')+
+        (j.scheduledTime?'<div style="font-size:11px;color:#90a4ae">⏱ '+j.scheduledTime+'</div>':'')+
+      '</div>'+
+      // Value + hours
+      '<div>'+
+        '<div style="font-weight:700;font-size:13px;color:#2e7d32">'+fmt(j.estTotal||0)+'</div>'+
+        (estH?'<div style="font-size:11px;color:#90a4ae">'+estH.toFixed(1)+'h est '+varHtml+'</div>':'')+
+      '</div>'+
+      // Actions
+      '<div style="display:flex;gap:4px;flex-shrink:0">'+
+        '<button class="btn btn-outline btn-sm" onclick="openDispatchDetail(\''+j.id+'\')" title="Dispatch">🗂</button>'+
+        (wtProj?'<button class="btn btn-outline btn-sm" onclick="loadWTProject(\''+wtProj.id+'\');goPage(\'worktracking\')" title="Work Tracking">✅</button>':'')+
+        '<button class="btn btn-outline btn-sm" data-action="editJob" data-id="'+j.id+'" title="Edit">✏</button>'+
+        '<button class="btn btn-danger btn-sm" data-action="delJob" data-id="'+j.id+'" title="Delete">✕</button>'+
+        (j.status==='Complete'||j.status==='Closed'?
+          '<button class="btn btn-outline btn-sm" data-action="openCloseout" data-id="'+j.id+'" title="Closeout">📋</button>':'')
+      +'</div>'+
     '</div>';
   }).join('');
+
+  cont.innerHTML = header + rows;
 }
 
 // =============================================
