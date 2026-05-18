@@ -1,0 +1,984 @@
+// ============================================================
+// DISPATCH BOARD — Full Multi-Crew Edition
+// ============================================================
+
+var _dispatchRefreshTimer = null;
+var _dispatchDragJob      = null;
+var _dispatchDragSource   = null;
+var _dispatchStatusFilter = '';
+
+var DISPATCH_START_HOUR  = 6;
+var DISPATCH_END_HOUR    = 20;
+var DISPATCH_TOTAL_HRS   = DISPATCH_END_HOUR - DISPATCH_START_HOUR;
+var DISPATCH_MINS_TOTAL  = DISPATCH_TOTAL_HRS * 60;
+
+var JOB_PALETTE = [
+  {bg:'#1565c0',border:'#0d47a1',text:'#fff'},
+  {bg:'#2e7d32',border:'#1b5e20',text:'#fff'},
+  {bg:'#6a1b9a',border:'#4a148c',text:'#fff'},
+  {bg:'#e65100',border:'#bf360c',text:'#fff'},
+  {bg:'#00695c',border:'#004d40',text:'#fff'},
+  {bg:'#ad1457',border:'#880e4f',text:'#fff'},
+  {bg:'#37474f',border:'#263238',text:'#fff'},
+  {bg:'#558b2f',border:'#33691e',text:'#fff'},
+  {bg:'#4527a0',border:'#311b92',text:'#fff'},
+  {bg:'#c62828',border:'#b71c1c',text:'#fff'},
+];
+var _jobColorMap = {};
+
+function getJobColor(jobId) {
+  if (_jobColorMap[jobId] === undefined) {
+    _jobColorMap[jobId] = Object.keys(_jobColorMap).length % JOB_PALETTE.length;
+  }
+  return JOB_PALETTE[_jobColorMap[jobId]];
+}
+
+var TECH_STATUS = {
+  out:         {dot:'#d0d0d0',label:'Off Clock',  text:'#90a4ae',pulse:false},
+  at_homebase: {dot:'#1565c0',label:'At Base',    text:'#1565c0',pulse:false},
+  traveling:   {dot:'#1565c0',label:'Traveling',  text:'#1565c0',pulse:true},
+  onsite:      {dot:'#2e7d32',label:'On Site',    text:'#2e7d32',pulse:true},
+  break:       {dot:'#e65100',label:'On Break',   text:'#e65100',pulse:false},
+  lunch:       {dot:'#6a1b9a',label:'At Lunch',   text:'#6a1b9a',pulse:false},
+  returning:   {dot:'#1565c0',label:'Returning',  text:'#1565c0',pulse:true},
+  complete:    {dot:'#90a4ae',label:'Done Today', text:'#90a4ae',pulse:false},
+};
+
+function getJobCrew(job) {
+  if (job.crew && job.crew.length) return job.crew;
+  if (job.assignedTo) return [{techName:job.assignedTo,role:'lead',addedDate:job.scheduledDate||getTodayISO()}];
+  return [];
+}
+
+function getJobLead(job) {
+  var crew = getJobCrew(job);
+  var lead = crew.find(function(c){return c.role==='lead';});
+  return lead ? lead.techName : (crew[0]?crew[0].techName:'');
+}
+
+function isCrewMember(job, techName) {
+  return getJobCrew(job).some(function(c){return c.techName===techName;});
+}
+
+function addCrewMember(job, techName, role) {
+  if (!job.crew) job.crew = getJobCrew(job);
+  var existing = job.crew.find(function(c){return c.techName===techName;});
+  if (existing) { existing.role=role||existing.role; return; }
+  job.crew.push({techName:techName,role:role||'helper',addedDate:getTodayISO()});
+  job.assignedTo = getJobLead(job);
+}
+
+function removeCrewMember(job, techName) {
+  if (!job.crew) job.crew = getJobCrew(job);
+  job.crew = job.crew.filter(function(c){return c.techName!==techName;});
+  if (job.crew.length && !job.crew.find(function(c){return c.role==='lead';})) {
+    job.crew[0].role = 'lead';
+  }
+  job.assignedTo = getJobLead(job)||'';
+}
+
+function setCrewLead(job, techName) {
+  if (!job.crew) job.crew = getJobCrew(job);
+  job.crew.forEach(function(c){c.role=c.techName===techName?'lead':'helper';});
+  job.assignedTo = techName;
+}
+
+function initDispatchBoard() {
+  var dateEl = document.getElementById('dispatch-date');
+  if (dateEl && !dateEl.value) dateEl.value = getTodayISO();
+  _dispatchStatusFilter = '';
+  renderDispatchBoard();
+  clearInterval(_dispatchRefreshTimer);
+  _dispatchRefreshTimer = setInterval(function(){
+    var page = document.getElementById('page-dispatch');
+    if (page && page.classList.contains('active')) { renderDispatchBoard(); }
+    else clearInterval(_dispatchRefreshTimer);
+  }, 60000);
+  // Wire resize observer for accurate NOW line positioning
+  setTimeout(attachDispatchResizeObserver, 300);
+  // Wire touch drag
+  setTimeout(attachTouchDrag, 300);
+}
+
+function dispatchChangeDate(delta) {
+  var dateEl = document.getElementById('dispatch-date');
+  if (!dateEl) return;
+  var d = new Date((dateEl.value||getTodayISO())+'T12:00:00');
+  d.setDate(d.getDate()+delta);
+  dateEl.value = d.toISOString().split('T')[0];
+  renderDispatchBoard();
+}
+
+function dispatchGoToday() {
+  var dateEl = document.getElementById('dispatch-date');
+  if (dateEl) dateEl.value = getTodayISO();
+  renderDispatchBoard();
+}
+
+function renderDispatchBoard() {
+  var dateEl    = document.getElementById('dispatch-date');
+  var boardDate = dateEl ? dateEl.value : getTodayISO();
+  var isToday   = boardDate === getTodayISO();
+  var lrEl      = document.getElementById('dispatch-last-refresh');
+  if (lrEl) lrEl.textContent = 'Updated '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+
+  var team    = DB.team||[];
+  var allJobs = DB.jobs||[];
+
+  var dayJobs = allJobs.filter(function(j){
+    var jDate=j.scheduledDate||j.startDate||'';
+    return jDate===boardDate && j.status!=='Complete' && j.status!=='Closed';
+  });
+
+  var unassigned = allJobs.filter(function(j){
+    var jDate=j.scheduledDate||j.startDate||'';
+    return (!jDate||jDate===boardDate) && !getJobCrew(j).length &&
+           j.status!=='Complete' && j.status!=='Closed';
+  });
+
+  if (_dispatchStatusFilter) {
+    dayJobs = dayJobs.filter(function(j){
+      return (j.status||'Scheduled')===_dispatchStatusFilter;
+    });
+  }
+
+  var summaryEl = document.getElementById('dispatch-day-summary');
+  if (summaryEl) {
+    var sc=dayJobs.filter(function(j){return j.status==='Scheduled';}).length;
+    var ip=dayJobs.filter(function(j){return j.status==='In Progress';}).length;
+    summaryEl.innerHTML =
+      pill(sc,'Scheduled','#e3f2fd','#1565c0')+
+      (ip?pill(ip,'Active','#e8f5e9','#2e7d32'):'')+
+      (unassigned.length?pill(unassigned.length,'Unassigned','#ffebee','#c62828'):'');
+  }
+
+  renderDispatchPool(unassigned);
+  renderDispatchRuler();
+  renderDispatchTechRows(team, dayJobs, boardDate, isToday);
+  renderStatusBar(allJobs, boardDate);
+  if (isToday) setTimeout(updateNowLine,100);
+}
+
+function pill(count,label,bg,color) {
+  return '<span style="background:'+bg+';color:'+color+';border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;margin-right:4px">'+count+' '+label+'</span>';
+}
+
+function renderDispatchPool(jobs) {
+  var countEl = document.getElementById('dispatch-unassigned-count');
+  if (countEl) countEl.textContent = jobs.length;
+  var pool = document.getElementById('dispatch-pool-jobs');
+  if (!pool) return;
+  if (!jobs.length) {
+    pool.innerHTML='<div style="text-align:center;padding:24px 12px;color:#90a4ae;font-size:12px"><div style="font-size:28px;margin-bottom:6px">✓</div>All jobs assigned</div>';
+    return;
+  }
+  pool.innerHTML = jobs.map(function(j){
+    var dur=j.estLaborHours||j.scheduledDuration||4;
+    var color=getJobColor(j.id);
+    // Needs scheduling = has crew but no date set
+    var crew=getJobCrew(j);
+    var hasCrew=crew.length>0;
+    var hasDate=!!(j.scheduledDate||j.startDate);
+    var needsSched=hasCrew&&!hasDate;
+    var cardClass='dispatch-pool-card'+(needsSched?' dispatch-needs-sched':'');
+    return '<div class="'+cardClass+'" draggable="true" data-job-id="'+j.id+'" '+
+      'style="border-left-color:'+color.bg+'" '+
+      'ondragstart="onDispatchDragStart(event,\''+j.id+'\',\'pool\')" '+
+      'ondragend="onDispatchDragEnd(event)" onclick="openDispatchDetail(\''+j.id+'\')">'+
+      '<div class="dispatch-pool-card-name">'+escHtml(j.name||'')+'</div>'+
+      '<div class="dispatch-pool-card-sub">'+escHtml(j.customer||'')+'</div>'+
+      (j.address?'<div class="dispatch-pool-card-sub">📍 '+escHtml(j.address.split(',')[0])+'</div>':'')+
+      (needsSched?'<div style="font-size:9px;color:#e65100;font-weight:700;margin-top:3px">⚠ Has crew — set a date</div>':'')+
+      (hasCrew&&hasDate?'<div style="font-size:9px;color:#2e7d32;font-weight:700;margin-top:3px">'+crew.length+' crew · '+j.scheduledDate+'</div>':'')+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:5px">'+
+        '<span style="font-size:10px;font-weight:700;color:'+color.bg+'">⏱ '+dur+'h</span>'+
+        '<span style="font-size:10px;color:#90a4ae">'+(j.estTotal?'$'+Math.round(j.estTotal).toLocaleString():'')+'</span>'+
+      '</div></div>';
+  }).join('');
+}
+
+function renderDispatchRuler() {
+  var ruler = document.getElementById('dispatch-ruler');
+  if (!ruler) return;
+  var html='';
+  for (var h=DISPATCH_START_HOUR;h<=DISPATCH_END_HOUR;h++) {
+    var pct=((h-DISPATCH_START_HOUR)/DISPATCH_TOTAL_HRS)*100;
+    var label=h===12?'12 PM':h<12?h+' AM':(h-12)+' PM';
+    html+='<div style="position:absolute;left:'+pct+'%;top:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:4px;padding-left:4px">'+
+      '<div style="position:absolute;top:0;left:0;width:1px;height:100%;background:'+(h%2===0?'#d0d7e0':'#ebebeb')+'"></div>'+
+      '<span style="font-size:10px;font-weight:700;color:#546e7a;white-space:nowrap">'+label+'</span></div>';
+  }
+  ruler.innerHTML=html;
+}
+
+function renderDispatchTechRows(team, dayJobs, boardDate, isToday) {
+  var container = document.getElementById('dispatch-tech-rows');
+  if (!container) return;
+  if (!team.length) { container.innerHTML='<div style="padding:60px;text-align:center;color:#90a4ae">No team members. Add your crew in Team.</div>'; return; }
+
+  var clockMap={};
+  (DB.workDays||[]).filter(function(d){return d.date===boardDate;}).forEach(function(d){clockMap[d.techName]=d;});
+
+  var techJobMap={};
+  team.forEach(function(m){techJobMap[m.name]=[];});
+  dayJobs.forEach(function(j){
+    getJobCrew(j).forEach(function(cm){
+      if (!techJobMap[cm.techName]) techJobMap[cm.techName]=[];
+      techJobMap[cm.techName].push({job:j,crewEntry:cm});
+    });
+  });
+
+  var avatarColors=['#1565c0','#2e7d32','#6a1b9a','#e65100','#00695c','#ad1457','#37474f'];
+  var WORK_DAY_HRS = 8;
+
+  container.innerHTML = team.map(function(member,idx){
+    var name=member.name||'';
+    var clockData=clockMap[name];
+    var initials=name.split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
+    var avatarBg=avatarColors[idx%avatarColors.length];
+
+    var liveStatus='out';
+    if (isToday&&_currentUser&&_currentUser.full_name===name) liveStatus=_clockState.status||'out';
+    else if (clockData&&!clockData.clockOutTime&&clockData.clockInTime) liveStatus='onsite';
+    else if (clockData&&clockData.clockOutTime) liveStatus='complete';
+    var statusInfo=TECH_STATUS[liveStatus]||TECH_STATUS.out;
+
+    var absent=(DB.absences||[]).find(function(a){return a.date===boardDate&&a.techName===name;});
+    var myJobs=techJobMap[name]||[];
+
+    // Capacity calculation
+    var bookedHrs=myJobs.reduce(function(s,e){return s+parseFloat(e.job.estLaborHours||e.job.scheduledDuration||4);},0);
+    var capPct=Math.min(100,Math.round(bookedHrs/WORK_DAY_HRS*100));
+    var capColor=capPct>=100?'#c62828':capPct>=80?'#e65100':'#2e7d32';
+
+    var blocksHtml=myJobs.map(function(e){return buildJobBlock(e.job,e.crewEntry,name);}).join('');
+
+    // Travel dotted line: clock-in → first job
+    var travelHtml='';
+    if (clockData&&clockData.clockInTime&&myJobs.length) {
+      var first=myJobs.slice().sort(function(a,b){return timeStrToMins(a.job.scheduledTime||'08:00')-timeStrToMins(b.job.scheduledTime||'08:00');})[0];
+      var ciM=timeStrToMins(clockData.clockInTime)-DISPATCH_START_HOUR*60;
+      var jM=timeStrToMins(first.job.scheduledTime||'08:00')-DISPATCH_START_HOUR*60;
+      if (jM>ciM+15) {
+        var lP=Math.max(0,ciM/DISPATCH_MINS_TOTAL*100);
+        var wP=Math.min(100-lP,(jM-ciM)/DISPATCH_MINS_TOTAL*100);
+        travelHtml='<div class="dispatch-travel-line" style="left:'+lP+'%;width:'+wP+'%;border-color:#1565c0;top:36px"></div>';
+      }
+    }
+
+    // Clock worked segment (green bar at bottom)
+    var segHtml='';
+    if (clockData&&clockData.clockInTime) {
+      var iM=timeStrToMins(clockData.clockInTime)-DISPATCH_START_HOUR*60;
+      var oM=clockData.clockOutTime?timeStrToMins(clockData.clockOutTime)-DISPATCH_START_HOUR*60:(isToday?(new Date().getHours()*60+new Date().getMinutes())-DISPATCH_START_HOUR*60:iM);
+      if (iM>=0&&oM>iM) {
+        var iP2=Math.max(0,iM/DISPATCH_MINS_TOTAL*100);
+        var wP2=Math.min(100-iP2,(oM-iM)/DISPATCH_MINS_TOTAL*100);
+        segHtml='<div class="dispatch-clock-seg" style="left:'+iP2+'%;width:'+wP2+'%"></div>';
+      }
+    }
+
+    return '<div class="dispatch-tech-row" id="drow-'+escHtml(name.replace(/\W/g,'-'))+'">'+
+      '<div class="dispatch-tech-label">'+
+        '<div class="dispatch-tech-avatar" style="background:'+avatarBg+';color:#fff;border-color:rgba(0,0,0,.1)">'+
+          (absent?'<span style="font-size:16px">🚫</span>':escHtml(initials))+
+        '</div>'+
+        '<div class="dispatch-tech-info">'+
+          '<div class="dispatch-tech-name">'+escHtml(name)+'</div>'+
+          '<div class="dispatch-tech-status">'+
+            '<div class="dispatch-tech-status-dot'+(statusInfo.pulse?' pulse':'')+'" style="background:'+statusInfo.dot+'"></div>'+
+            '<span style="color:'+statusInfo.text+';font-size:10px">'+(absent?'<span style="color:#c62828">Out</span>':statusInfo.label)+'</span>'+
+          '</div>'+
+          (myJobs.length?
+            '<div style="margin-top:3px">'+
+              '<div style="display:flex;justify-content:space-between;align-items:center">'+
+                '<span style="font-size:9px;color:'+capColor+';font-weight:700">'+bookedHrs.toFixed(1)+'h booked</span>'+
+                (capPct>=100?'<span style="font-size:8px;background:#ffebee;color:#c62828;border-radius:3px;padding:1px 4px;font-weight:700">FULL</span>':
+                 capPct>=80?'<span style="font-size:8px;background:#fff3e0;color:#e65100;border-radius:3px;padding:1px 4px;font-weight:700">BUSY</span>':'')+
+              '</div>'+
+              '<div class="dispatch-capacity-bar">'+
+                '<div class="dispatch-capacity-fill" style="width:'+capPct+'%;background:'+capColor+'"></div>'+
+              '</div>'+
+            '</div>':
+            '<div style="font-size:9px;color:#90a4ae;margin-top:2px">Available</div>'
+          )+
+        '</div>'+
+      '</div>'+
+      '<div class="dispatch-tech-timeline" data-tech="'+escHtml(name)+'" '+
+        'ondragover="onDispatchDragOver(event)" ondragleave="onDispatchDragLeave(event)" '+
+        'ondrop="onDispatchDrop(event,\''+escHtml(name)+'\')">'+
+        travelHtml+blocksHtml+segHtml+
+      '</div>'+
+    '</div>';
+  }).join('');
+
+  // Re-attach touch drag listeners after DOM update
+  setTimeout(attachTouchDrag, 50);
+}
+
+
+
+function buildJobBlock(job, crewEntry, techName) {
+  var startTime=job.scheduledTime||'08:00';
+  var dur=parseFloat(job.estLaborHours||job.scheduledDuration||4);
+  var color=getJobColor(job.id);
+  var isLead=crewEntry&&crewEntry.role==='lead';
+  var startMins=timeStrToMins(startTime)-DISPATCH_START_HOUR*60;
+  var durMins=dur*60;
+  var leftPct=Math.max(0,startMins/DISPATCH_MINS_TOTAL*100);
+  var widPct=Math.min(100-leftPct,durMins/DISPATCH_MINS_TOTAL*100);
+  if (widPct<0.5) widPct=0.5;
+
+  // WT progress bar
+  var wtProj=(DB.wtProjects||[]).find(function(p){return p.jobId===job.id;});
+  var pctBar='';
+  if (wtProj) {
+    var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
+    var done=items.filter(function(i){return i.status==='done';}).length;
+    var pct=items.length?Math.round(done/items.length*100):0;
+    pctBar='<div style="position:absolute;bottom:0;left:0;height:3px;width:'+pct+'%;background:rgba(255,255,255,.5);border-radius:0 0 0 8px"></div>';
+  }
+
+  // Multi-day indicator
+  var isMultiDay = job.scheduledEndDate && job.scheduledEndDate !== job.scheduledDate;
+  var multiDayBadge = isMultiDay ? '<span class="dispatch-multiday-badge">∞</span>' : '';
+
+  // Crew badges
+  var crew=getJobCrew(job);
+  var crewBadge=crew.length>1?'<span class="dispatch-role-badge">👥'+crew.length+'</span>':'';
+  var roleBadge=isLead?'<span class="dispatch-role-badge">♛</span>':'<span class="dispatch-role-badge" style="opacity:.6">+</span>';
+
+  return '<div class="dispatch-job-block'+(isLead?' is-lead':' is-helper')+'" '+
+    'style="left:'+leftPct+'%;width:'+widPct+'%;background:'+color.bg+';border-color:'+color.border+';color:'+color.text+';opacity:'+(isLead?1:0.88)+';" '+
+    'draggable="true" data-job-id="'+job.id+'" '+
+    'ondragstart="onDispatchDragStart(event,\''+job.id+'\',\'board\')" '+
+    'ondragend="onDispatchDragEnd(event)" onclick="openDispatchDetail(\''+job.id+'\')" '+
+    '>'+
+    multiDayBadge+
+    '<div class="dispatch-job-block-name">'+escHtml(job.name||'')+'</div>'+
+    '<div class="dispatch-job-block-sub">'+escHtml(job.customer||'')+(job.scheduledTime?' · '+job.scheduledTime:'')+'</div>'+
+    '<div class="dispatch-job-block-badges">'+roleBadge+crewBadge+'</div>'+
+    pctBar+
+  '</div>';
+}
+
+
+
+function renderStatusBar(allJobs, boardDate) {
+  var bar=document.getElementById('dispatch-status-bar');
+  if (!bar) return;
+  var dayJobs=allJobs.filter(function(j){return (j.scheduledDate||j.startDate||'')===boardDate;});
+  var statuses=[
+    {key:'',label:'All',icon:''},
+    {key:'Scheduled',label:'Scheduled',icon:'📅'},
+    {key:'In Progress',label:'Working',icon:'▶'},
+    {key:'Paused',label:'Paused',icon:'⏸'},
+    {key:'On Hold',label:'Hold',icon:'⏳'},
+    {key:'Complete',label:'Done',icon:'✓'},
+  ];
+  bar.innerHTML=statuses.map(function(s){
+    var count=s.key===''?dayJobs.length:dayJobs.filter(function(j){return (j.status||'Scheduled')===s.key;}).length;
+    var isActive=_dispatchStatusFilter===s.key;
+    return '<div class="dispatch-status-pill'+(isActive?' active':'')+'" onclick="setDispatchFilter(\''+escHtml(s.key)+'\')">'+
+      (s.icon?s.icon+' ':'')+s.label+' <span class="dp-count">'+count+'</span></div>';
+  }).join('');
+}
+
+function setDispatchFilter(status){_dispatchStatusFilter=status;renderDispatchBoard();}
+
+function onDispatchDragStart(e,jobId,source){
+  _dispatchDragJob=jobId;_dispatchDragSource=source;
+  e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',jobId);
+  var el=e.currentTarget;
+  setTimeout(function(){el.style.opacity='0.4';el.classList.add('dragging');},0);
+}
+function onDispatchDragEnd(e){
+  _dispatchDragJob=null;_dispatchDragSource=null;
+  document.querySelectorAll('.dispatch-job-block,.dispatch-pool-card').forEach(function(el){el.style.opacity='1';el.classList.remove('dragging');});
+  document.querySelectorAll('.dispatch-tech-timeline').forEach(function(el){el.classList.remove('drag-over');});
+}
+function onDispatchDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';e.currentTarget.classList.add('drag-over');}
+function onDispatchDragLeave(e){e.currentTarget.classList.remove('drag-over');}
+
+function onDispatchDrop(e, techName) {
+  e.preventDefault();e.currentTarget.classList.remove('drag-over');
+  var jobId=_dispatchDragJob||e.dataTransfer.getData('text/plain');
+  if (!jobId) return;
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var rect=e.currentTarget.getBoundingClientRect();
+  var xPct=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+  var dropMins=Math.round(xPct*DISPATCH_MINS_TOTAL/30)*30;
+  var dropHour=DISPATCH_START_HOUR+Math.floor(dropMins/60);
+  var dropMin=dropMins%60;
+  var dropTime=String(dropHour).padStart(2,'0')+':'+String(dropMin).padStart(2,'0');
+  var dateEl=document.getElementById('dispatch-date');
+  var boardDate=dateEl?dateEl.value:getTodayISO();
+  var already=isCrewMember(job,techName);
+  if (!already) {
+    var crew=getJobCrew(job);
+    addCrewMember(job,techName,crew.length===0?'lead':'helper');
+  }
+  job.scheduledDate=boardDate;job.scheduledTime=dropTime;
+  if(!job.status||job.status==='') job.status='Scheduled';
+  saveDB();renderDispatchBoard();
+  showToast(already?escHtml(job.name||'')+' rescheduled to '+dropTime:escHtml(techName)+' added to '+escHtml(job.name||'')+(getJobCrew(job).length>1?' (crew)':''),'success');
+}
+
+function openDispatchDetail(jobId) {
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var panel=document.getElementById('dispatch-detail-panel');
+  var nameEl=document.getElementById('dsp-job-name');
+  var bodyEl=document.getElementById('dsp-body');
+  if(!panel||!bodyEl) return;
+  if(nameEl) nameEl.textContent=job.name||'';
+  var color=getJobColor(job.id);
+  var crew=getJobCrew(job);
+  var wtProj=(DB.wtProjects||[]).find(function(p){return p.jobId===job.id;});
+  var pct=null;
+  if (wtProj){var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});var done=items.filter(function(i){return i.status==='done';}).length;pct=items.length?Math.round(done/items.length*100):0;}
+  var avatarColors=['#1565c0','#2e7d32','#6a1b9a','#e65100','#00695c','#ad1457'];
+
+  bodyEl.innerHTML='<div style="padding:14px">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">'+
+      '<div style="width:12px;height:12px;border-radius:3px;background:'+color.bg+'"></div>'+
+      '<span style="font-size:12px;color:#546e7a">'+(job.scheduledDate||'')+(job.scheduledTime?' · '+job.scheduledTime:'')+'</span>'+
+      '<span style="background:'+color.bg+'22;color:'+color.bg+';border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">'+escHtml(job.status||'Scheduled')+'</span>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">'+
+      dspInfoTile('Customer',job.customer||'—')+dspInfoTile('Est Hrs',(job.estLaborHours||'—')+'h')+
+      dspInfoTile('Est Value','$'+(job.estTotal||0).toLocaleString())+dspInfoTile('Job #',job.num||'—')+
+    '</div>'+
+    (pct!==null?'<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:#546e7a;margin-bottom:4px">WORK TRACKING</div>'+
+      '<div style="display:flex;align-items:center;gap:8px"><div class="wt-progress-bar" style="flex:1"><div class="wt-progress-fill" style="width:'+pct+'%"></div></div><span style="font-weight:700;color:#1565c0">'+pct+'%</span></div></div>':'')+
+    (job.address?'<div style="background:#f8f9fa;border-radius:6px;padding:8px;font-size:12px;color:#546e7a;margin-bottom:14px">📍 '+escHtml(job.address)+'</div>':'')+
+    (job.dispatchNotes?'<div style="background:#fff8e1;border-radius:6px;padding:8px;font-size:12px;color:#f57f17;margin-bottom:14px;border-left:3px solid #ffb300">📋 '+escHtml(job.dispatchNotes)+'</div>':'')+
+    // Crew
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-bottom:14px">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+        '<div style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">CREW ('+crew.length+')</div>'+
+        '<button class="btn btn-outline btn-sm" onclick="openAddCrewPanel(\''+jobId+'\')">+ Add</button>'+
+      '</div>'+
+      (crew.length?crew.map(function(cm,ci){
+        var abb=(cm.techName||'?').split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
+        var bg=avatarColors[ci%avatarColors.length];
+        return '<div class="crew-member-row">'+
+          '<div class="crew-avatar" style="background:'+bg+';color:#fff">'+escHtml(abb)+'</div>'+
+          '<div style="flex:1"><div style="font-weight:700;font-size:12px">'+escHtml(cm.techName||'')+'</div>'+
+          '<div style="font-size:10px;color:#546e7a">'+(cm.role==='lead'?'♛ Lead':'Helper')+(cm.addedDate?' · '+cm.addedDate:'')+'</div></div>'+
+          '<div style="display:flex;gap:4px">'+
+            '<button class="dispatch-sms-btn" onclick="dispatchSendSMS(\''+escHtml(cm.techName)+'\',\''+jobId+'\')" title="Send dispatch SMS">💬</button>'+
+            (cm.role!=='lead'?'<button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="dispatchSetLead(\''+jobId+'\',\''+escHtml(cm.techName)+'\')">♛</button>':'<span style="font-size:12px;color:#1565c0;padding:4px">♛</span>')+
+            '<button class="btn btn-danger btn-sm" style="font-size:10px" onclick="dispatchRemoveCrew(\''+jobId+'\',\''+escHtml(cm.techName)+'\')">✕</button>'+
+          '</div></div>';
+      }).join(''):'<div style="color:#90a4ae;font-size:12px;padding:8px 0">No crew assigned. Drag onto a row or click + Add.</div>')+
+      '<div id="add-crew-panel-'+jobId+'" style="display:none;margin-top:8px">'+
+        '<select id="add-crew-select-'+jobId+'" style="width:100%;padding:7px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;margin-bottom:6px">'+
+          '<option value="">— Select tech —</option>'+
+          (DB.team||[]).filter(function(m){return !isCrewMember(job,m.name);}).map(function(m){return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';}).join('')+
+        '</select>'+
+        '<div style="display:flex;gap:6px">'+
+          '<button class="btn btn-primary btn-sm" onclick="dispatchAddCrewMember(\''+jobId+'\')">Add to Crew</button>'+
+          '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'add-crew-panel-'+jobId+'\').style.display=\'none\'">Cancel</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+    // Reschedule
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-bottom:14px">'+
+      '<div style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">RESCHEDULE</div>'+
+      '<div style="display:flex;gap:6px;margin-bottom:6px">'+
+        '<input type="date" id="dsp-new-date" value="'+(job.scheduledDate||'')+'" style="flex:1;padding:6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
+        '<input type="time" id="dsp-new-time" value="'+(job.scheduledTime||'')+'" style="flex:1;padding:6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
+      '</div>'+
+      '<input type="number" id="dsp-new-dur" value="'+(job.estLaborHours||4)+'" min="0.5" max="24" step="0.5" placeholder="Duration hrs" style="width:100%;padding:6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box">'+
+      '<button class="btn btn-primary btn-sm" style="width:100%" onclick="rescheduleJobFromDetail(\''+jobId+'\')">Update Schedule</button>'+
+    '</div>'+
+    // Quick status
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-bottom:14px">'+
+      '<div style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">QUICK STATUS</div>'+
+      '<div style="display:flex;gap:4px;flex-wrap:wrap">'+
+        ['Scheduled','In Progress','Paused','On Hold','Complete'].map(function(s){
+          var active=(job.status||'Scheduled')===s;
+          return '<button class="btn btn-sm" style="font-size:10px;'+(active?'background:#1565c0;color:#fff;border-color:#1565c0;':'')+'" onclick="dispatchSetStatus(\''+jobId+'\',\''+s+'\')">'+escHtml(s)+'</button>';
+        }).join('')+
+      '</div>'+
+    '</div>'+
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;display:flex;gap:6px;flex-wrap:wrap">'+
+      '<button class="btn btn-outline btn-sm" onclick="goPage(\'jobs\');closeDispatchDetail()">Open Job</button>'+
+      (wtProj?'<button class="btn btn-outline btn-sm" onclick="loadWTProject(\''+wtProj.id+'\');goPage(\'worktracking\');closeDispatchDetail()">Work Tracking</button>':'')+
+    '</div>'+
+  '</div>';
+
+  panel.style.display='block';
+}
+
+function dspInfoTile(label,val){
+  return '<div style="background:#f8f9fa;border-radius:6px;padding:8px"><div style="font-size:9px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'+escHtml(label)+'</div><div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-top:2px">'+escHtml(String(val))+'</div></div>';
+}
+
+function openAddCrewPanel(jobId){var p=document.getElementById('add-crew-panel-'+jobId);if(p)p.style.display=p.style.display==='none'||!p.style.display?'block':'none';}
+
+function dispatchAddCrewMember(jobId){
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var sel=document.getElementById('add-crew-select-'+jobId);
+  var techName=sel?sel.value:''; if(!techName){showToast('Select a team member','error');return;}
+  addCrewMember(job,techName,'helper');
+  saveDB();renderDispatchBoard();openDispatchDetail(jobId);
+  showToast(escHtml(techName)+' added to crew','success');
+}
+
+function dispatchRemoveCrew(jobId,techName){
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  if(!confirm('Remove '+techName+' from this job?')) return;
+  removeCrewMember(job,techName);
+  saveDB();renderDispatchBoard();openDispatchDetail(jobId);
+  showToast(escHtml(techName)+' removed','info');
+}
+
+function dispatchSetLead(jobId,techName){
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  setCrewLead(job,techName);
+  saveDB();renderDispatchBoard();openDispatchDetail(jobId);
+  showToast(escHtml(techName)+' is now Lead ♛','success');
+}
+
+function dispatchSetStatus(jobId,status){
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  job.status=status;saveDB();renderDispatchBoard();openDispatchDetail(jobId);
+  showToast('Status → '+status,'info');
+}
+
+function closeDispatchDetail(){var p=document.getElementById('dispatch-detail-panel');if(p)p.style.display='none';}
+
+function rescheduleJobFromDetail(jobId){
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var d=(document.getElementById('dsp-new-date')||{}).value||'';
+  var t=(document.getElementById('dsp-new-time')||{}).value||'';
+  var dur=parseFloat((document.getElementById('dsp-new-dur')||{}).value||job.estLaborHours||4);
+  if(d) job.scheduledDate=d;if(t) job.scheduledTime=t;if(dur){job.estLaborHours=dur;job.scheduledDuration=dur;}
+  saveDB();closeDispatchDetail();renderDispatchBoard();showToast('Rescheduled','success');
+}
+
+function updateNowLine(){
+  var line=document.getElementById('dispatch-now-line');
+  var wrap=document.getElementById('dispatch-board-wrap');
+  if(!line||!wrap) return;
+  var now=new Date();
+  var nowMins=now.getHours()*60+now.getMinutes()-DISPATCH_START_HOUR*60;
+  if(nowMins<0||nowMins>DISPATCH_MINS_TOTAL){line.style.display='none';return;}
+  var pct=nowMins/DISPATCH_MINS_TOTAL;
+  var labelW=200;
+  var timelineW=Math.max(wrap.clientWidth-labelW, wrap.scrollWidth-labelW);
+  line.style.display='block';
+  line.style.left=(labelW+pct*timelineW)+'px';
+}
+
+// ResizeObserver — reposition NOW line when board is resized (window resize, panel open/close)
+var _dispatchResizeObserver = null;
+function attachDispatchResizeObserver() {
+  var wrap = document.getElementById('dispatch-board-wrap');
+  if (!wrap || !window.ResizeObserver) return;
+  if (_dispatchResizeObserver) _dispatchResizeObserver.disconnect();
+  _dispatchResizeObserver = new ResizeObserver(function(){
+    var page = document.getElementById('page-dispatch');
+    if (page && page.classList.contains('active')) updateNowLine();
+  });
+  _dispatchResizeObserver.observe(wrap);
+}
+
+function openScheduleJobModal(jobId){
+  var sel=document.getElementById('sj-job-select');
+  if(sel){sel.innerHTML='<option value="">— Select a job —</option>'+(DB.jobs||[]).filter(function(j){return j.status!=='Complete'&&j.status!=='Closed';}).map(function(j){return '<option value="'+j.id+'"'+(j.id===jobId?' selected':'')+'>'+escHtml((j.num||'')+' '+j.name)+'</option>';}).join('');if(jobId){sel.value=jobId;onScheduleJobSelect(jobId);}}
+  var techSel=document.getElementById('sj-tech');
+  if(techSel) techSel.innerHTML='<option value="">— Unassigned —</option>'+(DB.team||[]).map(function(m){return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';}).join('');
+  var dateEl=document.getElementById('dispatch-date');
+  var sjDate=document.getElementById('sj-date');
+  if(sjDate) sjDate.value=dateEl?dateEl.value:getTodayISO();
+  openModal('modal-schedule-job');
+}
+
+function onScheduleJobSelect(jobId){
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;});
+  var prev=document.getElementById('sj-job-preview');
+  if(!prev) return;
+  if(!job){prev.style.display='none';return;}
+  var crew=getJobCrew(job);
+  prev.style.display='block';
+  prev.innerHTML='<div style="font-weight:700">'+escHtml(job.name||'')+'</div>'+
+    '<div style="color:#546e7a">'+escHtml(job.customer||'')+(job.address?' · '+escHtml(job.address):'')+' </div>'+
+    '<div style="color:#1565c0;margin-top:4px">Est: '+(job.estLaborHours||'?')+'hrs · $'+(job.estTotal||0).toLocaleString()+'</div>'+
+    (crew.length?'<div style="color:#546e7a;font-size:11px;margin-top:2px">Crew: '+crew.map(function(c){return escHtml(c.techName+(c.role==='lead'?' ♛':''));}).join(', ')+'</div>':'');
+  var techSel=document.getElementById('sj-tech');
+  var lead=getJobLead(job);
+  if(techSel&&lead) techSel.value=lead;
+  var durEl=document.getElementById('sj-duration');
+  if(durEl&&job.estLaborHours) durEl.value=job.estLaborHours;
+}
+
+function saveScheduledJob(){
+  var jobId=(document.getElementById('sj-job-select')||{}).value||'';
+  var date=(document.getElementById('sj-date')||{}).value||'';
+  var time=(document.getElementById('sj-start-time')||{}).value||'08:00';
+  var dur=parseFloat((document.getElementById('sj-duration')||{}).value||4);
+  var tech=(document.getElementById('sj-tech')||{}).value||'';
+  var notes=(document.getElementById('sj-notes')||{}).value||'';
+  if(!jobId){showToast('Please select a job','error');return;}
+  if(!date){showToast('Please select a date','error');return;}
+  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  job.scheduledDate=date;job.scheduledTime=time;job.estLaborHours=dur;job.scheduledDuration=dur;
+  if(notes) job.dispatchNotes=notes;
+  if(!job.status||job.status==='') job.status='Scheduled';
+  if(tech){if(!isCrewMember(job,tech)) addCrewMember(job,tech,'lead'); else setCrewLead(job,tech);}
+  saveDB();closeModal('modal-schedule-job');
+  var dateEl=document.getElementById('dispatch-date');
+  if(dateEl) dateEl.value=date;
+  renderDispatchBoard();
+  showToast('Job scheduled'+(tech?' → '+tech:''),'success');
+}
+
+function timeStrToMins(str){
+  if(!str) return DISPATCH_START_HOUR*60;
+  var p=str.split(':');
+  return parseInt(p[0])*60+(parseInt(p[1])||0);
+}
+
+// ── TOUCH DRAG POLYFILL ──
+// Makes drag-and-drop work on iOS Safari and Android Chrome
+var _touchDragJobId = null;
+var _touchGhost     = null;
+var _touchDragSrc   = null;
+
+function attachTouchDrag() {
+  // Attach to pool cards
+  document.querySelectorAll('.dispatch-pool-card[data-job-id]').forEach(function(el){
+    el.removeEventListener('touchstart', _onTouchStart);
+    el.addEventListener('touchstart', _onTouchStart, {passive:false});
+  });
+  // Attach to job blocks on board
+  document.querySelectorAll('.dispatch-job-block[data-job-id]').forEach(function(el){
+    el.removeEventListener('touchstart', _onTouchStart);
+    el.addEventListener('touchstart', _onTouchStart, {passive:false});
+  });
+}
+
+function _onTouchStart(e) {
+  var el = e.currentTarget;
+  _touchDragJobId = el.getAttribute('data-job-id');
+  _touchDragSrc = el.classList.contains('dispatch-pool-card') ? 'pool' : 'board';
+  if (!_touchDragJobId) return;
+
+  var job = (DB.jobs||[]).find(function(j){return j.id===_touchDragJobId;});
+  if (!job) return;
+
+  e.preventDefault();
+
+  // Create ghost element
+  _touchGhost = document.createElement('div');
+  _touchGhost.className = 'dispatch-touch-ghost';
+  var color = getJobColor(job.id);
+  _touchGhost.style.background = color.bg;
+  _touchGhost.textContent = (job.name||'').slice(0,25);
+  document.body.appendChild(_touchGhost);
+
+  var touch = e.touches[0];
+  _touchGhost.style.left = touch.clientX + 'px';
+  _touchGhost.style.top  = touch.clientY + 'px';
+
+  el.style.opacity = '0.4';
+
+  document.addEventListener('touchmove',  _onTouchMove,  {passive:false});
+  document.addEventListener('touchend',   _onTouchEnd,   {passive:false});
+  document.addEventListener('touchcancel',_onTouchCancel,{passive:false});
+}
+
+function _onTouchMove(e) {
+  e.preventDefault();
+  if (!_touchGhost) return;
+  var touch = e.touches[0];
+  _touchGhost.style.left = touch.clientX + 'px';
+  _touchGhost.style.top  = touch.clientY + 'px';
+
+  // Highlight drop target
+  document.querySelectorAll('.dispatch-tech-timeline').forEach(function(el){el.classList.remove('drag-over');});
+  var target = document.elementFromPoint(touch.clientX, touch.clientY);
+  var timeline = target ? target.closest('.dispatch-tech-timeline') : null;
+  if (timeline) timeline.classList.add('drag-over');
+}
+
+function _onTouchEnd(e) {
+  if (!_touchGhost || !_touchDragJobId) { _cleanTouchDrag(); return; }
+  var touch = e.changedTouches[0];
+  var target = document.elementFromPoint(touch.clientX, touch.clientY);
+  var timeline = target ? target.closest('.dispatch-tech-timeline') : null;
+
+  if (timeline) {
+    var techName = timeline.getAttribute('data-tech');
+    var rect = timeline.getBoundingClientRect();
+    var xPct = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+    var dropMins = Math.round(xPct * DISPATCH_MINS_TOTAL / 30) * 30;
+    var dropHour = DISPATCH_START_HOUR + Math.floor(dropMins/60);
+    var dropMin  = dropMins % 60;
+    var dropTime = String(dropHour).padStart(2,'0')+':'+String(dropMin).padStart(2,'0');
+    var dateEl   = document.getElementById('dispatch-date');
+    var boardDate= dateEl ? dateEl.value : getTodayISO();
+
+    var job = (DB.jobs||[]).find(function(j){return j.id===_touchDragJobId;});
+    if (job && techName) {
+      var already = isCrewMember(job, techName);
+      if (!already) {
+        var crew = getJobCrew(job);
+        addCrewMember(job, techName, crew.length===0?'lead':'helper');
+      }
+      job.scheduledDate = boardDate;
+      job.scheduledTime = dropTime;
+      if (!job.status) job.status = 'Scheduled';
+      saveDB();
+      renderDispatchBoard();
+      showToast(already?'Rescheduled to '+dropTime:escHtml(techName)+' added to '+escHtml(job.name||''), 'success');
+    }
+  }
+
+  _cleanTouchDrag();
+}
+
+function _onTouchCancel() { _cleanTouchDrag(); }
+
+function _cleanTouchDrag() {
+  if (_touchGhost) { _touchGhost.remove(); _touchGhost=null; }
+  _touchDragJobId=null; _touchDragSrc=null;
+  document.querySelectorAll('.dispatch-pool-card,.dispatch-job-block').forEach(function(el){el.style.opacity='1';});
+  document.querySelectorAll('.dispatch-tech-timeline').forEach(function(el){el.classList.remove('drag-over');});
+  document.removeEventListener('touchmove',  _onTouchMove);
+  document.removeEventListener('touchend',   _onTouchEnd);
+  document.removeEventListener('touchcancel',_onTouchCancel);
+}
+
+// ── DISPATCH SMS ──
+// Called when assigning a tech — optionally sends them a text via Twilio Edge Function
+function dispatchSendSMS(techName, jobId) {
+  var job = (DB.jobs||[]).find(function(j){return j.id===jobId;});
+  var tech = (DB.team||[]).find(function(m){return m.name===techName;});
+  if (!job||!tech||!tech.phone) {
+    showToast('No phone number on file for '+techName,'warning');
+    return;
+  }
+
+  var msg = 'TCSS Dispatch: You\'ve been assigned to '+
+    (job.name||'a job')+
+    (job.customer?' for '+job.customer:'')+
+    (job.address?' at '+job.address:'')+
+    (job.scheduledDate?' on '+job.scheduledDate:'')+
+    (job.scheduledTime?' at '+job.scheduledTime:'')+'.'+
+    (job.dispatchNotes?' Note: '+job.dispatchNotes:'');
+
+  if (!confirm('Send dispatch SMS to '+techName+' ('+tech.phone+')?\n\n"'+msg+'"')) return;
+
+  // Call Twilio via Supabase Edge Function (same pattern as absence alerts)
+  if (_sb && _currentUser) {
+    _sb.functions.invoke('send-sms', {
+      body: { to: tech.phone, message: msg }
+    }).then(function(r){
+      if (r.error) { console.warn('[SMS]', r.error); showToast('SMS failed — check Twilio setup','error'); }
+      else showToast('SMS sent to '+techName,'success');
+    });
+  } else {
+    showToast('SMS requires Supabase connection','warning');
+  }
+}
+
+function openScheduleJobModal(jobId){
+  var sel=document.getElementById('sj-job-select');
+  if(sel){sel.innerHTML='<option value="">— Select a job —</option>'+(DB.jobs||[]).filter(function(j){return j.status!=='Complete'&&j.status!=='Closed';}).map(function(j){return '<option value="'+j.id+'"'+(j.id===jobId?' selected':'')+'>'+escHtml((j.num||'')+' '+j.name)+'</option>';}).join('');if(jobId){sel.value=jobId;onScheduleJobSelect(jobId);}}
+  var techSel=document.getElementById('sj-tech');
+  if(techSel) techSel.innerHTML='<option value="">— Unassigned —</option>'+(DB.team||[]).map(function(m){return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';}).join('');
+  var dateEl=document.getElementById('dispatch-date');
+  var sjDate=document.getElementById('sj-date');
+  if(sjDate) sjDate.value=dateEl?dateEl.value:getTodayISO();
+  openModal('modal-schedule-job');
+}
+
+var ROLES = ['owner','manager','back_office','estimator','lead_tech','helper_tech','subcontractor'];
+
+var ROLE_LABELS = {
+  owner:'Owner', manager:'Manager', back_office:'Back Office',
+  estimator:'Estimator', lead_tech:'Lead Tech',
+  helper_tech:'Helper Tech', subcontractor:'Subcontractor'
+};
+
+var PERM_DEFS = [
+  {key:'quote.create',    label:'Create / Edit Quotes',       group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.view',      label:'View Quotes',                group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.delete',    label:'Delete Quotes',              group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.send',      label:'Send Quote to Customer',     group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.convert',   label:'Convert Quote to Job',       group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.export',    label:'Export Quotes CSV',          group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.bypass',    label:'Bypass Margin Floor',        group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'cust.view',       label:'View Customers & Contacts',  group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'cust.edit',       label:'Add / Edit Customers',       group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'cust.delete',     label:'Delete Customers',           group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'contact.edit',    label:'Add / Edit Contacts',        group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'job.create',      label:'Create / Edit Jobs',         group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'job.delete',      label:'Delete Jobs',                group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'job.closeout',    label:'Job Closeout / Sign-off',    group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'wt.create',       label:'Create WT Projects',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'wt.checkoff',     label:'Field Check-off Items',      group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
+  {key:'wt.confirm',      label:'Confirm Check-offs',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'wt.reopen',       label:'Reopen Check-offs',          group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'wt.rework',       label:'Log Reworks',                group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
+  {key:'wt.flags',        label:'Review Difficult Flags',     group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'wt.leaderboard',  label:'View Leaderboard',           group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'time.clock',      label:'Clock In / Out (own)',        group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
+  {key:'time.clockteam',  label:'Clock Team In / Out',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'time.correct',    label:'Edit Time Corrections',       group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'time.approveflag',label:'Approve Lunch Flags',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'time.viewall',    label:'View All Timesheets',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'leave.request',   label:'Request Time Off',            group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:0}},
+  {key:'leave.approve',   label:'Approve Time Off',            group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'payroll.view',    label:'View Payroll Summary',        group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'payroll.process', label:'Mark Payroll Processed',      group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'payroll.export',  label:'Export Payroll CSV',          group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'tool.edit',       label:'Add / Edit Tools',            group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'tool.checkout',   label:'Check Out / Return Tools',    group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
+  {key:'tool.transfer',   label:'Transfer Tools',              group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'tool.inspect',    label:'Inspect Returned Tools',      group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
+  {key:'rpt.quotes',      label:'Quoting / Pipeline Reports',  group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'rpt.jobs',        label:'Job Performance Reports',     group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'rpt.tech',        label:'Tech Performance Reports',    group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'rpt.tools',       label:'Tool Utilization Reports',    group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'rpt.payroll',     label:'Payroll Reports',             group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'settings.team',   label:'Manage Team / Users',         group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'settings.margin', label:'Set Margin Floors',           group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'settings.catalog',label:'Edit Price Catalog',          group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'settings.company',label:'Company Settings',            group:'Settings',       fixed:true,  defaults:{owner:1,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+];
+
+function getPermMatrix() {
+  var saved = (DB.settings && DB.settings.rolePermissions) || {};
+  var matrix = {};
+  PERM_DEFS.forEach(function(p){
+    matrix[p.key] = {};
+    ROLES.forEach(function(r){
+      if (p.fixed) {
+        matrix[p.key][r] = p.defaults[r] ? true : false;
+      } else {
+        matrix[p.key][r] = (saved[p.key] && saved[p.key][r] !== undefined)
+          ? saved[p.key][r]
+          : (p.defaults[r] ? true : false);
+      }
+    });
+  });
+  return matrix;
+}
+
+function hasPermission(permKey) {
+  if (!_currentUser) return false;
+  var role = _currentUser.role || 'helper_tech';
+  if (role === 'owner') return true;
+  var matrix = getPermMatrix();
+  if (!matrix[permKey]) return false;
+  return matrix[permKey][role] === true;
+}
+
+function renderPermissionsEditor() {
+  var card = document.getElementById('role-permissions-card');
+  if (!card) return;
+  var role = _currentUser ? _currentUser.role : '';
+  card.style.display = role === 'owner' ? 'block' : 'none';
+  if (role !== 'owner') return;
+
+  var matrix = getPermMatrix();
+  var grid = document.getElementById('perm-grid');
+  if (!grid) return;
+
+  var html = '<table class="perm-table"><thead><tr>'+
+    '<th style="text-align:left;min-width:180px">Permission</th>'+
+    ROLES.map(function(r){ return '<th>'+ROLE_LABELS[r]+'</th>'; }).join('')+
+  '</tr></thead><tbody>';
+
+  var lastGroup = '';
+  PERM_DEFS.forEach(function(p){
+    if (p.group !== lastGroup) {
+      lastGroup = p.group;
+      html += '<tr class="perm-group-row"><td colspan="'+(ROLES.length+1)+'">'+escHtml(p.group)+'</td></tr>';
+    }
+    html += '<tr><td>'+(p.fixed?'🔒 ':'')+escHtml(p.label)+(p.fixed?' <span style="font-size:10px;color:#90a4ae">(structural)</span>':'')+'</td>';
+    ROLES.forEach(function(r){
+      var val = matrix[p.key][r];
+      if (p.fixed) {
+        html += '<td class="perm-center"><span class="perm-fixed" style="color:'+(val?'#2e7d32':'#d0d0d0')+'">'+(val?'✓':'✗')+'</span></td>';
+      } else {
+        var tid = 'perm-'+p.key.replace(/\./g,'-')+'-'+r;
+        html += '<td class="perm-center">'+
+          '<label class="perm-toggle">'+
+            '<input type="checkbox" id="'+tid+'" '+(val?'checked':'')+
+            ' onchange="savePermChange(\''+p.key+'\',\''+r+'\',this.checked)">'+
+            '<span class="perm-slider"></span>'+
+          '</label>'+
+        '</td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  grid.innerHTML = html;
+}
+
+function savePermChange(permKey, role, value) {
+  if (!DB.settings) DB.settings={};
+  if (!DB.settings.rolePermissions) DB.settings.rolePermissions={};
+  if (!DB.settings.rolePermissions[permKey]) DB.settings.rolePermissions[permKey]={};
+  DB.settings.rolePermissions[permKey][role] = value;
+  saveDB();
+  showToast(ROLE_LABELS[role]+': '+(value?'✓ Granted':'✗ Revoked'),'info',2000);
+}
+
+function resetPermissionsToDefault() {
+  if (!confirm('Reset ALL permissions to factory defaults? This cannot be undone.')) return;
+  if (!DB.settings) DB.settings={};
+  DB.settings.rolePermissions = {};
+  saveDB();
+  renderPermissionsEditor();
+  showToast('Permissions reset to defaults','success');
+}
+
+function exportPermissionsDoc() {
+  var matrix = getPermMatrix();
+  var groups = {};
+  PERM_DEFS.forEach(function(p){ if(!groups[p.group]) groups[p.group]=[]; groups[p.group].push(p); });
+  var roleColors = {owner:'#1565c0',manager:'#2e7d32',back_office:'#e65100',estimator:'#6a1b9a',lead_tech:'#00695c',helper_tech:'#546e7a',subcontractor:'#ad1457'};
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>TCSS ProBid — Role Permissions</title>'+
+    '<style>body{font-family:Arial,sans-serif;margin:20px;font-size:12px}h1{color:#1565c0;margin-bottom:2px}h2{font-size:11px;color:#546e7a;font-weight:400;margin-top:0;margin-bottom:16px}'+
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px}th{background:#1565c0;color:#fff;padding:6px 10px;font-size:11px;text-align:center}th:first-child{text-align:left}'+
+    'td{padding:5px 10px;border-bottom:1px solid #eee;font-size:11px}tr:hover td{background:#f8f9fa}'+
+    '.grp td{background:#e3f0ff!important;font-weight:700;color:#1565c0;font-size:10px;text-transform:uppercase;letter-spacing:.5px}'+
+    '.yes{color:#2e7d32;font-weight:700;text-align:center}.no{color:#d0d0d0;text-align:center}.fixed{color:#90a4ae;text-align:center}'+
+    '.no-print{margin-bottom:16px}@media print{.no-print{display:none}@page{margin:10mm;size:landscape}}'+
+    '</style></head><body>'+
+    '<div class="no-print"><button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;margin-right:8px">🖨 Print</button>'+
+    '<button onclick="window.close()" style="border:1px solid #ddd;background:#fff;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">Close</button></div>'+
+    '<h1>TCSS ProBid V9 — Role Permissions Reference</h1>'+
+    '<h2>Generated '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'  ·  Confidential — Internal Use Only</h2>'+
+    '<table><thead><tr><th>Permission</th>'+
+      ROLES.map(function(r){ return '<th style="background:'+roleColors[r]+'">'+ROLE_LABELS[r]+'</th>'; }).join('')+
+    '</tr></thead><tbody>';
+
+  Object.keys(groups).forEach(function(grp){
+    html += '<tr class="grp"><td colspan="'+(ROLES.length+1)+'">'+grp+'</td></tr>';
+    groups[grp].forEach(function(p){
+      html += '<tr><td>'+(p.fixed?'🔒 ':'')+escHtml(p.label)+'</td>';
+      ROLES.forEach(function(r){
+        var val = matrix[p.key][r];
+        html += p.fixed
+          ? '<td class="fixed">'+(val?'●':'○')+'</td>'
+          : '<td class="'+(val?'yes':'no')+'">'+(val?'✓':'✗')+'</td>';
+      });
+      html += '</tr>';
+    });
+  });
+  html += '</tbody></table><p style="font-size:10px;color:#90a4ae">✓ Full Access  ✗ No Access  🔒 Structural (fixed)  ● Fixed On  ○ Fixed Off</p></body></html>';
+
+  var win = window.open('','_blank','width=1100,height=750');
+  if (win) { win.document.write(html); win.document.close(); setTimeout(function(){ win.print(); },500); }
+  else showToast('Allow popups to export','warning');
+}
+
