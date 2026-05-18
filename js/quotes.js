@@ -143,7 +143,7 @@ function calcTotals() {
 }
 
 // ---- QUOTE NUMBER GENERATOR ----
-function nextQNum() { DB.quoteSeq = (DB.quoteSeq||1000) + 1; saveDB(); return 'Q-' + DB.quoteSeq; }
+function nextQNum() { DB.quoteSeq = (DB.quoteSeq < 1024 ? 1024 : DB.quoteSeq) + 1; saveDB(); return 'Q-' + DB.quoteSeq; }
 
 
 
@@ -1306,8 +1306,12 @@ function closeModal(id) { const m=document.getElementById(id); if(m) m.classList
 
 function deleteQuote(id) {
   if (!confirm('Delete this quote? This cannot be undone.')) return;
-  if (_sb && _currentUser && String(id).length > 10) {
-    // Hard delete from Supabase - 'deleted' is not a valid status enum value
+  // Always attempt Supabase hard delete — do NOT gate on ID length/format
+  // (short legacy IDs are still valid Supabase row identifiers)
+  if (_sb && _currentUser) {
+    _sb.from('quote_line_items').delete().eq('quote_id', id).then(function(r){
+      if (r.error) console.warn('[Delete] Line items:', r.error.message);
+    });
     _sb.from('quotes').delete().eq('id', id).then(function(r){
       if (r.error) console.warn('[Delete] Quote:', r.error.message);
     });

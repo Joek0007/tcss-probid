@@ -233,8 +233,11 @@ async function syncAllFromCloud() {
         .select('*, quote_line_items(*)')
         .order('created_at', { ascending: false });
       if (qe) { errors.push('quotes: '+qe.message); }
-      else if (quotes && quotes.length) {
-        DB.quotes = quotes.map(function(q) {
+      else if (quotes) {
+        var cloudQuoteIds = new Set(quotes.map(function(q){ return String(q.id); }));
+        // Preserve any local quotes not yet synced to cloud (created before push debounce fired)
+        var localOnlyQuotes = (DB.quotes||[]).filter(function(q){ return q.id && !cloudQuoteIds.has(String(q.id)); });
+        var cloudQuotes = quotes.map(function(q) {
           return {
             id: q.id,
             num: q.quote_number,
@@ -271,6 +274,12 @@ async function syncAllFromCloud() {
             })
           };
         });
+        // Immediately push local-only records so they land in Supabase
+        if (localOnlyQuotes.length > 0) {
+          console.log('[Sync] Pushing', localOnlyQuotes.length, 'local-only quote(s) to cloud');
+          setTimeout(pushAllToCloud, 500);
+        }
+        DB.quotes = cloudQuotes.concat(localOnlyQuotes);
       }
     } catch(e) { errors.push('quotes: '+e.message); }
 
@@ -278,10 +287,13 @@ async function syncAllFromCloud() {
     try {
       var { data: custs, error: ce } = await _sb.from('customers').select('*').eq('is_active', true).order('name');
       if (ce) { errors.push('customers: '+ce.message); }
-      else if (custs && custs.length) {
-        DB.customers = custs.map(function(c) {
+      else if (custs) {
+        var cloudCustIds = new Set(custs.map(function(c){ return String(c.id); }));
+        var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)); });
+        var cloudCusts = custs.map(function(c) {
           return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, city:c.city, state:c.state, zip:c.zip, notes:c.notes, active:c.is_active };
         });
+        DB.customers = cloudCusts.concat(localOnlyCusts);
       }
     } catch(e) { errors.push('customers: '+e.message); }
 
@@ -321,8 +333,10 @@ async function syncAllFromCloud() {
     try {
       var { data: conts, error: cone } = await _sb.from('contacts').select('*').eq('is_active', true).order('name');
       if (cone) { errors.push('contacts: '+cone.message); }
-      else if (conts && conts.length) {
-        DB.contacts = conts.map(function(c) {
+      else if (conts) {
+        var cloudContIds = new Set(conts.map(function(c){ return String(c.id); }));
+        var localOnlyConts = (DB.contacts||[]).filter(function(c){ return c.id && !cloudContIds.has(String(c.id)); });
+        var cloudConts = conts.map(function(c) {
           return {
             id:          c.id,
             name:        c.name,
@@ -338,6 +352,7 @@ async function syncAllFromCloud() {
             createdAt:   c.created_at
           };
         });
+        DB.contacts = cloudConts.concat(localOnlyConts);
       }
     } catch(e) { errors.push('contacts: '+e.message); }
 
