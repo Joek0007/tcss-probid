@@ -121,12 +121,10 @@ async function signIn(email, password) {
 async function signOut() {
   stopAutoSync();
   clearTimeout(_sessionTimer);
-  if (!_sb) { window.location.reload(); return; }
-  try {
-    await pushAllToCloud();
-    await _sb.auth.signOut();
-  } catch(e) {
-    console.warn('[SignOut] Error:', e);
+  // Fire push in background but don't wait — reload immediately
+  if (_sb) {
+    try { pushAllToCloud(); } catch(e) {}
+    try { await _sb.auth.signOut(); } catch(e) {}
   }
   window.location.reload();
 }
@@ -348,17 +346,25 @@ async function syncAllFromCloud() {
       var { data: jobRows, error: je } = await _sb.from('jobs').select('*').eq('is_active', true).order('created_at', {ascending:false});
       if (je) { errors.push('jobs: '+je.message); }
       else if (jobRows && jobRows.length) {
+        var jobPullStatusMap = {
+          'pending':   'Scheduled',
+          'active':    'In Progress',
+          'on_hold':   'On Hold',
+          'completed': 'Complete',
+          'invoiced':  'Complete',
+          'closed':    'Closed'
+        };
         DB.jobs = jobRows.map(function(j) {
           return {
             id:                j.id,
             num:               j.job_number,
             name:              j.name,
-            customer:          j.customer_name || (j.customer_id ? j.customer_id : ''),
+            customer:          j.customer_name || '',
             customerId:        j.customer_id,
             contactId:         j.contact_id,
             assignedTo:        j.assigned_to,
             crew:              j.crew || [],
-            status:            j.status || 'Scheduled',
+            status:            jobPullStatusMap[j.status] || 'Scheduled',
             scheduledDate:     j.scheduled_date || (j.scheduled_start ? j.scheduled_start : null),
             scheduledTime:     j.scheduled_time,
             scheduledDuration: j.scheduled_duration,
@@ -608,13 +614,23 @@ async function pushAllToCloud() {
       if (!jb || !jb.name) continue;
       try {
         var jbId = ensureUUID(jb);
-        // Map app status to Supabase enum — only use values that exist in the enum
+        // Map app status to Supabase enum — exact values: pending, active, on_hold, completed, invoiced, closed
         var jobStatusMap = {
-          'Scheduled':'Scheduled','scheduled':'Scheduled',
-          'In Progress':'In Progress','in_progress':'In Progress',
-          'Complete':'Complete','complete':'Complete','Closed':'Complete',
-          'On Hold':'On Hold','on_hold':'On Hold','Paused':'On Hold',
-          'Cancelled':'Cancelled','cancelled':'Cancelled'
+          'Scheduled':   'pending',
+          'scheduled':   'pending',
+          'In Progress': 'active',
+          'in_progress': 'active',
+          'Active':      'active',
+          'Paused':      'on_hold',
+          'On Hold':     'on_hold',
+          'on_hold':     'on_hold',
+          'Complete':    'completed',
+          'Completed':   'completed',
+          'complete':    'completed',
+          'Closed':      'closed',
+          'closed':      'closed',
+          'Invoiced':    'invoiced',
+          'invoiced':    'invoiced'
         };
         await _sb.from('jobs').upsert({
           id:               jbId,
@@ -645,6 +661,9 @@ async function pushAllToCloud() {
         });
       } catch(jbErr) {
         console.warn('[Push] Job error for', jb.name, jbErr.message || jbErr);
+        // Log the full Supabase error detail
+        if (jbErr && jbErr.details) console.warn('[Push] Job details:', jbErr.details);
+        if (jbErr && jbErr.hint) console.warn('[Push] Job hint:', jbErr.hint);
       }
     }
 
