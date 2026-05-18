@@ -613,19 +613,28 @@ async function pushAllToCloud() {
       if (!ct || !ct.name) continue;
       try {
         var ctId = ensureUUID(ct);
-        await _sb.from('contacts').upsert({
-          id:           ctId,
-          name:         ct.name || '',
+        // Try with extended columns first; fall back to base schema if columns not yet added
+        var ctBase = {
+          id:          ctId,
+          name:        ct.name || '',
+          customer_id: ct.customerId || null,
+          phone:       ct.phone || null,
+          email:       ct.email || null,
+          title:       ct.role || ct.title || null,
+          notes:       ct.notes || null,
+          is_active:   true
+        };
+        var ctFull = Object.assign({}, ctBase, {
           company:      ct.company || null,
-          customer_id:  ct.customerId || null,
-          phone:        ct.phone || null,
-          email:        ct.email || null,
-          title:        ct.role || ct.title || null,
           contact_type: ct.contactType || null,
-          contact_pref: ct.contactPref || null,
-          notes:        ct.notes || null,
-          is_active:    true
+          contact_pref: ct.contactPref || null
         });
+        var ctRes = await _sb.from('contacts').upsert(ctFull);
+        if (ctRes.error && ctRes.error.message && ctRes.error.message.includes('column')) {
+          await _sb.from('contacts').upsert(ctBase);
+        } else if (ctRes.error) {
+          console.warn('[Push] Contact error for', ct.name, ctRes.error.message);
+        }
       } catch(ctErr) {
         console.warn('[Push] Contact error for', ct.name, ctErr.message || ctErr);
       }
@@ -654,39 +663,50 @@ async function pushAllToCloud() {
           'Invoiced':    'invoiced',
           'invoiced':    'invoiced'
         };
-        await _sb.from('jobs').upsert({
-          id:               jbId,
-          job_number:       jb.num || null,
-          name:             jb.name || '',
-          customer_id:      jb.customerId || null,
-          customer_name:    jb.customer || null,
-          primary_quote_id: jb.quoteId || null,
-          status:           jobStatusMap[jb.status] || 'Scheduled',
-          site_address:     jb.address || null,
-          scheduled_start:  jb.scheduledDate || jb.startDate || null,
-          scheduled_end:    jb.endDate || null,
-          // Custom columns we added via SQL
-          assigned_to:      jb.assignedTo || null,
-          crew:             jb.crew || [],
-          scheduled_date:   jb.scheduledDate || null,
-          scheduled_time:   jb.scheduledTime || null,
+        // Base schema columns — always safe to push
+        var jbBase = {
+          id:              jbId,
+          job_number:      jb.num || null,
+          name:            jb.name || '',
+          customer_id:     jb.customerId || null,
+          status:          jobStatusMap[jb.status] || 'pending',
+          site_address:    jb.address || null,
+          scheduled_start: jb.scheduledDate || jb.startDate || null,
+          scheduled_end:   jb.endDate || null,
+          is_active:       true,
+          created_by:      _currentUser.id
+        };
+        // Extended custom columns (require ALTER TABLE — see master ref 3.1)
+        var jbFull = Object.assign({}, jbBase, {
+          customer_name:      jb.customer || null,
+          primary_quote_id:   jb.quoteId || null,
+          assigned_to:        jb.assignedTo || null,
+          crew:               jb.crew || [],
+          scheduled_date:     jb.scheduledDate || null,
+          scheduled_time:     jb.scheduledTime || null,
           scheduled_duration: jb.scheduledDuration || null,
-          est_labor_hours:  jb.estLaborHours || null,
+          est_labor_hours:    jb.estLaborHours || null,
           actual_labor_hours: jb.actualLaborHours || null,
-          est_total:        jb.estTotal || null,
-          address:          jb.address || null,
-          notes:            jb.notes || null,
-          dispatch_notes:   jb.dispatchNotes || null,
-          contact_id:       jb.contactId || null,
-          quote_id:         jb.quoteId || null,
-          is_active:        true,
-          created_by:       _currentUser.id
+          est_total:          jb.estTotal || null,
+          address:            jb.address || null,
+          notes:              jb.notes || null,
+          dispatch_notes:     jb.dispatchNotes || null,
+          contact_id:         jb.contactId || null,
+          quote_id:           jb.quoteId || null
         });
+        var jbRes = await _sb.from('jobs').upsert(jbFull);
+        if (jbRes.error && jbRes.error.message && jbRes.error.message.includes('column')) {
+          // Custom columns not yet added — fall back to base schema
+          console.warn('[Push] Job falling back to base schema for', jb.name);
+          var jbRes2 = await _sb.from('jobs').upsert(jbBase);
+          if (jbRes2.error) console.warn('[Push] Job base error for', jb.name, jbRes2.error.message);
+        } else if (jbRes.error) {
+          console.warn('[Push] Job error for', jb.name, jbRes.error.message);
+          if (jbRes.error.details) console.warn('[Push] Job details:', jbRes.error.details);
+          if (jbRes.error.hint) console.warn('[Push] Job hint:', jbRes.error.hint);
+        }
       } catch(jbErr) {
         console.warn('[Push] Job error for', jb.name, jbErr.message || jbErr);
-        // Log the full Supabase error detail
-        if (jbErr && jbErr.details) console.warn('[Push] Job details:', jbErr.details);
-        if (jbErr && jbErr.hint) console.warn('[Push] Job hint:', jbErr.hint);
       }
     }
 
