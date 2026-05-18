@@ -355,11 +355,18 @@ async function syncAllFromCloud() {
           'closed':    'Closed'
         };
         DB.jobs = jobRows.map(function(j) {
+          // Resolve customer name: Supabase jobs table has no customer_name column
+          // Look it up from DB.customers using customer_id
+          var custName = j.customer_name || '';
+          if (!custName && j.customer_id) {
+            var cust = (DB.customers||[]).find(function(c){ return c.id===j.customer_id; });
+            if (cust) custName = cust.name || '';
+          }
           return {
             id:                j.id,
             num:               j.job_number,
             name:              j.name,
-            customer:          j.customer_name || '',
+            customer:          custName,
             customerId:        j.customer_id,
             contactId:         j.contact_id,
             assignedTo:        j.assigned_to,
@@ -637,6 +644,7 @@ async function pushAllToCloud() {
           job_number:       jb.num || null,
           name:             jb.name || '',
           customer_id:      jb.customerId || null,
+          customer_name:    jb.customer || null,
           primary_quote_id: jb.quoteId || null,
           status:           jobStatusMap[jb.status] || 'Scheduled',
           site_address:     jb.address || null,

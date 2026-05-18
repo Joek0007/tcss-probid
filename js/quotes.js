@@ -1554,6 +1554,19 @@ function buildInvoiceData(job) {
   var taxAmt = subtotal * (taxRate/100);
   var total = subtotal + taxAmt;
 
+  // Resolve customer name from customers table if job.customer is empty
+  var jobCustomer = job.customer || '';
+  if (!jobCustomer && job.customerId) {
+    var invCust = (DB.customers||[]).find(function(c){ return c.id===job.customerId; });
+    if (invCust) jobCustomer = invCust.name || '';
+  }
+  // Resolve customer address if job.address is empty
+  var jobAddress = job.address || '';
+  if (!jobAddress && job.customerId) {
+    var invCustAddr = (DB.customers||[]).find(function(c){ return c.id===job.customerId; });
+    if (invCustAddr) jobAddress = [invCustAddr.address, invCustAddr.city, invCustAddr.state].filter(Boolean).join(', ');
+  }
+
   return {
     id:       'inv-'+Date.now(),
     jobId:    job.id,
@@ -1569,7 +1582,7 @@ function buildInvoiceData(job) {
     total:    total,
     notes:    notes,
     status:   'sent',
-    job:      { name:job.name, customer:job.customer, address:job.address, num:job.num },
+    job:      { name:job.name, customer:jobCustomer, address:jobAddress, num:job.num },
     quote:    quote ? { num:quote.num, items:quote.items||[] } : null,
     createdAt:getTodayISO()
   };

@@ -3646,10 +3646,16 @@ function renderJobs() {
       ? '<span style="font-size:11px;color:#546e7a">👷 '+escHtml(lead)+(crew.length>1?' +'+( crew.length-1):'')+'</span>'
       : '<span style="font-size:11px;color:#d0d0d0">Unassigned</span>';
 
-    // Customer link
+    // Customer name — resolve from customers table if job.customer is empty
+    var custName = j.customer || '';
+    if (!custName && j.customerId) {
+      var custLookup = (DB.customers||[]).find(function(c){ return c.id===j.customerId; });
+      if (custLookup) custName = custLookup.name || '';
+    }
     var custLink = j.customerId
-      ? '<a href="#" onclick="openCustomerProfile(\''+j.customerId+'\');return false" style="color:#1565c0;text-decoration:none;font-size:13px">'+escHtml(j.customer||'')+'</a>'
-      : '<span style="font-size:13px;color:#546e7a">'+escHtml(j.customer||'—')+'</span>';
+      ? '<a href="#" onclick="openCustomerProfile(\''+j.customerId+'\');return false" style="color:#1565c0;text-decoration:none;font-size:13px;font-weight:600">'+escHtml(custName)+'</a>'
+      : (custName ? '<span style="font-size:13px;color:#0d1b2a;font-weight:600">'+escHtml(custName)+'</span>'
+                  : '<span style="font-size:12px;color:#d0d0d0">No customer</span>');
 
     var estH = parseFloat(j.estLaborHours)||0;
     var actH = parseFloat(j.actualLaborHours)||0;
@@ -3694,7 +3700,7 @@ function renderJobs() {
       '<div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">'+
         '<button class="btn btn-outline btn-sm" onclick="openDispatchDetail(\''+j.id+'\')" title="Dispatch Board">🗂</button>'+
         (wtProj?'<button class="btn btn-outline btn-sm" onclick="loadWTProject(\''+wtProj.id+'\');goPage(\'worktracking\')" title="Work Tracking">✅</button>':'')+
-        '<button class="btn btn-outline btn-sm" onclick="openInvoiceModal(\''+j.id+'\')" title="Generate Invoice" style="color:#1565c0;border-color:#1565c0">🧾</button>'+
+        '<button class="btn btn-sm" onclick="openInvoiceModal(\''+j.id+'\')" style="background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;font-weight:700" title="Generate Invoice">🧾 Invoice</button>'+
         '<button class="btn btn-outline btn-sm" data-action="editJob" data-id="'+j.id+'" title="Edit">✏</button>'+
         '<button class="btn btn-danger btn-sm" data-action="delJob" data-id="'+j.id+'" title="Delete">✕</button>'+
         (j.status==='Complete'||j.status==='Closed'?
