@@ -414,21 +414,29 @@ async function syncAllFromCloud() {
       }
     } catch(e) { errors.push('jobs: '+e.message); }
 
-    // 9. Team — pull from profiles table (all team members)
+    // 9. Team — pull from team table
     try {
-      var { data: teamRows, error: te2 } = await _sb.from('profiles').select('*').order('full_name');
+      var { data: teamRows, error: te2 } = await _sb.from('team').select('*').eq('is_active', true).order('full_name');
       if (te2) { errors.push('team: '+te2.message); }
-      else if (teamRows && teamRows.length) {
-        DB.team = teamRows.map(function(m) {
+      else if (teamRows) {
+        var cloudTeamIds = new Set(teamRows.map(function(m){ return String(m.id); }));
+        var localOnlyTeam = (DB.team||[]).filter(function(m){ return m.id && !cloudTeamIds.has(String(m.id)); });
+        var cloudTeam = teamRows.map(function(m) {
           return {
-            id:    m.id,
-            name:  m.full_name || m.name || '',
-            role:  m.role || 'helper_tech',
-            phone: m.phone || '',
-            email: m.email || '',
-            active: true
+            id:          m.id,
+            name:        m.full_name || '',
+            role:        m.role || 'field',
+            phone:       m.phone || '',
+            email:       m.email || '',
+            rate:        m.rate || 65,
+            hireDate:    m.hire_date || '',
+            showVacation: !!m.show_vacation,
+            showPTO:     !!m.show_pto,
+            active:      m.is_active !== false
           };
         });
+        if (localOnlyTeam.length > 0) setTimeout(pushAllToCloud, 500);
+        DB.team = cloudTeam.concat(localOnlyTeam);
       }
     } catch(e) { errors.push('team: '+e.message); }
 
@@ -648,6 +656,30 @@ async function pushAllToCloud() {
         }
       } catch(ctErr) {
         console.warn('[Push] Contact error for', ct.name, ctErr.message || ctErr);
+      }
+    }
+
+    // Push team
+    for (var tm of (DB.team || [])) {
+      if (!tm || !tm.name) continue;
+      try {
+        var tmId = ensureUUID(tm);
+        var { error: tmErr } = await _sb.from('team').upsert({
+          id:           tmId,
+          full_name:    tm.name || '',
+          role:         tm.role || 'field',
+          phone:        tm.phone || null,
+          email:        tm.email || null,
+          rate:         parseFloat(tm.rate) || 65,
+          hire_date:    tm.hireDate || null,
+          show_vacation: !!tm.showVacation,
+          show_pto:     !!tm.showPTO,
+          is_active:    tm.active !== false,
+          created_by:   _currentUser.id
+        });
+        if (tmErr) console.warn('[Push] Team error for', tm.name, tmErr.message);
+      } catch(tmCatch) {
+        console.warn('[Push] Team error for', tm.name, tmCatch.message || tmCatch);
       }
     }
 
