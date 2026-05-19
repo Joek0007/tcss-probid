@@ -2298,7 +2298,7 @@ function selectCustomer(id) {
   var cityEl=document.getElementById('qq-city');   if(cityEl&&!cityEl.value) cityEl.value=cust.city||'';
   var stEl=document.getElementById('qq-state');    if(stEl&&!stEl.value) stEl.value=cust.state||'';
   var zipEl=document.getElementById('qq-zip');     if(zipEl&&!zipEl.value) zipEl.value=cust.zip||'';
-  var ptEl=document.getElementById('qq-pt');       if(ptEl&&cust.defaultTerms&&!ptEl.value) ptEl.value=cust.defaultTerms;
+  var ptEl=document.getElementById('qq-pt');       if(ptEl&&cust.defaultTerms) ptEl.value=cust.defaultTerms;
   closeCustomerDropdown();
   // Clear old contact selection
   var ctEl=document.getElementById('qq-contact-name');
@@ -2314,8 +2314,8 @@ function selectCustomer(id) {
   } else if (contacts.length>1 && ctEl) {
     ctEl.placeholder='Select contact...';
     ctEl.value='';
-    ctEl.focus();
     showContactsForCustomer(contacts);
+    // Don't call .focus() here — it triggers blur on current element which closes the dropdown
   } else if (ctEl) {
     ctEl.placeholder='No contacts on file';
     ctEl.value='';

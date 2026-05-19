@@ -66,7 +66,7 @@ label{display:block;font-size:12px;font-weight:700;color:#455a64;margin-bottom:5
 .form-row.cols2{grid-template-columns:1fr 1fr}
 .form-row.cols3{grid-template-columns:1fr 1fr 1fr}
 .form-row.cols4{grid-template-columns:1fr 1fr 1fr 1fr}
-.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:500;align-items:center;justify-content:center}
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:1500;align-items:center;justify-content:center}
 .modal-overlay.open{display:flex}
 .modal-box{background:#fff;border-radius:14px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25);width:90%;max-width:900px}
 .modal-box.sm{max-width:480px}.modal-box.lg{max-width:1100px}
@@ -1375,7 +1375,7 @@ table{font-size:12.5px}
           </div>
           <div class="autocomplete-wrap">
             <label>Contact Person</label>
-            <input id="qq-contact-name" placeholder="Select customer first..." autocomplete="off" oninput="onContactInput(this.value)" onblur="setTimeout(closeContactDropdown,200)">
+            <input id="qq-contact-name" placeholder="Select customer first..." autocomplete="off" oninput="onContactInput(this.value)" onblur="setTimeout(closeContactDropdown,300)">
             <div id="contact-dropdown" class="autocomplete-dropdown" style="display:none"></div>
             <input type="hidden" id="qq-contact-id">
           </div>
