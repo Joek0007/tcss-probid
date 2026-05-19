@@ -161,8 +161,8 @@ async function loadCurrentUserProfile() {
 function applyRolePermissions(role) {
   // Nav visibility based on role
   var fieldRoles = ['helper_tech','subcontractor'];
-  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet'];
-  var leadTechShow = ['dash','field','jobs','dispatch','worktracking','customers','contacts','reports','catalog','tools','inventory','team'];
+  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team'];
+  var leadTechShow = ['dash','field','jobs','dispatch','worktracking','customers','contacts','reports','catalog','tools','inventory'];
   var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
   var nav = document.querySelectorAll('.nav-item[data-page]');
   nav.forEach(function(item) {
@@ -171,12 +171,18 @@ function applyRolePermissions(role) {
       item.style.display = leadTechShow.indexOf(page) >= 0 ? '' : 'none';
     } else if (fieldRoles.indexOf(role) >= 0 && fieldOnlyHide.indexOf(page) >= 0) {
       item.style.display = 'none';
+    } else if (role === 'office') {
+      // Office sees everything except Team (pay rates — owner only)
+      item.style.display = page === 'team' ? 'none' : '';
     } else if (role === 'estimator' && estimatorShow.indexOf(page) < 0) {
       item.style.display = 'none';
     } else {
       item.style.display = '';
     }
   });
+  // Hide rate column on Team page from non-owners (second layer of protection)
+  var rateHeaders = document.querySelectorAll('.team-rate-col');
+  rateHeaders.forEach(function(el) { el.style.display = role === 'owner' ? '' : 'none'; });
   // Render permissions editor if on settings page
   if (role === 'owner') setTimeout(renderPermissionsEditor, 200);
 }

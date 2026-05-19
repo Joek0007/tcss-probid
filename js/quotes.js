@@ -2172,7 +2172,7 @@ function renderTeam(){
   const tbody=document.getElementById('team-tbl');
   if(!tbody)return;
   if(DB.team.length===0){tbody.innerHTML='<tr><td colspan="6" class="empty-state"><p>No team members yet.</p></td></tr>';return;}
-  tbody.innerHTML=DB.team.map(function(t){return '<tr><td style="font-weight:700">'+escHtml(t.name||'')+'</td><td>'+escHtml(t.role||'')+'</td><td>'+escHtml(t.phone||'')+'</td><td>'+escHtml(t.email||'')+'</td><td>$'+escHtml(t.rate||'0')+'/hr</td><td><button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> <button class="btn btn-danger btn-sm" data-action="delTeamMember" data-id="'+t.id+'">Del</button></td></tr>';}).join('');
+  tbody.innerHTML=DB.team.map(function(t){return '<tr><td style="font-weight:700">'+escHtml(t.name||'')+'</td><td>'+escHtml(t.role||'')+'</td><td>'+escHtml(t.phone||'')+'</td><td>'+escHtml(t.email||'')+'</td><td class="team-rate-col">$'+escHtml(t.rate||'0')+'/hr</td><td><button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> <button class="btn btn-danger btn-sm" data-action="delTeamMember" data-id="'+t.id+'">Del</button></td></tr>';}).join('');
 }
 function newTeamMember(){
   ['m-tmname','m-tmph','m-tmem','m-tmid','m-tmhire'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});
