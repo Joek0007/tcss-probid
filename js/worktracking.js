@@ -2294,7 +2294,11 @@ function selectCustomer(id) {
   var cidEl=document.getElementById('qq-customer-id'); if(cidEl) cidEl.value=cust.id||'';
   var phEl=document.getElementById('qq-ph');       if(phEl&&cust.phone&&!phEl.value) phEl.value=cust.phone;
   var emEl=document.getElementById('qq-em');       if(emEl&&cust.email&&!emEl.value) emEl.value=cust.email;
-  var adEl=document.getElementById('qq-ad');       if(adEl&&cust.address&&!adEl.value) adEl.value=cust.address;
+  var adEl=document.getElementById('qq-ad');       if(adEl&&!adEl.value) adEl.value=cust.street||cust.address||'';
+  var cityEl=document.getElementById('qq-city');   if(cityEl&&!cityEl.value) cityEl.value=cust.city||'';
+  var stEl=document.getElementById('qq-state');    if(stEl&&!stEl.value) stEl.value=cust.state||'';
+  var zipEl=document.getElementById('qq-zip');     if(zipEl&&!zipEl.value) zipEl.value=cust.zip||'';
+  var ptEl=document.getElementById('qq-pt');       if(ptEl&&cust.defaultTerms&&!ptEl.value) ptEl.value=cust.defaultTerms;
   closeCustomerDropdown();
   // Clear old contact selection
   var ctEl=document.getElementById('qq-contact-name');

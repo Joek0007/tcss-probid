@@ -165,7 +165,11 @@ function getQData(id) {
     customerId: (document.getElementById('qq-customer-id')||{}).value || '',
     ph:  (document.getElementById('qq-ph')||{}).value || '',
     em:  (document.getElementById('qq-em')||{}).value || '',
-    ad:  (document.getElementById('qq-ad')||{}).value || '',
+    ad:  (function(){ var s=(document.getElementById('qq-ad')||{}).value||'', ci=(document.getElementById('qq-city')||{}).value||'', st=(document.getElementById('qq-state')||{}).value||'', z=(document.getElementById('qq-zip')||{}).value||''; var parts=[s, ci&&st?ci+', '+st:(ci||st), z].filter(Boolean); return parts.join(' '); })(),
+    adStreet: (document.getElementById('qq-ad')||{}).value||'',
+    adCity:   (document.getElementById('qq-city')||{}).value||'',
+    adState:  (document.getElementById('qq-state')||{}).value||'',
+    adZip:    (document.getElementById('qq-zip')||{}).value||'',
     contactName:  (document.getElementById('qq-contact-name')||{}).value || '',
     contactId:    (document.getElementById('qq-contact-id')||{}).value || '',
     contactTitle: (document.getElementById('qq-contact-title')||{}).value || '',
@@ -219,7 +223,7 @@ function getQData(id) {
 }
 
 function qqFieldIds(){
-  return ['qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-followup','qq-created','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env'];
+  return ['qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-followup','qq-created','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env'];
 }
 
 function clearQQ(skipConfirm) {
@@ -234,7 +238,7 @@ function clearQQ(skipConfirm) {
   const otx = document.getElementById('permit-other-text'); if(otx) otx.value='';
   const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
   updatePermitStatus();
-  ['qq-cn','qq-ph','qq-em','qq-ad','qq-jn','qq-num','qq-notes','qq-int','qq-tc','qq-contact-name','qq-contact-title'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+  ['qq-cn','qq-ph','qq-em','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-num','qq-notes','qq-int','qq-tc','qq-contact-name','qq-contact-title'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
   // Clear hidden ID fields and hide new contact panel
   var cidEl=document.getElementById('qq-customer-id'); if(cidEl) cidEl.value='';
   var ctidEl=document.getElementById('qq-contact-id'); if(ctidEl) ctidEl.value='';
@@ -286,7 +290,12 @@ function editQuote(id) {
   const q = DB.quotes.find(function(x){return x.id==id});
   if (!q) return;
   function setV(elId, val) { const el=document.getElementById(elId); if(el) el.value = (val!==undefined&&val!==null) ? val : ''; }
-  setV('qq-cn', q.cn); setV('qq-ph', q.ph); setV('qq-em', q.em); setV('qq-ad', q.ad);
+  setV('qq-cn', q.cn); setV('qq-ph', q.ph); setV('qq-em', q.em);
+  // Split address fields — use stored split values if available, else parse the combined ad string
+  setV('qq-ad',    q.adStreet || q.ad || '');
+  setV('qq-city',  q.adCity   || '');
+  setV('qq-state', q.adState  || '');
+  setV('qq-zip',   q.adZip    || '');
   setV('qq-contact-name', q.contactName||''); setV('qq-contact-title', q.contactTitle||'');
   // Populate hidden ID fields
   setV('qq-customer-id', q.customerId||'');
