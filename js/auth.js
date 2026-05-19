@@ -291,7 +291,7 @@ async function syncAllFromCloud() {
         var cloudCustIds = new Set(custs.map(function(c){ return String(c.id); }));
         var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)); });
         var cloudCusts = custs.map(function(c) {
-          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, city:c.city, state:c.state, zip:c.zip, notes:c.notes, active:c.is_active };
+          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, notes:c.notes, active:c.is_active };
         });
         DB.customers = cloudCusts.concat(localOnlyCusts);
       }
@@ -556,9 +556,11 @@ async function pushAllToCloud() {
           phone: c.phone || null,
           phone_alt: c.phone2 || null,
           address: c.address || null,
+          street: c.street || null,
           city: c.city || null,
           state: c.state || null,
           zip: c.zip || null,
+          default_terms: c.defaultTerms || null,
           notes: c.notes || null,
           is_active: c.active !== false,
           created_by: _currentUser.id

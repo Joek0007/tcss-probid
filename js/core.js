@@ -21,6 +21,8 @@ const ENV_PRESETS = {
 const EQUIPMENT_TYPES = [
   { id:'lift30art',  name:'30ft Articulating Boom Lift', daily:285 },
   { id:'lift40art',  name:'40ft Articulating Boom Lift', daily:350 },
+  { id:'lift35tow',  name:'Towable Boom Lift 35ft.',     daily:245 },
+  { id:'lift50tow',  name:'Towable Boom Lift 50ft.',     daily:310 },
   { id:'lift30sci',  name:'30ft Scissor Lift',           daily:195 },
   { id:'lift40sci',  name:'40ft Scissor Lift',           daily:240 },
   { id:'forklift',   name:'Forklift',                    daily:180 },

@@ -1301,7 +1301,7 @@ function viewQuote(id) {
 }
 
 // ---- MODAL HELPERS ----
-function openModal(id) { const m=document.getElementById(id); if(m) m.classList.add('open'); }
+function openModal(id) { const m=document.getElementById(id); if(m){ m.classList.add('open'); const body=m.querySelector('.modal-body'); if(body) body.scrollTop=0; m.scrollTop=0; } }
 function closeModal(id) { const m=document.getElementById(id); if(m) m.classList.remove('open'); }
 
 function deleteQuote(id) {
@@ -1863,42 +1863,69 @@ function setCustSort(val) {
   if (sel) sel.value = val;
   renderCustomers();
 }
-function newCustomer() { document.getElementById('modal-cust-title').textContent='New Customer';['m-cname','m-cphone','m-cemail','m-caddr','m-cnotes','m-cid'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';}); openModal('modal-customer'); }
+function _custFieldIds() { return ['m-cname','m-cphone','m-cemail','m-cstreet','m-ccity','m-cstate','m-czip','m-cnotes','m-cid']; }
+function _custAddress(c) {
+  // Build combined address from split fields for backward compat (quotes display, Supabase, etc)
+  var parts = [c.street, c.city && c.state ? c.city+', '+c.state : (c.city||c.state||''), c.zip].filter(Boolean);
+  return parts.join(' ');
+}
+function newCustomer() {
+  document.getElementById('modal-cust-title').textContent='New Customer';
+  _custFieldIds().forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var sel=document.getElementById('m-cterms'); if(sel) sel.value='';
+  openModal('modal-customer');
+}
 function editCustomer(id) {
   const c = DB.customers.find(function(x){return x.id==id});
   if(!c) return;
   document.getElementById('modal-cust-title').textContent='Edit Customer';
   function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v||'';}
-  sv('m-cname',c.name);sv('m-cphone',c.phone);sv('m-cemail',c.email);sv('m-caddr',c.address);sv('m-cnotes',c.notes);sv('m-cid',c.id);
+  sv('m-cname',c.name); sv('m-cphone',c.phone); sv('m-cemail',c.email);
+  sv('m-cstreet',c.street||(c.address&&!c.city?c.address:'')); sv('m-ccity',c.city||''); sv('m-cstate',c.state||''); sv('m-czip',c.zip||'');
+  sv('m-cnotes',c.notes); sv('m-cid',c.id);
+  var sel=document.getElementById('m-cterms'); if(sel) sel.value=c.defaultTerms||'';
   openModal('modal-customer');
+}
+function _buildCustomerData(id) {
+  function gv(eid){var el=document.getElementById(eid); return el?el.value.trim():'';}
+  var street=gv('m-cstreet'), city=gv('m-ccity'), state=gv('m-cstate').toUpperCase(), zip=gv('m-czip');
+  var addrParts=[street, city&&state?city+', '+state:(city||state), zip].filter(Boolean);
+  return {
+    id:           id || Date.now().toString(),
+    name:         gv('m-cname'),
+    phone:        gv('m-cphone'),
+    email:        gv('m-cemail'),
+    street:       street,
+    city:         city,
+    state:        state,
+    zip:          zip,
+    address:      addrParts.join(' '),
+    defaultTerms: (document.getElementById('m-cterms')||{}).value||'',
+    notes:        gv('m-cnotes')
+  };
 }
 function saveCustomer() {
   const id = document.getElementById('m-cid').value;
-  const name = document.getElementById('m-cname').value;
+  const name = (document.getElementById('m-cname')||{}).value||'';
   if (!name.trim()) { showToast('Customer name required','error'); return; }
-  const data = { id:id||Date.now().toString(), name, phone:document.getElementById('m-cphone').value, email:document.getElementById('m-cemail').value, address:document.getElementById('m-caddr').value, notes:document.getElementById('m-cnotes').value };
+  const data = _buildCustomerData(id);
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
   else DB.customers.push(data);
   saveDB(); closeModal('modal-customer'); renderCustomers();
   showToast('"'+name+'" saved','success');
 }
-
 function saveCustomerAndAnother() {
   const id = document.getElementById('m-cid').value;
-  const name = document.getElementById('m-cname').value;
+  const name = (document.getElementById('m-cname')||{}).value||'';
   if (!name.trim()) { showToast('Customer name required','error'); return; }
-  const data = { id:id||Date.now().toString(), name, phone:document.getElementById('m-cphone').value, email:document.getElementById('m-cemail').value, address:document.getElementById('m-caddr').value, notes:document.getElementById('m-cnotes').value };
+  const data = _buildCustomerData(id);
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
   else DB.customers.push(data);
   saveDB(); renderCustomers();
-  // Clear fields, keep modal open, ready for next entry
-  ['m-cname','m-cphone','m-cemail','m-caddr','m-cnotes','m-cid'].forEach(function(fid){
-    const el=document.getElementById(fid); if(el) el.value='';
-  });
-  const titleEl=document.getElementById('modal-cust-title');
-  if(titleEl) titleEl.textContent='New Customer';
-  const nameEl=document.getElementById('m-cname');
-  if(nameEl) nameEl.focus();
+  _custFieldIds().forEach(function(fid){var el=document.getElementById(fid);if(el)el.value='';});
+  var sel=document.getElementById('m-cterms'); if(sel) sel.value='';
+  const titleEl=document.getElementById('modal-cust-title'); if(titleEl) titleEl.textContent='New Customer';
+  const nameEl=document.getElementById('m-cname'); if(nameEl) nameEl.focus();
   showToast('"'+name+'" saved — ready for next customer','success');
 }
 function delCustomer(id) {

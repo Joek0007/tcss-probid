@@ -4225,9 +4225,11 @@ table{font-size:12.5px}
   <div class="modal-box sm">
     <div class="modal-head"><h3 id="modal-cust-title">New Customer</h3><button class="close-btn" data-action="closeModal" data-modal="modal-customer">×</button></div>
     <div class="modal-body">
-      <div class="form-row"><div><label>Name *</label><input id="m-cname" placeholder="Customer name"></div></div>
+      <div class="form-row"><div><label>Customer / Company Name *</label><input id="m-cname" placeholder="Customer name"></div></div>
       <div class="form-row cols2"><div><label>Phone</label><input id="m-cphone"></div><div><label>Email</label><input id="m-cemail" type="email"></div></div>
-      <div class="form-row"><div><label>Address</label><input id="m-caddr"></div></div>
+      <div class="form-row"><div><label>Street Address</label><input id="m-cstreet" placeholder="Street address"></div></div>
+      <div class="form-row cols3"><div><label>City</label><input id="m-ccity" placeholder="City"></div><div><label>State</label><input id="m-cstate" placeholder="NC" maxlength="2" style="text-transform:uppercase"></div><div><label>Zip</label><input id="m-czip" placeholder="00000" maxlength="10"></div></div>
+      <div class="form-row"><div><label>Default Payment Terms</label><select id="m-cterms"><option value="">— None —</option><option value="Due on Receipt">Due on Receipt</option><option value="Net 15">Net 15</option><option value="Net 30">Net 30</option><option value="Net 45">Net 45</option><option value="Net 60">Net 60</option><option value="50% Deposit / 50% on Completion">50% Deposit / 50% on Completion</option><option value="Progress Billing">Progress Billing</option></select></div></div>
       <div class="form-row"><div><label>Notes</label><textarea id="m-cnotes" rows="2"></textarea></div></div>
       <input type="hidden" id="m-cid">
     </div>
