@@ -160,13 +160,16 @@ async function loadCurrentUserProfile() {
 
 function applyRolePermissions(role) {
   // Nav visibility based on role
-  var fieldRoles = ['helper_tech','lead_tech','subcontractor'];
-  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings'];
+  var fieldRoles = ['helper_tech','subcontractor'];
+  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet'];
+  var leadTechShow = ['dash','field','jobs','dispatch','worktracking','customers','contacts','reports','catalog','tools','inventory','team'];
   var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
   var nav = document.querySelectorAll('.nav-item[data-page]');
   nav.forEach(function(item) {
     var page = item.getAttribute('data-page');
-    if (fieldRoles.indexOf(role) >= 0 && fieldOnlyHide.indexOf(page) >= 0) {
+    if (role === 'lead_tech') {
+      item.style.display = leadTechShow.indexOf(page) >= 0 ? '' : 'none';
+    } else if (fieldRoles.indexOf(role) >= 0 && fieldOnlyHide.indexOf(page) >= 0) {
       item.style.display = 'none';
     } else if (role === 'estimator' && estimatorShow.indexOf(page) < 0) {
       item.style.display = 'none';
@@ -751,28 +754,27 @@ function hideAuthModal() {
 
 // ---- USER MANAGEMENT (Owners only) ----
 var TCSS_USERS = [
-  { name:'Joe Kucinski',          role:'owner',  email:'joek@tcss.com',                   phone:'336-736-6507', title:'Owner / GM' },
-  { name:'Jordan Davis',          role:'owner',  email:'jordand@tcss.com',                phone:'252-314-8370', title:'Owner' },
-  { name:'Dawn Brown',            role:'office', email:'dawnb@tcss.com',                  phone:'919-214-1186', title:'Office Admin' },
-  { name:'Lisa Lammonds',         role:'office', email:'lisam@tcss.com',                  phone:'336-257-4725', title:'Office Assistant' },
-  { name:'Victoria Davis',        role:'office', email:'Victoriad@tcss.com',              phone:'336-302-3979', title:'Financial Manager' },
-  { name:'Evan Morris',           role:'office', email:'evanm@tcss.com',                  phone:'336-447-8507', title:'Project Management' },
-  { name:'Chris Jackson',         role:'field',  email:'chrisj@tcss.com',                 phone:'336-964-5476', title:'Project Manager' },
-  { name:'David Corona',          role:'field',  email:'corona.david179@icloud.com',      phone:'336-483-5677', title:'Technician' },
-  { name:'Ernie Johnson',         role:'field',  email:'erniej@tcss.com',                 phone:'336-736-6490', title:'Technician' },
-  { name:'Aron Smith',            role:'field',  email:'thescavenger514@gmail.com',       phone:'336-615-2690', title:'Technician' },
-  { name:'Brian Gomez',           role:'field',  email:'brian12528410@gmail.com',         phone:'336-614-5075', title:'Technician' },
-  { name:'Caleb Thomas',          role:'field',  email:'icvleb@gmail.com',               phone:'336-257-2456', title:'Technician' },
-  { name:'Cameron Bell',          role:'field',  email:'cameronmatthewbell@gmail.com',    phone:'240-610-5452', title:'Technician' },
-  { name:'Chad Fulghum',          role:'field',  email:'cfulghum1497@gmail.com',          phone:'336-780-0434', title:'Technician' },
-  { name:'Irving Velazquez-Luna', role:'field',  email:'irvingvelazquezluna@gmail.com',   phone:'336-521-2942', title:'Technician' },
-  { name:'Isai Ramirez',          role:'field',  email:'isaikitzapata@gmail.com',         phone:'336-624-2372', title:'Technician' },
-  { name:'Jonathan Scarberry',    role:'field',  email:'jscarberry20190@yahoo.com',       phone:'336-523-8881', title:'Technician' },
-  { name:'Michael Collins',       role:'field',  email:'michaelcollins1781799@gmail.com', phone:'336-906-3693', title:'Technician' },
-  { name:'Rashun Allmond',        role:'field',  email:'rashunallmond33@icloud.com',      phone:'336-460-5158', title:'Technician' },
-  { name:'Marcus Pineda',         role:'field',  email:'pinedmarcus45@yahoo.com',         phone:'830-499-2470', title:'Technician' },
-  { name:'Nathan Teague',         role:'field',  email:'spam3@tcss.com',                  phone:'336-807-0300', title:'Technician' },
-  { name:'Larry Voncannon',       role:'field',  email:'larry.voncannon@gmail.com',       phone:'336-267-1403', title:'Maintenance' },
+  { name:'Joe Kucinski',          role:'owner',     email:'joek@tcss.com',                   phone:'336-736-6507', title:'Owner / GM' },
+  { name:'Jordan Davis',          role:'owner',     email:'jordand@tcss.com',                phone:'252-314-8370', title:'Owner' },
+  { name:'Dawn Brown',            role:'office',    email:'dawnb@tcss.com',                  phone:'919-214-1186', title:'Office Admin' },
+  { name:'Lisa Lammonds',         role:'office',    email:'lisam@tcss.com',                  phone:'336-257-4725', title:'Office Assistant' },
+  { name:'Victoria Davis',        role:'office',    email:'Victoriad@tcss.com',              phone:'336-302-3979', title:'Financial Manager' },
+  { name:'Evan Morris',           role:'office',    email:'evanm@tcss.com',                  phone:'336-447-8507', title:'Project Management' },
+  { name:'Chris Jackson',         role:'lead_tech', email:'chrisj@tcss.com',                 phone:'336-964-5476', title:'Lead Technician' },
+  { name:'Ernie Johnson',         role:'lead_tech', email:'erniej@tcss.com',                 phone:'336-736-6490', title:'Lead Technician' },
+  { name:'David Corona',          role:'field',     email:'corona.david179@icloud.com',      phone:'336-483-5677', title:'Technician' },
+  { name:'Aron Smith',            role:'field',     email:'thescavenger514@gmail.com',       phone:'336-615-2690', title:'Technician' },
+  { name:'Tyler Turner',          role:'field',     email:'tylergsp@aol.com',                phone:'781-361-2724', title:'Technician' },
+  { name:'Caleb Thomas',          role:'field',     email:'icvleb@gmail.com',                phone:'336-257-2456', title:'Technician' },
+  { name:'John Wilson',           role:'field',     email:'spam3@tcss.com',                  phone:'828-747-8116', title:'Technician' },
+  { name:'Chad Fulghum',          role:'field',     email:'cfulghum1497@gmail.com',          phone:'336-780-0434', title:'Technician' },
+  { name:'Irving Velazquez-Luna', role:'field',     email:'irvingvelazquezluna@gmail.com',   phone:'336-521-2942', title:'Technician' },
+  { name:'Isai Ramirez',          role:'field',     email:'isaikitzapata@gmail.com',         phone:'336-624-2372', title:'Technician' },
+  { name:'Jonathan Scarberry',    role:'field',     email:'jscarberry20190@yahoo.com',       phone:'336-523-8881', title:'Technician' },
+  { name:'Michael Collins',       role:'field',     email:'michaelcollins1781799@gmail.com', phone:'336-906-3693', title:'Technician' },
+  { name:'Rashun Allmond',        role:'field',     email:'rashunallmond33@icloud.com',      phone:'336-460-5158', title:'Technician' },
+  { name:'Marcus Pineda',         role:'field',     email:'pinedmarcus45@yahoo.com',         phone:'830-499-2470', title:'Technician' },
+  { name:'Larry Voncannon',       role:'field',     email:'larry.voncannon@gmail.com',       phone:'336-267-1403', title:'Maintenance' },
 ];
 
 // ---- MOBILE NAVIGATION ----
