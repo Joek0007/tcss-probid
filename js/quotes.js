@@ -2178,8 +2178,9 @@ function renderTeam(){
   tbody.innerHTML=DB.team.map(function(t){return '<tr><td style="font-weight:700">'+escHtml(t.name||'')+'</td><td>'+escHtml(t.role||'')+'</td><td>'+escHtml(t.phone||'')+'</td><td>'+escHtml(t.email||'')+'</td><td class="team-rate-col">$'+escHtml(t.rate||'0')+'/hr</td><td><button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> <button class="btn btn-danger btn-sm" data-action="delTeamMember" data-id="'+t.id+'">Del</button></td></tr>';}).join('');
 }
 function newTeamMember(){
-  ['m-tmname','m-tmph','m-tmem','m-tmid','m-tmhire'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});
+  ['m-tmname','m-tmrole','m-tmph','m-tmem','m-tmid','m-tmhire'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});
   const el=document.getElementById('m-tmrate');if(el)el.value=65;
+  const ac=document.getElementById('m-tmaccess');if(ac)ac.value='field';
   const sv=document.getElementById('m-tm-show-vacation');if(sv)sv.checked=false;
   const sp=document.getElementById('m-tm-show-pto');if(sp)sp.checked=false;
   openModal('modal-team');
@@ -2189,6 +2190,7 @@ function editTeamMember(id){
   function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v||'';}
   sv('m-tmname',t.name);sv('m-tmrole',t.role);sv('m-tmph',t.phone);sv('m-tmem',t.email);
   sv('m-tmrate',t.rate||65);sv('m-tmid',t.id);sv('m-tmhire',t.hireDate||'');
+  const ac=document.getElementById('m-tmaccess');if(ac)ac.value=t.access||t.systemRole||'field';
   const sv2=document.getElementById('m-tm-show-vacation');if(sv2)sv2.checked=!!t.showVacation;
   const sp=document.getElementById('m-tm-show-pto');if(sp)sp.checked=!!t.showPTO;
   openModal('modal-team');
@@ -2201,6 +2203,8 @@ function saveTeamMember(){
     id:id||Date.now().toString(),
     name,
     role:document.getElementById('m-tmrole').value,
+    systemRole:(document.getElementById('m-tmaccess')||{}).value||'field',
+    access:(document.getElementById('m-tmaccess')||{}).value||'field',
     phone:document.getElementById('m-tmph').value,
     email:document.getElementById('m-tmem').value,
     rate:document.getElementById('m-tmrate').value,
