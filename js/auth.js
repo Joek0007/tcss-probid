@@ -204,6 +204,13 @@ async function syncAllFromCloud() {
   if (!_sb || !_currentUser) return;
   showToast('Syncing...', 'info', 1500);
   var errors = [];
+  // Ensure deletedIds exists and is properly structured
+  if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+  var delQ   = DB.deletedIds.quotes   || [];
+  var delT   = DB.deletedIds.team     || [];
+  var delC   = DB.deletedIds.customers|| [];
+  var delCt  = DB.deletedIds.contacts || [];
+  var delJ   = DB.deletedIds.jobs     || [];
 
   // Status map — Supabase Title Case → app lowercase
   var pullStatusMap = {
@@ -243,9 +250,11 @@ async function syncAllFromCloud() {
         .order('created_at', { ascending: false });
       if (qe) { errors.push('quotes: '+qe.message); }
       else if (quotes) {
+        // Filter out quotes the user has deleted locally
+        quotes = quotes.filter(function(q){ return delQ.indexOf(String(q.id)) < 0; });
         var cloudQuoteIds = new Set(quotes.map(function(q){ return String(q.id); }));
         // Preserve any local quotes not yet synced to cloud (created before push debounce fired)
-        var localOnlyQuotes = (DB.quotes||[]).filter(function(q){ return q.id && !cloudQuoteIds.has(String(q.id)); });
+        var localOnlyQuotes = (DB.quotes||[]).filter(function(q){ return q.id && !cloudQuoteIds.has(String(q.id)) && delQ.indexOf(String(q.id)) < 0; });
         var cloudQuotes = quotes.map(function(q) {
           return {
             id: q.id,
@@ -297,8 +306,9 @@ async function syncAllFromCloud() {
       var { data: custs, error: ce } = await _sb.from('customers').select('*').eq('is_active', true).order('name');
       if (ce) { errors.push('customers: '+ce.message); }
       else if (custs) {
+        custs = custs.filter(function(c){ return delC.indexOf(String(c.id)) < 0; });
         var cloudCustIds = new Set(custs.map(function(c){ return String(c.id); }));
-        var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)); });
+        var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)) && delC.indexOf(String(c.id)) < 0; });
         var cloudCusts = custs.map(function(c) {
           return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, notes:c.notes, active:c.is_active };
         });
@@ -343,8 +353,9 @@ async function syncAllFromCloud() {
       var { data: conts, error: cone } = await _sb.from('contacts').select('*').eq('is_active', true).order('name');
       if (cone) { errors.push('contacts: '+cone.message); }
       else if (conts) {
+        conts = conts.filter(function(c){ return delCt.indexOf(String(c.id)) < 0; });
         var cloudContIds = new Set(conts.map(function(c){ return String(c.id); }));
-        var localOnlyConts = (DB.contacts||[]).filter(function(c){ return c.id && !cloudContIds.has(String(c.id)); });
+        var localOnlyConts = (DB.contacts||[]).filter(function(c){ return c.id && !cloudContIds.has(String(c.id)) && delCt.indexOf(String(c.id)) < 0; });
         var cloudConts = conts.map(function(c) {
           return {
             id:          c.id,
@@ -419,8 +430,9 @@ async function syncAllFromCloud() {
       var { data: teamRows, error: te2 } = await _sb.from('team').select('*').eq('is_active', true).order('full_name');
       if (te2) { errors.push('team: '+te2.message); }
       else if (teamRows) {
+        teamRows = teamRows.filter(function(m){ return delT.indexOf(String(m.id)) < 0; });
         var cloudTeamIds = new Set(teamRows.map(function(m){ return String(m.id); }));
-        var localOnlyTeam = (DB.team||[]).filter(function(m){ return m.id && !cloudTeamIds.has(String(m.id)); });
+        var localOnlyTeam = (DB.team||[]).filter(function(m){ return m.id && !cloudTeamIds.has(String(m.id)) && delT.indexOf(String(m.id)) < 0; });
         var cloudTeam = teamRows.map(function(m) {
           return {
             id:          m.id,
@@ -457,6 +469,22 @@ async function pushAllToCloud() {
   if (!_sb || !_currentUser) return;
   if (_currentUser.role === 'field') return;
   try {
+    // First — process any pending deletions so they don't get restored by upserts below
+    if (DB.deletedIds) {
+      var dq = DB.deletedIds.quotes   || [];
+      var dt = DB.deletedIds.team     || [];
+      var dc = DB.deletedIds.customers|| [];
+      var dct= DB.deletedIds.contacts || [];
+      var dj = DB.deletedIds.jobs     || [];
+      for (var qDel of dq) { await _sb.from('quote_line_items').delete().eq('quote_id', qDel); await _sb.from('quotes').delete().eq('id', qDel); }
+      for (var tDel of dt)  await _sb.from('team').delete().eq('id', tDel);
+      for (var cDel of dc)  await _sb.from('customers').delete().eq('id', cDel);
+      for (var ctDel of dct) await _sb.from('contacts').delete().eq('id', ctDel);
+      for (var jDel of dj)  await _sb.from('jobs').delete().eq('id', jDel);
+      // Clear the log after successful deletion sweep
+      DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+      try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+    }
     // Push settings to company_settings (single row, id=1)
     await _sb.from('company_settings').upsert({
       id: 1,

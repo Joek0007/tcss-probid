@@ -1306,21 +1306,21 @@ function closeModal(id) { const m=document.getElementById(id); if(m) m.classList
 
 function deleteQuote(id) {
   if (!confirm('Delete this quote? This cannot be undone.')) return;
-  // Remove from local DB first
+  // Log deleted ID so sync never restores it
+  if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+  if (DB.deletedIds.quotes.indexOf(id) < 0) DB.deletedIds.quotes.push(id);
   DB.quotes = DB.quotes.filter(function(q){ return q.id != id; });
-  // Cancel any pending debounce push so it does not re-upload the deleted quote
+  // Cancel pending push so it does not race with the Supabase delete
   if (window._syncTimer) { clearTimeout(window._syncTimer); window._syncTimer = null; }
-  // Hard delete from Supabase, then push clean state
+  // Hard delete from Supabase first, then push clean state
   if (_sb && _currentUser) {
-    _sb.from('quote_line_items').delete().eq('quote_id', id).then(function(r){
-      if (r.error) console.warn('[Delete] Line items:', r.error.message);
-    });
+    _sb.from('quote_line_items').delete().eq('quote_id', id).then(function(){});
     _sb.from('quotes').delete().eq('id', id).then(function(r){
       if (r.error) console.warn('[Delete] Quote:', r.error.message);
-      else if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 500);
+      else { saveDB(); if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300); }
     });
-  }
-  saveDB(); renderQuotes(); renderDash();
+  } else { saveDB(); }
+  renderQuotes(); renderDash();
   showToast('Quote deleted', 'info');
 }
 
@@ -2212,7 +2212,20 @@ function saveTeamMember(){
   else DB.team.push(data);
   saveDB();closeModal('modal-team');renderTeam();
 }
-function delTeamMember(id){if(!confirm('Remove team member?'))return;DB.team=DB.team.filter(function(t){return t.id!=id});saveDB();renderTeam();}
+function delTeamMember(id){
+  if(!confirm('Remove team member?')) return;
+  if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+  if (DB.deletedIds.team.indexOf(id) < 0) DB.deletedIds.team.push(id);
+  DB.team = DB.team.filter(function(t){ return t.id != id; });
+  if (window._syncTimer) { clearTimeout(window._syncTimer); window._syncTimer = null; }
+  if (_sb && _currentUser) {
+    _sb.from('team').delete().eq('id', id).then(function(r){
+      if (r.error) console.warn('[Delete] Team:', r.error.message);
+      else { saveDB(); if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300); }
+    });
+  } else { saveDB(); }
+  renderTeam();
+}
 
 
 // ---- CATALOG ----

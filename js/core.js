@@ -34,7 +34,7 @@ const EQUIPMENT_TYPES = [
 const MF_DEFAULTS = { 'New Construction':35, 'Remodel':40, 'Service Call':50, 'Upgrade':38, 'Addition':36 };
 
 // ---- DATABASE ----
-let DB = { quotes:[], customers:[], contacts:[], jobs:[], team:[], catalog:[], templates:[], settings:{}, marginFloors:{}, quoteSeq:1000, jobSeq:1 };
+let DB = { quotes:[], customers:[], contacts:[], jobs:[], team:[], catalog:[], templates:[], settings:{}, marginFloors:{}, quoteSeq:1000, jobSeq:1, deletedIds:{quotes:[],team:[],customers:[],contacts:[],jobs:[]} };
 
 function saveDB() {
   try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) { console.warn('Save error', e); }
