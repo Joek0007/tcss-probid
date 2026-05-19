@@ -1306,17 +1306,20 @@ function closeModal(id) { const m=document.getElementById(id); if(m) m.classList
 
 function deleteQuote(id) {
   if (!confirm('Delete this quote? This cannot be undone.')) return;
-  // Always attempt Supabase hard delete — do NOT gate on ID length/format
-  // (short legacy IDs are still valid Supabase row identifiers)
+  // Remove from local DB first
+  DB.quotes = DB.quotes.filter(function(q){ return q.id != id; });
+  // Cancel any pending debounce push so it does not re-upload the deleted quote
+  if (window._syncTimer) { clearTimeout(window._syncTimer); window._syncTimer = null; }
+  // Hard delete from Supabase, then push clean state
   if (_sb && _currentUser) {
     _sb.from('quote_line_items').delete().eq('quote_id', id).then(function(r){
       if (r.error) console.warn('[Delete] Line items:', r.error.message);
     });
     _sb.from('quotes').delete().eq('id', id).then(function(r){
       if (r.error) console.warn('[Delete] Quote:', r.error.message);
+      else if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 500);
     });
   }
-  DB.quotes = DB.quotes.filter(function(q){ return q.id != id; });
   saveDB(); renderQuotes(); renderDash();
   showToast('Quote deleted', 'info');
 }
