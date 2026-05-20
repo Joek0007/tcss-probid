@@ -2820,6 +2820,20 @@ function loadSettings() {
   if (gfNote) gfNote.innerHTML = s.geofenceEnforce
     ? '<span style="color:#c62828;font-weight:700">🔒 Hard mode ON</span> — techs are blocked if outside 500 ft of job site.'
     : 'Currently: <strong>Soft mode</strong> — GPS is captured and flagged but techs are never blocked.';
+  // SendGrid email settings
+  sv('s-sgfromname', s.sgFromName||'TCSS Proposals');
+  sv('s-sgfrom',     s.sgFrom||'');
+  sv('s-sgsubject',  s.sgSubject||'Your Proposal from TCSS — {quote_num}');
+  sv('s-sgbody',     s.sgBody||'Please find attached your proposal for {job_name}. We appreciate the opportunity to earn your business.');
+  // Show key placeholder but never expose the actual key
+  var keyEl = document.getElementById('s-sgkey');
+  if (keyEl) keyEl.placeholder = s.sgKey ? '••••••••••••••• (key saved — paste new key to replace)' : 'SG.xxxxxxxx — paste your API key here';
+  // Update status badge
+  var badge = document.getElementById('sendgrid-status-badge');
+  if (badge) {
+    if (s.sgKey) { badge.textContent = '✅ Connected'; badge.style.background='#e8f5e9'; badge.style.color='#2e7d32'; }
+    else { badge.textContent = '⏳ API Key Required'; badge.style.background='#fff3e0'; badge.style.color='#e65100'; }
+  }
   const cb=document.getElementById('company-badge'); if(cb) cb.textContent=(s.cname||'TCSS').substring(0,12);
   loadMarginFloors();
   applyLogoEverywhere(s.logoDataUrl || null);
@@ -2839,6 +2853,64 @@ function saveSettings() {
   saveDB();
   const cb=document.getElementById('company-badge');if(cb)cb.textContent=(DB.settings.cname||'TCSS').substring(0,12);
   showToast('Settings saved','success');
+}
+
+function saveSendGridSettings() {
+  function gv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+  var newKey = gv('s-sgkey');
+  DB.settings = DB.settings || {};
+  // Only update key if a new one was pasted (don't clear existing key if field left blank)
+  if (newKey && newKey.startsWith('SG.')) DB.settings.sgKey = newKey;
+  else if (newKey && !newKey.startsWith('SG.')) { showToast('Invalid API key — must start with SG.','error'); return; }
+  DB.settings.sgFromName = gv('s-sgfromname') || 'TCSS Proposals';
+  DB.settings.sgFrom     = gv('s-sgfrom');
+  DB.settings.sgSubject  = gv('s-sgsubject') || 'Your Proposal from TCSS — {quote_num}';
+  DB.settings.sgBody     = gv('s-sgbody');
+  saveDB();
+  loadSettings();
+  showToast('Email settings saved','success');
+}
+
+async function sendViaSendGrid(toEmail, toName, subject, bodyText, htmlBody) {
+  var key = (DB.settings||{}).sgKey;
+  if (!key) { showToast('SendGrid API key not configured — go to Settings → Email Settings','error',4000); return false; }
+  var fromEmail = (DB.settings.sgFrom||'').trim() || 'quotes@tcss.com';
+  var fromName  = (DB.settings.sgFromName||'TCSS Proposals').trim();
+  try {
+    var res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: toEmail, name: toName||'' }] }],
+        from: { email: fromEmail, name: fromName },
+        subject: subject,
+        content: [
+          { type: 'text/plain', value: bodyText },
+          { type: 'text/html',  value: htmlBody || bodyText.replace(/\n/g,'<br>') }
+        ]
+      })
+    });
+    if (res.status === 202) { return true; }
+    var errData = await res.json().catch(function(){ return {}; });
+    var errMsg = (errData.errors && errData.errors[0] && errData.errors[0].message) || ('Status ' + res.status);
+    showToast('Email failed: ' + errMsg, 'error', 5000);
+    console.error('[SendGrid] Error:', errData);
+    return false;
+  } catch(e) {
+    showToast('Email error: ' + e.message, 'error', 4000);
+    console.error('[SendGrid] Exception:', e);
+    return false;
+  }
+}
+
+async function testSendGridEmail() {
+  var key = (DB.settings||{}).sgKey;
+  if (!key) { showToast('Save your API key first','error'); return; }
+  var testTo = (DB.settings.sgFrom||DB.settings.cemail||DB.settings.uemail||'').trim();
+  if (!testTo) { showToast('Add a From Email address first so we know where to send the test','error'); return; }
+  showToast('Sending test email...','info',2000);
+  var ok = await sendViaSendGrid(testTo, 'TCSS Test', 'ProBid Email Test ✅', 'Your SendGrid integration is working! Emails from ProBid will be delivered successfully.', '<h2 style="color:#1565c0">✅ ProBid Email Test</h2><p>Your SendGrid integration is working correctly.<br>Quotes sent from ProBid will be delivered to your customers.</p>');
+  if (ok) showToast('Test email sent to ' + testTo + ' — check your inbox','success',5000);
 }
 
 // ---- EXPORT/IMPORT DATA ----

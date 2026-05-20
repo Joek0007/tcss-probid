@@ -4004,6 +4004,34 @@ table{font-size:12.5px}
     <div id="perm-grid"></div>
   </div>
 
+  <!-- Email Settings (SendGrid) -->
+  <div class="card" id="email-settings-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3 style="margin:0">📧 Email Settings (SendGrid)</h3>
+      <span id="sendgrid-status-badge" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;background:#fff3e0;color:#e65100">⏳ API Key Required</span>
+    </div>
+    <div class="form-row">
+      <div><label>SendGrid API Key</label>
+        <input id="s-sgkey" type="password" placeholder="SG.xxxxxxxx — paste your API key here" autocomplete="off">
+        <p style="font-size:11px;color:#90a4ae;margin-top:4px">Get your API key from sendgrid.com → Settings → API Keys. Required to send quotes by email directly from ProBid.</p>
+      </div>
+    </div>
+    <div class="form-row cols2">
+      <div><label>From Name</label><input id="s-sgfromname" placeholder="e.g. TCSS Proposals"></div>
+      <div><label>From Email</label><input id="s-sgfrom" placeholder="e.g. quotes@tcss.com" type="email"></div>
+    </div>
+    <div class="form-row">
+      <div><label>Default Email Subject Line</label><input id="s-sgsubject" placeholder="e.g. Your Proposal from TCSS — {quote_num}"></div>
+    </div>
+    <div class="form-row">
+      <div><label>Default Email Body (intro paragraph)</label>
+        <textarea id="s-sgbody" rows="3" placeholder="e.g. Please find attached your proposal for {job_name}. We appreciate the opportunity and look forward to working with you."></textarea>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveSendGridSettings()">Save Email Settings</button>
+    <button class="btn btn-outline" style="margin-left:8px" onclick="testSendGridEmail()">Send Test Email</button>
+  </div>
+
 </div><!-- end page-settings -->
 
 <!-- SAVE AS TEMPLATE MODAL -->

@@ -1191,36 +1191,39 @@ function buildEmailBody(q) {
 
 function fireEmailQuote(q) {
   if (!q) return;
-
-  // Auto-change status to Sent if currently Draft
   if (q.status === 'draft' || !q.status) {
     q.status = 'sent';
-    // Update in DB if it's a saved quote
     if (q.id) {
       var saved = DB.quotes.find(function(x){ return x.id===q.id; });
       if (saved) { saved.status='sent'; saveDB(); renderQuotes && renderQuotes(); renderDash(); }
     }
-    // Update status dropdown in QQ if visible
     var stEl = document.getElementById('qq-status');
     if (stEl && stEl.value==='draft') stEl.value='sent';
     showToast('Status updated to Sent', 'success', 2000);
   }
-
-  const toEmail = q.em || '';
-  const subject = 'Proposal ' + (q.num||'') + ' — ' + (q.jn||'Project Quote') + ' | ' + (DB.settings.cname||'TCSS');
-  const body    = buildEmailBody(q);
-
-  if (!toEmail) {
-    if (!confirm('No customer email on file.\nOpen email client anyway so you can fill in the address?')) return;
+  var toEmail = q.em || '';
+  var toName  = q.contactName || q.cn || '';
+  var subjectTpl = (DB.settings.sgSubject || 'Your Proposal from TCSS - {quote_num}');
+  var bodyTpl    = (DB.settings.sgBody    || 'Please find your proposal attached for {job_name}. We appreciate the opportunity.');
+  var subject  = subjectTpl.replace('{quote_num}',q.num||'').replace('{job_name}',q.jn||'Project Quote').replace('{customer}',q.cn||'');
+  var bodyText = bodyTpl.replace('{quote_num}',q.num||'').replace('{job_name}',q.jn||'Project Quote').replace('{customer}',q.cn||'');
+  bodyText += '\n\n' + buildEmailBody(q);
+  if ((DB.settings||{}).sgKey) {
+    if (!toEmail) { showToast('No customer email on file','error'); return; }
+    showToast('Sending email...','info',2000);
+    sendViaSendGrid(toEmail, toName, subject, bodyText, null).then(function(ok){
+      if (ok) showToast('Quote emailed to ' + toEmail + ' - sent','success',4000);
+    });
+  } else {
+    if (!toEmail) { if (!confirm('No customer email on file.\nOpen email client anyway?')) return; }
+    showToast('Opening email client - attach the PDF manually','info',5000);
+    window.location.href = 'mailto:' + encodeURIComponent(toEmail) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(bodyText);
   }
-
-  // Note to user about PDF attachment
-  showToast('Opening email client — save the PDF first and attach it manually', 'info', 5000);
-
-  window.location.href = 'mailto:' + encodeURIComponent(toEmail) +
-    '?subject=' + encodeURIComponent(subject) +
-    '&body=' + encodeURIComponent(body);
 }
+    // Update status dropdown in QQ if visible
+    var stEl = document.getElementById('qq-status');
+    if (stEl && stEl.value==='draft') stEl.value='sent';
+    showToast('Status updated to Sent', 'success', 2000);
 
 // From preview modal — uses the currently previewed quote data
 function emailQuote() {
