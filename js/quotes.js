@@ -265,6 +265,25 @@ function validateQQStage3(){
 }
 function updateQQStage3UI(){
   var v = validateQQStage3();
+  // Expiry banner — show if Valid Until date is in the past
+  var expiryBanner = document.getElementById('quote-expiry-banner');
+  var expiryText   = document.getElementById('quote-expiry-text');
+  if (expiryBanner && expiryText) {
+    var vuVal = (document.getElementById('qq-vu')||{}).value || '';
+    if (vuVal) {
+      var today = new Date(); today.setHours(0,0,0,0);
+      var vu    = new Date(vuVal); vu.setHours(0,0,0,0);
+      var daysAgo = Math.round((today - vu) / 86400000);
+      if (daysAgo > 0) {
+        expiryText.textContent = '⚠️ This quote expired ' + daysAgo + ' day' + (daysAgo===1?'':'s') + ' ago (' + new Date(vuVal).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + '). Update the Valid Until date before sending.';
+        expiryBanner.style.display = 'flex';
+      } else {
+        expiryBanner.style.display = 'none';
+      }
+    } else {
+      expiryBanner.style.display = 'none';
+    }
+  }
   qqSetCheck('qq-check-customer', v.cn ? 'ok' : 'bad', v.cn ? 'Customer Ready' : 'Customer Required');
   qqSetCheck('qq-check-job', v.jn ? 'ok' : 'bad', v.jn ? 'Job Name Ready' : 'Job Name Required');
   qqSetCheck('qq-check-items', v.itemsOk ? 'ok' : 'bad', v.itemsOk ? ((lineItems||[]).length + ' Line Items') : 'Add Line Items');
@@ -1914,6 +1933,17 @@ function saveCustomer() {
   const id = document.getElementById('m-cid').value;
   const name = (document.getElementById('m-cname')||{}).value||'';
   if (!name.trim()) { showToast('Customer name required','error'); return; }
+  // Duplicate detection — block exact name match on NEW customers only
+  if (!id) {
+    var normalizedNew = name.trim().toLowerCase();
+    var duplicate = (DB.customers||[]).find(function(c){
+      return c.name && c.name.trim().toLowerCase() === normalizedNew;
+    });
+    if (duplicate) {
+      showToast('A customer named "'+duplicate.name+'" already exists. Edit the existing record instead.','error',5000);
+      return;
+    }
+  }
   const data = _buildCustomerData(id);
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
   else DB.customers.push(data);

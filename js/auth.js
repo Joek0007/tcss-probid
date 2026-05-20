@@ -202,7 +202,7 @@ function updateUserBadge(profile) {
 // ---- SYNC ----
 async function syncAllFromCloud() {
   if (!_sb || !_currentUser) return;
-  showToast('Syncing...', 'info', 1500);
+  showSpinner('Syncing with cloud...');
   var errors = [];
   // Ensure deletedIds exists and is properly structured
   if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
@@ -452,11 +452,52 @@ async function syncAllFromCloud() {
       }
     } catch(e) { errors.push('team: '+e.message); }
 
+    // 10. Time Entries
+    try {
+      var { data: timeRows, error: tre } = await _sb.from('time_entries').select('*').order('clock_in', { ascending: false });
+      if (tre) { errors.push('time_entries: '+tre.message); }
+      else if (timeRows) {
+        var cloudTimeIds = new Set(timeRows.map(function(t){ return String(t.id); }));
+        var localOnlyTime = (DB.timeEntries||[]).filter(function(t){ return t.id && !cloudTimeIds.has(String(t.id)); });
+        DB.timeEntries = timeRows.map(function(t){
+          return {
+            id: t.id, userId: t.user_id, teamMemberId: t.team_member_id,
+            jobId: t.job_id, clockIn: t.clock_in, clockOut: t.clock_out,
+            breakMinutes: t.break_minutes||0, totalHours: t.total_hours,
+            entryType: t.entry_type||'regular', notes: t.notes,
+            gpsLat: t.gps_lat, gpsLng: t.gps_lng,
+            isApproved: !!t.is_approved, approvedBy: t.approved_by,
+            createdAt: t.created_at
+          };
+        }).concat(localOnlyTime);
+      }
+    } catch(e) { errors.push('time_entries: '+e.message); }
+
+    // 11. Work Tracking
+    try {
+      var { data: wtRows, error: wte } = await _sb.from('work_tracking').select('*').order('created_at', { ascending: false });
+      if (wte) { errors.push('work_tracking: '+wte.message); }
+      else if (wtRows) {
+        var cloudWtIds = new Set(wtRows.map(function(w){ return String(w.id); }));
+        var localOnlyWt = (DB.wtCheckoffs||[]).filter(function(w){ return w.id && !cloudWtIds.has(String(w.id)); });
+        DB.wtCheckoffs = wtRows.map(function(w){
+          return {
+            id: w.id, projectId: w.project_id, buildingId: w.building_id,
+            roomId: w.room_id, itemId: w.item_id, assignedTo: w.assigned_to,
+            status: w.status||'pending', completedAt: w.completed_at,
+            completedBy: w.completed_by, notes: w.notes,
+            rework: !!w.rework, reworkReason: w.rework_reason,
+            createdAt: w.created_at
+          };
+        }).concat(localOnlyWt);
+      }
+    } catch(e) { errors.push('work_tracking: '+e.message); }
+
   }
 
   saveDB();
   renderDash();
-
+  hideSpinner();
   if (errors.length) {
     console.warn('[Sync] Partial errors:', errors);
     showToast('Synced with warnings — check console', 'warning', 3000);
@@ -468,6 +509,7 @@ async function syncAllFromCloud() {
 async function pushAllToCloud() {
   if (!_sb || !_currentUser) return;
   if (_currentUser.role === 'field') return;
+  showSpinner('Saving to cloud...');
   try {
     // First — process any pending deletions so they don't get restored by upserts below
     if (DB.deletedIds) {
@@ -711,6 +753,52 @@ async function pushAllToCloud() {
       }
     }
 
+    // Push time entries
+    for (var te of (DB.timeEntries || [])) {
+      if (!te || !te.id) continue;
+      try {
+        var { error: teErr } = await _sb.from('time_entries').upsert({
+          id:             te.id,
+          user_id:        te.userId || _currentUser.id,
+          team_member_id: te.teamMemberId || null,
+          job_id:         te.jobId || null,
+          clock_in:       te.clockIn || null,
+          clock_out:      te.clockOut || null,
+          break_minutes:  te.breakMinutes || 0,
+          total_hours:    te.totalHours || null,
+          entry_type:     te.entryType || 'regular',
+          notes:          te.notes || null,
+          gps_lat:        te.gpsLat || null,
+          gps_lng:        te.gpsLng || null,
+          is_approved:    !!te.isApproved,
+          approved_by:    te.approvedBy || null
+        });
+        if (teErr) console.warn('[Push] Time entry error:', teErr.message);
+      } catch(teCatch) { console.warn('[Push] Time entry error:', teCatch.message||teCatch); }
+    }
+
+    // Push work tracking checkoffs
+    for (var wt of (DB.wtCheckoffs || [])) {
+      if (!wt || !wt.id) continue;
+      try {
+        var { error: wtErr } = await _sb.from('work_tracking').upsert({
+          id:           wt.id,
+          project_id:   wt.projectId || null,
+          building_id:  wt.buildingId || null,
+          room_id:      wt.roomId || null,
+          item_id:      wt.itemId || null,
+          assigned_to:  wt.assignedTo || null,
+          status:       wt.status || 'pending',
+          completed_at: wt.completedAt || null,
+          completed_by: wt.completedBy || null,
+          notes:        wt.notes || null,
+          rework:       !!wt.rework,
+          rework_reason:wt.reworkReason || null
+        });
+        if (wtErr) console.warn('[Push] Work tracking error:', wtErr.message);
+      } catch(wtCatch) { console.warn('[Push] Work tracking error:', wtCatch.message||wtCatch); }
+    }
+
     // Push jobs
     for (var jb of (DB.jobs || [])) {
       if (!jb || !jb.name) continue;
@@ -783,13 +871,26 @@ async function pushAllToCloud() {
 
   } catch(e) {
     console.error('Push error:', e);
+    hideSpinner();
     showToast('Sync error — changes saved locally', 'warning');
   }
+  hideSpinner();
 }
 
 // Cloud push is now built into saveDB directly — no override needed
 
 // Toast notification
+function showSpinner(msg) {
+  var el = document.getElementById('tc-spinner-overlay');
+  var msgEl = document.getElementById('tc-spinner-msg');
+  if (el) { el.style.display = 'flex'; }
+  if (msgEl) msgEl.textContent = msg || 'Loading...';
+}
+function hideSpinner() {
+  var el = document.getElementById('tc-spinner-overlay');
+  if (el) el.style.display = 'none';
+}
+
 function showToast(msg, type, duration) {
   type = type || 'info';
   duration = duration || 3000;

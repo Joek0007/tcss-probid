@@ -140,6 +140,10 @@ function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices'};
 
 function goPage(id) {
+  // Warn if leaving Quick Quote with unsaved changes
+  if (id !== 'qq' && typeof _qqDirty !== 'undefined' && _qqDirty) {
+    if (!confirm('You have unsaved changes in the Quick Quote.\nLeave anyway? Your changes will be lost.')) return;
+  }
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});
   // Always close dispatch detail panel when navigating away

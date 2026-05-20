@@ -1060,6 +1060,24 @@ table{font-size:12.5px}
 </head>
 <body>
 
+<!-- TC Spinner Overlay -->
+<div id="tc-spinner-overlay" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.85);z-index:99999;align-items:center;justify-content:center;flex-direction:column;gap:16px">
+  <div style="position:relative;width:72px;height:72px">
+    <!-- Rotating ring -->
+    <svg width="72" height="72" viewBox="0 0 72 72" style="position:absolute;top:0;left:0;animation:tc-ring-spin 1.2s linear infinite">
+      <circle cx="36" cy="36" r="30" fill="none" stroke="#e3f2fd" stroke-width="5"/>
+      <circle cx="36" cy="36" r="30" fill="none" stroke="#1565c0" stroke-width="5" stroke-dasharray="60 130" stroke-linecap="round"/>
+    </svg>
+    <!-- TC letters in center -->
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#1565c0;letter-spacing:-1px;font-family:Arial,sans-serif">TC</div>
+  </div>
+  <div id="tc-spinner-msg" style="font-size:13px;font-weight:600;color:#546e7a;letter-spacing:0.5px">Syncing...</div>
+</div>
+
+<style>
+@keyframes tc-ring-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
 <div id="sidebar">
   <div class="logo" id="sidebar-logo-block">
     <div class="logo-icon" id="sidebar-logo-icon">T</div>
@@ -1292,6 +1310,11 @@ table{font-size:12.5px}
 
 <!-- QUICK QUOTE -->
 <div class="page" id="page-qq">
+  <!-- Expiry warning banner -->
+  <div id="quote-expiry-banner" style="display:none;background:#fff3e0;border-left:4px solid #e65100;padding:10px 16px;margin-bottom:8px;border-radius:0 6px 6px 0;display:none;align-items:center;gap:10px">
+    <span style="font-size:18px">⚠️</span>
+    <span id="quote-expiry-text" style="font-weight:600;color:#e65100;font-size:13px"></span>
+  </div>
   <div class="page-header"><h2>⚡ Quick Quote</h2>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline btn-sm" data-action="clearQQ">🗑 Clear</button>
