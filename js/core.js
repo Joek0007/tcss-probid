@@ -49,13 +49,20 @@ function loadDB() {
     const raw = localStorage.getItem(DB_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1}, parsed);
+      DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1,deletedIds:{quotes:[],team:[],customers:[],contacts:[],jobs:[]}}, parsed);
+      // Ensure deletedIds sub-arrays exist even on old saved data
+      if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+      if (!DB.deletedIds.quotes)    DB.deletedIds.quotes    = [];
+      if (!DB.deletedIds.team)      DB.deletedIds.team      = [];
+      if (!DB.deletedIds.customers) DB.deletedIds.customers = [];
+      if (!DB.deletedIds.contacts)  DB.deletedIds.contacts  = [];
+      if (!DB.deletedIds.jobs)      DB.deletedIds.jobs      = [];
     } else {
       const prev = localStorage.getItem('tcssv7') || localStorage.getItem('tcssv6') || localStorage.getItem('tcssv5') || localStorage.getItem('tcssv4');
       if (prev) {
         try {
           const oldData = JSON.parse(prev);
-          DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1}, oldData);
+          DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1,deletedIds:{quotes:[],team:[],customers:[],contacts:[],jobs:[]}}, oldData);
           console.log('Migrated data to v8');
         } catch(e) {}
       }
