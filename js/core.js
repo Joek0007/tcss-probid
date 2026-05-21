@@ -38,6 +38,8 @@ let DB = { quotes:[], customers:[], contacts:[], jobs:[], team:[], catalog:[], t
 
 function saveDB() {
   try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) { console.warn('Save error', e); }
+  // Don't schedule a push if we're in the middle of a sync pull — data just came FROM Supabase
+  if (window._syncInProgress) return;
   // Debounced cloud push — no recursion
   if (typeof _sb !== 'undefined' && _sb && typeof _currentUser !== 'undefined' && _currentUser && _currentUser.role !== 'field') {
     clearTimeout(window._syncTimer);

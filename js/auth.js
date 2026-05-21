@@ -207,6 +207,7 @@ function updateUserBadge(profile) {
 // ---- SYNC ----
 async function syncAllFromCloud() {
   if (!_sb || !_currentUser) return;
+  window._syncInProgress = true;
   showSpinner('Syncing with cloud...');
   var errors = [];
   // Ensure deletedIds exists and is properly structured
@@ -502,6 +503,7 @@ async function syncAllFromCloud() {
   }
 
   saveDB();
+  window._syncInProgress = false;
   renderDash();
   hideSpinner();
   if (errors.length) {
