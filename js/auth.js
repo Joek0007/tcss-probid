@@ -502,8 +502,11 @@ async function syncAllFromCloud() {
 
   }
 
-  saveDB();
+  // Save to localStorage only — do NOT call saveDB() here as it would schedule a push
+  // We just pulled from Supabase so there's nothing to push back
   window._syncInProgress = false;
+  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+  clearTimeout(window._syncTimer); // Cancel any push timer that snuck in during sync
   renderDash();
   hideSpinner();
   if (errors.length) {
