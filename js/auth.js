@@ -710,10 +710,12 @@ async function pushAllToCloud() {
       try {
         var ctId = ensureUUID(ct);
         // Try with extended columns first; fall back to base schema if columns not yet added
+        // Only send customer_id if it looks like a UUID — legacy 'cust-XXXX' IDs are not valid uuid type
+        var _isUUID = function(v){ return v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v); };
         var ctBase = {
           id:          ctId,
           name:        ct.name || '',
-          customer_id: ct.customerId || null,
+          customer_id: _isUUID(ct.customerId) ? ct.customerId : null,
           phone:       ct.phone || null,
           email:       ct.email || null,
           title:       ct.role || ct.title || null,
@@ -829,12 +831,13 @@ async function pushAllToCloud() {
           'Invoiced':    'invoiced',
           'invoiced':    'invoiced'
         };
+        var _isUUIDjb = function(v){ return v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v); };
         // Base schema columns — always safe to push
         var jbBase = {
           id:              jbId,
           job_number:      jb.num || null,
           name:            jb.name || '',
-          customer_id:     jb.customerId || null,
+          customer_id:     _isUUIDjb(jb.customerId) ? jb.customerId : null,
           status:          jobStatusMap[jb.status] || 'pending',
           site_address:    jb.address || null,
           scheduled_start: jb.scheduledDate || jb.startDate || null,
