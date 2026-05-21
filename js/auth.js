@@ -162,7 +162,7 @@ function applyRolePermissions(role) {
   // Nav visibility based on role
   var fieldRoles = ['helper_tech','subcontractor'];
   var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team'];
-  var leadTechShow = ['dash','field','jobs','dispatch','worktracking','customers','contacts','reports','catalog','tools','inventory','calendar'];
+  var leadTechShow = ['dash','field','jobs','dispatch','worktracking','workorders','customers','contacts','reports','catalog','tools','inventory','calendar'];
   var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
   var nav = document.querySelectorAll('.nav-item[data-page]');
   nav.forEach(function(item) {
@@ -317,7 +317,7 @@ async function syncAllFromCloud() {
         var cloudCustIds = new Set(custs.map(function(c){ return String(c.id); }));
         var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)) && delC.indexOf(String(c.id)) < 0; });
         var cloudCusts = custs.map(function(c) {
-          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, notes:c.notes, active:c.is_active };
+          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, notes:c.notes, active:c.is_active };
         });
         DB.customers = cloudCusts.concat(localOnlyCusts);
       }
@@ -525,6 +525,17 @@ async function syncAllFromCloud() {
       }
     } catch(e) { errors.push('invoice_payments: '+e.message); }
 
+    // 15. Work Orders
+    try {
+      var { data: woRows, error: woe } = await _sb.from('work_orders').select('*').order('created_at', { ascending: false });
+      if (woe) { errors.push('work_orders: '+woe.message); }
+      else if (woRows) {
+        DB.workOrders = woRows.map(function(w){
+          return { id:w.id, woNumber:w.wo_number, customerId:w.customer_id, customerName:w.customer_name, contactId:w.contact_id, description:w.description, workPerformed:w.work_performed, status:w.status, serviceType:w.service_type, priority:w.priority, serviceRep:w.service_rep, refNum:w.reference_num, siteAddr:w.site_address, siteCity:w.site_city, siteState:w.site_state, siteZip:w.site_zip, laborRate:w.labor_rate, taxRate:w.tax_rate, dateRequested:w.date_requested, dateFollowup:w.date_followup, dateOpened:w.date_opened, dateClosed:w.date_closed, internalNotes:w.internal_notes, invoiceId:w.invoice_id, createdBy:w.created_by, createdByName:w.created_by_name, createdAt:w.created_at, updatedAt:w.updated_at };
+        });
+      }
+    } catch(e) { errors.push('work_orders: '+e.message); }
+
   }
 
   // Save to localStorage only — do NOT call saveDB() here as it would schedule a push
@@ -685,6 +696,8 @@ async function pushAllToCloud() {
           state: c.state || null,
           zip: c.zip || null,
           default_terms: c.defaultTerms || null,
+          hot_note_tech:   c.hotNoteTech || null,
+          hot_note_office: c.hotNoteOffice || null,
           notes: c.notes || null,
           is_active: c.active !== false,
           created_by: _currentUser.id

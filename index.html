@@ -707,6 +707,10 @@ body.dark-mode .cont-quick-btn{background:#252525!important;border-color:#444!im
 /* ===== CUSTOMER PROFILE ===== */
 .cp-tab{padding:12px 18px;border:none;background:none;font-size:13px;font-weight:600;color:#546e7a;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap}
 .cp-tab.active{color:#1565c0;border-bottom-color:#1565c0;background:#f8f9fa}
+.wo-tab{padding:10px 16px;border:none;background:none;font-size:12px;font-weight:600;color:#546e7a;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap}
+.wo-tab.active{color:#1565c0;border-bottom-color:#1565c0;background:#fff}
+.wo-tab:hover{background:#f0f4f8}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 .cp-tab:hover{background:#f5f7fa}
 .cp-stat-card{background:rgba(255,255,255,.15);border-radius:10px;padding:10px;text-align:center}
 .cp-stat-val{font-size:20px;font-weight:800}
@@ -1092,6 +1096,7 @@ table{font-size:12.5px}
     <div class="nav-item" data-page="jobs"><span class="nav-icon">🔧</span>Active Jobs</div>
     <div class="nav-item" data-page="dispatch"><span class="nav-icon">🗂</span>Dispatch Board</div>
     <div class="nav-item" data-page="invoices"><span class="nav-icon">🧾</span>Invoices</div>
+    <div class="nav-item" data-page="workorders"><span class="nav-icon">🔨</span>Work Orders</div>
   </div>
   <div class="nav-group">
     <div class="nav-group-title">People</div>
@@ -1982,7 +1987,93 @@ table{font-size:12.5px}
   </div>
 </div>
 
-<!-- INVOICE MODAL -->
+<!-- WORK ORDERS PAGE -->
+<div class="page" id="page-workorders">
+  <div class="page-header">
+    <h2>🔨 Work Orders</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="openNewWorkOrder()">+ New Work Order</button>
+      <button class="btn btn-outline btn-sm" onclick="goPage('wo-settings')">⚙ WO Settings</button>
+    </div>
+  </div>
+  <!-- Filters -->
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+    <input id="wo-search" placeholder="🔍 Search orders..." style="padding:8px 12px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px;width:220px" oninput="renderWorkOrders()">
+    <select id="wo-filter-status" onchange="renderWorkOrders()" style="padding:8px 12px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px">
+      <option value="">All Statuses</option>
+      <option value="New">New</option>
+      <option value="Open">Open</option>
+      <option value="Waiting on Customer">Waiting on Customer</option>
+      <option value="Parts Needed">Parts Needed</option>
+      <option value="Parts Ordered">Parts Ordered</option>
+      <option value="Ready for Review">Ready for Review</option>
+      <option value="Ready for Pricing">Ready for Pricing</option>
+      <option value="Billed">Billed</option>
+    </select>
+    <select id="wo-filter-priority" onchange="renderWorkOrders()" style="padding:8px 12px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px">
+      <option value="">All Priorities</option>
+      <option value="Urgent">🔴 Urgent</option>
+      <option value="High">🟠 High</option>
+      <option value="Normal">Normal</option>
+      <option value="Low">Low</option>
+    </select>
+    <select id="wo-filter-type" onchange="renderWorkOrders()" style="padding:8px 12px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px">
+      <option value="">All Types</option>
+      <option value="Onsite Service">Onsite Service</option>
+      <option value="Remote Support">Remote Support</option>
+      <option value="Installation">Installation</option>
+      <option value="Counter Sales">Counter Sales</option>
+      <option value="New Contract">New Contract</option>
+      <option value="TCSS Account Change">TCSS Account Change</option>
+      <option value="Building Maintenance">Building Maintenance</option>
+      <option value="Vehicle Maintenance">Vehicle Maintenance</option>
+    </select>
+  </div>
+  <!-- Stats bar -->
+  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap" id="wo-stats-bar"></div>
+  <!-- List -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div id="wo-list-body"></div>
+  </div>
+</div>
+
+<!-- WORK ORDER SETTINGS PAGE -->
+<div class="page" id="page-wo-settings">
+  <div class="page-header">
+    <h2>⚙️ Work Order Settings</h2>
+    <button class="btn btn-ghost btn-sm" onclick="goPage('workorders')">← Back to Work Orders</button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div class="card">
+      <h3 style="margin-bottom:16px">Service Types</h3>
+      <div id="wo-svc-types-list" style="margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px">
+        <input id="wo-new-svc-type" placeholder="New service type..." style="flex:1;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+        <button class="btn btn-primary btn-sm" onclick="addWOServiceType()">Add</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:16px">Expense Categories</h3>
+      <div id="wo-exp-cats-list" style="margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px">
+        <input id="wo-new-exp-cat" placeholder="New expense category..." style="flex:1;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+        <button class="btn btn-primary btn-sm" onclick="addWOExpenseCat()">Add</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:16px">Default Rates</h3>
+      <div class="form-row cols2">
+        <div><label>Default Labor Rate ($/hr)</label><input type="number" id="wo-default-labor" value="125" min="0"></div>
+        <div><label>Default Tax Rate (%)</label><input type="number" id="wo-default-tax" value="0" min="0" step="0.01"></div>
+      </div>
+      <button class="btn btn-primary" onclick="saveWOSettings()" style="margin-top:12px">Save Settings</button>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:16px">Status List</h3>
+      <div id="wo-status-list" style="max-height:300px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-invoice">
   <div class="modal-box" style="max-width:680px">
     <div class="modal-head">
@@ -4081,6 +4172,122 @@ table{font-size:12.5px}
 
 </div><!-- end page-settings -->
 
+<!-- HOT NOTES POPUP -->
+<div id="hot-notes-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99990;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;max-width:480px;width:90%;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div id="hot-notes-icon" style="font-size:32px;margin-bottom:8px;text-align:center">⚡</div>
+    <h3 id="hot-notes-title" style="text-align:center;margin-bottom:12px;color:#e65100;font-size:16px;font-weight:800"></h3>
+    <div id="hot-notes-body" style="font-size:14px;line-height:1.7;color:#37474f;white-space:pre-wrap;background:#fff8e1;border-radius:10px;padding:16px;margin-bottom:20px"></div>
+    <button onclick="dismissHotNotes()" style="width:100%;padding:14px;background:#1565c0;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">Got it — Acknowledged ✓</button>
+  </div>
+</div>
+
+<!-- WORK ORDER DETAIL MODAL -->
+<div class="modal-overlay" id="modal-work-order" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
+  <div class="modal-box" style="max-width:900px;width:95%;margin:0 auto">
+    <div class="modal-head" style="position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #e0e7ef">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <h3 id="wo-modal-title">Work Order</h3>
+        <span id="wo-modal-num" style="font-size:13px;color:#90a4ae;font-weight:700"></span>
+        <span id="wo-urgent-badge" style="display:none;background:#c62828;color:#fff;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:800">🚨 URGENT</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="saveWorkOrder()">💾 Save</button>
+        <button class="close-btn" data-action="closeModal" data-modal="modal-work-order">×</button>
+      </div>
+    </div>
+    <div class="modal-body" style="padding:0;overflow-y:auto;max-height:85vh">
+      <!-- Status bar -->
+      <div style="background:#f8f9fa;padding:10px 20px;border-bottom:1px solid #e0e7ef;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="wo-status" onchange="onWOStatusChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:700"></select>
+        <select id="wo-priority" onchange="onWOPriorityChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+          <option value="Normal">Normal</option>
+          <option value="Low">Low</option>
+          <option value="High">🟠 High</option>
+          <option value="Urgent">🔴 URGENT</option>
+        </select>
+        <select id="wo-service-type" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></select>
+      </div>
+      <!-- Main grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:20px">
+        <div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Customer *</label>
+            <input id="wo-customer-name" placeholder="Search customer..." autocomplete="off" oninput="onWOCustomerInput(this.value)" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+            <div id="wo-customer-dropdown" style="display:none;position:absolute;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:200;max-height:200px;overflow-y:auto;min-width:280px"></div>
+            <input type="hidden" id="wo-customer-id">
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Contact</label>
+            <select id="wo-contact" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"><option value="">— Select contact —</option></select>
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Work Requested *</label>
+            <textarea id="wo-description" rows="5" placeholder="Describe the work to be performed..." style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;resize:vertical"></textarea>
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Work Performed</label>
+            <textarea id="wo-work-performed" rows="5" placeholder="What was actually done on site..." style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;resize:vertical"></textarea>
+          </div>
+        </div>
+        <div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <div>
+              <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Service Rep</label>
+              <select id="wo-service-rep" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></select>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Reference #</label>
+              <input id="wo-ref-num" placeholder="PO / Ref #" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+            </div>
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Job Site Address</label>
+            <input id="wo-site-addr" placeholder="Street address" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px">
+              <input id="wo-site-city" placeholder="City" style="padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+              <input id="wo-site-state" placeholder="ST" maxlength="2" style="padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;text-transform:uppercase">
+              <input id="wo-site-zip" placeholder="Zip" style="padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <div><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Date Requested</label><input type="date" id="wo-date-requested" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+            <div><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Follow-Up Date</label><input type="date" id="wo-date-followup" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <div><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Labor Rate ($/hr)</label><input type="number" id="wo-labor-rate" min="0" step="0.01" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+            <div><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Tax Rate (%)</label><input type="number" id="wo-tax-rate" min="0" step="0.01" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+          </div>
+          <div id="wo-internal-notes-section" style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Internal Notes <span style="color:#e65100;font-size:10px">(Office Only)</span></label>
+            <textarea id="wo-internal-notes" rows="3" placeholder="Back office notes — not shown to field techs..." style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;resize:vertical"></textarea>
+          </div>
+        </div>
+      </div>
+      <!-- Tabs -->
+      <div style="border-top:2px solid #e0e7ef">
+        <div style="display:flex;overflow-x:auto;background:#f8f9fa">
+          <button class="wo-tab active" onclick="switchWOTab('labor')" id="wotab-labor">⏱ Labor</button>
+          <button class="wo-tab" onclick="switchWOTab('expenses')" id="wotab-expenses">💰 Expenses</button>
+          <button class="wo-tab" onclick="switchWOTab('parts')" id="wotab-parts">🔩 Parts</button>
+          <button class="wo-tab" onclick="switchWOTab('checklist')" id="wotab-checklist">✅ Checklist</button>
+          <button class="wo-tab" onclick="switchWOTab('comments')" id="wotab-comments">💬 Comments</button>
+          <button class="wo-tab" onclick="switchWOTab('photos')" id="wotab-photos">📷 Photos</button>
+        </div>
+        <div id="wo-tab-content" style="padding:16px;min-height:180px;background:#fff"></div>
+      </div>
+      <!-- Footer -->
+      <div style="padding:16px;border-top:1px solid #e0e7ef;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#f8f9fa">
+        <button class="btn btn-primary" onclick="saveWorkOrder()">💾 Save Work Order</button>
+        <button class="btn btn-outline" id="wo-btn-invoice" onclick="createWOInvoice()" style="display:none">🧾 Create Invoice</button>
+        <button class="btn btn-success btn-sm" onclick="woStartTimer('work')" id="wo-timer-work-btn">▶ Work Timer</button>
+        <button class="btn btn-outline btn-sm" onclick="woStartTimer('travel')" id="wo-timer-travel-btn">🚗 Travel Timer</button>
+        <span id="wo-timer-display" style="font-size:13px;font-weight:700;color:#1565c0;min-width:80px"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- RECORD PAYMENT MODAL -->
 <div class="modal-overlay" id="modal-record-payment">
   <div class="modal-box sm">
@@ -4352,6 +4559,8 @@ table{font-size:12.5px}
       <div class="form-row cols3"><div><label>City</label><input id="m-ccity" placeholder="City"></div><div><label>State</label><input id="m-cstate" placeholder="NC" maxlength="2" style="text-transform:uppercase"></div><div><label>Zip</label><input id="m-czip" placeholder="00000" maxlength="10"></div></div>
       <div class="form-row"><div><label>Default Payment Terms</label><select id="m-cterms"><option value="">— None —</option><option value="Due on Receipt">Due on Receipt</option><option value="Net 15">Net 15</option><option value="Net 30">Net 30</option><option value="Net 45">Net 45</option><option value="Net 60">Net 60</option><option value="50% Deposit / 50% on Completion">50% Deposit / 50% on Completion</option><option value="Progress Billing">Progress Billing</option></select></div></div>
       <div class="form-row"><div><label>Notes</label><textarea id="m-cnotes" rows="2"></textarea></div></div>
+      <div class="form-row"><div><label>⚡ Tech Hot Note <span style="font-size:11px;color:#e65100">(Pops up for field techs on every work order)</span></label><textarea id="m-c-hotnote-tech" rows="2" placeholder="e.g. Always call site manager before arriving. Access code: 4521"></textarea></div></div>
+      <div class="form-row"><div><label>🏢 Office Hot Note <span style="font-size:11px;color:#1565c0">(Pops up for office only when creating a new work order)</span></label><textarea id="m-c-hotnote-office" rows="2" placeholder="e.g. Net 30 terms. Always get PO number before dispatching."></textarea></div></div>
       <input type="hidden" id="m-cid">
     </div>
     <div class="modal-foot">
@@ -4537,6 +4746,7 @@ table{font-size:12.5px}
 <script src="js/permissions.js"></script>
 <script src="js/worktracking.js"></script>
 <script src="js/calendar.js"></script>
+<script src="js/workorders.js"></script>
 <script src="js/reports.js"></script>
 <script src="js/auth.js"></script>
 <!-- MOBILE BOTTOM NAV -->

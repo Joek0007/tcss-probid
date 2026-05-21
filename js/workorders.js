@@ -1,0 +1,914 @@
+// ============================================================
+// TCSS ProBid V9 — Work Orders Module
+// ============================================================
+
+// ---- CONSTANTS ----
+var WO_STATUSES = [
+  { id:'New',                                    color:'#ddd8d8', open:true  },
+  { id:'Open',                                   color:'#4a86e8', open:true  },
+  { id:'Waiting on Customer',                    color:'#928b8b', open:true  },
+  { id:'Open — Action Needed',                   color:'#ffff00', open:true  },
+  { id:'Open — Quote Needed',                    color:'#980000', open:true  },
+  { id:'Parts Needed',                           color:'#f9d1ee', open:true  },
+  { id:'Parts Ordered',                          color:'#e57ec8', open:true  },
+  { id:'Parts Received — Partial',               color:'#ffffff', open:true  },
+  { id:'Parts Received — Complete',              color:'#a52fea', open:true  },
+  { id:'Ready for Review',                       color:'#f73e3e', open:true  },
+  { id:'Ready for Pricing',                      color:'#f6c636', open:true  },
+  { id:'Open — Partial Invoice (Please Create)', color:'#ee8b67', open:true  },
+  { id:'Open — Partial Invoice Sent (Mailed)',   color:'#7bf363', open:true  },
+  { id:'Open — Partial Invoice Sent (By Email)', color:'#93c47d', open:true  },
+  { id:'Partial Invoice — Final Invoice (Mailed)',  color:'#0dbc0a', open:false },
+  { id:'Partial Invoice — Final Invoice (By Email)',color:'#0dbc0a', open:false },
+  { id:'Billed',                                 color:'#fd881a', open:false },
+  { id:'No Charge',                              color:'#46f4af', open:false },
+  { id:'No Charge — Warranty',                   color:'#e6b8af', open:false },
+  { id:'Void',                                   color:'#00ffff', open:false },
+];
+
+var WO_SERVICE_TYPES = [
+  'Onsite Service','Remote Support','Installation','Counter Sales',
+  'New Contract','TCSS Account Change','Building Maintenance','Vehicle Maintenance'
+];
+
+var WO_EXPENSE_CATS = [
+  'Storage Rental','Equipment Purchase','Fuel','Hotel/Lodging','Lift Rental',
+  'Meals','Mileage','Miscellaneous','Parking','Per Diem / Overnight','Tolls','Air / Land Travel'
+];
+
+var WO_EXPENSE_PAY_TYPES = [
+  'Company Credit Card','Employee Paid Cash','Company Gas Card','Billed to Company Account'
+];
+
+// ---- STATE ----
+var _woCurrentId  = null;
+var _woTab        = 'labor';
+var _woTimerInterval = null;
+var _woTimerStart    = null;
+var _woTimerType     = null;
+var _hotNotesCb      = null;
+var _hotNotesQueue   = [];
+
+// ---- INIT ----
+function initWorkOrdersPage() {
+  if (!DB.workOrders) DB.workOrders = [];
+  if (!DB.woLabor)    DB.woLabor    = [];
+  if (!DB.woExpenses) DB.woExpenses = [];
+  if (!DB.woParts)    DB.woParts    = [];
+  if (!DB.woChecklist)DB.woChecklist= [];
+  if (!DB.woSettings) DB.woSettings = {
+    serviceTypes: WO_SERVICE_TYPES.slice(),
+    expenseCats:  WO_EXPENSE_CATS.slice(),
+    expensePayTypes: WO_EXPENSE_PAY_TYPES.slice(),
+    defaultLaborRate: 125,
+    defaultTaxRate: 0
+  };
+  renderWorkOrders();
+}
+
+// ---- RENDER LIST ----
+function renderWorkOrders() {
+  if (!DB.workOrders) DB.workOrders = [];
+  var search   = ((document.getElementById('wo-search')||{}).value||'').toLowerCase();
+  var fStatus  = (document.getElementById('wo-filter-status')||{}).value||'';
+  var fPriority= (document.getElementById('wo-filter-priority')||{}).value||'';
+  var fType    = (document.getElementById('wo-filter-type')||{}).value||'';
+
+  var list = DB.workOrders.slice().sort(function(a,b){
+    // Urgent first, then by date desc
+    var pa = a.priority==='Urgent'?0:a.priority==='High'?1:a.priority==='Normal'?2:3;
+    var pb = b.priority==='Urgent'?0:b.priority==='High'?1:b.priority==='Normal'?2:3;
+    if (pa!==pb) return pa-pb;
+    return (b.createdAt||'').localeCompare(a.createdAt||'');
+  });
+
+  if (search) list = list.filter(function(w){
+    return (w.woNumber||'').toLowerCase().includes(search) ||
+           (w.customerName||'').toLowerCase().includes(search) ||
+           (w.description||'').toLowerCase().includes(search);
+  });
+  if (fStatus)   list = list.filter(function(w){ return w.status === fStatus; });
+  if (fPriority) list = list.filter(function(w){ return w.priority === fPriority; });
+  if (fType)     list = list.filter(function(w){ return w.serviceType === fType; });
+
+  // Stats bar
+  var statsEl = document.getElementById('wo-stats-bar');
+  if (statsEl) {
+    var allWOs = DB.workOrders;
+    var urgent  = allWOs.filter(function(w){ return w.priority==='Urgent' && w.status!=='Billed'&&w.status!=='Void'; }).length;
+    var open    = allWOs.filter(function(w){ return WO_STATUSES.find(function(s){return s.id===w.status&&s.open;}); }).length;
+    var review  = allWOs.filter(function(w){ return w.status==='Ready for Review'; }).length;
+    var pricing = allWOs.filter(function(w){ return w.status==='Ready for Pricing'; }).length;
+    statsEl.innerHTML =
+      (urgent?'<div style="background:#c62828;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;animation:pulse 1s infinite">🚨 '+urgent+' URGENT</div>':'') +
+      '<div style="background:#e3f2fd;color:#1565c0;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700">📋 '+open+' Open</div>' +
+      (review?'<div style="background:#ffebee;color:#c62828;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700">👁 '+review+' Ready for Review</div>':'') +
+      (pricing?'<div style="background:#fff3e0;color:#e65100;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700">💰 '+pricing+' Ready for Pricing</div>':'');
+  }
+
+  var body = document.getElementById('wo-list-body');
+  if (!body) return;
+
+  if (!list.length) {
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:#90a4ae"><div style="font-size:32px;margin-bottom:8px">🔨</div><div>No work orders found.</div></div>';
+    return;
+  }
+
+  var header = '<div style="display:grid;grid-template-columns:100px 1fr 1fr 120px 130px 120px auto;gap:8px;padding:10px 16px;background:#f8f9fa;border-bottom:1px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">' +
+    '<div>WO #</div><div>Customer</div><div>Description</div><div>Type</div><div>Status</div><div>Priority</div><div>Actions</div></div>';
+
+  var rows = list.map(function(wo) {
+    var st = WO_STATUSES.find(function(s){ return s.id===wo.status; }) || { color:'#e0e0e0' };
+    var prColor = wo.priority==='Urgent'?'#c62828':wo.priority==='High'?'#e65100':wo.priority==='Normal'?'#546e7a':'#90a4ae';
+    var prBg    = wo.priority==='Urgent'?'#ffebee':wo.priority==='High'?'#fff3e0':'#f5f5f5';
+    var isRole  = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='lead_tech');
+    return '<div style="display:grid;grid-template-columns:100px 1fr 1fr 120px 130px 120px auto;gap:8px;padding:12px 16px;border-bottom:1px solid #f5f7fa;align-items:center" onmouseover="this.style.background=\'#f8f9fa\'" onmouseout="this.style.background=\'\'">'+
+      '<div style="font-weight:700;color:#1565c0;font-size:13px">'+escHtml(wo.woNumber||'')+'</div>'+
+      '<div style="font-weight:600;font-size:13px">'+escHtml(wo.customerName||'—')+'</div>'+
+      '<div style="font-size:12px;color:#546e7a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">'+escHtml((wo.description||'').substring(0,60))+'</div>'+
+      '<div style="font-size:11px;color:#546e7a">'+escHtml(wo.serviceType||'—')+'</div>'+
+      '<div><span style="background:'+escHtml(st.color)+'33;border-left:3px solid '+escHtml(st.color)+';padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;color:#1a2332">'+escHtml(wo.status||'')+'</span></div>'+
+      '<div><span style="background:'+prBg+';color:'+prColor+';padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700">'+(wo.priority==='Urgent'?'🚨 ':'')+(wo.priority==='High'?'🟠 ':'')+escHtml(wo.priority||'Normal')+'</span></div>'+
+      '<div style="display:flex;gap:4px">'+
+        '<button class="btn btn-outline btn-sm" onclick="openWorkOrder(\''+wo.id+'\')">Open</button>'+
+        (isRole?'<button class="btn btn-danger btn-sm" onclick="deleteWorkOrder(\''+wo.id+'\')">✕</button>':'')+
+      '</div>'+
+    '</div>';
+  }).join('');
+
+  body.innerHTML = header + rows;
+}
+
+// ---- OPEN / NEW ----
+function openNewWorkOrder() {
+  _woCurrentId = null;
+  var today = getTodayISO();
+  // Clear fields
+  ['wo-customer-name','wo-customer-id','wo-description','wo-work-performed',
+   'wo-ref-num','wo-site-addr','wo-site-city','wo-site-state','wo-site-zip',
+   'wo-internal-notes','wo-date-followup'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  var reqEl=document.getElementById('wo-date-requested'); if(reqEl) reqEl.value=today;
+  document.getElementById('wo-modal-title').textContent='New Work Order';
+  document.getElementById('wo-modal-num').textContent='';
+  document.getElementById('wo-urgent-badge').style.display='none';
+  document.getElementById('wo-btn-invoice').style.display='none';
+
+  // Populate status dropdown
+  _populateWOStatusSelect();
+  // Set defaults
+  var statusEl=document.getElementById('wo-status'); if(statusEl) statusEl.value='New';
+  var priorityEl=document.getElementById('wo-priority'); if(priorityEl) priorityEl.value='Normal';
+  _populateWOServiceTypeSelect();
+  _populateWORepSelect(null);
+
+  // Default labor/tax rates
+  var settings = DB.woSettings || {};
+  var lrEl=document.getElementById('wo-labor-rate'); if(lrEl) lrEl.value=settings.defaultLaborRate||125;
+  var txEl=document.getElementById('wo-tax-rate');   if(txEl) txEl.value=settings.defaultTaxRate||0;
+
+  // Contact dropdown empty
+  var ctEl=document.getElementById('wo-contact'); if(ctEl) ctEl.innerHTML='<option value="">— Select customer first —</option>';
+
+  // Internal notes only for office/owner
+  var intSection=document.getElementById('wo-internal-notes-section');
+  if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?'':'none';
+
+  switchWOTab('labor');
+  openModal('modal-work-order');
+}
+
+function openWorkOrder(id) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===id; });
+  if (!wo) return;
+  _woCurrentId = id;
+
+  document.getElementById('wo-modal-title').textContent='Work Order';
+  document.getElementById('wo-modal-num').textContent=wo.woNumber||'';
+  var urgBadge=document.getElementById('wo-urgent-badge');
+  if(urgBadge) urgBadge.style.display=wo.priority==='Urgent'?'inline-block':'none';
+
+  _populateWOStatusSelect();
+  _populateWOServiceTypeSelect();
+  _populateWORepSelect(wo.serviceRep);
+
+  function sv(id,val){ var el=document.getElementById(id); if(el) el.value=val||''; }
+  sv('wo-status',         wo.status||'New');
+  sv('wo-priority',       wo.priority||'Normal');
+  sv('wo-service-type',   wo.serviceType||'');
+  sv('wo-customer-name',  wo.customerName||'');
+  sv('wo-customer-id',    wo.customerId||'');
+  sv('wo-description',    wo.description||'');
+  sv('wo-work-performed', wo.workPerformed||'');
+  sv('wo-ref-num',        wo.refNum||'');
+  sv('wo-site-addr',      wo.siteAddr||'');
+  sv('wo-site-city',      wo.siteCity||'');
+  sv('wo-site-state',     wo.siteState||'');
+  sv('wo-site-zip',       wo.siteZip||'');
+  sv('wo-date-requested', wo.dateRequested||'');
+  sv('wo-date-followup',  wo.dateFollowup||'');
+  sv('wo-labor-rate',     wo.laborRate||'');
+  sv('wo-tax-rate',       wo.taxRate||'');
+  sv('wo-internal-notes', wo.internalNotes||'');
+
+  // Populate contacts for this customer
+  _populateWOContacts(wo.customerId, wo.contactId);
+
+  // Show/hide invoice button
+  var invBtn = document.getElementById('wo-btn-invoice');
+  if(invBtn) invBtn.style.display=(wo.status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office')))?'':'none';
+
+  // Internal notes visibility
+  var intSection=document.getElementById('wo-internal-notes-section');
+  if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?'':'none';
+
+  switchWOTab('labor');
+  openModal('modal-work-order');
+
+  // Hot notes
+  _checkHotNotes(wo.customerId, wo.id, false);
+}
+
+function _checkHotNotes(customerId, woId, isNew) {
+  var cust = (DB.customers||[]).find(function(c){ return c.id===customerId; });
+  if (!cust) return;
+  var isOffice = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office');
+  var isTech   = _currentUser && (_currentUser.role==='field'||_currentUser.role==='lead_tech');
+  var queue = [];
+
+  // Tech hot note — show every open unless acknowledged for this WO
+  if ((isTech||isOffice) && cust.hotNoteTech) {
+    var ackKey = 'hotnote_ack_'+woId;
+    var acked  = isNew ? false : (sessionStorage.getItem(ackKey) === '1');
+    if (!acked) {
+      queue.push({ title:'⚡ Tech Notice — '+escHtml(cust.name), body:cust.hotNoteTech, icon:'⚡', ackKey:ackKey });
+    }
+  }
+  // Office hot note — show only for office/owner on NEW orders
+  if (isOffice && isNew && cust.hotNoteOffice) {
+    queue.push({ title:'🏢 Office Notice — '+escHtml(cust.name), body:cust.hotNoteOffice, icon:'🏢', ackKey:null });
+  }
+
+  if (queue.length) _showHotNotesQueue(queue);
+}
+
+var _hotNotesQueueItems = [];
+function _showHotNotesQueue(items) {
+  _hotNotesQueueItems = items.slice();
+  _showNextHotNote();
+}
+function _showNextHotNote() {
+  if (!_hotNotesQueueItems.length) return;
+  var item = _hotNotesQueueItems[0];
+  var popup = document.getElementById('hot-notes-popup');
+  document.getElementById('hot-notes-icon').textContent = item.icon||'⚡';
+  document.getElementById('hot-notes-title').textContent = item.title||'Customer Notice';
+  document.getElementById('hot-notes-body').textContent  = item.body||'';
+  if(popup) popup.style.display='flex';
+}
+function dismissHotNotes() {
+  var item = _hotNotesQueueItems.shift();
+  if (item && item.ackKey) sessionStorage.setItem(item.ackKey, '1');
+  var popup = document.getElementById('hot-notes-popup');
+  if (_hotNotesQueueItems.length) {
+    _showNextHotNote();
+  } else {
+    if(popup) popup.style.display='none';
+  }
+}
+
+// ---- SAVE ----
+function saveWorkOrder() {
+  var custName = (document.getElementById('wo-customer-name')||{}).value||'';
+  var desc     = (document.getElementById('wo-description')||{}).value||'';
+  if (!custName.trim()) { showToast('Customer is required','error'); return; }
+  if (!desc.trim())     { showToast('Work description is required','error'); return; }
+
+  if (!DB.workOrders) DB.workOrders = [];
+  var isNew = !_woCurrentId;
+  var id    = _woCurrentId || ('wo-'+Date.now());
+  var today = getTodayISO();
+
+  function gv(eid){ var el=document.getElementById(eid); return el?el.value.trim():''; }
+
+  var status   = gv('wo-status') || 'New';
+  var priority = gv('wo-priority') || 'Normal';
+
+  // Auto-generate WO number for new
+  var woNum;
+  if (isNew) {
+    DB.woSeq = (DB.woSeq||1000) + 1;
+    woNum = 'WO-' + DB.woSeq;
+  } else {
+    var existing = DB.workOrders.find(function(w){ return w.id===id; });
+    woNum = existing ? existing.woNumber : 'WO-?';
+  }
+
+  // Auto-set dateOpened when time is logged
+  var labor = (DB.woLabor||[]).filter(function(l){ return l.woId===id; });
+  var dateOpened = null;
+  if (labor.length) dateOpened = labor[0].clockIn ? labor[0].clockIn.substring(0,10) : today;
+
+  var data = {
+    id:           id,
+    woNumber:     woNum,
+    customerId:   gv('wo-customer-id'),
+    customerName: custName,
+    contactId:    gv('wo-contact'),
+    description:  desc,
+    workPerformed:gv('wo-work-performed'),
+    status:       status,
+    priority:     priority,
+    serviceType:  gv('wo-service-type'),
+    serviceRep:   gv('wo-service-rep'),
+    refNum:       gv('wo-ref-num'),
+    siteAddr:     gv('wo-site-addr'),
+    siteCity:     gv('wo-site-city'),
+    siteState:    gv('wo-site-state'),
+    siteZip:      gv('wo-site-zip'),
+    dateRequested:gv('wo-date-requested'),
+    dateFollowup: gv('wo-date-followup'),
+    dateOpened:   dateOpened,
+    dateClosed:   (!WO_STATUSES.find(function(s){return s.id===status&&s.open;}))?today:null,
+    laborRate:    parseFloat(gv('wo-labor-rate'))||125,
+    taxRate:      parseFloat(gv('wo-tax-rate'))||0,
+    internalNotes:(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?gv('wo-internal-notes'):'',
+    createdAt:    isNew ? new Date().toISOString() : ((DB.workOrders.find(function(w){return w.id===id;})||{}).createdAt||new Date().toISOString()),
+    updatedAt:    new Date().toISOString(),
+    createdBy:    isNew ? ((_currentUser&&_currentUser.id)||null) : ((DB.workOrders.find(function(w){return w.id===id;})||{}).createdBy||null),
+    createdByName:isNew ? ((_currentUser&&_currentUser.full_name)||'Unknown') : ((DB.workOrders.find(function(w){return w.id===id;})||{}).createdByName||'Unknown')
+  };
+
+  if (isNew) {
+    DB.workOrders.push(data);
+    _woCurrentId = id;
+  } else {
+    var idx = DB.workOrders.findIndex(function(w){ return w.id===id; });
+    if (idx>=0) DB.workOrders[idx]=data; else DB.workOrders.push(data);
+  }
+
+  // Update invoice button visibility
+  var invBtn=document.getElementById('wo-btn-invoice');
+  if(invBtn) invBtn.style.display=(status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office')))?'':'none';
+
+  // Urgent notification
+  if (priority==='Urgent') _triggerUrgentAlert(data);
+
+  // Push to Supabase
+  _pushWOToCloud(data);
+  saveDB();
+  renderWorkOrders();
+  showToast('Work Order '+woNum+' saved ✓','success');
+  document.getElementById('wo-modal-num').textContent=woNum;
+  document.getElementById('wo-modal-title').textContent='Work Order';
+}
+
+function _triggerUrgentAlert(wo) {
+  // In-app bell notification
+  var count = parseInt((document.getElementById('notif-count')||{}).textContent||'0') + 1;
+  var countEl = document.getElementById('notif-count');
+  if (countEl) { countEl.textContent=count; countEl.style.display=''; }
+  showToast('🚨 URGENT Work Order: '+escHtml(wo.customerName||'')+' — '+escHtml((wo.description||'').substring(0,50)), 'error', 8000);
+  // SMS via Twilio — queued for when Twilio is wired
+  if (typeof sendUrgentWOSMS === 'function') sendUrgentWOSMS(wo);
+}
+
+function deleteWorkOrder(id) {
+  if (!confirm('Delete this work order? This cannot be undone.')) return;
+  DB.workOrders = (DB.workOrders||[]).filter(function(w){ return w.id!==id; });
+  if (_sb && _currentUser) _sb.from('work_orders').delete().eq('id',id).then(function(){});
+  saveDB(); renderWorkOrders();
+  showToast('Work order deleted','info');
+}
+
+// ---- STATUS CHANGE ----
+function onWOStatusChange(status) {
+  var urgBadge=document.getElementById('wo-urgent-badge');
+  var invBtn=document.getElementById('wo-btn-invoice');
+  if(invBtn) invBtn.style.display=(status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office')))?'':'none';
+}
+function onWOPriorityChange(val) {
+  var badge=document.getElementById('wo-urgent-badge');
+  if(badge) badge.style.display=val==='Urgent'?'inline-block':'none';
+}
+
+// ---- CUSTOMER AUTOCOMPLETE ----
+function onWOCustomerInput(val) {
+  var drop=document.getElementById('wo-customer-dropdown');
+  if (!drop) return;
+  if (!val||val.length<1) { drop.style.display='none'; return; }
+  var matches=(DB.customers||[]).filter(function(c){ return (c.name||'').toLowerCase().includes(val.toLowerCase()); }).slice(0,8);
+  if (!matches.length) { drop.style.display='none'; return; }
+  drop.innerHTML=matches.map(function(c){
+    return '<div onmousedown="selectWOCustomer(\''+c.id+'\',\''+escHtml(c.name)+'\')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f4f8;font-size:13px" onmouseover="this.style.background=\'#f0f4f8\'" onmouseout="this.style.background=\'\'">'+
+      '<div style="font-weight:600">'+escHtml(c.name)+'</div>'+
+      (c.phone?'<div style="font-size:11px;color:#90a4ae">'+escHtml(c.phone)+'</div>':'')+
+    '</div>';
+  }).join('');
+  drop.style.display='block';
+}
+
+function selectWOCustomer(id, name) {
+  var nameEl=document.getElementById('wo-customer-name'); if(nameEl) nameEl.value=name;
+  var idEl=document.getElementById('wo-customer-id');     if(idEl)   idEl.value=id;
+  var drop=document.getElementById('wo-customer-dropdown'); if(drop) drop.style.display='none';
+
+  // Fill contacts
+  _populateWOContacts(id, null);
+
+  // Fill site address from customer
+  var cust=(DB.customers||[]).find(function(c){ return c.id===id; });
+  if (cust) {
+    var settings = DB.woSettings||{};
+    var lr = document.getElementById('wo-labor-rate');
+    if (lr && cust.laborRate) lr.value=cust.laborRate;
+    else if (lr) lr.value = settings.defaultLaborRate||125;
+    var addrEl=document.getElementById('wo-site-addr');
+    var cityEl=document.getElementById('wo-site-city');
+    var stEl=document.getElementById('wo-site-state');
+    var zipEl=document.getElementById('wo-site-zip');
+    if(addrEl&&!addrEl.value) addrEl.value=cust.street||cust.address||'';
+    if(cityEl&&!cityEl.value) cityEl.value=cust.city||'';
+    if(stEl&&!stEl.value)     stEl.value=cust.state||'';
+    if(zipEl&&!zipEl.value)   zipEl.value=cust.zip||'';
+  }
+
+  // Check hot notes for new WO (isNew=true for customer selection)
+  if (!_woCurrentId) _checkHotNotes(id, 'new', true);
+}
+
+function _populateWOContacts(customerId, selectedContactId) {
+  var sel=document.getElementById('wo-contact');
+  if (!sel) return;
+  var contacts=(DB.contacts||[]).filter(function(c){ return c.customerId===customerId; });
+  sel.innerHTML='<option value="">— Select contact —</option>'+
+    contacts.map(function(c){ return '<option value="'+escHtml(c.id)+'"'+(c.id===selectedContactId?' selected':'')+'>'+escHtml(c.name||'')+(c.role?' — '+escHtml(c.role):'')+'</option>'; }).join('');
+}
+
+function _populateWOStatusSelect() {
+  var sel=document.getElementById('wo-status');
+  if (!sel) return;
+  var statuses = (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length) ? DB.woSettings.statuses : WO_STATUSES;
+  sel.innerHTML=statuses.map(function(s){
+    return '<option value="'+escHtml(s.id||s)+'">'+escHtml(s.id||s)+'</option>';
+  }).join('');
+}
+
+function _populateWOServiceTypeSelect() {
+  var sel=document.getElementById('wo-service-type');
+  if (!sel) return;
+  var types = (DB.woSettings&&DB.woSettings.serviceTypes&&DB.woSettings.serviceTypes.length) ? DB.woSettings.serviceTypes : WO_SERVICE_TYPES;
+  sel.innerHTML='<option value="">— Service Type —</option>'+
+    types.map(function(t){ return '<option value="'+escHtml(t)+'">'+escHtml(t)+'</option>'; }).join('');
+}
+
+function _populateWORepSelect(currentRep) {
+  var sel=document.getElementById('wo-service-rep');
+  if (!sel) return;
+  sel.innerHTML='<option value="">— Assign Rep —</option>'+
+    (DB.team||[]).filter(function(t){ return t.role!=='field'; }).map(function(t){
+      return '<option value="'+escHtml(t.name||'')+'"'+(t.name===currentRep?' selected':'')+'>'+ escHtml(t.name||'')+'</option>';
+    }).join('');
+}
+
+// ---- TABS ----
+function switchWOTab(tab) {
+  _woTab = tab;
+  document.querySelectorAll('.wo-tab').forEach(function(t){ t.classList.remove('active'); });
+  var btn=document.getElementById('wotab-'+tab); if(btn) btn.classList.add('active');
+  var content=document.getElementById('wo-tab-content');
+  if (!content) return;
+  var id = _woCurrentId;
+  if (tab==='labor')     content.innerHTML = renderWOLaborTab(id);
+  if (tab==='expenses')  content.innerHTML = renderWOExpensesTab(id);
+  if (tab==='parts')     content.innerHTML = renderWOPartsTab(id);
+  if (tab==='checklist') content.innerHTML = renderWOChecklistTab(id);
+  if (tab==='comments')  content.innerHTML = (typeof renderCommsLog==='function') ? '<div style="margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="openCommsModal(\'\',\''+id+'\')">+ Log Communication</button></div>' + renderCommsLog(null, id) : '';
+  if (tab==='photos')    { content.innerHTML = '<div id="wo-photos-inner-'+id+'"></div>'; if(typeof renderJobPhotosSection==='function') renderJobPhotosSection(id); }
+}
+
+// ---- LABOR TAB ----
+function renderWOLaborTab(woId) {
+  var entries = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
+  var totalHrs = entries.reduce(function(s,l){ return s+(parseFloat(l.hours)||0); },0);
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  var rate = wo ? (wo.laborRate||125) : 125;
+  var laborCost = totalHrs * rate;
+
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+    '<div><span style="font-weight:700">Total: '+totalHrs.toFixed(2)+' hrs</span> <span style="color:#546e7a;font-size:12px">($'+laborCost.toFixed(2)+')</span></div>'+
+    '<button class="btn btn-outline btn-sm" onclick="addWOLaborEntry()">+ Add Manual Entry</button>'+
+  '</div>';
+
+  if (!entries.length) return html+'<div style="color:#90a4ae;font-size:13px;padding:8px">No labor logged yet. Use the timers at the bottom or add a manual entry.</div>';
+
+  html += entries.map(function(e){
+    var hrs = parseFloat(e.hours)||0;
+    return '<div style="display:flex;align-items:center;gap:12px;padding:10px;background:#f8f9fa;border-radius:8px;margin-bottom:6px">'+
+      '<div style="flex:1">'+
+        '<div style="font-weight:600;font-size:13px">'+escHtml(e.techName||'Unknown')+'</div>'+
+        '<div style="font-size:11px;color:#546e7a">'+escHtml(e.entryType||'work')+
+          (e.clockIn?' · In: '+new Date(e.clockIn).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'') +
+          (e.clockOut?' · Out: '+new Date(e.clockOut).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'') +
+        '</div>'+
+        (e.notes?'<div style="font-size:11px;color:#546e7a;font-style:italic">'+escHtml(e.notes)+'</div>':'')+
+      '</div>'+
+      '<div style="font-weight:700;color:#1565c0">'+hrs.toFixed(2)+' hrs</div>'+
+      '<button class="btn btn-danger btn-sm" onclick="deleteWOLabor(\''+e.id+'\')">✕</button>'+
+    '</div>';
+  }).join('');
+  return html;
+}
+
+function addWOLaborEntry() {
+  var woId = _woCurrentId; if(!woId){showToast('Save the work order first','error');return;}
+  var techName = prompt('Tech name:'); if(!techName||!techName.trim()) return;
+  var hoursStr = prompt('Hours worked (e.g. 1.5):'); if(!hoursStr) return;
+  var hours = parseFloat(hoursStr)||0; if(!hours){showToast('Invalid hours','error');return;}
+  var notes = prompt('Notes (optional):','') || '';
+  if (!DB.woLabor) DB.woLabor=[];
+  DB.woLabor.push({ id:'wol-'+Date.now(), woId:woId, techName:techName.trim(), entryType:'work', hours:hours, notes:notes, clockIn:new Date().toISOString(), createdAt:new Date().toISOString() });
+  // Auto-update status to Open if New
+  var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});
+  if(wo&&wo.status==='New'){wo.status='Open';var sel=document.getElementById('wo-status');if(sel)sel.value='Open';}
+  saveDB(); switchWOTab('labor');
+  showToast('Labor entry added','success');
+}
+
+function deleteWOLabor(id) {
+  if(!confirm('Remove this labor entry?')) return;
+  DB.woLabor=(DB.woLabor||[]).filter(function(l){return l.id!==id;});
+  saveDB(); switchWOTab('labor');
+}
+
+// ---- TIMERS ----
+function woStartTimer(type) {
+  if (_woTimerInterval) { woStopTimer(); return; }
+  if (!_woCurrentId) { saveWorkOrder(); }
+  _woTimerType  = type;
+  _woTimerStart = Date.now();
+  var workBtn=document.getElementById('wo-timer-work-btn');
+  var travBtn=document.getElementById('wo-timer-travel-btn');
+  if(workBtn) workBtn.textContent = type==='work' ? '⏹ Stop Work Timer' : '▶ Work Timer';
+  if(travBtn) travBtn.textContent = type==='travel' ? '⏹ Stop Travel Timer' : '🚗 Travel Timer';
+  _woTimerInterval = setInterval(function(){
+    var elapsed = Math.floor((Date.now()-_woTimerStart)/1000);
+    var h=Math.floor(elapsed/3600), m=Math.floor((elapsed%3600)/60), s=elapsed%60;
+    var disp=document.getElementById('wo-timer-display');
+    if(disp) disp.textContent=(type==='work'?'⏱ ':'🚗 ')+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  },1000);
+}
+
+function woStopTimer() {
+  if (!_woTimerInterval) return;
+  clearInterval(_woTimerInterval); _woTimerInterval=null;
+  var hours = (Date.now()-_woTimerStart)/3600000;
+  var roundedHours = Math.round(hours*4)/4; // round to nearest 15 min
+  if(!DB.woLabor) DB.woLabor=[];
+  DB.woLabor.push({
+    id: 'wol-'+Date.now(),
+    woId: _woCurrentId,
+    techName: (_currentUser&&_currentUser.full_name)||'Unknown',
+    entryType: _woTimerType||'work',
+    hours: roundedHours,
+    clockIn: new Date(_woTimerStart).toISOString(),
+    clockOut: new Date().toISOString(),
+    createdAt: new Date().toISOString()
+  });
+  // Auto-set status to Open
+  var wo=(DB.workOrders||[]).find(function(w){return w.id===_woCurrentId;});
+  if(wo&&wo.status==='New'){wo.status='Open';var sel=document.getElementById('wo-status');if(sel)sel.value='Open';}
+  var disp=document.getElementById('wo-timer-display'); if(disp) disp.textContent='';
+  var workBtn=document.getElementById('wo-timer-work-btn'); if(workBtn) workBtn.textContent='▶ Work Timer';
+  var travBtn=document.getElementById('wo-timer-travel-btn'); if(travBtn) travBtn.textContent='🚗 Travel Timer';
+  saveDB(); switchWOTab('labor');
+  showToast(roundedHours.toFixed(2)+' hrs logged ('+_woTimerType+')','success');
+}
+
+// ---- EXPENSES TAB ----
+function renderWOExpensesTab(woId) {
+  var entries = (DB.woExpenses||[]).filter(function(e){ return e.woId===woId; });
+  var total   = entries.reduce(function(s,e){ return s+parseFloat(e.amount||0); },0);
+  var settings= DB.woSettings||{};
+  var cats    = settings.expenseCats||WO_EXPENSE_CATS;
+  var payTypes= settings.expensePayTypes||WO_EXPENSE_PAY_TYPES;
+
+  var html = '<div style="margin-bottom:12px"><strong>Total Expenses: $'+total.toFixed(2)+'</strong></div>';
+  html += '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:12px">'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 0.7fr 1fr 0.7fr auto;gap:8px;align-items:end">'+
+      '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Category</label>'+
+        '<select id="woe-cat" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
+          cats.map(function(c){return '<option>'+escHtml(c)+'</option>';}).join('')+'</select></div>'+
+      '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Description</label>'+
+        '<input id="woe-desc" placeholder="Details..." style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
+      '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Amount ($)</label>'+
+        '<input id="woe-amt" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
+      '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Paid By</label>'+
+        '<select id="woe-pay" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
+          payTypes.map(function(p){return '<option>'+escHtml(p)+'</option>';}).join('')+'</select></div>'+
+      '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Date</label>'+
+        '<input id="woe-date" type="date" value="'+getTodayISO()+'" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
+      '<div><button class="btn btn-primary btn-sm" style="margin-top:18px" onclick="addWOExpense()">Add</button></div>'+
+    '</div>'+
+  '</div>';
+
+  if (!entries.length) return html+'<div style="color:#90a4ae;font-size:13px">No expenses logged yet.</div>';
+
+  html += entries.map(function(e){
+    return '<div style="display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid #f0f4f8">'+
+      '<div style="flex:1">'+
+        '<div style="font-weight:600;font-size:13px">'+escHtml(e.category||'')+'</div>'+
+        '<div style="font-size:11px;color:#546e7a">'+escHtml(e.description||'')+' · '+escHtml(e.paymentType||'')+' · '+escHtml(e.date||'')+'</div>'+
+      '</div>'+
+      '<div style="font-weight:700;color:#1565c0">$'+parseFloat(e.amount||0).toFixed(2)+'</div>'+
+      '<button class="btn btn-danger btn-sm" onclick="deleteWOExpense(\''+e.id+'\')">✕</button>'+
+    '</div>';
+  }).join('');
+  return html;
+}
+
+function addWOExpense() {
+  var woId=_woCurrentId; if(!woId){showToast('Save the work order first','error');return;}
+  var amt=parseFloat((document.getElementById('woe-amt')||{}).value)||0;
+  if(!amt){showToast('Enter an amount','error');return;}
+  if(!DB.woExpenses) DB.woExpenses=[];
+  DB.woExpenses.push({
+    id:'woe-'+Date.now(), woId:woId,
+    category:(document.getElementById('woe-cat')||{}).value||'',
+    description:(document.getElementById('woe-desc')||{}).value||'',
+    amount:amt,
+    paymentType:(document.getElementById('woe-pay')||{}).value||'',
+    date:(document.getElementById('woe-date')||{}).value||getTodayISO(),
+    loggedBy:(_currentUser&&_currentUser.full_name)||'Unknown',
+    createdAt:new Date().toISOString()
+  });
+  saveDB(); switchWOTab('expenses');
+  showToast('Expense added','success');
+}
+
+function deleteWOExpense(id) {
+  if(!confirm('Remove this expense?'))return;
+  DB.woExpenses=(DB.woExpenses||[]).filter(function(e){return e.id!==id;});
+  saveDB(); switchWOTab('expenses');
+}
+
+// ---- PARTS TAB ----
+function renderWOPartsTab(woId) {
+  var parts=(DB.woParts||[]).filter(function(p){return p.woId===woId;});
+  var isOffice=_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office');
+  var isTech=!isOffice;
+  var html='<div style="margin-bottom:12px">'+
+    '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:12px">'+
+      '<div style="display:grid;grid-template-columns:1fr 0.5fr 1fr auto;gap:8px;align-items:end">'+
+        '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Part Name</label>'+
+          '<input id="wop-name" placeholder="Search catalog or enter part..." list="wop-catalog-list" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
+          '<datalist id="wop-catalog-list">'+
+            (DB.catalog||[]).map(function(c){return '<option value="'+escHtml(c.desc||c.name||'')+'">'+escHtml(c.part||'')+'</option>';}).join('')+
+          '</datalist>'+
+        '</div>'+
+        '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Qty</label>'+
+          '<input id="wop-qty" type="number" min="1" value="1" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
+        '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Notes</label>'+
+          '<input id="wop-notes" placeholder="Notes..." style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
+        '<div><button class="btn btn-primary btn-sm" style="margin-top:18px" onclick="addWOPart()">Request</button></div>'+
+      '</div>'+
+    '</div>';
+
+  if(!parts.length) return html+'<div style="color:#90a4ae;font-size:13px">No parts requested yet.</div></div>';
+  var statusColors={'requested':'#fff3e0','ordered':'#e3f2fd','received':'#e8f5e9','partial':'#e8eaf6'};
+  html+=parts.map(function(p){
+    return '<div style="display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid #f0f4f8">'+
+      '<div style="flex:1">'+
+        '<div style="font-weight:600;font-size:13px">'+escHtml(p.name||'')+'</div>'+
+        '<div style="font-size:11px;color:#546e7a">Qty: '+escHtml(String(p.qty||1))+(p.notes?' · '+escHtml(p.notes):'')+' · By: '+escHtml(p.requestedBy||'')+'</div>'+
+      '</div>'+
+      (isOffice?'<select onchange="updateWOPartStatus(\''+p.id+'\',this.value)" style="padding:4px 8px;border:1px solid #e0e7ef;border-radius:4px;font-size:11px;background:'+(statusColors[p.status]||'#f5f5f5')+'">'+
+        ['requested','ordered','received','partial'].map(function(s){return '<option value="'+s+'"'+(p.status===s?' selected':'')+'>'+s+'</option>';}).join('')+
+      '</select>':
+      '<span style="background:'+(statusColors[p.status]||'#f5f5f5')+';padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700">'+escHtml(p.status||'requested')+'</span>')+
+      (isOffice?'<button class="btn btn-danger btn-sm" onclick="deleteWOPart(\''+p.id+'\')">✕</button>':'')+
+    '</div>';
+  }).join('');
+  return html+'</div>';
+}
+
+function addWOPart() {
+  var woId=_woCurrentId; if(!woId){showToast('Save the work order first','error');return;}
+  var name=(document.getElementById('wop-name')||{}).value||'';
+  if(!name.trim()){showToast('Enter a part name','error');return;}
+  if(!DB.woParts) DB.woParts=[];
+  DB.woParts.push({ id:'wop-'+Date.now(), woId:woId, name:name.trim(), qty:parseFloat((document.getElementById('wop-qty')||{}).value)||1, notes:(document.getElementById('wop-notes')||{}).value||'', status:'requested', requestedBy:(_currentUser&&_currentUser.full_name)||'Unknown', createdAt:new Date().toISOString() });
+  // Auto-update WO status to Parts Needed
+  var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});
+  if(wo&&(wo.status==='New'||wo.status==='Open')){wo.status='Parts Needed';var sel=document.getElementById('wo-status');if(sel)sel.value='Parts Needed';}
+  saveDB(); switchWOTab('parts');
+  showToast('Part requested','success');
+}
+
+function updateWOPartStatus(id,status) {
+  var part=(DB.woParts||[]).find(function(p){return p.id===id;});
+  if(part){part.status=status; saveDB(); switchWOTab('parts');}
+}
+
+function deleteWOPart(id) {
+  if(!confirm('Remove this part request?'))return;
+  DB.woParts=(DB.woParts||[]).filter(function(p){return p.id!==id;});
+  saveDB(); switchWOTab('parts');
+}
+
+// ---- CHECKLIST TAB ----
+function renderWOChecklistTab(woId) {
+  var items=(DB.woChecklist||[]).filter(function(c){return c.woId===woId;});
+  var done=items.filter(function(c){return c.completed;}).length;
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+    '<div style="font-weight:700">'+done+' / '+items.length+' complete</div>'+
+    '<div style="display:flex;gap:8px"><input id="wocl-new" placeholder="Add checklist item..." style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;width:220px">'+
+    '<button class="btn btn-outline btn-sm" onclick="addWOChecklistItem()">+ Add</button></div></div>';
+  if(!items.length) return html+'<div style="color:#90a4ae;font-size:13px">No checklist items yet.</div>';
+  html+=items.map(function(c){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid #f0f4f8">'+
+      '<input type="checkbox" '+(c.completed?'checked':'')+' onchange="toggleWOChecklistItem(\''+c.id+'\',this.checked)" style="width:16px;height:16px;cursor:pointer">'+
+      '<span style="flex:1;font-size:13px;'+(c.completed?'text-decoration:line-through;color:#90a4ae;':'')+'">'+escHtml(c.item||'')+'</span>'+
+      (c.completed&&c.completedBy?'<span style="font-size:10px;color:#90a4ae">'+escHtml(c.completedBy)+'</span>':'')+
+      '<button class="btn btn-danger btn-sm" onclick="deleteWOChecklistItem(\''+c.id+'\')">✕</button>'+
+    '</div>';
+  }).join('');
+  return html;
+}
+
+function addWOChecklistItem() {
+  var woId=_woCurrentId; if(!woId){showToast('Save the work order first','error');return;}
+  var item=(document.getElementById('wocl-new')||{}).value||'';
+  if(!item.trim()){showToast('Enter item text','error');return;}
+  if(!DB.woChecklist) DB.woChecklist=[];
+  DB.woChecklist.push({id:'wocl-'+Date.now(),woId:woId,item:item.trim(),completed:false,createdAt:new Date().toISOString()});
+  saveDB(); switchWOTab('checklist');
+}
+
+function toggleWOChecklistItem(id,checked) {
+  var item=(DB.woChecklist||[]).find(function(c){return c.id===id;});
+  if(item){item.completed=checked;item.completedBy=checked?((_currentUser&&_currentUser.full_name)||'Unknown'):null;item.completedAt=checked?new Date().toISOString():null;}
+  saveDB(); switchWOTab('checklist');
+}
+
+function deleteWOChecklistItem(id) {
+  DB.woChecklist=(DB.woChecklist||[]).filter(function(c){return c.id!==id;});
+  saveDB(); switchWOTab('checklist');
+}
+
+// ---- CREATE INVOICE FROM WO ----
+function createWOInvoice() {
+  var woId=_woCurrentId; if(!woId) return;
+  var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;}); if(!wo) return;
+  var labor=(DB.woLabor||[]).filter(function(l){return l.woId===woId;});
+  var expenses=(DB.woExpenses||[]).filter(function(e){return e.woId===woId;});
+  var parts=(DB.woParts||[]).filter(function(p){return p.woId===woId;});
+  var rate=parseFloat(wo.laborRate)||125;
+  var totalHrs=labor.reduce(function(s,l){return s+parseFloat(l.hours||0);},0);
+  var laborAmt=totalHrs*rate;
+  var expAmt=expenses.reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
+  var subtotal=laborAmt+expAmt;
+  var taxRate=parseFloat(wo.taxRate)||0;
+  var taxAmt=subtotal*(taxRate/100);
+  var total=subtotal+taxAmt;
+  // Find or link job
+  var job=(DB.jobs||[]).find(function(j){return j.customerId===wo.customerId;});
+  if(!DB.invoices) DB.invoices=[];
+  DB.invSeq=(DB.invSeq||1000)+1;
+  var inv={
+    id:'inv-'+Date.now(),
+    num:'INV-'+DB.invSeq,
+    status:'draft',
+    date:getTodayISO(),
+    due:'',
+    jobId:job?job.id:null,
+    woId:woId,
+    job:{ name:wo.description||'', customer:wo.customerName||'' },
+    total:total,
+    subtotal:subtotal,
+    laborAmt:laborAmt,
+    expAmt:expAmt,
+    taxAmt:taxAmt,
+    taxRate:taxRate,
+    notes:'Labor: '+totalHrs.toFixed(2)+' hrs @ $'+rate+'/hr\n'+
+          (expAmt>0?'Expenses: $'+expAmt.toFixed(2)+'\n':'')+
+          (parts.length?'Parts: '+parts.map(function(p){return p.name;}).join(', ')+'\n':'')+
+          (wo.workPerformed||''),
+    items:[]
+  };
+  // Add labor as invoice item
+  if(totalHrs>0) inv.items.push({_id:'woi-l',desc:'Labor ('+totalHrs.toFixed(2)+' hrs @ $'+rate+'/hr)',cat:'Labor',qty:totalHrs,unit:'hr',mc:rate,lh:0});
+  // Add expenses as items
+  expenses.forEach(function(e){ inv.items.push({_id:'woi-e-'+e.id,desc:escHtml(e.category||'Expense')+(e.description?' — '+e.description:''),cat:'Expense',qty:1,unit:'EA',mc:e.amount,lh:0}); });
+  DB.invoices.push(inv);
+  // Update WO status
+  wo.status='Open — Partial Invoice (Please Create)';
+  wo.invoiceId=inv.id;
+  saveDB(); renderWorkOrders();
+  closeModal('modal-work-order');
+  goPage('invoices');
+  showToast('Draft invoice '+inv.num+' created — review and edit before sending','success',5000);
+}
+
+// ---- SETTINGS ----
+function renderWOSettingsPage() {
+  var settings=DB.woSettings||{};
+  var types=settings.serviceTypes||WO_SERVICE_TYPES;
+  var cats=settings.expenseCats||WO_EXPENSE_CATS;
+  var statuses=settings.statuses||WO_STATUSES;
+  var lrEl=document.getElementById('wo-default-labor'); if(lrEl)lrEl.value=settings.defaultLaborRate||125;
+  var txEl=document.getElementById('wo-default-tax');   if(txEl)txEl.value=settings.defaultTaxRate||0;
+  var typesEl=document.getElementById('wo-svc-types-list');
+  if(typesEl) typesEl.innerHTML=types.map(function(t,i){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f4f8"><span style="font-size:13px">'+escHtml(t)+'</span><button class="btn btn-danger btn-sm" onclick="removeWOServiceType('+i+')">✕</button></div>';}).join('');
+  var catsEl=document.getElementById('wo-exp-cats-list');
+  if(catsEl) catsEl.innerHTML=cats.map(function(c,i){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f4f8"><span style="font-size:13px">'+escHtml(c)+'</span><button class="btn btn-danger btn-sm" onclick="removeWOExpenseCat('+i+')">✕</button></div>';}).join('');
+  var statusEl=document.getElementById('wo-status-list');
+  if(statusEl) statusEl.innerHTML=statuses.map(function(s){var id=s.id||s; return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f4f8"><div style="width:12px;height:12px;border-radius:3px;background:'+(s.color||'#e0e0e0')+'"></div><span style="font-size:12px">'+escHtml(id)+'</span></div>';}).join('');
+}
+
+function addWOServiceType() {
+  var val=(document.getElementById('wo-new-svc-type')||{}).value||'';
+  if(!val.trim())return;
+  if(!DB.woSettings)DB.woSettings={};
+  if(!DB.woSettings.serviceTypes)DB.woSettings.serviceTypes=WO_SERVICE_TYPES.slice();
+  DB.woSettings.serviceTypes.push(val.trim());
+  document.getElementById('wo-new-svc-type').value='';
+  saveDB(); renderWOSettingsPage();
+}
+
+function removeWOServiceType(idx) {
+  if(!DB.woSettings||!DB.woSettings.serviceTypes)return;
+  DB.woSettings.serviceTypes.splice(idx,1);
+  saveDB(); renderWOSettingsPage();
+}
+
+function addWOExpenseCat() {
+  var val=(document.getElementById('wo-new-exp-cat')||{}).value||'';
+  if(!val.trim())return;
+  if(!DB.woSettings)DB.woSettings={};
+  if(!DB.woSettings.expenseCats)DB.woSettings.expenseCats=WO_EXPENSE_CATS.slice();
+  DB.woSettings.expenseCats.push(val.trim());
+  document.getElementById('wo-new-exp-cat').value='';
+  saveDB(); renderWOSettingsPage();
+}
+
+function removeWOExpenseCat(idx) {
+  if(!DB.woSettings||!DB.woSettings.expenseCats)return;
+  DB.woSettings.expenseCats.splice(idx,1);
+  saveDB(); renderWOSettingsPage();
+}
+
+function saveWOSettings() {
+  if(!DB.woSettings)DB.woSettings={};
+  DB.woSettings.defaultLaborRate=parseFloat((document.getElementById('wo-default-labor')||{}).value)||125;
+  DB.woSettings.defaultTaxRate  =parseFloat((document.getElementById('wo-default-tax')||{}).value)||0;
+  saveDB();
+  showToast('Work Order settings saved ✓','success');
+}
+
+// ---- SUPABASE PUSH ----
+async function _pushWOToCloud(wo) {
+  if(!_sb||!_currentUser) return;
+  try {
+    var { error } = await _sb.from('work_orders').upsert({
+      id:            wo.id,
+      wo_number:     wo.woNumber,
+      customer_id:   wo.customerId||null,
+      customer_name: wo.customerName||null,
+      contact_id:    wo.contactId||null,
+      description:   wo.description||null,
+      work_performed:wo.workPerformed||null,
+      status:        wo.status||'New',
+      service_type:  wo.serviceType||null,
+      priority:      wo.priority||'Normal',
+      service_rep:   wo.serviceRep||null,
+      reference_num: wo.refNum||null,
+      site_address:  wo.siteAddr||null,
+      site_city:     wo.siteCity||null,
+      site_state:    wo.siteState||null,
+      site_zip:      wo.siteZip||null,
+      labor_rate:    wo.laborRate||null,
+      tax_rate:      wo.taxRate||null,
+      date_requested:wo.dateRequested||null,
+      date_followup: wo.dateFollowup||null,
+      date_opened:   wo.dateOpened||null,
+      date_closed:   wo.dateClosed||null,
+      internal_notes:wo.internalNotes||null,
+      invoice_id:    wo.invoiceId||null,
+      created_by:    wo.createdBy||_currentUser.id,
+      created_by_name:wo.createdByName||null,
+      updated_at:    new Date().toISOString()
+    });
+    if(error) console.warn('[WO Push]',error.message);
+  } catch(e) { console.warn('[WO Push]',e.message); }
+}
+
+// ---- HOT NOTES on customer edit ----
+// Hooked into the customer modal save
+function getCustomerHotNotes() {
+  return {
+    tech:   (document.getElementById('m-c-hotnote-tech')||{}).value||'',
+    office: (document.getElementById('m-c-hotnote-office')||{}).value||''
+  };
+}

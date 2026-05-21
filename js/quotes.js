@@ -1957,6 +1957,8 @@ function editCustomer(id) {
   sv('m-cstreet',c.street||(c.address&&!c.city?c.address:'')); sv('m-ccity',c.city||''); sv('m-cstate',c.state||''); sv('m-czip',c.zip||'');
   sv('m-cnotes',c.notes); sv('m-cid',c.id);
   var sel=document.getElementById('m-cterms'); if(sel) sel.value=c.defaultTerms||'';
+  var htEl=document.getElementById('m-c-hotnote-tech');   if(htEl) htEl.value=c.hotNoteTech||'';
+  var hoEl=document.getElementById('m-c-hotnote-office'); if(hoEl) hoEl.value=c.hotNoteOffice||'';
   openModal('modal-customer');
 }
 function _buildCustomerData(id) {
@@ -1973,8 +1975,10 @@ function _buildCustomerData(id) {
     state:        state,
     zip:          zip,
     address:      addrParts.join(' '),
-    defaultTerms: (document.getElementById('m-cterms')||{}).value||'',
-    notes:        gv('m-cnotes')
+    defaultTerms:  (document.getElementById('m-cterms')||{}).value||'',
+    notes:         gv('m-cnotes'),
+    hotNoteTech:   (document.getElementById('m-c-hotnote-tech')||{}).value||'',
+    hotNoteOffice: (document.getElementById('m-c-hotnote-office')||{}).value||''
   };
 }
 function saveCustomer() {
