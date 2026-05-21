@@ -1239,10 +1239,6 @@ function fireEmailQuote(q) {
     window.location.href = 'mailto:' + encodeURIComponent(toEmail) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(bodyText);
   }
 }
-    // Update status dropdown in QQ if visible
-    var stEl = document.getElementById('qq-status');
-    if (stEl && stEl.value==='draft') stEl.value='sent';
-    showToast('Status updated to Sent', 'success', 2000);
 
 // From preview modal — uses the currently previewed quote data
 function emailQuote() {
@@ -2465,7 +2461,7 @@ function addFromCatalog() {
 // =============================================
 
 // Category definitions — icon, label, order
-const TLIB_CATEGORIES = [
+var TLIB_CATEGORIES = [
   { id:'Structured Wiring', icon:'🔌', label:'Structured Wiring' },
   { id:'Networking',        icon:'🌐', label:'Networking' },
   { id:'Security',          icon:'📷', label:'Security / Cameras' },

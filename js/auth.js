@@ -188,15 +188,20 @@ function applyRolePermissions(role) {
 }
 
 function updateUserBadge(profile) {
+  if (!profile) return;
   var badge = document.getElementById('user-badge');
   if (badge) {
-    var initials = profile.full_name.split(' ').map(function(n){ return n[0]; }).join('').substring(0,2).toUpperCase();
+    var name = profile.full_name || profile.email || '?';
+    var initials = name.split(' ').filter(Boolean).map(function(n){ return n[0]; }).join('').substring(0,2).toUpperCase() || '?';
     badge.textContent = initials;
-    badge.title = profile.full_name + ' (' + profile.role + ')';
-    badge.style.background = profile.role==='owner' ? '#1565c0' : profile.role==='office' ? '#2e7d32' : '#6a1b9a';
+    badge.title = (profile.full_name||profile.email||'User') + ' (' + (profile.role||'user') + ')';
+    badge.style.background = profile.role==='owner' ? '#1565c0' : profile.role==='office' ? '#2e7d32' : profile.role==='lead_tech' ? '#6a1b9a' : '#546e7a';
   }
   var nameBadge = document.getElementById('user-name-badge');
-  if (nameBadge) nameBadge.textContent = profile.full_name.split(' ')[0];
+  if (nameBadge) {
+    var firstName = (profile.full_name||profile.email||'').split(' ')[0].split('@')[0];
+    nameBadge.textContent = firstName || 'User';
+  }
 }
 
 // ---- SYNC ----
