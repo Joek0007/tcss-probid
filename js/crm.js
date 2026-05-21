@@ -72,6 +72,7 @@ function switchCPTab(tab) {
   else if (tab==='jobs')     content.innerHTML = renderCPJobs(jobs);
   else if (tab==='contacts') content.innerHTML = renderCPContacts(contacts, customer);
   else if (tab==='projects') content.innerHTML = renderCPProjects(projects);
+  else if (tab==='comms')    content.innerHTML = (typeof renderCPComms === 'function') ? renderCPComms(_cpCustomerId) : '<div style="padding:20px;color:#90a4ae">Loading...</div>';
 }
 
 function renderCPOverview(customer, quotes, jobs, contacts, projects) {

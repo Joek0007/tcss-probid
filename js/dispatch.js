@@ -505,10 +505,25 @@ function openDispatchDetail(jobId) {
     '<div style="border-top:1px solid #f0f0f0;padding-top:12px;display:flex;gap:6px;flex-wrap:wrap">'+
       '<button class="btn btn-outline btn-sm" onclick="goPage(\'jobs\');closeDispatchDetail()">Open Job</button>'+
       (wtProj?'<button class="btn btn-outline btn-sm" onclick="loadWTProject(\''+wtProj.id+'\');goPage(\'worktracking\');closeDispatchDetail()">Work Tracking</button>':'')+
+      '<button class="btn btn-outline btn-sm" onclick="openCommsModal(\'\',\''+jobId+'\')">📞 Log Comm</button>'+
+      '<button class="btn btn-outline btn-sm" onclick="openPhotoUpload(\''+jobId+'\')">📷 Photos</button>'+
+    '</div>'+
+    // Photos section
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-top:12px">'+
+      '<div style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">PHOTOS</div>'+
+      '<div id="job-photos-section-'+jobId+'"></div>'+
+    '</div>'+
+    // Comms section
+    '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-top:4px">'+
+      '<div style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">COMMUNICATIONS</div>'+
+      '<div id="job-comms-section-'+jobId+'"></div>'+
     '</div>'+
   '</div>';
 
   panel.style.display='block';
+  // Render photos and comms sections
+  if (typeof renderJobPhotosSection === 'function') renderJobPhotosSection(jobId);
+  if (typeof renderJobCommsSection  === 'function') renderJobCommsSection(jobId);
 }
 
 function dspInfoTile(label,val){

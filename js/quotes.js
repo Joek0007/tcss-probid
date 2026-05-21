@@ -339,12 +339,27 @@ function initQQStage3Watchers(){
     e.returnValue = '';
   });
   document.addEventListener('keydown', function(e){
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-      var qqPage=document.getElementById('page-qq');
-      if (qqPage && qqPage.classList.contains('active')) {
-        e.preventDefault();
-        saveQQ();
-      }
+    if (!e.ctrlKey && !e.metaKey) return;
+    var key = e.key.toLowerCase();
+    var qqPage = document.getElementById('page-qq');
+    var qqActive = qqPage && qqPage.classList.contains('active');
+    if (key === 's') {
+      e.preventDefault();
+      if (qqActive) saveQQ(); else saveDB();
+      return;
+    }
+    if (key === 'n') {
+      e.preventDefault();
+      if (typeof clearQQ === 'function') { clearQQ(true); goPage('qq'); }
+      return;
+    }
+    if (key === 'p') {
+      if (qqActive) { e.preventDefault(); if (typeof previewQQ === 'function') previewQQ(); }
+      return;
+    }
+    if (key === 'e') {
+      if (qqActive) { e.preventDefault(); if (typeof emailQuoteQQ === 'function') emailQuoteQQ(); }
+      return;
     }
   });
 }
@@ -1428,10 +1443,14 @@ function renderInvoicesPage() {
   var rows = invs.sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); })
   .map(function(inv){
     var isPaid    = inv.status==='paid';
+    var isPartial = inv.status==='partial';
     var isOverdue = inv.isOverdue;
-    var statusBg  = isPaid?'#e8f5e9':isOverdue?'#ffebee':'#fff3e0';
-    var statusCol = isPaid?'#2e7d32':isOverdue?'#c62828':'#e65100';
-    var statusLbl = isPaid?'✓ Paid':isOverdue?'⚠ Overdue':'Unpaid';
+    var payments  = (DB.invoicePayments||[]).filter(function(p){ return p.invoiceId===inv.id; });
+    var totalPaid = payments.reduce(function(s,p){ return s+parseFloat(p.amount||0); }, 0);
+    var balance   = (inv.total||0) - totalPaid;
+    var statusBg  = isPaid?'#e8f5e9':isPartial?'#e3f2fd':isOverdue?'#ffebee':'#fff3e0';
+    var statusCol = isPaid?'#2e7d32':isPartial?'#1565c0':isOverdue?'#c62828':'#e65100';
+    var statusLbl = isPaid?'✓ Paid':isPartial?('⬛ Partial ($'+balance.toLocaleString('en-US',{minimumFractionDigits:2})+' due)'):isOverdue?'⚠ Overdue':'Unpaid';
 
     return '<div style="display:grid;grid-template-columns:1fr 1.5fr 0.8fr 0.8fr 0.8fr auto;gap:12px;padding:12px 14px;border-bottom:1px solid #f0f0f0;align-items:center" onmouseover="this.style.background=\'#f8f9fa\'" onmouseout="this.style.background=\'\'">'+
       '<div>'+
@@ -1450,7 +1469,8 @@ function renderInvoicesPage() {
       '</div>'+
       '<div style="display:flex;gap:4px">'+
         '<button class="btn btn-outline btn-sm" onclick="reprintInvoice(\''+inv.id+'\')" title="Reprint">🖨</button>'+
-        (!isPaid?'<button class="btn btn-primary btn-sm" onclick="markInvoicePaid(\''+inv.id+'\')" title="Mark Paid">✓ Paid</button>':'')+
+        (!isPaid?'<button class="btn btn-outline btn-sm" onclick="openRecordPayment(\''+inv.id+'\')" title="Record Payment">💵</button>':'')+
+        (!isPaid?'<button class="btn btn-primary btn-sm" onclick="markInvoicePaid(\''+inv.id+'\')" title="Mark Fully Paid">✓ Paid</button>':'')+
         '<button class="btn btn-danger btn-sm" onclick="deleteInvoice(\''+inv.id+'\')" title="Delete">✕</button>'+
       '</div>'+
     '</div>';

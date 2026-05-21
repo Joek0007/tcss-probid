@@ -139,7 +139,7 @@ function fmtSigned(n) { return (n < 0 ? '-' : '') + fmt(n); }
 function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 
 // ---- NAVIGATION ----
-const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices'};
+const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',calendar:'Calendar'};
 
 function goPage(id) {
   // Warn if leaving Quick Quote with unsaved changes
@@ -177,6 +177,7 @@ function goPage(id) {
   if (id==='contacts')   renderContacts();
   if (id==='jobs')       renderJobs();
   if (id==='team')       renderTeam();
+  if (id==='calendar')   { if (typeof renderCalendar === 'function') renderCalendar(); }
   if (id==='catalog')    { _pumActive=false; renderCatalog(); }
   else if (id==='templates') renderTemplates();
   if (id==='reports')    renderReports();

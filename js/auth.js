@@ -162,7 +162,7 @@ function applyRolePermissions(role) {
   // Nav visibility based on role
   var fieldRoles = ['helper_tech','subcontractor'];
   var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team'];
-  var leadTechShow = ['dash','field','jobs','dispatch','worktracking','customers','contacts','reports','catalog','tools','inventory'];
+  var leadTechShow = ['dash','field','jobs','dispatch','worktracking','customers','contacts','reports','catalog','tools','inventory','calendar'];
   var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
   var nav = document.querySelectorAll('.nav-item[data-page]');
   nav.forEach(function(item) {
@@ -499,6 +499,31 @@ async function syncAllFromCloud() {
         }).concat(localOnlyWt);
       }
     } catch(e) { errors.push('work_tracking: '+e.message); }
+
+    // 12. Job Photos
+    if (typeof syncJobPhotos === 'function') { try { await syncJobPhotos(); } catch(e) { errors.push('job_photos: '+e.message); } }
+
+    // 13. Comms Log
+    try {
+      var { data: commsRows, error: comme } = await _sb.from('comms_log').select('*').order('created_at', { ascending: false });
+      if (comme) { errors.push('comms_log: '+comme.message); }
+      else if (commsRows) {
+        DB.commsLog = commsRows.map(function(c){
+          return { id:c.id, customerId:c.customer_id, jobId:c.job_id, loggedBy:c.logged_by, loggerName:c.logger_name, type:c.comm_type, direction:c.direction, subject:c.subject, notes:c.notes, followUpDate:c.follow_up_date, createdAt:c.created_at };
+        });
+      }
+    } catch(e) { errors.push('comms_log: '+e.message); }
+
+    // 14. Invoice Payments
+    try {
+      var { data: pmtRows, error: pmte } = await _sb.from('invoice_payments').select('*').order('created_at', { ascending: false });
+      if (pmte) { errors.push('invoice_payments: '+pmte.message); }
+      else if (pmtRows) {
+        DB.invoicePayments = pmtRows.map(function(p){
+          return { id:p.id, invoiceId:p.invoice_id, amount:p.amount, paymentMethod:p.payment_method, reference:p.reference, notes:p.notes, recordedBy:p.recorded_by, recorderName:p.recorder_name, paymentDate:p.payment_date, createdAt:p.created_at };
+        });
+      }
+    } catch(e) { errors.push('invoice_payments: '+e.message); }
 
   }
 

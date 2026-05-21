@@ -1107,6 +1107,7 @@ table{font-size:12.5px}
   <div class="nav-group">
     <div class="nav-group-title">Business</div>
     <div class="nav-item" data-page="reports"><span class="nav-icon">📈</span>Reports</div>
+    <div class="nav-item" data-page="calendar"><span class="nav-icon">📅</span>Calendar</div>
     <div class="nav-item" data-page="inventory"><span class="nav-icon">📦</span>Inventory</div>
     <div class="nav-item" data-page="tools"><span class="nav-icon">🔧</span>Tools</div>
     <div class="nav-item" data-page="field"><span class="nav-icon">⏱</span>Time Clock</div>
@@ -2878,6 +2879,29 @@ table{font-size:12.5px}
 </div>
 
 <!-- REPORTS -->
+<div class="page" id="page-calendar">
+  <div class="page-header">
+    <h2>📅 Calendar</h2>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-outline btn-sm" onclick="calNav(-1)">◀ Prev</button>
+      <span id="cal-month-label" style="font-weight:700;font-size:15px;min-width:160px;text-align:center"></span>
+      <button class="btn btn-outline btn-sm" onclick="calNav(1)">Next ▶</button>
+      <button class="btn btn-ghost btn-sm" onclick="calGoToday()">Today</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="checkbox" id="cal-show-jobs" checked onchange="renderCalendar()"> <span style="background:#1565c0;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Jobs</span></label>
+    <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="checkbox" id="cal-show-followups" checked onchange="renderCalendar()"> <span style="background:#e65100;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">Follow-Ups</span></label>
+  </div>
+  <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;background:#e0e7ef;border-radius:10px;overflow:hidden">
+    <!-- Calendar rendered by JS -->
+  </div>
+  <!-- Day labels -->
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:8px;text-align:center;font-size:11px;font-weight:700;color:#90a4ae">
+    <div>SUN</div><div>MON</div><div>TUE</div><div>WED</div><div>THU</div><div>FRI</div><div>SAT</div>
+  </div>
+</div>
+
 <div class="page" id="page-reports">
   <div class="page-header"><h2>📈 Reports &amp; Analytics</h2>
     <div style="display:flex;gap:8px">
@@ -4057,7 +4081,51 @@ table{font-size:12.5px}
 
 </div><!-- end page-settings -->
 
-<!-- SAVE AS TEMPLATE MODAL -->
+<!-- RECORD PAYMENT MODAL -->
+<div class="modal-overlay" id="modal-record-payment">
+  <div class="modal-box sm">
+    <div class="modal-head"><h3>💵 Record Payment</h3><button class="close-btn" data-action="closeModal" data-modal="modal-record-payment">×</button></div>
+    <div class="modal-body">
+      <div id="rp-invoice-summary" style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px"></div>
+      <div class="form-row cols2">
+        <div><label>Payment Amount *</label><input type="number" id="rp-amount" min="0.01" step="0.01" placeholder="0.00"></div>
+        <div><label>Payment Date *</label><input type="date" id="rp-date"></div>
+      </div>
+      <div class="form-row cols2">
+        <div><label>Payment Method</label><select id="rp-method"><option value="check">Check</option><option value="ach">ACH / Bank Transfer</option><option value="credit_card">Credit Card</option><option value="cash">Cash</option><option value="zelle">Zelle</option><option value="other">Other</option></select></div>
+        <div><label>Reference / Check #</label><input id="rp-ref" placeholder="e.g. Check #1042"></div>
+      </div>
+      <div class="form-row"><div><label>Notes</label><input id="rp-notes" placeholder="Optional payment notes"></div></div>
+      <input type="hidden" id="rp-invoice-id">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-record-payment">Cancel</button>
+      <button class="btn btn-primary" onclick="savePaymentRecord()">Record Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMMS LOG MODAL -->
+<div class="modal-overlay" id="modal-comms-log">
+  <div class="modal-box sm">
+    <div class="modal-head"><h3>📞 Log Communication</h3><button class="close-btn" data-action="closeModal" data-modal="modal-comms-log">×</button></div>
+    <div class="modal-body">
+      <div class="form-row cols2">
+        <div><label>Type</label><select id="cl-type"><option value="call">📞 Phone Call</option><option value="email">✉️ Email</option><option value="text">💬 Text / SMS</option><option value="meeting">🤝 Meeting</option><option value="note">📝 Note</option><option value="voicemail">📳 Voicemail</option></select></div>
+        <div><label>Direction</label><select id="cl-direction"><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select></div>
+      </div>
+      <div class="form-row"><div><label>Subject</label><input id="cl-subject" placeholder="e.g. Discussed project timeline"></div></div>
+      <div class="form-row"><div><label>Notes *</label><textarea id="cl-notes" rows="3" placeholder="What was discussed, decided, or needs follow-up..."></textarea></div></div>
+      <div class="form-row"><div><label>Follow-Up Date</label><input type="date" id="cl-followup"></div></div>
+      <input type="hidden" id="cl-customer-id">
+      <input type="hidden" id="cl-job-id">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-comms-log">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCommsEntry()">Save Entry</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-save-template">
   <div class="modal-box sm">
     <div class="modal-head"><h3>📐 Save as Template</h3><button class="close-btn" data-action="closeModal" data-modal="modal-save-template">×</button></div>
@@ -4266,6 +4334,7 @@ table{font-size:12.5px}
       <button class="cp-tab" onclick="switchCPTab('jobs')" id="cpt-jobs">🔧 Jobs</button>
       <button class="cp-tab" onclick="switchCPTab('contacts')" id="cpt-contacts">👤 Contacts</button>
       <button class="cp-tab" onclick="switchCPTab('projects')" id="cpt-projects">✅ Projects</button>
+      <button class="cp-tab" onclick="switchCPTab('comms')" id="cpt-comms">📞 Comms</button>
     </div>
     <!-- Tab content -->
     <div style="padding:20px" id="cp-content"></div>
@@ -4467,6 +4536,7 @@ table{font-size:12.5px}
 <script src="js/dispatch.js"></script>
 <script src="js/permissions.js"></script>
 <script src="js/worktracking.js"></script>
+<script src="js/calendar.js"></script>
 <script src="js/reports.js"></script>
 <script src="js/auth.js"></script>
 <!-- MOBILE BOTTOM NAV -->
