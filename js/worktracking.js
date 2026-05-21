@@ -3412,6 +3412,7 @@ document.addEventListener('click', function(e) {
     case 'dupQuote': dupQuote(id); break;
     case 'viewQuote': viewQuote(id); break;
     case 'deleteQuote': deleteQuote(id); break;
+    case 'copyPortalLink': copyPortalLink(id); break;
     case 'refreshQuotes': renderQuotes(); break;
     case 'refreshDash': renderDash(); break;
     case 'editFromView': closeModal('modal-view-quote'); if(_viewingQuoteId) editQuote(_viewingQuoteId); break;

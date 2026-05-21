@@ -440,6 +440,7 @@ function renderQuotes() {
         '<button class="btn btn-ghost btn-sm" data-action="dupQuote" data-id="'+q.id+'">Dup</button>'+
         convertBtn+
         ' <button class="btn btn-success btn-sm" data-action="emailSavedQuote" data-id="'+q.id+'" title="Email to customer">📧</button> '+
+        '<button class="btn btn-outline btn-sm" data-action="copyPortalLink" data-id="'+q.id+'" title="Copy client approval link" style="font-size:11px">🔗 Link</button> '+
         '<button class="btn btn-danger btn-sm" data-action="deleteQuote" data-id="'+q.id+'">Del</button>'+
       '</td>'+
     '</tr>';

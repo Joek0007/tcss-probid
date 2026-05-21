@@ -1328,13 +1328,10 @@ function closeModal(id) { const m=document.getElementById(id); if(m) m.classList
 
 function deleteQuote(id) {
   if (!confirm('Delete this quote? This cannot be undone.')) return;
-  // Log deleted ID so sync never restores it
   if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
   if (DB.deletedIds.quotes.indexOf(id) < 0) DB.deletedIds.quotes.push(id);
   DB.quotes = DB.quotes.filter(function(q){ return q.id != id; });
-  // Cancel pending push so it does not race with the Supabase delete
   if (window._syncTimer) { clearTimeout(window._syncTimer); window._syncTimer = null; }
-  // Hard delete from Supabase first, then push clean state
   if (_sb && _currentUser) {
     _sb.from('quote_line_items').delete().eq('quote_id', id).then(function(){});
     _sb.from('quotes').delete().eq('id', id).then(function(r){
@@ -1344,6 +1341,41 @@ function deleteQuote(id) {
   } else { saveDB(); }
   renderQuotes(); renderDash();
   showToast('Quote deleted', 'info');
+}
+
+function _generateToken() {
+  // Generates a secure random UUID-style token
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+async function copyPortalLink(id) {
+  var q = DB.quotes.find(function(x){ return x.id === id; });
+  if (!q) { showToast('Quote not found', 'error'); return; }
+
+  // Generate token if not already set
+  if (!q.approvalToken) {
+    q.approvalToken = _generateToken();
+    saveDB();
+    // Persist token to Supabase immediately
+    if (_sb && _currentUser) {
+      await _sb.from('quotes').update({ approval_token: q.approvalToken }).eq('id', id);
+    }
+  }
+
+  var baseUrl = window.location.origin + window.location.pathname.replace('index.html','').replace(/\/$/, '');
+  var portalUrl = baseUrl + '/portal.html?token=' + q.approvalToken;
+
+  try {
+    await navigator.clipboard.writeText(portalUrl);
+    showToast('Approval link copied to clipboard! Paste it into your email to ' + (q.cn||'the customer'), 'success', 5000);
+  } catch(e) {
+    // Fallback for browsers that block clipboard
+    prompt('Copy this link and send it to your customer:', portalUrl);
+  }
 }
 
 // ============================================================

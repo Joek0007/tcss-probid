@@ -287,6 +287,7 @@ async function syncAllFromCloud() {
             priority: q.priority,
             lumpSum: q.lump_sum_enabled ? { enabled: true, label: q.lump_sum_label, showItems: true } : null,
             approval: q.approval_status ? { status: q.approval_status } : null,
+            approvalToken: q.approval_token || null,
             items: (q.quote_line_items || []).sort(function(a,b){ return a.sort_order - b.sort_order; }).map(function(li) {
               return { _id:li.id, desc:li.description, cat:li.category, qty:li.qty, unit:li.unit, mc:li.material_cost, lh:li.labor_hours };
             })
@@ -589,6 +590,7 @@ async function pushAllToCloud() {
           lump_sum_enabled: !!(q.lumpSum && q.lumpSum.enabled),
           lump_sum_label: (q.lumpSum && q.lumpSum.label) || null,
           approval_status: (q.approval && q.approval.status) || null,
+          approval_token: q.approvalToken || null,
           created_by: _currentUser.id
         });
 

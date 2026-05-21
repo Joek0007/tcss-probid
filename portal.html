@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal Review — TCSS</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: #1a2332; min-height: 100vh; }
+
+  /* Header */
+  .portal-header { background: linear-gradient(135deg, #1565c0, #1e88e5); color: #fff; padding: 24px 32px; display: flex; align-items: center; gap: 16px; }
+  .portal-header .company-name { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  .portal-header .tagline { font-size: 13px; opacity: 0.8; margin-top: 2px; }
+  .portal-logo-circle { width: 52px; height: 52px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; flex-shrink: 0; }
+
+  /* Main layout */
+  .portal-wrap { max-width: 780px; margin: 32px auto; padding: 0 16px 60px; }
+
+  /* Cards */
+  .card { background: #fff; border-radius: 14px; box-shadow: 0 2px 16px rgba(0,0,0,.07); padding: 28px 32px; margin-bottom: 20px; }
+  .card-title { font-size: 13px; font-weight: 700; color: #90a4ae; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 16px; }
+
+  /* Quote header */
+  .quote-num { font-size: 28px; font-weight: 900; color: #1565c0; letter-spacing: -1px; }
+  .quote-meta { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 12px; }
+  .quote-meta-item { display: flex; flex-direction: column; gap: 2px; }
+  .quote-meta-label { font-size: 11px; font-weight: 700; color: #90a4ae; text-transform: uppercase; letter-spacing: 0.5px; }
+  .quote-meta-value { font-size: 14px; font-weight: 600; color: #1a2332; }
+
+  /* Status badges */
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+  .badge-sent { background: #e3f2fd; color: #1565c0; }
+  .badge-approved { background: #e8f5e9; color: #2e7d32; }
+  .badge-expired { background: #fbe9e7; color: #c62828; }
+  .badge-followup { background: #fff3e0; color: #e65100; }
+
+  /* Expiry banner */
+  .expiry-banner { background: #fbe9e7; border-left: 4px solid #c62828; padding: 14px 20px; border-radius: 0 8px 8px 0; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+  .expiry-banner .icon { font-size: 22px; }
+  .expiry-banner .msg { font-weight: 600; color: #c62828; font-size: 14px; }
+
+  /* Line items table */
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  thead th { font-size: 11px; font-weight: 700; color: #90a4ae; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px; border-bottom: 2px solid #f0f4f8; text-align: left; }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid #f5f7fa; font-size: 14px; }
+  tbody tr:last-child td { border-bottom: none; }
+  .td-right { text-align: right; font-weight: 600; }
+
+  /* Totals */
+  .totals-block { background: #f8fafc; border-radius: 10px; padding: 20px 24px; margin-top: 8px; }
+  .total-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: #546e7a; }
+  .total-row.grand { border-top: 2px solid #e0e7ef; margin-top: 8px; padding-top: 12px; font-size: 20px; font-weight: 900; color: #1a2332; }
+  .total-row.grand .total-label { color: #1565c0; }
+
+  /* Scope / Terms */
+  .scope-text { font-size: 14px; line-height: 1.7; color: #37474f; white-space: pre-wrap; }
+
+  /* Approval section */
+  .approval-section { border: 2px solid #e3f2fd; border-radius: 14px; padding: 28px 32px; background: #f8fbff; }
+  .approval-section h3 { font-size: 18px; font-weight: 800; color: #1565c0; margin-bottom: 8px; }
+  .approval-section p { font-size: 14px; color: #546e7a; margin-bottom: 20px; line-height: 1.6; }
+  .sig-label { font-size: 13px; font-weight: 700; color: #37474f; margin-bottom: 8px; display: block; }
+  .sig-input { width: 100%; padding: 14px 16px; border: 2px solid #bbdefb; border-radius: 10px; font-size: 16px; font-style: italic; color: #1a2332; outline: none; transition: border-color 0.2s; }
+  .sig-input:focus { border-color: #1565c0; }
+  .sig-input::placeholder { color: #b0bec5; }
+  .btn-approve { width: 100%; padding: 16px; background: linear-gradient(135deg, #2e7d32, #43a047); color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 16px; letter-spacing: 0.3px; transition: opacity 0.2s; }
+  .btn-approve:hover { opacity: 0.92; }
+  .btn-approve:disabled { background: #b0bec5; cursor: not-allowed; opacity: 1; }
+  .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: #90a4ae; font-size: 13px; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e0e7ef; }
+  .btn-changes { width: 100%; padding: 14px; background: #fff; color: #546e7a; border: 2px solid #cfd8dc; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; transition: border-color 0.2s; }
+  .btn-changes:hover { border-color: #90a4ae; }
+  .changes-box { display: none; margin-top: 16px; }
+  .changes-textarea { width: 100%; padding: 14px 16px; border: 2px solid #cfd8dc; border-radius: 10px; font-size: 14px; color: #1a2332; outline: none; resize: vertical; min-height: 100px; font-family: inherit; }
+  .changes-textarea:focus { border-color: #e65100; }
+  .btn-send-changes { width: 100%; padding: 14px; background: #fff3e0; color: #e65100; border: 2px solid #ffcc80; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 10px; }
+  .btn-send-changes:hover { background: #ffe0b2; }
+
+  /* Success state */
+  .success-card { text-align: center; padding: 48px 32px; }
+  .success-icon { font-size: 64px; margin-bottom: 16px; }
+  .success-title { font-size: 24px; font-weight: 900; color: #2e7d32; margin-bottom: 8px; }
+  .success-sub { font-size: 15px; color: #546e7a; line-height: 1.6; }
+
+  /* Changes sent state */
+  .changes-sent-card { text-align: center; padding: 48px 32px; }
+  .changes-sent-icon { font-size: 64px; margin-bottom: 16px; }
+  .changes-sent-title { font-size: 24px; font-weight: 900; color: #e65100; margin-bottom: 8px; }
+
+  /* Loading / Error */
+  .center-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 16px; text-align: center; }
+  .tc-ring { width: 60px; height: 60px; position: relative; }
+  .tc-ring svg { animation: spin 1.2s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .tc-ring-label { font-size: 15px; color: #90a4ae; font-weight: 600; }
+  .error-icon { font-size: 48px; }
+  .error-title { font-size: 20px; font-weight: 800; color: #c62828; }
+  .error-sub { font-size: 14px; color: #546e7a; max-width: 400px; }
+
+  /* Footer */
+  .portal-footer { text-align: center; font-size: 12px; color: #b0bec5; margin-top: 40px; padding-bottom: 20px; }
+
+  @media (max-width: 600px) {
+    .card { padding: 20px 18px; }
+    .quote-num { font-size: 22px; }
+    .portal-wrap { padding: 0 12px 40px; margin-top: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="portal-header">
+  <div class="portal-logo-circle" id="hdr-logo">TC</div>
+  <div>
+    <div class="company-name" id="hdr-company">TCSS</div>
+    <div class="tagline">Proposal Review &amp; Approval</div>
+  </div>
+</div>
+
+<div class="portal-wrap" id="portal-wrap">
+  <!-- Loading state -->
+  <div class="center-state" id="state-loading">
+    <div class="tc-ring">
+      <svg width="60" height="60" viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r="24" fill="none" stroke="#e3f2fd" stroke-width="5"/>
+        <circle cx="30" cy="30" r="24" fill="none" stroke="#1565c0" stroke-width="5" stroke-dasharray="50 110" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="tc-ring-label">Loading your proposal...</div>
+  </div>
+
+  <!-- Error state -->
+  <div class="center-state" id="state-error" style="display:none">
+    <div class="error-icon">⚠️</div>
+    <div class="error-title" id="error-title">Proposal Not Found</div>
+    <div class="error-sub" id="error-sub">This link may be invalid or expired. Please contact TCSS for assistance.</div>
+  </div>
+
+  <!-- Approved already state -->
+  <div id="state-already-approved" style="display:none">
+    <div class="card success-card">
+      <div class="success-icon">✅</div>
+      <div class="success-title">Already Approved</div>
+      <div class="success-sub" id="already-approved-msg">This proposal has already been approved. Thank you!</div>
+    </div>
+  </div>
+
+  <!-- Main proposal content -->
+  <div id="state-proposal" style="display:none">
+
+    <!-- Expiry banner -->
+    <div class="expiry-banner" id="expiry-banner" style="display:none">
+      <div class="icon">⚠️</div>
+      <div class="msg" id="expiry-msg">This proposal has expired. Please contact us for an updated quote.</div>
+    </div>
+
+    <!-- Quote header -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="quote-num" id="q-num">Q-0000</div>
+          <div style="font-size:18px;font-weight:700;color:#37474f;margin-top:4px" id="q-jobname"></div>
+        </div>
+        <span class="badge badge-sent" id="q-status-badge">Proposal</span>
+      </div>
+      <div class="quote-meta" id="q-meta">
+        <div class="quote-meta-item"><div class="quote-meta-label">Customer</div><div class="quote-meta-value" id="q-customer"></div></div>
+        <div class="quote-meta-item"><div class="quote-meta-label">Date</div><div class="quote-meta-value" id="q-date"></div></div>
+        <div class="quote-meta-item"><div class="quote-meta-label">Valid Until</div><div class="quote-meta-value" id="q-valid"></div></div>
+        <div class="quote-meta-item"><div class="quote-meta-label">Sales Rep</div><div class="quote-meta-value" id="q-rep"></div></div>
+      </div>
+    </div>
+
+    <!-- Scope / Notes -->
+    <div class="card" id="scope-card" style="display:none">
+      <div class="card-title">Scope of Work</div>
+      <div class="scope-text" id="q-scope"></div>
+    </div>
+
+    <!-- Line items OR lump sum -->
+    <div class="card" id="items-card">
+      <div class="card-title">Proposal Summary</div>
+      <div id="items-body"></div>
+      <div class="totals-block" id="totals-block"></div>
+    </div>
+
+    <!-- Terms -->
+    <div class="card" id="terms-card" style="display:none">
+      <div class="card-title">Terms &amp; Conditions</div>
+      <div class="scope-text" id="q-terms"></div>
+    </div>
+
+    <!-- Approval section -->
+    <div class="approval-section" id="approval-section">
+      <h3>✍️ Approve This Proposal</h3>
+      <p>By signing below, you authorize TCSS to proceed with the work described in this proposal under the stated terms and pricing.</p>
+      <label class="sig-label" for="sig-input">Type your full name as your signature *</label>
+      <input type="text" id="sig-input" class="sig-input" placeholder="Your full name here..." autocomplete="name">
+      <button class="btn-approve" id="btn-approve" onclick="approveQuote()">✅ Approve This Proposal</button>
+      <div class="divider">or</div>
+      <button class="btn-changes" onclick="toggleChangesBox()">📝 Request Changes</button>
+      <div class="changes-box" id="changes-box">
+        <textarea class="changes-textarea" id="changes-text" placeholder="Describe what you'd like changed or clarified..."></textarea>
+        <button class="btn-send-changes" onclick="sendChangesRequest()">Send Change Request</button>
+      </div>
+    </div>
+
+    <!-- Success state (shown after approval) -->
+    <div class="card success-card" id="state-approved" style="display:none">
+      <div class="success-icon">🎉</div>
+      <div class="success-title">Proposal Approved!</div>
+      <div class="success-sub">Thank you, <strong id="approved-by-name"></strong>. Your approval has been recorded.<br>A member of the TCSS team will be in touch shortly to confirm next steps.</div>
+    </div>
+
+    <!-- Changes sent state -->
+    <div class="card changes-sent-card" id="state-changes-sent" style="display:none">
+      <div class="changes-sent-icon">📩</div>
+      <div class="changes-sent-title">Change Request Sent</div>
+      <div class="success-sub">Your request has been sent to the TCSS team. We'll review it and follow up with you shortly.</div>
+    </div>
+
+  </div><!-- end state-proposal -->
+</div><!-- end portal-wrap -->
+
+<div class="portal-footer">
+  Powered by TCSS ProBid &nbsp;|&nbsp; &copy; <span id="footer-year"></span> Total Communications Systems & Solutions
+</div>
+
+<script>
+const SUPABASE_URL = 'https://jzvoksidbelxibzbizvi.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_4qYpNQoz_RXU29p_pkuI-A_H5-rOXDL';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+
+var _quoteData = null;
+
+function fmt(n) {
+  return '$' + (parseFloat(n)||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtDate(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
+}
+function show(id) { var el=document.getElementById(id); if(el) el.style.display=''; }
+function hide(id) { var el=document.getElementById(id); if(el) el.style.display='none'; }
+function setText(id, val) { var el=document.getElementById(id); if(el) el.textContent=val||''; }
+
+async function loadPortal() {
+  var params = new URLSearchParams(window.location.search);
+  var token  = params.get('token');
+
+  if (!token) {
+    showError('Invalid Link', 'This approval link is missing a token. Please check the link and try again, or contact TCSS.');
+    return;
+  }
+
+  try {
+    // Fetch quote by approval token — no auth required (public read via token)
+    var { data, error } = await sb.from('quotes')
+      .select('*, quote_line_items(*)')
+      .eq('approval_token', token)
+      .single();
+
+    if (error || !data) {
+      showError('Proposal Not Found', 'This link may be invalid or has already expired. Please contact TCSS for assistance.');
+      return;
+    }
+
+    _quoteData = data;
+
+    // Check if already approved
+    if (data.approval_status === 'approved') {
+      hide('state-loading');
+      show('state-already-approved');
+      setText('already-approved-msg', 'This proposal was already approved' + (data.approved_by_name ? ' by ' + data.approved_by_name : '') + '. Thank you!');
+      return;
+    }
+
+    // Check company settings for branding
+    var { data: settings } = await sb.from('company_settings').select('*').eq('id', 1).single();
+    if (settings) {
+      var cname = settings.company_name || 'TCSS';
+      setText('hdr-company', cname);
+      setText('hdr-logo', cname.substring(0,2).toUpperCase());
+      document.title = 'Proposal Review — ' + cname;
+    }
+
+    // Populate quote fields
+    setText('q-num', data.quote_number || '');
+    setText('q-jobname', data.name || '');
+    setText('q-customer', data.customer_name || '');
+    setText('q-date', fmtDate(data.quote_date));
+    setText('q-valid', fmtDate(data.valid_until));
+    setText('q-rep', data.sales_rep_name || 'TCSS Team');
+
+    // Scope
+    if (data.scope_notes) {
+      setText('q-scope', data.scope_notes);
+      show('scope-card');
+    }
+
+    // Terms
+    if (data.quote_terms) {
+      setText('q-terms', data.quote_terms);
+      show('terms-card');
+    }
+
+    // Check expiry
+    var isExpired = false;
+    if (data.valid_until) {
+      var today = new Date(); today.setHours(0,0,0,0);
+      var vu = new Date(data.valid_until); vu.setHours(0,0,0,0);
+      if (today > vu) {
+        isExpired = true;
+        var daysAgo = Math.round((today - vu) / 86400000);
+        setText('expiry-msg', 'This proposal expired ' + daysAgo + ' day' + (daysAgo===1?'':'s') + ' ago. Please contact TCSS for an updated proposal.');
+        show('expiry-banner');
+        document.getElementById('btn-approve').disabled = true;
+        document.getElementById('btn-approve').textContent = '⛔ Proposal Expired — Contact TCSS';
+      }
+    }
+
+    // Build line items or lump sum
+    var lumpSumEnabled = !!data.lump_sum_enabled;
+    var items = (data.quote_line_items || []).sort(function(a,b){ return (a.sort_order||0)-(b.sort_order||0); });
+    var itemsHtml = '';
+
+    if (!lumpSumEnabled && items.length > 0) {
+      // Show full line item breakdown
+      itemsHtml = '<table><thead><tr><th>Description</th><th>Category</th><th>Qty</th><th style="text-align:right">Unit</th></tr></thead><tbody>';
+      items.forEach(function(li) {
+        itemsHtml += '<tr>' +
+          '<td style="font-weight:600">' + escHtml(li.description||'') + '</td>' +
+          '<td style="color:#90a4ae;font-size:12px">' + escHtml(li.category||'') + '</td>' +
+          '<td>' + (li.qty||1) + '</td>' +
+          '<td class="td-right">' + (li.unit||'EA') + '</td>' +
+          '</tr>';
+      });
+      itemsHtml += '</tbody></table>';
+    } else if (lumpSumEnabled) {
+      // Lump sum — just show label
+      itemsHtml = '<div style="font-size:15px;font-weight:600;color:#37474f;padding:8px 0">' +
+        escHtml(data.lump_sum_label || 'Complete Installation Package') +
+        '</div>';
+    } else {
+      itemsHtml = '<div style="color:#90a4ae;font-size:14px;padding:8px 0">See scope of work above for full project details.</div>';
+    }
+
+    document.getElementById('items-body').innerHTML = itemsHtml;
+
+    // Totals block
+    var total = parseFloat(data.total_sell) || 0;
+    var taxAmt = parseFloat(data.tax_amount) || 0;
+    var sellBeforeTax = parseFloat(data.sell_before_tax) || total;
+    var discount = parseFloat(data.discount) || 0;
+    var totalsHtml = '';
+    if (discount > 0) totalsHtml += '<div class="total-row"><span>Subtotal</span><span>' + fmt(sellBeforeTax + discount) + '</span></div>';
+    if (discount > 0) totalsHtml += '<div class="total-row"><span>Discount</span><span style="color:#2e7d32">-' + fmt(discount) + '</span></div>';
+    if (taxAmt > 0)   totalsHtml += '<div class="total-row"><span>Tax</span><span>' + fmt(taxAmt) + '</span></div>';
+    totalsHtml += '<div class="total-row grand"><span class="total-label">Total Investment</span><span>' + fmt(total) + '</span></div>';
+    document.getElementById('totals-block').innerHTML = totalsHtml;
+
+    // Show proposal
+    hide('state-loading');
+    show('state-proposal');
+
+  } catch(e) {
+    console.error('Portal error:', e);
+    showError('Something went wrong', 'We encountered an error loading this proposal. Please try again or contact TCSS directly.');
+  }
+}
+
+function showError(title, msg) {
+  hide('state-loading');
+  setText('error-title', title);
+  setText('error-sub', msg);
+  show('state-error');
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleChangesBox() {
+  var box = document.getElementById('changes-box');
+  box.style.display = box.style.display === 'none' || !box.style.display ? 'block' : 'none';
+}
+
+async function approveQuote() {
+  var sigName = (document.getElementById('sig-input').value||'').trim();
+  if (!sigName) {
+    document.getElementById('sig-input').style.borderColor = '#c62828';
+    document.getElementById('sig-input').focus();
+    return;
+  }
+  if (!_quoteData) return;
+
+  var btn = document.getElementById('btn-approve');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    var now = new Date().toISOString();
+    var { error } = await sb.from('quotes').update({
+      approval_status:   'approved',
+      approved_by_name:  sigName,
+      approved_at:       now,
+      status:            'Won'
+    }).eq('id', _quoteData.id);
+
+    if (error) throw error;
+
+    setText('approved-by-name', sigName);
+    hide('approval-section');
+    show('state-approved');
+
+  } catch(e) {
+    console.error('Approval error:', e);
+    btn.disabled = false;
+    btn.textContent = '✅ Approve This Proposal';
+    alert('There was an error saving your approval. Please try again or contact TCSS directly.');
+  }
+}
+
+async function sendChangesRequest() {
+  var msg = (document.getElementById('changes-text').value||'').trim();
+  if (!msg) {
+    document.getElementById('changes-text').style.borderColor = '#c62828';
+    document.getElementById('changes-text').focus();
+    return;
+  }
+  if (!_quoteData) return;
+
+  try {
+    var note = '[Change Request ' + new Date().toLocaleDateString('en-US') + ']: ' + msg;
+    var existing = _quoteData.scope_notes || '';
+    await sb.from('quotes').update({
+      approval_status: 'changes_requested',
+      status:          'Followup',
+      scope_notes:     existing + (existing ? '\n\n' : '') + note
+    }).eq('id', _quoteData.id);
+
+    hide('approval-section');
+    show('state-changes-sent');
+
+  } catch(e) {
+    console.error('Changes request error:', e);
+    alert('There was an error sending your request. Please contact TCSS directly.');
+  }
+}
+
+// Also need approved_by_name and approved_at columns — add via SQL if not present
+// ALTER TABLE public.quotes ADD COLUMN IF NOT EXISTS approved_by_name text;
+// ALTER TABLE public.quotes ADD COLUMN IF NOT EXISTS approved_at timestamptz;
+
+loadPortal();
+</script>
+</body>
+</html>
