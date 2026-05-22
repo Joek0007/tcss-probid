@@ -1482,26 +1482,38 @@ function renderInvoicesPage() {
 function reprintInvoice(invId) {
   var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
   if (!inv) return;
-  // Open in edit modal instead of direct print
-  _invItems = (inv.items||[]).map(function(li,i){ return Object.assign({},li,{_eid:i}); });
-  function sv(id,val){ var el=document.getElementById(id); if(el) el.value=val||''; }
-  sv('inv-num',      inv.num);
-  sv('inv-date',     inv.date);
-  sv('inv-due',      inv.due);
-  sv('inv-terms',    inv.terms);
-  sv('inv-po',       inv.po||'');
-  sv('inv-tax',      inv.taxRate||0);
-  sv('inv-notes',    inv.notes||'');
-  sv('inv-job-id',   inv.jobId||'');
-  sv('inv-existing-id', inv.id);
-  sv('inv-bill-name',  inv.billName||inv.job.customer||'');
-  sv('inv-bill-addr',  inv.billAddr||inv.job.address||'');
+  // Guard against old invoice records that may not have .job object
+  var invJob = inv.job || {};
+  // Migrate old items: if they have mc but no unitPrice, use mc as unitPrice
+  // For old invoices from pre-rebuild: try to find the sell price from the quote
+  var quote = inv.quoteId ? (DB.quotes||[]).find(function(q){return q.id===inv.quoteId;}) : null;
+  _invItems = (inv.items||[]).map(function(li,i){
+    var up = parseFloat(li.unitPrice||li.mc||0);
+    return Object.assign({},li,{_eid:i, unitPrice:up, mc:up});
+  });
+  // If all items have $0 unitPrice but the invoice has a total, add a single corrected line
+  var itemsTotal = _invItems.reduce(function(s,li){ return s+(parseFloat(li.unitPrice||0))*(parseFloat(li.qty||1)); },0);
+  if (itemsTotal === 0 && parseFloat(inv.total||0) > 0) {
+    _invItems = [{ _eid:0, desc:invJob.name||'Services Rendered', cat:'Labor', qty:1, unitPrice:parseFloat(inv.total||0), mc:parseFloat(inv.total||0) }];
+  }
+  function sv(id,val){ var el=document.getElementById(id); if(el) el.value=(val!==undefined&&val!==null)?String(val):''; }
+  sv('inv-num',        inv.num||'');
+  sv('inv-date',       inv.date||'');
+  sv('inv-due',        inv.due||'');
+  sv('inv-terms',      inv.terms||'Net 30');
+  sv('inv-po',         inv.po||'');
+  sv('inv-tax',        inv.taxRate||0);
+  sv('inv-notes',      inv.notes||'');
+  sv('inv-job-id',     inv.jobId||'');
+  sv('inv-existing-id',inv.id);
+  sv('inv-bill-name',  inv.billName||invJob.customer||'');
+  sv('inv-bill-addr',  inv.billAddr||invJob.address||'');
   sv('inv-bill-city',  inv.billCity||'');
   sv('inv-bill-state', inv.billState||'');
   sv('inv-bill-zip',   inv.billZip||'');
-  sv('inv-job-name',   inv.job.name||'');
-  sv('inv-job-addr',   inv.job.address||'');
-  sv('inv-job-num',    inv.job.num||'');
+  sv('inv-job-name',   invJob.name||'');
+  sv('inv-job-addr',   invJob.address||'');
+  sv('inv-job-num',    invJob.num||'');
   renderInvItemsEditor();
   refreshInvTotals();
   openModal('modal-invoice');
@@ -1593,23 +1605,56 @@ function initInvItemsEditor(items) {
   refreshInvTotals();
 }
 
+function _buildCatalogDatalist() {
+  return '<datalist id="inv-catalog-dl">'+
+    (DB.catalog||[]).map(function(c){ return '<option value="'+escHtml(c.name||c.desc||'')+'" data-id="'+escHtml(c.id||'')+'" data-price="'+(c.mc||0)+'" data-unit="'+escHtml(c.unit||'EA')+'">'; }).join('')+
+  '</datalist>';
+}
+
+function invPickFromCatalog(idx, val) {
+  var item = (DB.catalog||[]).find(function(c){ return (c.name||c.desc||'').toLowerCase()===val.toLowerCase(); });
+  if (!item) { updateInvItem(idx,'desc',val); return; }
+  _invItems[idx].desc      = item.name||item.desc||val;
+  _invItems[idx].unitPrice = parseFloat(item.mc||0);
+  _invItems[idx].mc        = parseFloat(item.mc||0);
+  _invItems[idx].cat       = item.cat||'Material';
+  renderInvItemsEditor();
+  refreshInvTotals();
+}
+
 function renderInvItemsEditor() {
   var rows = document.getElementById('inv-items-rows');
   if (!rows) return;
+  var catalogDL = _buildCatalogDatalist();
   if (!_invItems.length) {
-    rows.innerHTML = '<div style="padding:16px;text-align:center;color:#90a4ae;font-size:13px">No line items yet — click + Add Line Item</div>';
+    rows.innerHTML = catalogDL+'<div style="padding:16px;text-align:center;color:#90a4ae;font-size:13px">No line items yet — click + Add Line Item</div>';
     return;
   }
-  rows.innerHTML = _invItems.map(function(li,i) {
+  rows.innerHTML = catalogDL + _invItems.map(function(li,i) {
     var lineTotal = (parseFloat(li.unitPrice||li.mc||0)) * (parseFloat(li.qty||1));
-    return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 36px;gap:0;padding:8px 12px;border-top:1px solid #f0f4f8;align-items:center">'+
-      '<input value="'+escHtml(li.desc||'')+'" onchange="updateInvItem('+i+',\'desc\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:98%">'+
-      '<select onchange="updateInvItem('+i+',\'cat\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px;font-size:11px;width:98%;margin:0 auto;display:block">'+
+    return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 70px 36px;gap:4px;padding:8px 12px;border-top:1px solid #f0f4f8;align-items:center">'+
+      // Description with catalog autocomplete
+      '<input value="'+escHtml(li.desc||'')+'" list="inv-catalog-dl" '+
+        'oninput="updateInvItem('+i+',\'desc\',this.value)" '+
+        'onchange="invPickFromCatalog('+i+',this.value)" '+
+        'placeholder="Description or search catalog..." '+
+        'style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
+      // Category
+      '<select onchange="updateInvItem('+i+',\'cat\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px;font-size:11px;width:100%">'+
         ['Labor','Material','Equipment','Expense','Other'].map(function(c){return '<option'+(li.cat===c?' selected':'')+'>'+c+'</option>';}).join('')+
       '</select>'+
-      '<input type="number" value="'+(li.qty||1)+'" min="0.01" step="0.01" onchange="updateInvItem('+i+',\'qty\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:90%;text-align:center">'+
-      '<input type="number" value="'+(li.unitPrice||li.mc||0)+'" min="0" step="0.01" onchange="updateInvItem('+i+',\'unitPrice\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:90%;text-align:right">'+
-      '<button onclick="removeInvItem('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:16px;padding:0 4px">×</button>'+
+      // Qty
+      '<input type="number" value="'+(li.qty||1)+'" min="0.01" step="0.01" '+
+        'onchange="updateInvItem('+i+',\'qty\',this.value)" '+
+        'style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:center">'+
+      // Unit Price
+      '<input type="number" value="'+parseFloat(li.unitPrice||li.mc||0).toFixed(2)+'" min="0" step="0.01" '+
+        'onchange="updateInvItem('+i+',\'unitPrice\',this.value)" '+
+        'style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:right">'+
+      // Line total (read only)
+      '<div style="text-align:right;font-size:12px;font-weight:700;color:#1565c0;padding-right:4px">'+fmt(lineTotal)+'</div>'+
+      // Remove
+      '<button onclick="removeInvItem('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:18px;padding:0 4px;line-height:1">×</button>'+
     '</div>';
   }).join('');
 }
@@ -1694,28 +1739,43 @@ function openInvoiceModal(job) {
   sv('inv-job-addr', job.address||'');
   sv('inv-job-num',  job.num||'');
 
-  // Line items from linked quote
+  // Line items from linked quote — use SELL prices not cost
   var quote = job.quoteId ? (DB.quotes||[]).find(function(q){return q.id===job.quoteId;}) : null;
   var items = [];
-  if (quote && quote.items && quote.items.length) {
-    // Group by labor vs material
-    var laborItems = quote.items.filter(function(li){ return (li.cat||'').toLowerCase().includes('labor') || li.lh>0; });
-    var matItems   = quote.items.filter(function(li){ return !((li.cat||'').toLowerCase().includes('labor') || li.lh>0); });
-    // Add labor items
-    laborItems.forEach(function(li){
-      items.push({ desc:li.desc||'Labor', cat:'Labor', qty:li.qty||1, unitPrice:parseFloat(li.mc||0), mc:parseFloat(li.mc||0) });
-    });
-    // Add material items
-    matItems.forEach(function(li){
-      items.push({ desc:li.desc||'Material', cat:'Material', qty:li.qty||1, unitPrice:parseFloat(li.mc||0), mc:parseFloat(li.mc||0) });
-    });
-  } else if (quote) {
-    // No items but has total — add single line
-    items.push({ desc:job.name||'Services Rendered', cat:'Labor', qty:1, unitPrice:parseFloat(quote.total||0), mc:parseFloat(quote.total||0) });
+  if (quote) {
+    var qItems = quote.items || [];
+    if (qItems.length > 0) {
+      // Calculate sell price per item using quote totals as proportional split
+      // Labor items: priced by labor hours × labor rate
+      var laborRate = parseFloat(quote.laborRate||DB.settings.laborRate||125);
+      var laborItems = qItems.filter(function(li){ return li.lh && parseFloat(li.lh)>0; });
+      var matItems   = qItems.filter(function(li){ return !li.lh || parseFloat(li.lh)===0; });
+      // Total material cost for proportion
+      var totalMatCost = matItems.reduce(function(s,li){ return s+(parseFloat(li.mc||0))*(parseFloat(li.qty||1)); },0);
+      var matSell = parseFloat(quote.materialSell||quote.sellBeforeTax||quote.total||0) - parseFloat(quote.laborSell||0);
+      var matMultiplier = totalMatCost > 0 ? matSell / totalMatCost : 1;
+      // Add labor line items
+      laborItems.forEach(function(li){
+        var lhQty = (parseFloat(li.lh||0))*(parseFloat(li.qty||1));
+        var sellPrice = lhQty * laborRate;
+        items.push({ desc:li.desc||'Labor', cat:'Labor', qty:lhQty, unitPrice:laborRate, mc:laborRate });
+      });
+      // Add material line items at sell price
+      matItems.forEach(function(li){
+        var costEach = parseFloat(li.mc||0);
+        var sellEach = costEach * matMultiplier;
+        items.push({ desc:li.desc||'', cat:li.cat||'Material', qty:parseFloat(li.qty||1), unitPrice:Math.round(sellEach*100)/100, mc:Math.round(sellEach*100)/100 });
+      });
+    } else {
+      // Quote has total but no items — add as single line at sell price
+      items.push({ desc:job.name||'Services Rendered', cat:'Labor', qty:1, unitPrice:parseFloat(quote.total||0), mc:parseFloat(quote.total||0) });
+    }
+  } else {
+    // No quote — blank line for manual entry
+    items.push({ desc:job.name||'', cat:'Labor', qty:1, unitPrice:0, mc:0 });
   }
 
   initInvItemsEditor(items);
-  saveDB();
   openModal('modal-invoice');
 }
 
@@ -1764,7 +1824,8 @@ function buildInvoiceHTML(inv) {
   var clic   = s.clic   || '';
 
   // Build billing address block
-  var billLines = [inv.billName||inv.job.customer||''];
+  var invJob = inv.job || {};
+  var billLines = [inv.billName||invJob.customer||''];
   if (inv.billAddr) billLines.push(inv.billAddr);
   var cityLine = [inv.billCity, inv.billState].filter(Boolean).join(', ');
   if (cityLine) { if (inv.billZip) cityLine += ' ' + inv.billZip; billLines.push(cityLine); }
@@ -1810,7 +1871,7 @@ function buildInvoiceHTML(inv) {
   }
 
   if (!lineItemsHTML) {
-    lineItemsHTML = '<tr><td colspan="5" style="padding:16px 14px;color:#546e7a;font-style:italic;font-size:13px">'+escHtml(inv.job.name||'Services Rendered')+'</td></tr>';
+    lineItemsHTML = '<tr><td colspan="5" style="padding:16px 14px;color:#546e7a;font-style:italic;font-size:13px">'+escHtml((inv.job&&inv.job.name)||'Services Rendered')+'</td></tr>';
   }
 
   return '<!DOCTYPE html><html><head><meta charset="UTF-8">'+
@@ -1866,7 +1927,7 @@ function buildInvoiceHTML(inv) {
     '<div class="no-print">'+
       '<button class="btn-print" onclick="window.print()">🖨 Print Invoice</button>'+
       '<button class="btn-close" onclick="window.close()">Close</button>'+
-      '<span style="font-size:12px;color:#90a4ae;margin-left:8px">'+escHtml(inv.num)+' · '+escHtml(inv.job.customer||'')+'</span>'+
+      '<span style="font-size:12px;color:#90a4ae;margin-left:8px">'+escHtml(inv.num)+' · '+escHtml((inv.job&&inv.job.customer)||'')+'</span>'+
     '</div>'+
 
     '<div class="page">'+
@@ -1892,14 +1953,14 @@ function buildInvoiceHTML(inv) {
     /* Address grid */
     '<div class="addr-grid">'+
       '<div class="addr-block"><label>Bill To</label><div class="val">'+
-        '<strong>'+escHtml(inv.billName||inv.job.customer||'')+'</strong>'+
+        '<strong>'+escHtml(inv.billName||(inv.job&&inv.job.customer)||'')+'</strong>'+
         (inv.billAddr?'<br>'+escHtml(inv.billAddr):'')+
         (inv.billCity||inv.billState?'<br>'+[inv.billCity,inv.billState].filter(Boolean).join(', ')+(inv.billZip?' '+escHtml(inv.billZip):''):'')+
       '</div></div>'+
       '<div class="addr-block"><label>Project / Job</label><div class="val">'+
-        '<strong>'+escHtml(inv.job.name||'')+'</strong>'+
-        (inv.job.address?'<br>'+escHtml(inv.job.address):'')+
-        (inv.job.num?'<br><span style="color:#546e7a">Job #'+escHtml(inv.job.num)+'</span>':'')+
+        '<strong>'+escHtml((inv.job&&inv.job.name)||'')+'</strong>'+
+        ((inv.job&&inv.job.address)?'<br>'+escHtml(inv.job.address):'')+
+        ((inv.job&&inv.job.num)?'<br><span style="color:#546e7a">Job #'+escHtml(inv.job.num)+'</span>':'')+
         (inv.po?'<br><span style="color:#546e7a">PO: '+escHtml(inv.po)+'</span>':'')+
       '</div></div>'+
       '<div class="addr-block"><label>Payment</label><div class="val">'+
