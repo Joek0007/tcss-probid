@@ -2074,42 +2074,89 @@ table{font-size:12.5px}
     </div>
   </div>
 </div>
-<div class="modal-overlay" id="modal-invoice">
-  <div class="modal-box" style="max-width:680px">
-    <div class="modal-head">
-      <h3>🧾 Generate Invoice</h3>
-      <button class="close-btn" data-action="closeModal" data-modal="modal-invoice">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-row cols2">
-        <div><label>Invoice #</label><input id="inv-num" placeholder="e.g. INV-1001"></div>
-        <div><label>Invoice Date</label><input id="inv-date" type="date"></div>
+<div class="modal-overlay" id="modal-invoice" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
+  <div class="modal-box" style="max-width:780px;width:95%;margin:0 auto">
+    <div class="modal-head" style="position:sticky;top:0;z-index:10;background:#fff">
+      <h3>🧾 Invoice Editor</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="previewInvoice()">👁 Preview</button>
+        <button class="btn btn-primary btn-sm" onclick="saveAndPrintInvoice()">🖨 Print</button>
+        <button class="close-btn" data-action="closeModal" data-modal="modal-invoice">×</button>
       </div>
-      <div class="form-row cols2">
-        <div><label>Due Date</label><input id="inv-due" type="date"></div>
-        <div><label>Payment Terms</label>
-          <select id="inv-terms">
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <!-- Header fields -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+        <div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Invoice #</label><input id="inv-num" placeholder="INV-0001" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+        <div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Invoice Date</label><input id="inv-date" type="date" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+        <div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Due Date</label><input id="inv-due" type="date" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+        <div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Payment Terms</label>
+          <select id="inv-terms" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
             <option value="Due on Receipt">Due on Receipt</option>
             <option value="Net 15">Net 15</option>
             <option value="Net 30">Net 30</option>
             <option value="Net 45">Net 45</option>
             <option value="Net 60">Net 60</option>
+            <option value="50% Deposit / 50% on Completion">50% Deposit / 50% on Completion</option>
+            <option value="Progress Billing">Progress Billing</option>
           </select>
         </div>
+        <div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">PO Number</label><input id="inv-po" placeholder="Customer PO #" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+        <div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Tax Rate %</label><input id="inv-tax" type="number" min="0" max="20" step="0.1" value="0" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px" oninput="refreshInvTotals()"></div>
       </div>
-      <div class="form-row cols2">
-        <div><label>PO Number (optional)</label><input id="inv-po" placeholder="Customer PO #"></div>
-        <div><label>Tax Rate %</label><input id="inv-tax" type="number" min="0" max="20" step="0.1" value="0"></div>
+      <!-- Billing address -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Bill To — Customer Name</label>
+          <input id="inv-bill-name" placeholder="Customer / Company Name" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
+          <input id="inv-bill-addr" placeholder="Street Address" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px">
+            <input id="inv-bill-city" placeholder="City" style="padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+            <input id="inv-bill-state" placeholder="ST" maxlength="2" style="padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;text-transform:uppercase">
+            <input id="inv-bill-zip" placeholder="Zip" style="padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Job / Project Info</label>
+          <input id="inv-job-name" placeholder="Job name / project description" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
+          <input id="inv-job-addr" placeholder="Job site address" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
+          <input id="inv-job-num" placeholder="Job # or Quote #" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+        </div>
       </div>
-      <div class="form-row"><div><label>Invoice Notes</label>
-        <textarea id="inv-notes" rows="2" placeholder="Payment instructions, bank details, thank you message..."></textarea>
-      </div></div>
-      <div id="inv-line-preview" style="background:#f8f9fa;border-radius:8px;padding:12px;margin-top:4px;font-size:12px"></div>
+      <!-- Line items editor -->
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px">Line Items</label>
+          <button class="btn btn-outline btn-sm" onclick="addInvLineItem()">+ Add Line Item</button>
+        </div>
+        <div id="inv-items-editor" style="border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 36px;gap:0;background:#f8f9fa;padding:8px 12px;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">
+            <div>Description</div><div style="text-align:center">Category</div><div style="text-align:center">Qty</div><div style="text-align:right">Unit Price</div><div></div>
+          </div>
+          <div id="inv-items-rows"></div>
+        </div>
+        <!-- Totals -->
+        <div style="margin-top:12px;display:flex;justify-content:flex-end">
+          <div style="width:280px">
+            <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f0f0f0"><span style="color:#546e7a">Subtotal</span><span id="inv-subtotal-display" style="font-weight:600">$0.00</span></div>
+            <div id="inv-tax-row" style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f0f0f0;display:none"><span style="color:#546e7a">Tax</span><span id="inv-tax-display" style="font-weight:600">$0.00</span></div>
+            <div id="inv-payments-row" style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f0f0f0;display:none"><span style="color:#2e7d32">Payments Applied</span><span id="inv-payments-display" style="font-weight:600;color:#2e7d32">-$0.00</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0 0;font-size:18px;font-weight:900;color:#1565c0;border-top:2px solid #1565c0;margin-top:4px"><span>Total Due</span><span id="inv-total-display">$0.00</span></div>
+          </div>
+        </div>
+      </div>
+      <div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Notes / Payment Instructions</label>
+        <textarea id="inv-notes" rows="2" placeholder="e.g. Please make checks payable to TCSS. Thank you for your business!" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;resize:vertical"></textarea>
+      </div>
+      <input type="hidden" id="inv-job-id">
+      <input type="hidden" id="inv-existing-id">
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-invoice">Cancel</button>
-      <button class="btn btn-outline btn-sm" onclick="previewInvoice()">👁 Preview</button>
-      <button class="btn btn-primary" onclick="saveAndPrintInvoice()">🧾 Generate & Print</button>
+      <button class="btn btn-outline" onclick="previewInvoice()">👁 Preview</button>
+      <button class="btn btn-primary" onclick="saveAndPrintInvoice()">🖨 Generate & Print</button>
     </div>
   </div>
 </div>
