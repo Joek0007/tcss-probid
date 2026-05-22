@@ -1526,11 +1526,18 @@ function reprintInvoice(invId) {
   sv('inv-notes',      inv.notes||'');
   sv('inv-job-id',     inv.jobId||'');
   sv('inv-existing-id',inv.id);
-  sv('inv-bill-name',  inv.billName||invJob.customer||'');
-  sv('inv-bill-addr',  inv.billAddr||invJob.address||'');
-  sv('inv-bill-city',  inv.billCity||'');
-  sv('inv-bill-state', inv.billState||'');
-  sv('inv-bill-zip',   inv.billZip||'');
+  // Resolve customer name — cascade through multiple sources
+  var invCust = null;
+  if (inv.jobId) {
+    var invJob2 = (DB.jobs||[]).find(function(j){ return j.id===inv.jobId; });
+    if (invJob2 && invJob2.customerId) invCust = (DB.customers||[]).find(function(c){ return c.id===invJob2.customerId; });
+    if (!invCust && invJob2 && invJob2.customer) invCust = { name:invJob2.customer, address:invJob2.address||'' };
+  }
+  sv('inv-bill-name',  inv.billName||invJob.customer||(invCust&&invCust.name)||'');
+  sv('inv-bill-addr',  inv.billAddr||invJob.address||(invCust&&(invCust.street||invCust.address))||'');
+  sv('inv-bill-city',  inv.billCity||(invCust&&invCust.city)||'');
+  sv('inv-bill-state', inv.billState||(invCust&&invCust.state)||'');
+  sv('inv-bill-zip',   inv.billZip||(invCust&&invCust.zip)||'');
   sv('inv-job-name',   invJob.name||'');
   sv('inv-job-addr',   invJob.address||'');
   sv('inv-job-num',    invJob.num||'');
@@ -1681,14 +1688,14 @@ function renderInvItemsEditor() {
       '</select>'+
       // Qty
       '<input type="number" value="'+(li.qty||1)+'" min="0.01" step="0.01" '+
-        'onchange="updateInvItem('+i+',\'qty\',this.value)" '+
+        'oninput="updateInvItem('+i+',\'qty\',this.value)" '+
         'style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:center">'+
       // Unit Price
       '<input type="number" value="'+parseFloat(li.unitPrice||li.mc||0).toFixed(2)+'" min="0" step="0.01" '+
-        'onchange="updateInvItem('+i+',\'unitPrice\',this.value)" '+
+        'oninput="updateInvItem('+i+',\'unitPrice\',this.value)" '+
         'style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:right">'+
       // Line total (read only)
-      '<div style="text-align:right;font-size:12px;font-weight:700;color:#1565c0;padding-right:4px">'+fmt(lineTotal)+'</div>'+
+      '<div class="inv-line-total" style="text-align:right;font-size:12px;font-weight:700;color:#1565c0;padding-right:4px">'+fmt(lineTotal)+'</div>'+
       // Remove
       '<button onclick="removeInvItem('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:18px;padding:0 4px;line-height:1">×</button>'+
     '</div>';
@@ -1699,6 +1706,12 @@ function updateInvItem(idx, field, val) {
   if (!_invItems[idx]) return;
   _invItems[idx][field] = field==='qty'||field==='unitPrice'||field==='mc' ? parseFloat(val)||0 : val;
   if (field==='unitPrice') _invItems[idx].mc = parseFloat(val)||0;
+  // Update just this row's line total display without re-rendering (preserves focus)
+  var lineTotals = document.querySelectorAll('#inv-items-rows .inv-line-total');
+  if (lineTotals[idx]) {
+    var lt = (parseFloat(_invItems[idx].unitPrice||0)) * (parseFloat(_invItems[idx].qty||1));
+    lineTotals[idx].textContent = fmt(lt);
+  }
   refreshInvTotals();
 }
 
@@ -1762,9 +1775,10 @@ function openInvoiceModal(job) {
   sv('inv-job-id', job.id||'');
   sv('inv-existing-id','');
 
-  // Bill to — customer billing address
-  sv('inv-bill-name', job.customer || (cust&&cust.name)||'');
+  // Bill to — customer billing address (prefer customer record over job address)
+  var billName = job.customer || (cust&&cust.name) || '';
   var billAddr = cust ? (cust.street||cust.address||'') : (job.address||'');
+  sv('inv-bill-name',  billName);
   sv('inv-bill-addr',  billAddr);
   sv('inv-bill-city',  cust ? (cust.city||'') : '');
   sv('inv-bill-state', cust ? (cust.state||'') : '');
