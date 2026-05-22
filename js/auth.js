@@ -161,7 +161,7 @@ async function loadCurrentUserProfile() {
 function applyRolePermissions(role) {
   // Nav visibility based on role
   var fieldRoles = ['helper_tech','subcontractor'];
-  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team'];
+  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team','purchaseorders','vendors'];
   var leadTechShow = ['dash','field','jobs','dispatch','worktracking','workorders','customers','contacts','reports','catalog','tools','inventory','calendar'];
   var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
   var nav = document.querySelectorAll('.nav-item[data-page]');
@@ -527,10 +527,44 @@ async function syncAllFromCloud() {
       if (woe) { errors.push('work_orders: '+woe.message); }
       else if (woRows) {
         DB.workOrders = woRows.map(function(w){
-          return { id:w.id, woNumber:w.wo_number, customerId:w.customer_id, customerName:w.customer_name, contactId:w.contact_id, description:w.description, workPerformed:w.work_performed, status:w.status, serviceType:w.service_type, priority:w.priority, serviceRep:w.service_rep, refNum:w.reference_num, siteAddr:w.site_address, siteCity:w.site_city, siteState:w.site_state, siteZip:w.site_zip, laborRate:w.labor_rate, taxRate:w.tax_rate, dateRequested:w.date_requested, dateFollowup:w.date_followup, dateOpened:w.date_opened, dateClosed:w.date_closed, internalNotes:w.internal_notes, invoiceId:w.invoice_id, createdBy:w.created_by, createdByName:w.created_by_name, createdAt:w.created_at, updatedAt:w.updated_at };
+          return { id:w.id, woNumber:w.wo_number, customerId:w.customer_id, customerName:w.customer_name, contactId:w.contact_id, description:w.description, workPerformed:w.work_performed, status:w.status, serviceType:w.service_type, priority:w.priority, serviceRep:w.service_rep, refNum:w.reference_num, siteAddr:w.site_address, siteCity:w.site_city, siteState:w.site_state, siteZip:w.site_zip, laborRate:w.labor_rate, taxRate:w.tax_rate, dateRequested:w.date_requested, dateFollowup:w.date_followup, dateOpened:w.date_opened, dateClosed:w.date_closed, internalNotes:w.internal_notes, invoiceId:w.invoice_id, jobId:w.job_id, quoteId:w.quote_id, createdBy:w.created_by, createdByName:w.created_by_name, createdAt:w.created_at, updatedAt:w.updated_at };
         });
       }
     } catch(e) { errors.push('work_orders: '+e.message); }
+
+    // 16. Vendors
+    try {
+      var { data: vendorRows, error: ve } = await _sb.from('vendors').select('*').eq('is_active', true).order('name');
+      if (ve) { errors.push('vendors: '+ve.message); }
+      else if (vendorRows) {
+        DB.vendors = vendorRows.map(function(v){
+          return { id:v.id, name:v.name, contact:v.contact_name, phone:v.phone, email:v.email, acctNum:v.account_num, address:v.address, city:v.city, state:v.state, zip:v.zip, terms:v.payment_terms||'Net 30', taxExempt:!!v.tax_exempt, notes:v.notes, active:v.is_active!==false };
+        });
+      }
+    } catch(e) { errors.push('vendors: '+e.message); }
+
+    // 17. Purchase Orders
+    try {
+      var { data: poRows, error: poe } = await _sb.from('purchase_orders').select('*, po_line_items(*)').order('created_at', { ascending: false });
+      if (poe) { errors.push('purchase_orders: '+poe.message); }
+      else if (poRows) {
+        DB.purchaseOrders = poRows.map(function(p){
+          return {
+            id:p.id, poNumber:p.po_number, vendorId:p.vendor_id, vendorName:p.vendor_name,
+            jobId:p.job_id, woId:p.wo_id, status:p.status, date:p.created_at?p.created_at.split('T')[0]:'',
+            dateNeeded:p.date_needed, shipName:p.ship_to_name, shipAddr:p.ship_to_address,
+            shipCity:p.ship_to_city, shipState:p.ship_to_state, shipZip:p.ship_to_zip,
+            subtotal:p.subtotal, total:p.total, notes:p.notes,
+            vendorInvNum:p.vendor_invoice_num, vendorInvAmt:p.vendor_invoice_amount,
+            readyToPay:!!p.ready_to_pay, createdBy:p.created_by, createdByName:p.created_by_name,
+            createdAt:p.created_at, updatedAt:p.updated_at,
+            items:(p.po_line_items||[]).sort(function(a,b){return (a.sort_order||0)-(b.sort_order||0);}).map(function(li){
+              return { id:li.id, desc:li.description, partNum:li.part_num, qtyOrdered:li.qty_ordered, qtyReceived:li.qty_received, unitCost:li.unit_cost };
+            })
+          };
+        });
+      }
+    } catch(e) { errors.push('purchase_orders: '+e.message); }
 
   }
 

@@ -1097,6 +1097,8 @@ table{font-size:12.5px}
     <div class="nav-item" data-page="dispatch"><span class="nav-icon">🗂</span>Dispatch Board</div>
     <div class="nav-item" data-page="invoices"><span class="nav-icon">🧾</span>Invoices</div>
     <div class="nav-item" data-page="workorders"><span class="nav-icon">🔨</span>Work Orders</div>
+    <div class="nav-item" data-page="purchaseorders"><span class="nav-icon">📦</span>Purchase Orders</div>
+    <div class="nav-item" data-page="vendors"><span class="nav-icon">🏭</span>Vendors</div>
   </div>
   <div class="nav-group">
     <div class="nav-group-title">People</div>
@@ -4227,6 +4229,189 @@ table{font-size:12.5px}
 </div><!-- end page-settings -->
 
 <!-- HOT NOTES POPUP -->
+
+<!-- PURCHASE ORDERS PAGE -->
+<div class="page" id="page-purchaseorders">
+  <div class="page-header">
+    <h2>📦 Purchase Orders</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="openNewPO()">+ New PO</button>
+    </div>
+  </div>
+  <!-- Stats -->
+  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap" id="po-stats-bar"></div>
+  <!-- Filters -->
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+    <input id="po-search" placeholder="🔍 Search POs..." style="padding:8px 12px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px;width:220px" oninput="renderPOList()">
+    <select id="po-filter-status" onchange="renderPOList()" style="padding:8px 12px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px">
+      <option value="">All Statuses</option>
+      <option value="Draft">Draft</option>
+      <option value="Pending Approval">Pending Approval</option>
+      <option value="Sent">Sent</option>
+      <option value="Partially Received">Partially Received</option>
+      <option value="Received">Received</option>
+      <option value="Matched">Matched</option>
+      <option value="Ready to Pay">Ready to Pay</option>
+      <option value="Void">Void</option>
+    </select>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div id="po-list-body"></div>
+  </div>
+</div>
+
+<!-- VENDORS PAGE -->
+<div class="page" id="page-vendors">
+  <div class="page-header">
+    <h2>🏭 Vendors</h2>
+    <button class="btn btn-primary" onclick="openNewVendor()">+ Add Vendor</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:16px">
+    <input id="vendor-search" placeholder="🔍 Search vendors..." style="padding:8px 12px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px;width:260px" oninput="renderVendors()">
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div id="vendor-list-body"></div>
+  </div>
+</div>
+
+<!-- PO DETAIL MODAL -->
+<div class="modal-overlay" id="modal-po" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
+  <div class="modal-box" style="max-width:1000px;width:98%;margin:0 auto">
+    <div class="modal-head" style="position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #e0e7ef">
+      <div>
+        <h3 id="po-modal-title">Purchase Order</h3>
+        <div id="po-source-chain" style="font-size:11px;color:#90a4ae;margin-top:2px"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="printPO()">🖨 Print</button>
+        <button class="btn btn-outline btn-sm" onclick="emailPO()">✉️ Email</button>
+        <button class="btn btn-primary btn-sm" onclick="savePO()">💾 Save</button>
+        <button class="close-btn" data-action="closeModal" data-modal="modal-po">×</button>
+      </div>
+    </div>
+    <div class="modal-body" style="padding:20px;overflow-y:auto;max-height:85vh">
+      <!-- Status bar -->
+      <div style="background:#f8f9fa;padding:10px 16px;border-radius:8px;margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <select id="po-status" style="padding:7px 12px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:700">
+          <option value="Draft">Draft</option>
+          <option value="Pending Approval">Pending Approval</option>
+          <option value="Sent">Sent to Vendor</option>
+          <option value="Partially Received">Partially Received</option>
+          <option value="Received">Fully Received</option>
+          <option value="Matched">Invoice Matched</option>
+          <option value="Ready to Pay">✅ Ready to Pay</option>
+          <option value="Void">Void</option>
+        </select>
+        <span id="po-match-badge" style="display:none"></span>
+      </div>
+      <!-- Main grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <!-- Left -->
+        <div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Vendor *</label>
+            <select id="po-vendor" onchange="onPOVendorChange(this.value)" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+              <option value="">— Select Vendor —</option>
+            </select>
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Linked Job / Work Order</label>
+            <select id="po-job" onchange="onPOJobChange(this.value)" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+              <option value="">— Not job specific —</option>
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">PO Date</label><input type="date" id="po-date" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+            <div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Date Needed</label><input type="date" id="po-date-needed" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Notes / Special Instructions</label>
+            <textarea id="po-notes" rows="3" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;resize:vertical"></textarea>
+          </div>
+        </div>
+        <!-- Right -->
+        <div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Ship To — Name</label>
+            <input id="po-ship-name" placeholder="TCSS or Job site name" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
+            <input id="po-ship-addr" placeholder="Street address" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px">
+              <input id="po-ship-city" placeholder="City" style="padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+              <input id="po-ship-state" placeholder="ST" maxlength="2" style="padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;text-transform:uppercase">
+              <input id="po-ship-zip" placeholder="Zip" style="padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+            </div>
+          </div>
+          <!-- Vendor invoice matching -->
+          <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;margin-bottom:12px">
+            <div style="font-size:11px;font-weight:700;color:#e65100;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">📄 Vendor Invoice Match</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Vendor Invoice #</label><input id="po-vendor-inv-num" placeholder="Vendor's invoice number" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>
+              <div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Vendor Invoice Amount</label><input type="number" id="po-vendor-inv-amt" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px" oninput="checkPOMatch()"></div>
+            </div>
+            <div id="po-match-result" style="margin-top:8px;font-size:12px"></div>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer">
+                <input type="checkbox" id="po-ready-to-pay" onchange="onPOReadyToPay(this.checked)" style="width:16px;height:16px">
+                Mark as Ready to Pay — notify Victoria
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Line items -->
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px">Line Items</label>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline btn-sm" onclick="addPOFromCatalog()">+ From Catalog</button>
+            <button class="btn btn-outline btn-sm" onclick="addPOLineItem()">+ Add Item</button>
+          </div>
+        </div>
+        <div style="border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 1fr 80px 36px;gap:4px;background:#f8f9fa;padding:8px 12px;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">
+            <div>Description</div><div>Part #</div><div style="text-align:center">Ordered</div><div style="text-align:center">Received</div><div style="text-align:right">Unit Cost</div><div style="text-align:right">Total</div><div></div>
+          </div>
+          <div id="po-items-rows"></div>
+        </div>
+        <!-- Totals -->
+        <div style="margin-top:12px;display:flex;justify-content:flex-end">
+          <div style="width:280px">
+            <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f0f0f0"><span style="color:#546e7a">Subtotal</span><span id="po-subtotal-display" style="font-weight:600">$0.00</span></div>
+            <div id="po-tax-row-display" style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f0f0f0;display:none"><span style="color:#546e7a">Tax</span><span id="po-tax-display" style="font-weight:600">$0.00</span></div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0 0;font-size:18px;font-weight:900;color:#1565c0;border-top:2px solid #1565c0;margin-top:4px"><span>PO Total</span><span id="po-total-display">$0.00</span></div>
+          </div>
+        </div>
+      </div>
+      <input type="hidden" id="po-id">
+      <input type="hidden" id="po-job-id-hidden">
+      <input type="hidden" id="po-wo-id-hidden">
+    </div>
+  </div>
+</div>
+
+<!-- VENDOR MODAL -->
+<div class="modal-overlay" id="modal-vendor">
+  <div class="modal-box sm">
+    <div class="modal-head"><h3 id="vendor-modal-title">New Vendor</h3><button class="close-btn" data-action="closeModal" data-modal="modal-vendor">×</button></div>
+    <div class="modal-body">
+      <div class="form-row"><div><label>Vendor Name *</label><input id="v-name" placeholder="Company name"></div></div>
+      <div class="form-row cols2"><div><label>Contact Name</label><input id="v-contact" placeholder="Primary contact"></div><div><label>Phone</label><input id="v-phone"></div></div>
+      <div class="form-row cols2"><div><label>Email</label><input id="v-email" type="email"></div><div><label>Account #</label><input id="v-acct" placeholder="Your account number"></div></div>
+      <div class="form-row"><div><label>Address</label><input id="v-addr"></div></div>
+      <div class="form-row cols3"><div><label>City</label><input id="v-city"></div><div><label>State</label><input id="v-state" maxlength="2" style="text-transform:uppercase"></div><div><label>Zip</label><input id="v-zip" maxlength="10"></div></div>
+      <div class="form-row cols2">
+        <div><label>Payment Terms</label><select id="v-terms"><option value="Net 30">Net 30</option><option value="Net 15">Net 15</option><option value="Net 45">Net 45</option><option value="Net 60">Net 60</option><option value="Due on Receipt">Due on Receipt</option><option value="COD">COD</option></select></div>
+        <div><label style="display:flex;align-items:center;gap:6px;margin-top:20px"><input type="checkbox" id="v-taxexempt"> Tax Exempt</label></div>
+      </div>
+      <div class="form-row"><div><label>Notes</label><textarea id="v-notes" rows="2"></textarea></div></div>
+      <input type="hidden" id="v-id">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-vendor">Cancel</button>
+      <button class="btn btn-primary" onclick="saveVendor()">Save Vendor</button>
+    </div>
+  </div>
+</div>
 <div id="hot-notes-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99990;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:16px;max-width:480px;width:90%;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.2)">
     <div id="hot-notes-icon" style="font-size:32px;margin-bottom:8px;text-align:center">⚡</div>
@@ -4801,6 +4986,7 @@ table{font-size:12.5px}
 <script src="js/worktracking.js"></script>
 <script src="js/calendar.js"></script>
 <script src="js/workorders.js"></script>
+<script src="js/purchaseorders.js"></script>
 <script src="js/reports.js"></script>
 <script src="js/auth.js"></script>
 <!-- MOBILE BOTTOM NAV -->
