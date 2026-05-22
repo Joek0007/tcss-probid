@@ -432,30 +432,26 @@ async function syncAllFromCloud() {
       }
     } catch(e) { errors.push('jobs: '+e.message); }
 
-    // 9. Team — pull from team table
+    // 9. Team — pull from team table (Supabase is authoritative — no local merge)
     try {
       var { data: teamRows, error: te2 } = await _sb.from('team').select('*').eq('is_active', true).order('full_name');
       if (te2) { errors.push('team: '+te2.message); }
       else if (teamRows) {
         teamRows = teamRows.filter(function(m){ return delT.indexOf(String(m.id)) < 0; });
-        var cloudTeamIds = new Set(teamRows.map(function(m){ return String(m.id); }));
-        var localOnlyTeam = (DB.team||[]).filter(function(m){ return m.id && !cloudTeamIds.has(String(m.id)) && delT.indexOf(String(m.id)) < 0; });
-        var cloudTeam = teamRows.map(function(m) {
+        DB.team = teamRows.map(function(m) {
           return {
-            id:          m.id,
-            name:        m.full_name || '',
-            role:        m.role || 'field',
-            phone:       m.phone || '',
-            email:       m.email || '',
-            rate:        m.rate || 65,
-            hireDate:    m.hire_date || '',
+            id:           m.id,
+            name:         m.full_name || '',
+            role:         m.role || 'field',
+            phone:        m.phone || '',
+            email:        m.email || '',
+            rate:         m.rate || 65,
+            hireDate:     m.hire_date || '',
             showVacation: !!m.show_vacation,
-            showPTO:     !!m.show_pto,
-            active:      m.is_active !== false
+            showPTO:      !!m.show_pto,
+            active:       m.is_active !== false
           };
         });
-        if (localOnlyTeam.length > 0) setTimeout(pushAllToCloud, 500);
-        DB.team = cloudTeam.concat(localOnlyTeam);
       }
     } catch(e) { errors.push('team: '+e.message); }
 
