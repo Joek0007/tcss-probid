@@ -287,9 +287,6 @@ function clearQQ(skipConfirm) {
 }
 
 function editQuote(id) {
-  // Close customer panel if open so the quote page is visible
-  var cpOverlay = document.getElementById('customer-profile-overlay');
-  if (cpOverlay) cpOverlay.style.display = 'none';
   const q = DB.quotes.find(function(x){return x.id==id});
   if (!q) return;
   function setV(elId, val) { const el=document.getElementById(elId); if(el) el.value = (val!==undefined&&val!==null) ? val : ''; }

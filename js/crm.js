@@ -144,7 +144,7 @@ function renderCPQuotes(quotes) {
   return '<div class="cp-section-title">All Quotes ('+quotes.length+')</div>'+
     sorted.map(function(q){
       var sc = statusColors[q.status||'draft']||'#546e7a';
-      return '<div class="cp-quote-row" onclick="editQuote(\''+q.id+'\')">'+
+      return '<div class="cp-quote-row" onclick="closeCustomerProfile();editQuote(\''+q.id+'\')">'+
         '<div>'+
           '<div style="font-weight:700;font-size:13px">'+escHtml(q.jn||q.num||'Untitled')+'</div>'+
           '<div style="font-size:11px;color:#546e7a">'+escHtml(q.num||'')+' · '+escHtml(q.dt||'')+(q.contactName?' · '+escHtml(q.contactName):'')+'</div>'+
