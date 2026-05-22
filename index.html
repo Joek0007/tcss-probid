@@ -2075,7 +2075,7 @@ table{font-size:12.5px}
   </div>
 </div>
 <div class="modal-overlay" id="modal-invoice" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
-  <div class="modal-box" style="max-width:780px;width:95%;margin:0 auto">
+  <div class="modal-box" style="max-width:1100px;width:98%;margin:0 auto">
     <div class="modal-head" style="position:sticky;top:0;z-index:10;background:#fff">
       <h3>🧾 Invoice Editor</h3>
       <div style="display:flex;gap:8px">
@@ -2132,7 +2132,9 @@ table{font-size:12.5px}
           <button class="btn btn-outline btn-sm" onclick="addInvLineItem()">+ Add Line Item</button>
         </div>
         <div id="inv-items-editor" style="border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">
-          <div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 70px 36px;gap:4px;background:#f8f9fa;padding:8px 12px;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">
+        <!-- Catalog datalist — permanent location so inputs can reference it -->
+        <datalist id="inv-catalog-dl"></datalist>
+        <div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 80px 36px;gap:4px;background:#f8f9fa;padding:8px 12px;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">
             <div>Description</div><div style="text-align:center">Category</div><div style="text-align:center">Qty</div><div style="text-align:right">Unit Price</div><div style="text-align:right">Total</div><div></div>
           </div>
           <div id="inv-items-rows"></div>

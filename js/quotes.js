@@ -1468,7 +1468,8 @@ function renderInvoicesPage() {
         '<span style="background:'+statusBg+';color:'+statusCol+';border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">'+statusLbl+'</span>'+
       '</div>'+
       '<div style="display:flex;gap:4px">'+
-        '<button class="btn btn-outline btn-sm" onclick="reprintInvoice(\''+inv.id+'\')" title="Reprint">🖨</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="reprintInvoice(\''+inv.id+'\')" title="Edit">✏ Edit</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="printInvoiceDirect(\''+inv.id+'\')" title="Print">🖨</button>'+
         (!isPaid?'<button class="btn btn-outline btn-sm" onclick="openRecordPayment(\''+inv.id+'\')" title="Record Payment">💵</button>':'')+
         (!isPaid?'<button class="btn btn-primary btn-sm" onclick="markInvoicePaid(\''+inv.id+'\')" title="Mark Fully Paid">✓ Paid</button>':'')+
         '<button class="btn btn-danger btn-sm" onclick="deleteInvoice(\''+inv.id+'\')" title="Delete">✕</button>'+
@@ -1491,9 +1492,27 @@ function reprintInvoice(invId) {
     var up = parseFloat(li.unitPrice||li.mc||0);
     return Object.assign({},li,{_eid:i, unitPrice:up, mc:up});
   });
-  // If all items have $0 unitPrice but the invoice has a total, add a single corrected line
-  var itemsTotal = _invItems.reduce(function(s,li){ return s+(parseFloat(li.unitPrice||0))*(parseFloat(li.qty||1)); },0);
-  if (itemsTotal === 0 && parseFloat(inv.total||0) > 0) {
+  // If all items are $0 but we have a linked quote, regenerate items from quote
+  if (itemsTotal === 0 && inv.quoteId && quote) {
+    var freshItems = [];
+    var laborRate = parseFloat(quote.laborRate||DB.settings.laborRate||125);
+    var qItems = quote.items || [];
+    var laborQItems = qItems.filter(function(li){ return li.lh && parseFloat(li.lh)>0; });
+    var matQItems   = qItems.filter(function(li){ return !li.lh || parseFloat(li.lh)===0; });
+    var totalMatCost = matQItems.reduce(function(s,li){ return s+(parseFloat(li.mc||0))*(parseFloat(li.qty||1)); },0);
+    var matSell = parseFloat(quote.materialSell||0) || (parseFloat(quote.total||0) - (parseFloat(quote.laborSell||0)));
+    var matMult = totalMatCost > 0 ? matSell/totalMatCost : 1;
+    laborQItems.forEach(function(li){
+      var hrs = (parseFloat(li.lh||0))*(parseFloat(li.qty||1));
+      freshItems.push({ desc:li.desc||'Labor', cat:'Labor', qty:hrs, unitPrice:laborRate, mc:laborRate });
+    });
+    matQItems.forEach(function(li){
+      var sell = Math.round((parseFloat(li.mc||0)*matMult)*100)/100;
+      freshItems.push({ desc:li.desc||'', cat:li.cat||'Material', qty:parseFloat(li.qty||1), unitPrice:sell, mc:sell });
+    });
+    if (freshItems.length) _invItems = freshItems.map(function(li,i){ return Object.assign({},li,{_eid:i}); });
+    else _invItems = [{ _eid:0, desc:invJob.name||'Services Rendered', cat:'Labor', qty:1, unitPrice:parseFloat(inv.total||0), mc:parseFloat(inv.total||0) }];
+  } else if (itemsTotal === 0 && parseFloat(inv.total||0) > 0) {
     _invItems = [{ _eid:0, desc:invJob.name||'Services Rendered', cat:'Labor', qty:1, unitPrice:parseFloat(inv.total||0), mc:parseFloat(inv.total||0) }];
   }
   function sv(id,val){ var el=document.getElementById(id); if(el) el.value=(val!==undefined&&val!==null)?String(val):''; }
@@ -1517,6 +1536,20 @@ function reprintInvoice(invId) {
   renderInvItemsEditor();
   refreshInvTotals();
   openModal('modal-invoice');
+}
+
+function printInvoiceDirect(invId) {
+  var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
+  if (!inv) return;
+  // Check if items are empty/zero — if so, try to reload from quote first
+  var itemsTotal = (inv.items||[]).reduce(function(s,li){ return s+(parseFloat(li.unitPrice||li.mc||0))*(parseFloat(li.qty||1)); },0);
+  if (itemsTotal === 0 && parseFloat(inv.total||0) > 0) {
+    var invJob = inv.job || {};
+    inv.items = [{ desc:invJob.name||'Services Rendered', cat:'Labor', qty:1, unitPrice:parseFloat(inv.total||0), mc:parseFloat(inv.total||0) }];
+  }
+  var html = buildInvoiceHTML(inv);
+  var win = window.open('','_blank','width=900,height=700');
+  if (win) { win.document.write(html); win.document.close(); setTimeout(function(){ win.print(); },500); }
 }
 
 function previewInvoice() {
@@ -1605,10 +1638,12 @@ function initInvItemsEditor(items) {
   refreshInvTotals();
 }
 
-function _buildCatalogDatalist() {
-  return '<datalist id="inv-catalog-dl">'+
-    (DB.catalog||[]).map(function(c){ return '<option value="'+escHtml(c.name||c.desc||'')+'" data-id="'+escHtml(c.id||'')+'" data-price="'+(c.mc||0)+'" data-unit="'+escHtml(c.unit||'EA')+'">'; }).join('')+
-  '</datalist>';
+function _populateCatalogDatalist() {
+  var dl = document.getElementById('inv-catalog-dl');
+  if (!dl) return;
+  dl.innerHTML = (DB.catalog||[]).map(function(c){
+    return '<option value="'+escHtml(c.name||c.desc||'')+'">';
+  }).join('');
 }
 
 function invPickFromCatalog(idx, val) {
@@ -1623,14 +1658,14 @@ function invPickFromCatalog(idx, val) {
 }
 
 function renderInvItemsEditor() {
+  _populateCatalogDatalist();
   var rows = document.getElementById('inv-items-rows');
   if (!rows) return;
-  var catalogDL = _buildCatalogDatalist();
   if (!_invItems.length) {
-    rows.innerHTML = catalogDL+'<div style="padding:16px;text-align:center;color:#90a4ae;font-size:13px">No line items yet — click + Add Line Item</div>';
+    rows.innerHTML = '<div style="padding:16px;text-align:center;color:#90a4ae;font-size:13px">No line items yet — click + Add Line Item</div>';
     return;
   }
-  rows.innerHTML = catalogDL + _invItems.map(function(li,i) {
+  rows.innerHTML = _invItems.map(function(li,i) {
     var lineTotal = (parseFloat(li.unitPrice||li.mc||0)) * (parseFloat(li.qty||1));
     return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 70px 36px;gap:4px;padding:8px 12px;border-top:1px solid #f0f4f8;align-items:center">'+
       // Description with catalog autocomplete
