@@ -2077,7 +2077,10 @@ table{font-size:12.5px}
 <div class="modal-overlay" id="modal-invoice" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
   <div class="modal-box" style="max-width:1100px;width:98%;margin:0 auto">
     <div class="modal-head" style="position:sticky;top:0;z-index:10;background:#fff">
-      <h3>🧾 Invoice Editor</h3>
+      <div>
+        <h3>🧾 Invoice Editor</h3>
+        <div id="inv-source-chain" style="font-size:11px;color:#90a4ae;margin-top:2px"></div>
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline btn-sm" onclick="previewInvoice()">👁 Preview</button>
         <button class="btn btn-primary btn-sm" onclick="saveAndPrintInvoice()">🖨 Print</button>
@@ -2154,6 +2157,8 @@ table{font-size:12.5px}
       </div>
       <input type="hidden" id="inv-job-id">
       <input type="hidden" id="inv-existing-id">
+      <input type="hidden" id="inv-wo-id">
+      <input type="hidden" id="inv-quote-id">
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-invoice">Cancel</button>

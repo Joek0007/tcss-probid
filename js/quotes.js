@@ -1525,7 +1525,18 @@ function reprintInvoice(invId) {
   sv('inv-tax',        inv.taxRate||0);
   sv('inv-notes',      inv.notes||'');
   sv('inv-job-id',     inv.jobId||'');
+  sv('inv-wo-id',      inv.woId||'');
+  sv('inv-quote-id',   inv.quoteId||'');
   sv('inv-existing-id',inv.id);
+  // Show source chain
+  var chainEl2 = document.getElementById('inv-source-chain');
+  if (chainEl2) {
+    var chain2 = [];
+    if (inv.quoteId) { var q2=(DB.quotes||[]).find(function(q){return q.id===inv.quoteId;}); if(q2) chain2.push('Quote '+escHtml(q2.num||'')); }
+    if (inv.jobId)   { var j2=(DB.jobs||[]).find(function(j){return j.id===inv.jobId;}); if(j2) chain2.push('Job '+escHtml(j2.num||'')); }
+    if (inv.woId)    { var w2=(DB.workOrders||[]).find(function(w){return w.id===inv.woId;}); if(w2) chain2.push('WO '+escHtml(w2.woNumber||'')); }
+    chainEl2.innerHTML = chain2.length ? '📎 Source: '+chain2.join(' → ') : '';
+  }
   // Resolve customer name — cascade through multiple sources
   var invCust = null;
   if (inv.jobId) {
@@ -1749,79 +1760,115 @@ function openInvoiceModal(job) {
   if (!DB.invSeq) DB.invSeq=1000;
   DB.invSeq++;
   var today = getTodayISO();
-  var terms = 'Net 30';
 
-  // Try to get customer default terms
-  var cust = job.customerId ? (DB.customers||[]).find(function(c){return c.id===job.customerId;}) : null;
-  if (cust && cust.defaultTerms) terms = cust.defaultTerms;
+  // Find linked WO and Quote
+  var wo    = job.woId ? (DB.workOrders||[]).find(function(w){ return w.id===job.woId; }) : null;
+  var quoteId = job.quoteId || job.qid || (wo&&wo.quoteId) || null;
+  var quote = quoteId ? (DB.quotes||[]).find(function(q){ return q.id===quoteId; }) : null;
+  var cust  = job.customerId ? (DB.customers||[]).find(function(c){ return c.id===job.customerId; }) : null;
+  if (!cust && job.customer) cust = (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(job.customer||'').toLowerCase(); });
 
-  // Calculate due date based on terms
-  var dueDate = '';
-  var daysMap = {'Due on Receipt':0,'Net 15':15,'Net 30':30,'Net 45':45,'Net 60':60};
+  // Payment terms — customer default → quote → Net 30
+  var terms = (cust&&cust.defaultTerms) || (quote&&quote.pt) || 'Net 30';
+  var daysMap = {'Due on Receipt':0,'Net 15':15,'Net 30':30,'Net 45':45,'Net 60':60,'50% Deposit / 50% on Completion':30};
   var days = daysMap[terms];
+  var dueDate = '';
   if (days !== undefined) {
     var d = new Date(today); d.setDate(d.getDate()+days);
     dueDate = d.toISOString().split('T')[0];
   }
 
-  function sv(id,val){ var el=document.getElementById(id); if(el) el.value=val||''; }
-  sv('inv-num',    'INV-'+DB.invSeq);
-  sv('inv-date',   today);
-  sv('inv-due',    dueDate);
-  sv('inv-terms',  terms);
-  sv('inv-po',     '');
-  sv('inv-tax',    (DB.settings&&DB.settings.taxRate)||0);
-  sv('inv-notes',  (DB.settings&&DB.settings.invNotes)||'');
-  sv('inv-job-id', job.id||'');
+  function sv(id,val){ var el=document.getElementById(id); if(el) el.value=(val!==undefined&&val!==null)?String(val):''; }
+  sv('inv-num',      'INV-'+DB.invSeq);
+  sv('inv-date',     today);
+  sv('inv-due',      dueDate);
+  sv('inv-terms',    terms);
+  sv('inv-po',       job.poNumber||'');
+  sv('inv-tax',      (wo&&wo.taxRate) || (quote&&quote.taxRate) || (DB.settings&&DB.settings.taxRate) || 0);
+  sv('inv-notes',    (DB.settings&&DB.settings.invNotes) || (DB.settings&&DB.settings.payTerms) || '');
+  sv('inv-job-id',   job.id||'');
+  sv('inv-wo-id',    (wo&&wo.id)||'');
+  sv('inv-quote-id', quoteId||'');
   sv('inv-existing-id','');
 
-  // Bill to — customer billing address (prefer customer record over job address)
+  // Bill to — customer billing address
   var billName = job.customer || (cust&&cust.name) || '';
-  var billAddr = cust ? (cust.street||cust.address||'') : (job.address||'');
   sv('inv-bill-name',  billName);
-  sv('inv-bill-addr',  billAddr);
+  sv('inv-bill-addr',  cust ? (cust.street||cust.address||'') : (job.address||''));
   sv('inv-bill-city',  cust ? (cust.city||'') : '');
   sv('inv-bill-state', cust ? (cust.state||'') : '');
   sv('inv-bill-zip',   cust ? (cust.zip||'') : '');
 
   // Job info
   sv('inv-job-name', job.name||'');
-  sv('inv-job-addr', job.address||'');
+  sv('inv-job-addr', (wo&&wo.siteAddr) || job.address || '');
   sv('inv-job-num',  job.num||'');
 
-  // Line items from linked quote — use SELL prices not cost
-  var quote = job.quoteId ? (DB.quotes||[]).find(function(q){return q.id===job.quoteId;}) : null;
+  // Source chain display
+  var chain = [];
+  if (quote) chain.push('Quote '+escHtml(quote.num||''));
+  chain.push('Job '+escHtml(job.num||''));
+  if (wo) chain.push('WO '+escHtml(wo.woNumber||''));
+  var chainEl = document.getElementById('inv-source-chain');
+  if (chainEl) chainEl.innerHTML = '📎 Source: ' + chain.join(' → ');
+
+  // Build line items — WO labor/expenses first, then quote, then blank
   var items = [];
-  if (quote) {
-    var qItems = quote.items || [];
-    if (qItems.length > 0) {
-      // Calculate sell price per item using quote totals as proportional split
-      // Labor items: priced by labor hours × labor rate
-      var laborRate = parseFloat(quote.laborRate||DB.settings.laborRate||125);
-      var laborItems = qItems.filter(function(li){ return li.lh && parseFloat(li.lh)>0; });
-      var matItems   = qItems.filter(function(li){ return !li.lh || parseFloat(li.lh)===0; });
-      // Total material cost for proportion
-      var totalMatCost = matItems.reduce(function(s,li){ return s+(parseFloat(li.mc||0))*(parseFloat(li.qty||1)); },0);
-      var matSell = parseFloat(quote.materialSell||quote.sellBeforeTax||quote.total||0) - parseFloat(quote.laborSell||0);
-      var matMultiplier = totalMatCost > 0 ? matSell / totalMatCost : 1;
-      // Add labor line items
-      laborItems.forEach(function(li){
-        var lhQty = (parseFloat(li.lh||0))*(parseFloat(li.qty||1));
-        var sellPrice = lhQty * laborRate;
-        items.push({ desc:li.desc||'Labor', cat:'Labor', qty:lhQty, unitPrice:laborRate, mc:laborRate });
-      });
-      // Add material line items at sell price
-      matItems.forEach(function(li){
-        var costEach = parseFloat(li.mc||0);
-        var sellEach = costEach * matMultiplier;
-        items.push({ desc:li.desc||'', cat:li.cat||'Material', qty:parseFloat(li.qty||1), unitPrice:Math.round(sellEach*100)/100, mc:Math.round(sellEach*100)/100 });
-      });
-    } else {
-      // Quote has total but no items — add as single line at sell price
+  var laborRate = parseFloat((wo&&wo.laborRate)||(quote&&quote.laborRate)||(DB.settings&&DB.settings.laborRate)||125);
+  var taxRate   = parseFloat((wo&&wo.taxRate)||(quote&&quote.taxRate)||0);
+  sv('inv-tax', taxRate);
+
+  if (wo) {
+    // Labor from WO time entries
+    var woLabor    = (DB.woLabor||[]).filter(function(l){ return l.woId===wo.id; });
+    var woExpenses = (DB.woExpenses||[]).filter(function(e){ return e.woId===wo.id; });
+    var woParts    = (DB.woParts||[]).filter(function(p){ return p.woId===wo.id && p.status==='received'; });
+
+    // Group labor by tech
+    var laborByTech = {};
+    woLabor.forEach(function(l){
+      var key = l.techName||'Labor';
+      laborByTech[key] = (laborByTech[key]||0) + parseFloat(l.hours||0);
+    });
+    Object.keys(laborByTech).forEach(function(tech){
+      var hrs = laborByTech[tech];
+      if (hrs > 0) items.push({ desc:tech+' — Labor ('+hrs.toFixed(2)+' hrs)', cat:'Labor', qty:hrs, unitPrice:laborRate, mc:laborRate });
+    });
+
+    // Expenses
+    woExpenses.forEach(function(e){
+      items.push({ desc:e.category+(e.description?' — '+e.description:''), cat:'Expense', qty:1, unitPrice:parseFloat(e.amount||0), mc:parseFloat(e.amount||0) });
+    });
+
+    // Parts
+    woParts.forEach(function(p){
+      items.push({ desc:p.name||'Part', cat:'Material', qty:parseFloat(p.qty||1), unitPrice:0, mc:0 });
+    });
+  }
+
+  // If WO had nothing logged yet, fall back to quote sell prices
+  if (!items.length && quote) {
+    var qItems = quote.items||[];
+    var laborQItems = qItems.filter(function(li){ return li.lh && parseFloat(li.lh)>0; });
+    var matQItems   = qItems.filter(function(li){ return !li.lh || parseFloat(li.lh)===0; });
+    var totalMatCost = matQItems.reduce(function(s,li){ return s+(parseFloat(li.mc||0))*(parseFloat(li.qty||1)); },0);
+    var matSell = parseFloat(quote.materialSell||0) || (parseFloat(quote.total||0) - parseFloat(quote.laborSell||0));
+    var matMult = totalMatCost > 0 ? matSell/totalMatCost : 1;
+    laborQItems.forEach(function(li){
+      var hrs = (parseFloat(li.lh||0))*(parseFloat(li.qty||1));
+      if (hrs > 0) items.push({ desc:li.desc||'Labor', cat:'Labor', qty:hrs, unitPrice:laborRate, mc:laborRate });
+    });
+    matQItems.forEach(function(li){
+      var sell = Math.round((parseFloat(li.mc||0)*matMult)*100)/100;
+      items.push({ desc:li.desc||'', cat:li.cat||'Material', qty:parseFloat(li.qty||1), unitPrice:sell, mc:sell });
+    });
+    if (!items.length) {
       items.push({ desc:job.name||'Services Rendered', cat:'Labor', qty:1, unitPrice:parseFloat(quote.total||0), mc:parseFloat(quote.total||0) });
     }
-  } else {
-    // No quote — blank line for manual entry
+  }
+
+  // Last resort — single blank line
+  if (!items.length) {
     items.push({ desc:job.name||'', cat:'Labor', qty:1, unitPrice:0, mc:0 });
   }
 
@@ -1838,7 +1885,8 @@ function buildInvoiceData(job) {
   return {
     id:        (document.getElementById('inv-existing-id')||{}).value || 'inv-'+Date.now(),
     jobId:     gv('inv-job-id'),
-    quoteId:   job ? (job.quoteId||null) : null,
+    woId:      gv('inv-wo-id'),
+    quoteId:   gv('inv-quote-id'),
     num:       gv('inv-num') || 'INV-0001',
     date:      gv('inv-date'),
     due:       gv('inv-due'),

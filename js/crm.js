@@ -441,7 +441,46 @@ function confirmConvertJob() {
 
   saveDB();
   closeModal('modal-convert-job');
-  showToast('Job '+job.num+' created'+(createWTP?' + Work Tracking project':'')+' ✓','success',5000);
+
+  // Auto-create Work Order linked to this job
+  if (!DB.workOrders) DB.workOrders = [];
+  if (!DB.woSeq) DB.woSeq = 1000;
+  DB.woSeq++;
+  var wo = {
+    id:           'wo-'+Date.now(),
+    woNumber:     'WO-'+DB.woSeq,
+    customerId:   (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(customer||'').toLowerCase(); }) ? (DB.customers.find(function(c){ return (c.name||'').toLowerCase()===(customer||'').toLowerCase(); })).id : null,
+    customerName: customer,
+    contactId:    contactId||null,
+    description:  q.notes||q.scope||name,
+    workPerformed:'',
+    status:       'New',
+    serviceType:  q.jt||'Installation',
+    priority:     'Normal',
+    serviceRep:   leadTech||null,
+    siteAddr:     address||q.ad||'',
+    siteCity:     q.adCity||'',
+    siteState:    q.adState||'',
+    siteZip:      q.adZip||'',
+    laborRate:    q.laborRate||125,
+    taxRate:      q.taxRate||0,
+    dateRequested:job.startDate||'',
+    jobId:        job.id,
+    quoteId:      qid,
+    invoiceId:    null,
+    createdBy:    (_currentUser&&_currentUser.id)||null,
+    createdByName:(_currentUser&&_currentUser.full_name)||'System',
+    createdAt:    new Date().toISOString(),
+    updatedAt:    new Date().toISOString()
+  };
+  DB.workOrders.unshift(wo);
+
+  // Link WO back to job
+  job.woId = wo.id;
+  job.woNumber = wo.woNumber;
+
+  saveDB();
+  showToast('Job '+job.num+' + Work Order '+wo.woNumber+' created ✓','success',5000);
   renderDash();
   renderJobs();
 }
