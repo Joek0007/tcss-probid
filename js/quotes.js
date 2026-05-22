@@ -1492,6 +1492,7 @@ function reprintInvoice(invId) {
     var up = parseFloat(li.unitPrice||li.mc||0);
     return Object.assign({},li,{_eid:i, unitPrice:up, mc:up});
   });
+  var itemsTotal = _invItems.reduce(function(s,li){ return s+(parseFloat(li.unitPrice||0))*(parseFloat(li.qty||1)); },0);
   // If all items are $0 but we have a linked quote, regenerate items from quote
   if (itemsTotal === 0 && inv.quoteId && quote) {
     var freshItems = [];
