@@ -4011,7 +4011,7 @@ function renderInventory() {
 // ---- NEW / EDIT INVENTORY ITEM ----
 function newInventoryItem() {
   document.getElementById('inv-modal-title').textContent = 'New Inventory Item';
-  ['inv-name','inv-cat','inv-loc','inv-notes','inv-id'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+  ['inv-name','inv-cat','inv-loc','inv-item-notes','inv-id'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
   const qtyEl=document.getElementById('inv-qty'); if(qtyEl) qtyEl.value=1;
   const minEl=document.getElementById('inv-min'); if(minEl) minEl.value=1;
   const costEl=document.getElementById('inv-cost'); if(costEl) costEl.value=0;
@@ -4029,7 +4029,7 @@ function editInventoryItem(id) {
   function sv(eid,v){ const el=document.getElementById(eid); if(el) el.value=v!==undefined&&v!==null?v:''; }
   sv('inv-name',item.name); sv('inv-tag',item.tag); sv('inv-cat',item.cat);
   sv('inv-loc',item.location); sv('inv-qty',item.qty||0); sv('inv-min',item.minQty||1);
-  sv('inv-cost',item.cost||0); sv('inv-notes',item.notes||''); sv('inv-id',item.id);
+  sv('inv-cost',item.cost||0); sv('inv-item-notes',item.notes||''); sv('inv-id',item.id);
   // Remove readonly on tag for editing
   const tagEl = document.getElementById('inv-tag'); if(tagEl) tagEl.removeAttribute('readonly');
   populateInvDataLists();
@@ -4060,7 +4060,7 @@ function saveInventoryItem() {
     qty:      parseInt(document.getElementById('inv-qty').value) || 0,
     minQty:   parseInt(document.getElementById('inv-min').value) || 1,
     cost:     parseFloat(document.getElementById('inv-cost').value) || 0,
-    notes:    document.getElementById('inv-notes').value.trim(),
+    notes:    document.getElementById('inv-item-notes').value.trim(),
     createdAt: id ? undefined : new Date().toISOString()
   };
   if (!id) data.createdAt = new Date().toISOString();
