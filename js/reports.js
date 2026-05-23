@@ -505,8 +505,13 @@ function renderDash() {
   // ---- ABSENCES TODAY ----
   var todayAbsences = (DB.absences||[]).filter(function(a){return a.date===today;});
 
-  // ---- UPDATE STAT TILES ----
-  function setT(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
+  // ---- WORK ORDER METRICS ----
+  var woAll     = DB.workOrders||[];
+  var woOpen    = woAll.filter(function(w){ return ['New','Open','Waiting on Customer','Parts Needed','Parts Ordered','Parts Received — Partial','Parts Received — Complete','Ready for Review','Ready for Pricing'].includes(w.status); });
+  var woUrgent  = woOpen.filter(function(w){ return w.priority==='Urgent'; });
+  var woReview  = woAll.filter(function(w){ return w.status==='Ready for Review'; });
+  var woPricing = woAll.filter(function(w){ return w.status==='Ready for Pricing'; });
+
   setT('ds-tq', tq);
   setT('ds-won-rev', '$'+Math.round(wonRev).toLocaleString());
   setT('ds-active-jobs', activeJobs.length);
@@ -515,8 +520,23 @@ function renderDash() {
   setT('ds-tools-out', toolsOut);
   setT('ds-followups', followupsDue);
   setT('ds-flags', openFlags);
+
+  // Work Orders tile
+  var woTileEl = document.getElementById('ds-wo-tile');
+  if (woTileEl) {
+    woTileEl.innerHTML =
+      '<div style="font-size:28px;font-weight:900;color:'+(woUrgent.length?'#c62828':'#1565c0')+'">'+woOpen.length+'</div>'+
+      '<div style="font-size:11px;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-top:2px">OPEN WOs</div>'+
+      (woUrgent.length?'<div style="font-size:10px;font-weight:700;color:#c62828;margin-top:4px;animation:pulse 1s infinite">🚨 '+woUrgent.length+' URGENT</div>':'')+
+      (woReview.length?'<div style="font-size:10px;color:#e65100;margin-top:2px">'+woReview.length+' ready for review</div>':'')+
+      (woPricing.length?'<div style="font-size:10px;color:#2e7d32;margin-top:2px">'+woPricing.length+' ready to invoice</div>':'');
+  }
+
   var lastUpdated = document.getElementById('dash-last-updated');
   if (lastUpdated) lastUpdated.textContent = 'Updated '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+
+  // Reorder alert
+  if (typeof renderDashReorderAlert === 'function') renderDashReorderAlert();
 
   // ---- ALERT BAR ----
   buildAlerts();
