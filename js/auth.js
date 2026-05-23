@@ -53,15 +53,18 @@ function init() {
         _currentUser = null;
         showAuthModal();
       }
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (event === 'SIGNED_IN') {
         hideAuthModal();
-        // Load profile + sync when session established (handles magic link redirect)
         if (!_currentUser) {
           loadCurrentUserProfile().then(function() {
             showToast('Welcome back, ' + (_currentUser ? _currentUser.full_name.split(' ')[0] : '') + '!', 'success');
             syncAllFromCloud();
           });
         }
+      }
+      // TOKEN_REFRESHED — update session silently, no re-sync
+      if (event === 'TOKEN_REFRESHED') {
+        hideAuthModal();
       }
     });
   } else {
@@ -531,6 +534,39 @@ async function syncAllFromCloud() {
         });
       }
     } catch(e) { errors.push('work_orders: '+e.message); }
+
+    // 16. WO Labor
+    try {
+      var { data: woLaborRows, error: wole } = await _sb.from('wo_labor').select('*').order('created_at', { ascending: false });
+      if (wole) { errors.push('wo_labor: '+wole.message); }
+      else if (woLaborRows) {
+        DB.woLabor = woLaborRows.map(function(l){
+          return { id:l.id, woId:l.wo_id, techName:l.tech_name, entryType:l.entry_type, clockIn:l.clock_in, clockOut:l.clock_out, hours:l.hours, notes:l.notes, createdAt:l.created_at };
+        });
+      }
+    } catch(e) { errors.push('wo_labor: '+e.message); }
+
+    // 17. WO Parts
+    try {
+      var { data: woPartsRows, error: wope } = await _sb.from('wo_parts').select('*').order('created_at', { ascending: false });
+      if (wope) { errors.push('wo_parts: '+wope.message); }
+      else if (woPartsRows) {
+        DB.woParts = woPartsRows.map(function(p){
+          return { id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, status:p.status, notes:p.notes, requestedBy:p.requested_by, createdAt:p.created_at };
+        });
+      }
+    } catch(e) { errors.push('wo_parts: '+e.message); }
+
+    // 18. WO Expenses
+    try {
+      var { data: woExpRows, error: woee } = await _sb.from('wo_expenses').select('*').order('created_at', { ascending: false });
+      if (woee) { errors.push('wo_expenses: '+woee.message); }
+      else if (woExpRows) {
+        DB.woExpenses = woExpRows.map(function(e){
+          return { id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, createdAt:e.created_at };
+        });
+      }
+    } catch(e) { errors.push('wo_expenses: '+e.message); }
 
     // 16. Vendors
     try {
