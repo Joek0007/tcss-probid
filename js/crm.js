@@ -98,6 +98,7 @@ function renderCPOverview(customer, quotes, jobs, contacts, projects) {
     '<div style="margin-top:12px;display:flex;gap:8px">'+
       '<button class="btn btn-primary btn-sm" onclick="editCustomer(\''+_cpCustomerId+'\')">✏ Edit</button>'+
       '<button class="btn btn-outline btn-sm" onclick="openQuoteForCustomer(\''+escHtml(customer.name)+'\')">+ New Quote</button>'+
+      '<button class="btn btn-outline btn-sm" onclick="openNewWOForCustomer(\''+escHtml(customer.id)+'\',\''+escHtml(customer.name)+'\')">+ New Work Order</button>'+
     '</div>'+
   '</div>';
 

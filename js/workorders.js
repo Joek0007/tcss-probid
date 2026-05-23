@@ -944,3 +944,34 @@ function createPOFromWOParts(woId) {
   closeModal('modal-work-order');
   goPage('purchaseorders');
 }
+
+function openNewWOForCustomer(customerId, customerName) {
+  // Close customer panel first
+  if (typeof closeCustomerProfile === 'function') closeCustomerProfile();
+  openNewWorkOrder();
+  // Pre-fill customer
+  var nameEl = document.getElementById('wo-customer-name');
+  var idEl   = document.getElementById('wo-customer-id');
+  if (nameEl) nameEl.value = customerName;
+  if (idEl)   idEl.value   = customerId;
+  // Populate contacts
+  _populateWOContacts(customerId, null);
+  // Fill address from customer record
+  var cust = (DB.customers||[]).find(function(c){ return c.id===customerId; });
+  if (cust) {
+    var settings = DB.woSettings||{};
+    var lr = document.getElementById('wo-labor-rate');
+    if (lr) lr.value = cust.laborRate || settings.defaultLaborRate || 125;
+    var addrEl  = document.getElementById('wo-site-addr');
+    var cityEl  = document.getElementById('wo-site-city');
+    var stEl    = document.getElementById('wo-site-state');
+    var zipEl   = document.getElementById('wo-site-zip');
+    if (addrEl) addrEl.value = cust.street||cust.address||'';
+    if (cityEl) cityEl.value = cust.city||'';
+    if (stEl)   stEl.value   = cust.state||'';
+    if (zipEl)  zipEl.value  = cust.zip||'';
+  }
+  // Check hot notes for new WO
+  _checkHotNotes(customerId, 'new', true);
+  goPage('workorders');
+}
