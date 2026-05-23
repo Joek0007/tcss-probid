@@ -3428,7 +3428,8 @@ document.addEventListener('click', function(e) {
     case 'saveContact': saveContact(); break;
     case 'delContact': delContact(id); break;
     case 'newTeamMember': newTeamMember(); break;
-    case 'editTeamMember': editTeamMember(id); break;
+    case 'editTeamMember': editTeamMemberV2(id); break;
+    case 'inviteTeamMember': sendInviteToMember(id); break;
     case 'saveTeamMember': saveTeamMember(); break;
     case 'delTeamMember': delTeamMember(id); break;
     case 'newJob': newJob(); break;

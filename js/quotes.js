@@ -2592,8 +2592,8 @@ function renderTeam() {
       '<td class="team-rate-col">$'+escHtml(String(t.rate||'0'))+'/hr</td>'+
       '<td>'+statusBadge+'</td>'+
       '<td style="white-space:nowrap">'+
-        '<button class="btn btn-outline btn-sm" onclick="editTeamMemberV2(\'+t.id+\')">Edit</button> '+
-        (!hasLogin && t.email ? '<button class="btn btn-outline btn-sm" onclick="sendInviteToMember(\'+t.id+\')">✉ Invite</button> ' : '')+
+        '<button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> '+
+        (!hasLogin && t.email ? '<button class="btn btn-outline btn-sm" data-action="inviteTeamMember" data-id="'+t.id+'">✉ Invite</button> ' : '')+
         (isOwner ? '<button class="btn btn-danger btn-sm" data-action="delTeamMember" data-id="'+t.id+'">Del</button>' : '')+
       '</td>'+
     '</tr>';
