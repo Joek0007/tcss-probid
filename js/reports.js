@@ -512,6 +512,8 @@ function renderDash() {
   var woReview  = woAll.filter(function(w){ return w.status==='Ready for Review'; });
   var woPricing = woAll.filter(function(w){ return w.status==='Ready for Pricing'; });
 
+  // ---- UPDATE STAT TILES ----
+  function setT(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
   setT('ds-tq', tq);
   setT('ds-won-rev', '$'+Math.round(wonRev).toLocaleString());
   setT('ds-active-jobs', activeJobs.length);
