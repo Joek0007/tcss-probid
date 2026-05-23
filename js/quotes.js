@@ -2108,21 +2108,6 @@ function buildInvoiceHTML(inv) {
     '</div></body></html>';
 }
 
-// ============================================================
-// END INVOICE SYSTEM
-// ============================================================
-
-function exportCSV() {
-  const rows = [['Quote#','Customer','Job Name','Environment','Total','Target Margin','Achieved Margin','Health','Status','Date']];
-  DB.quotes.forEach(function(q){
-    const envLabel = q.envLabel || (ENV_PRESETS[q.env] ? ENV_PRESETS[q.env].label : q.env||'');
-    rows.push([q.num||'',q.cn||'',q.jn||'',envLabel,q.total||0,pct(q.targetMargin||35),pct(q.achievedMargin||0),q.pricingHealth||'',q.status||'',q.dt||'']);
-  });
-  const csv = rows.map(function(r){return r.map(function(c){return '"'+(c+'').replace(/"/g,'""')+'"';}).join(',');}).join('\n');
-  const blob = new Blob([csv],{type:'text/csv'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tcss-quotes.csv'; a.click();
-}
-
 // ---- RENDER CUSTOMERS ----
 function renderCustomers() {
   var search  = (document.getElementById('cust-search')||{}).value||'';
@@ -2575,50 +2560,203 @@ function delJob(id) {
 }
 
 // ---- RENDER TEAM ----
-function renderTeam(){
-  const tbody=document.getElementById('team-tbl');
-  if(!tbody)return;
-  if(DB.team.length===0){tbody.innerHTML='<tr><td colspan="6" class="empty-state"><p>No team members yet.</p></td></tr>';return;}
-  tbody.innerHTML=DB.team.map(function(t){return '<tr><td style="font-weight:700">'+escHtml(t.name||'')+'</td><td>'+escHtml(t.role||'')+'</td><td>'+escHtml(t.phone||'')+'</td><td>'+escHtml(t.email||'')+'</td><td class="team-rate-col">$'+escHtml(t.rate||'0')+'/hr</td><td><button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> <button class="btn btn-danger btn-sm" data-action="delTeamMember" data-id="'+t.id+'">Del</button></td></tr>';}).join('');
+// ---- TEAM MANAGEMENT V2 (with invite system) ----
+
+var _accessLabels = {
+  owner:'Owner',lead_tech:'Lead Tech',office:'Office',field:'Field Tech',estimator:'Estimator'
+};
+
+function renderTeam() {
+  var tbody = document.getElementById('team-tbl');
+  if (!tbody) return;
+  if (!DB.team.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>No team members yet. Click Invite Member to add your first team member.</p></td></tr>';
+    return;
+  }
+  var isOwner = _currentUser && _currentUser.role === 'owner';
+  tbody.innerHTML = DB.team.map(function(t) {
+    var access    = t.access || t.systemRole || 'field';
+    var accessLbl = _accessLabels[access] || access;
+    var invited   = !!t.invitedAt;
+    var hasLogin  = !!t.authUserId;
+    var statusBadge = hasLogin
+      ? '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✓ Active</span>'
+      : invited
+        ? '<span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⏳ Invite Sent</span>'
+        : '<span style="background:#f5f5f5;color:#90a4ae;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">No Login</span>';
+    return '<tr>'+
+      '<td style="font-weight:700;font-size:13px">'+escHtml(t.name||'')+'</td>'+
+      '<td style="font-size:12px;color:#546e7a">'+escHtml(t.role||'')+'</td>'+
+      '<td><span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">'+escHtml(accessLbl)+'</span></td>'+
+      '<td style="font-size:12px">'+escHtml(t.email||'—')+'</td>'+
+      '<td class="team-rate-col">$'+escHtml(String(t.rate||'0'))+'/hr</td>'+
+      '<td>'+statusBadge+'</td>'+
+      '<td style="white-space:nowrap">'+
+        '<button class="btn btn-outline btn-sm" onclick="editTeamMemberV2(\'+t.id+\')">Edit</button> '+
+        (!hasLogin && t.email ? '<button class="btn btn-outline btn-sm" onclick="sendInviteToMember(\'+t.id+\')">✉ Invite</button> ' : '')+
+        (isOwner ? '<button class="btn btn-danger btn-sm" data-action="delTeamMember" data-id="'+t.id+'">Del</button>' : '')+
+      '</td>'+
+    '</tr>';
+  }).join('');
 }
-function newTeamMember(){
-  ['m-tmname','m-tmrole','m-tmph','m-tmem','m-tmid','m-tmhire'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});
-  const el=document.getElementById('m-tmrate');if(el)el.value=65;
-  const ac=document.getElementById('m-tmaccess');if(ac)ac.value='field';
-  const sv=document.getElementById('m-tm-show-vacation');if(sv)sv.checked=false;
-  const sp=document.getElementById('m-tm-show-pto');if(sp)sp.checked=false;
+
+function newTeamMemberV2() {
+  ['m-tmname','m-tmrole','m-tmph','m-tmem','m-tmid','m-tmhire','m-tm-invited'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  var el=document.getElementById('m-tmrate');        if(el)  el.value=65;
+  var ac=document.getElementById('m-tmaccess');      if(ac)  ac.value='field';
+  var sv=document.getElementById('m-tm-show-vacation');if(sv)sv.checked=false;
+  var sp=document.getElementById('m-tm-show-pto');   if(sp)  sp.checked=false;
+  var st=document.getElementById('tm-invite-status');if(st){st.style.display='none';st.innerHTML='';}
+  var rb=document.getElementById('tm-resend-btn');   if(rb)  rb.style.display='none';
+  document.getElementById('team-modal-title').textContent='New Team Member';
   openModal('modal-team');
 }
-function editTeamMember(id){
-  const t=DB.team.find(function(x){return x.id==id});if(!t)return;
-  function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v||'';}
-  sv('m-tmname',t.name);sv('m-tmrole',t.role);sv('m-tmph',t.phone);sv('m-tmem',t.email);
-  sv('m-tmrate',t.rate||65);sv('m-tmid',t.id);sv('m-tmhire',t.hireDate||'');
-  const ac=document.getElementById('m-tmaccess');if(ac)ac.value=t.access||t.systemRole||'field';
-  const sv2=document.getElementById('m-tm-show-vacation');if(sv2)sv2.checked=!!t.showVacation;
-  const sp=document.getElementById('m-tm-show-pto');if(sp)sp.checked=!!t.showPTO;
+
+// Keep old name working
+function newTeamMember() { newTeamMemberV2(); }
+
+function editTeamMemberV2(id) {
+  var t=DB.team.find(function(x){return x.id==id;}); if(!t) return;
+  function sv(eid,v){var el=document.getElementById(eid);if(el)el.value=v||'';}
+  sv('m-tmname',t.name); sv('m-tmrole',t.role); sv('m-tmph',t.phone||''); sv('m-tmem',t.email||'');
+  sv('m-tmrate',t.rate||65); sv('m-tmid',t.id); sv('m-tmhire',t.hireDate||'');
+  sv('m-tm-invited',t.invitedAt||'');
+  var ac=document.getElementById('m-tmaccess'); if(ac) ac.value=t.access||t.systemRole||'field';
+  var sv2=document.getElementById('m-tm-show-vacation'); if(sv2) sv2.checked=!!t.showVacation;
+  var sp=document.getElementById('m-tm-show-pto');       if(sp)  sp.checked=!!t.showPTO;
+
+  // Show invite status
+  var stEl=document.getElementById('tm-invite-status');
+  var rbEl=document.getElementById('tm-resend-btn');
+  if (stEl) {
+    if (t.authUserId) {
+      stEl.style.display=''; stEl.style.background='#e8f5e9'; stEl.style.color='#2e7d32';
+      stEl.innerHTML='✓ This member has an active login account.';
+      if(rbEl) rbEl.style.display='none';
+    } else if (t.invitedAt) {
+      stEl.style.display=''; stEl.style.background='#fff3e0'; stEl.style.color='#e65100';
+      stEl.innerHTML='⏳ Invite sent on '+escHtml(t.invitedAt.split('T')[0])+' — waiting for them to accept.';
+      if(rbEl) rbEl.style.display='';
+    } else {
+      stEl.style.display='none';
+      if(rbEl) rbEl.style.display='none';
+    }
+  }
+  document.getElementById('team-modal-title').textContent='Edit: '+escHtml(t.name||'');
   openModal('modal-team');
 }
-function saveTeamMember(){
-  const id=document.getElementById('m-tmid').value;
-  const name=document.getElementById('m-tmname').value;
-  if(!name.trim()){showToast('Name required.','error'); return;}
-  const data={
-    id:id||Date.now().toString(),
-    name,
-    role:document.getElementById('m-tmrole').value,
-    systemRole:(document.getElementById('m-tmaccess')||{}).value||'field',
-    access:(document.getElementById('m-tmaccess')||{}).value||'field',
-    phone:document.getElementById('m-tmph').value,
-    email:document.getElementById('m-tmem').value,
-    rate:document.getElementById('m-tmrate').value,
-    hireDate:(document.getElementById('m-tmhire')||{}).value||'',
+
+// Keep old name working
+function editTeamMember(id) { editTeamMemberV2(id); }
+
+function _buildTeamMemberData() {
+  function gv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+  var id   = gv('m-tmid');
+  var name = gv('m-tmname');
+  if (!name) { showToast('Name is required','error'); return null; }
+  var email = gv('m-tmem');
+  var existing = id ? DB.team.find(function(t){return t.id==id;}) : null;
+  return {
+    id:          id || crypto.randomUUID(),
+    name:        name,
+    role:        gv('m-tmrole'),
+    access:      gv('m-tmaccess') || 'field',
+    systemRole:  gv('m-tmaccess') || 'field',
+    phone:       gv('m-tmph'),
+    email:       email,
+    rate:        parseFloat(gv('m-tmrate')) || 65,
+    hireDate:    gv('m-tmhire'),
     showVacation:!!(document.getElementById('m-tm-show-vacation')||{}).checked,
-    showPTO:!!(document.getElementById('m-tm-show-pto')||{}).checked
+    showPTO:     !!(document.getElementById('m-tm-show-pto')||{}).checked,
+    invitedAt:   existing ? (existing.invitedAt||null) : null,
+    authUserId:  existing ? (existing.authUserId||null) : null
   };
-  if(id){const idx=DB.team.findIndex(function(t){return t.id==id});if(idx>=0)DB.team[idx]=data;else DB.team.push(data);}
-  else DB.team.push(data);
-  saveDB();closeModal('modal-team');renderTeam();
+}
+
+function saveTeamMemberV2() {
+  var data = _buildTeamMemberData(); if(!data) return;
+  _upsertTeamMember(data);
+  saveDB(); closeModal('modal-team'); renderTeam();
+  showToast(data.name+' saved ✓','success');
+}
+
+// Keep old name working
+function saveTeamMember() { saveTeamMemberV2(); }
+
+async function saveAndInviteTeamMember() {
+  var data = _buildTeamMemberData(); if(!data) return;
+  if (!data.email) { showToast('Email address is required to send an invite','error'); return; }
+  _upsertTeamMember(data);
+  saveDB();
+  showToast('Sending invite to '+data.email+'...','info',3000);
+  await sendInviteToMember(data.id);
+  closeModal('modal-team');
+  renderTeam();
+}
+
+async function sendInviteToMember(id) {
+  var t = DB.team.find(function(x){return x.id==id;}); if(!t) return;
+  if (!t.email) { showToast('No email address for this team member','error'); return; }
+  if (!_sb) { showToast('Not connected to database','error'); return; }
+  try {
+    // Use Supabase admin invite — requires service role key
+    // With anon key we use signInWithOtp (magic link) as fallback
+    var redirectTo = window.location.origin + window.location.pathname;
+    var result = await _sb.auth.signInWithOtp({
+      email: t.email,
+      options: {
+        emailRedirectTo: redirectTo,
+        data: {
+          full_name: t.name,
+          role:      t.access || 'field',
+          team_id:   t.id
+        }
+      }
+    });
+    if (result.error) {
+      // Try admin invite via edge function if available
+      showToast('Could not send via magic link: '+result.error.message+'. Please invite from Supabase Auth dashboard.','error',6000);
+      return;
+    }
+    t.invitedAt = new Date().toISOString();
+    saveDB();
+    // Push to Supabase team record
+    if (_sb && _currentUser) {
+      _sb.from('team').update({ invited_at: t.invitedAt }).eq('id', t.id).then(function(){});
+    }
+    showToast('✉️ Login invite sent to '+t.email+' ✓','success',5000);
+  } catch(e) {
+    showToast('Invite error: '+e.message,'error');
+  }
+}
+
+async function resendTeamInvite() {
+  var id = (document.getElementById('m-tmid')||{}).value||'';
+  if (id) await sendInviteToMember(id);
+}
+
+function _upsertTeamMember(data) {
+  if (!DB.team) DB.team = [];
+  var idx = DB.team.findIndex(function(t){return t.id==data.id;});
+  if (idx>=0) DB.team[idx]=data; else DB.team.push(data);
+  // Push to Supabase
+  if (_sb && _currentUser) {
+    _sb.from('team').upsert({
+      id:           data.id,
+      full_name:    data.name,
+      role:         data.access||'field',
+      phone:        data.phone||null,
+      email:        data.email||null,
+      rate:         data.rate||65,
+      hire_date:    data.hireDate||null,
+      show_vacation:!!data.showVacation,
+      show_pto:     !!data.showPTO,
+      is_active:    true,
+      created_by:   _currentUser.id
+    }).then(function(r){ if(r.error) console.warn('[Team Push]',r.error.message); });
+  }
 }
 function delTeamMember(id){
   if(!confirm('Remove team member?')) return;

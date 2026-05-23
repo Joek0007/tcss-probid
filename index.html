@@ -2963,8 +2963,16 @@ table{font-size:12.5px}
 
 <!-- TEAM -->
 <div class="page" id="page-team">
-  <div class="page-header"><h2>👷 Team</h2><button class="btn btn-primary" data-action="newTeamMember">+ Add Member</button></div>
-  <div class="card"><table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th class="team-rate-col">Rate</th><th>Actions</th></tr></thead>
+  <div class="page-header"><h2>👷 Team</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline btn-sm" onclick="newTeamMemberV2()">+ Add Member</button>
+      <button class="btn btn-primary" onclick="newTeamMemberV2()">✉️ Invite Member</button>
+    </div>
+  </div>
+  <div style="background:#e3f2fd;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1565c0">
+    <strong>How login access works:</strong> Each team member needs a login invite to access ProBid. Click <strong>✉️ Invite Member</strong> or edit an existing member and click <strong>Save & Send Invite</strong>. They'll get an email with a link to set their password.
+  </div>
+  <div class="card"><table><thead><tr><th>Name</th><th>Title</th><th>Access</th><th>Email</th><th class="team-rate-col">Rate</th><th>Login Status</th><th>Actions</th></tr></thead>
   <tbody id="team-tbl"></tbody></table></div>
 </div>
 
@@ -5016,18 +5024,20 @@ table{font-size:12.5px}
 
 <div class="modal-overlay" id="modal-team">
   <div class="modal-box sm">
-    <div class="modal-head"><h3>Team Member</h3><button class="close-btn" data-action="closeModal" data-modal="modal-team">×</button></div>
+    <div class="modal-head"><h3 id="team-modal-title">Team Member</h3><button class="close-btn" data-action="closeModal" data-modal="modal-team">×</button></div>
     <div class="modal-body">
       <div class="form-row cols2"><div><label>Name *</label><input id="m-tmname"></div><div><label>Job Title</label><input id="m-tmrole" placeholder="e.g. Lead Technician"></div></div>
       <div class="form-row"><div><label>Access Level</label><select id="m-tmaccess"><option value="field">Field Tech — Time clock, jobs, work tracking only</option><option value="lead_tech">Lead Tech — Field + customers, reports, catalog</option><option value="office">Office — Everything except Team page</option><option value="owner">Owner — Full access</option><option value="estimator">Estimator — Quoting only</option></select></div></div>
-      <div class="form-row cols2"><div><label>Phone</label><input id="m-tmph"></div><div><label>Email</label><input id="m-tmem" type="email"></div></div>
+      <div class="form-row cols2"><div><label>Phone</label><input id="m-tmph"></div><div><label>Email *</label><input id="m-tmem" type="email" placeholder="Required to send login invite"></div></div>
       <div class="form-row cols2">
         <div><label>Hourly Rate ($)</label><input id="m-tmrate" type="number" value="65"></div>
         <div><label>Hire Date</label><input id="m-tmhire" type="date"></div>
       </div>
+      <!-- Invite status -->
+      <div id="tm-invite-status" style="display:none;background:#e3f2fd;border-radius:8px;padding:10px 14px;margin-top:8px;font-size:13px"></div>
       <!-- Leave visibility toggles -->
       <div style="border-top:1px solid #e0e0e0;margin-top:12px;padding-top:12px">
-        <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:8px">LEAVE BALANCE VISIBILITY (what this employee can see)</label>
+        <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:8px">LEAVE BALANCE VISIBILITY</label>
         <div style="display:flex;flex-direction:column;gap:8px">
           <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px">
             <input type="checkbox" id="m-tm-show-vacation" style="width:16px;height:16px">
@@ -5038,11 +5048,16 @@ table{font-size:12.5px}
             Show PTO hours accrued to this employee
           </label>
         </div>
-        <p style="font-size:11px;color:#90a4ae;margin-top:6px">When unchecked, the employee sees their hours summary but not leave balances. Useful during waiting periods or when you want to control when visibility is granted.</p>
       </div>
       <input type="hidden" id="m-tmid">
+      <input type="hidden" id="m-tm-invited">
     </div>
-    <div class="modal-foot"><button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-team">Cancel</button><button class="btn btn-primary" data-action="saveTeamMember">Save</button></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-team">Cancel</button>
+      <button class="btn btn-outline" id="tm-resend-btn" onclick="resendTeamInvite()" style="display:none">↻ Resend Invite</button>
+      <button class="btn btn-primary" onclick="saveTeamMemberV2()">💾 Save</button>
+      <button class="btn btn-success" id="tm-invite-btn" onclick="saveAndInviteTeamMember()">✉️ Save & Send Invite</button>
+    </div>
   </div>
 </div>
 
@@ -5145,30 +5160,71 @@ table{font-size:12.5px}
 </div>
 
 <!-- AUTH MODAL -->
-<div id="modal-auth" style="display:none;position:fixed;inset:0;background:rgba(13,27,42,.85);z-index:99998;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:36px 40px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-    <div style="text-align:center;margin-bottom:24px">
-      <div style="font-size:28px;font-weight:900;color:#1565c0;letter-spacing:-1px">TCSS ProBid</div>
-      <div style="font-size:13px;color:#607d8b;margin-top:4px">Sign in to your account</div>
+<div id="modal-auth" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#0d1b2a 0%,#1565c0 100%);z-index:99998;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:20px;padding:0;width:100%;max-width:440px;box-shadow:0 24px 80px rgba(0,0,0,.4);overflow:hidden">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1565c0,#0d47a1);padding:32px 40px;text-align:center">
+      <div style="margin-bottom:6px">
+        <span style="color:#ff3333;font-size:26px;font-weight:900;font-family:Arial,sans-serif;letter-spacing:-0.5px">TOTAL </span>
+        <span style="color:#fff;font-size:26px;font-weight:900;font-family:Arial,sans-serif;letter-spacing:-0.5px">COMMUNICATIONS</span>
+      </div>
+      <div style="color:rgba(255,255,255,.7);font-size:12px;letter-spacing:.5px">Systems &amp; Solutions, Inc.</div>
+      <div style="color:rgba(255,255,255,.5);font-size:11px;margin-top:8px;letter-spacing:1px;text-transform:uppercase">ProBid V9</div>
     </div>
-    <div id="auth-error" style="display:none;background:#ffebee;color:#c62828;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px"></div>
-    <div style="margin-bottom:14px">
-      <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Email Address</label>
-      <input id="auth-email" type="email" placeholder="your@email.com"
-        style="width:100%;padding:10px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box">
+    <!-- Body -->
+    <div style="padding:32px 40px">
+      <div id="auth-error" style="display:none;background:#ffebee;color:#c62828;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;border-left:4px solid #c62828"></div>
+      <div id="auth-success" style="display:none;background:#e8f5e9;color:#2e7d32;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;border-left:4px solid #2e7d32"></div>
+
+      <!-- Sign In form -->
+      <div id="auth-signin-form">
+        <div style="font-size:18px;font-weight:700;color:#0d1b2a;margin-bottom:20px">Sign In</div>
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Email Address</label>
+          <input id="auth-email" type="email" placeholder="you@tcss.com" autocomplete="email"
+            style="width:100%;padding:11px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box;transition:border-color .15s"
+            onfocus="this.style.borderColor='#1565c0'" onblur="this.style.borderColor='#e0e0e0'">
+        </div>
+        <div style="margin-bottom:8px">
+          <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Password</label>
+          <input id="auth-password" type="password" placeholder="••••••••" autocomplete="current-password"
+            style="width:100%;padding:11px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box;transition:border-color .15s"
+            onfocus="this.style.borderColor='#1565c0'" onblur="this.style.borderColor='#e0e0e0'"
+            onkeydown="if(event.key==='Enter')doSignIn()">
+        </div>
+        <div style="text-align:right;margin-bottom:20px">
+          <a href="#" onclick="showForgotPassword();return false" style="font-size:12px;color:#1565c0;text-decoration:none">Forgot password?</a>
+        </div>
+        <button onclick="doSignIn()" id="auth-btn"
+          style="width:100%;padding:13px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:background .15s"
+          onmouseover="this.style.background='#0d47a1'" onmouseout="this.style.background='#1565c0'">
+          Sign In →
+        </button>
+        <div id="auth-offline-note" style="margin-top:14px;text-align:center;font-size:11px;color:#90a4ae">
+          No connection? <a href="#" onclick="continueOffline();return false" style="color:#1565c0">Continue offline</a>
+        </div>
+      </div>
+
+      <!-- Forgot password form -->
+      <div id="auth-forgot-form" style="display:none">
+        <div style="font-size:18px;font-weight:700;color:#0d1b2a;margin-bottom:8px">Reset Password</div>
+        <div style="font-size:13px;color:#546e7a;margin-bottom:20px">Enter your email and we'll send you a reset link.</div>
+        <div style="margin-bottom:20px">
+          <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Email Address</label>
+          <input id="auth-reset-email" type="email" placeholder="you@tcss.com"
+            style="width:100%;padding:11px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box">
+        </div>
+        <button onclick="doPasswordReset()"
+          style="width:100%;padding:13px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">
+          Send Reset Link
+        </button>
+        <div style="text-align:center;margin-top:12px">
+          <a href="#" onclick="showSignIn();return false" style="font-size:12px;color:#1565c0;text-decoration:none">← Back to Sign In</a>
+        </div>
+      </div>
     </div>
-    <div style="margin-bottom:20px">
-      <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Password</label>
-      <input id="auth-password" type="password" placeholder="••••••••"
-        style="width:100%;padding:10px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box"
-        onkeydown="if(event.key==='Enter')doSignIn()">
-    </div>
-    <button onclick="doSignIn()" id="auth-btn"
-      style="width:100%;padding:12px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">
-      Sign In
-    </button>
-    <div id="auth-offline-note" style="margin-top:16px;text-align:center;font-size:11px;color:#90a4ae">
-      No internet? <a href="#" onclick="continueOffline();return false" style="color:#1565c0">Continue offline</a>
+    <div style="padding:12px 40px;background:#f8f9fa;border-top:1px solid #e0e0e0;text-align:center;font-size:11px;color:#90a4ae">
+      Total Communications Systems &amp; Solutions, Inc. · Asheboro, NC
     </div>
   </div>
 </div>

@@ -996,10 +996,75 @@ function showToast(msg, type, duration) {
 function showAuthModal() {
   var modal = document.getElementById('modal-auth');
   if (modal) modal.style.display = 'flex';
+  showSignIn();
+  // Handle magic link / password reset redirect
+  var hash = window.location.hash;
+  if (hash && (hash.includes('access_token') || hash.includes('type=recovery'))) {
+    _handleAuthRedirect();
+  }
 }
 function hideAuthModal() {
   var modal = document.getElementById('modal-auth');
   if (modal) modal.style.display = 'none';
+}
+function showSignIn() {
+  var sf = document.getElementById('auth-signin-form');
+  var ff = document.getElementById('auth-forgot-form');
+  if (sf) sf.style.display = '';
+  if (ff) ff.style.display = 'none';
+  clearAuthMessages();
+}
+function showForgotPassword() {
+  var sf = document.getElementById('auth-signin-form');
+  var ff = document.getElementById('auth-forgot-form');
+  if (sf) sf.style.display = 'none';
+  if (ff) ff.style.display = '';
+  clearAuthMessages();
+  var resetEl = document.getElementById('auth-reset-email');
+  var emailEl = document.getElementById('auth-email');
+  if (resetEl && emailEl) resetEl.value = emailEl.value;
+}
+function clearAuthMessages() {
+  var errEl = document.getElementById('auth-error');
+  var sucEl = document.getElementById('auth-success');
+  if (errEl) { errEl.style.display='none'; errEl.textContent=''; }
+  if (sucEl) { sucEl.style.display='none'; sucEl.textContent=''; }
+}
+function showAuthError(msg) {
+  var errEl = document.getElementById('auth-error');
+  if (errEl) { errEl.style.display=''; errEl.textContent=msg; }
+}
+function showAuthSuccess(msg) {
+  var sucEl = document.getElementById('auth-success');
+  if (sucEl) { sucEl.style.display=''; sucEl.textContent=msg; }
+}
+
+async function doPasswordReset() {
+  var email = ((document.getElementById('auth-reset-email')||{}).value||'').trim();
+  if (!email) { showAuthError('Enter your email address'); return; }
+  if (!_sb) { showAuthError('Not connected'); return; }
+  clearAuthMessages();
+  var btn = document.querySelector('#auth-forgot-form button');
+  if (btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
+  var redirectTo = window.location.origin + window.location.pathname;
+  var { error } = await _sb.auth.resetPasswordForEmail(email, { redirectTo: redirectTo });
+  if (btn) { btn.textContent = 'Send Reset Link'; btn.disabled = false; }
+  if (error) { showAuthError(error.message); return; }
+  showAuthSuccess('✓ Reset link sent to '+email+' — check your inbox');
+  setTimeout(showSignIn, 4000);
+}
+
+async function _handleAuthRedirect() {
+  if (!_sb) return;
+  var { data, error } = await _sb.auth.getSession();
+  if (data && data.session) {
+    hideAuthModal();
+    await loadCurrentUserProfile();
+    syncAllFromCloud();
+    // Clear hash from URL
+    history.replaceState(null, '', window.location.pathname);
+    showToast('Welcome to ProBid! Please set a permanent password in Settings.','info',6000);
+  }
 }
 
 // ---- USER MANAGEMENT (Owners only) ----
@@ -1093,20 +1158,22 @@ function mobileNav(page) {
 
 // ---- AUTH HELPERS ----
 async function doSignIn() {
-  var email    = (document.getElementById('auth-email')||{}).value || '';
+  var email    = ((document.getElementById('auth-email')||{}).value||'').trim();
   var password = (document.getElementById('auth-password')||{}).value || '';
-  var errEl    = document.getElementById('auth-error');
-  var btn      = document.getElementById('auth-btn');
   if (!email || !password) {
-    if (errEl) { errEl.style.display='block'; errEl.textContent='Please enter your email and password.'; }
+    showAuthError('Please enter your email and password.');
     return;
   }
-  if (errEl) errEl.style.display = 'none';
+  clearAuthMessages();
+  var btn = document.getElementById('auth-btn');
   if (btn) { btn.textContent='Signing in...'; btn.disabled=true; }
   var result = await signIn(email, password);
   if (result.error) {
-    if (errEl) { errEl.style.display='block'; errEl.textContent=result.error.message||'Sign in failed. Check your credentials.'; }
-    if (btn) { btn.textContent='Sign In'; btn.disabled=false; }
+    var msg = result.error.message||'Sign in failed.';
+    if (msg.includes('Invalid login')) msg = 'Incorrect email or password. Check your credentials or use Forgot Password.';
+    if (msg.includes('Email not confirmed')) msg = 'Check your inbox — you need to verify your email before signing in.';
+    showAuthError(msg);
+    if (btn) { btn.textContent='Sign In →'; btn.disabled=false; }
   }
 }
 
