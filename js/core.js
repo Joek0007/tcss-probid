@@ -142,8 +142,10 @@ function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner'};
 
 function goPage(id) {
-  // Warn if leaving Quick Quote with unsaved changes
-  if (id !== 'qq' && typeof _qqDirty !== 'undefined' && _qqDirty) {
+  // Warn if leaving Quick Quote with unsaved changes — only if QQ page is actually visible
+  var qqPage = document.getElementById('page-qq');
+  var qqActive = qqPage && qqPage.classList.contains('active');
+  if (id !== 'qq' && qqActive && typeof _qqDirty !== 'undefined' && _qqDirty) {
     if (!confirm('You have unsaved changes in the Quick Quote.\nLeave anyway? Your changes will be lost.')) return;
   }
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
