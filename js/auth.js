@@ -161,7 +161,7 @@ async function loadCurrentUserProfile() {
 function applyRolePermissions(role) {
   // Nav visibility based on role
   var fieldRoles = ['helper_tech','subcontractor'];
-  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team','purchaseorders','vendors'];
+  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team','purchaseorders','vendors','scanner'];
   var leadTechShow = ['dash','field','jobs','dispatch','worktracking','workorders','customers','contacts','reports','catalog','tools','inventory','calendar'];
   var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
   var nav = document.querySelectorAll('.nav-item[data-page]');

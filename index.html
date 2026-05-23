@@ -1116,6 +1116,7 @@ table{font-size:12.5px}
     <div class="nav-item" data-page="reports"><span class="nav-icon">📈</span>Reports</div>
     <div class="nav-item" data-page="calendar"><span class="nav-icon">📅</span>Calendar</div>
     <div class="nav-item" data-page="inventory"><span class="nav-icon">📦</span>Inventory</div>
+    <div class="nav-item" data-page="scanner"><span class="nav-icon">📷</span>Scanner</div>
     <div class="nav-item" data-page="tools"><span class="nav-icon">🔧</span>Tools</div>
     <div class="nav-item" data-page="field"><span class="nav-icon">⏱</span>Time Clock</div>
     <div class="nav-item" data-page="timesheet" id="nav-timesheet"><span class="nav-icon">📋</span>Timesheets</div>
@@ -1186,6 +1187,9 @@ table{font-size:12.5px}
     <div class="alert-bar-title">⚠️ Needs Attention</div>
     <div id="dash-alert-list"></div>
   </div>
+
+  <!-- Reorder Alert -->
+  <div id="dash-reorder-alert" style="margin-bottom:12px;display:none"></div>
 
   <!-- Absence alerts — always at top, high visibility -->
   <div id="dash-absence-alerts" style="display:none"></div>
@@ -3049,6 +3053,71 @@ table{font-size:12.5px}
   </div>
 </div>
 
+<div class="page" id="page-scanner">
+  <div class="page-header"><h2>📷 Scanner — Check Out / In / Transfer</h2></div>
+  <!-- Mode buttons -->
+  <div style="display:flex;gap:8px;margin-bottom:20px">
+    <button id="scan-mode-checkout" class="btn btn-primary btn-sm" onclick="setScanMode('checkout')">↗ Check Out</button>
+    <button id="scan-mode-checkin"  class="btn btn-outline btn-sm" onclick="setScanMode('checkin')">↙ Check In</button>
+    <button id="scan-mode-transfer" class="btn btn-outline btn-sm" onclick="setScanMode('transfer')">⇄ Transfer</button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:800px">
+    <!-- Scan input -->
+    <div class="card">
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:6px">Scan Barcode or Search Item</label>
+        <div style="display:flex;gap:8px">
+          <input id="scan-input" placeholder="Scan or type item name / barcode..." autofocus
+            style="flex:1;padding:10px 14px;border:2px solid #1565c0;border-radius:8px;font-size:14px"
+            onkeydown="if(event.key==='Enter'){onScanInput(this.value)}"
+            oninput="if(this.value.length>6){}">
+          <button class="btn btn-outline" onclick="openCameraScanner()" title="Use phone camera">📷</button>
+          <button class="btn btn-primary" onclick="onScanInput(document.getElementById('scan-input').value)">Go</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">From Location</label>
+          <select id="scan-from-loc" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></select>
+        </div>
+        <div id="scan-to-loc-row">
+          <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">To Location</label>
+          <select id="scan-to-loc" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></select>
+        </div>
+      </div>
+      <div id="scan-job-row" style="margin-bottom:12px">
+        <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">WO / Job *</label>
+        <select id="scan-job" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></select>
+      </div>
+      <div id="scan-person-row" style="margin-bottom:12px">
+        <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Person (optional)</label>
+        <select id="scan-person" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+          <option value="">— Select person —</option>
+        </select>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Quantity</label>
+        <input type="number" id="scan-qty" value="1" min="1" step="1" style="width:80px;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+      </div>
+    </div>
+    <!-- Result -->
+    <div>
+      <div id="scan-result"></div>
+      <div style="margin-top:16px">
+        <div style="font-size:12px;font-weight:700;color:#546e7a;margin-bottom:8px">RECENT ACTIVITY</div>
+        <div id="scan-recent-log" style="font-size:12px;color:#546e7a"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CAMERA SCAN OVERLAY -->
+<div id="camera-scan-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;align-items:center;justify-content:center;flex-direction:column">
+  <video id="camera-video" style="max-width:90vw;max-height:60vh;border-radius:12px;border:3px solid #1565c0"></video>
+  <div style="color:#fff;margin-top:16px;font-size:14px">Point camera at barcode</div>
+  <button onclick="closeCameraScanner()" style="margin-top:12px;padding:10px 24px;background:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Cancel</button>
+</div>
+
 <div class="page" id="page-reports">
   <div class="page-header"><h2>📈 Reports &amp; Analytics</h2>
     <div style="display:flex;gap:8px">
@@ -3261,8 +3330,10 @@ table{font-size:12.5px}
 <div class="page" id="page-inventory">
   <div class="page-header"><h2>📦 Inventory</h2>
     <div style="display:flex;gap:8px">
+      <button class="btn btn-outline btn-sm" onclick="openPriceBookImport()">📥 Import Price Book</button>
+      <button class="btn btn-outline btn-sm" onclick="goPage('scanner')">📷 Scanner</button>
       <button class="btn btn-outline btn-sm" data-action="newInventoryItem">+ Add Item</button>
-      <button class="btn btn-export btn-sm" data-action="exportInventoryCSV">📥 Export</button>
+      <button class="btn btn-export btn-sm" data-action="exportInventoryCSV">⬇ Export</button>
     </div>
   </div>
   <div class="inv-tab-nav">
@@ -3682,12 +3753,17 @@ table{font-size:12.5px}
       <div class="form-row"><div><label>Item Name *</label><input id="inv-name" placeholder="e.g. CAT6 Cable (500ft box)"></div></div>
       <div class="form-row cols3">
         <div><label>Category</label><input id="inv-cat" placeholder="Cable, Hardware, Connectors..." list="inv-cat-datalist"><datalist id="inv-cat-datalist"></datalist></div>
-        <div><label>Location</label><input id="inv-loc" placeholder="Shop, Warehouse, Van..." list="inv-loc-datalist"><datalist id="inv-loc-datalist"></datalist></div>
-        <div><label>Quantity On Hand</label><input id="inv-qty" type="number" value="1" min="0"></div>
+        <div><label>Part / Item #</label><input id="inv-part-num" placeholder="Vendor part number"></div>
+        <div><label>Barcode / UPC</label><input id="inv-barcode" placeholder="Scan or enter UPC"></div>
+      </div>
+      <div class="form-row cols3">
+        <div><label>Min Stock Level</label><input id="inv-min" type="number" value="1" min="0"></div>
+        <div><label>Unit Cost ($)</label><input id="inv-cost" type="number" value="0" min="0" step="0.01"></div>
+        <div><label style="display:flex;align-items:center;gap:6px;margin-top:20px"><input type="checkbox" id="inv-returnable" style="width:16px;height:16px"> Returnable Item</label></div>
       </div>
       <div class="form-row cols2">
-        <div><label>Min Stock Level</label><input id="inv-min" type="number" value="1" min="0"></div>
-        <div><label>Unit Cost ($ )</label><input id="inv-cost" type="number" value="0" min="0" step="0.01"></div>
+        <div><label>Main Shop Qty</label><input id="inv-qty-shop" type="number" value="0" min="0"></div>
+        <div><label>Location (legacy)</label><input id="inv-loc" placeholder="Shop, Warehouse..." list="inv-loc-datalist" style="display:none"><datalist id="inv-loc-datalist"></datalist><input id="inv-qty" type="number" value="0" min="0" style="display:none"></div>
       </div>
       <div class="form-row"><div><label>Notes</label><textarea id="inv-item-notes" rows="2" placeholder="Supplier, part number, notes..."></textarea></div></div>
       <input type="hidden" id="inv-id">
@@ -3695,7 +3771,7 @@ table{font-size:12.5px}
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-inv-item">Cancel</button>
-      <button class="btn btn-primary" data-action="saveInventoryItem">Save Item</button>
+      <button class="btn btn-primary" onclick="saveInventoryItemV2()">Save Item</button>
     </div>
   </div>
 </div>
@@ -4527,6 +4603,65 @@ table{font-size:12.5px}
   </div>
 </div>
 
+<!-- SPLIT RECEIVING MODAL -->
+<div class="modal-overlay" id="modal-receiving" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
+  <div class="modal-box" style="max-width:900px;width:98%;margin:0 auto">
+    <div class="modal-head"><h3 id="receiving-po-title">Receiving</h3><button class="close-btn" data-action="closeModal" data-modal="modal-receiving">×</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:#546e7a;margin-bottom:16px">Enter the quantity arriving for each item. Split between the linked Work Order and stock inventory as needed.</p>
+      <div id="receiving-lines-table"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-receiving">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmReceiving()">✓ Confirm Receiving</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRICE BOOK IMPORT MODAL -->
+<div class="modal-overlay" id="modal-import" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
+  <div class="modal-box" style="max-width:860px;width:98%;margin:0 auto">
+    <div class="modal-head"><h3>📥 Price Book Import</h3><button class="close-btn" data-action="closeModal" data-modal="modal-import">×</button></div>
+    <div class="modal-body">
+      <!-- Step 1: Upload -->
+      <div id="import-step1">
+        <div style="margin-bottom:16px">
+          <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Vendor Name (optional)</label>
+          <input id="import-vendor-name" placeholder="e.g. Graybar, ADI, Snap One" style="width:280px;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+        </div>
+        <div style="border:2px dashed #e0e7ef;border-radius:12px;padding:40px;text-align:center">
+          <div style="font-size:32px;margin-bottom:8px">📄</div>
+          <div style="font-weight:700;font-size:15px;margin-bottom:6px">Upload Vendor CSV</div>
+          <div style="font-size:12px;color:#90a4ae;margin-bottom:16px">Export your price list from Graybar, ADI, Snap One, or Verkada as CSV.<br>Any column layout works — you'll map the columns in the next step.</div>
+          <input type="file" id="import-file-input" accept=".csv,.txt" onchange="onImportFileChange(this)" style="display:none">
+          <button class="btn btn-primary" onclick="document.getElementById('import-file-input').click()">Choose CSV File</button>
+        </div>
+      </div>
+      <!-- Step 2: Map columns -->
+      <div id="import-step2" style="display:none">
+        <div style="margin-bottom:16px">
+          <h4 style="margin-bottom:8px">Map Vendor Columns → ProBid Fields</h4>
+          <p style="font-size:12px;color:#546e7a">We've auto-matched what we could. Adjust any that look wrong.</p>
+        </div>
+        <div id="import-column-map" style="margin-bottom:16px"></div>
+        <div id="import-preview" style="margin-bottom:16px;max-height:200px;overflow-y:auto;font-size:12px"></div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <label style="font-size:12px;font-weight:700;color:#546e7a">Import Mode:</label>
+          <select id="import-mode" style="padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+            <option value="merge">Merge — update existing + add new</option>
+            <option value="add-only">Add new items only (skip existing)</option>
+            <option value="update-only">Update existing only (skip new)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-import">Cancel</button>
+      <button id="import-run-btn" class="btn btn-primary" onclick="runImport()" style="display:none" id="import-run-btn">📥 Import</button>
+    </div>
+  </div>
+</div>
+
 <!-- RECORD PAYMENT MODAL -->
 <div class="modal-overlay" id="modal-record-payment">
   <div class="modal-box sm">
@@ -4987,6 +5122,7 @@ table{font-size:12.5px}
 <script src="js/calendar.js"></script>
 <script src="js/workorders.js"></script>
 <script src="js/purchaseorders.js"></script>
+<script src="js/inventory.js"></script>
 <script src="js/reports.js"></script>
 <script src="js/auth.js"></script>
 <!-- MOBILE BOTTOM NAV -->

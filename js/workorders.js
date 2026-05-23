@@ -658,7 +658,11 @@ function renderWOPartsTab(woId) {
   var parts=(DB.woParts||[]).filter(function(p){return p.woId===woId;});
   var isOffice=_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office');
   var isTech=!isOffice;
-  var html='<div style="margin-bottom:12px">'+
+  var html='<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">'+
+    '<div style="font-weight:700;font-size:13px">Parts — '+parts.filter(function(p){return p.status==='requested';}).length+' requested</div>'+
+    (isOffice&&parts.filter(function(p){return p.status==='requested';}).length?
+      '<button class="btn btn-outline btn-sm" onclick="createPOFromWOParts(\''+woId+'\')">📦 Create PO from Parts</button>':'')+
+  '</div>';
     '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:12px">'+
       '<div style="display:grid;grid-template-columns:1fr 0.5fr 1fr auto;gap:8px;align-items:end">'+
         '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Part Name</label>'+
@@ -911,4 +915,32 @@ function getCustomerHotNotes() {
     tech:   (document.getElementById('m-c-hotnote-tech')||{}).value||'',
     office: (document.getElementById('m-c-hotnote-office')||{}).value||''
   };
+}
+
+function createPOFromWOParts(woId) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (!wo) return;
+  var requestedParts = (DB.woParts||[]).filter(function(p){ return p.woId===woId && p.status==='requested'; });
+  if (!requestedParts.length) { showToast('No requested parts to create PO from','info'); return; }
+  // Pre-populate PO with these parts
+  if (typeof openNewPO !== 'function') { showToast('Purchase Orders module not loaded','error'); return; }
+  openNewPO();
+  // Set job link
+  var job = (DB.jobs||[]).find(function(j){ return j.woId===woId||j.id===wo.jobId; });
+  if (job) {
+    var jobSel = document.getElementById('po-job');
+    if (jobSel) { jobSel.value = job.id; onPOJobChange(job.id); }
+  }
+  // Populate line items
+  _poItems = requestedParts.map(function(p,i){
+    return { _eid:i, desc:p.name||'', partNum:p.partNum||p.partNumber||'', qtyOrdered:parseFloat(p.qty||1), qtyReceived:0, unitCost:0 };
+  });
+  renderPOItems();
+  refreshPOTotals();
+  // Update source chain
+  var chainEl = document.getElementById('po-source-chain');
+  if (chainEl) chainEl.innerHTML = '📎 From WO: '+escHtml(wo.woNumber||'');
+  showToast('PO pre-populated with '+requestedParts.length+' part request(s) — select vendor and save','info',4000);
+  closeModal('modal-work-order');
+  goPage('purchaseorders');
 }
