@@ -787,3 +787,491 @@ async function loadTimesheets() {
   }
 }
 
+
+// ============================================================
+// PHASE 1 — BACK OFFICE MANUAL TIME ENTRY
+// ============================================================
+
+// ---- OPEN / POPULATE ENTRY MODAL ----
+
+function openAddTimeEntry(prefillTech, prefillDate) {
+  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
+  if (!isAdmin) { showToast('Admin access required','error'); return; }
+
+  // Clear form
+  document.getElementById('te-edit-id').value = '';
+  document.getElementById('te-modal-title').textContent = '+ Add Time Entry';
+  document.getElementById('te-notes').value = '';
+  document.getElementById('te-start').value = '';
+  document.getElementById('te-end').value = '';
+  document.getElementById('te-gps-reason').value = '';
+  document.getElementById('te-duration-preview').textContent = '';
+  var delBtn = document.getElementById('te-delete-btn');
+  if (delBtn) delBtn.style.display = 'none';
+
+  // Pre-fill tech dropdown
+  var techSel = document.getElementById('te-tech');
+  techSel.innerHTML = '<option value="">— Select Tech —</option>' +
+    (DB.team||[]).filter(function(m){ return m.active!==false; })
+      .sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); })
+      .map(function(m){ return '<option value="'+escHtml(m.name)+'"'+(m.name===prefillTech?' selected':'')+'>'+escHtml(m.name)+'</option>'; }).join('');
+
+  // Date
+  var dateEl = document.getElementById('te-date');
+  dateEl.value = prefillDate || getTodayISO();
+
+  // Entry type default
+  document.getElementById('te-type').value = 'work';
+  onTeTypeChange();
+
+  openModal('modal-time-entry');
+}
+
+function openEditTimeEntry(entryId) {
+  var canDelete = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
+  var entry = (DB.timeEntries||[]).find(function(e){ return e.id===entryId; });
+  if (!entry) { showToast('Entry not found','error'); return; }
+
+  document.getElementById('te-modal-title').textContent = 'Edit Time Entry';
+  document.getElementById('te-edit-id').value = entryId;
+  document.getElementById('te-notes').value = entry.notes||'';
+  document.getElementById('te-gps-reason').value = entry.gpsReason||'';
+
+  var techSel = document.getElementById('te-tech');
+  techSel.innerHTML = '<option value="">— Select Tech —</option>' +
+    (DB.team||[]).filter(function(m){ return m.active!==false; })
+      .sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); })
+      .map(function(m){ return '<option value="'+escHtml(m.name)+'"'+(m.name===entry.techName?' selected':'')+'>'+escHtml(m.name)+'</option>'; }).join('');
+
+  document.getElementById('te-date').value = entry.date||getTodayISO();
+  document.getElementById('te-type').value = entry.entryType||'work';
+  document.getElementById('te-start').value = entry.startTime||'';
+  document.getElementById('te-end').value = entry.endTime||'';
+
+  onTeTypeChange();
+  // Set WO after type change populates the dropdown
+  setTimeout(function(){
+    var woSel = document.getElementById('te-wo');
+    if (woSel && entry.woId) woSel.value = entry.woId;
+  }, 50);
+
+  updateTeDuration();
+
+  var delBtn = document.getElementById('te-delete-btn');
+  if (delBtn) delBtn.style.display = canDelete ? '' : 'none';
+
+  openModal('modal-time-entry');
+}
+
+function onTeTypeChange() {
+  var type = (document.getElementById('te-type')||{}).value||'work';
+  var woRow = document.getElementById('te-wo-row');
+  var gpsRow = document.getElementById('te-gps-row');
+
+  // WO link — required for work/travel, hidden for leave types
+  var needsWO = ['work','travel'].includes(type);
+  if (woRow) woRow.style.display = needsWO ? '' : 'none';
+
+  // GPS reason — only for work/travel/office
+  if (gpsRow) gpsRow.style.display = ['work','travel','office'].includes(type) ? '' : 'none';
+
+  // Populate WO dropdown when visible
+  if (needsWO) {
+    var woSel = document.getElementById('te-wo');
+    if (woSel) {
+      woSel.innerHTML =
+        '<option value="office">Office / General</option>' +
+        (DB.workOrders||[])
+          .filter(function(w){ return !['Billed','Void','Closed'].includes(w.status); })
+          .sort(function(a,b){ return (a.woNumber||'').localeCompare(b.woNumber||''); })
+          .map(function(w){ return '<option value="'+escHtml(w.id)+'">'+escHtml(w.woNumber)+' — '+escHtml(w.customerName||'')+'</option>'; }).join('') +
+        (DB.jobs||[])
+          .filter(function(j){ return j.status!=='Closed'; })
+          .map(function(j){ return '<option value="job:'+escHtml(j.id)+'">'+escHtml(j.num)+' — '+escHtml(j.name||'')+'</option>'; }).join('');
+    }
+  }
+}
+
+function updateTeDuration() {
+  var start = (document.getElementById('te-start')||{}).value||'';
+  var end   = (document.getElementById('te-end')||{}).value||'';
+  var prev  = document.getElementById('te-duration-preview');
+  if (!prev) return;
+  if (!start || !end) { prev.textContent=''; return; }
+  var startMins = parseInt(start.split(':')[0])*60 + parseInt(start.split(':')[1]);
+  var endMins   = parseInt(end.split(':')[0])*60   + parseInt(end.split(':')[1]);
+  var diff = endMins - startMins;
+  if (diff <= 0) { prev.textContent = '⚠ End time must be after start time'; prev.style.color='#c62828'; return; }
+  var h = Math.floor(diff/60), m = diff%60;
+  prev.style.color = '#2e7d32';
+  prev.textContent = '→ ' + (h>0?h+'h ':'') + (m>0?m+'m':'') + ' (' + (diff/60).toFixed(2) + ' hrs)';
+}
+
+// ---- SAVE MANUAL ENTRY ----
+
+function saveManualTimeEntry() {
+  var editId   = (document.getElementById('te-edit-id')||{}).value||'';
+  var techName = (document.getElementById('te-tech')||{}).value||'';
+  var date     = (document.getElementById('te-date')||{}).value||'';
+  var type     = (document.getElementById('te-type')||{}).value||'work';
+  var start    = (document.getElementById('te-start')||{}).value||'';
+  var end      = (document.getElementById('te-end')||{}).value||'';
+  var notes    = ((document.getElementById('te-notes')||{}).value||'').trim();
+  var gpsReason= (document.getElementById('te-gps-reason')||{}).value||'';
+  var woVal    = (document.getElementById('te-wo')||{}).value||'office';
+
+  if (!techName) { showToast('Select a technician','error'); return; }
+  if (!date)     { showToast('Date is required','error'); return; }
+  if (!start || !end) { showToast('Start and end time are required','error'); return; }
+  if (!notes)    { showToast('Notes are required for manual entries','error'); return; }
+
+  var startMins = parseInt(start.split(':')[0])*60 + parseInt(start.split(':')[1]);
+  var endMins   = parseInt(end.split(':')[0])*60   + parseInt(end.split(':')[1]);
+  if (endMins <= startMins) { showToast('End time must be after start time','error'); return; }
+
+  var totalHours = (endMins - startMins) / 60;
+  var isPaid = !['lunch'].includes(type);
+
+  // Resolve WO/job link
+  var woId = null, jobId = null, woLabel = '';
+  if (woVal && woVal !== 'office') {
+    if (woVal.startsWith('job:')) {
+      jobId = woVal.replace('job:','');
+      var j = (DB.jobs||[]).find(function(x){return x.id===jobId;});
+      woLabel = j ? (j.num+' — '+j.name) : jobId;
+    } else {
+      woId = woVal;
+      var w = (DB.workOrders||[]).find(function(x){return x.id===woId;});
+      woLabel = w ? (w.woNumber+' — '+w.customerName) : woId;
+    }
+  } else {
+    woLabel = 'Office / General';
+  }
+
+  var adder = _currentUser ? _currentUser.full_name : 'Unknown';
+  var now = new Date().toISOString();
+
+  if (!DB.timeEntries) DB.timeEntries = [];
+
+  if (editId) {
+    // Update existing
+    var idx = DB.timeEntries.findIndex(function(e){ return e.id===editId; });
+    if (idx>=0) {
+      var orig = DB.timeEntries[idx];
+      if (!orig.auditTrail) orig.auditTrail = [];
+      orig.auditTrail.push({
+        action: 'edited',
+        by: adder,
+        at: now,
+        prev: { techName:orig.techName, date:orig.date, type:orig.entryType, start:orig.startTime, end:orig.endTime, hours:orig.totalHours, notes:orig.notes }
+      });
+      orig.techName    = techName;
+      orig.date        = date;
+      orig.entryType   = type;
+      orig.startTime   = start;
+      orig.endTime     = end;
+      orig.totalHours  = Math.round(totalHours*100)/100;
+      orig.totalMins   = endMins - startMins;
+      orig.isPaid      = isPaid;
+      orig.woId        = woId;
+      orig.jobId       = jobId;
+      orig.woLabel     = woLabel;
+      orig.notes       = notes;
+      orig.gpsReason   = gpsReason||null;
+      orig.isManual    = true;
+      orig.lastEditedBy = adder;
+      orig.lastEditedAt = now;
+    }
+    showToast('Entry updated ✓','success');
+  } else {
+    // New entry
+    var entry = {
+      id:          'te-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),
+      techName:    techName,
+      date:        date,
+      entryType:   type,
+      startTime:   start,
+      endTime:     end,
+      totalHours:  Math.round(totalHours*100)/100,
+      totalMins:   endMins - startMins,
+      isPaid:      isPaid,
+      woId:        woId,
+      jobId:       jobId,
+      woLabel:     woLabel,
+      notes:       notes,
+      gpsReason:   gpsReason||null,
+      isManual:    true,
+      addedBy:     adder,
+      addedAt:     now,
+      auditTrail:  [{ action:'created', by:adder, at:now }]
+    };
+    DB.timeEntries.push(entry);
+    showToast('Time entry added ✓','success');
+  }
+
+  // Push to Supabase
+  _pushTimeEntryToSupabase(DB.timeEntries.find(function(e){ return e.id===(editId||DB.timeEntries[DB.timeEntries.length-1].id); }));
+
+  saveDB();
+  closeModal('modal-time-entry');
+  loadTimesheets();
+
+  // Refresh the tech's day summary if it exists
+  _rebuildDaySummary(techName, date);
+}
+
+function deleteTimeEntry() {
+  var editId = (document.getElementById('te-edit-id')||{}).value||'';
+  if (!editId) return;
+  var canDelete = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
+  if (!canDelete) { showToast('Permission denied','error'); return; }
+  if (!confirm('Delete this time entry? This is logged in the audit trail.')) return;
+
+  var adder = _currentUser ? _currentUser.full_name : 'Unknown';
+  var now = new Date().toISOString();
+  var entry = (DB.timeEntries||[]).find(function(e){ return e.id===editId; });
+  if (entry) {
+    if (!entry.auditTrail) entry.auditTrail = [];
+    entry.auditTrail.push({ action:'deleted', by:adder, at:now });
+    entry.deleted = true;
+    entry.deletedBy = adder;
+    entry.deletedAt = now;
+  }
+  saveDB();
+  if (_sb) _sb.from('time_entries').update({deleted:true, deleted_by:adder, deleted_at:now}).eq('id',editId).then(function(){});
+  closeModal('modal-time-entry');
+  loadTimesheets();
+  showToast('Entry deleted','info');
+}
+
+async function _pushTimeEntryToSupabase(entry) {
+  if (!_sb || !_currentUser || !entry) return;
+  try {
+    await _sb.from('time_entries').upsert({
+      id:            entry.id,
+      tech_name:     entry.techName,
+      entry_date:    entry.date,
+      entry_type:    entry.entryType,
+      start_time:    entry.startTime,
+      end_time:      entry.endTime,
+      total_hours:   entry.totalHours,
+      is_paid:       entry.isPaid,
+      wo_id:         entry.woId||null,
+      job_id:        entry.jobId||null,
+      wo_label:      entry.woLabel||null,
+      notes:         entry.notes||null,
+      gps_reason:    entry.gpsReason||null,
+      is_manual:     true,
+      added_by:      entry.addedBy||_currentUser.full_name,
+      audit_trail:   JSON.stringify(entry.auditTrail||[])
+    },{onConflict:'id'});
+  } catch(e) { console.warn('[TimeEntry push]', e.message); }
+}
+
+// ---- REBUILD DAY SUMMARY FROM ENTRIES ----
+// When entries change, recalculate the workDay record for that tech/date
+
+function _rebuildDaySummary(techName, date) {
+  if (!DB.timeEntries) return;
+  var entries = DB.timeEntries.filter(function(e){
+    return e.techName===techName && e.date===date && !e.deleted;
+  });
+
+  var workMins   = 0, travelMins = 0, officeMins = 0;
+  var lunchMins  = 0, ptoMins    = 0, vacMins    = 0, holMins = 0;
+  entries.forEach(function(e) {
+    var m = e.totalMins||Math.round((e.totalHours||0)*60);
+    switch(e.entryType) {
+      case 'work':     workMins   += m; break;
+      case 'travel':   travelMins += m; break;
+      case 'office':   officeMins += m; break;
+      case 'lunch':    lunchMins  += m; break;
+      case 'pto':      ptoMins    += m; break;
+      case 'vacation': vacMins    += m; break;
+      case 'holiday':  holMins    += m; break;
+    }
+  });
+
+  var totalPaidMins = workMins + travelMins + officeMins + ptoMins + vacMins + holMins;
+
+  if (!DB.workDays) DB.workDays = [];
+  var existing = DB.workDays.find(function(d){ return d.techName===techName && d.date===date; });
+  if (existing) {
+    existing.onsiteMins    = workMins;
+    existing.travelMins    = travelMins;
+    existing.officeMins    = officeMins;
+    existing.lunchMins     = lunchMins;
+    existing.ptoMins       = ptoMins;
+    existing.vacationMins  = vacMins;
+    existing.holidayMins   = holMins;
+    existing.totalPaidMins = totalPaidMins;
+    existing.hasManualEntries = true;
+  } else if (entries.length > 0) {
+    DB.workDays.push({
+      id:             'wd-'+techName.replace(/\s/g,'')+'-'+date,
+      techName:       techName,
+      date:           date,
+      onsiteMins:     workMins,
+      travelMins:     travelMins,
+      officeMins:     officeMins,
+      lunchMins:      lunchMins,
+      ptoMins:        ptoMins,
+      vacationMins:   vacMins,
+      holidayMins:    holMins,
+      totalPaidMins:  totalPaidMins,
+      hasManualEntries: true
+    });
+  }
+  saveDB();
+}
+
+// ---- REBUILT ALL TIMESHEETS TAB ----
+
+function renderAllTimesheetsTab() {
+  var allEl = document.getElementById('ts-all-content');
+  if (!allEl) return;
+  var myRole = _currentUser ? _currentUser.role : '';
+  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager';
+  if (!isAdmin) {
+    allEl.innerHTML='<div style="color:#90a4ae;padding:20px;text-align:center">Admin access required.</div>';
+    return;
+  }
+
+  var filterDate = (document.getElementById('ts-date-filter')||{}).value || getTodayISO();
+  var filterTech = (document.getElementById('ts-tech-filter')||{}).value || '';
+
+  // Populate tech filter
+  var techSel = document.getElementById('ts-tech-filter');
+  if (techSel && techSel.options.length <= 1) {
+    var techNames = (DB.team||[]).filter(function(m){return m.active!==false;}).map(function(m){return m.name;}).sort();
+    techNames.forEach(function(n){
+      var o = document.createElement('option'); o.value=n; o.textContent=n; techSel.appendChild(o);
+    });
+  }
+
+  // Get entries for this date (from timeEntries + workDays)
+  var dayEntries = (DB.timeEntries||[]).filter(function(e){
+    return e.date===filterDate && !e.deleted &&
+           (!filterTech || e.techName===filterTech);
+  });
+
+  // Group by tech
+  var byTech = {};
+  dayEntries.forEach(function(e) {
+    if (!byTech[e.techName]) byTech[e.techName] = [];
+    byTech[e.techName].push(e);
+  });
+
+  // Also include techs who have workDay records but no timeEntries
+  (DB.workDays||[]).filter(function(d){
+    return d.date===filterDate && (!filterTech||d.techName===filterTech);
+  }).forEach(function(d){
+    if (!byTech[d.techName]) byTech[d.techName] = [];
+  });
+
+  var techList = Object.keys(byTech).sort();
+
+  if (!techList.length) {
+    allEl.innerHTML =
+      '<div style="text-align:center;padding:30px;color:#90a4ae">'+
+      'No time entries for '+filterDate+(filterTech?' — '+filterTech:'')+'.'+
+      '</div>';
+    return;
+  }
+
+  var typeColors = {
+    work:'#e3f2fd', travel:'#fff3e0', office:'#f3e5f5',
+    lunch:'#f5f5f5', pto:'#e8f5e9', vacation:'#e8f5e9', holiday:'#e8f5e9'
+  };
+  var typeLabels = {
+    work:'Work', travel:'Travel', office:'Office',
+    lunch:'Lunch (unpaid)', pto:'PTO', vacation:'Vacation', holiday:'Holiday'
+  };
+
+  var html = techList.map(function(techName) {
+    var entries = byTech[techName] || [];
+    var workDay = (DB.workDays||[]).find(function(d){ return d.techName===techName && d.date===filterDate; });
+
+    // Calculate totals from entries
+    var totalPaid = 0, workMins = 0, travelMins = 0, lunchMins = 0;
+    entries.forEach(function(e) {
+      var m = e.totalMins || Math.round((e.totalHours||0)*60);
+      if (e.entryType !== 'lunch') totalPaid += m;
+      if (e.entryType === 'work') workMins += m;
+      if (e.entryType === 'travel') travelMins += m;
+      if (e.entryType === 'lunch') lunchMins += m;
+    });
+
+    // Fall back to workDay totals if no entries
+    if (!entries.length && workDay) {
+      totalPaid  = workDay.totalPaidMins || 0;
+      workMins   = workDay.onsiteMins    || 0;
+      travelMins = workDay.travelMins    || 0;
+      lunchMins  = workDay.lunchMins     || 0;
+    }
+
+    var otMins = Math.max(0, totalPaid - 480);
+    var hasFlag = entries.some(function(e){ return e.flagged; }) || (workDay && workDay.lunchFlagged);
+
+    return '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:12px;padding:16px;margin-bottom:12px">'+
+      // Tech header
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+        '<div>'+
+          '<span style="font-weight:700;font-size:15px">'+escHtml(techName)+'</span>'+
+          (hasFlag?'<span style="background:#ffebee;color:#c62828;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;margin-left:8px">⚠ FLAG</span>':'')+
+          (workDay&&workDay.hasManualEntries?'<span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;margin-left:6px">✏ Manual</span>':'')+
+        '</div>'+
+        '<div style="display:flex;gap:16px;align-items:center">'+
+          '<div style="text-align:right">'+
+            '<div style="font-weight:700;font-size:16px;color:'+(otMins>0?'#e65100':'#1565c0')+'">'+fmtMins(totalPaid)+'</div>'+
+            '<div style="font-size:10px;color:#90a4ae">TOTAL PAID'+(otMins>0?' · OT: '+fmtMins(otMins):'')+'</div>'+
+          '</div>'+
+          '<button class="btn btn-primary btn-sm" onclick="openAddTimeEntry(\''+escHtml(techName)+'\',\''+filterDate+'\')">+ Add Entry</button>'+
+        '</div>'+
+      '</div>'+
+      // Summary strip
+      '<div style="display:flex;gap:16px;font-size:12px;color:#546e7a;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #f0f4f8">'+
+        '<span>🔧 Work: <strong>'+fmtMins(workMins)+'</strong></span>'+
+        '<span>🚗 Travel: <strong>'+fmtMins(travelMins)+'</strong></span>'+
+        '<span>🥗 Lunch: <strong>'+fmtMins(lunchMins)+'</strong></span>'+
+      '</div>'+
+      // Entry rows
+      (entries.length ?
+        entries.sort(function(a,b){ return (a.startTime||'').localeCompare(b.startTime||''); }).map(function(e) {
+          var m = e.totalMins || Math.round((e.totalHours||0)*60);
+          var bg = typeColors[e.entryType] || '#f8f9fa';
+          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:'+bg+';border-radius:8px;margin-bottom:4px">'+
+            '<div style="min-width:90px;font-size:12px;font-weight:700;color:#546e7a">'+escHtml(e.startTime||'?')+' — '+escHtml(e.endTime||'?')+'</div>'+
+            '<div style="flex:1">'+
+              '<span style="font-size:12px;font-weight:700">'+escHtml(typeLabels[e.entryType]||e.entryType)+'</span>'+
+              (e.woLabel&&e.woLabel!=='Office / General'?' <span style="font-size:11px;color:#546e7a">· '+escHtml(e.woLabel)+'</span>':'')+
+              (e.notes?' <span style="font-size:11px;color:#90a4ae;font-style:italic">· '+escHtml(e.notes)+'</span>':'')+
+              (e.isManual?' <span style="font-size:9px;background:#fff;color:#1565c0;padding:1px 5px;border-radius:4px;border:1px solid #1565c0">MANUAL · '+escHtml(e.addedBy||'')+'</span>':'')+
+            '</div>'+
+            '<div style="font-weight:700;font-size:13px;min-width:50px;text-align:right">'+fmtMins(m)+'</div>'+
+            '<button class="btn btn-outline btn-sm" onclick="openEditTimeEntry(\''+e.id+'\')">✏</button>'+
+          '</div>';
+        }).join('') :
+        '<div style="color:#90a4ae;font-size:12px;padding:4px 0">No detail entries — legacy day record only. Click + Add Entry to begin tracking.</div>'
+      )+
+    '</div>';
+  }).join('');
+
+  allEl.innerHTML = html;
+}
+
+// Override the loadTimesheets call to use new renderer for all-timesheets tab
+var _origLoadTimesheets = loadTimesheets;
+loadTimesheets = function() {
+  _origLoadTimesheets();
+  renderAllTimesheetsTab();
+};
+
+// ---- ADD ENTRY BUTTON on the All Timesheets tab ----
+// Add "+ Add Entry for Any Tech" button at top of tab
+function initAllTimesheetsTab() {
+  var container = document.getElementById('ts-all-content');
+  if (!container) return;
+  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
+  if (!isAdmin) return;
+}
