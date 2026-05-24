@@ -491,33 +491,112 @@ function switchWOTab(tab) {
 // ---- LABOR TAB ----
 function renderWOLaborTab(woId) {
   var entries = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
-  var totalHrs = entries.reduce(function(s,l){ return s+(parseFloat(l.hours)||0); },0);
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
-  var rate = wo ? (wo.laborRate||125) : 125;
-  var laborCost = totalHrs * rate;
 
-  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
-    '<div><span style="font-weight:700">Total: '+totalHrs.toFixed(2)+' hrs</span> <span style="color:#546e7a;font-size:12px">($'+laborCost.toFixed(2)+')</span></div>'+
-    '<button class="btn btn-outline btn-sm" onclick="addWOLaborEntry()">+ Add Manual Entry</button>'+
-  '</div>';
+  // ---- SUMMARY: hours by tech ----
+  var techMap = {};
+  entries.forEach(function(e) {
+    var t = e.techName||'Unknown';
+    var type = (e.entryType||'work').toLowerCase();
+    if (!techMap[t]) techMap[t] = { work:0, travel:0 };
+    if (type==='travel') techMap[t].travel += parseFloat(e.hours)||0;
+    else techMap[t].work += parseFloat(e.hours)||0;
+  });
+  var totalWork   = entries.filter(function(e){return (e.entryType||'work')!=='travel';}).reduce(function(s,e){return s+(parseFloat(e.hours)||0);},0);
+  var totalTravel = entries.filter(function(e){return (e.entryType||'work')==='travel';}).reduce(function(s,e){return s+(parseFloat(e.hours)||0);},0);
+  var totalAll    = totalWork + totalTravel;
 
-  if (!entries.length) return html+'<div style="color:#90a4ae;font-size:13px;padding:8px">No labor logged yet. Use the timers at the bottom or add a manual entry.</div>';
+  var html = '<div style="margin-bottom:16px">';
 
-  html += entries.map(function(e){
-    var hrs = parseFloat(e.hours)||0;
-    return '<div style="display:flex;align-items:center;gap:12px;padding:10px;background:#f8f9fa;border-radius:8px;margin-bottom:6px">'+
-      '<div style="flex:1">'+
-        '<div style="font-weight:600;font-size:13px">'+escHtml(e.techName||'Unknown')+'</div>'+
-        '<div style="font-size:11px;color:#546e7a">'+escHtml(e.entryType||'work')+
-          (e.clockIn?' · In: '+new Date(e.clockIn).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'') +
-          (e.clockOut?' · Out: '+new Date(e.clockOut).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'') +
-        '</div>'+
-        (e.notes?'<div style="font-size:11px;color:#546e7a;font-style:italic">'+escHtml(e.notes)+'</div>':'')+
-      '</div>'+
-      '<div style="font-weight:700;color:#1565c0">'+hrs.toFixed(2)+' hrs</div>'+
-      '<button class="btn btn-danger btn-sm" onclick="deleteWOLabor(\''+e.id+'\')">✕</button>'+
-    '</div>';
-  }).join('');
+  if (!entries.length) {
+    html += '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No labor logged yet. Use the timers at the bottom or add a manual entry.</div>';
+    html += '<button class="btn btn-outline btn-sm" onclick="addWOLaborEntry()">+ Add Manual Entry</button>';
+    return html + '</div>';
+  }
+
+  // Summary table
+  html +=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+      '<div style="font-weight:700;font-size:14px">Total: '+totalAll.toFixed(1)+' hrs</div>'+
+      '<button class="btn btn-outline btn-sm" onclick="addWOLaborEntry()">+ Add Manual Entry</button>'+
+    '</div>'+
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px">'+
+      '<thead><tr style="background:#f0f4f8">'+
+        '<th style="padding:8px 10px;text-align:left;font-weight:700;color:#546e7a;font-size:11px;text-transform:uppercase">Technician</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-weight:700;color:#546e7a;font-size:11px;text-transform:uppercase">Work Hrs</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-weight:700;color:#546e7a;font-size:11px;text-transform:uppercase">Travel Hrs</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-weight:700;color:#1565c0;font-size:11px;text-transform:uppercase">Total Hrs</th>'+
+      '</tr></thead><tbody>';
+
+  Object.keys(techMap).sort().forEach(function(name) {
+    var t = techMap[name];
+    var tot = t.work + t.travel;
+    html +=
+      '<tr style="border-bottom:1px solid #f0f4f8">'+
+        '<td style="padding:9px 10px;font-weight:600">'+escHtml(name)+'</td>'+
+        '<td style="padding:9px 10px;text-align:center">'+t.work.toFixed(1)+'</td>'+
+        '<td style="padding:9px 10px;text-align:center;color:#e65100">'+t.travel.toFixed(1)+'</td>'+
+        '<td style="padding:9px 10px;text-align:center;font-weight:700;color:#1565c0">'+tot.toFixed(1)+'</td>'+
+      '</tr>';
+  });
+
+  // Totals row
+  html +=
+      '<tr style="background:#f8f9fa;border-top:2px solid #e0e7ef">'+
+        '<td style="padding:9px 10px;font-weight:700">Total</td>'+
+        '<td style="padding:9px 10px;text-align:center;font-weight:700">'+totalWork.toFixed(1)+'</td>'+
+        '<td style="padding:9px 10px;text-align:center;font-weight:700;color:#e65100">'+totalTravel.toFixed(1)+'</td>'+
+        '<td style="padding:9px 10px;text-align:center;font-weight:700;color:#1565c0">'+totalAll.toFixed(1)+'</td>'+
+      '</tr>'+
+    '</tbody></table>';
+
+  // ---- DETAIL LOG — grouped by date, expanded by default ----
+  var byDate = {};
+  entries.forEach(function(e) {
+    var d = e.clockIn ? e.clockIn.split('T')[0] : (e.createdAt||'').split('T')[0] || 'Unknown';
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(e);
+  });
+
+  var dateKeys = Object.keys(byDate).sort().reverse();
+
+  html += '<div style="border-top:2px solid #e0e7ef;padding-top:12px">'+
+    '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Detail Log</div>';
+
+  dateKeys.forEach(function(dateKey) {
+    var dayEntries = byDate[dateKey];
+    var dateLabel = dateKey === 'Unknown' ? 'Unknown Date' : new Date(dateKey+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+    var dayTotal = dayEntries.reduce(function(s,e){return s+(parseFloat(e.hours)||0);},0);
+
+    html += '<div style="margin-bottom:12px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;background:#f0f4f8;padding:6px 10px;border-radius:6px;margin-bottom:6px">'+
+        '<span style="font-weight:700;font-size:12px;color:#1565c0">'+escHtml(dateLabel)+'</span>'+
+        '<span style="font-size:12px;font-weight:700;color:#546e7a">'+dayTotal.toFixed(1)+' hrs</span>'+
+      '</div>';
+
+    dayEntries.forEach(function(e) {
+      var hrs = parseFloat(e.hours)||0;
+      var isTravel = (e.entryType||'work')==='travel';
+      var timeIn  = e.clockIn  ? new Date(e.clockIn).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})  : '';
+      var timeOut = e.clockOut ? new Date(e.clockOut).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '';
+      html +=
+        '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-left:3px solid '+(isTravel?'#ff8f00':'#1565c0')+';margin-bottom:4px;background:#fff;border-radius:0 6px 6px 0">'+
+          '<div style="flex:1">'+
+            '<div style="display:flex;align-items:center;gap:8px">'+
+              '<span style="font-weight:600;font-size:13px">'+escHtml(e.techName||'Unknown')+'</span>'+
+              '<span style="background:'+(isTravel?'#fff3e0':'#e3f2fd')+';color:'+(isTravel?'#e65100':'#1565c0')+';padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;text-transform:uppercase">'+(isTravel?'Travel':'Work')+'</span>'+
+            '</div>'+
+            (timeIn||timeOut?'<div style="font-size:11px;color:#90a4ae;margin-top:2px">'+(timeIn?'In: '+timeIn:'')+(timeOut?' — Out: '+timeOut:'')+'</div>':'')+
+            (e.notes?'<div style="font-size:11px;color:#546e7a;font-style:italic;margin-top:2px">'+escHtml(e.notes)+'</div>':'')+
+          '</div>'+
+          '<div style="font-weight:700;color:'+(isTravel?'#e65100':'#1565c0')+';min-width:48px;text-align:right">'+hrs.toFixed(1)+' hrs</div>'+
+          '<button class="btn btn-danger btn-sm" onclick="deleteWOLabor(\''+e.id+'\')">✕</button>'+
+        '</div>';
+    });
+    html += '</div>';
+  });
+
+  html += '</div></div>';
   return html;
 }
 
@@ -655,46 +734,114 @@ function deleteWOExpense(id) {
 
 // ---- PARTS TAB ----
 function renderWOPartsTab(woId) {
-  var parts=(DB.woParts||[]).filter(function(p){return p.woId===woId;});
-  var isOffice=_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office');
-  var isTech=!isOffice;
-  var html='<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">'+
-    '<div style="font-weight:700;font-size:13px">Parts — '+parts.filter(function(p){return p.status==='requested';}).length+' requested</div>'+
-    (isOffice&&parts.filter(function(p){return p.status==='requested';}).length?
-      '<button class="btn btn-outline btn-sm" onclick="createPOFromWOParts(\''+woId+'\')">📦 Create PO from Parts</button>':'')+
-  '</div>';
-    '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:12px">'+
-      '<div style="display:grid;grid-template-columns:1fr 0.5fr 1fr auto;gap:8px;align-items:end">'+
-        '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Part Name</label>'+
-          '<input id="wop-name" placeholder="Search catalog or enter part..." list="wop-catalog-list" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
+  var parts    = (DB.woParts||[]).filter(function(p){ return p.woId===woId; });
+  var isOffice = _currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='lead_tech');
+
+  // Counts by status
+  var requested = parts.filter(function(p){ return p.status==='requested'; });
+  var ordered   = parts.filter(function(p){ return p.status==='ordered'; });
+  var received  = parts.filter(function(p){ return p.status==='received'; });
+  var partial   = parts.filter(function(p){ return p.status==='partial'; });
+
+  var html = '<div>';
+
+  // Add part form (office/lead only)
+  if (isOffice) {
+    html +=
+      '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:16px">'+
+        '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin-bottom:8px">Request a Part</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 80px 1fr auto;gap:8px;align-items:end">'+
+          '<div><input id="wop-name" placeholder="Part name / search catalog..." list="wop-catalog-list" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box">'+
           '<datalist id="wop-catalog-list">'+
             (DB.catalog||[]).map(function(c){return '<option value="'+escHtml(c.desc||c.name||'')+'">'+escHtml(c.part||'')+'</option>';}).join('')+
-          '</datalist>'+
+          '</datalist></div>'+
+          '<div><input id="wop-qty" type="number" min="1" value="1" placeholder="Qty" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+          '<div><input id="wop-notes" placeholder="Notes / part #..." style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+          '<div><button class="btn btn-primary btn-sm" onclick="addWOPart()">+ Request</button></div>'+
         '</div>'+
-        '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Qty</label>'+
-          '<input id="wop-qty" type="number" min="1" value="1" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
-        '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Notes</label>'+
-          '<input id="wop-notes" placeholder="Notes..." style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
-        '<div><button class="btn btn-primary btn-sm" style="margin-top:18px" onclick="addWOPart()">Request</button></div>'+
-      '</div>'+
-    '</div>';
+      '</div>';
+  } else {
+    // Field tech — simple request form
+    html +=
+      '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:16px">'+
+        '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin-bottom:8px">Request a Part</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 80px auto;gap:8px;align-items:end">'+
+          '<div><input id="wop-name" placeholder="Part name..." style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+          '<div><input id="wop-qty" type="number" min="1" value="1" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+          '<div><button class="btn btn-primary btn-sm" onclick="addWOPart()">Request</button></div>'+
+        '</div>'+
+      '</div>';
+  }
 
-  if(!parts.length) return html+'<div style="color:#90a4ae;font-size:13px">No parts requested yet.</div></div>';
-  var statusColors={'requested':'#fff3e0','ordered':'#e3f2fd','received':'#e8f5e9','partial':'#e8eaf6'};
-  html+=parts.map(function(p){
-    return '<div style="display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid #f0f4f8">'+
-      '<div style="flex:1">'+
-        '<div style="font-weight:600;font-size:13px">'+escHtml(p.name||'')+'</div>'+
-        '<div style="font-size:11px;color:#546e7a">Qty: '+escHtml(String(p.qty||1))+(p.notes?' · '+escHtml(p.notes):'')+' · By: '+escHtml(p.requestedBy||'')+'</div>'+
-      '</div>'+
-      (isOffice?'<select onchange="updateWOPartStatus(\''+p.id+'\',this.value)" style="padding:4px 8px;border:1px solid #e0e7ef;border-radius:4px;font-size:11px;background:'+(statusColors[p.status]||'#f5f5f5')+'">'+
-        ['requested','ordered','received','partial'].map(function(s){return '<option value="'+s+'"'+(p.status===s?' selected':'')+'>'+s+'</option>';}).join('')+
-      '</select>':
-      '<span style="background:'+(statusColors[p.status]||'#f5f5f5')+';padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700">'+escHtml(p.status||'requested')+'</span>')+
-      (isOffice?'<button class="btn btn-danger btn-sm" onclick="deleteWOPart(\''+p.id+'\')">✕</button>':'')+
-    '</div>';
-  }).join('');
-  return html+'</div>';
+  if (!parts.length) {
+    return html + '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No parts on this work order yet.</div></div>';
+  }
+
+  // Create PO button if there are requested parts
+  if (isOffice && requested.length) {
+    html +=
+      '<div style="margin-bottom:12px">'+
+        '<button class="btn btn-outline btn-sm" onclick="createPOFromWOParts(\''+woId+'\')">📦 Create PO from '+requested.length+' Requested Part'+(requested.length!==1?'s':'')+' </button>'+
+      '</div>';
+  }
+
+  function renderGroup(label, icon, groupParts, color, bgColor) {
+    if (!groupParts.length) return '';
+    var out = '<div style="margin-bottom:16px">'+
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+        '<span style="font-size:15px">'+icon+'</span>'+
+        '<span style="font-weight:700;font-size:13px;color:'+color+'">'+label+'</span>'+
+        '<span style="background:'+bgColor+';color:'+color+';padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700">'+groupParts.length+'</span>'+
+      '</div>';
+
+    out += '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+      '<thead><tr style="background:#f8f9fa">'+
+        '<th style="padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Part</th>'+
+        '<th style="padding:7px 10px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Qty</th>'+
+        '<th style="padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">'+
+          (label.includes('Received') ? 'Received By / Date' : 'Requested By')+
+        '</th>'+
+        (isOffice?'<th style="padding:7px 10px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Status</th>':'')+
+        (isOffice?'<th style="padding:7px 10px;width:32px"></th>':'')+
+      '</tr></thead><tbody>';
+
+    groupParts.forEach(function(p) {
+      var receivedInfo = '';
+      if (p.status==='received'||p.status==='partial') {
+        receivedInfo = (p.receivedBy||p.requestedBy||'') + (p.receivedDate ? ' · '+p.receivedDate : '');
+      } else {
+        receivedInfo = p.requestedBy||'';
+      }
+      out += '<tr style="border-bottom:1px solid #f0f4f8">'+
+        '<td style="padding:9px 10px">'+
+          '<div style="font-weight:600">'+escHtml(p.name||'')+'</div>'+
+          (p.partNum?'<div style="font-size:11px;color:#90a4ae">'+escHtml(p.partNum)+'</div>':'')+
+          (p.notes?'<div style="font-size:11px;color:#546e7a;font-style:italic">'+escHtml(p.notes)+'</div>':'')+
+        '</td>'+
+        '<td style="padding:9px 10px;text-align:center;font-weight:700">'+escHtml(String(p.qty||1))+'</td>'+
+        '<td style="padding:9px 10px;font-size:12px;color:#546e7a">'+escHtml(receivedInfo)+'</td>'+
+        (isOffice?
+          '<td style="padding:9px 10px;text-align:center">'+
+            '<select onchange="updateWOPartStatus(\''+p.id+'\',this.value)" style="padding:4px 6px;border:1px solid #e0e7ef;border-radius:4px;font-size:11px">'+
+              ['requested','ordered','received','partial'].map(function(s){
+                return '<option value="'+s+'"'+(p.status===s?' selected':'')+'>'+s.charAt(0).toUpperCase()+s.slice(1)+'</option>';
+              }).join('')+
+            '</select>'+
+          '</td>':'')+
+        (isOffice?'<td style="padding:9px 10px;text-align:center"><button class="btn btn-danger btn-sm" onclick="deleteWOPart(\''+p.id+'\')">✕</button></td>':'')+
+      '</tr>';
+    });
+
+    out += '</tbody></table></div>';
+    return out;
+  }
+
+  html += renderGroup('Requested — Needs Ordering', '🔴', requested, '#c62828', '#ffebee');
+  html += renderGroup('Ordered — In Transit',       '⏳', ordered,   '#1565c0', '#e3f2fd');
+  html += renderGroup('Partially Received',          '🔶', partial,   '#e65100', '#fff3e0');
+  html += renderGroup('Received — On Hand',          '✅', received,  '#2e7d32', '#e8f5e9');
+
+  return html + '</div>';
 }
 
 function addWOPart() {
