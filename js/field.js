@@ -889,31 +889,27 @@ function openEditTimeEntry(entryId) {
 }
 
 function onTeTypeChange() {
-  var type = (document.getElementById('te-type')||{}).value||'work';
-  var woRow = document.getElementById('te-wo-row');
+  var type   = (document.getElementById('te-type')||{}).value||'work';
   var gpsRow = document.getElementById('te-gps-row');
-
-  // WO link — required for work/travel, hidden for leave types
-  var needsWO = ['work','travel'].includes(type);
-  if (woRow) woRow.style.display = needsWO ? '' : 'none';
 
   // GPS reason — only for work/travel/office
   if (gpsRow) gpsRow.style.display = ['work','travel','office'].includes(type) ? '' : 'none';
 
-  // Populate WO dropdown when visible
-  if (needsWO) {
-    var woSel = document.getElementById('te-wo');
-    if (woSel) {
-      woSel.innerHTML =
-        '<option value="office">Office / General</option>' +
-        (DB.workOrders||[])
-          .filter(function(w){ return !['Billed','Void','Closed'].includes(w.status); })
-          .sort(function(a,b){ return (a.woNumber||'').localeCompare(b.woNumber||''); })
-          .map(function(w){ return '<option value="'+escHtml(w.id)+'">'+escHtml(w.woNumber)+' — '+escHtml(w.customerName||'')+'</option>'; }).join('') +
-        (DB.jobs||[])
-          .filter(function(j){ return j.status!=='Closed'; })
-          .map(function(j){ return '<option value="job:'+escHtml(j.id)+'">'+escHtml(j.num)+' — '+escHtml(j.name||'')+'</option>'; }).join('');
-    }
+  // WO dropdown is always visible — populate it every time
+  var woSel = document.getElementById('te-wo');
+  if (woSel) {
+    var currentVal = woSel.value;
+    woSel.innerHTML =
+      '<option value="office">Office / General (no specific job)</option>' +
+      (DB.workOrders||[])
+        .filter(function(w){ return !['Billed','Void','Closed'].includes(w.status); })
+        .sort(function(a,b){ return (a.woNumber||'').localeCompare(b.woNumber||''); })
+        .map(function(w){ return '<option value="'+escHtml(w.id)+'">'+escHtml(w.woNumber)+' — '+escHtml(w.customerName||'')+'</option>'; }).join('') +
+      (DB.jobs||[])
+        .filter(function(j){ return j.status!=='Closed'; })
+        .map(function(j){ return '<option value="job:'+escHtml(j.id)+'">'+escHtml(j.num)+' — '+escHtml(j.name||'')+'</option>'; }).join('');
+    // Restore previous selection if still valid
+    if (currentVal) woSel.value = currentVal;
   }
 }
 

@@ -3731,6 +3731,14 @@ table{font-size:12.5px}
       </div>
       <div class="form-row">
         <div>
+          <label>Link to Work Order / Job *</label>
+          <select id="te-wo" style="width:100%;padding:8px;border:2px solid #1565c0;border-radius:6px;font-size:13px">
+            <option value="office">Office / General (no specific job)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
           <label>Entry Type *</label>
           <select id="te-type" onchange="onTeTypeChange()" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
             <option value="work">Work — On site labor</option>
@@ -3754,14 +3762,7 @@ table{font-size:12.5px}
         </div>
       </div>
       <div id="te-duration-preview" style="font-size:12px;color:#1565c0;font-weight:700;margin:-6px 0 10px;padding:0 2px"></div>
-      <div id="te-wo-row" class="form-row">
-        <div>
-          <label>Link to Work Order / Job *</label>
-          <select id="te-wo" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
-            <option value="office">Office / General (no specific job)</option>
-          </select>
-        </div>
-      </div>
+      <div id="te-wo-row" style="display:none"></div>
       <div class="form-row">
         <div>
           <label>Reason / Notes *</label>
