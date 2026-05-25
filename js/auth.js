@@ -162,37 +162,36 @@ async function loadCurrentUserProfile() {
 }
 
 function applyRolePermissions(role) {
-  // Custom roles — check their permission matrix for page access
-  // For any role not explicitly handled, fall through to show all (owner-like)
   var fieldRoles = ['helper_tech','subcontractor','field'];
   var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team','purchaseorders','vendors','scanner'];
-  var leadTechShow = ['dash','field','jobs','dispatch','worktracking','workorders','customers','contacts','reports','catalog','tools','inventory','calendar','timesheet'];
-  var pmShow = ['dash','jobs','dispatch','workorders','worktracking','customers','contacts','tools','inventory','calendar','timesheet','reports'];
+  var leadTechShow  = ['dash','field','jobs','dispatch','worktracking','workorders','customers','contacts','reports','catalog','tools','inventory','calendar','timesheet'];
   var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
-  var isCustomRole = typeof BUILT_IN_ROLES !== 'undefined' && BUILT_IN_ROLES.indexOf(role) < 0;
+  var isCustomRole  = typeof BUILT_IN_ROLES !== 'undefined' && BUILT_IN_ROLES.indexOf(role) < 0;
+
   var nav = document.querySelectorAll('.nav-item[data-page]');
   nav.forEach(function(item) {
     var page = item.getAttribute('data-page');
-    if (role === 'lead_tech') {
+    if (role === 'owner') {
+      item.style.display = '';
+    } else if (role === 'lead_tech') {
       item.style.display = leadTechShow.indexOf(page) >= 0 ? '' : 'none';
-    } else if (role === 'project_manager') {
-      item.style.display = pmShow.indexOf(page) >= 0 ? '' : 'none';
-    } else if (isCustomRole) {
-      // Custom role — show all pages (owner can restrict via permissions matrix)
-      item.style.display = page === 'team' ? 'none' : '';
+    } else if (role === 'estimator') {
+      item.style.display = estimatorShow.indexOf(page) >= 0 ? '' : 'none';
     } else if (fieldRoles.indexOf(role) >= 0 || role === 'field') {
       item.style.display = fieldOnlyHide.indexOf(page) >= 0 ? 'none' : '';
     } else if (role === 'office') {
       item.style.display = page === 'team' ? 'none' : '';
-    } else if (role === 'estimator' && estimatorShow.indexOf(page) < 0) {
-      item.style.display = 'none';
     } else {
-      item.style.display = '';
+      // All other roles (project_manager, custom roles, manager, back_office)
+      // Show everything except team page — permissions matrix governs actions
+      item.style.display = page === 'team' ? 'none' : '';
     }
   });
+
   // Hide rate column on Team page from non-owners
   var rateHeaders = document.querySelectorAll('.team-rate-col');
   rateHeaders.forEach(function(el) { el.style.display = role === 'owner' ? '' : 'none'; });
+
   // Render permissions editor if on settings page
   if (role === 'owner') setTimeout(renderPermissionsEditor, 200);
 }

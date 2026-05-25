@@ -2565,7 +2565,11 @@ function delJob(id) {
 function onTmAccessChange() {
   var role = (document.getElementById('m-tmaccess')||{}).value||'';
   var row = document.getElementById('tm-wo-view-row');
-  if (row) row.style.display = role==='project_manager' ? '' : 'none';
+  // Show WO visibility toggle for any non-admin role that can access WOs
+  var adminRoles = ['owner','office','manager','back_office'];
+  var fieldOnlyRoles = ['field','helper_tech','subcontractor','estimator'];
+  var showToggle = adminRoles.indexOf(role) < 0 && fieldOnlyRoles.indexOf(role) < 0;
+  if (row) row.style.display = showToggle ? '' : 'none';
 }
 
 var _accessLabels = {
