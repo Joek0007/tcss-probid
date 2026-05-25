@@ -680,6 +680,7 @@ function addWOLaborEntry() {
   DB.woLabor.push({ id:'wol-'+Date.now(), woId:woId, techName:techName.trim(), entryType:'work', hours:hours, notes:notes, clockIn:new Date().toISOString(), createdAt:new Date().toISOString() });
   var woRec=(DB.workOrders||[]).find(function(w){return w.id===woId;});
   if (woRec&&woRec.status==='New'){woRec.status='Open';var sel=document.getElementById('wo-status');if(sel)sel.value='Open';}
+  autoPromoteWOStatus(woId);
   saveDB(); switchWOTab('labor');
   showToast('Labor entry added','success');
 }
@@ -1341,3 +1342,25 @@ openWorkOrder = function(woId) {
   // Render assigned techs panel
   setTimeout(function(){ renderAssignedTechs(woId); }, 100);
 };
+
+// ============================================================
+// AUTO-PROMOTE: NEW → OPEN on first time entry
+// ============================================================
+
+function autoPromoteWOStatus(woId) {
+  if (!woId) return;
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (!wo || wo.status !== 'NEW') return;
+  wo.status = 'OPEN';
+  // Update status dropdown if WO modal is open
+  var sel = document.getElementById('wo-status');
+  if (sel && sel.value === 'NEW') sel.value = 'OPEN';
+  saveDB();
+  // Push to Supabase silently
+  if (_sb && _currentUser) {
+    _sb.from('work_orders').update({ status:'OPEN' }).eq('id', woId).then(function(r){
+      if (r.error) console.warn('[AutoPromote]', r.error.message);
+    });
+  }
+  showToast('WO status updated: NEW → OPEN','info',2000);
+}

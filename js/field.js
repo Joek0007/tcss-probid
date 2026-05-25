@@ -895,20 +895,34 @@ function onTeTypeChange() {
   // GPS reason — only for work/travel/office
   if (gpsRow) gpsRow.style.display = ['work','travel','office'].includes(type) ? '' : 'none';
 
-  // WO dropdown is always visible — populate it every time
+  // WO dropdown — only open status WOs, assigned to this tech (or all for admin)
   var woSel = document.getElementById('te-wo');
   if (woSel) {
     var currentVal = woSel.value;
+    var myName2  = (document.getElementById('te-tech')||{}).value || '';
+    var isAdmin2 = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager'||_currentUser.role==='back_office');
+
+    // Get open statuses from settings or defaults
+    var openStatuses = ((DB.woSettings&&DB.woSettings.statuses)||WO_STATUSES)
+      .filter(function(s){ return s.open!==false; })
+      .map(function(s){ return s.id; });
+
+    var availableWOs = (DB.workOrders||[]).filter(function(w){
+      var isOpen = openStatuses.indexOf(w.status) >= 0;
+      if (!isOpen) return false;
+      // If tech selected and not admin, only show WOs they're assigned to
+      if (myName2 && !isAdmin2) return _isTechAssignedToWO(myName2, w);
+      return true;
+    }).sort(function(a,b){ return (a.woNumber||'').localeCompare(b.woNumber||''); });
+
     woSel.innerHTML =
       '<option value="office">Office / General (no specific job)</option>' +
-      (DB.workOrders||[])
-        .filter(function(w){ return !['Billed','Void','Closed'].includes(w.status); })
-        .sort(function(a,b){ return (a.woNumber||'').localeCompare(b.woNumber||''); })
-        .map(function(w){ return '<option value="'+escHtml(w.id)+'">'+escHtml(w.woNumber)+' — '+escHtml(w.customerName||'')+'</option>'; }).join('') +
+      availableWOs.map(function(w){
+        return '<option value="'+escHtml(w.id)+'">'+escHtml(w.woNumber)+' — '+escHtml(w.customerName||'')+'</option>';
+      }).join('') +
       (DB.jobs||[])
         .filter(function(j){ return j.status!=='Closed'; })
         .map(function(j){ return '<option value="job:'+escHtml(j.id)+'">'+escHtml(j.num)+' — '+escHtml(j.name||'')+'</option>'; }).join('');
-    // Restore previous selection if still valid
     if (currentVal) woSel.value = currentVal;
   }
 }
@@ -1031,6 +1045,9 @@ function saveManualTimeEntry() {
   closeModal('modal-time-entry');
   showToast(editId ? 'Entry updated ✓' : 'Time entry added ✓', 'success');
   loadTimesheets();
+
+  // Auto-promote NEW → OPEN on first time entry
+  if (woId && typeof autoPromoteWOStatus === 'function') autoPromoteWOStatus(woId);
 
   // Push to Supabase in background — don't await, don't block UI
   var savedEntry = DB.timeEntries.find(function(e){
