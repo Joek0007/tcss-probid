@@ -1126,54 +1126,103 @@ function renderMsWOStatuses() {
   var settings = DB.woSettings || {};
   var statuses = settings.statuses && settings.statuses.length ? settings.statuses : WO_STATUSES;
 
-  var html =
+  el.innerHTML =
     '<div class="card">'+
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
       '<div class="card-title" style="margin:0">📋 Work Order Statuses</div>'+
       '<button class="btn btn-primary btn-sm" onclick="addMsWOStatus()">+ Add Status</button>'+
     '</div>'+
-    '<p style="font-size:12px;color:#546e7a;margin-bottom:12px">Drag to reorder. Open statuses allow time entries and field access. Closed statuses lock the WO for billing.</p>'+
-    '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    '<p style="font-size:12px;color:#546e7a;margin-bottom:12px">'+
+      '⣿ Drag the handle to reorder. '+
+      'Open statuses allow time entries and field access. '+
+      'Closed statuses lock the WO for billing.'+
+    '</p>'+
+    '<table id="wo-status-table" style="width:100%;border-collapse:collapse;font-size:13px">'+
     '<thead><tr style="background:#f0f4f8">'+
+      '<th style="padding:8px 6px;width:24px"></th>'+
       '<th style="padding:8px 10px;text-align:left;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700">Status Name</th>'+
       '<th style="padding:8px 10px;text-align:center;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700">Color</th>'+
       '<th style="padding:8px 10px;text-align:center;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700">Open</th>'+
       '<th style="padding:8px 10px;text-align:center;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700">Mobile</th>'+
-      '<th style="padding:8px 10px;width:60px"></th>'+
-    '</tr></thead><tbody>';
+      '<th style="padding:8px 10px;width:32px"></th>'+
+    '</tr></thead>'+
+    '<tbody id="wo-status-tbody">'+
+    statuses.map(function(s,i){
+      var isOpen = s.open !== false;
+      return '<tr draggable="true" data-idx="'+i+'" style="border-bottom:1px solid #f0f4f8;cursor:default" '+
+        'ondragstart="wsDragStart(event)" ondragover="wsDragOver(event)" ondrop="wsDrop(event)" ondragend="wsDragEnd(event)">'+
+        '<td style="padding:8px 6px;text-align:center;cursor:grab;color:#90a4ae;font-size:16px" title="Drag to reorder">⣿</td>'+
+        '<td style="padding:8px 10px">'+
+          '<div style="display:flex;align-items:center;gap:8px">'+
+            '<div style="width:12px;height:12px;border-radius:50%;background:'+escHtml(s.color||'#ddd')+';border:1px solid rgba(0,0,0,.15);flex-shrink:0"></div>'+
+            '<input value="'+escHtml(s.id)+'" onchange="updateWOStatusName('+i+',this.value)" style="flex:1;padding:5px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
+          '</div>'+
+        '</td>'+
+        '<td style="padding:8px 10px;text-align:center">'+
+          '<input type="color" value="'+escHtml(s.color||'#dddddd')+'" onchange="updateWOStatusColor('+i+',this.value)" style="width:36px;height:28px;border:none;border-radius:4px;cursor:pointer;padding:2px">'+
+        '</td>'+
+        '<td style="padding:8px 10px;text-align:center">'+
+          '<label class="perm-toggle" style="margin:0 auto">'+
+            '<input type="checkbox" '+(isOpen?'checked':'')+' onchange="updateWOStatusOpen('+i+',this.checked)">'+
+            '<span class="perm-slider"></span>'+
+          '</label>'+
+        '</td>'+
+        '<td style="padding:8px 10px;text-align:center">'+
+          '<label class="perm-toggle" style="margin:0 auto">'+
+            '<input type="checkbox" '+(s.mobile?'checked':'')+' onchange="updateWOStatusMobile('+i+',this.checked)">'+
+            '<span class="perm-slider"></span>'+
+          '</label>'+
+        '</td>'+
+        '<td style="padding:8px 6px;text-align:center">'+
+          '<button onclick="deleteMsWOStatus('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:16px;padding:0" title="Delete">×</button>'+
+        '</td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
 
-  statuses.forEach(function(s, i) {
-    var isOpen = s.open !== false;
-    html += '<tr style="border-bottom:1px solid #f0f4f8">'+
-      '<td style="padding:8px 10px">'+
-        '<div style="display:flex;align-items:center;gap:8px">'+
-          '<div style="width:12px;height:12px;border-radius:50%;background:'+escHtml(s.color||'#ddd')+';border:1px solid rgba(0,0,0,.15);flex-shrink:0"></div>'+
-          '<input value="'+escHtml(s.id)+'" onchange="updateWOStatusName('+i+',this.value)" style="flex:1;padding:5px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
-        '</div>'+
-      '</td>'+
-      '<td style="padding:8px 10px;text-align:center">'+
-        '<input type="color" value="'+escHtml(s.color||'#dddddd')+'" onchange="updateWOStatusColor('+i+',this.value)" style="width:36px;height:28px;border:none;border-radius:4px;cursor:pointer;padding:2px">'+
-      '</td>'+
-      '<td style="padding:8px 10px;text-align:center">'+
-        '<label class="perm-toggle" style="margin:0 auto">'+
-          '<input type="checkbox" '+(isOpen?'checked':'')+' onchange="updateWOStatusOpen('+i+',this.checked)">'+
-          '<span class="perm-slider"></span>'+
-        '</label>'+
-      '</td>'+
-      '<td style="padding:8px 10px;text-align:center">'+
-        '<label class="perm-toggle" style="margin:0 auto">'+
-          '<input type="checkbox" '+(s.mobile?'checked':'')+' onchange="updateWOStatusMobile('+i+',this.checked)">'+
-          '<span class="perm-slider"></span>'+
-        '</label>'+
-      '</td>'+
-      '<td style="padding:8px 10px;text-align:center">'+
-        '<button onclick="deleteMsWOStatus('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:16px;padding:0" title="Delete">×</button>'+
-      '</td>'+
-    '</tr>';
-  });
+  _initWOStatusDrag();
+}
 
-  html += '</tbody></table></div>';
-  el.innerHTML = html;
+// ---- DRAG TO REORDER ----
+var _wsDragSrcIdx = null;
+
+function _initWOStatusDrag() {
+  // Native HTML5 drag — no library needed
+}
+
+function wsDragStart(e) {
+  _wsDragSrcIdx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  e.currentTarget.style.opacity = '0.4';
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', _wsDragSrcIdx);
+}
+
+function wsDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  var rows = document.querySelectorAll('#wo-status-tbody tr');
+  rows.forEach(function(r){ r.style.borderTop = ''; });
+  e.currentTarget.style.borderTop = '2px solid #1565c0';
+  return false;
+}
+
+function wsDrop(e) {
+  e.preventDefault();
+  var targetIdx = parseInt(e.currentTarget.getAttribute('data-idx'));
+  if (_wsDragSrcIdx === null || _wsDragSrcIdx === targetIdx) return;
+  var statuses = _getMsStatuses();
+  var moved = statuses.splice(_wsDragSrcIdx, 1)[0];
+  statuses.splice(targetIdx, 0, moved);
+  saveDB();
+  showToast('Order saved ✓', 'success', 1500);
+  renderMsWOStatuses();
+}
+
+function wsDragEnd(e) {
+  e.currentTarget.style.opacity = '';
+  var rows = document.querySelectorAll('#wo-status-tbody tr');
+  rows.forEach(function(r){ r.style.borderTop = ''; });
+  _wsDragSrcIdx = null;
 }
 
 function _getMsStatuses() {
