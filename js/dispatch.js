@@ -1149,8 +1149,7 @@ function renderMsWOStatuses() {
     '<tbody id="wo-status-tbody">'+
     statuses.map(function(s,i){
       var isOpen = s.open !== false;
-      return '<tr data-idx="'+i+'" style="border-bottom:1px solid #f0f4f8" '+
-        'ondragover="wsDragOver(event)" ondrop="wsDrop(event)">'+
+      return '<tr data-idx="'+i+'" style="border-bottom:1px solid #f0f4f8">'+
         '<td draggable="true" data-idx="'+i+'" '+
         'ondragstart="wsDragStart(event)" ondragend="wsDragEnd(event)" '+
         'style="padding:8px 6px;text-align:center;cursor:grab;color:#90a4ae;font-size:18px;user-select:none" title="Drag to reorder">⣿</td>'+
@@ -1189,7 +1188,34 @@ function renderMsWOStatuses() {
 var _wsDragSrcIdx = null;
 
 function _initWOStatusDrag() {
-  // Native HTML5 drag — no library needed
+  var tbody = document.getElementById('wo-status-tbody');
+  if (!tbody) return;
+  tbody.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    var tr = e.target.closest('tr');
+    var rows = tbody.querySelectorAll('tr');
+    rows.forEach(function(r){ r.style.borderTop = ''; });
+    if (tr) tr.style.borderTop = '2px solid #1565c0';
+  });
+  tbody.addEventListener('drop', function(e) {
+    e.preventDefault();
+    var tr = e.target.closest('tr');
+    if (!tr) return;
+    var targetIdx = parseInt(tr.getAttribute('data-idx'));
+    if (_wsDragSrcIdx === null || isNaN(targetIdx) || _wsDragSrcIdx === targetIdx) return;
+    var statuses = _getMsStatuses();
+    var moved = statuses.splice(_wsDragSrcIdx, 1)[0];
+    statuses.splice(targetIdx, 0, moved);
+    saveDB();
+    showToast('Order saved ✓', 'success', 1500);
+    renderMsWOStatuses();
+  });
+  tbody.addEventListener('dragleave', function(e) {
+    if (!tbody.contains(e.relatedTarget)) {
+      tbody.querySelectorAll('tr').forEach(function(r){ r.style.borderTop = ''; });
+    }
+  });
 }
 
 function wsDragStart(e) {
@@ -1201,26 +1227,7 @@ function wsDragStart(e) {
   e.dataTransfer.setData('text/plain', _wsDragSrcIdx);
 }
 
-function wsDragOver(e) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  var rows = document.querySelectorAll('#wo-status-tbody tr');
-  rows.forEach(function(r){ r.style.borderTop = ''; });
-  e.currentTarget.style.borderTop = '2px solid #1565c0';
-  return false;
-}
 
-function wsDrop(e) {
-  e.preventDefault();
-  var targetIdx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  if (_wsDragSrcIdx === null || _wsDragSrcIdx === targetIdx) return;
-  var statuses = _getMsStatuses();
-  var moved = statuses.splice(_wsDragSrcIdx, 1)[0];
-  statuses.splice(targetIdx, 0, moved);
-  saveDB();
-  showToast('Order saved ✓', 'success', 1500);
-  renderMsWOStatuses();
-}
 
 function wsDragEnd(e) {
   var row = e.currentTarget.closest('tr') || e.currentTarget.parentElement;
