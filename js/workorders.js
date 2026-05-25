@@ -86,10 +86,21 @@ function renderWorkOrders() {
   var myName  = _currentUser ? _currentUser.full_name : '';
   var myRole  = _currentUser ? _currentUser.role : '';
   var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager';
+  var isPM    = myRole==='project_manager';
+
   if (!isAdmin && myName) {
-    list = list.filter(function(w){
-      return _isTechAssignedToWO(myName, w);
-    });
+    // PM: show all WOs unless their profile has woViewMode = 'assigned_only'
+    var myProfile = (DB.team||[]).find(function(m){ return m.name===myName; });
+    var pmAssignedOnly = isPM && myProfile && myProfile.woViewMode === 'assigned_only';
+
+    if (isPM && !pmAssignedOnly) {
+      // PM sees all WOs by default
+    } else if (!isAdmin) {
+      // Field/lead techs and PM in assigned-only mode
+      list = list.filter(function(w){
+        return _isTechAssignedToWO(myName, w);
+      });
+    }
   }
 
   if (search) list = list.filter(function(w){
@@ -1164,6 +1175,12 @@ function _canViewWO(wo) {
   if (!_currentUser) return false;
   var role = _currentUser.role;
   if (role==='owner'||role==='office'||role==='manager') return true;
+  if (role==='project_manager') {
+    var myProfile = (DB.team||[]).find(function(m){ return m.name===_currentUser.full_name; });
+    var assignedOnly = myProfile && myProfile.woViewMode === 'assigned_only';
+    if (!assignedOnly) return true; // PM sees all by default
+    return _isTechAssignedToWO(_currentUser.full_name, wo);
+  }
   return _isTechAssignedToWO(_currentUser.full_name, wo);
 }
 
@@ -1172,7 +1189,7 @@ function _canViewWO(wo) {
 function renderAssignedTechs(woId) {
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
   var assigned = (wo && wo.assignedTechs) ? wo.assignedTechs : [];
-  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager'||_currentUser.role==='lead_tech');
+  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager'||_currentUser.role==='lead_tech'||_currentUser.role==='project_manager');
   var el = document.getElementById('wo-assigned-techs');
   if (!el) return;
 

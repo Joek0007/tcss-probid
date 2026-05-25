@@ -5090,7 +5090,7 @@ table{font-size:12.5px}
     <div class="modal-head"><h3 id="team-modal-title">Team Member</h3><button class="close-btn" data-action="closeModal" data-modal="modal-team">×</button></div>
     <div class="modal-body">
       <div class="form-row cols2"><div><label>Name *</label><input id="m-tmname"></div><div><label>Job Title</label><input id="m-tmrole" placeholder="e.g. Lead Technician"></div></div>
-      <div class="form-row"><div><label>Access Level</label><select id="m-tmaccess"><option value="field">Field Tech — Time clock, jobs, work tracking only</option><option value="lead_tech">Lead Tech — Field + customers, reports, catalog</option><option value="office">Office — Everything except Team page</option><option value="owner">Owner — Full access</option><option value="estimator">Estimator — Quoting only</option></select></div></div>
+      <div class="form-row"><div><label>Access Level</label><select id="m-tmaccess" onchange="onTmAccessChange()"><option value="field">Field Tech — Time clock, jobs, work tracking only</option><option value="lead_tech">Lead Tech — Field + customers, reports, catalog</option><option value="project_manager">Project Manager — Jobs, WOs, dispatch, no financials</option><option value="office">Office — Everything except Team page</option><option value="owner">Owner — Full access</option><option value="estimator">Estimator — Quoting only</option></select></div></div>
       <div class="form-row cols2"><div><label>Phone</label><input id="m-tmph"></div><div><label>Email *</label><input id="m-tmem" type="email" placeholder="Required to send login invite"></div></div>
       <div class="form-row cols2">
         <div><label>Hourly Rate ($)</label><input id="m-tmrate" type="number" value="65"></div>
@@ -5098,7 +5098,14 @@ table{font-size:12.5px}
       </div>
       <!-- Invite status -->
       <div id="tm-invite-status" style="display:none;background:#e3f2fd;border-radius:8px;padding:10px 14px;margin-top:8px;font-size:13px"></div>
-      <!-- Leave visibility toggles -->
+      <!-- WO View Mode toggle — only visible when role is project_manager -->
+      <div id="tm-wo-view-row" style="display:none;border-top:1px solid #e0e0e0;margin-top:12px;padding-top:12px">
+        <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:8px">WORK ORDER VISIBILITY</label>
+        <select id="m-tm-wo-view" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+          <option value="all">See all work orders (default)</option>
+          <option value="assigned_only">See only assigned work orders</option>
+        </select>
+      </div>
       <div style="border-top:1px solid #e0e0e0;margin-top:12px;padding-top:12px">
         <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:8px">LEAVE BALANCE VISIBILITY</label>
         <div style="display:flex;flex-direction:column;gap:8px">

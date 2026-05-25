@@ -2562,6 +2562,12 @@ function delJob(id) {
 // ---- RENDER TEAM ----
 // ---- TEAM MANAGEMENT V2 (with invite system) ----
 
+function onTmAccessChange() {
+  var role = (document.getElementById('m-tmaccess')||{}).value||'';
+  var row = document.getElementById('tm-wo-view-row');
+  if (row) row.style.display = role==='project_manager' ? '' : 'none';
+}
+
 var _accessLabels = {
   owner:'Owner',lead_tech:'Lead Tech',office:'Office',field:'Field Tech',estimator:'Estimator'
 };
@@ -2644,6 +2650,9 @@ function editTeamMemberV2(id) {
       if(rbEl) rbEl.style.display='none';
     }
   }
+  var woViewEl = document.getElementById('m-tm-wo-view');
+  if (woViewEl) woViewEl.value = t.woViewMode||'all';
+  onTmAccessChange();
   document.getElementById('team-modal-title').textContent='Edit: '+escHtml(t.name||'');
   openModal('modal-team');
 }

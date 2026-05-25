@@ -990,9 +990,7 @@ function saveManualTimeEntry() {
       orig.lastEditedBy = adder;
       orig.lastEditedAt = now;
     }
-    showToast('Entry updated ✓','success');
   } else {
-    // New entry
     var entry = {
       id:          'te-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),
       techName:    techName,
@@ -1014,15 +1012,18 @@ function saveManualTimeEntry() {
       auditTrail:  [{ action:'created', by:adder, at:now }]
     };
     DB.timeEntries.push(entry);
-    showToast('Time entry added ✓','success');
   }
-
-  // Push to Supabase
-  _pushTimeEntryToSupabase(DB.timeEntries.find(function(e){ return e.id===(editId||DB.timeEntries[DB.timeEntries.length-1].id); }));
 
   saveDB();
   closeModal('modal-time-entry');
+  showToast(editId ? 'Entry updated ✓' : 'Time entry added ✓', 'success');
   loadTimesheets();
+
+  // Push to Supabase in background — don't await, don't block UI
+  var savedEntry = DB.timeEntries.find(function(e){
+    return e.id === (editId || DB.timeEntries[DB.timeEntries.length-1].id);
+  });
+  if (savedEntry) _pushTimeEntryToSupabase(savedEntry);
 
   // If we're on a WO, refresh its labor tab too
   if (woId && typeof switchWOTab === 'function' && typeof _woCurrentId !== 'undefined' && _woCurrentId === woId) {
