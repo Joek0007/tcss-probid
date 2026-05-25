@@ -1082,6 +1082,12 @@ table{font-size:12.5px}
 @keyframes tc-ring-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 
+<!-- VIEW AS BANNER -->
+<div id="view-as-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99990;background:#e65100;color:#fff;padding:8px 20px;font-size:13px;font-weight:700;align-items:center;justify-content:space-between">
+  <span>👁 Viewing as: <span id="view-as-name"></span> (<span id="view-as-role"></span>) — This is their exact view</span>
+  <button onclick="deactivateViewAs()" style="background:#fff;color:#e65100;border:none;border-radius:4px;padding:4px 12px;font-weight:700;cursor:pointer;font-size:12px">✕ Exit View As</button>
+</div>
+
 <div id="sidebar">
   <div class="logo" id="sidebar-logo-block">
     <div class="logo-icon" id="sidebar-logo-icon">T</div>
@@ -4001,6 +4007,22 @@ table{font-size:12.5px}
   <!-- ===== COMPANY ===== -->
   <div class="ms-section active" id="ms-company">
     <div class="ms-grid">
+
+    <!-- VIEW AS — owner only -->
+    <div class="card ms-full" id="view-as-card" style="display:none;background:linear-gradient(135deg,#1565c0,#0d47a1);color:#fff;border:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-size:16px;font-weight:700;margin-bottom:4px">👁 View As — Testing Mode</div>
+          <div style="font-size:13px;opacity:.85">See ProBid exactly as a team member would. Their role, their assigned WOs, their permissions.</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="view-as-select" style="padding:8px 12px;border-radius:6px;border:none;font-size:13px;min-width:180px">
+            <option value="">— Select team member —</option>
+          </select>
+          <button onclick="activateViewAs()" style="padding:8px 16px;background:#fff;color:#1565c0;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">View As</button>
+        </div>
+      </div>
+    </div>
 
     <!-- LOGO UPLOAD CARD -->
     <div class="card" style="grid-column:1/-1">

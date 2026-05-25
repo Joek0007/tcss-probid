@@ -1092,11 +1092,15 @@ function switchMsTab(tab) {
   document.querySelectorAll('.ms-section').forEach(function(s){
     s.classList.toggle('active', s.id==='ms-'+tab);
   });
+  // Scroll settings page to top on every tab switch
+  var page = document.getElementById('page-settings');
+  if (page) page.scrollTop = 0;
+  window.scrollTo(0,0);
   // Render tab content on first open
   if (tab==='workorders')   renderMsWOSettings();
   if (tab==='roles')        renderMsRolesTab();
-  if (tab==='inventory')    renderLocationSettings && renderLocationSettings();
-  if (tab==='time')         renderMsTimeSettings && renderMsTimeSettings();
+  if (tab==='inventory')    typeof renderLocationSettings === 'function' && renderLocationSettings();
+  if (tab==='time')         typeof renderMsTimeSettings   === 'function' && renderMsTimeSettings();
 }
 
 // ---- ROLES TAB ----

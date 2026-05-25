@@ -574,6 +574,31 @@ async function syncAllFromCloud() {
       }
     } catch(e) { errors.push('wo_expenses: '+e.message); }
 
+    // 19. Inventory
+    try {
+      var { data: invRows, error: inve } = await _sb.from('inventory').select('*').order('name');
+      if (inve) { errors.push('inventory: '+inve.message); }
+      else if (invRows) {
+        DB.inventory = invRows.map(function(i){
+          return {
+            id:         i.id,
+            name:       i.name,
+            tag:        i.tag||'',
+            cat:        i.category||'General',
+            partNum:    i.part_num||'',
+            barcode:    i.barcode||'',
+            returnable: !!i.returnable,
+            locations:  i.locations||{'loc-shop':0},
+            qty:        i.qty||0,
+            minQty:     i.min_qty||0,
+            cost:       i.unit_cost||0,
+            notes:      i.notes||'',
+            createdAt:  i.created_at
+          };
+        });
+      }
+    } catch(e) { errors.push('inventory: '+e.message); }
+
     // 16. Vendors
     try {
       var { data: vendorRows, error: ve } = await _sb.from('vendors').select('*').eq('is_active', true).order('name');
@@ -901,6 +926,28 @@ async function pushAllToCloud() {
         });
         if (teErr) console.warn('[Push] Time entry error:', teErr.message);
       } catch(teCatch) { console.warn('[Push] Time entry error:', teCatch.message||teCatch); }
+    }
+
+    // Push inventory
+    for (var inv of (DB.inventory || [])) {
+      if (!inv || !inv.id) continue;
+      try {
+        await _sb.from('inventory').upsert({
+          id:         inv.id,
+          name:       inv.name,
+          tag:        inv.tag||null,
+          category:   inv.cat||'General',
+          part_num:   inv.partNum||null,
+          barcode:    inv.barcode||null,
+          returnable: !!inv.returnable,
+          locations:  inv.locations||null,
+          qty:        inv.qty||0,
+          min_qty:    inv.minQty||0,
+          unit_cost:  inv.cost||0,
+          notes:      inv.notes||null,
+          created_by: _currentUser.id
+        }, {onConflict:'id'});
+      } catch(invErr) { console.warn('[Push] Inventory:', invErr.message||invErr); }
     }
 
     // Push work tracking checkoffs
@@ -1340,3 +1387,91 @@ if (document.readyState === 'loading') {
   init();
 }
 
+
+// ============================================================
+// VIEW AS — owner testing mode
+// ============================================================
+
+var _viewAsActive = false;
+var _realUser = null;
+
+function initViewAsCard() {
+  var card = document.getElementById('view-as-card');
+  var sel  = document.getElementById('view-as-select');
+  if (!card || !sel) return;
+  var isOwner = _currentUser && _currentUser.role === 'owner';
+  card.style.display = isOwner ? 'block' : 'none';
+  if (!isOwner) return;
+  // Populate team members
+  sel.innerHTML = '<option value="">— Select team member —</option>' +
+    (DB.team||[]).filter(function(m){ return m.name !== _currentUser.full_name; })
+      .sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); })
+      .map(function(m){
+        return '<option value="'+escHtml(m.id)+'">'+escHtml(m.name)+' ('+escHtml(m.access||m.role||'field')+')</option>';
+      }).join('');
+}
+
+function activateViewAs() {
+  var sel = document.getElementById('view-as-select');
+  if (!sel || !sel.value) { showToast('Select a team member first','error'); return; }
+  var member = (DB.team||[]).find(function(m){ return m.id===sel.value; });
+  if (!member) return;
+
+  // Store real user
+  _realUser = Object.assign({}, _currentUser);
+  _viewAsActive = true;
+
+  // Switch to member's perspective
+  _currentUser = {
+    id:         member.id,
+    full_name:  member.name,
+    email:      member.email||'',
+    role:       member.access || member.systemRole || 'field',
+    rate:       member.rate||65
+  };
+
+  // Show banner
+  var banner = document.getElementById('view-as-banner');
+  var nameEl = document.getElementById('view-as-name');
+  var roleEl = document.getElementById('view-as-role');
+  if (banner) banner.style.display = 'flex';
+  if (nameEl) nameEl.textContent = member.name;
+  if (roleEl) roleEl.textContent = _currentUser.role;
+
+  // Shift content down for banner
+  var sidebar = document.getElementById('sidebar');
+  var main    = document.getElementById('main-content');
+  if (sidebar) sidebar.style.marginTop = '38px';
+  if (main)    main.style.marginTop    = '38px';
+
+  // Apply their permissions
+  applyRolePermissions(_currentUser.role);
+  updateUserBadge(_currentUser);
+
+  // Navigate to dashboard as them
+  goPage('dash');
+  showToast('Viewing as '+member.name+' — '+_currentUser.role,'info',3000);
+}
+
+function deactivateViewAs() {
+  if (!_realUser) return;
+  _currentUser = _realUser;
+  _realUser = null;
+  _viewAsActive = false;
+
+  // Hide banner
+  var banner = document.getElementById('view-as-banner');
+  if (banner) banner.style.display = 'none';
+
+  // Restore margins
+  var sidebar = document.getElementById('sidebar');
+  var main    = document.getElementById('main-content');
+  if (sidebar) sidebar.style.marginTop = '';
+  if (main)    main.style.marginTop    = '';
+
+  // Restore owner permissions
+  applyRolePermissions(_currentUser.role);
+  updateUserBadge(_currentUser);
+  goPage('settings');
+  showToast('Back to Owner view','success',2000);
+}
