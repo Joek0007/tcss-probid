@@ -628,7 +628,9 @@ async function syncAllFromCloud() {
 async function pushAllToCloud() {
   if (!_sb || !_currentUser) return;
   if (_currentUser.role === 'field') return;
-  showSpinner('Saving to cloud...');
+  // Background push — silent, no spinner, no UI blocking
+  var syncEl = document.getElementById('dash-last-updated');
+  if (syncEl) syncEl.textContent = 'Saving...';
   try {
     // First — process any pending deletions so they don't get restored by upserts below
     if (DB.deletedIds) {
@@ -996,10 +998,11 @@ async function pushAllToCloud() {
 
   } catch(e) {
     console.error('Push error:', e);
-    hideSpinner();
     showToast('Sync error — changes saved locally', 'warning');
   }
-  hideSpinner();
+  var syncEl = document.getElementById('dash-last-updated');
+  if (syncEl) syncEl.textContent = 'Saved ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+  // No hideSpinner — push runs silently in background
 }
 
 // Cloud push is now built into saveDB directly — no override needed

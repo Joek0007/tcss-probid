@@ -2856,16 +2856,32 @@ table{font-size:12.5px}
   <!-- ALL TIMESHEETS TAB (admin/manager only) -->
   <div class="ts-section" id="ts-all-timesheets">
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div class="card-title" style="margin:0">📋 All Timesheets</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="date" id="ts-date-filter" onchange="renderAllTimesheetsTab()" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:8px">
-          <select id="ts-tech-filter" onchange="renderAllTimesheetsTab()" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:8px">
-            <option value="">All Techs</option>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <select id="ts-range-preset" onchange="applyTsPreset()" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:8px">
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="this_week" selected>This Week</option>
+            <option value="last_week">Last Week</option>
+            <option value="this_period">This Pay Period</option>
+            <option value="last_period">Last Pay Period</option>
+            <option value="custom">Custom Range</option>
           </select>
-          <button class="btn btn-primary btn-sm" onclick="openAddTimeEntry('', document.getElementById('ts-date-filter').value)">+ Add Entry</button>
+          <input type="date" id="ts-date-from" onchange="onTsRangeChange()" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:8px">
+          <span style="font-size:12px;color:#90a4ae">to</span>
+          <input type="date" id="ts-date-to" onchange="onTsRangeChange()" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:8px">
+          <select id="ts-tech-filter" onchange="renderAllTimesheetsTab()" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:8px">
+            <option value="">All Employees</option>
+          </select>
+          <select id="ts-view-mode" onchange="renderAllTimesheetsTab()" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:8px">
+            <option value="detail">Detail View</option>
+            <option value="summary">Summary — All Employees</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="openAddTimeEntry('', document.getElementById('ts-date-from').value)">+ Add Entry</button>
         </div>
       </div>
+      <div id="ts-range-label" style="font-size:12px;color:#546e7a;margin-bottom:10px"></div>
       <div id="ts-all-content"></div>
     </div>
     <!-- Live activity -->

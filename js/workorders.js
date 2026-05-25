@@ -565,48 +565,91 @@ function renderWOLaborTab(woId) {
       '</tr>'+
     '</tbody></table>';
 
-  // ---- DETAIL LOG — grouped by date, expanded by default ----
+  // ---- DETAIL LOG — grouped by date chronologically ----
+  // Also pull from timeEntries linked to this WO
+  var teEntries = (DB.timeEntries||[]).filter(function(e){
+    return !e.deleted && (e.woId===woId || e.jobId===woId);
+  });
+
+  // Merge woLabor + timeEntries, deduplicate by id
+  var allEntries = entries.slice();
+  teEntries.forEach(function(te){
+    if (!allEntries.find(function(e){ return e.id===te.id; })) {
+      allEntries.push({
+        id:te.id, woId:te.woId, techName:te.techName,
+        entryType:te.entryType||'work', hours:te.totalHours||0,
+        clockIn:te.date+(te.startTime?'T'+te.startTime+':00':''),
+        clockOut:te.date+(te.endTime?'T'+te.endTime+':00':''),
+        notes:te.notes||'', isManual:te.isManual, addedBy:te.addedBy,
+        createdAt:te.createdAt||te.date
+      });
+    }
+  });
+
   var byDate = {};
-  entries.forEach(function(e) {
-    var d = e.clockIn ? e.clockIn.split('T')[0] : (e.createdAt||'').split('T')[0] || 'Unknown';
-    if (!byDate[d]) byDate[d] = [];
+  allEntries.forEach(function(e){
+    var d = (e.clockIn||'').split('T')[0] || (e.createdAt||'').split('T')[0] || 'Unknown';
+    if (!byDate[d]) byDate[d]=[];
     byDate[d].push(e);
   });
 
-  var dateKeys = Object.keys(byDate).sort().reverse();
+  var dateKeys = Object.keys(byDate).sort(); // chronological order
+  var isAdmin  = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager'||_currentUser.role==='lead_tech');
+  var myName   = _currentUser ? _currentUser.full_name : '';
 
-  html += '<div style="border-top:2px solid #e0e7ef;padding-top:12px">'+
-    '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Detail Log</div>';
+  html += '<div style="border-top:2px solid #e0e7ef;padding-top:14px">'+
+    '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Detail Log</div>';
 
-  dateKeys.forEach(function(dateKey) {
-    var dayEntries = byDate[dateKey];
-    var dateLabel = dateKey === 'Unknown' ? 'Unknown Date' : new Date(dateKey+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-    var dayTotal = dayEntries.reduce(function(s,e){return s+(parseFloat(e.hours)||0);},0);
+  if (!dateKeys.length) {
+    html += '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No detail entries yet.</div>';
+  }
 
-    html += '<div style="margin-bottom:12px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;background:#f0f4f8;padding:6px 10px;border-radius:6px;margin-bottom:6px">'+
-        '<span style="font-weight:700;font-size:12px;color:#1565c0">'+escHtml(dateLabel)+'</span>'+
+  dateKeys.forEach(function(dateKey){
+    var dayEntries = byDate[dateKey].sort(function(a,b){ return (a.clockIn||'').localeCompare(b.clockIn||''); });
+    var dateLabel  = dateKey==='Unknown' ? 'Unknown Date' : new Date(dateKey+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
+    var dayTotal   = dayEntries.reduce(function(s,e){ return s+(parseFloat(e.hours)||0); },0);
+
+    html += '<div style="margin-bottom:14px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;background:#f0f4f8;padding:7px 12px;border-radius:8px;margin-bottom:6px">'+
+        '<span style="font-weight:700;font-size:13px;color:#1565c0">'+escHtml(dateLabel)+'</span>'+
         '<span style="font-size:12px;font-weight:700;color:#546e7a">'+dayTotal.toFixed(1)+' hrs</span>'+
       '</div>';
 
-    dayEntries.forEach(function(e) {
-      var hrs = parseFloat(e.hours)||0;
-      var isTravel = (e.entryType||'work')==='travel';
-      var timeIn  = e.clockIn  ? new Date(e.clockIn).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})  : '';
-      var timeOut = e.clockOut ? new Date(e.clockOut).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '';
-      html +=
-        '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-left:3px solid '+(isTravel?'#ff8f00':'#1565c0')+';margin-bottom:4px;background:#fff;border-radius:0 6px 6px 0">'+
-          '<div style="flex:1">'+
-            '<div style="display:flex;align-items:center;gap:8px">'+
-              '<span style="font-weight:600;font-size:13px">'+escHtml(e.techName||'Unknown')+'</span>'+
-              '<span style="background:'+(isTravel?'#fff3e0':'#e3f2fd')+';color:'+(isTravel?'#e65100':'#1565c0')+';padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;text-transform:uppercase">'+(isTravel?'Travel':'Work')+'</span>'+
-            '</div>'+
-            (timeIn||timeOut?'<div style="font-size:11px;color:#90a4ae;margin-top:2px">'+(timeIn?'In: '+timeIn:'')+(timeOut?' — Out: '+timeOut:'')+'</div>':'')+
-            (e.notes?'<div style="font-size:11px;color:#546e7a;font-style:italic;margin-top:2px">'+escHtml(e.notes)+'</div>':'')+
+    dayEntries.forEach(function(e){
+      var hrs      = parseFloat(e.hours)||0;
+      var type     = (e.entryType||'work').toLowerCase();
+      var isTravel = type==='travel';
+      var isLunch  = type==='lunch';
+      var borderC  = isTravel?'#ff8f00':isLunch?'#9e9e9e':'#1565c0';
+      var badgeBg  = isTravel?'#fff3e0':isLunch?'#f5f5f5':'#e3f2fd';
+      var badgeC   = isTravel?'#e65100':isLunch?'#546e7a':'#1565c0';
+      var typeLabel= type.charAt(0).toUpperCase()+type.slice(1);
+      var timeIn   = e.clockIn  && e.clockIn.includes('T')  ? new Date(e.clockIn).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})  : '';
+      var timeOut  = e.clockOut && e.clockOut.includes('T') ? new Date(e.clockOut).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '';
+      var canEdit  = isAdmin || e.techName===myName;
+
+      html += '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-left:3px solid '+borderC+';margin-bottom:5px;background:#fff;border-radius:0 8px 8px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)">'+
+        '<div style="flex:1">'+
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">'+
+            '<span style="font-weight:700;font-size:13px">'+escHtml(e.techName||'Unknown')+'</span>'+
+            '<span style="background:'+badgeBg+';color:'+badgeC+';padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700;text-transform:uppercase">'+typeLabel+'</span>'+
+            (e.isManual?'<span style="background:#f3e5f5;color:#6a1b9a;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:700">MANUAL</span>':'')+
           '</div>'+
-          '<div style="font-weight:700;color:'+(isTravel?'#e65100':'#1565c0')+';min-width:48px;text-align:right">'+hrs.toFixed(1)+' hrs</div>'+
-          '<button class="btn btn-danger btn-sm" onclick="deleteWOLabor(\''+e.id+'\')">✕</button>'+
-        '</div>';
+          (timeIn||timeOut?
+            '<div style="font-size:11px;color:#546e7a;margin-bottom:3px">'+
+              (timeIn?'<span style="background:#f8f9fa;border-radius:4px;padding:1px 5px">In: '+timeIn+'</span> ':'')+
+              (timeOut?'<span style="background:#f8f9fa;border-radius:4px;padding:1px 5px">Out: '+timeOut+'</span>':'')+
+            '</div>':'')+
+          (e.notes?
+            '<div style="font-size:12px;color:#37474f;background:#fafafa;border-left:2px solid #e0e7ef;padding:5px 8px;border-radius:0 4px 4px 0;margin-top:3px;line-height:1.4">'+
+              escHtml(e.notes)+
+            '</div>':'')+ 
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:64px">'+
+          '<span style="font-weight:700;font-size:14px;color:'+borderC+'">'+hrs.toFixed(1)+' hrs</span>'+
+          (canEdit?'<button class="btn btn-danger btn-sm" style="font-size:10px;padding:2px 6px" onclick="deleteWOLabor(\''+e.id+'\')">✕</button>':'')+
+        '</div>'+
+      '</div>';
     });
     html += '</div>';
   });

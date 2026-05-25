@@ -534,6 +534,16 @@ function switchTsTab(tab) {
   var tabs = document.querySelectorAll('#page-timesheet .inv-tab');
   var idx = map[tab];
   if (idx !== undefined && tabs[idx]) tabs[idx].classList.add('active');
+  // Initialize date range when opening All Timesheets tab
+  if (tab === 'all-timesheets') {
+    var fromEl = document.getElementById('ts-date-from');
+    var toEl   = document.getElementById('ts-date-to');
+    if (fromEl && !fromEl.value) {
+      var wk = getWeekDates();
+      fromEl.value = dateStr(wk.start);
+      if (toEl) toEl.value = dateStr(wk.end);
+    }
+  }
   loadTimesheets();
 }
 
@@ -544,21 +554,28 @@ function fmtMins(mins) {
 }
 
 function getPayPeriodDates() {
-  // Bi-weekly pay periods anchored to a known date (Jan 6, 2025 = start of first period)
-  var anchor = new Date('2025-01-06');
-  var now = new Date();
-  var diffDays = Math.floor((now - anchor) / (1000*60*60*24));
+  // Bi-weekly pay periods anchored to Jan 6, 2025 (confirmed Monday)
+  // Weeks always run Monday–Sunday per TCSS policy
+  var anchor = new Date('2025-01-06T00:00:00'); // Monday
+  var now    = new Date();
+  // Work in local midnight to avoid DST drift
+  var anchorMidnight = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+  var todayMidnight  = new Date(now.getFullYear(),    now.getMonth(),    now.getDate());
+  var diffDays  = Math.round((todayMidnight - anchorMidnight) / (1000*60*60*24));
   var periodNum = Math.floor(diffDays / 14);
-  var start = new Date(anchor); start.setDate(start.getDate() + periodNum*14);
-  var end   = new Date(start);  end.setDate(end.getDate() + 13);
-  return { start: start, end: end };
+  var startDate = new Date(anchorMidnight); startDate.setDate(anchorMidnight.getDate() + periodNum*14);
+  var endDate   = new Date(startDate);       endDate.setDate(startDate.getDate() + 13);
+  return { start: startDate, end: endDate };
 }
 
 function getWeekDates() {
+  // Week always starts Monday, ends Sunday
   var now = new Date();
-  var dow = now.getDay(); // 0=Sun
-  var weekStart = new Date(now); weekStart.setDate(now.getDate() - dow);
-  var weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+  var todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var dow = todayMidnight.getDay(); // 0=Sun, 1=Mon ... 6=Sat
+  var daysFromMonday = dow === 0 ? 6 : dow - 1; // Sun→6, Mon→0, Tue→1 ...
+  var weekStart = new Date(todayMidnight); weekStart.setDate(todayMidnight.getDate() - daysFromMonday);
+  var weekEnd   = new Date(weekStart);     weekEnd.setDate(weekStart.getDate() + 6);
   return { start: weekStart, end: weekEnd };
 }
 
@@ -1139,20 +1156,89 @@ function _rebuildDaySummary(techName, date) {
   saveDB();
 }
 
-// ---- REBUILT ALL TIMESHEETS TAB ----
+// ---- DATE RANGE HELPERS ----
+
+function getTsDateRange() {
+  var from = (document.getElementById('ts-date-from')||{}).value || '';
+  var to   = (document.getElementById('ts-date-to')||{}).value   || '';
+  return { from: from, to: to };
+}
+
+function applyTsPreset() {
+  var preset = (document.getElementById('ts-range-preset')||{}).value || 'this_week';
+  var today  = new Date(); today = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  var from, to;
+
+  if (preset === 'today') {
+    from = to = dateStr(today);
+  } else if (preset === 'yesterday') {
+    var y = new Date(today); y.setDate(today.getDate()-1);
+    from = to = dateStr(y);
+  } else if (preset === 'this_week') {
+    var wk = getWeekDates();
+    from = dateStr(wk.start); to = dateStr(wk.end);
+  } else if (preset === 'last_week') {
+    var wk = getWeekDates();
+    var ls = new Date(wk.start); ls.setDate(wk.start.getDate()-7);
+    var le = new Date(wk.end);   le.setDate(wk.end.getDate()-7);
+    from = dateStr(ls); to = dateStr(le);
+  } else if (preset === 'this_period') {
+    var pp = getPayPeriodDates();
+    from = dateStr(pp.start); to = dateStr(pp.end);
+  } else if (preset === 'last_period') {
+    var pp = getPayPeriodDates();
+    var ls = new Date(pp.start); ls.setDate(pp.start.getDate()-14);
+    var le = new Date(pp.end);   le.setDate(pp.end.getDate()-14);
+    from = dateStr(ls); to = dateStr(le);
+  } else {
+    // custom — don't change inputs
+    return;
+  }
+
+  var fromEl = document.getElementById('ts-date-from');
+  var toEl   = document.getElementById('ts-date-to');
+  if (fromEl) fromEl.value = from;
+  if (toEl)   toEl.value   = to;
+
+  renderAllTimesheetsTab();
+}
+
+function onTsRangeChange() {
+  // When user edits dates manually, switch preset to Custom
+  var presetEl = document.getElementById('ts-range-preset');
+  if (presetEl) presetEl.value = 'custom';
+  renderAllTimesheetsTab();
+}
+
+// ---- ALL TIMESHEETS TAB ----
 
 function renderAllTimesheetsTab() {
   var allEl = document.getElementById('ts-all-content');
   if (!allEl) return;
   var myRole = _currentUser ? _currentUser.role : '';
-  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager';
+  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager'||myRole==='back_office';
   if (!isAdmin) {
     allEl.innerHTML='<div style="color:#90a4ae;padding:20px;text-align:center">Admin access required.</div>';
     return;
   }
 
-  var filterDate = (document.getElementById('ts-date-filter')||{}).value || getTodayISO();
+  var range     = getTsDateRange();
+  var filterFrom = range.from || dateStr(getWeekDates().start);
+  var filterTo   = range.to   || dateStr(getWeekDates().end);
   var filterTech = (document.getElementById('ts-tech-filter')||{}).value || '';
+  var viewMode   = (document.getElementById('ts-view-mode')||{}).value || 'detail';
+
+  // Set date inputs if empty
+  var fromEl = document.getElementById('ts-date-from');
+  var toEl   = document.getElementById('ts-date-to');
+  if (fromEl && !fromEl.value) fromEl.value = filterFrom;
+  if (toEl   && !toEl.value)   toEl.value   = filterTo;
+
+  // Range label
+  var labelEl = document.getElementById('ts-range-label');
+  if (labelEl) {
+    labelEl.textContent = formatDate(filterFrom) + (filterFrom !== filterTo ? '  —  ' + formatDate(filterTo) : '');
+  }
 
   // Populate tech filter
   var techSel = document.getElementById('ts-tech-filter');
@@ -1163,124 +1249,214 @@ function renderAllTimesheetsTab() {
     });
   }
 
-  // Get entries for this date (from timeEntries + workDays)
-  var dayEntries = (DB.timeEntries||[]).filter(function(e){
-    return e.date===filterDate && !e.deleted &&
-           (!filterTech || e.techName===filterTech);
+  // Get all entries in range
+  var entries = (DB.timeEntries||[]).filter(function(e){
+    return !e.deleted &&
+           e.date >= filterFrom && e.date <= filterTo &&
+           (!filterTech || e.techName === filterTech);
   });
 
-  // Group by tech
-  var byTech = {};
-  dayEntries.forEach(function(e) {
-    if (!byTech[e.techName]) byTech[e.techName] = [];
-    byTech[e.techName].push(e);
+  // Also pull from workDays for legacy clock-in data
+  var workDays = (DB.workDays||[]).filter(function(d){
+    return d.date >= filterFrom && d.date <= filterTo &&
+           (!filterTech || d.techName === filterTech);
   });
 
-  // Also include techs who have workDay records but no timeEntries
-  (DB.workDays||[]).filter(function(d){
-    return d.date===filterDate && (!filterTech||d.techName===filterTech);
-  }).forEach(function(d){
-    if (!byTech[d.techName]) byTech[d.techName] = [];
+  if (viewMode === 'summary') {
+    _renderAllEmployeesSummary(allEl, entries, workDays, filterFrom, filterTo, filterTech);
+  } else {
+    _renderDetailView(allEl, entries, workDays, filterFrom, filterTo, filterTech);
+  }
+}
+
+// ---- SUMMARY VIEW — one row per employee ----
+
+function _renderAllEmployeesSummary(el, entries, workDays, fromDate, toDate, filterTech) {
+  // Build per-tech totals
+  var techTotals = {};
+
+  function ensureTech(name) {
+    if (!techTotals[name]) {
+      var member = (DB.team||[]).find(function(m){return m.name===name;});
+      techTotals[name] = { name:name, rate:parseFloat((member&&member.rate)||0), workMins:0, travelMins:0, officeMins:0, lunchMins:0, ptoMins:0, vacMins:0, holMins:0, dayCount:0, days:new Set() };
+    }
+    return techTotals[name];
+  }
+
+  // From timeEntries
+  entries.forEach(function(e) {
+    var t = ensureTech(e.techName);
+    var m = e.totalMins || Math.round((e.totalHours||0)*60);
+    t.days.add(e.date);
+    switch(e.entryType) {
+      case 'work':     t.workMins   += m; break;
+      case 'travel':   t.travelMins += m; break;
+      case 'office':   t.officeMins += m; break;
+      case 'lunch':    t.lunchMins  += m; break;
+      case 'pto':      t.ptoMins    += m; break;
+      case 'vacation': t.vacMins    += m; break;
+      case 'holiday':  t.holMins    += m; break;
+    }
   });
 
-  var techList = Object.keys(byTech).sort();
+  // Fill in from workDays for techs with no timeEntries
+  workDays.forEach(function(d) {
+    var hasEntries = entries.some(function(e){ return e.techName===d.techName && e.date===d.date; });
+    if (!hasEntries) {
+      var t = ensureTech(d.techName);
+      t.days.add(d.date);
+      t.workMins   += d.onsiteMins  || 0;
+      t.travelMins += d.travelMins  || 0;
+      t.lunchMins  += d.lunchMins   || 0;
+    }
+  });
+
+  var techList = Object.values(techTotals).sort(function(a,b){ return a.name.localeCompare(b.name); });
 
   if (!techList.length) {
-    allEl.innerHTML =
-      '<div style="text-align:center;padding:30px;color:#90a4ae">'+
-      'No time entries for '+filterDate+(filterTech?' — '+filterTech:'')+'.'+
-      '</div>';
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:#90a4ae">No time data for this period.</div>';
     return;
   }
 
-  var typeColors = {
-    work:'#e3f2fd', travel:'#fff3e0', office:'#f3e5f5',
-    lunch:'#f5f5f5', pto:'#e8f5e9', vacation:'#e8f5e9', holiday:'#e8f5e9'
-  };
-  var typeLabels = {
-    work:'Work', travel:'Travel', office:'Office',
-    lunch:'Lunch (unpaid)', pto:'PTO', vacation:'Vacation', holiday:'Holiday'
-  };
+  // Totals row
+  var grandWork = 0, grandTravel = 0, grandOther = 0, grandPay = 0;
 
-  var html = techList.map(function(techName) {
-    var entries = byTech[techName] || [];
-    var workDay = (DB.workDays||[]).find(function(d){ return d.techName===techName && d.date===filterDate; });
+  var rows = techList.map(function(t) {
+    var totalWorked = t.workMins + t.travelMins + t.officeMins;
+    var otMins      = Math.max(0, totalWorked - 4800); // 80hrs per period
+    var regMins     = totalWorked - otMins;
+    var leaveMins   = t.ptoMins + t.vacMins + t.holMins;
+    var totalPay    = t.rate ? (regMins/60*t.rate + otMins/60*t.rate*1.5 + leaveMins/60*t.rate) : null;
+    grandWork   += t.workMins;
+    grandTravel += t.travelMins;
+    grandOther  += leaveMins;
+    grandPay    += totalPay||0;
+    return '<tr style="border-bottom:1px solid #f0f4f8">'+
+      '<td style="padding:10px 12px;font-weight:700">'+escHtml(t.name)+'</td>'+
+      '<td style="padding:10px 12px;text-align:center">'+t.days.size+'</td>'+
+      '<td style="padding:10px 12px;text-align:center;font-weight:700;color:#1565c0">'+fmtMins(totalWorked)+'</td>'+
+      '<td style="padding:10px 12px;text-align:center">'+fmtMins(t.workMins)+'</td>'+
+      '<td style="padding:10px 12px;text-align:center;color:#e65100">'+fmtMins(t.travelMins)+'</td>'+
+      '<td style="padding:10px 12px;text-align:center;color:'+(otMins>0?'#c62828':'#90a4ae')+'">'+fmtMins(otMins)+'</td>'+
+      '<td style="padding:10px 12px;text-align:center;color:#2e7d32">'+fmtMins(leaveMins)+'</td>'+
+      (totalPay!==null?'<td style="padding:10px 12px;text-align:right;font-weight:700;color:#2e7d32">$'+totalPay.toFixed(2)+'</td>':'<td style="padding:10px 12px;text-align:right;color:#90a4ae">—</td>')+
+      '<td style="padding:10px 12px"><button class="btn btn-outline btn-sm" onclick="filterTsToTech(\''+escHtml(t.name)+'\')">Detail</button></td>'+
+    '</tr>';
+  }).join('');
 
-    // Calculate totals from entries
-    var totalPaid = 0, workMins = 0, travelMins = 0, lunchMins = 0;
-    entries.forEach(function(e) {
-      var m = e.totalMins || Math.round((e.totalHours||0)*60);
-      if (e.entryType !== 'lunch') totalPaid += m;
-      if (e.entryType === 'work') workMins += m;
-      if (e.entryType === 'travel') travelMins += m;
-      if (e.entryType === 'lunch') lunchMins += m;
-    });
+  el.innerHTML =
+    '<div style="overflow-x:auto">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    '<thead><tr style="background:#f0f4f8">'+
+      '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Employee</th>'+
+      '<th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Days</th>'+
+      '<th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase">Total Worked</th>'+
+      '<th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">On Site</th>'+
+      '<th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:700;color:#e65100;text-transform:uppercase">Travel</th>'+
+      '<th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:700;color:#c62828;text-transform:uppercase">Overtime</th>'+
+      '<th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:700;color:#2e7d32;text-transform:uppercase">Leave/Hol</th>'+
+      '<th style="padding:8px 12px;text-align:right;font-size:11px;font-weight:700;color:#2e7d32;text-transform:uppercase">Est. Pay</th>'+
+      '<th style="padding:8px 12px;width:70px"></th>'+
+    '</tr></thead>'+
+    '<tbody>'+rows+'</tbody>'+
+    '<tfoot><tr style="background:#1565c0;color:#fff">'+
+      '<td style="padding:10px 12px;font-weight:700" colspan="2">TOTALS</td>'+
+      '<td style="padding:10px 12px;text-align:center;font-weight:700">'+fmtMins(grandWork+grandTravel)+'</td>'+
+      '<td style="padding:10px 12px;text-align:center;font-weight:700">'+fmtMins(grandWork)+'</td>'+
+      '<td style="padding:10px 12px;text-align:center;font-weight:700">'+fmtMins(grandTravel)+'</td>'+
+      '<td colspan="2" style="padding:10px 12px;text-align:center;font-weight:700">'+fmtMins(grandOther)+' leave</td>'+
+      '<td style="padding:10px 12px;text-align:right;font-weight:700">$'+grandPay.toFixed(2)+'</td>'+
+      '<td></td>'+
+    '</tr></tfoot>'+
+    '</table></div>';
+}
 
-    // Fall back to workDay totals if no entries
-    if (!entries.length && workDay) {
-      totalPaid  = workDay.totalPaidMins || 0;
-      workMins   = workDay.onsiteMins    || 0;
-      travelMins = workDay.travelMins    || 0;
-      lunchMins  = workDay.lunchMins     || 0;
-    }
+function filterTsToTech(techName) {
+  var techSel = document.getElementById('ts-tech-filter');
+  var modeSel = document.getElementById('ts-view-mode');
+  if (techSel) techSel.value = techName;
+  if (modeSel) modeSel.value = 'detail';
+  renderAllTimesheetsTab();
+}
 
-    var otMins = Math.max(0, totalPaid - 480);
-    var hasFlag = entries.some(function(e){ return e.flagged; }) || (workDay && workDay.lunchFlagged);
+// ---- DETAIL VIEW — entries grouped by date then tech ----
 
-    return '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:12px;padding:16px;margin-bottom:12px">'+
-      // Tech header
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
-        '<div>'+
-          '<span style="font-weight:700;font-size:15px">'+escHtml(techName)+'</span>'+
-          (hasFlag?'<span style="background:#ffebee;color:#c62828;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;margin-left:8px">⚠ FLAG</span>':'')+
-          (workDay&&workDay.hasManualEntries?'<span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;margin-left:6px">✏ Manual</span>':'')+
-        '</div>'+
-        '<div style="display:flex;gap:16px;align-items:center">'+
-          '<div style="text-align:right">'+
-            '<div style="font-weight:700;font-size:16px;color:'+(otMins>0?'#e65100':'#1565c0')+'">'+fmtMins(totalPaid)+'</div>'+
-            '<div style="font-size:10px;color:#90a4ae">TOTAL PAID'+(otMins>0?' · OT: '+fmtMins(otMins):'')+'</div>'+
+function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) {
+  var typeColors = { work:'#e3f2fd', travel:'#fff3e0', office:'#f3e5f5', lunch:'#f5f5f5', pto:'#e8f5e9', vacation:'#e8f5e9', holiday:'#e8f5e9' };
+  var typeLabels = { work:'Work', travel:'Travel', office:'Office', lunch:'Lunch (unpaid)', pto:'PTO', vacation:'Vacation', holiday:'Holiday' };
+
+  // Group entries by date
+  var byDate = {};
+  entries.forEach(function(e) {
+    if (!byDate[e.date]) byDate[e.date] = {};
+    if (!byDate[e.date][e.techName]) byDate[e.date][e.techName] = [];
+    byDate[e.date][e.techName].push(e);
+  });
+
+  // Add workDay dates that have no entries
+  workDays.forEach(function(d) {
+    if (!byDate[d.date]) byDate[d.date] = {};
+    if (!byDate[d.date][d.techName]) byDate[d.date][d.techName] = [];
+  });
+
+  var dates = Object.keys(byDate).sort();
+
+  if (!dates.length) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:#90a4ae">No time entries for this range'+(filterTech?' — '+filterTech:'')+'.</div>';
+    return;
+  }
+
+  var html = dates.map(function(date) {
+    var dayLabel = new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
+    var techsOnDay = Object.keys(byDate[date]).sort();
+
+    var techBlocks = techsOnDay.map(function(techName) {
+      var techEntries = byDate[date][techName];
+      var workDay = workDays.find(function(d){ return d.techName===techName && d.date===date; });
+      var totalMins = techEntries.reduce(function(s,e){ return s+(e.entryType!=='lunch'?(e.totalMins||Math.round((e.totalHours||0)*60)):0); },0);
+      if (!totalMins && workDay) totalMins = workDay.totalPaidMins||0;
+
+      return '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:8px;padding:12px;margin-bottom:6px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+          '<span style="font-weight:700;font-size:13px">'+escHtml(techName)+'</span>'+
+          '<div style="display:flex;gap:8px;align-items:center">'+
+            '<span style="font-weight:700;color:#1565c0">'+fmtMins(totalMins)+'</span>'+
+            '<button class="btn btn-primary btn-sm" onclick="openAddTimeEntry(\''+escHtml(techName)+'\',\''+date+'\')">+ Entry</button>'+
           '</div>'+
-          '<button class="btn btn-primary btn-sm" onclick="openAddTimeEntry(\''+escHtml(techName)+'\',\''+filterDate+'\')">+ Add Entry</button>'+
         '</div>'+
+        (techEntries.length ?
+          techEntries.sort(function(a,b){ return (a.startTime||'').localeCompare(b.startTime||''); }).map(function(e){
+            var m = e.totalMins || Math.round((e.totalHours||0)*60);
+            return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:'+(typeColors[e.entryType]||'#f8f9fa')+';border-radius:6px;margin-bottom:3px;font-size:12px">'+
+              '<span style="min-width:90px;font-weight:600;color:#546e7a">'+(e.startTime&&e.endTime?e.startTime+' — '+e.endTime:'')+'</span>'+
+              '<span style="font-weight:700;min-width:60px">'+(typeLabels[e.entryType]||e.entryType)+'</span>'+
+              (e.woLabel&&e.woLabel!=='Office / General'?'<span style="color:#546e7a;flex:1">'+escHtml(e.woLabel)+'</span>':'<span style="flex:1"></span>')+
+              (e.notes?'<span style="color:#90a4ae;font-style:italic;flex:2">'+escHtml(e.notes)+'</span>':'<span style="flex:2"></span>')+
+              '<span style="font-weight:700;min-width:45px;text-align:right">'+fmtMins(m)+'</span>'+
+              '<button onclick="openEditTimeEntry(\''+e.id+'\')" style="background:none;border:1px solid #e0e7ef;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;color:#546e7a">✏</button>'+
+            '</div>';
+          }).join('') :
+          (workDay ?
+            '<div style="font-size:12px;color:#90a4ae;padding:4px 0">Legacy clock-in record — '+fmtMins(workDay.totalPaidMins||0)+' total. <span style="color:#1565c0;cursor:pointer" onclick="openAddTimeEntry(\''+escHtml(techName)+'\',\''+date+'\')">Add detail entries</span></div>' :
+            '<div style="font-size:12px;color:#90a4ae;padding:4px 0">No entries</div>'
+          )
+        )+
+      '</div>';
+    }).join('');
+
+    var dayTotal = Object.values(byDate[date]).flat().reduce(function(s,e){ return s+(e.entryType!=='lunch'?(e.totalMins||Math.round((e.totalHours||0)*60)):0); },0);
+
+    return '<div style="margin-bottom:16px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;background:#f0f4f8;padding:8px 14px;border-radius:8px;margin-bottom:8px">'+
+        '<span style="font-weight:700;color:#1565c0;font-size:13px">'+escHtml(dayLabel)+'</span>'+
+        '<span style="font-size:12px;font-weight:700;color:#546e7a">'+techsOnDay.length+' employee'+(techsOnDay.length!==1?'s':'')+' · '+fmtMins(dayTotal)+' total</span>'+
       '</div>'+
-      // Summary strip
-      '<div style="display:flex;gap:16px;font-size:12px;color:#546e7a;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #f0f4f8">'+
-        '<span>🔧 Work: <strong>'+fmtMins(workMins)+'</strong></span>'+
-        '<span>🚗 Travel: <strong>'+fmtMins(travelMins)+'</strong></span>'+
-        '<span>🥗 Lunch: <strong>'+fmtMins(lunchMins)+'</strong></span>'+
-      '</div>'+
-      // Entry rows
-      (entries.length ?
-        entries.sort(function(a,b){ return (a.startTime||'').localeCompare(b.startTime||''); }).map(function(e) {
-          var m = e.totalMins || Math.round((e.totalHours||0)*60);
-          var bg = typeColors[e.entryType] || '#f8f9fa';
-          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:'+bg+';border-radius:8px;margin-bottom:4px">'+
-            '<div style="min-width:90px;font-size:12px;font-weight:700;color:#546e7a">'+escHtml(e.startTime||'?')+' — '+escHtml(e.endTime||'?')+'</div>'+
-            '<div style="flex:1">'+
-              '<span style="font-size:12px;font-weight:700">'+escHtml(typeLabels[e.entryType]||e.entryType)+'</span>'+
-              (e.woLabel&&e.woLabel!=='Office / General'?' <span style="font-size:11px;color:#546e7a">· '+escHtml(e.woLabel)+'</span>':'')+
-              (e.notes?' <span style="font-size:11px;color:#90a4ae;font-style:italic">· '+escHtml(e.notes)+'</span>':'')+
-              (e.isManual?' <span style="font-size:9px;background:#fff;color:#1565c0;padding:1px 5px;border-radius:4px;border:1px solid #1565c0">MANUAL · '+escHtml(e.addedBy||'')+'</span>':'')+
-            '</div>'+
-            '<div style="font-weight:700;font-size:13px;min-width:50px;text-align:right">'+fmtMins(m)+'</div>'+
-            '<button class="btn btn-outline btn-sm" onclick="openEditTimeEntry(\''+e.id+'\')">✏</button>'+
-          '</div>';
-        }).join('') :
-        '<div style="color:#90a4ae;font-size:12px;padding:4px 0">No detail entries — legacy day record only. Click + Add Entry to begin tracking.</div>'
-      )+
+      techBlocks+
     '</div>';
   }).join('');
 
-  allEl.innerHTML = html;
+  el.innerHTML = html;
 }
-
-// Override the loadTimesheets call to use new renderer for all-timesheets tab
-var _origLoadTimesheets = loadTimesheets;
-loadTimesheets = function() {
-  _origLoadTimesheets();
-  renderAllTimesheetsTab();
-};
-
 // ---- ADD ENTRY BUTTON on the All Timesheets tab ----
 // Add "+ Add Entry for Any Tech" button at top of tab
 function initAllTimesheetsTab() {
