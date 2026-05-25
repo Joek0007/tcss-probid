@@ -3972,8 +3972,35 @@ table{font-size:12.5px}
 
 <!-- SETTINGS -->
 <div class="page" id="page-settings">
-  <div class="page-header"><h2>⚙️ Settings</h2><button class="btn btn-primary" data-action="saveSettings">💾 Save Settings</button></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <div class="page-header">
+    <h2>⚙️ Settings</h2>
+    <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+  </div>
+
+  <!-- MASTER SETTINGS TAB NAV -->
+  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:20px;border-bottom:2px solid #e0e7ef;padding-bottom:0">
+    <button class="ms-tab active" onclick="switchMsTab('company')"         data-tab="company">🏢 Company</button>
+    <button class="ms-tab"        onclick="switchMsTab('workorders')"      data-tab="workorders">🔨 Work Orders</button>
+    <button class="ms-tab"        onclick="switchMsTab('roles')"           data-tab="roles">🔐 Roles & Permissions</button>
+    <button class="ms-tab"        onclick="switchMsTab('quoting')"         data-tab="quoting">💰 Quoting</button>
+    <button class="ms-tab"        onclick="switchMsTab('time')"            data-tab="time">⏱ Time & Payroll</button>
+    <button class="ms-tab"        onclick="switchMsTab('inventory')"       data-tab="inventory">📦 Inventory</button>
+    <button class="ms-tab"        onclick="switchMsTab('integrations')"    data-tab="integrations">🔗 Integrations</button>
+  </div>
+
+  <style>
+    .ms-tab { background:none; border:none; border-bottom:3px solid transparent; padding:8px 16px; font-size:13px; font-weight:600; color:#546e7a; cursor:pointer; margin-bottom:-2px; border-radius:6px 6px 0 0; transition:all .15s; }
+    .ms-tab:hover { background:#f0f4f8; color:#1565c0; }
+    .ms-tab.active { color:#1565c0; border-bottom-color:#1565c0; background:#e3f2fd; }
+    .ms-section { display:none; }
+    .ms-section.active { display:block; }
+    .ms-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .ms-full { grid-column:1/-1; }
+  </style>
+
+  <!-- ===== COMPANY ===== -->
+  <div class="ms-section active" id="ms-company">
+    <div class="ms-grid">
 
     <!-- LOGO UPLOAD CARD -->
     <div class="card" style="grid-column:1/-1">
@@ -4189,7 +4216,40 @@ table{font-size:12.5px}
   </div><!-- end settings grid -->
 
   <!-- PROPOSAL DEFAULTS — full width below grid -->
-  <div class="card" style="margin-top:16px">
+    </div><!-- end ms-grid company -->
+  </div><!-- end ms-section company -->
+
+  <!-- ===== WORK ORDERS ===== -->
+  <div class="ms-section" id="ms-workorders">
+    <div style="background:#f0f4f8;border-radius:10px;padding:16px;margin-bottom:16px;font-size:13px;color:#546e7a">
+      Work Order statuses, service types, expense categories, and default rates are managed here. Changes apply immediately to all new work orders.
+    </div>
+    <div id="ms-wo-statuses-section">
+      <!-- WO Status List rendered by renderMsWOStatuses() -->
+    </div>
+    <div style="margin-top:16px" id="ms-wo-types-section">
+      <!-- WO Service Types rendered by renderMsWOTypes() -->
+    </div>
+    <div style="margin-top:16px" id="ms-wo-expenses-section">
+      <!-- WO Expense Categories rendered by renderMsWOExpenses() -->
+    </div>
+    <div style="margin-top:16px" id="ms-wo-rates-section">
+      <!-- WO Default Rates rendered by renderMsWORates() -->
+    </div>
+  </div><!-- end ms-section workorders -->
+
+  <!-- ===== ROLES & PERMISSIONS ===== -->
+  <div class="ms-section" id="ms-roles">
+    <div id="ms-roles-content">
+      <!-- role-permissions-card injected here -->
+    </div>
+  </div><!-- end ms-section roles -->
+
+  <!-- ===== QUOTING ===== -->
+  <div class="ms-section" id="ms-quoting">
+    <div class="ms-grid">
+
+  <div class="card" style="margin-top:0">
     <div class="card-title">📄 Proposal Defaults — Assumptions &amp; Exclusions</div>
     <p style="font-size:12px;color:#546e7a;margin-bottom:14px">These appear on every client proposal. Edit, reorder, add, or remove lines. Use the toggles to include or exclude each section.</p>
 
@@ -4329,6 +4389,44 @@ table{font-size:12.5px}
   </div>
 
   <!-- ROLE PERMISSIONS EDITOR — Owner only -->
+    </div><!-- end ms-grid quoting -->
+
+  <!-- Manager Approval stays in quoting since it's pricing-related -->
+  </div><!-- end ms-section quoting -->
+
+  <!-- ===== TIME & PAYROLL ===== -->
+  <div class="ms-section" id="ms-time">
+    <div class="ms-grid">
+      <div class="card ms-full">
+        <div class="card-title">⏱ Time & Payroll Settings</div>
+        <p style="font-size:13px;color:#546e7a;margin-bottom:16px">Pay period, overtime rules, holidays, PTO and vacation tiers. These settings drive the payroll calculations on the Timesheets page.</p>
+        <div id="ms-time-content">
+          <!-- Rendered by renderMsTimeSettings() -->
+          <div style="color:#90a4ae;font-size:13px">Time & Payroll settings coming in next build phase.</div>
+        </div>
+      </div>
+    </div>
+  </div><!-- end ms-section time -->
+
+  <!-- ===== INVENTORY ===== -->
+  <div class="ms-section" id="ms-inventory">
+    <div class="ms-grid">
+      <div class="card ms-full">
+        <div class="card-title">📦 Inventory Locations</div>
+        <p style="font-size:13px;color:#546e7a;margin-bottom:16px">Manage stock locations — Main Shop and Vehicles. Names you set here appear in the Scanner and Inventory pages.</p>
+        <div id="inv-locations-list"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input id="new-location-name" placeholder="New location name..." style="flex:1;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+          <button class="btn btn-primary btn-sm" onclick="addLocation()">+ Add Location</button>
+        </div>
+      </div>
+    </div>
+  </div><!-- end ms-section inventory -->
+
+  <!-- ===== INTEGRATIONS ===== -->
+  <div class="ms-section" id="ms-integrations">
+    <div class="ms-grid">
+
   <div class="card" id="role-permissions-card" style="grid-column:1/-1;display:none">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div>
@@ -4372,6 +4470,9 @@ table{font-size:12.5px}
     <button class="btn btn-primary" onclick="saveSendGridSettings()">Save Email Settings</button>
     <button class="btn btn-outline" style="margin-left:8px" onclick="testSendGridEmail()">Send Test Email</button>
   </div>
+
+    </div><!-- end ms-grid integrations -->
+  </div><!-- end ms-section integrations -->
 
 </div><!-- end page-settings -->
 

@@ -191,7 +191,7 @@ function goPage(id) {
   if (id==='reports')    renderReports();
   if (id==='inventory')  renderInventory();
   if (id==='tools')      { setTimeout(renderTools, 50); }
-  if (id==='settings')   { loadSettings(); setTimeout(renderPermissionsEditor, 150); }
+  if (id==='settings')   { loadSettings(); setTimeout(function(){ renderPermissionsEditor(); switchMsTab('company'); }, 150); }
   if (id==='qq')         renderTplLibrary();
 qqStage4Init();
   if (id==='field')      setTimeout(renderFieldPage, 50);

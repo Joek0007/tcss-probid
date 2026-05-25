@@ -919,8 +919,8 @@ function renderPermissionsEditor() {
   var card = document.getElementById('role-permissions-card');
   if (!card) return;
   var role = _currentUser ? _currentUser.role : '';
-  card.style.display = role === 'owner' ? 'block' : 'none';
-  if (role !== 'owner') return;
+  if (role !== 'owner') { card.style.display='none'; return; }
+  card.style.display = 'block';
 
   var roles  = getRoles();
   var labels = getRoleLabels();
@@ -1080,3 +1080,219 @@ function exportPermissionsDoc() {
   else showToast('Allow popups to export','warning');
 }
 
+
+// ============================================================
+// MASTER SETTINGS
+// ============================================================
+
+function switchMsTab(tab) {
+  document.querySelectorAll('.ms-tab').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-tab')===tab);
+  });
+  document.querySelectorAll('.ms-section').forEach(function(s){
+    s.classList.toggle('active', s.id==='ms-'+tab);
+  });
+  // Render tab content on first open
+  if (tab==='workorders')   renderMsWOSettings();
+  if (tab==='roles')        renderMsRolesTab();
+  if (tab==='inventory')    renderLocationSettings && renderLocationSettings();
+  if (tab==='time')         renderMsTimeSettings && renderMsTimeSettings();
+}
+
+// ---- ROLES TAB ----
+function renderMsRolesTab() {
+  var el = document.getElementById('ms-roles-content');
+  if (!el) return;
+  // Move role-permissions-card into this tab and show it
+  var card = document.getElementById('role-permissions-card');
+  if (card) {
+    card.style.display = 'block';
+    el.appendChild(card);
+    renderPermissionsEditor();
+  }
+}
+
+// ---- WO SETTINGS TAB ----
+function renderMsWOSettings() {
+  renderMsWOStatuses();
+  renderMsWOTypes();
+  renderMsWOExpenses();
+  renderMsWORates();
+}
+
+function renderMsWOStatuses() {
+  var el = document.getElementById('ms-wo-statuses-section');
+  if (!el) return;
+  var settings = DB.woSettings || {};
+  var statuses = settings.statuses && settings.statuses.length ? settings.statuses : WO_STATUSES;
+
+  var html =
+    '<div class="card">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
+      '<div class="card-title" style="margin:0">📋 Work Order Statuses</div>'+
+      '<button class="btn btn-primary btn-sm" onclick="addMsWOStatus()">+ Add Status</button>'+
+    '</div>'+
+    '<p style="font-size:12px;color:#546e7a;margin-bottom:12px">Drag to reorder. Open statuses allow time entries and field access. Closed statuses lock the WO for billing.</p>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    '<thead><tr style="background:#f0f4f8">'+
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700">Status Name</th>'+
+      '<th style="padding:8px 10px;text-align:center;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700">Color</th>'+
+      '<th style="padding:8px 10px;text-align:center;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700">Open</th>'+
+      '<th style="padding:8px 10px;text-align:center;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700">Mobile</th>'+
+      '<th style="padding:8px 10px;width:60px"></th>'+
+    '</tr></thead><tbody>';
+
+  statuses.forEach(function(s, i) {
+    var isOpen = s.open !== false;
+    html += '<tr style="border-bottom:1px solid #f0f4f8">'+
+      '<td style="padding:8px 10px">'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<div style="width:12px;height:12px;border-radius:50%;background:'+escHtml(s.color||'#ddd')+';border:1px solid rgba(0,0,0,.15);flex-shrink:0"></div>'+
+          '<input value="'+escHtml(s.id)+'" onchange="updateWOStatusName('+i+',this.value)" style="flex:1;padding:5px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
+        '</div>'+
+      '</td>'+
+      '<td style="padding:8px 10px;text-align:center">'+
+        '<input type="color" value="'+escHtml(s.color||'#dddddd')+'" onchange="updateWOStatusColor('+i+',this.value)" style="width:36px;height:28px;border:none;border-radius:4px;cursor:pointer;padding:2px">'+
+      '</td>'+
+      '<td style="padding:8px 10px;text-align:center">'+
+        '<label class="perm-toggle" style="margin:0 auto">'+
+          '<input type="checkbox" '+(isOpen?'checked':'')+' onchange="updateWOStatusOpen('+i+',this.checked)">'+
+          '<span class="perm-slider"></span>'+
+        '</label>'+
+      '</td>'+
+      '<td style="padding:8px 10px;text-align:center">'+
+        '<label class="perm-toggle" style="margin:0 auto">'+
+          '<input type="checkbox" '+(s.mobile?'checked':'')+' onchange="updateWOStatusMobile('+i+',this.checked)">'+
+          '<span class="perm-slider"></span>'+
+        '</label>'+
+      '</td>'+
+      '<td style="padding:8px 10px;text-align:center">'+
+        '<button onclick="deleteMsWOStatus('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:16px;padding:0" title="Delete">×</button>'+
+      '</td>'+
+    '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+
+function _getMsStatuses() {
+  if (!DB.woSettings) DB.woSettings = {};
+  if (!DB.woSettings.statuses || !DB.woSettings.statuses.length) {
+    DB.woSettings.statuses = WO_STATUSES.map(function(s){ return Object.assign({},s); });
+  }
+  return DB.woSettings.statuses;
+}
+
+function updateWOStatusName(idx, val) {
+  var s = _getMsStatuses(); if (!s[idx]) return;
+  s[idx].id = val; saveDB();
+}
+function updateWOStatusColor(idx, val) {
+  var s = _getMsStatuses(); if (!s[idx]) return;
+  s[idx].color = val; saveDB();
+}
+function updateWOStatusOpen(idx, val) {
+  var s = _getMsStatuses(); if (!s[idx]) return;
+  s[idx].open = val; saveDB();
+}
+function updateWOStatusMobile(idx, val) {
+  var s = _getMsStatuses(); if (!s[idx]) return;
+  s[idx].mobile = val; saveDB();
+}
+function addMsWOStatus() {
+  var name = prompt('New status name:'); if (!name||!name.trim()) return;
+  var s = _getMsStatuses();
+  s.push({ id:name.trim(), color:'#ddd8d8', open:true, mobile:false });
+  saveDB(); renderMsWOStatuses();
+}
+function deleteMsWOStatus(idx) {
+  var s = _getMsStatuses();
+  if (!confirm('Delete status "'+s[idx].id+'"?')) return;
+  s.splice(idx,1); saveDB(); renderMsWOStatuses();
+}
+
+function renderMsWOTypes() {
+  var el = document.getElementById('ms-wo-types-section');
+  if (!el) return;
+  var settings  = DB.woSettings || {};
+  var types     = settings.serviceTypes || WO_SERVICE_TYPES || [];
+  el.innerHTML =
+    '<div class="card">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+      '<div class="card-title" style="margin:0">🔧 Service Types</div>'+
+      '<button class="btn btn-primary btn-sm" onclick="addMsWOType()">+ Add Type</button>'+
+    '</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px">'+
+      types.map(function(t,i){
+        return '<div style="display:flex;align-items:center;gap:4px;background:#f0f4f8;border-radius:20px;padding:4px 10px">'+
+          '<span style="font-size:12px;font-weight:600">'+escHtml(t)+'</span>'+
+          '<button onclick="deleteMsWOType('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:14px;padding:0;line-height:1">×</button>'+
+        '</div>';
+      }).join('')+
+    '</div></div>';
+}
+function addMsWOType() {
+  var v = prompt('New service type:'); if(!v||!v.trim()) return;
+  if (!DB.woSettings) DB.woSettings={};
+  if (!DB.woSettings.serviceTypes) DB.woSettings.serviceTypes = (WO_SERVICE_TYPES||[]).slice();
+  DB.woSettings.serviceTypes.push(v.trim()); saveDB(); renderMsWOTypes();
+}
+function deleteMsWOType(idx) {
+  if (!DB.woSettings||!DB.woSettings.serviceTypes) return;
+  DB.woSettings.serviceTypes.splice(idx,1); saveDB(); renderMsWOTypes();
+}
+
+function renderMsWOExpenses() {
+  var el = document.getElementById('ms-wo-expenses-section');
+  if (!el) return;
+  var settings = DB.woSettings || {};
+  var cats = settings.expenseCategories || WO_EXPENSE_CATS || [];
+  el.innerHTML =
+    '<div class="card">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+      '<div class="card-title" style="margin:0">💸 Expense Categories</div>'+
+      '<button class="btn btn-primary btn-sm" onclick="addMsWOExpCat()">+ Add Category</button>'+
+    '</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px">'+
+      cats.map(function(c,i){
+        return '<div style="display:flex;align-items:center;gap:4px;background:#fff3e0;border-radius:20px;padding:4px 10px">'+
+          '<span style="font-size:12px;font-weight:600">'+escHtml(c)+'</span>'+
+          '<button onclick="deleteMsWOExpCat('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:14px;padding:0;line-height:1">×</button>'+
+        '</div>';
+      }).join('')+
+    '</div></div>';
+}
+function addMsWOExpCat() {
+  var v = prompt('New expense category:'); if(!v||!v.trim()) return;
+  if (!DB.woSettings) DB.woSettings={};
+  if (!DB.woSettings.expenseCategories) DB.woSettings.expenseCategories = (WO_EXPENSE_CATS||[]).slice();
+  DB.woSettings.expenseCategories.push(v.trim()); saveDB(); renderMsWOExpenses();
+}
+function deleteMsWOExpCat(idx) {
+  if (!DB.woSettings||!DB.woSettings.expenseCategories) return;
+  DB.woSettings.expenseCategories.splice(idx,1); saveDB(); renderMsWOExpenses();
+}
+
+function renderMsWORates() {
+  var el = document.getElementById('ms-wo-rates-section');
+  if (!el) return;
+  var s = DB.woSettings || {};
+  el.innerHTML =
+    '<div class="card">'+
+    '<div class="card-title">⚙️ Default Rates</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">'+
+      '<div><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Default Labor Rate ($/hr)</label>'+
+        '<input id="ms-default-labor" type="number" value="'+(s.defaultLaborRate||125)+'" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;box-sizing:border-box" onchange="saveMsWORate(\'defaultLaborRate\',this.value)"></div>'+
+      '<div><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Default OT Rate ($/hr)</label>'+
+        '<input id="ms-default-ot" type="number" value="'+(s.defaultOTRate||187.50)+'" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;box-sizing:border-box" onchange="saveMsWORate(\'defaultOTRate\',this.value)"></div>'+
+      '<div><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Default Tax Rate (%)</label>'+
+        '<input id="ms-default-tax" type="number" value="'+(s.defaultTaxRate||0)+'" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;box-sizing:border-box" onchange="saveMsWORate(\'defaultTaxRate\',this.value)"></div>'+
+    '</div></div>';
+}
+function saveMsWORate(key, val) {
+  if (!DB.woSettings) DB.woSettings = {};
+  DB.woSettings[key] = parseFloat(val)||0;
+  saveDB();
+  showToast('Rate saved ✓','success',2000);
+}
