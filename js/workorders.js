@@ -601,16 +601,27 @@ function renderWOLaborTab(woId) {
 }
 
 function addWOLaborEntry() {
-  var woId = _woCurrentId; if(!woId){showToast('Save the work order first','error');return;}
-  var techName = prompt('Tech name:'); if(!techName||!techName.trim()) return;
-  var hoursStr = prompt('Hours worked (e.g. 1.5):'); if(!hoursStr) return;
-  var hours = parseFloat(hoursStr)||0; if(!hours){showToast('Invalid hours','error');return;}
+  var woId = _woCurrentId;
+  if (!woId) { showToast('Save the work order first','error'); return; }
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+
+  // Use the new time entry modal if available
+  if (typeof openAddTimeEntry === 'function') {
+    // Pre-fill date from WO
+    var prefillDate = wo && wo.dateOpened ? wo.dateOpened : getTodayISO();
+    openAddTimeEntry('', prefillDate, woId);
+    return;
+  }
+
+  // Fallback if modal not available
+  var techName = prompt('Tech name:'); if (!techName||!techName.trim()) return;
+  var hoursStr = prompt('Hours worked (e.g. 1.5):'); if (!hoursStr) return;
+  var hours = parseFloat(hoursStr)||0; if (!hours) { showToast('Invalid hours','error'); return; }
   var notes = prompt('Notes (optional):','') || '';
   if (!DB.woLabor) DB.woLabor=[];
   DB.woLabor.push({ id:'wol-'+Date.now(), woId:woId, techName:techName.trim(), entryType:'work', hours:hours, notes:notes, clockIn:new Date().toISOString(), createdAt:new Date().toISOString() });
-  // Auto-update status to Open if New
-  var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});
-  if(wo&&wo.status==='New'){wo.status='Open';var sel=document.getElementById('wo-status');if(sel)sel.value='Open';}
+  var woRec=(DB.workOrders||[]).find(function(w){return w.id===woId;});
+  if (woRec&&woRec.status==='New'){woRec.status='Open';var sel=document.getElementById('wo-status');if(sel)sel.value='Open';}
   saveDB(); switchWOTab('labor');
   showToast('Labor entry added','success');
 }

@@ -794,7 +794,7 @@ async function loadTimesheets() {
 
 // ---- OPEN / POPULATE ENTRY MODAL ----
 
-function openAddTimeEntry(prefillTech, prefillDate) {
+function openAddTimeEntry(prefillTech, prefillDate, prefillWoId) {
   var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
   if (!isAdmin) { showToast('Admin access required','error'); return; }
 
@@ -821,8 +821,16 @@ function openAddTimeEntry(prefillTech, prefillDate) {
   dateEl.value = prefillDate || getTodayISO();
 
   // Entry type default
-  document.getElementById('te-type').value = 'work';
+  document.getElementById('te-type').value = prefillWoId ? 'work' : 'work';
   onTeTypeChange();
+
+  // Pre-select WO if provided
+  if (prefillWoId) {
+    setTimeout(function(){
+      var woSel = document.getElementById('te-wo');
+      if (woSel) woSel.value = prefillWoId;
+    }, 80);
+  }
 
   openModal('modal-time-entry');
 }
@@ -1016,7 +1024,12 @@ function saveManualTimeEntry() {
   closeModal('modal-time-entry');
   loadTimesheets();
 
-  // Refresh the tech's day summary if it exists
+  // If we're on a WO, refresh its labor tab too
+  if (woId && typeof switchWOTab === 'function' && typeof _woCurrentId !== 'undefined' && _woCurrentId === woId) {
+    switchWOTab('labor');
+  }
+
+  // Refresh the tech's day summary
   _rebuildDaySummary(techName, date);
 }
 
