@@ -82,6 +82,16 @@ function renderWorkOrders() {
     return (b.createdAt||'').localeCompare(a.createdAt||'');
   });
 
+  // ---- PERMISSION FILTER — field/lead techs see only assigned WOs ----
+  var myName  = _currentUser ? _currentUser.full_name : '';
+  var myRole  = _currentUser ? _currentUser.role : '';
+  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager';
+  if (!isAdmin && myName) {
+    list = list.filter(function(w){
+      return _isTechAssignedToWO(myName, w);
+    });
+  }
+
   if (search) list = list.filter(function(w){
     return (w.woNumber||'').toLowerCase().includes(search) ||
            (w.customerName||'').toLowerCase().includes(search) ||
@@ -1058,6 +1068,7 @@ async function _pushWOToCloud(wo) {
       date_closed:   wo.dateClosed||null,
       internal_notes:wo.internalNotes||null,
       invoice_id:    wo.invoiceId||null,
+      assigned_techs:wo.assignedTechs||[],
       created_by:    wo.createdBy||_currentUser.id,
       created_by_name:wo.createdByName||null,
       updated_at:    new Date().toISOString()
@@ -1133,3 +1144,148 @@ function openNewWOForCustomer(customerId, customerName) {
   _checkHotNotes(customerId, 'new', true);
   goPage('workorders');
 }
+
+// ============================================================
+// ASSIGNED TECHS SYSTEM
+// ============================================================
+
+// ---- PERMISSION HELPER ----
+
+function _isTechAssignedToWO(techName, wo) {
+  if (!wo) return false;
+  // Check assignedTechs array
+  if (wo.assignedTechs && wo.assignedTechs.length) {
+    return wo.assignedTechs.indexOf(techName) >= 0;
+  }
+  return false;
+}
+
+function _canViewWO(wo) {
+  if (!_currentUser) return false;
+  var role = _currentUser.role;
+  if (role==='owner'||role==='office'||role==='manager') return true;
+  return _isTechAssignedToWO(_currentUser.full_name, wo);
+}
+
+// ---- RENDER ASSIGNED TECHS ON WO ----
+
+function renderAssignedTechs(woId) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  var assigned = (wo && wo.assignedTechs) ? wo.assignedTechs : [];
+  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager'||_currentUser.role==='lead_tech');
+  var el = document.getElementById('wo-assigned-techs');
+  if (!el) return;
+
+  var teamMembers = (DB.team||[]).filter(function(m){
+    return m.active!==false &&
+           (m.access==='field'||m.access==='lead_tech'||m.systemRole==='field'||m.systemRole==='lead_tech');
+  }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+
+  var html = '<div style="margin-bottom:4px">';
+
+  if (isAdmin) {
+    // Admin sees checkboxes to assign techs
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
+      teamMembers.map(function(m) {
+        var checked = assigned.indexOf(m.name) >= 0;
+        return '<label style="display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid '+(checked?'#1565c0':'#e0e7ef')+';border-radius:20px;cursor:pointer;font-size:12px;font-weight:'+(checked?'700':'400')+';background:'+(checked?'#e3f2fd':'#fff')+';color:'+(checked?'#1565c0':'#546e7a')+'">'+
+          '<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleAssignedTech(\''+escHtml(m.name)+'\')" style="display:none">'+
+          '<span style="width:22px;height:22px;border-radius:50%;background:'+(checked?'#1565c0':'#e0e7ef')+';color:'+(checked?'#fff':'#90a4ae')+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">'+escHtml((m.name||'').split(' ').map(function(p){return p[0];}).join('').substring(0,2))+'</span>'+
+          escHtml(m.name)+
+        '</label>';
+      }).join('') +
+    '</div>';
+  } else {
+    // Tech sees who else is assigned (names only, no hours)
+    if (assigned.length) {
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
+        assigned.map(function(n) {
+          var isMe = n === _currentUser.full_name;
+          return '<span style="padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;background:'+(isMe?'#e3f2fd':'#f5f5f5')+';color:'+(isMe?'#1565c0':'#546e7a')+'">'+escHtml(n)+(isMe?' (you)':'')+'</span>';
+        }).join('') +
+      '</div>';
+    } else {
+      html += '<span style="font-size:12px;color:#90a4ae">No techs assigned yet</span>';
+    }
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function toggleAssignedTech(techName) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===_woCurrentId; });
+  if (!wo) return;
+  if (!wo.assignedTechs) wo.assignedTechs = [];
+  var idx = wo.assignedTechs.indexOf(techName);
+  if (idx >= 0) {
+    wo.assignedTechs.splice(idx, 1);
+  } else {
+    wo.assignedTechs.push(techName);
+  }
+  saveDB();
+  // Push to Supabase
+  if (_sb && _currentUser) {
+    _sb.from('work_orders').update({ assigned_techs: wo.assignedTechs }).eq('id', wo.id).then(function(r){
+      if(r.error) console.warn('[Assign tech]', r.error.message);
+    });
+  }
+  renderAssignedTechs(_woCurrentId);
+}
+
+// ---- FILTER LABOR TAB BY ROLE ----
+// Override to hide other techs' entries for field techs
+
+var _origRenderWOLaborTab = renderWOLaborTab;
+renderWOLaborTab = function(woId) {
+  var myName = _currentUser ? _currentUser.full_name : '';
+  var myRole = _currentUser ? _currentUser.role : '';
+  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager';
+  var isLead  = myRole==='lead_tech';
+
+  // Field techs see only their own entries
+  if (!isAdmin && !isLead && myName) {
+    var origLabor = DB.woLabor;
+    DB.woLabor = (DB.woLabor||[]).filter(function(l){
+      return l.woId !== woId || l.techName === myName;
+    });
+    var result = _origRenderWOLaborTab(woId);
+    DB.woLabor = origLabor;
+    return result;
+  }
+  return _origRenderWOLaborTab(woId);
+};
+
+// ---- FILTER EXPENSES TAB BY ROLE ----
+var _origRenderWOExpensesTab = typeof renderWOExpensesTab !== 'undefined' ? renderWOExpensesTab : null;
+if (_origRenderWOExpensesTab) {
+  renderWOExpensesTab = function(woId) {
+    var myName = _currentUser ? _currentUser.full_name : '';
+    var myRole = _currentUser ? _currentUser.role : '';
+    var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager';
+    var isLead  = myRole==='lead_tech';
+    if (!isAdmin && !isLead && myName) {
+      var origExp = DB.woExpenses;
+      DB.woExpenses = (DB.woExpenses||[]).filter(function(e){
+        return e.woId !== woId || e.loggedBy === myName;
+      });
+      var result = _origRenderWOExpensesTab(woId);
+      DB.woExpenses = origExp;
+      return result;
+    }
+    return _origRenderWOExpensesTab(woId);
+  };
+}
+
+// ---- GUARD openWorkOrder ----
+var _origOpenWorkOrder = openWorkOrder;
+openWorkOrder = function(woId) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (wo && !_canViewWO(wo)) {
+    showToast('You are not assigned to this work order','error');
+    return;
+  }
+  _origOpenWorkOrder(woId);
+  // Render assigned techs panel
+  setTimeout(function(){ renderAssignedTechs(woId); }, 100);
+};
