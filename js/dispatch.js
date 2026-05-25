@@ -800,84 +800,106 @@ function dispatchSendSMS(techName, jobId) {
   }
 }
 
-function openScheduleJobModal(jobId){
-  var sel=document.getElementById('sj-job-select');
-  if(sel){sel.innerHTML='<option value="">— Select a job —</option>'+(DB.jobs||[]).filter(function(j){return j.status!=='Complete'&&j.status!=='Closed';}).map(function(j){return '<option value="'+j.id+'"'+(j.id===jobId?' selected':'')+'>'+escHtml((j.num||'')+' '+j.name)+'</option>';}).join('');if(jobId){sel.value=jobId;onScheduleJobSelect(jobId);}}
-  var techSel=document.getElementById('sj-tech');
-  if(techSel) techSel.innerHTML='<option value="">— Unassigned —</option>'+(DB.team||[]).map(function(m){return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';}).join('');
-  var dateEl=document.getElementById('dispatch-date');
-  var sjDate=document.getElementById('sj-date');
-  if(sjDate) sjDate.value=dateEl?dateEl.value:getTodayISO();
-  openModal('modal-schedule-job');
-}
+// ---- ROLE SYSTEM — dynamic, owner-editable ----
 
-var ROLES = ['owner','manager','back_office','estimator','lead_tech','helper_tech','subcontractor'];
+var BUILT_IN_ROLES = ['owner','manager','back_office','estimator','lead_tech','project_manager','helper_tech','subcontractor'];
 
-var ROLE_LABELS = {
+var DEFAULT_ROLE_LABELS = {
   owner:'Owner', manager:'Manager', back_office:'Back Office',
   estimator:'Estimator', lead_tech:'Lead Tech',
+  project_manager:'Project Manager',
   helper_tech:'Helper Tech', subcontractor:'Subcontractor'
 };
 
+// Dynamic — reads from DB.settings.customRoles + built-ins
+function getRoles() {
+  var custom = (DB.settings && DB.settings.customRoles) || [];
+  var all = BUILT_IN_ROLES.slice();
+  custom.forEach(function(r){ if (all.indexOf(r.id) < 0) all.push(r.id); });
+  return all;
+}
+
+function getRoleLabel(roleId) {
+  var custom = (DB.settings && DB.settings.customRoles) || [];
+  var c = custom.find(function(r){ return r.id===roleId; });
+  if (c) return c.label;
+  return DEFAULT_ROLE_LABELS[roleId] || roleId;
+}
+
+function getRoleLabels() {
+  var out = Object.assign({}, DEFAULT_ROLE_LABELS);
+  ((DB.settings && DB.settings.customRoles)||[]).forEach(function(r){ out[r.id]=r.label; });
+  return out;
+}
+
+// Keep ROLES and ROLE_LABELS as computed getters for backward compat
+Object.defineProperty(window, 'ROLES', { get: function(){ return getRoles(); }, configurable:true });
+Object.defineProperty(window, 'ROLE_LABELS', { get: function(){ return getRoleLabels(); }, configurable:true });
+
 var PERM_DEFS = [
-  {key:'quote.create',    label:'Create / Edit Quotes',       group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'quote.view',      label:'View Quotes',                group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'quote.delete',    label:'Delete Quotes',              group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'quote.send',      label:'Send Quote to Customer',     group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'quote.convert',   label:'Convert Quote to Job',       group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'quote.export',    label:'Export Quotes CSV',          group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'quote.bypass',    label:'Bypass Margin Floor',        group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'cust.view',       label:'View Customers & Contacts',  group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'cust.edit',       label:'Add / Edit Customers',       group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'cust.delete',     label:'Delete Customers',           group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'contact.edit',    label:'Add / Edit Contacts',        group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'job.create',      label:'Create / Edit Jobs',         group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'job.delete',      label:'Delete Jobs',                group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'job.closeout',    label:'Job Closeout / Sign-off',    group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
-  {key:'wt.create',       label:'Create WT Projects',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'wt.checkoff',     label:'Field Check-off Items',      group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
-  {key:'wt.confirm',      label:'Confirm Check-offs',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
-  {key:'wt.reopen',       label:'Reopen Check-offs',          group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'wt.rework',       label:'Log Reworks',                group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
-  {key:'wt.flags',        label:'Review Difficult Flags',     group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'wt.leaderboard',  label:'View Leaderboard',           group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
-  {key:'time.clock',      label:'Clock In / Out (own)',        group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
-  {key:'time.clockteam',  label:'Clock Team In / Out',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
-  {key:'time.correct',    label:'Edit Time Corrections',       group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'time.approveflag',label:'Approve Lunch Flags',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
-  {key:'time.viewall',    label:'View All Timesheets',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'leave.request',   label:'Request Time Off',            group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:0}},
-  {key:'leave.approve',   label:'Approve Time Off',            group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'payroll.view',    label:'View Payroll Summary',        group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'payroll.process', label:'Mark Payroll Processed',      group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'payroll.export',  label:'Export Payroll CSV',          group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'tool.edit',       label:'Add / Edit Tools',            group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'tool.checkout',   label:'Check Out / Return Tools',    group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,subcontractor:1}},
-  {key:'tool.transfer',   label:'Transfer Tools',              group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
-  {key:'tool.inspect',    label:'Inspect Returned Tools',      group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,subcontractor:0}},
-  {key:'rpt.quotes',      label:'Quoting / Pipeline Reports',  group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'rpt.jobs',        label:'Job Performance Reports',     group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'rpt.tech',        label:'Tech Performance Reports',    group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'rpt.tools',       label:'Tool Utilization Reports',    group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'rpt.payroll',     label:'Payroll Reports',             group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'settings.team',   label:'Manage Team / Users',         group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'settings.margin', label:'Set Margin Floors',           group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'settings.catalog',label:'Edit Price Catalog',          group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,subcontractor:0}},
-  {key:'settings.company',label:'Company Settings',            group:'Settings',       fixed:true,  defaults:{owner:1,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:0,subcontractor:0}},
+  {key:'quote.create',    label:'Create / Edit Quotes',       group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'quote.view',      label:'View Quotes',                group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'quote.delete',    label:'Delete Quotes',              group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'quote.send',      label:'Send Quote to Customer',     group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'quote.convert',   label:'Convert Quote to Job',       group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'quote.export',    label:'Export Quotes CSV',          group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'quote.bypass',    label:'Bypass Margin Floor',        group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'cust.view',       label:'View Customers & Contacts',  group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'cust.edit',       label:'Add / Edit Customers',       group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'cust.delete',     label:'Delete Customers',           group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'contact.edit',    label:'Add / Edit Contacts',        group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'job.create',      label:'Create / Edit Jobs',         group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'job.delete',      label:'Delete Jobs',                group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'job.closeout',    label:'Job Closeout / Sign-off',    group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wt.create',       label:'Create WT Projects',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wt.checkoff',     label:'Field Check-off Items',      group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
+  {key:'wt.confirm',      label:'Confirm Check-offs',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wt.reopen',       label:'Reopen Check-offs',          group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wt.rework',       label:'Log Reworks',                group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
+  {key:'wt.flags',        label:'Review Difficult Flags',     group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wt.leaderboard',  label:'View Leaderboard',           group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'time.clock',      label:'Clock In / Out (own)',        group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
+  {key:'time.clockteam',  label:'Clock Team In / Out',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'time.correct',    label:'Edit Time Corrections',       group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'time.approveflag',label:'Approve Lunch Flags',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'time.viewall',    label:'View All Timesheets',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'leave.request',   label:'Request Time Off',            group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
+  {key:'leave.approve',   label:'Approve Time Off',            group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'payroll.view',    label:'View Payroll Summary',        group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'payroll.process', label:'Mark Payroll Processed',      group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'payroll.export',  label:'Export Payroll CSV',          group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'tool.edit',       label:'Add / Edit Tools',            group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'tool.checkout',   label:'Check Out / Return Tools',    group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
+  {key:'tool.transfer',   label:'Transfer Tools',              group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'tool.inspect',    label:'Inspect Returned Tools',      group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'rpt.quotes',      label:'Quoting / Pipeline Reports',  group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'rpt.jobs',        label:'Job Performance Reports',     group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'rpt.tech',        label:'Tech Performance Reports',    group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'rpt.tools',       label:'Tool Utilization Reports',    group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'rpt.payroll',     label:'Payroll Reports',             group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'settings.team',   label:'Manage Team / Users',         group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'settings.margin', label:'Set Margin Floors',           group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'settings.catalog',label:'Edit Price Catalog',          group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'settings.company',label:'Company Settings',            group:'Settings',       fixed:true,  defaults:{owner:1,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
 ];
 
 function getPermMatrix() {
-  var saved = (DB.settings && DB.settings.rolePermissions) || {};
+  var saved  = (DB.settings && DB.settings.rolePermissions) || {};
+  var roles  = getRoles();
   var matrix = {};
   PERM_DEFS.forEach(function(p){
     matrix[p.key] = {};
-    ROLES.forEach(function(r){
-      if (p.fixed) {
+    roles.forEach(function(r){
+      if (r === 'owner') {
+        matrix[p.key][r] = true;
+      } else if (p.fixed) {
         matrix[p.key][r] = p.defaults[r] ? true : false;
       } else {
+        var isCustom   = BUILT_IN_ROLES.indexOf(r) < 0;
+        var defaultVal = isCustom ? false : (p.defaults[r] ? true : false);
         matrix[p.key][r] = (saved[p.key] && saved[p.key][r] !== undefined)
-          ? saved[p.key][r]
-          : (p.defaults[r] ? true : false);
+          ? !!saved[p.key][r]
+          : defaultVal;
       }
     });
   });
@@ -900,25 +922,51 @@ function renderPermissionsEditor() {
   card.style.display = role === 'owner' ? 'block' : 'none';
   if (role !== 'owner') return;
 
+  var roles  = getRoles();
+  var labels = getRoleLabels();
   var matrix = getPermMatrix();
+
+  // ---- Role tab pills + Add Role button ----
+  var tabsEl = document.getElementById('perm-role-tabs');
+  if (tabsEl) {
+    tabsEl.innerHTML =
+      roles.map(function(r){
+        var isBuiltIn = BUILT_IN_ROLES.indexOf(r) >= 0;
+        var isOwner   = r === 'owner';
+        return '<div style="display:inline-flex;align-items:center;gap:4px;background:#e3f2fd;border-radius:20px;padding:4px 12px;margin-right:6px;margin-bottom:6px">'+
+          '<span style="font-size:12px;font-weight:700;color:#1565c0">'+escHtml(labels[r]||r)+'</span>'+
+          (!isBuiltIn?'<button onclick="deleteCustomRole(\''+r+'\')" style="background:none;border:none;cursor:pointer;color:#c62828;font-size:14px;padding:0;line-height:1">×</button>':'')+
+        '</div>';
+      }).join('') +
+      '<button onclick="openAddRoleModal()" style="background:#fff;border:1px dashed #1565c0;color:#1565c0;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:6px">+ Add Role</button>';
+  }
+
+  // ---- Permission grid ----
   var grid = document.getElementById('perm-grid');
   if (!grid) return;
 
-  var html = '<table class="perm-table"><thead><tr>'+
-    '<th style="text-align:left;min-width:180px">Permission</th>'+
-    ROLES.map(function(r){ return '<th>'+ROLE_LABELS[r]+'</th>'; }).join('')+
+  var html = '<div style="overflow-x:auto"><table class="perm-table" style="min-width:'+((roles.length+1)*120)+'px"><thead><tr>'+
+    '<th style="text-align:left;min-width:200px;position:sticky;left:0;background:#f0f4f8;z-index:2">Permission</th>'+
+    roles.map(function(r){
+      return '<th style="min-width:100px;text-align:center">'+
+        '<div style="font-weight:700;font-size:11px">'+escHtml(labels[r]||r)+'</div>'+
+      '</th>';
+    }).join('')+
   '</tr></thead><tbody>';
 
   var lastGroup = '';
   PERM_DEFS.forEach(function(p){
     if (p.group !== lastGroup) {
       lastGroup = p.group;
-      html += '<tr class="perm-group-row"><td colspan="'+(ROLES.length+1)+'">'+escHtml(p.group)+'</td></tr>';
+      html += '<tr class="perm-group-row"><td colspan="'+(roles.length+1)+'" style="position:sticky;left:0">'+escHtml(p.group)+'</td></tr>';
     }
-    html += '<tr><td>'+(p.fixed?'🔒 ':'')+escHtml(p.label)+(p.fixed?' <span style="font-size:10px;color:#90a4ae">(structural)</span>':'')+'</td>';
-    ROLES.forEach(function(r){
-      var val = matrix[p.key][r];
-      if (p.fixed) {
+    html += '<tr><td style="position:sticky;left:0;background:#fff;z-index:1">'+(p.fixed?'🔒 ':'')+escHtml(p.label)+(p.fixed?' <span style="font-size:10px;color:#90a4ae">(structural)</span>':'')+'</td>';
+    roles.forEach(function(r){
+      var val = matrix[p.key] ? matrix[p.key][r] : false;
+      // Owner always on, always fixed
+      if (r === 'owner') {
+        html += '<td class="perm-center"><span style="color:#2e7d32;font-size:16px">✓</span></td>';
+      } else if (p.fixed) {
         html += '<td class="perm-center"><span class="perm-fixed" style="color:'+(val?'#2e7d32':'#d0d0d0')+'">'+(val?'✓':'✗')+'</span></td>';
       } else {
         var tid = 'perm-'+p.key.replace(/\./g,'-')+'-'+r;
@@ -933,8 +981,43 @@ function renderPermissionsEditor() {
     });
     html += '</tr>';
   });
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   grid.innerHTML = html;
+}
+
+// ---- ADD CUSTOM ROLE ----
+function openAddRoleModal() {
+  var name = prompt('New role name (e.g. "Field Supervisor"):');
+  if (!name || !name.trim()) return;
+  var id = name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_');
+  if (getRoles().indexOf(id) >= 0) {
+    showToast('A role with that name already exists','error'); return;
+  }
+  if (!DB.settings) DB.settings = {};
+  if (!DB.settings.customRoles) DB.settings.customRoles = [];
+  DB.settings.customRoles.push({ id: id, label: name.trim() });
+  // Set all perms to off by default for new role
+  if (!DB.settings.rolePermissions) DB.settings.rolePermissions = {};
+  PERM_DEFS.forEach(function(p){
+    if (!DB.settings.rolePermissions[p.key]) DB.settings.rolePermissions[p.key] = {};
+    DB.settings.rolePermissions[p.key][id] = false;
+  });
+  saveDB();
+  renderPermissionsEditor();
+  showToast('"'+name.trim()+'" role created — set permissions below','success');
+}
+
+function deleteCustomRole(roleId) {
+  if (BUILT_IN_ROLES.indexOf(roleId) >= 0) {
+    showToast('Built-in roles cannot be deleted','error'); return;
+  }
+  var labels = getRoleLabels();
+  if (!confirm('Delete role "'+labels[roleId]+'"? Team members assigned this role will need to be reassigned.')) return;
+  if (!DB.settings || !DB.settings.customRoles) return;
+  DB.settings.customRoles = DB.settings.customRoles.filter(function(r){ return r.id !== roleId; });
+  saveDB();
+  renderPermissionsEditor();
+  showToast('Role deleted','info');
 }
 
 function savePermChange(permKey, role, value) {

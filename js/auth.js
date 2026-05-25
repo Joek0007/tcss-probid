@@ -162,12 +162,14 @@ async function loadCurrentUserProfile() {
 }
 
 function applyRolePermissions(role) {
-  // Nav visibility based on role
+  // Custom roles — check their permission matrix for page access
+  // For any role not explicitly handled, fall through to show all (owner-like)
   var fieldRoles = ['helper_tech','subcontractor','field'];
   var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team','purchaseorders','vendors','scanner'];
   var leadTechShow = ['dash','field','jobs','dispatch','worktracking','workorders','customers','contacts','reports','catalog','tools','inventory','calendar','timesheet'];
   var pmShow = ['dash','jobs','dispatch','workorders','worktracking','customers','contacts','tools','inventory','calendar','timesheet','reports'];
   var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
+  var isCustomRole = typeof BUILT_IN_ROLES !== 'undefined' && BUILT_IN_ROLES.indexOf(role) < 0;
   var nav = document.querySelectorAll('.nav-item[data-page]');
   nav.forEach(function(item) {
     var page = item.getAttribute('data-page');
@@ -175,6 +177,9 @@ function applyRolePermissions(role) {
       item.style.display = leadTechShow.indexOf(page) >= 0 ? '' : 'none';
     } else if (role === 'project_manager') {
       item.style.display = pmShow.indexOf(page) >= 0 ? '' : 'none';
+    } else if (isCustomRole) {
+      // Custom role — show all pages (owner can restrict via permissions matrix)
+      item.style.display = page === 'team' ? 'none' : '';
     } else if (fieldRoles.indexOf(role) >= 0 || role === 'field') {
       item.style.display = fieldOnlyHide.indexOf(page) >= 0 ? 'none' : '';
     } else if (role === 'office') {
