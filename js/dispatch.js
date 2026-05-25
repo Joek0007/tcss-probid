@@ -1149,9 +1149,11 @@ function renderMsWOStatuses() {
     '<tbody id="wo-status-tbody">'+
     statuses.map(function(s,i){
       var isOpen = s.open !== false;
-      return '<tr draggable="true" data-idx="'+i+'" style="border-bottom:1px solid #f0f4f8;cursor:default" '+
-        'ondragstart="wsDragStart(event)" ondragover="wsDragOver(event)" ondrop="wsDrop(event)" ondragend="wsDragEnd(event)">'+
-        '<td style="padding:8px 6px;text-align:center;cursor:grab;color:#90a4ae;font-size:16px" title="Drag to reorder">⣿</td>'+
+      return '<tr data-idx="'+i+'" style="border-bottom:1px solid #f0f4f8" '+
+        'ondragover="wsDragOver(event)" ondrop="wsDrop(event)">'+
+        '<td draggable="true" data-idx="'+i+'" '+
+        'ondragstart="wsDragStart(event)" ondragend="wsDragEnd(event)" '+
+        'style="padding:8px 6px;text-align:center;cursor:grab;color:#90a4ae;font-size:18px;user-select:none" title="Drag to reorder">⣿</td>'+
         '<td style="padding:8px 10px">'+
           '<div style="display:flex;align-items:center;gap:8px">'+
             '<div style="width:12px;height:12px;border-radius:50%;background:'+escHtml(s.color||'#ddd')+';border:1px solid rgba(0,0,0,.15);flex-shrink:0"></div>'+
@@ -1192,7 +1194,9 @@ function _initWOStatusDrag() {
 
 function wsDragStart(e) {
   _wsDragSrcIdx = parseInt(e.currentTarget.getAttribute('data-idx'));
-  e.currentTarget.style.opacity = '0.4';
+  // Dim the whole row
+  var row = e.currentTarget.closest('tr') || e.currentTarget.parentElement;
+  if (row) row.style.opacity = '0.4';
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', _wsDragSrcIdx);
 }
@@ -1219,9 +1223,10 @@ function wsDrop(e) {
 }
 
 function wsDragEnd(e) {
-  e.currentTarget.style.opacity = '';
+  var row = e.currentTarget.closest('tr') || e.currentTarget.parentElement;
+  if (row) row.style.opacity = '';
   var rows = document.querySelectorAll('#wo-status-tbody tr');
-  rows.forEach(function(r){ r.style.borderTop = ''; });
+  rows.forEach(function(r){ r.style.borderTop = ''; r.style.opacity = ''; });
   _wsDragSrcIdx = null;
 }
 
