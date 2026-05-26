@@ -355,7 +355,8 @@ function saveWorkOrder() {
     createdAt:    isNew ? new Date().toISOString() : ((DB.workOrders.find(function(w){return w.id===id;})||{}).createdAt||new Date().toISOString()),
     updatedAt:    new Date().toISOString(),
     createdBy:    isNew ? ((_currentUser&&_currentUser.id)||null) : ((DB.workOrders.find(function(w){return w.id===id;})||{}).createdBy||null),
-    createdByName:isNew ? ((_currentUser&&_currentUser.full_name)||'Unknown') : ((DB.workOrders.find(function(w){return w.id===id;})||{}).createdByName||'Unknown')
+    createdByName:isNew ? ((_currentUser&&_currentUser.full_name)||'Unknown') : ((DB.workOrders.find(function(w){return w.id===id;})||{}).createdByName||'Unknown'),
+    assignedTechs:isNew ? [] : ((DB.workOrders.find(function(w){return w.id===id;})||{}).assignedTechs||[])
   };
 
   if (isNew) {
