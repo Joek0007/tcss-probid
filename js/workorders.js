@@ -785,7 +785,13 @@ function renderWOExpensesTab(woId) {
       '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Description</label>'+
         '<input id="woe-desc" placeholder="Details..." style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
       '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Amount ($)</label>'+
-        '<input id="woe-amt" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
+        '<div style="position:relative">'+
+          '<span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;color:#546e7a;font-weight:700">$</span>'+
+          '<input id="woe-amt" type="number" min="0" step="0.01" placeholder="0.00" '+
+          'style="width:100%;padding:7px 7px 7px 18px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:600;box-sizing:border-box" '+
+          'onblur="this.value=parseFloat(this.value||0).toFixed(2)" '+
+          'onfocus="if(this.value===\'0.00\')this.value=\'\'">'+
+        '</div></div>'+
       '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Paid By</label>'+
         '<select id="woe-pay" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
           payTypes.map(function(p){return '<option>'+escHtml(p)+'</option>';}).join('')+'</select></div>'+
@@ -868,9 +874,12 @@ function addWOExpense() {
 }
 
 function deleteWOExpense(id) {
-  if(!confirm('Remove this expense?'))return;
-  DB.woExpenses=(DB.woExpenses||[]).filter(function(e){return e.id!==id;});
-  saveDB(); switchWOTab('expenses');
+  if (!confirm('Remove this expense?')) return;
+  DB.woExpenses = (DB.woExpenses||[]).filter(function(e){ return e.id!==id; });
+  saveDB();
+  if (_sb && _currentUser) _sb.from('wo_expenses').delete().eq('id',id).then(function(){});
+  switchWOTab('expenses');
+  refreshWOQuickStats(_woCurrentId);
 }
 
 // ---- PARTS TAB ----
