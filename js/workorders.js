@@ -1305,12 +1305,13 @@ function _renderTeamModalList(assigned, search) {
   listEl.innerHTML = members.map(function(m, i) {
     var isChecked = assigned.indexOf(m.name) >= 0;
     var role = m.access || m.systemRole || m.role || 'field';
-    var bg = isChecked ? '#dbeafe' : (i%2===0?'#f8f9fa':'#ffffff');
-    return '<label style="display:flex;align-items:center;gap:10px;padding:6px 14px;cursor:pointer;background:'+bg+';border-bottom:1px solid #f0f0f0">'+
+    var bg = isChecked ? '#bbdefb' : (i%2===0?'#e8edf4':'#f5f7fa');
+    var border = isChecked ? '1px solid #90caf9' : '1px solid #d0d9e8';
+    return '<label style="display:flex;align-items:center;gap:10px;padding:7px 14px;cursor:pointer;background:'+bg+';border-bottom:'+border+'">'+
       '<input type="checkbox" data-name="'+escHtml(m.name)+'" '+(isChecked?'checked':'')+
-      ' onchange="_teamModalCheck(this)" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">'+
-      '<span style="font-size:13px;font-weight:'+(isChecked?'700':'500')+';flex:1">'+escHtml(m.name||'')+'</span>'+
-      '<span style="font-size:10px;color:#90a4ae">'+escHtml(role)+'</span>'+
+      ' onchange="_teamModalCheck(this)" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:#1565c0">'+
+      '<span style="font-size:13px;font-weight:'+(isChecked?'700':'600')+';flex:1;color:'+(isChecked?'#0d47a1':'#1a2840')+'">'+escHtml(m.name||'')+'</span>'+
+      '<span style="font-size:11px;font-weight:600;color:'+(isChecked?'#1565c0':'#78909c')+'">'+escHtml(role)+'</span>'+
     '</label>';
   }).join('') || '<div style="padding:16px;text-align:center;color:#90a4ae;font-size:13px">No members found</div>';
 }
