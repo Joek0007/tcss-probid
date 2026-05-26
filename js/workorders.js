@@ -392,6 +392,8 @@ function saveWorkOrder() {
   showToast('Work Order '+woNum+' saved ✓','success');
   document.getElementById('wo-modal-num').textContent=woNum;
   document.getElementById('wo-modal-title').textContent='Work Order';
+  // Refresh assigned techs section now that WO is saved
+  setTimeout(function(){ renderAssignedTechs(id); }, 100);
 }
 
 function _triggerUrgentAlert(wo) {
@@ -496,9 +498,14 @@ function _populateWOServiceTypeSelect() {
 function _populateWORepSelect(currentRep) {
   var sel=document.getElementById('wo-service-rep');
   if (!sel) return;
+  var fieldOnly = ['field','helper_tech','subcontractor'];
   sel.innerHTML='<option value="">— Assign Rep —</option>'+
-    (DB.team||[]).filter(function(t){ return t.role!=='field'; }).map(function(t){
-      return '<option value="'+escHtml(t.name||'')+'"'+(t.name===currentRep?' selected':'')+'>'+ escHtml(t.name||'')+'</option>';
+    (DB.team||[]).filter(function(t){
+      var role = t.access || t.systemRole || t.role || 'field';
+      return t.active!==false && fieldOnly.indexOf(role) < 0;
+    }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); })
+    .map(function(t){
+      return '<option value="'+escHtml(t.name||'')+'"'+(t.name===currentRep?' selected':'')+'>'+escHtml(t.name||'')+'</option>';
     }).join('');
 }
 
@@ -1356,8 +1363,8 @@ openWorkOrder = function(woId) {
     return;
   }
   _origOpenWorkOrder(woId);
-  // Render assigned techs panel
-  setTimeout(function(){ renderAssignedTechs(woId); }, 100);
+  // Render assigned techs after modal renders
+  setTimeout(function(){ renderAssignedTechs(woId); }, 200);
 };
 
 // ============================================================

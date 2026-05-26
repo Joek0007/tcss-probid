@@ -4734,15 +4734,24 @@ table{font-size:12.5px}
     </div>
     <div class="modal-body" style="padding:0;overflow-y:auto;max-height:85vh">
       <!-- Status bar -->
-      <div style="background:#f8f9fa;padding:10px 20px;border-bottom:1px solid #e0e7ef;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="wo-status" onchange="onWOStatusChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:700"></select>
-        <select id="wo-priority" onchange="onWOPriorityChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
-          <option value="Normal">Normal</option>
-          <option value="Low">Low</option>
-          <option value="High">🟠 High</option>
-          <option value="Urgent">🔴 URGENT</option>
-        </select>
-        <select id="wo-service-type" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></select>
+      <div style="background:#f8f9fa;padding:10px 20px;border-bottom:1px solid #e0e7ef;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Status</span>
+          <select id="wo-status" onchange="onWOStatusChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:700;min-width:180px"></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Priority</span>
+          <select id="wo-priority" onchange="onWOPriorityChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+            <option value="Normal">Normal</option>
+            <option value="Low">Low</option>
+            <option value="High">🟠 High</option>
+            <option value="Urgent">🔴 URGENT</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Service Type</span>
+          <select id="wo-service-type" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;min-width:160px"></select>
+        </div>
       </div>
       <!-- Main grid -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:20px">
