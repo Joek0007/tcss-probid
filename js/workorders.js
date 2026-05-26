@@ -4,26 +4,31 @@
 
 // ---- CONSTANTS ----
 var WO_STATUSES = [
-  { id:'New',                                    color:'#ddd8d8', open:true  },
-  { id:'Open',                                   color:'#4a86e8', open:true  },
-  { id:'Waiting on Customer',                    color:'#928b8b', open:true  },
-  { id:'Open — Action Needed',                   color:'#ffff00', open:true  },
-  { id:'Open — Quote Needed',                    color:'#980000', open:true  },
-  { id:'Parts Needed',                           color:'#f9d1ee', open:true  },
-  { id:'Parts Ordered',                          color:'#e57ec8', open:true  },
-  { id:'Parts Received — Partial',               color:'#ffffff', open:true  },
-  { id:'Parts Received — Complete',              color:'#a52fea', open:true  },
-  { id:'Ready for Review',                       color:'#f73e3e', open:true  },
-  { id:'Ready for Pricing',                      color:'#f6c636', open:true  },
-  { id:'Open — Partial Invoice (Please Create)', color:'#ee8b67', open:true  },
-  { id:'Open — Partial Invoice Sent (Mailed)',   color:'#7bf363', open:true  },
-  { id:'Open — Partial Invoice Sent (By Email)', color:'#93c47d', open:true  },
-  { id:'Partial Invoice — Final Invoice (Mailed)',  color:'#0dbc0a', open:false },
-  { id:'Partial Invoice — Final Invoice (By Email)',color:'#0dbc0a', open:false },
-  { id:'Billed',                                 color:'#fd881a', open:false },
-  { id:'No Charge',                              color:'#46f4af', open:false },
-  { id:'No Charge — Warranty',                   color:'#e6b8af', open:false },
-  { id:'Void',                                   color:'#00ffff', open:false },
+  {id:'NEW',                                         color:'#ddd8d8',open:true, mobile:true },
+  {id:'OPEN',                                        color:'#4a86e8',open:true, mobile:true },
+  {id:'Open -- Waiting on Customer',                 color:'#928b8b',open:true, mobile:true },
+  {id:'Open -- Action Needed',                       color:'#ffff00',open:true, mobile:true },
+  {id:'Open -- QUOTE NEEDED',                        color:'#980000',open:true, mobile:false},
+  {id:'Open -- Part(s) Needed',                      color:'#f9d1ee',open:true, mobile:true },
+  {id:'Open -- Part(s) Ordered',                     color:'#e57ec8',open:true, mobile:false},
+  {id:'Open -- Part(s) Received -- Partial',         color:'#ffffff',open:true, mobile:false},
+  {id:'Open -- Part(s) Received -- Complete',        color:'#a52fea',open:true, mobile:false},
+  {id:'Open -- Ready For Review',                    color:'#f73e3e',open:true, mobile:false},
+  {id:'Open -- Ready For Pricing',                   color:'#f6c636',open:true, mobile:false},
+  {id:'Open -- Partial Invoice (Please Create One)', color:'#ee8b67',open:true, mobile:false},
+  {id:'Open -- Partial Invoice Sent (MAILED)',       color:'#7bf363',open:true, mobile:false},
+  {id:'Open -- Partial Invoice Sent (By E-MAIL)',    color:'#93c47d',open:true, mobile:false},
+  {id:'*** RMA ***',                                 color:'#78c9f9',open:true, mobile:true },
+  {id:'BILLED',                                      color:'#fd881a',open:false,mobile:false},
+  {id:'Invoice Sent (MAILED)',                       color:'#0dbc0a',open:false,mobile:false},
+  {id:'Invoice Sent (By E-MAIL)',                    color:'#0dbc0a',open:false,mobile:false},
+  {id:'No Charge',                                   color:'#46f4af',open:false,mobile:false},
+  {id:'No Charge -- (Rental System)',                color:'#46f4af',open:false,mobile:false},
+  {id:'No Charge -- (Warranty)',                     color:'#e6b8af',open:false,mobile:false},
+  {id:'Partial Invoice -- FINAL Invoice (MAILED)',   color:'#0dbc0a',open:false,mobile:false},
+  {id:'Partial Invoice -- FINAL Invoice (BY E-MAIL)',color:'#0dbc0a',open:false,mobile:false},
+  {id:'Void',                                        color:'#00ffff',open:false,mobile:false},
+  {id:'Void (Q-Books Invoice Voided)',               color:'#00ffff',open:false,mobile:false},
 ];
 
 var WO_SERVICE_TYPES = [
@@ -1243,72 +1248,155 @@ function _canViewWO(wo) {
 
 // ---- RENDER ASSIGNED TECHS ON WO ----
 
+// ---- TEAM ASSIGNMENT ----
+
 function renderAssignedTechs(woId) {
-  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
-  var assigned = (wo && wo.assignedTechs) ? wo.assignedTechs : [];
-  // Anyone with time.correct permission can assign techs (office, manager, lead_tech, PM)
-  var isAdmin = _currentUser && (hasPermission('time.correct')||_currentUser.role==='owner'||_currentUser.role==='lead_tech');
   var el = document.getElementById('wo-assigned-techs');
   if (!el) return;
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  var assigned = (wo && wo.assignedTechs) ? wo.assignedTechs : [];
 
-  var teamMembers = (DB.team||[]).filter(function(m){
-    return m.active!==false &&
-           (m.access==='field'||m.access==='lead_tech'||m.systemRole==='field'||m.systemRole==='lead_tech');
-  }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
-
-  var html = '<div style="margin-bottom:4px">';
-
-  if (isAdmin) {
-    // Admin sees checkboxes to assign techs
-    html += '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
-      teamMembers.map(function(m) {
-        var checked = assigned.indexOf(m.name) >= 0;
-        return '<label style="display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid '+(checked?'#1565c0':'#e0e7ef')+';border-radius:20px;cursor:pointer;font-size:12px;font-weight:'+(checked?'700':'400')+';background:'+(checked?'#e3f2fd':'#fff')+';color:'+(checked?'#1565c0':'#546e7a')+'">'+
-          '<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleAssignedTech(\''+escHtml(m.name)+'\')" style="display:none">'+
-          '<span style="width:22px;height:22px;border-radius:50%;background:'+(checked?'#1565c0':'#e0e7ef')+';color:'+(checked?'#fff':'#90a4ae')+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">'+escHtml((m.name||'').split(' ').map(function(p){return p[0];}).join('').substring(0,2))+'</span>'+
-          escHtml(m.name)+
-        '</label>';
-      }).join('') +
-    '</div>';
-  } else {
-    // Tech sees who else is assigned (names only, no hours)
-    if (assigned.length) {
-      html += '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
-        assigned.map(function(n) {
-          var isMe = n === _currentUser.full_name;
-          return '<span style="padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;background:'+(isMe?'#e3f2fd':'#f5f5f5')+';color:'+(isMe?'#1565c0':'#546e7a')+'">'+escHtml(n)+(isMe?' (you)':'')+'</span>';
-        }).join('') +
-      '</div>';
-    } else {
-      html += '<span style="font-size:12px;color:#90a4ae">No techs assigned yet</span>';
-    }
+  if (!assigned.length) {
+    el.innerHTML = '<span style="font-size:12px;color:#90a4ae">No techs assigned — click + Team</span>';
+    return;
   }
 
-  html += '</div>';
-  el.innerHTML = html;
+  // Show summary: name + logged hours
+  var labor = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
+  var teEntries = (DB.timeEntries||[]).filter(function(e){ return !e.deleted && e.woId===woId; });
+
+  el.innerHTML = '<div style="display:flex;flex-direction:column;gap:4px">' +
+    assigned.map(function(name) {
+      var hrs = 0;
+      labor.filter(function(l){ return l.techName===name; }).forEach(function(l){ hrs+=parseFloat(l.hours)||0; });
+      teEntries.filter(function(e){ return e.techName===name && e.entryType!=='lunch'; }).forEach(function(e){ hrs+=parseFloat(e.totalHours)||0; });
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid #e8eef4">' +
+        '<span style="font-size:12px;font-weight:600">'+escHtml(name)+'</span>' +
+        '<span style="font-size:11px;color:'+(hrs>0?'#1565c0':'#90a4ae')+'">'+hrs.toFixed(1)+' hrs</span>' +
+      '</div>';
+    }).join('') +
+  '</div>';
 }
 
-function toggleAssignedTech(techName) {
+function openTeamModal() {
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===_woCurrentId; });
-  if (!wo) return;
-  if (!wo.assignedTechs) wo.assignedTechs = [];
-  var idx = wo.assignedTechs.indexOf(techName);
-  if (idx >= 0) {
-    wo.assignedTechs.splice(idx, 1);
-    if (typeof auditWOTechUnassigned === 'function') auditWOTechUnassigned(wo.id, wo.woNumber||'', techName);
+  _assigned = (wo && wo.assignedTechs) ? wo.assignedTechs.slice() : [];
+  var listEl = document.getElementById('team-modal-list');
+  if (!listEl) return;
+  var searchEl = document.getElementById('team-modal-search');
+  if (searchEl) searchEl.value = '';
+
+  _renderTeamModalList(_assigned, '');
+  openModal('modal-wo-team');
+}
+
+function _renderTeamModalList(assigned, search) {
+  var listEl = document.getElementById('team-modal-list');
+  if (!listEl) return;
+  var members = (DB.team||[]).filter(function(m){
+    return m.active!==false &&
+           (!search || (m.name||'').toLowerCase().includes(search.toLowerCase()) ||
+                       (m.email||'').toLowerCase().includes(search.toLowerCase()));
+  }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+
+  listEl.innerHTML = members.map(function(m) {
+    var isChecked = assigned.indexOf(m.name) >= 0;
+    var role = m.access || m.systemRole || m.role || 'field';
+    var roleColors = {owner:'#1565c0',manager:'#1565c0',office:'#2e7d32',back_office:'#2e7d32',lead_tech:'#e65100',project_manager:'#6a1b9a',field:'#546e7a',helper_tech:'#90a4ae'};
+    var roleColor = roleColors[role] || '#546e7a';
+    return '<label style="display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;border-bottom:1px solid #f8f9fa;'+(isChecked?'background:#e3f2fd;':'')+'">'+
+      '<input type="checkbox" data-name="'+escHtml(m.name)+'" '+(isChecked?'checked':'')+
+      ' onchange="_teamModalCheck(this)" style="width:16px;height:16px;cursor:pointer">'+
+      '<div style="flex:1">'+
+        '<div style="font-weight:700;font-size:13px">'+escHtml(m.name||'')+'</div>'+
+        '<div style="font-size:11px;color:'+roleColor+'">'+escHtml(role)+'</div>'+
+      '</div>'+
+      (m.email?'<div style="font-size:11px;color:#90a4ae">'+escHtml(m.email)+'</div>':'')+
+    '</label>';
+  }).join('') || '<div style="padding:16px;text-align:center;color:#90a4ae;font-size:13px">No team members found</div>';
+}
+
+var _assigned = [];
+function _teamModalCheck(cb) {
+  var name = cb.getAttribute('data-name');
+  var row  = cb.closest('label');
+  if (cb.checked) {
+    if (_assigned.indexOf(name)<0) _assigned.push(name);
+    if (row) row.style.background = '#e3f2fd';
   } else {
-    wo.assignedTechs.push(techName);
-    if (typeof auditWOTechAssigned === 'function') auditWOTechAssigned(wo.id, wo.woNumber||'', techName);
+    _assigned = _assigned.filter(function(n){ return n!==name; });
+    if (row) row.style.background = '';
   }
+}
+
+function filterTeamModal(val) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===_woCurrentId; });
+  _assigned = (wo && wo.assignedTechs) ? wo.assignedTechs.slice() : [];
+  // Preserve current checkboxes before filtering
+  document.querySelectorAll('#team-modal-list input[type="checkbox"]').forEach(function(cb){
+    var n = cb.getAttribute('data-name');
+    if (cb.checked && _assigned.indexOf(n)<0) _assigned.push(n);
+    if (!cb.checked) _assigned = _assigned.filter(function(x){ return x!==n; });
+  });
+  _renderTeamModalList(_assigned, val);
+}
+
+function selectAllTeamModal() {
+  document.querySelectorAll('#team-modal-list input[type="checkbox"]').forEach(function(cb){
+    cb.checked = true;
+    var n = cb.getAttribute('data-name');
+    if (_assigned.indexOf(n)<0) _assigned.push(n);
+    var row = cb.closest('label');
+    if (row) row.style.background = '#e3f2fd';
+  });
+}
+
+function clearAllTeamModal() {
+  _assigned = [];
+  document.querySelectorAll('#team-modal-list input[type="checkbox"]').forEach(function(cb){
+    cb.checked = false;
+    var row = cb.closest('label');
+    if (row) row.style.background = '';
+  });
+}
+
+function saveTeamModal() {
+  // Capture final state of checkboxes
+  document.querySelectorAll('#team-modal-list input[type="checkbox"]').forEach(function(cb){
+    var n = cb.getAttribute('data-name');
+    if (cb.checked && _assigned.indexOf(n)<0) _assigned.push(n);
+    if (!cb.checked) _assigned = _assigned.filter(function(x){ return x!==n; });
+  });
+
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===_woCurrentId; });
+  if (!wo) { closeModal('modal-wo-team'); return; }
+
+  var prev = (wo.assignedTechs||[]).slice();
+  wo.assignedTechs = _assigned.slice();
+
+  // Audit additions and removals
+  _assigned.forEach(function(n){
+    if (prev.indexOf(n)<0 && typeof auditWOTechAssigned==='function') auditWOTechAssigned(wo.id,wo.woNumber||'',n);
+  });
+  prev.forEach(function(n){
+    if (_assigned.indexOf(n)<0 && typeof auditWOTechUnassigned==='function') auditWOTechUnassigned(wo.id,wo.woNumber||'',n);
+  });
+
   saveDB();
   // Push to Supabase
   if (_sb && _currentUser) {
-    _sb.from('work_orders').update({ assigned_techs: wo.assignedTechs }).eq('id', wo.id).then(function(r){
-      if(r.error) console.warn('[Assign tech]', r.error.message);
-    });
+    _sb.from('work_orders').update({assigned_techs:wo.assignedTechs}).eq('id',wo.id).then(function(){});
   }
+  closeModal('modal-wo-team');
   renderAssignedTechs(_woCurrentId);
+  showToast('Team updated ✓','success',2000);
 }
+
+function toggleAssignedTech(techName) {
+  // Legacy — redirect to modal
+  openTeamModal();
+}
+
 
 // ---- FILTER LABOR TAB BY ROLE ----
 // Override to hide other techs' entries for field techs
