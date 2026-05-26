@@ -163,7 +163,7 @@ async function loadCurrentUserProfile() {
 
 function applyRolePermissions(role) {
   var fieldRoles = ['helper_tech','subcontractor','field'];
-  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team','purchaseorders','vendors','scanner'];
+  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team','purchaseorders','vendors','scanner','auditlog'];
   var leadTechShow  = ['dash','field','jobs','dispatch','worktracking','workorders','customers','contacts','reports','catalog','tools','inventory','calendar','timesheet'];
   var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
   var isCustomRole  = typeof BUILT_IN_ROLES !== 'undefined' && BUILT_IN_ROLES.indexOf(role) < 0;

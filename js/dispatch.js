@@ -1024,9 +1024,11 @@ function savePermChange(permKey, role, value) {
   if (!DB.settings) DB.settings={};
   if (!DB.settings.rolePermissions) DB.settings.rolePermissions={};
   if (!DB.settings.rolePermissions[permKey]) DB.settings.rolePermissions[permKey]={};
+  var oldVal = DB.settings.rolePermissions[permKey][role];
   DB.settings.rolePermissions[permKey][role] = value;
   saveDB();
-  showToast(ROLE_LABELS[role]+': '+(value?'✓ Granted':'✗ Revoked'),'info',2000);
+  if (typeof auditPermChange === 'function') auditPermChange(role, permKey, oldVal, value);
+  showToast((ROLE_LABELS[role]||role)+': '+(value?'✓ Granted':'✗ Revoked'),'info',2000);
 }
 
 function resetPermissionsToDefault() {

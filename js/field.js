@@ -1046,6 +1046,13 @@ function saveManualTimeEntry() {
   showToast(editId ? 'Entry updated ✓' : 'Time entry added ✓', 'success');
   loadTimesheets();
 
+  // Audit
+  if (typeof auditTimeEntry === 'function') {
+    var action = editId ? 'edited' : 'added';
+    auditTimeEntry(action, editId || DB.timeEntries[DB.timeEntries.length-1].id,
+      techName, date + ' ' + type + (woVal&&woVal!=='office'?' on '+woVal:''));
+  }
+
   // Auto-promote NEW → OPEN on first time entry
   if (woId && typeof autoPromoteWOStatus === 'function') autoPromoteWOStatus(woId);
 

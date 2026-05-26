@@ -1120,6 +1120,7 @@ table{font-size:12.5px}
   <div class="nav-group">
     <div class="nav-group-title">Business</div>
     <div class="nav-item" data-page="reports"><span class="nav-icon">📈</span>Reports</div>
+    <div class="nav-item" data-page="auditlog"><span class="nav-icon">📋</span>Audit Log</div>
     <div class="nav-item" data-page="calendar"><span class="nav-icon">📅</span>Calendar</div>
     <div class="nav-item" data-page="inventory"><span class="nav-icon">📦</span>Inventory</div>
     <div class="nav-item" data-page="scanner"><span class="nav-icon">📷</span>Scanner</div>
@@ -3977,6 +3978,32 @@ table{font-size:12.5px}
 </div>
 
 <!-- SETTINGS -->
+<!-- AUDIT LOG PAGE -->
+<div class="page" id="page-auditlog">
+  <div class="page-header">
+    <h2>📋 Audit Log</h2>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="al-filter-type" onchange="renderAuditLog()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+        <option value="">All Events</option>
+        <option value="work_order">Work Orders</option>
+        <option value="time_entry">Time Entries</option>
+        <option value="settings">Settings / Permissions</option>
+        <option value="quote">Quotes</option>
+        <option value="invoice">Invoices</option>
+        <option value="purchase_order">Purchase Orders</option>
+        <option value="inventory">Inventory</option>
+      </select>
+      <select id="al-filter-actor" onchange="renderAuditLog()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+        <option value="">All People</option>
+      </select>
+      <input type="date" id="al-filter-from" onchange="renderAuditLog()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+      <input type="date" id="al-filter-to" onchange="renderAuditLog()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+      <button class="btn btn-outline btn-sm" onclick="renderAuditLog()">↻ Refresh</button>
+    </div>
+  </div>
+  <div id="audit-log-content"></div>
+</div>
+
 <div class="page" id="page-settings">
   <div class="page-header">
     <h2>⚙️ Settings</h2>

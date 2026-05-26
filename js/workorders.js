@@ -370,6 +370,21 @@ function saveWorkOrder() {
   // Urgent notification
   if (priority==='Urgent') _triggerUrgentAlert(data);
 
+  // ---- AUDIT ----
+  if (typeof auditLog === 'function') {
+    if (isNew) {
+      auditLog('wo_created', 'work_order', id, { note: woNum+' — '+custName+' — '+status });
+    } else {
+      var _prevWO = DB.workOrders.find(function(w){ return w.id===id; });
+      var _prevStatus = _prevWO ? _prevWO.status : null;
+      if (_prevStatus && _prevStatus !== status) {
+        auditWOStatus(id, woNum, _prevStatus, status);
+      } else {
+        auditLog('wo_saved', 'work_order', id, { note: woNum+' — '+custName });
+      }
+    }
+  }
+
   // Push to Supabase
   _pushWOToCloud(data);
   saveDB();
@@ -1273,8 +1288,10 @@ function toggleAssignedTech(techName) {
   var idx = wo.assignedTechs.indexOf(techName);
   if (idx >= 0) {
     wo.assignedTechs.splice(idx, 1);
+    if (typeof auditWOTechUnassigned === 'function') auditWOTechUnassigned(wo.id, wo.woNumber||'', techName);
   } else {
     wo.assignedTechs.push(techName);
+    if (typeof auditWOTechAssigned === 'function') auditWOTechAssigned(wo.id, wo.woNumber||'', techName);
   }
   saveDB();
   // Push to Supabase

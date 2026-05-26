@@ -51,7 +51,7 @@ function loadDB() {
     const raw = localStorage.getItem(DB_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1,deletedIds:{quotes:[],team:[],customers:[],contacts:[],jobs:[]},workOrders:[],woLabor:[],woExpenses:[],woParts:[],woChecklist:[],woSettings:null,woSeq:1000,jobPhotos:[],commsLog:[],invoicePayments:[],purchaseOrders:[],vendors:[],poSeq:1000,invLocations:[],invTransfers:[]}, parsed);
+      DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1,deletedIds:{quotes:[],team:[],customers:[],contacts:[],jobs:[]},workOrders:[],woLabor:[],woExpenses:[],woParts:[],woChecklist:[],woSettings:null,woSeq:1000,jobPhotos:[],commsLog:[],invoicePayments:[],purchaseOrders:[],vendors:[],poSeq:1000,invLocations:[],invTransfers:[],auditLog:[]}, parsed);
       // Ensure deletedIds sub-arrays exist even on old saved data
       if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
       if (!DB.deletedIds.quotes)    DB.deletedIds.quotes    = [];
@@ -139,7 +139,7 @@ function fmtSigned(n) { return (n < 0 ? '-' : '') + fmt(n); }
 function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 
 // ---- NAVIGATION ----
-const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner'};
+const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log'};
 
 function goPage(id) {
   // Warn if leaving Quick Quote with unsaved changes — only if QQ page is actually visible
@@ -186,6 +186,7 @@ function goPage(id) {
   if (id==='vendors')    { if (typeof renderVendors === 'function') renderVendors(); }
   if (id==='scanner')    { if (typeof renderScannerPage === 'function') renderScannerPage(); }
   if (id==='dash')       { if (typeof renderDashReorderAlert === 'function') setTimeout(renderDashReorderAlert, 200); }
+  if (id==='auditlog')   { if (typeof renderAuditLog === 'function') setTimeout(renderAuditLog, 100); }
   if (id==='catalog')    { _pumActive=false; renderCatalog(); }
   else if (id==='templates') renderTemplates();
   if (id==='reports')    renderReports();
@@ -800,3 +801,214 @@ function loadMarginFloors() {
   });
 }
 
+
+// ============================================================
+// AUDIT LOG SYSTEM
+// ============================================================
+
+// Central audit function — call this from anywhere
+function auditLog(event, recordType, recordId, details) {
+  if (!_currentUser) return;
+
+  var entry = {
+    id:          'al-' + Date.now() + '-' + Math.random().toString(36).slice(2,5),
+    event:       event,
+    recordType:  recordType,
+    recordId:    recordId || null,
+    actorId:     _currentUser.id,
+    actorName:   _currentUser.full_name || _currentUser.email || 'Unknown',
+    actorRole:   _currentUser.role || 'unknown',
+    oldValue:    details && details.old !== undefined ? JSON.stringify(details.old) : null,
+    newValue:    details && details.new !== undefined ? JSON.stringify(details.new) : null,
+    note:        details && details.note ? details.note : null,
+    ts:          new Date().toISOString(),
+    // Track if this was done in View As mode
+    viewAsMode:  typeof _viewAsActive !== 'undefined' && _viewAsActive,
+    realActorName: typeof _realUser !== 'undefined' && _realUser ? _realUser.full_name : null
+  };
+
+  // Store locally
+  if (!DB.auditLog) DB.auditLog = [];
+  DB.auditLog.push(entry);
+
+  // Keep local log trimmed to last 500 entries (full history in Supabase)
+  if (DB.auditLog.length > 500) DB.auditLog = DB.auditLog.slice(-500);
+
+  // Push to Supabase async — never blocks UI
+  _pushAuditEntry(entry);
+
+  return entry;
+}
+
+async function _pushAuditEntry(entry) {
+  if (!_sb || !_currentUser) return;
+  try {
+    await _sb.from('audit_log').insert({
+      id:           entry.id,
+      event:        entry.event,
+      record_type:  entry.recordType,
+      record_id:    entry.recordId,
+      actor_id:     entry.actorId,
+      actor_name:   entry.actorName,
+      actor_role:   entry.actorRole,
+      old_value:    entry.oldValue,
+      new_value:    entry.newValue,
+      note:         entry.note,
+      view_as_mode: entry.viewAsMode,
+      real_actor:   entry.realActorName,
+      created_at:   entry.ts
+    });
+  } catch(e) {
+    // Fail silently — audit log should never break the app
+    console.warn('[Audit]', e.message);
+  }
+}
+
+// Convenience wrappers for common events
+function auditWOStatus(woId, woNumber, oldStatus, newStatus) {
+  auditLog('wo_status_changed', 'work_order', woId, {
+    old: oldStatus, new: newStatus,
+    note: woNumber + ': ' + oldStatus + ' → ' + newStatus
+  });
+}
+
+function auditWOTechAssigned(woId, woNumber, techName) {
+  auditLog('wo_tech_assigned', 'work_order', woId, {
+    new: techName,
+    note: woNumber + ': assigned ' + techName
+  });
+}
+
+function auditWOTechUnassigned(woId, woNumber, techName) {
+  auditLog('wo_tech_unassigned', 'work_order', woId, {
+    old: techName,
+    note: woNumber + ': unassigned ' + techName
+  });
+}
+
+function auditTimeEntry(action, entryId, techName, details) {
+  auditLog('time_entry_' + action, 'time_entry', entryId, {
+    note: techName + ': ' + (details||'')
+  });
+}
+
+function auditPermChange(roleId, permKey, oldVal, newVal) {
+  auditLog('role_permission_changed', 'settings', roleId, {
+    old: oldVal, new: newVal,
+    note: roleId + ' — ' + permKey + ': ' + (oldVal?'ON':'OFF') + ' → ' + (newVal?'ON':'OFF')
+  });
+}
+
+// ============================================================
+// AUDIT LOG RENDER
+// ============================================================
+
+function renderAuditLog() {
+  var el = document.getElementById('audit-log-content');
+  if (!el) return;
+
+  var myRole = _currentUser ? _currentUser.role : '';
+  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager';
+  if (!isAdmin) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:#90a4ae">Access restricted to owner and office.</div>';
+    return;
+  }
+
+  // Filters
+  var filterType  = (document.getElementById('al-filter-type')||{}).value  || '';
+  var filterActor = (document.getElementById('al-filter-actor')||{}).value || '';
+  var filterFrom  = (document.getElementById('al-filter-from')||{}).value  || '';
+  var filterTo    = (document.getElementById('al-filter-to')||{}).value    || '';
+
+  // Populate actor filter
+  var actorSel = document.getElementById('al-filter-actor');
+  if (actorSel && actorSel.options.length <= 1) {
+    var actors = [...new Set((DB.auditLog||[]).map(function(e){ return e.actorName; }))].sort();
+    actors.forEach(function(a){
+      var o = document.createElement('option'); o.value=a; o.textContent=a; actorSel.appendChild(o);
+    });
+  }
+
+  // Set default date range to last 7 days
+  var fromEl = document.getElementById('al-filter-from');
+  var toEl   = document.getElementById('al-filter-to');
+  if (fromEl && !fromEl.value) {
+    var d = new Date(); d.setDate(d.getDate()-7);
+    fromEl.value = d.toISOString().split('T')[0];
+  }
+  if (toEl && !toEl.value) {
+    toEl.value = new Date().toISOString().split('T')[0];
+  }
+  filterFrom = (document.getElementById('al-filter-from')||{}).value || '';
+  filterTo   = (document.getElementById('al-filter-to')||{}).value   || '';
+
+  var entries = (DB.auditLog||[]).filter(function(e){
+    if (filterType  && e.recordType !== filterType)  return false;
+    if (filterActor && e.actorName  !== filterActor) return false;
+    if (filterFrom  && e.ts.split('T')[0] < filterFrom) return false;
+    if (filterTo    && e.ts.split('T')[0] > filterTo)   return false;
+    return true;
+  }).sort(function(a,b){ return b.ts.localeCompare(a.ts); }); // newest first
+
+  if (!entries.length) {
+    el.innerHTML = '<div class="card" style="text-align:center;padding:40px;color:#90a4ae">No audit entries for the selected filters.</div>';
+    return;
+  }
+
+  var typeColors = {
+    work_order:'#e3f2fd', time_entry:'#e8f5e9', settings:'#f3e5f5',
+    quote:'#fff3e0', invoice:'#fce4ec', purchase_order:'#fff8e1', inventory:'#e0f2f1'
+  };
+  var typeIcons = {
+    work_order:'🔨', time_entry:'⏱', settings:'⚙️',
+    quote:'💰', invoice:'📄', purchase_order:'📦', inventory:'🏪'
+  };
+
+  var html = '<div class="card" style="padding:0;overflow:hidden">'+
+    '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    '<thead><tr style="background:#f0f4f8">'+
+      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">When</th>'+
+      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Who</th>'+
+      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">What</th>'+
+      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Record</th>'+
+      '<th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Detail</th>'+
+    '</tr></thead><tbody>';
+
+  entries.forEach(function(e) {
+    var ts   = new Date(e.ts);
+    var when = ts.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' ' +
+               ts.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+    var bg   = typeColors[e.recordType] || '#f8f9fa';
+    var icon = typeIcons[e.recordType]  || '•';
+    var eventLabel = (e.event||'').replace(/_/g,' ');
+    var detail = '';
+    if (e.oldValue && e.newValue) detail = e.oldValue + ' → ' + e.newValue;
+    else if (e.newValue) detail = e.newValue;
+    else if (e.oldValue) detail = e.oldValue;
+    if (e.note) detail = e.note;
+
+    html += '<tr style="border-bottom:1px solid #f0f4f8">'+
+      '<td style="padding:10px 14px;font-size:11px;color:#546e7a;white-space:nowrap">'+escHtml(when)+'</td>'+
+      '<td style="padding:10px 14px">'+
+        '<div style="font-weight:600;font-size:12px">'+escHtml(e.actorName||'')+'</div>'+
+        '<div style="font-size:10px;color:#90a4ae">'+escHtml(e.actorRole||'')+'</div>'+
+        (e.viewAsMode?'<div style="font-size:9px;color:#e65100;font-weight:700">VIEW AS MODE</div>':'')+
+      '</td>'+
+      '<td style="padding:10px 14px">'+
+        '<span style="background:'+bg+';padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700">'+
+          icon+' '+escHtml(eventLabel)+
+        '</span>'+
+      '</td>'+
+      '<td style="padding:10px 14px;font-size:12px;color:#546e7a">'+escHtml(e.recordId||'')+'</td>'+
+      '<td style="padding:10px 14px;font-size:12px;color:#37474f;max-width:300px">'+escHtml(detail||'')+'</td>'+
+    '</tr>';
+  });
+
+  html += '</tbody></table>'+
+    '<div style="padding:10px 14px;font-size:11px;color:#90a4ae;border-top:1px solid #f0f4f8">'+
+      entries.length+' entries shown · Full history in Supabase'+
+    '</div>'+
+  '</div>';
+
+  el.innerHTML = html;
+}
