@@ -881,6 +881,8 @@ var PERM_DEFS = [
   {key:'settings.margin', label:'Set Margin Floors',           group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'settings.catalog',label:'Edit Price Catalog',          group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'settings.company',label:'Company Settings',            group:'Settings',       fixed:true,  defaults:{owner:1,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'docs.view',   label:'View WO Documents',   group:'Documents', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,project_manager:1,helper_tech:0,subcontractor:0}},
+  {key:'docs.upload', label:'Upload WO Documents', group:'Documents', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,project_manager:1,helper_tech:0,subcontractor:0}},
 ];
 
 function getPermMatrix() {

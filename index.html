@@ -4811,6 +4811,19 @@ table{font-size:12.5px}
             <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Internal Notes <span style="color:#e65100;font-size:10px">(Office Only)</span></label>
             <textarea id="wo-internal-notes" rows="3" placeholder="Back office notes — not shown to field techs..." style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;resize:vertical"></textarea>
           </div>
+          <!-- Quick Stats: Expenses + Documents -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px">
+            <div id="wo-expense-summary" style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:8px 12px;cursor:pointer" onclick="switchWOTab('expenses')" title="Click to view expenses">
+              <div style="font-size:10px;font-weight:700;color:#e65100;text-transform:uppercase;margin-bottom:2px">💸 Expenses</div>
+              <div id="wo-expense-total" style="font-size:16px;font-weight:700;color:#bf360c">$0.00</div>
+              <div id="wo-expense-count" style="font-size:10px;color:#e65100">0 entries</div>
+            </div>
+            <div id="wo-docs-summary" style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:8px 12px;cursor:pointer" onclick="switchWOTab('photos')" title="Click to view documents">
+              <div style="font-size:10px;font-weight:700;color:#2e7d32;text-transform:uppercase;margin-bottom:2px">📎 Documents</div>
+              <div id="wo-docs-count" style="font-size:16px;font-weight:700;color:#1b5e20">0</div>
+              <div style="font-size:10px;color:#2e7d32">files attached</div>
+            </div>
+          </div>
         </div>
       </div>
       <!-- Tabs -->

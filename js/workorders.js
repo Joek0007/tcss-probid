@@ -525,7 +525,7 @@ function switchWOTab(tab) {
   if (tab==='parts')     content.innerHTML = renderWOPartsTab(id);
   if (tab==='checklist') content.innerHTML = renderWOChecklistTab(id);
   if (tab==='comments')  content.innerHTML = (typeof renderCommsLog==='function') ? '<div style="margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="openCommsModal(\'\',\''+id+'\')">+ Log Communication</button></div>' + renderCommsLog(null, id) : '';
-  if (tab==='photos')    { content.innerHTML = '<div id="wo-photos-inner-'+id+'"></div>'; if(typeof renderJobPhotosSection==='function') renderJobPhotosSection(id); }
+  if (tab==='photos')    { content.innerHTML = renderWODocsTab(id); }
 }
 
 // ---- LABOR TAB ----
@@ -785,6 +785,11 @@ function renderWOExpensesTab(woId) {
         '<input id="woe-date" type="date" value="'+getTodayISO()+'" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
       '<div><button class="btn btn-primary btn-sm" style="margin-top:18px" onclick="addWOExpense()">Add</button></div>'+
     '</div>'+
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">'+
+      '<label style="font-size:11px;font-weight:700;color:#546e7a;flex-shrink:0">📎 Receipt:</label>'+
+      '<input type="file" id="woe-receipt" accept="image/*,application/pdf" capture style="flex:1;font-size:12px">'+
+      '<span style="font-size:10px;color:#90a4ae">Photo or PDF</span>'+
+    '</div>'+
   '</div>';
 
   if (!entries.length) return html+'<div style="color:#90a4ae;font-size:13px">No expenses logged yet.</div>';
@@ -793,9 +798,10 @@ function renderWOExpensesTab(woId) {
     return '<div style="display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid #f0f4f8">'+
       '<div style="flex:1">'+
         '<div style="font-weight:600;font-size:13px">'+escHtml(e.category||'')+'</div>'+
-        '<div style="font-size:11px;color:#546e7a">'+escHtml(e.description||'')+' · '+escHtml(e.paymentType||'')+' · '+escHtml(e.date||'')+'</div>'+
+        '<div style="font-size:11px;color:#546e7a">'+escHtml(e.description||'')+' · '+escHtml(e.paymentType||'')+' · '+escHtml(e.date||'')+' · '+escHtml(e.loggedBy||'')+'</div>'+
+        (e.receiptUrl?'<a href="'+escHtml(e.receiptUrl)+'" target="_blank" style="font-size:11px;color:#1565c0;font-weight:600">📎 View Receipt</a>':'')+
       '</div>'+
-      '<div style="font-weight:700;color:#1565c0">$'+parseFloat(e.amount||0).toFixed(2)+'</div>'+
+      '<div style="font-weight:700;color:#1565c0;min-width:60px;text-align:right">$'+parseFloat(e.amount||0).toFixed(2)+'</div>'+
       '<button class="btn btn-danger btn-sm" onclick="deleteWOExpense(\''+e.id+'\')">✕</button>'+
     '</div>';
   }).join('');
@@ -807,7 +813,7 @@ function addWOExpense() {
   var amt=parseFloat((document.getElementById('woe-amt')||{}).value)||0;
   if(!amt){showToast('Enter an amount','error');return;}
   if(!DB.woExpenses) DB.woExpenses=[];
-  DB.woExpenses.push({
+  var expEntry = {
     id:'woe-'+Date.now(), woId:woId,
     category:(document.getElementById('woe-cat')||{}).value||'',
     description:(document.getElementById('woe-desc')||{}).value||'',
@@ -815,9 +821,26 @@ function addWOExpense() {
     paymentType:(document.getElementById('woe-pay')||{}).value||'',
     date:(document.getElementById('woe-date')||{}).value||getTodayISO(),
     loggedBy:(_currentUser&&_currentUser.full_name)||'Unknown',
-    createdAt:new Date().toISOString()
-  });
-  saveDB(); switchWOTab('expenses');
+    createdAt:new Date().toISOString(),
+    receiptUrl:null
+  };
+  DB.woExpenses.push(expEntry);
+  saveDB();
+  // Upload receipt if attached
+  var receiptFile = document.getElementById('woe-receipt');
+  if (receiptFile && receiptFile.files && receiptFile.files[0]) {
+    uploadWODocument(receiptFile.files[0], woId, 'Receipt: '+expEntry.category+' $'+amt.toFixed(2)).then(function(doc){
+      if (doc) {
+        expEntry.receiptUrl = doc.url;
+        expEntry.receiptDocId = doc.id;
+        saveDB();
+        refreshWOQuickStats(woId);
+      }
+    });
+    receiptFile.value = '';
+  }
+  switchWOTab('expenses');
+  refreshWOQuickStats(woId);
   showToast('Expense added','success');
 }
 
@@ -1262,16 +1285,24 @@ function renderAssignedTechs(woId) {
   var labor    = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
   var teEntries= (DB.timeEntries||[]).filter(function(e){ return !e.deleted&&e.woId===woId; });
 
+  var grandHrs = 0;
+  var rows = assigned.map(function(name, i) {
+    var hrs = 0;
+    labor.filter(function(l){return l.techName===name;}).forEach(function(l){hrs+=parseFloat(l.hours)||0;});
+    teEntries.filter(function(e){return e.techName===name&&e.entryType!=='lunch';}).forEach(function(e){hrs+=parseFloat(e.totalHours)||0;});
+    grandHrs += hrs;
+    return '<tr style="background:'+(i%2===0?'#e8edf4':'#f5f7fa')+';border-bottom:1px solid #d0d9e8">' +
+      '<td style="padding:5px 8px;font-size:12px;font-weight:700;color:#1a2840">'+escHtml(name)+'</td>' +
+      '<td style="padding:5px 8px;font-size:12px;font-weight:700;text-align:right;color:'+(hrs>0?'#0d47a1':'#78909c')+'">'+hrs.toFixed(1)+' hrs</td>' +
+    '</tr>';
+  }).join('');
+
   el.innerHTML = '<table style="width:100%;border-collapse:collapse;border-radius:6px;overflow:hidden">' +
-    assigned.map(function(name, i) {
-      var hrs = 0;
-      labor.filter(function(l){return l.techName===name;}).forEach(function(l){hrs+=parseFloat(l.hours)||0;});
-      teEntries.filter(function(e){return e.techName===name&&e.entryType!=='lunch';}).forEach(function(e){hrs+=parseFloat(e.totalHours)||0;});
-      return '<tr style="background:'+(i%2===0?'#e8edf4':'#f5f7fa')+';border-bottom:1px solid #d0d9e8">' +
-        '<td style="padding:5px 8px;font-size:12px;font-weight:700;color:#1a2840">'+escHtml(name)+'</td>' +
-        '<td style="padding:5px 8px;font-size:12px;font-weight:700;text-align:right;color:'+(hrs>0?'#0d47a1':'#78909c')+'">'+hrs.toFixed(1)+' hrs</td>' +
-      '</tr>';
-    }).join('') +
+    rows +
+    '<tr style="background:#1565c0;color:#fff">' +
+      '<td style="padding:5px 8px;font-size:12px;font-weight:700">Total</td>' +
+      '<td style="padding:5px 8px;font-size:12px;font-weight:700;text-align:right">'+grandHrs.toFixed(1)+' hrs</td>' +
+    '</tr>' +
   '</table>';
 }
 
@@ -1451,8 +1482,12 @@ openWorkOrder = function(woId) {
     return;
   }
   _origOpenWorkOrder(woId);
-  // Render assigned techs after modal renders
-  setTimeout(function(){ renderAssignedTechs(woId); }, 200);
+  // Render assigned techs and quick stats after modal renders
+  setTimeout(function(){
+    renderAssignedTechs(woId);
+    refreshWOQuickStats(woId);
+    _pullWODocuments();
+  }, 200);
 };
 
 // ============================================================
@@ -1475,4 +1510,173 @@ function autoPromoteWOStatus(woId) {
     });
   }
   showToast('WO status updated: NEW → OPEN','info',2000);
+}
+
+// ============================================================
+// WO QUICK STATS — expense total + document count on main form
+// ============================================================
+
+function refreshWOQuickStats(woId) {
+  if (!woId) return;
+  // Expenses
+  var expenses = (DB.woExpenses||[]).filter(function(e){ return e.woId===woId; });
+  var total = expenses.reduce(function(s,e){ return s+parseFloat(e.amount||0); },0);
+  var totEl   = document.getElementById('wo-expense-total');
+  var cntEl   = document.getElementById('wo-expense-count');
+  if (totEl) totEl.textContent = '$'+total.toFixed(2);
+  if (cntEl) cntEl.textContent = expenses.length+' entr'+(expenses.length!==1?'ies':'y');
+
+  // Documents
+  var docs = (DB.woDocuments||[]).filter(function(d){ return d.woId===woId && !d.deleted; });
+  var docEl = document.getElementById('wo-docs-count');
+  if (docEl) docEl.textContent = docs.length;
+}
+
+// ============================================================
+// DOCUMENTS / FILE ATTACHMENTS
+// ============================================================
+
+async function uploadWODocument(file, woId, label) {
+  if (!file || !woId) return null;
+  if (!_sb || !_currentUser) { showToast('Not logged in','error'); return null; }
+
+  var ext  = file.name.split('.').pop().toLowerCase();
+  var safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  var path = 'wo-docs/'+woId+'/'+Date.now()+'-'+safe;
+
+  try {
+    var { error: upErr } = await _sb.storage.from('job-photos').upload(path, file, { cacheControl:'3600', upsert:false });
+    if (upErr) throw upErr;
+    var { data: urlData } = _sb.storage.from('job-photos').getPublicUrl(path);
+    var url = urlData.publicUrl;
+
+    var doc = {
+      id:        'wdoc-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),
+      woId:      woId,
+      name:      label || file.name,
+      fileName:  file.name,
+      fileType:  file.type || 'application/octet-stream',
+      fileSize:  file.size,
+      path:      path,
+      url:       url,
+      uploadedBy:_currentUser.full_name,
+      uploadedAt:new Date().toISOString(),
+      deleted:   false
+    };
+    if (!DB.woDocuments) DB.woDocuments = [];
+    DB.woDocuments.push(doc);
+
+    // Push to Supabase
+    await _sb.from('wo_documents').insert({
+      id: doc.id, wo_id: woId, name: doc.name, file_name: doc.fileName,
+      file_type: doc.fileType, file_size: doc.fileSize, file_path: path,
+      url: url, uploaded_by: _currentUser.full_name, uploaded_at: doc.uploadedAt
+    });
+
+    saveDB();
+    auditLog('doc_uploaded','work_order',woId,{note:doc.name+' uploaded by '+_currentUser.full_name});
+    return doc;
+  } catch(e) {
+    console.error('[Doc upload]', e.message);
+    showToast('Upload failed: '+e.message,'error');
+    return null;
+  }
+}
+
+function renderWODocsTab(woId) {
+  var docs = (DB.woDocuments||[]).filter(function(d){ return d.woId===woId && !d.deleted; });
+  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
+
+  var html =
+    '<div style="margin-bottom:16px">'+
+    '<div style="background:#f0f4f8;border-radius:8px;padding:14px;margin-bottom:12px">'+
+      '<div style="font-weight:700;font-size:13px;margin-bottom:10px">📎 Upload Document or Photo</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">'+
+        '<div style="flex:1;min-width:180px">'+
+          '<label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Label (optional)</label>'+
+          '<input id="wdoc-label" placeholder="e.g. Site Survey, Receipt, Manual..." style="width:100%;padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box">'+
+        '</div>'+
+        '<div>'+
+          '<label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">File</label>'+
+          '<input type="file" id="wdoc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt" capture style="font-size:12px">'+
+        '</div>'+
+        '<button class="btn btn-primary btn-sm" onclick="submitWODoc()" style="padding:8px 14px">⬆ Upload</button>'+
+      '</div>'+
+      '<div style="font-size:11px;color:#90a4ae;margin-top:6px">On mobile — tap File to take a photo or choose from your gallery. Accepts photos, PDF, Word, Excel.</div>'+
+    '</div>'+
+    (docs.length ? '' : '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No documents attached yet.</div>');
+
+  if (docs.length) {
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">' +
+      docs.sort(function(a,b){ return (b.uploadedAt||'').localeCompare(a.uploadedAt||''); }).map(function(d) {
+        var isImg = (d.fileType||'').startsWith('image/');
+        var icon  = isImg ? '🖼' : (d.fileType==='application/pdf'?'📄':'📎');
+        var kb    = d.fileSize ? (d.fileSize/1024).toFixed(0)+'KB' : '';
+        return '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">'+
+          (isImg && d.url ?
+            '<img src="'+escHtml(d.url)+'" style="width:100%;height:120px;object-fit:cover;display:block">' :
+            '<div style="height:80px;background:#f0f4f8;display:flex;align-items:center;justify-content:center;font-size:32px">'+icon+'</div>'
+          )+
+          '<div style="padding:8px 10px">'+
+            '<div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(d.name)+'">'+escHtml(d.name)+'</div>'+
+            '<div style="font-size:10px;color:#90a4ae;margin-bottom:6px">'+escHtml(d.uploadedBy||'')+' · '+escHtml(kb)+'</div>'+
+            '<div style="display:flex;gap:6px">'+
+              '<a href="'+escHtml(d.url)+'" target="_blank" download style="flex:1;text-align:center;padding:4px;background:#1565c0;color:#fff;border-radius:4px;font-size:11px;font-weight:700;text-decoration:none">⬇ Download</a>'+
+              (isAdmin?'<button onclick="deleteWODoc(\''+d.id+'\')" style="padding:4px 8px;background:#ffebee;color:#c62828;border:none;border-radius:4px;font-size:11px;cursor:pointer">✕</button>':'')+
+            '</div>'+
+          '</div>'+
+        '</div>';
+      }).join('') +
+    '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+async function submitWODoc() {
+  var woId  = _woCurrentId;
+  if (!woId) { showToast('Save the work order first','error'); return; }
+  var fileEl = document.getElementById('wdoc-file');
+  var label  = ((document.getElementById('wdoc-label')||{}).value||'').trim();
+  if (!fileEl || !fileEl.files || !fileEl.files[0]) { showToast('Select a file first','error'); return; }
+  var file = fileEl.files[0];
+  showToast('Uploading...','info',10000);
+  var doc = await uploadWODocument(file, woId, label||file.name);
+  if (doc) {
+    showToast('Uploaded ✓','success');
+    fileEl.value = '';
+    var labelEl = document.getElementById('wdoc-label');
+    if (labelEl) labelEl.value = '';
+    switchWOTab('photos');
+    refreshWOQuickStats(woId);
+  }
+}
+
+function deleteWODoc(docId) {
+  if (!confirm('Remove this document?')) return;
+  var doc = (DB.woDocuments||[]).find(function(d){ return d.id===docId; });
+  if (doc) {
+    doc.deleted = true;
+    saveDB();
+    if (_sb) _sb.from('wo_documents').update({deleted:true}).eq('id',docId).then(function(){});
+    switchWOTab('photos');
+    refreshWOQuickStats(_woCurrentId);
+    showToast('Document removed','info');
+  }
+}
+
+// Pull WO documents from Supabase on sync
+async function _pullWODocuments() {
+  if (!_sb || !_currentUser) return;
+  try {
+    var { data: rows, error: e } = await _sb.from('wo_documents').select('*').eq('deleted',false).order('uploaded_at',{ascending:false});
+    if (e) { console.warn('[WO Docs pull]', e.message); return; }
+    if (rows) {
+      DB.woDocuments = rows.map(function(d){
+        return { id:d.id, woId:d.wo_id, name:d.name, fileName:d.file_name, fileType:d.file_type, fileSize:d.file_size, path:d.file_path, url:d.url, uploadedBy:d.uploaded_by, uploadedAt:d.uploaded_at, deleted:false };
+      });
+      saveDB();
+    }
+  } catch(e) { console.warn('[WO Docs pull]', e.message); }
 }
