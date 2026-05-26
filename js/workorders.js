@@ -211,7 +211,6 @@ function openWorkOrder(id) {
 
   _populateWOStatusSelect();
   _populateWOServiceTypeSelect();
-  _populateWORepSelect(wo.serviceRep);
 
   function sv(id,val){ var el=document.getElementById(id); if(el) el.value=val||''; }
   sv('wo-status',         wo.status||'New');
@@ -341,7 +340,6 @@ function saveWorkOrder() {
     status:       status,
     priority:     priority,
     serviceType:  gv('wo-service-type'),
-    serviceRep:   gv('wo-service-rep'),
     refNum:       gv('wo-ref-num'),
     siteAddr:     gv('wo-site-addr'),
     siteCity:     gv('wo-site-city'),
@@ -1264,14 +1262,14 @@ function renderAssignedTechs(woId) {
   var labor    = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
   var teEntries= (DB.timeEntries||[]).filter(function(e){ return !e.deleted&&e.woId===woId; });
 
-  el.innerHTML = '<table style="width:100%;border-collapse:collapse">' +
+  el.innerHTML = '<table style="width:100%;border-collapse:collapse;border-radius:6px;overflow:hidden">' +
     assigned.map(function(name, i) {
       var hrs = 0;
       labor.filter(function(l){return l.techName===name;}).forEach(function(l){hrs+=parseFloat(l.hours)||0;});
       teEntries.filter(function(e){return e.techName===name&&e.entryType!=='lunch';}).forEach(function(e){hrs+=parseFloat(e.totalHours)||0;});
-      return '<tr style="background:'+(i%2===0?'#f8f9fa':'#fff')+'">' +
-        '<td style="padding:4px 6px;font-size:12px;font-weight:600">'+escHtml(name)+'</td>' +
-        '<td style="padding:4px 6px;font-size:11px;text-align:right;color:'+(hrs>0?'#1565c0':'#90a4ae')+'">'+hrs.toFixed(1)+' hrs</td>' +
+      return '<tr style="background:'+(i%2===0?'#e8edf4':'#f5f7fa')+';border-bottom:1px solid #d0d9e8">' +
+        '<td style="padding:5px 8px;font-size:12px;font-weight:700;color:#1a2840">'+escHtml(name)+'</td>' +
+        '<td style="padding:5px 8px;font-size:12px;font-weight:700;text-align:right;color:'+(hrs>0?'#0d47a1':'#78909c')+'">'+hrs.toFixed(1)+' hrs</td>' +
       '</tr>';
     }).join('') +
   '</table>';
