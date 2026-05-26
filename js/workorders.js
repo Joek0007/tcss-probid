@@ -213,7 +213,12 @@ function openWorkOrder(id) {
   _populateWOServiceTypeSelect();
 
   function sv(id,val){ var el=document.getElementById(id); if(el) el.value=val||''; }
-  sv('wo-status',         wo.status||'New');
+  // Set status — fall back to NEW if stored value not in current list
+  var statusSel = document.getElementById('wo-status');
+  if (statusSel) {
+    statusSel.value = wo.status || 'NEW';
+    if (!statusSel.value || statusSel.selectedIndex < 0) statusSel.value = 'NEW';
+  }
   sv('wo-priority',       wo.priority||'Normal');
   sv('wo-service-type',   wo.serviceType||'');
   sv('wo-customer-name',  wo.customerName||'');
@@ -308,6 +313,8 @@ function saveWorkOrder() {
   var isNew = !_woCurrentId;
   var id    = _woCurrentId || ('wo-'+Date.now());
   var today = getTodayISO();
+  // Capture existing record BEFORE building data — preserves fields not on the form
+  var _existingWO = DB.workOrders.find(function(w){ return w.id===id; }) || {};
 
   function gv(eid){ var el=document.getElementById(eid); return el?el.value.trim():''; }
 
@@ -352,11 +359,11 @@ function saveWorkOrder() {
     laborRate:    parseFloat(gv('wo-labor-rate'))||125,
     taxRate:      parseFloat(gv('wo-tax-rate'))||0,
     internalNotes:(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?gv('wo-internal-notes'):'',
-    createdAt:    isNew ? new Date().toISOString() : ((DB.workOrders.find(function(w){return w.id===id;})||{}).createdAt||new Date().toISOString()),
+    createdAt:    isNew ? new Date().toISOString() : (_existingWO.createdAt||new Date().toISOString()),
     updatedAt:    new Date().toISOString(),
-    createdBy:    isNew ? ((_currentUser&&_currentUser.id)||null) : ((DB.workOrders.find(function(w){return w.id===id;})||{}).createdBy||null),
-    createdByName:isNew ? ((_currentUser&&_currentUser.full_name)||'Unknown') : ((DB.workOrders.find(function(w){return w.id===id;})||{}).createdByName||'Unknown'),
-    assignedTechs:isNew ? [] : ((DB.workOrders.find(function(w){return w.id===id;})||{}).assignedTechs||[])
+    createdBy:    isNew ? ((_currentUser&&_currentUser.id)||null) : (_existingWO.createdBy||null),
+    createdByName:isNew ? ((_currentUser&&_currentUser.full_name)||'Unknown') : (_existingWO.createdByName||'Unknown'),
+    assignedTechs:isNew ? [] : (_existingWO.assignedTechs||[])
   };
 
   if (isNew) {
@@ -1300,9 +1307,9 @@ function renderAssignedTechs(woId) {
 
   el.innerHTML = '<table style="width:100%;border-collapse:collapse;border-radius:6px;overflow:hidden">' +
     rows +
-    '<tr style="background:#1565c0;color:#fff">' +
-      '<td style="padding:5px 8px;font-size:12px;font-weight:700">Total</td>' +
-      '<td style="padding:5px 8px;font-size:12px;font-weight:700;text-align:right">'+grandHrs.toFixed(1)+' hrs</td>' +
+    '<tr style="background:#e3f2fd;border-top:2px solid #90caf9">' +
+      '<td style="padding:5px 8px;font-size:12px;font-weight:700;color:#1a237e">Total</td>' +
+      '<td style="padding:5px 8px;font-size:12px;font-weight:700;text-align:right;color:#1a237e">'+grandHrs.toFixed(1)+' hrs</td>' +
     '</tr>' +
   '</table>';
 }
