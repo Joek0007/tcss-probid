@@ -793,10 +793,19 @@ function renderWOExpensesTab(woId) {
         '<input id="woe-date" type="date" value="'+getTodayISO()+'" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
       '<div><button class="btn btn-primary btn-sm" style="margin-top:18px" onclick="addWOExpense()">Add</button></div>'+
     '</div>'+
-    '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">'+
-      '<label style="font-size:11px;font-weight:700;color:#546e7a;flex-shrink:0">📎 Receipt:</label>'+
-      '<input type="file" id="woe-receipt" accept="image/*,application/pdf" capture style="flex:1;font-size:12px">'+
-      '<span style="font-size:10px;color:#90a4ae">Photo or PDF</span>'+
+    '<div style="margin-top:10px;padding:10px;background:#fff;border:1px solid #e0e7ef;border-radius:6px">'+
+      '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:6px">📎 Attach Receipt (optional)</div>'+
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+        '<label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;color:#1565c0">'+
+          '📷 Take Photo'+
+          '<input type="file" id="woe-receipt-cam" accept="image/*" capture="environment" style="display:none" onchange="woeReceiptSelected(this)">'+
+        '</label>'+
+        '<label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;color:#6a1b9a">'+
+          '📁 Choose File'+
+          '<input type="file" id="woe-receipt-file" accept="image/*,application/pdf" style="display:none" onchange="woeReceiptSelected(this)">'+
+        '</label>'+
+        '<span id="woe-receipt-name" style="font-size:11px;color:#2e7d32;font-style:italic"></span>'+
+      '</div>'+
     '</div>'+
   '</div>';
 
@@ -835,9 +844,13 @@ function addWOExpense() {
   DB.woExpenses.push(expEntry);
   saveDB();
   // Upload receipt if attached
-  var receiptFile = document.getElementById('woe-receipt');
-  if (receiptFile && receiptFile.files && receiptFile.files[0]) {
-    uploadWODocument(receiptFile.files[0], woId, 'Receipt: '+expEntry.category+' $'+amt.toFixed(2)).then(function(doc){
+  // Check both camera and file inputs for receipt
+  var receiptCam  = document.getElementById('woe-receipt-cam');
+  var receiptFile = document.getElementById('woe-receipt-file');
+  var receiptF = (receiptCam&&receiptCam.files&&receiptCam.files[0]) ? receiptCam :
+                 (receiptFile&&receiptFile.files&&receiptFile.files[0]) ? receiptFile : null;
+  if (receiptF && receiptF.files && receiptF.files[0]) {
+    uploadWODocument(receiptF.files[0], woId, 'Receipt: '+expEntry.category+' $'+amt.toFixed(2)).then(function(doc){
       if (doc) {
         expEntry.receiptUrl = doc.url;
         expEntry.receiptDocId = doc.id;
@@ -845,7 +858,9 @@ function addWOExpense() {
         refreshWOQuickStats(woId);
       }
     });
-    receiptFile.value = '';
+    receiptF.value = '';
+    var nameEl = document.getElementById('woe-receipt-name');
+    if (nameEl) nameEl.textContent = '';
   }
   switchWOTab('expenses');
   refreshWOQuickStats(woId);
@@ -1604,11 +1619,18 @@ function renderWODocsTab(woId) {
           '<label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Label (optional)</label>'+
           '<input id="wdoc-label" placeholder="e.g. Site Survey, Receipt, Manual..." style="width:100%;padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box">'+
         '</div>'+
-        '<div>'+
-          '<label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">File</label>'+
-          '<input type="file" id="wdoc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt" capture style="font-size:12px">'+
+        '<div style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap">'+
+          '<label style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;color:#1565c0">'+
+            '📷 Camera'+
+            '<input type="file" id="wdoc-cam" accept="image/*" capture="environment" style="display:none" onchange="wdocFileSelected(this)">'+
+          '</label>'+
+          '<label style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;color:#6a1b9a">'+
+            '📁 Browse Files'+
+            '<input type="file" id="wdoc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt" style="display:none" onchange="wdocFileSelected(this)">'+
+          '</label>'+
+          '<span id="wdoc-selected-name" style="font-size:11px;color:#2e7d32;font-style:italic;align-self:center"></span>'+
         '</div>'+
-        '<button class="btn btn-primary btn-sm" onclick="submitWODoc()" style="padding:8px 14px">⬆ Upload</button>'+
+        '<button class="btn btn-primary btn-sm" onclick="submitWODoc()" style="padding:7px 14px">⬆ Upload</button>'+
       '</div>'+
       '<div style="font-size:11px;color:#90a4ae;margin-top:6px">On mobile — tap File to take a photo or choose from your gallery. Accepts photos, PDF, Word, Excel.</div>'+
     '</div>'+
@@ -1645,17 +1667,23 @@ function renderWODocsTab(woId) {
 async function submitWODoc() {
   var woId  = _woCurrentId;
   if (!woId) { showToast('Save the work order first','error'); return; }
-  var fileEl = document.getElementById('wdoc-file');
+  var fileCam  = document.getElementById('wdoc-cam');
+  var fileEl   = document.getElementById('wdoc-file');
+  var fileEl2  = (fileCam&&fileCam.files&&fileCam.files[0]) ? fileCam :
+                 (fileEl&&fileEl.files&&fileEl.files[0]) ? fileEl : null;
   var label  = ((document.getElementById('wdoc-label')||{}).value||'').trim();
-  if (!fileEl || !fileEl.files || !fileEl.files[0]) { showToast('Select a file first','error'); return; }
-  var file = fileEl.files[0];
+  if (!fileEl2 || !fileEl2.files || !fileEl2.files[0]) { showToast('Select a file first','error'); return; }
+  var file = fileEl2.files[0];
   showToast('Uploading...','info',10000);
   var doc = await uploadWODocument(file, woId, label||file.name);
   if (doc) {
     showToast('Uploaded ✓','success');
-    fileEl.value = '';
-    var labelEl = document.getElementById('wdoc-label');
+    if (fileCam)  fileCam.value  = '';
+    if (fileEl)   fileEl.value   = '';
+    var labelEl  = document.getElementById('wdoc-label');
+    var nameEl   = document.getElementById('wdoc-selected-name');
     if (labelEl) labelEl.value = '';
+    if (nameEl)  nameEl.textContent = '';
     switchWOTab('photos');
     refreshWOQuickStats(woId);
   }
@@ -1687,4 +1715,27 @@ async function _pullWODocuments() {
       saveDB();
     }
   } catch(e) { console.warn('[WO Docs pull]', e.message); }
+}
+
+// ---- FILE SELECTION DISPLAY HELPERS ----
+function woeReceiptSelected(input) {
+  var nameEl = document.getElementById('woe-receipt-name');
+  if (!nameEl) return;
+  if (input.files && input.files[0]) {
+    nameEl.textContent = '✓ ' + input.files[0].name;
+    // Clear the other input
+    var other = input.id==='woe-receipt-cam' ? document.getElementById('woe-receipt-file') : document.getElementById('woe-receipt-cam');
+    if (other) other.value = '';
+  }
+}
+
+function wdocFileSelected(input) {
+  var nameEl = document.getElementById('wdoc-selected-name');
+  if (!nameEl) return;
+  if (input.files && input.files[0]) {
+    nameEl.textContent = '✓ ' + input.files[0].name;
+    // Clear the other input
+    var other = input.id==='wdoc-cam' ? document.getElementById('wdoc-file') : document.getElementById('wdoc-cam');
+    if (other) other.value = '';
+  }
 }
