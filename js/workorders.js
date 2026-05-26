@@ -1257,25 +1257,24 @@ function renderAssignedTechs(woId) {
   var assigned = (wo && wo.assignedTechs) ? wo.assignedTechs : [];
 
   if (!assigned.length) {
-    el.innerHTML = '<span style="font-size:12px;color:#90a4ae">No techs assigned — click + Team</span>';
+    el.innerHTML = '<span style="font-size:12px;color:#90a4ae;font-style:italic">No techs assigned yet</span>';
     return;
   }
 
-  // Show summary: name + logged hours
-  var labor = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
-  var teEntries = (DB.timeEntries||[]).filter(function(e){ return !e.deleted && e.woId===woId; });
+  var labor    = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
+  var teEntries= (DB.timeEntries||[]).filter(function(e){ return !e.deleted&&e.woId===woId; });
 
-  el.innerHTML = '<div style="display:flex;flex-direction:column;gap:4px">' +
-    assigned.map(function(name) {
+  el.innerHTML = '<table style="width:100%;border-collapse:collapse">' +
+    assigned.map(function(name, i) {
       var hrs = 0;
-      labor.filter(function(l){ return l.techName===name; }).forEach(function(l){ hrs+=parseFloat(l.hours)||0; });
-      teEntries.filter(function(e){ return e.techName===name && e.entryType!=='lunch'; }).forEach(function(e){ hrs+=parseFloat(e.totalHours)||0; });
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid #e8eef4">' +
-        '<span style="font-size:12px;font-weight:600">'+escHtml(name)+'</span>' +
-        '<span style="font-size:11px;color:'+(hrs>0?'#1565c0':'#90a4ae')+'">'+hrs.toFixed(1)+' hrs</span>' +
-      '</div>';
+      labor.filter(function(l){return l.techName===name;}).forEach(function(l){hrs+=parseFloat(l.hours)||0;});
+      teEntries.filter(function(e){return e.techName===name&&e.entryType!=='lunch';}).forEach(function(e){hrs+=parseFloat(e.totalHours)||0;});
+      return '<tr style="background:'+(i%2===0?'#f8f9fa':'#fff')+'">' +
+        '<td style="padding:4px 6px;font-size:12px;font-weight:600">'+escHtml(name)+'</td>' +
+        '<td style="padding:4px 6px;font-size:11px;text-align:right;color:'+(hrs>0?'#1565c0':'#90a4ae')+'">'+hrs.toFixed(1)+' hrs</td>' +
+      '</tr>';
     }).join('') +
-  '</div>';
+  '</table>';
 }
 
 function openTeamModal() {
@@ -1284,8 +1283,9 @@ function openTeamModal() {
   var listEl = document.getElementById('team-modal-list');
   if (!listEl) return;
   var searchEl = document.getElementById('team-modal-search');
+  var filterEl = document.getElementById('team-modal-filter');
   if (searchEl) searchEl.value = '';
-
+  if (filterEl) filterEl.value = 'techs';
   _renderTeamModalList(_assigned, '');
   openModal('modal-wo-team');
 }
@@ -1293,27 +1293,28 @@ function openTeamModal() {
 function _renderTeamModalList(assigned, search) {
   var listEl = document.getElementById('team-modal-list');
   if (!listEl) return;
+  var filterType = (document.getElementById('team-modal-filter')||{}).value || 'techs';
+  var techRoles  = ['field','lead_tech','helper_tech','subcontractor','project_manager'];
   var members = (DB.team||[]).filter(function(m){
-    return m.active!==false &&
-           (!search || (m.name||'').toLowerCase().includes(search.toLowerCase()) ||
-                       (m.email||'').toLowerCase().includes(search.toLowerCase()));
+    if (!m.active && m.active!==undefined) return false;
+    var role = m.access || m.systemRole || m.role || 'field';
+    if (filterType==='techs' && techRoles.indexOf(role)<0) return false;
+    if (search && !(m.name||'').toLowerCase().includes(search.toLowerCase()) &&
+                  !(m.email||'').toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
   }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
 
-  listEl.innerHTML = members.map(function(m) {
+  listEl.innerHTML = members.map(function(m, i) {
     var isChecked = assigned.indexOf(m.name) >= 0;
     var role = m.access || m.systemRole || m.role || 'field';
-    var roleColors = {owner:'#1565c0',manager:'#1565c0',office:'#2e7d32',back_office:'#2e7d32',lead_tech:'#e65100',project_manager:'#6a1b9a',field:'#546e7a',helper_tech:'#90a4ae'};
-    var roleColor = roleColors[role] || '#546e7a';
-    return '<label style="display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;border-bottom:1px solid #f8f9fa;'+(isChecked?'background:#e3f2fd;':'')+'">'+
+    var bg = isChecked ? '#dbeafe' : (i%2===0?'#f8f9fa':'#ffffff');
+    return '<label style="display:flex;align-items:center;gap:10px;padding:6px 14px;cursor:pointer;background:'+bg+';border-bottom:1px solid #f0f0f0">'+
       '<input type="checkbox" data-name="'+escHtml(m.name)+'" '+(isChecked?'checked':'')+
-      ' onchange="_teamModalCheck(this)" style="width:16px;height:16px;cursor:pointer">'+
-      '<div style="flex:1">'+
-        '<div style="font-weight:700;font-size:13px">'+escHtml(m.name||'')+'</div>'+
-        '<div style="font-size:11px;color:'+roleColor+'">'+escHtml(role)+'</div>'+
-      '</div>'+
-      (m.email?'<div style="font-size:11px;color:#90a4ae">'+escHtml(m.email)+'</div>':'')+
+      ' onchange="_teamModalCheck(this)" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">'+
+      '<span style="font-size:13px;font-weight:'+(isChecked?'700':'500')+';flex:1">'+escHtml(m.name||'')+'</span>'+
+      '<span style="font-size:10px;color:#90a4ae">'+escHtml(role)+'</span>'+
     '</label>';
-  }).join('') || '<div style="padding:16px;text-align:center;color:#90a4ae;font-size:13px">No team members found</div>';
+  }).join('') || '<div style="padding:16px;text-align:center;color:#90a4ae;font-size:13px">No members found</div>';
 }
 
 var _assigned = [];

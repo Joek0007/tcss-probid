@@ -4852,7 +4852,12 @@ table{font-size:12.5px}
     </div>
     <div class="modal-body" style="padding:0">
       <div style="padding:10px 16px;border-bottom:1px solid #f0f4f8;display:flex;gap:8px;align-items:center">
-        <input id="team-modal-search" placeholder="Search team members..." oninput="filterTeamModal(this.value)"
+        <select id="team-modal-filter" onchange="filterTeamModal(document.getElementById('team-modal-search').value)"
+          style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+          <option value="techs">Technicians</option>
+          <option value="all">All Employees</option>
+        </select>
+        <input id="team-modal-search" placeholder="Search..." oninput="filterTeamModal(this.value)"
           style="flex:1;padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
         <button class="btn btn-outline btn-sm" onclick="selectAllTeamModal()">All</button>
         <button class="btn btn-ghost btn-sm" onclick="clearAllTeamModal()">None</button>
