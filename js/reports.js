@@ -423,7 +423,7 @@ function renderQuotes() {
     const fuBadge = isFollowupDue(q) ? '<span class="followup-due'+(isFollowupOverdue(q)?' followup-overdue':'')+'" style="margin-left:4px">'+(isFollowupOverdue(q)?'Overdue':'Follow-Up')+'</span>' : '';
     const pr = getQuotePriority(q);
     const prColor = pr.tone==='critical'?'#c62828':pr.tone==='high'?'#e65100':pr.tone==='needswork'?'#e65100':pr.tone==='ready'?'#2e7d32':'#607d8b';
-    const convertBtn = (q.status!=='approved'&&q.status!=='declined') ? ' <button class="btn btn-convert btn-sm" data-action="convertToJob" data-id="'+q.id+'" title="Mark Won &amp; Create Job">▶</button>' : '';
+    var canConvert = q.status!=='approved' && q.status!=='declined';
     return '<tr>'+
       '<td style="font-weight:700;color:#1565c0">'+escHtml(q.num||'')+'</td>'+
       '<td>'+escHtml(q.cn||'')+'</td>'+
@@ -437,9 +437,10 @@ function renderQuotes() {
       '<td style="white-space:nowrap">'+
         '<button class="btn btn-ghost btn-sm" data-action="viewQuote" data-id="'+q.id+'">View</button> '+
         '<button class="btn btn-outline btn-sm" data-action="editQuote" data-id="'+q.id+'">Edit</button> '+
-        '<button class="btn btn-ghost btn-sm" data-action="dupQuote" data-id="'+q.id+'">Dup</button>'+
-        convertBtn+
-        ' <button class="btn btn-success btn-sm" data-action="emailSavedQuote" data-id="'+q.id+'" title="Email to customer">📧</button> '+
+        '<button class="btn btn-ghost btn-sm" data-action="dupQuote" data-id="'+q.id+'">Dup</button> '+
+        '<button class="btn btn-convert btn-sm" '+(canConvert?'data-action="convertToJob" data-id="'+q.id+'"':'disabled')+
+          ' style="'+(canConvert?'':'opacity:.3;cursor:not-allowed;pointer-events:none')+'" title="'+(canConvert?'Mark Won & Create Job':'Already converted')+'">▶</button> '+
+        '<button class="btn btn-success btn-sm" data-action="emailSavedQuote" data-id="'+q.id+'" title="Email to customer">📧</button> '+
         '<button class="btn btn-outline btn-sm" data-action="copyPortalLink" data-id="'+q.id+'" title="Copy client approval link" style="font-size:11px">🔗 Link</button> '+
         '<button class="btn btn-danger btn-sm" data-action="deleteQuote" data-id="'+q.id+'">Del</button>'+
       '</td>'+
