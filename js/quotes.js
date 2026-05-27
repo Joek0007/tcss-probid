@@ -2479,25 +2479,38 @@ function setContSort(val) {
 function newQuoteForContact(contactId) {
   var c = (DB.contacts||[]).find(function(x){ return x.id===contactId; });
   if (!c) return;
+  var cust = c.customerId ? (DB.customers||[]).find(function(x){ return x.id===c.customerId; }) : null;
   goPage('qq');
   setTimeout(function(){
-    var cnEl = document.getElementById('qq-cn');
+    var cnEl  = document.getElementById('qq-cn');
     var cidEl = document.getElementById('qq-customer-id');
     var ctEl  = document.getElementById('qq-contact-name');
     var ctIdEl= document.getElementById('qq-contact-id');
     var ttEl  = document.getElementById('qq-contact-title');
-    if (cnEl)   cnEl.value   = c.company||'';
+    var phEl  = document.getElementById('qq-ph');
+    var emEl  = document.getElementById('qq-em');
+    var adEl  = document.getElementById('qq-ad');
+    var cyEl  = document.getElementById('qq-city');
+    var stEl  = document.getElementById('qq-state');
+    var zpEl  = document.getElementById('qq-zip');
+
+    if (cnEl)   cnEl.value   = (cust ? cust.name : c.company)||'';
     if (cidEl)  cidEl.value  = c.customerId||'';
     if (ctEl)   ctEl.value   = c.name||'';
     if (ctIdEl) ctIdEl.value = c.id||'';
     if (ttEl)   ttEl.value   = c.role||c.title||'';
-    // Also fill phone/email if blank
-    var phEl = document.getElementById('qq-ph');
-    var emEl = document.getElementById('qq-em');
-    if (phEl && !phEl.value && c.phone) phEl.value = c.phone;
-    if (emEl && !emEl.value && c.email) emEl.value = c.email;
+    if (phEl && !phEl.value) phEl.value = c.phone||'';
+    if (emEl && !emEl.value) emEl.value = c.email||'';
+
+    if (cust) {
+      if (adEl && !adEl.value) adEl.value = cust.address||cust.addr||cust.street||'';
+      if (cyEl && !cyEl.value) cyEl.value = cust.city||'';
+      if (stEl && !stEl.value) stEl.value = cust.state||'NC';
+      if (zpEl && !zpEl.value) zpEl.value = cust.zip||'';
+    }
+    if (cnEl) cnEl.dispatchEvent(new Event('input'));
   }, 300);
-  showToast('New quote for '+escHtml(c.name||''), 'info');
+  showToast('New quote for '+(c.name||''), 'info');
 }
 function delContact(id) {
   if (!confirm('Delete contact?')) return;
