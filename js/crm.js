@@ -295,8 +295,10 @@ function saveContact() {
   var name = (document.getElementById('m-ctname')||{}).value||'';
   if (!name.trim()) { showToast('Name required','error'); return; }
   var custId = (document.getElementById('m-ct-custid')||{}).value||'';
+  // Use UUID from creation so ID never changes during Supabase push
+  var newId = id || (typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now());
   var data = {
-    id:          id || ('ct-'+Date.now()),
+    id:          newId,
     name:        name.trim(),
     company:     (document.getElementById('m-ctco')||{}).value||'',
     phone:       (document.getElementById('m-ctph')||{}).value||'',
@@ -320,7 +322,7 @@ function saveContactAndAnother() {
   if (!name.trim()) { showToast('Name required','error'); return; }
   var custId = (document.getElementById('m-ct-custid')||{}).value||'';
   var data = {
-    id:          'ct-'+Date.now(),
+    id:          (typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now()),
     name:        name.trim(),
     company:     (document.getElementById('m-ctco')||{}).value||'',
     phone:       (document.getElementById('m-ctph')||{}).value||'',
