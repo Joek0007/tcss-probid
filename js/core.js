@@ -519,7 +519,7 @@ function getLaborRate() {
 }
 function getMarginDecimal() {
   const el = document.getElementById('qq-mk');
-  const v = el ? parseFloat(el.value)||35 : 35;
+  const _mv = el ? parseFloat(el.value) : NaN; const v = !isNaN(_mv) ? _mv : 35;
   // In markup mode, allow rates up to 500% (5.0). In margin mode, cap at 99% (0.99).
   if (currentPricingMode() === 'markup') {
     return Math.min(Math.max(v,0),500) / 100;
@@ -578,7 +578,7 @@ function setPricingMode(newMode, opts) {
   const mk = document.getElementById('qq-mk');
   if (mk) {
     if (newMode === 'markup') { mk.min='0'; mk.max='500'; mk.step='1'; }
-    else { mk.min='1'; mk.max='99'; mk.step='1'; }
+    else { mk.min='0'; mk.max='99'; mk.step='1'; }
   }
 
   // Update help text
@@ -786,7 +786,7 @@ function _getMFList() {
   // Add any extra keys not in defaults
   Object.keys(mf).forEach(function(k) {
     if (!arr.find(function(x){ return x.jobType===k; })) {
-      arr.push({ jobType:k, floor:parseFloat(mf[k])||35, notes:'' });
+      var _f=parseFloat(mf[k]); arr.push({ jobType:k, floor:!isNaN(_f)?_f:35, notes:'' });
     }
   });
   return arr;
@@ -848,7 +848,7 @@ function renderMarginFloorsEditor() {
         '</td>'+
         '<td style="padding:6px 8px;text-align:center">'+
           '<div style="display:flex;align-items:center;justify-content:center;gap:4px">'+
-            '<input type="number" value="'+escHtml(String(row.floor||35))+'" min="1" max="99" step="0.5" '+
+            '<input type="number" value="'+escHtml(String(row.floor!==undefined&&row.floor!==null?row.floor:35))+'" min="0" max="999" step="0.5" '+
             'onchange="mfUpdateRow('+i+',\'floor\',parseFloat(this.value))" '+
             'style="width:64px;padding:6px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:700;text-align:center">'+
             '<span style="font-size:13px;color:#546e7a">%</span>'+

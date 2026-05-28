@@ -325,7 +325,7 @@ function editQuote(id) {
   setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc);
   setV('qq-notes', q.notes); setV('qq-int', q.intNotes||q.int||'');
   setV('qq-status', q.status||'draft');
-  setV('qq-lr', q.laborRate||100); setV('qq-mk', q.targetMargin!==undefined && q.targetMargin!==null ? q.targetMargin : (q.markup||35)); setV('qq-tx', q.taxRate||0); setV('qq-disc', q.discount||0);
+  setV('qq-lr', q.laborRate||100); setV('qq-mk', q.targetMargin!==undefined && q.targetMargin!==null ? q.targetMargin : (q.markup!==undefined && q.markup!==null ? q.markup : 35)); setV('qq-tx', q.taxRate||0); setV('qq-disc', q.discount||0);
   // Restore pricing mode (margin/markup) — defaults to margin for older quotes that didn't save this field
   setPricingMode(q.pricingMode === 'markup' ? 'markup' : 'margin', { silent: true });
   lineItems = q.items ? JSON.parse(JSON.stringify(q.items)) : [];
