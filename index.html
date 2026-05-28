@@ -1626,17 +1626,17 @@ table{font-size:12.5px}
       </div>
 
       <!-- V6: LUMP SUM OPTION -->
-      <div class="card">
+      <div class="card" style="border:2px solid #e8f5e9">
         <div class="section-title" style="margin-bottom:10px">💰 Proposal Display Options</div>
 
         <!-- Labor Included Banner -->
-        <div class="section-toggle-row" onclick="toggleLaborBanner()">
+        <div class="section-toggle-row" onclick="toggleLaborBanner()" style="background:#e8f5e9;padding:8px 12px;border-radius:8px;margin-bottom:8px">
           <label class="toggle-switch" onclick="event.stopPropagation()">
             <input type="checkbox" id="labor-banner-toggle" checked onchange="toggleLaborBanner()">
             <span class="toggle-slider"></span>
           </label>
           <span class="toggle-value-label" id="labor-banner-label">YES</span>
-          <span class="toggle-label">Show "Installation Labor included" banner on proposal</span>
+          <span class="toggle-label">Show <strong>"Installation Labor included"</strong> green banner on proposal</span>
         </div>
 
         <!-- Lump Sum -->
