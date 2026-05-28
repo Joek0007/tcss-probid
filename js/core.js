@@ -193,7 +193,7 @@ function goPage(id) {
   if (id==='inventory')  renderInventory();
   if (id==='tools')      { setTimeout(renderTools, 50); }
   if (id==='settings')   { loadSettings(); setTimeout(function(){ renderPermissionsEditor(); switchMsTab('company'); initViewAsCard(); window.scrollTo(0,0); var p=document.getElementById('page-settings'); if(p)p.scrollTop=0; }, 150); }
-  if (id==='qq')         renderTplLibrary();
+  if (id==='qq')         { renderTplLibrary(); setTimeout(populateJTDropdown, 100); }
 qqStage4Init();
   if (id==='field')      setTimeout(renderFieldPage, 50);
   if (id==='timesheet')  { var today=new Date().toISOString().split('T')[0]; var dtEl=document.getElementById('ts-date-filter'); if(dtEl&&!dtEl.value) dtEl.value=today; setTimeout(loadTimesheets,50); }
@@ -744,13 +744,43 @@ function loadPermitData(p) {
 }
 
 // =============================================
-// V5 PHASE 1: MARGIN FLOOR FUNCTIONS
+// MARGIN FLOOR FUNCTIONS — dynamic, editable
 // =============================================
+
+// Default floors as array — used when DB.marginFloors is empty or legacy object
+var MF_DEFAULT_LIST = [
+  { jobType:'New Construction', floor:35, notes:'Standard residential/commercial builds' },
+  { jobType:'Remodel',          floor:40, notes:'Higher floor — unknown conditions add risk' },
+  { jobType:'Service Call',     floor:42, notes:'High margin — small ticket, high overhead' },
+  { jobType:'Upgrade',          floor:38, notes:'Existing system additions' },
+  { jobType:'Addition',         floor:36, notes:'Project expansions' }
+];
+
+function _getMFList() {
+  // Support both old object format and new array format
+  var mf = DB.marginFloors;
+  if (!mf) return MF_DEFAULT_LIST.map(function(x){ return Object.assign({},x); });
+  if (Array.isArray(mf)) return mf;
+  // Migrate old object format to array
+  var arr = MF_DEFAULT_LIST.map(function(def) {
+    return { jobType:def.jobType, floor: mf[def.jobType]!==undefined ? parseFloat(mf[def.jobType]) : def.floor, notes:def.notes };
+  });
+  // Add any extra keys not in defaults
+  Object.keys(mf).forEach(function(k) {
+    if (!arr.find(function(x){ return x.jobType===k; })) {
+      arr.push({ jobType:k, floor:parseFloat(mf[k])||35, notes:'' });
+    }
+  });
+  return arr;
+}
+
 function getMarginFloor(jobType) {
-  const floors = DB.marginFloors || {};
-  if (floors[jobType] !== undefined) return parseFloat(floors[jobType]);
+  var list = _getMFList();
+  var entry = list.find(function(x){ return x.jobType===jobType; });
+  if (entry) return parseFloat(entry.floor);
   return MF_DEFAULTS[jobType] || 35;
 }
+
 function checkMarginFloor(achievedMarginPct, jobType) {
   const floor = getMarginFloor(jobType);
   const badge = document.getElementById('mf-floor-badge');
@@ -769,36 +799,116 @@ function checkMarginFloor(achievedMarginPct, jobType) {
   }
   return belowFloor;
 }
-function saveMarginFloors() {
-  const map = {
-    'New Construction':   'mf-newcon',
-    'Remodel':   'mf-retrofit',
-    'Service Call':       'mf-service',
-    'Upgrade':            'mf-upgrade',
-    'Addition':           'mf-addition'
-  };
-  DB.marginFloors = {};
-  Object.keys(map).forEach(function(jt) {
-    const el = document.getElementById(map[jt]);
-    if (el) DB.marginFloors[jt] = parseFloat(el.value) || MF_DEFAULTS[jt] || 35;
+
+function renderMarginFloorsEditor() {
+  var el = document.getElementById('ms-margin-floors-container');
+  if (!el) return;
+  var list = _getMFList();
+
+  var html =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+      '<div>'+
+        '<div class="card-title" style="margin:0">🎯 Margin Floor Settings</div>'+
+        '<p style="font-size:12px;color:#546e7a;margin:4px 0 0">Minimum acceptable margin per job type. Quotes below floor are flagged and require approval.</p>'+
+      '</div>'+
+      '<button class="btn btn-primary btn-sm" onclick="addMarginFloorRow()">+ Add Job Type</button>'+
+    '</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    '<thead><tr style="background:#f0f4f8">'+
+      '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Job Type</th>'+
+      '<th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;width:130px">Min Margin %</th>'+
+      '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Notes / Description</th>'+
+      '<th style="width:40px"></th>'+
+    '</tr></thead><tbody id="mf-tbody">';
+
+  list.forEach(function(row, i) {
+    html +=
+      '<tr style="border-bottom:1px solid #f0f4f8" data-mf-idx="'+i+'">'+
+        '<td style="padding:6px 8px">'+
+          '<input value="'+escHtml(row.jobType||'')+'" onchange="mfUpdateRow('+i+',\'jobType\',this.value)" '+
+          'style="width:100%;padding:6px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;font-weight:600;box-sizing:border-box">'+
+        '</td>'+
+        '<td style="padding:6px 8px;text-align:center">'+
+          '<div style="display:flex;align-items:center;justify-content:center;gap:4px">'+
+            '<input type="number" value="'+escHtml(String(row.floor||35))+'" min="1" max="99" step="0.5" '+
+            'onchange="mfUpdateRow('+i+',\'floor\',parseFloat(this.value))" '+
+            'style="width:64px;padding:6px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:700;text-align:center">'+
+            '<span style="font-size:13px;color:#546e7a">%</span>'+
+          '</div>'+
+        '</td>'+
+        '<td style="padding:6px 8px">'+
+          '<input value="'+escHtml(row.notes||'')+'" placeholder="Optional description..." onchange="mfUpdateRow('+i+',\'notes\',this.value)" '+
+          'style="width:100%;padding:6px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;color:#546e7a;box-sizing:border-box">'+
+        '</td>'+
+        '<td style="padding:6px 8px;text-align:center">'+
+          '<button onclick="mfDeleteRow('+i+')" style="background:none;border:none;color:#c62828;font-size:16px;cursor:pointer;padding:0" title="Remove">×</button>'+
+        '</td>'+
+      '</tr>';
   });
-  saveDB();
-  const note = document.getElementById('mf-saved-note');
-  if (note) { note.style.display='inline'; setTimeout(function(){ note.style.display='none'; }, 2000); }
+
+  html += '</tbody></table>'+
+    '<div style="margin-top:12px;display:flex;gap:10px;align-items:center">'+
+      '<button class="btn btn-primary" onclick="saveMarginFloors()">💾 Save Margin Floors</button>'+
+      '<span id="mf-saved-note" style="font-size:12px;color:#2e7d32;display:none">✓ Saved!</span>'+
+    '</div>';
+
+  el.innerHTML = html;
 }
-function loadMarginFloors() {
-  const map = {
-    'New Construction':   'mf-newcon',
-    'Remodel':   'mf-retrofit',
-    'Service Call':       'mf-service',
-    'Upgrade':            'mf-upgrade',
-    'Addition':           'mf-addition'
-  };
-  Object.keys(map).forEach(function(jt) {
-    const el = document.getElementById(map[jt]);
-    const val = DB.marginFloors && DB.marginFloors[jt] !== undefined ? DB.marginFloors[jt] : MF_DEFAULTS[jt] || 35;
-    if (el) el.value = val;
+
+function mfUpdateRow(idx, field, value) {
+  var list = _getMFList();
+  if (list[idx]) list[idx][field] = value;
+  DB.marginFloors = list;
+  // Don't saveDB on every keystroke — save button handles final save
+}
+
+function mfDeleteRow(idx) {
+  var list = _getMFList();
+  var name = list[idx] ? list[idx].jobType : 'this row';
+  if (!confirm('Remove "'+name+'" floor? Any quotes using this job type will fall back to the default 35% floor.')) return;
+  list.splice(idx, 1);
+  DB.marginFloors = list;
+  saveDB();
+  renderMarginFloorsEditor();
+  showToast('"'+name+'" removed','info');
+}
+
+function addMarginFloorRow() {
+  var list = _getMFList();
+  list.push({ jobType:'New Job Type', floor:35, notes:'' });
+  DB.marginFloors = list;
+  saveDB();
+  renderMarginFloorsEditor();
+  // Focus the new name input
+  var rows = document.querySelectorAll('#mf-tbody tr');
+  if (rows.length) {
+    var lastInput = rows[rows.length-1].querySelector('input');
+    if (lastInput) { lastInput.focus(); lastInput.select(); }
+  }
+}
+
+function saveMarginFloors() {
+  // Read current values from DOM and save
+  var list = _getMFList();
+  var rows = document.querySelectorAll('#mf-tbody tr[data-mf-idx]');
+  rows.forEach(function(row) {
+    var idx = parseInt(row.getAttribute('data-mf-idx'));
+    var inputs = row.querySelectorAll('input');
+    if (inputs[0] && list[idx]) list[idx].jobType = inputs[0].value.trim() || list[idx].jobType;
+    if (inputs[1] && list[idx]) list[idx].floor   = parseFloat(inputs[1].value) || 35;
+    if (inputs[2] && list[idx]) list[idx].notes   = inputs[2].value.trim();
   });
+  DB.marginFloors = list;
+  saveDB();
+  var note = document.getElementById('mf-saved-note');
+  if (note) { note.style.display='inline'; setTimeout(function(){ note.style.display='none'; }, 2000); }
+  showToast('Margin floors saved ✓','success',2000);
+}
+
+function loadMarginFloors() {
+  // With the new dynamic renderer this is a no-op when on the quoting tab
+  // Kept for backward compatibility with calls from loadSettings()
+  renderMarginFloorsEditor();
 }
 
 
@@ -1011,4 +1121,16 @@ function renderAuditLog() {
   '</div>';
 
   el.innerHTML = html;
+}
+
+// Populate job type dropdown from dynamic margin floor list
+function populateJTDropdown() {
+  var sel = document.getElementById('qq-jt');
+  if (!sel) return;
+  var current = sel.value;
+  var list = _getMFList();
+  sel.innerHTML = list.map(function(row) {
+    return '<option value="'+escHtml(row.jobType)+'"'+(row.jobType===current?' selected':'')+'>'+escHtml(row.jobType)+'</option>';
+  }).join('');
+  if (!sel.value && list.length) sel.value = list[0].jobType;
 }

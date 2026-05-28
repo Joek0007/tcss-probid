@@ -1457,7 +1457,7 @@ table{font-size:12.5px}
           <div><label>Job Name *</label><input id="qq-jn" placeholder="e.g. Smith Residence"></div>
           <div>
             <label>Job Type</label>
-            <select id="qq-jt">
+            <select id="qq-jt" onchange="populateJTDropdown()">
               <option>New Construction</option><option>Remodel</option>
               <option>Service Call</option><option>Upgrade</option><option>Addition</option>
             </select>
@@ -4244,22 +4244,11 @@ table{font-size:12.5px}
       <input type="file" id="import-file" accept=".json" style="display:none">
     </div>
     <!-- V5: MARGIN FLOOR SETTINGS -->
-    <div class="card" style="grid-column:1/-1"><div class="card-title">🎯 Margin Floor Settings (V5 Phase 1)</div>
-      <p style="font-size:12px;color:#546e7a;margin-bottom:10px">Set minimum acceptable margins per job type. Quotes below floor will be flagged and require manager approval before sending.</p>
-      <table class="mf-table">
-        <thead><tr><th>Job Type</th><th>Minimum Margin (%)</th><th>Notes</th></tr></thead>
-        <tbody>
-          <tr><td>New Construction</td><td><input id="mf-newcon" type="number" value="35" min="1" max="99" style="width:80px"></td><td style="font-size:11px;color:#90a4ae">Standard residential/commercial builds</td></tr>
-          <tr><td>Remodel</td><td><input id="mf-retrofit" type="number" value="40" min="1" max="99" style="width:80px"></td><td style="font-size:11px;color:#90a4ae">Higher floor — unknown conditions add risk</td></tr>
-          <tr><td>Service Call</td><td><input id="mf-service" type="number" value="50" min="1" max="99" style="width:80px"></td><td style="font-size:11px;color:#90a4ae">High margin — small ticket, high overhead</td></tr>
-          <tr><td>Upgrade</td><td><input id="mf-upgrade" type="number" value="38" min="1" max="99" style="width:80px"></td><td style="font-size:11px;color:#90a4ae">Existing system additions</td></tr>
-          <tr><td>Addition</td><td><input id="mf-addition" type="number" value="36" min="1" max="99" style="width:80px"></td><td style="font-size:11px;color:#90a4ae">Project expansions</td></tr>
-        </tbody>
-      </table>
-      <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
-        <button class="btn btn-primary btn-sm" data-action="saveMarginFloors">💾 Save Margin Floors</button>
-        <span id="mf-saved-note" style="font-size:12px;color:#2e7d32;display:none">✓ Saved!</span>
+    <div class="card" style="grid-column:1/-1">
+      <div id="ms-margin-floors-container">
+        <!-- Rendered by renderMarginFloorsEditor() when Quoting tab opens -->
       </div>
+    </div>
     </div>
 
   </div><!-- end settings grid -->

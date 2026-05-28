@@ -1103,6 +1103,7 @@ function switchMsTab(tab) {
   // Render tab content on first open
   if (tab==='workorders')   renderMsWOSettings();
   if (tab==='roles')        renderMsRolesTab();
+  if (tab==='quoting')      { setTimeout(renderMarginFloorsEditor, 50); }
   if (tab==='inventory')    typeof renderLocationSettings === 'function' && renderLocationSettings();
   if (tab==='time')         typeof renderMsTimeSettings   === 'function' && renderMsTimeSettings();
 }
