@@ -320,7 +320,7 @@ function editQuote(id) {
   // Restore pricing mode (margin/markup) — defaults to margin for older quotes that didn't save this field
   setPricingMode(q.pricingMode === 'markup' ? 'markup' : 'margin', { silent: true });
   lineItems = q.items ? JSON.parse(JSON.stringify(q.items)) : [];
-  lineItems.forEach(function(item){ if(!item._id) item._id = liSeq++; });
+  lineItems.forEach(function(item){ if(!item._id) item._id = nextLiId(); });
   equipmentRows = q.equipmentRows ? JSON.parse(JSON.stringify(q.equipmentRows)) : [];
   equipmentRows.forEach(function(r){ if(!r._id) r._id = eqSeq++; });
   renderEquipRows();

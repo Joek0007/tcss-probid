@@ -3109,7 +3109,8 @@ function onMarginManualChange() {
 
 // ---- UPDATE LINE ITEM ----
 function updateLI(id, field, value, rerender) {
-  var item = lineItems.find(function(x){return x._id==id});
+  var numId = typeof id === 'string' ? parseInt(id) : id;
+  var item = lineItems.find(function(x){ return x._id === numId || x._id === id; });
   if (!item) return;
   if (field==='qty'||field==='mc'||field==='lh') {
     item[field] = parseFloat(value)||0;

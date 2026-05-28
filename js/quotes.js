@@ -212,7 +212,7 @@ function restoreQQDraft(){
     _qqRestoreLock = true;
     qqFieldIds().forEach(function(id){ if (Object.prototype.hasOwnProperty.call(parsed.fields,id)) qqSetVal(id, parsed.fields[id]); });
     lineItems = JSON.parse(JSON.stringify(parsed.lineItems||[]));
-    lineItems.forEach(function(item){ if(!item._id) item._id = liSeq++; });
+    lineItems.forEach(function(item){ if(!item._id) item._id = nextLiId(); });
     equipmentRows = JSON.parse(JSON.stringify(parsed.equipmentRows||[]));
     equipmentRows.forEach(function(r){ if(!r._id) r._id = eqSeq++; });
     if (parsed.perDiemData) perDiemData = JSON.parse(JSON.stringify(parsed.perDiemData));
@@ -2508,7 +2508,7 @@ function newQuoteForContact(contactId) {
       if (stEl && !stEl.value) stEl.value = cust.state||'NC';
       if (zpEl && !zpEl.value) zpEl.value = cust.zip||'';
     }
-    if (cnEl) cnEl.dispatchEvent(new Event('input'));
+    // Do NOT dispatch input events — that triggers draft save which can wipe quote data
   }, 300);
   showToast('New quote for '+(c.name||''), 'info');
 }
@@ -3237,7 +3237,7 @@ function appendTemplate(id, stay) {
   if (!t) return;
 
   const wasEmpty = lineItems.length === 0;
-  const newItems = (t.items||[]).map(function(item){ return Object.assign({}, item, { _id: liSeq++ }); });
+  const newItems = (t.items||[]).map(function(item){ return Object.assign({}, item, { _id: nextLiId() }); });
   lineItems = lineItems.concat(newItems);
 
   // Apply env/margin only if quote was blank
@@ -3275,7 +3275,7 @@ function appendSelectedTemplates() {
     const t = DB.templates.find(function(x){ return x.id===id; });
     if (!t) return;
     const wasEmpty = first && lineItems.length === 0;
-    const newItems = (t.items||[]).map(function(item){ return Object.assign({}, item, { _id: liSeq++ }); });
+    const newItems = (t.items||[]).map(function(item){ return Object.assign({}, item, { _id: nextLiId() }); });
     lineItems = lineItems.concat(newItems);
     if (wasEmpty) {
       const envEl = document.getElementById('qq-env');

@@ -193,7 +193,7 @@ function goPage(id) {
   if (id==='inventory')  renderInventory();
   if (id==='tools')      { setTimeout(renderTools, 50); }
   if (id==='settings')   { loadSettings(); setTimeout(function(){ renderPermissionsEditor(); switchMsTab('company'); initViewAsCard(); window.scrollTo(0,0); var p=document.getElementById('page-settings'); if(p)p.scrollTop=0; }, 150); }
-  if (id==='qq')         { renderTplLibrary(); setTimeout(populateJTDropdown, 100); }
+  if (id==='qq')         { renderTplLibrary(); }
 qqStage4Init();
   if (id==='field')      setTimeout(renderFieldPage, 50);
   if (id==='timesheet')  { var today=new Date().toISOString().split('T')[0]; var dtEl=document.getElementById('ts-date-filter'); if(dtEl&&!dtEl.value) dtEl.value=today; setTimeout(loadTimesheets,50); }
@@ -218,7 +218,11 @@ qqStage4Init();
 
 // ---- LINE ITEMS ----
 let lineItems = [];
-let liSeq = 1;
+let liSeq = Date.now(); // Start from timestamp so IDs are always unique across sessions
+
+function nextLiId() {
+  return ++liSeq; // Still sequential but starting from a large unique base
+}
 
 // ---- V6: PER DIEM / TRAVEL STATE ----
 let perDiemData = { men:0, days:0, rate:75, rooms:0, nights:0, lodgingRate:120, trips:0, travelRate:0, travelDesc:'' };
@@ -435,7 +439,7 @@ function updateLumpSumPreview() {
 let equipmentRows = [];
 let eqSeq = 1;
 function newLI(desc, cat, qty, unit, mc, lh) {
-  return { _id: liSeq++, desc:desc||'', cat:cat||'General', qty:qty||1, unit:unit||'ea', mc:parseFloat(mc)||0, lh:parseFloat(lh)||0 };
+  return { _id: nextLiId(), desc:desc||'', cat:cat||'General', qty:qty||1, unit:unit||'ea', mc:parseFloat(mc)||0, lh:parseFloat(lh)||0 };
 }
 function addRow(item) {
   lineItems.push(item || newLI('','',1,'ea',0,0));
