@@ -155,8 +155,14 @@ function getQData(id) {
   const env = (document.getElementById('qq-env')||{}).value || 'office';
   const envLabel = ENV_PRESETS[env] ? ENV_PRESETS[env].label : 'Office';
   var existing = null;
-  var numVal = (document.getElementById('qq-num')||{}).value || '';
-  if (numVal) existing = DB.quotes.find(function(q){ return q.num === numVal; }) || null;
+  // Use hidden ID field first — most reliable
+  var qqIdVal = (document.getElementById('qq-id')||{}).value || '';
+  if (qqIdVal) existing = DB.quotes.find(function(q){ return q.id===qqIdVal; }) || null;
+  // Fallback: by number only if no ID stored
+  if (!existing) {
+    var numVal = (document.getElementById('qq-num')||{}).value || '';
+    if (numVal) existing = DB.quotes.find(function(q){ return q.num===numVal; }) || null;
+  }
   var createdVal = (document.getElementById('qq-created')||{}).value || (existing ? (existing.createdDate || (existing.createdAt||'').split('T')[0]) : getTodayISO());
   return {
     id: id || null,
@@ -238,7 +244,7 @@ function clearQQ(skipConfirm) {
   const otx = document.getElementById('permit-other-text'); if(otx) otx.value='';
   const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
   updatePermitStatus();
-  ['qq-cn','qq-ph','qq-em','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-num','qq-notes','qq-int','qq-tc','qq-contact-name','qq-contact-title'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+  ['qq-cn','qq-ph','qq-em','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-num','qq-id','qq-notes','qq-int','qq-tc','qq-contact-name','qq-contact-title'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
   // Clear hidden ID fields and hide new contact panel
   var cidEl=document.getElementById('qq-customer-id'); if(cidEl) cidEl.value='';
   var ctidEl=document.getElementById('qq-contact-id'); if(ctidEl) ctidEl.value='';
@@ -311,7 +317,7 @@ function editQuote(id) {
     if(mct){setV('qq-contact-id',mct.id);}
   }
   setV('qq-jn', q.jn); setV('qq-jt', q.jt); setV('qq-env', q.env||'office');
-  setV('qq-dt', q.dt); setV('qq-vu', q.vu); setV('qq-num', q.num); setV('qq-followup', q.followupDate || calcFollowupDate(q.dt || getTodayISO()));
+  setV('qq-dt', q.dt); setV('qq-vu', q.vu); setV('qq-num', q.num); setV('qq-id', q.id||''); setV('qq-followup', q.followupDate || calcFollowupDate(q.dt || getTodayISO()));
   setV('qq-created', q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || getTodayISO());
   setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc);
   setV('qq-notes', q.notes); setV('qq-int', q.intNotes||q.int||'');
@@ -813,8 +819,15 @@ function dashMini(val, label, color, bg) {
 
 function saveQQ() {
   let existing = null;
-  const num = (document.getElementById('qq-num')||{}).value || '';
-  if (num) { existing = DB.quotes.find(function(q){return q.num===num}); }
+  // Primary lookup: by hidden ID field (set when editing an existing quote)
+  const qqIdEl = document.getElementById('qq-id');
+  const qqId   = qqIdEl ? qqIdEl.value : '';
+  if (qqId) { existing = DB.quotes.find(function(q){ return q.id===qqId; }); }
+  // Fallback: by number (only if no ID stored)
+  if (!existing) {
+    const num = (document.getElementById('qq-num')||{}).value || '';
+    if (num) { existing = DB.quotes.find(function(q){ return q.num===num; }); }
+  }
   const q = getQData(existing ? existing.id : Date.now().toString());
   // Auto-resolve customerId if not set (name typed manually without dropdown)
   if (!q.customerId && q.cn) {

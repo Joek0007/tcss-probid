@@ -143,7 +143,17 @@ function calcTotals() {
 }
 
 // ---- QUOTE NUMBER GENERATOR ----
-function nextQNum() { DB.quoteSeq = (DB.quoteSeq < 1024 ? 1024 : DB.quoteSeq) + 1; saveDB(); return 'Q-' + DB.quoteSeq; }
+function nextQNum() {
+  // Always ensure quoteSeq is at least as high as the highest existing quote number
+  var maxExisting = 1024;
+  (DB.quotes||[]).forEach(function(q) {
+    var match = (q.num||'').match(/Q-(\d+)/);
+    if (match) maxExisting = Math.max(maxExisting, parseInt(match[1]));
+  });
+  DB.quoteSeq = Math.max(DB.quoteSeq||0, maxExisting) + 1;
+  saveDB();
+  return 'Q-' + DB.quoteSeq;
+}
 
 
 
@@ -1288,13 +1298,16 @@ function emailSavedQuote(qid) {
 let _viewingQuoteId = null;
 
 function dupQuote(id) {
-  const q = DB.quotes.find(function(x){return x.id==id});
+  const q = DB.quotes.find(function(x){ return x.id==id; });
   if (!q) return;
   const nq = JSON.parse(JSON.stringify(q));
-  nq.id = Date.now().toString();
+  // Use UUID so ID never collides with existing quotes
+  nq.id = typeof makeUUID==='function' ? makeUUID() : Date.now().toString();
   nq.num = nextQNum();
   nq.status = 'draft';
   nq.createdAt = new Date().toISOString();
+  // Re-assign fresh _id to every line item to prevent cross-item edit bugs
+  if (nq.items) nq.items = nq.items.map(function(item){ return Object.assign({},item,{_id:nextLiId()}); });
   DB.quotes.unshift(nq);
   saveDB();
   editQuote(nq.id);
