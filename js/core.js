@@ -193,7 +193,7 @@ function goPage(id) {
   if (id==='inventory')  renderInventory();
   if (id==='tools')      { setTimeout(renderTools, 50); }
   if (id==='settings')   { loadSettings(); setTimeout(function(){ renderPermissionsEditor(); switchMsTab('company'); initViewAsCard(); window.scrollTo(0,0); var p=document.getElementById('page-settings'); if(p)p.scrollTop=0; }, 150); }
-  if (id==='qq')         { renderTplLibrary(); }
+  if (id==='qq')         { renderTplLibrary(); setTimeout(populateJTDropdown, 150); }
 qqStage4Init();
   if (id==='field')      setTimeout(renderFieldPage, 50);
   if (id==='timesheet')  { var today=new Date().toISOString().split('T')[0]; var dtEl=document.getElementById('ts-date-filter'); if(dtEl&&!dtEl.value) dtEl.value=today; setTimeout(loadTimesheets,50); }

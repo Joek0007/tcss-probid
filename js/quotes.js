@@ -846,7 +846,7 @@ table{font-size:12.5px}
   '<table class="items-table"><thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Unit</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th></tr></thead><tbody>' +
   itemsTableHTML() +
   '</tbody></table>' +
-  '<div style="background:#e8f5e9;padding:10px 16px;margin-top:8px;border-radius:6px;font-size:13px;color:#1b5e20"><strong>Installation Labor included</strong> — All labor necessary for professional installation of the above scope is included in this proposal.</div>' +
+  ((q.laborSell||0) > 0 ? '<div style="background:#e8f5e9;padding:10px 16px;margin-top:8px;border-radius:6px;font-size:13px;color:#1b5e20"><strong>Installation Labor included</strong> — All labor necessary for professional installation of the above scope is included in this proposal.</div>' : '') +
   '</div>' +
 
   // PRICING SUMMARY (CLIENT)
@@ -855,7 +855,7 @@ table{font-size:12.5px}
   (q.lumpSum && q.lumpSum.enabled
     ? '<tr class="sub-row"><td>' + escHtml(q.lumpSum.label||'Complete Low Voltage Installation') + '</td><td style="text-align:right">' + fmt(q.sellBeforeTax||q.subtotal||q.total||0) + '</td></tr>'
     : '<tr class="sub-row"><td>Equipment &amp; Materials</td><td style="text-align:right">' + fmt(q.materialSell||q.sellBeforeTax||q.total||0) + '</td></tr>' +
-      '<tr class="sub-row"><td>Installation Labor</td><td style="text-align:right">' + fmt(q.laborSell||0) + '</td></tr>' +
+      ((q.laborSell||0) > 0 ? '<tr class="sub-row"><td>Installation Labor</td><td style="text-align:right">' + fmt(q.laborSell||0) + '</td></tr>' : '') +
       (q.perDiemCost > 0 ? '<tr class="sub-row"><td>Per Diem / Travel</td><td style="text-align:right">' + fmt(q.perDiemCost||0) + '</td></tr>' : '') +
       '<tr class="sub-row"><td>Subtotal</td><td style="text-align:right">' + fmt(q.sellBeforeTax||q.subtotal||0) + '</td></tr>'
   ) +

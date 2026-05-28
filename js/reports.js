@@ -351,6 +351,15 @@ function editQuote(id) {
   updateQQStage3UI();
   qqStage4Init();
   goPage('qq');
+  // Populate job type dropdown from dynamic list AFTER page loads, preserve selected value
+  setTimeout(function(){
+    if (typeof populateJTDropdown === 'function') {
+      populateJTDropdown();
+      // Re-select the quote's job type since populate resets the dropdown
+      var jtEl = document.getElementById('qq-jt');
+      if (jtEl && q.jt) jtEl.value = q.jt;
+    }
+  }, 200);
 }
 
 function saveQuoteSortDefault() {
