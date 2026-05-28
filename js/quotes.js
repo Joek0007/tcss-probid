@@ -846,7 +846,7 @@ table{font-size:12.5px}
   '<table class="items-table"><thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Unit</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th></tr></thead><tbody>' +
   itemsTableHTML() +
   '</tbody></table>' +
-  ((q.laborSell||0) > 0 ? '<div style="background:#e8f5e9;padding:10px 16px;margin-top:8px;border-radius:6px;font-size:13px;color:#1b5e20"><strong>Installation Labor included</strong> — All labor necessary for professional installation of the above scope is included in this proposal.</div>' : '') +
+  (getLaborBannerOn() ? '<div style="background:#e8f5e9;padding:10px 16px;margin-top:8px;border-radius:6px;font-size:13px;color:#1b5e20"><strong>Installation Labor included</strong> — All labor necessary for professional installation of the above scope is included in this proposal.</div>' : '') +
   '</div>' +
 
   // PRICING SUMMARY (CLIENT)

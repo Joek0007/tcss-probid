@@ -322,6 +322,20 @@ function toggleLumpSum() {
   updateLumpSumPreview();
 }
 
+function toggleLaborBanner() {
+  const cb    = document.getElementById('labor-banner-toggle');
+  const label = document.getElementById('labor-banner-label');
+  if (!cb) return;
+  const on = cb.checked;
+  if (label) { label.textContent = on ? 'YES' : 'NO'; label.className = 'toggle-value-label' + (on ? ' on' : ''); }
+  calcTotals();
+}
+
+function getLaborBannerOn() {
+  const cb = document.getElementById('labor-banner-toggle');
+  return cb ? cb.checked : true; // default ON
+}
+
 // =============================================
 // V6: PER DIEM / TRAVEL FUNCTIONS
 // =============================================

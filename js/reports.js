@@ -344,6 +344,12 @@ function editQuote(id) {
   if (lsLabel && q.lumpSum && q.lumpSum.label) lsLabel.value = q.lumpSum.label;
   updateLumpSumPreview();
   restoreProposalSectionToggles(q.proposalSections || null);
+  // Restore labor banner toggle — default ON unless explicitly saved as off
+  var lbCb = document.getElementById('labor-banner-toggle');
+  var lbLbl = document.getElementById('labor-banner-label');
+  var lbOn = q.showLaborBanner !== undefined ? !!q.showLaborBanner : true;
+  if (lbCb) lbCb.checked = lbOn;
+  if (lbLbl) { lbLbl.textContent = lbOn ? 'YES' : 'NO'; lbLbl.className = 'toggle-value-label' + (lbOn ? ' on' : ''); }
   renderLI();
   calcTotals();
   clearQQDraft();
