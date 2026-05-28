@@ -875,7 +875,14 @@ function renderMarginFloorsEditor() {
 
 function mfUpdateRow(idx, field, value) {
   var list = _getMFList();
-  if (list[idx]) list[idx][field] = value;
+  if (list[idx]) {
+    if (field === 'floor') {
+      var fv = parseFloat(value);
+      list[idx].floor = !isNaN(fv) ? fv : 35;
+    } else {
+      list[idx][field] = value;
+    }
+  }
   DB.marginFloors = list;
   // Don't saveDB on every keystroke — save button handles final save
 }
@@ -913,7 +920,7 @@ function saveMarginFloors() {
     var idx = parseInt(row.getAttribute('data-mf-idx'));
     var inputs = row.querySelectorAll('input');
     if (inputs[0] && list[idx]) list[idx].jobType = inputs[0].value.trim() || list[idx].jobType;
-    if (inputs[1] && list[idx]) list[idx].floor   = parseFloat(inputs[1].value) || 35;
+    if (inputs[1] && list[idx]) { var fv = parseFloat(inputs[1].value); list[idx].floor = (!isNaN(fv)) ? fv : 35; }
     if (inputs[2] && list[idx]) list[idx].notes   = inputs[2].value.trim();
   });
   DB.marginFloors = list;

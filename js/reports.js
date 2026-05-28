@@ -217,6 +217,7 @@ function getQData(id) {
     perDiem: JSON.parse(JSON.stringify(perDiemData)),
     perDiemCost: totals.pdCost || 0,
     lumpSum: getLumpSumState(),
+    showLaborBanner: typeof getLaborBannerOn==='function' ? getLaborBannerOn() : true,
     svcContract: getSvcContractData(),
     execSummary: existing && existing.execSummary ? existing.execSummary : '',
     proposalSections: getProposalSections(),
@@ -240,6 +241,8 @@ function clearQQ(skipConfirm) {
   const eqCb = document.getElementById('equipment-enabled'); const eqBody = document.getElementById('equipment-body'); const eqLbl = document.getElementById('equipment-toggle-label');
   if (eqCb) eqCb.checked = false; if (eqBody) eqBody.classList.remove('expanded'); if (eqLbl) { eqLbl.textContent='NO'; eqLbl.className='toggle-value-label'; }
   ['permit-lv','permit-elec','permit-other','permit-none'].forEach(function(id){ const el=document.getElementById(id); if(el) el.checked=false; });
+  // Default to "No Permit" when starting a fresh quote
+  const pnDef = document.getElementById('permit-none'); if (pnDef) pnDef.checked = true;
   const otd = document.getElementById('permit-other-desc'); if(otd) otd.style.display='none';
   const otx = document.getElementById('permit-other-text'); if(otx) otx.value='';
   const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
@@ -322,7 +325,7 @@ function editQuote(id) {
   setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc);
   setV('qq-notes', q.notes); setV('qq-int', q.intNotes||q.int||'');
   setV('qq-status', q.status||'draft');
-  setV('qq-lr', q.laborRate||100); setV('qq-mk', q.targetMargin||q.markup||35); setV('qq-tx', q.taxRate||0); setV('qq-disc', q.discount||0);
+  setV('qq-lr', q.laborRate||100); setV('qq-mk', q.targetMargin!==undefined && q.targetMargin!==null ? q.targetMargin : (q.markup||35)); setV('qq-tx', q.taxRate||0); setV('qq-disc', q.discount||0);
   // Restore pricing mode (margin/markup) — defaults to margin for older quotes that didn't save this field
   setPricingMode(q.pricingMode === 'markup' ? 'markup' : 'margin', { silent: true });
   lineItems = q.items ? JSON.parse(JSON.stringify(q.items)) : [];
