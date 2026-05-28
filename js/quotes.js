@@ -3512,7 +3512,7 @@ function saveAsTemplate() {
   if (lineItems.length === 0) { showToast('Add some line items first before saving as a template.','error'); return; }
   const jn  = (document.getElementById('qq-jn')||{}).value || '';
   const env = (document.getElementById('qq-env')||{}).value || 'office';
-  const mk  = (document.getElementById('qq-mk')||{}).value || '35';
+  const mkEl = document.getElementById('qq-mk'); const mk = (mkEl && mkEl.value!=='' && mkEl.value!==undefined) ? mkEl.value : '35';
   document.getElementById('sat-name').value   = jn ? jn + ' Template' : '';
   document.getElementById('sat-icon').value   = '📐';
   document.getElementById('sat-cat').value    = '';

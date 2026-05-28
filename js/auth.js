@@ -359,8 +359,15 @@ async function syncAllFromCloud() {
       var { data: floors, error: fe } = await _sb.from('margin_floors').select('*');
       if (fe) { errors.push('margin_floors: '+fe.message); }
       else if (floors && floors.length) {
-        DB.marginFloors = DB.marginFloors || {};
-        floors.forEach(function(f) { DB.marginFloors[f.job_type] = f.floor_pct; });
+        // Merge Supabase floor values into existing array format
+        // Don't overwrite — update floor values but preserve jobType/notes structure
+        var existing = _getMFList ? _getMFList() : [];
+        floors.forEach(function(f) {
+          var entry = existing.find(function(e){ return e.jobType===f.job_type; });
+          if (entry) { entry.floor = parseFloat(f.floor_pct)||entry.floor; }
+          else { existing.push({ jobType:f.job_type, floor:parseFloat(f.floor_pct)||35, notes:'' }); }
+        });
+        DB.marginFloors = existing;
       }
     } catch(e) { errors.push('margin_floors: '+e.message); }
 
@@ -678,12 +685,27 @@ async function pushAllToCloud() {
       id: 1,
       company_name: DB.settings.cname || 'TCSS',
       default_labor_rate: DB.settings.laborRate || 100,
-      default_target_margin: DB.settings.targetMargin || 35,
+      default_target_margin: DB.settings.targetMargin !== undefined ? DB.settings.targetMargin : 35,
       ma_enabled: DB.settings.managerApproval ? !!DB.settings.managerApproval.enabled : false,
       ma_below_floor_only: DB.settings.managerApproval ? !!DB.settings.managerApproval.belowFloorOnly : true,
       ma_pin_hash: DB.settings.managerApproval ? (DB.settings.managerApproval.pinHash || '') : '',
       ma_pin_salt: DB.settings.managerApproval ? (DB.settings.managerApproval.pinSalt || '') : ''
     });
+
+    // Push margin floors — upsert each row
+    if (_getMFList) {
+      var mfList = _getMFList();
+      for (var mf of mfList) {
+        if (!mf || !mf.jobType) continue;
+        try {
+          await _sb.from('margin_floors').upsert({
+            job_type: mf.jobType,
+            floor_pct: mf.floor !== undefined ? mf.floor : 35,
+            notes: mf.notes || ''
+          }, { onConflict: 'job_type' });
+        } catch(mfErr) { console.warn('[Push] Margin floor:', mfErr.message||mfErr); }
+      }
+    }
 
     // Push quotes
     for (var q of (DB.quotes || [])) {

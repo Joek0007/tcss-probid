@@ -194,7 +194,7 @@ function getQData(id) {
     followupDate: (document.getElementById('qq-followup')||{}).value || calcFollowupDate((document.getElementById('qq-dt')||{}).value || ''),
     createdDate: createdVal,
     laborRate: getLaborRate(),
-    targetMargin: parseFloat((document.getElementById('qq-mk')||{}).value)||35,
+    targetMargin: (function(){ var v=parseFloat((document.getElementById('qq-mk')||{}).value); return isNaN(v)?35:v; })(),
     pricingMode: currentPricingMode(),
     taxRate: parseFloat((document.getElementById('qq-tx')||{}).value)||0,
     discount: totals.discountAmt,
@@ -254,7 +254,7 @@ function clearQQ(skipConfirm) {
   cancelNewContactFromQuote();
   cancelNewCustomerFromQuote();
   const lr = document.getElementById('qq-lr'); if(lr) lr.value = DB.settings.laborRate || 100;
-  const mk = document.getElementById('qq-mk'); if(mk) mk.value = DB.settings.targetMargin || 35;
+  const mk = document.getElementById('qq-mk'); if(mk) mk.value = (DB.settings.targetMargin!==undefined && DB.settings.targetMargin!==null) ? DB.settings.targetMargin : 35;
   const tx = document.getElementById('qq-tx'); if(tx) tx.value = DB.settings.taxRate || 0;
   const disc = document.getElementById('qq-disc'); if(disc) disc.value = 0;
   const env = document.getElementById('qq-env'); if(env) env.value = 'office';
