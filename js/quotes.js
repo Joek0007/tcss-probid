@@ -574,9 +574,10 @@ function buildPrintHTML(q, mode) {
     const lumpSum = q.lumpSum && q.lumpSum.enabled;
     // Rate var = margin % in margin mode (capped 0-99%), markup % in markup mode (capped 0-500%)
     const _isMarkupMode = (q.pricingMode === 'markup');
+    const _tm = q.targetMargin !== undefined && q.targetMargin !== null ? q.targetMargin : 35;
     const margin = _isMarkupMode
-      ? Math.min(Math.max((q.targetMargin||35)/100, 0), 5.0)
-      : Math.min(Math.max((q.targetMargin||35)/100, 0), 0.99);
+      ? Math.min(Math.max(_tm/100, 0), 5.0)
+      : Math.min(Math.max(_tm/100, 0), 0.99);
 
     // LUMP SUM MODE — total price as one line, optionally list items below without prices
     if (lumpSum) {
@@ -3535,7 +3536,7 @@ function confirmSaveAsTemplate() {
     icon:   document.getElementById('sat-icon').value.trim() || '📐',
     cat:    document.getElementById('sat-cat').value.trim() || 'Custom',
     env:    document.getElementById('sat-env').value || 'office',
-    margin: parseFloat(document.getElementById('sat-margin').value) || 35,
+    margin: (function(){ var v=parseFloat(document.getElementById('sat-margin').value); return isNaN(v)?35:v; })(),
     items:  lineItems.map(function(item){ return { desc:item.desc, cat:item.cat, qty:item.qty, unit:item.unit, mc:item.mc, lh:item.lh }; })
   };
   DB.templates.push(t);
@@ -3550,7 +3551,7 @@ function confirmSaveAsTemplate() {
 
 
 function newTemplate(){document.getElementById('tpl-modal-title').textContent='New Template';['m-tplname','m-tplicon','m-tplcat','m-tplid'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});const mg=document.getElementById('m-tplmargin');if(mg)mg.value=35;const ev=document.getElementById('m-tplenv');if(ev)ev.value='office';renderTplItems([]);openModal('modal-template');}
-function editTemplate(id){const t=DB.templates.find(function(x){return x.id==id});if(!t)return;document.getElementById('tpl-modal-title').textContent='Edit Template';function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v!==undefined?v:'';}sv('m-tplname',t.name);sv('m-tplicon',t.icon||'');sv('m-tplcat',t.cat||'');sv('m-tplmargin',t.margin||35);sv('m-tplenv',t.env||'office');sv('m-tplid',t.id);renderTplItems(t.items||[]);openModal('modal-template');}
+function editTemplate(id){const t=DB.templates.find(function(x){return x.id==id});if(!t)return;document.getElementById('tpl-modal-title').textContent='Edit Template';function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v!==undefined?v:'';}sv('m-tplname',t.name);sv('m-tplicon',t.icon||'');sv('m-tplcat',t.cat||'');sv('m-tplmargin',t.margin!==undefined&&t.margin!==null?t.margin:35);sv('m-tplenv',t.env||'office');sv('m-tplid',t.id);renderTplItems(t.items||[]);openModal('modal-template');}
 let tplItems = [];
 function renderTplItems(items) {
   tplItems = items.map(function(i,idx){return Object.assign({_idx:idx},i);});
@@ -3572,7 +3573,7 @@ function saveTemplate(){
     function gv(f){const el=row.querySelector('[data-tplf="'+f+'"]');return el?el.value:'';}
     return {desc:gv('desc'),cat:gv('cat'),qty:parseFloat(gv('qty'))||1,unit:gv('unit')||'ea',mc:parseFloat(gv('mc'))||0,lh:parseFloat(gv('lh'))||0};
   });
-  const data={id:id||Date.now().toString(),name,icon:document.getElementById('m-tplicon').value||'📐',cat:document.getElementById('m-tplcat').value||'Custom',margin:parseFloat(document.getElementById('m-tplmargin').value)||35,env:document.getElementById('m-tplenv').value||'office',items};
+  const data={id:id||Date.now().toString(),name,icon:document.getElementById('m-tplicon').value||'📐',cat:document.getElementById('m-tplcat').value||'Custom',margin:(function(){ var v=parseFloat(document.getElementById('m-tplmargin').value); return isNaN(v)?35:v; })(),env:document.getElementById('m-tplenv').value||'office',items};
   if(id){const idx=DB.templates.findIndex(function(t){return t.id==id});if(idx>=0)DB.templates[idx]=data;else DB.templates.push(data);}else DB.templates.push(data);
   saveDB();closeModal('modal-template');renderTemplates();renderTplLibrary();
 }
