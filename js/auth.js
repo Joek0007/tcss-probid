@@ -309,12 +309,13 @@ async function syncAllFromCloud() {
             belowMarginFloor: q.below_margin_floor,
             notes: q.scope_notes,
             internalNotes: q.internal_notes,
-            terms: q.quote_terms,
+            tc: q.quote_terms || null,
             priority: q.priority,
             lumpSum: q.lump_sum_enabled ? { enabled: true, label: q.lump_sum_label, showItems: true } : null,
             approval: q.approval_status ? { status: q.approval_status } : null,
             approvalToken: q.approval_token || null,
             showLaborBanner: q.show_labor_banner !== undefined ? !!q.show_labor_banner : true,
+            pt: q.payment_terms || 'Net 30',
             followupDate: q.followup_date || null,
             permits: q.permit_data ? (function(){ try{ return JSON.parse(q.permit_data); }catch(e){ return null; } })() : null,
             items: (q.quote_line_items || []).sort(function(a,b){ return a.sort_order - b.sort_order; }).map(function(li) {
@@ -340,7 +341,7 @@ async function syncAllFromCloud() {
         var cloudCustIds = new Set(custs.map(function(c){ return String(c.id); }));
         var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)) && delC.indexOf(String(c.id)) < 0; });
         var cloudCusts = custs.map(function(c) {
-          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, notes:c.notes, active:c.is_active };
+          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, notes:c.notes, active:c.is_active };
         });
         DB.customers = cloudCusts.concat(localOnlyCusts);
       }
@@ -777,7 +778,7 @@ async function pushAllToCloud() {
           below_margin_floor: !!q.belowMarginFloor,
           scope_notes: q.notes || null,
           internal_notes: q.internalNotes || null,
-          quote_terms: q.terms || null,
+          quote_terms: q.tc || null,
           priority: q.priority || 'Normal',
           lump_sum_enabled: !!(q.lumpSum && q.lumpSum.enabled),
           lump_sum_label: (q.lumpSum && q.lumpSum.label) || null,
