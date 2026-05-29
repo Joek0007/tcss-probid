@@ -268,9 +268,11 @@ async function syncAllFromCloud() {
       else if (quotes) {
         // Filter out quotes the user has deleted locally
         quotes = quotes.filter(function(q){ return delQ.indexOf(String(q.id)) < 0; });
-        var cloudQuoteIds = new Set(quotes.map(function(q){ return String(q.id); }));
-        // Preserve any local quotes not yet synced to cloud (created before push debounce fired)
-        var localOnlyQuotes = (DB.quotes||[]).filter(function(q){ return q.id && !cloudQuoteIds.has(String(q.id)) && delQ.indexOf(String(q.id)) < 0; });
+        var cloudQuoteIds  = new Set(quotes.map(function(q){ return String(q.id); }));
+        var cloudQuoteNums = new Set(quotes.map(function(q){ return String(q.quote_number||''); }).filter(Boolean));
+        // Preserve local quotes not yet in cloud — check by ID AND by quote number
+        // to prevent the same quote appearing twice when ensureUUID changed its local ID
+        var localOnlyQuotes = (DB.quotes||[]).filter(function(q){ return q.id && !cloudQuoteIds.has(String(q.id)) && !(q.num && cloudQuoteNums.has(String(q.num))) && delQ.indexOf(String(q.id)) < 0; });
         var cloudQuotes = quotes.map(function(q) {
           return {
             id: q.id,
@@ -1113,6 +1115,9 @@ async function pushAllToCloud() {
   } finally {
     _pushInProgress = false;
   }
+  // Persist any UUID changes ensureUUID made to localStorage so next sync
+  // doesn't treat the same quote as "local only" with the old timestamp ID
+  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
   var syncEl = document.getElementById('dash-last-updated');
   if (syncEl) syncEl.textContent = 'Saved ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
   // No hideSpinner — push runs silently in background
