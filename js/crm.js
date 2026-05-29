@@ -103,9 +103,9 @@ function renderCPOverview(customer, quotes, jobs, contacts, projects) {
               '<span style="font-size:10px;font-weight:700;color:#2e7d32;text-transform:uppercase;letter-spacing:.5px">🏷 Tax Status</span><br>'+
               '<span style="font-size:14px;font-weight:700;color:#1b5e20">✓ Tax Exempt</span>'+
             '</div>'
-          : '<div style="background:#f5f5f5;border:1px solid #e0e0e0;border-radius:8px;padding:8px 14px;min-width:100px">'+
-              '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px">🏷 Tax Status</span><br>'+
-              '<span style="font-size:14px;font-weight:600;color:#546e7a">Taxable</span>'+
+          : '<div style="background:#fff3e0;border:1px solid #ffb74d;border-radius:8px;padding:8px 14px;min-width:100px">'+
+              '<span style="font-size:10px;font-weight:700;color:#e65100;text-transform:uppercase;letter-spacing:.5px">🏷 Tax Status</span><br>'+
+              '<span style="font-size:14px;font-weight:700;color:#e65100">Taxable</span>'+
             '</div>')+
       '</div>'+
       (customer.notes?'<div style="margin-top:8px;color:#546e7a;font-size:12px;font-style:italic">'+escHtml(customer.notes)+'</div>':'')+
