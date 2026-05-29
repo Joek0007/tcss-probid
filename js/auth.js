@@ -315,6 +315,7 @@ async function syncAllFromCloud() {
             approval: q.approval_status ? { status: q.approval_status } : null,
             approvalToken: q.approval_token || null,
             showLaborBanner: q.show_labor_banner !== undefined ? !!q.show_labor_banner : true,
+            followupDate: q.followup_date || null,
             permits: q.permit_data ? (function(){ try{ return JSON.parse(q.permit_data); }catch(e){ return null; } })() : null,
             items: (q.quote_line_items || []).sort(function(a,b){ return a.sort_order - b.sort_order; }).map(function(li) {
               return { _id:li.id, desc:li.description, cat:li.category, qty:li.qty, unit:li.unit, mc:li.material_cost, lh:li.labor_hours };
@@ -784,6 +785,8 @@ async function pushAllToCloud() {
           approval_token: q.approvalToken || null,
           show_labor_banner: q.showLaborBanner !== undefined ? !!q.showLaborBanner : true,
           permit_data: q.permits ? JSON.stringify(q.permits) : null,
+          payment_terms: q.pt || 'Net 30',
+          followup_date: q.followupDate || null,
           created_by: _currentUser.id
         });
 

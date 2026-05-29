@@ -863,6 +863,7 @@ table{font-size:12.5px}
   (q.taxAmt > 0 ? '<tr class="sub-row"><td>Tax (' + pct(q.taxRate||0) + ')</td><td style="text-align:right">' + fmt(q.taxAmt) + '</td></tr>' : '') +
   (q.discount > 0 ? '<tr class="sub-row"><td>Discount</td><td style="text-align:right;color:#c62828">-' + fmt(q.discount) + '</td></tr>' : '') +
   '<tr class="total-row"><td>TOTAL INVESTMENT</td><td style="text-align:right">' + fmt(q.total||0) + '</td></tr>' +
+  ((!q.taxRate || q.taxRate === 0) ? '<tr><td colspan="2" style="padding:6px 0 0;font-size:11px;color:#90a4ae;font-style:italic;text-align:right">(Applicable taxes not included)</td></tr>' : '') +
   '</table></div>' +
 
   // INTERNAL ANALYSIS (if internal mode)
