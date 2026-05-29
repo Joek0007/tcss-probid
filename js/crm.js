@@ -93,17 +93,20 @@ function renderCPOverview(customer, quotes, jobs, contacts, projects) {
       (customer.phone?'<div>📞 <a href="tel:'+escHtml(customer.phone)+'" style="color:#1565c0">'+escHtml(customer.phone)+'</a></div>':'')+
       (customer.email?'<div>✉️ <a href="mailto:'+escHtml(customer.email)+'" style="color:#1565c0">'+escHtml(customer.email)+'</a></div>':'')+
       (customer.address?'<div>📍 '+escHtml(customer.address)+'</div>':'')+
-      '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e0e7ef;display:flex;gap:16px">'+
-        '<div>'+
-          '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Payment Terms</span><br>'+
-          '<span style="font-size:13px;font-weight:700;color:#1565c0">'+escHtml(customer.defaultTerms||'Due on Receipt')+'</span>'+
+      '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e0e7ef;display:flex;gap:10px;flex-wrap:wrap">'+
+        '<div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:8px 14px;min-width:120px">'+
+          '<span style="font-size:10px;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.5px">💳 Payment Terms</span><br>'+
+          '<span style="font-size:14px;font-weight:700;color:#0d47a1">'+escHtml(customer.defaultTerms||'Due on Receipt')+'</span>'+
         '</div>'+
-        '<div>'+
-          '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Tax Status</span><br>'+
-          (customer.taxExempt
-            ? '<span style="font-size:13px;font-weight:700;color:#2e7d32">✓ Tax Exempt</span>'
-            : '<span style="font-size:13px;font-weight:600;color:#546e7a">Taxable</span>')+
-        '</div>'+
+        (customer.taxExempt
+          ? '<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:8px 14px;min-width:100px">'+
+              '<span style="font-size:10px;font-weight:700;color:#2e7d32;text-transform:uppercase;letter-spacing:.5px">🏷 Tax Status</span><br>'+
+              '<span style="font-size:14px;font-weight:700;color:#1b5e20">✓ Tax Exempt</span>'+
+            '</div>'
+          : '<div style="background:#f5f5f5;border:1px solid #e0e0e0;border-radius:8px;padding:8px 14px;min-width:100px">'+
+              '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px">🏷 Tax Status</span><br>'+
+              '<span style="font-size:14px;font-weight:600;color:#546e7a">Taxable</span>'+
+            '</div>')+
       '</div>'+
       (customer.notes?'<div style="margin-top:8px;color:#546e7a;font-size:12px;font-style:italic">'+escHtml(customer.notes)+'</div>':'')+
     '</div>'+

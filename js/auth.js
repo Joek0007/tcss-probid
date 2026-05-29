@@ -55,7 +55,8 @@ function init() {
       }
       if (event === 'SIGNED_IN') {
         hideAuthModal();
-        if (!_currentUser) {
+        // Guard: skip if getSession() already kicked off a sync (avoids double-push race on line items)
+        if (!_currentUser && !window._syncInProgress) {
           loadCurrentUserProfile().then(function() {
             showToast('Welcome back, ' + (_currentUser ? _currentUser.full_name.split(' ')[0] : '') + '!', 'success');
             syncAllFromCloud();
@@ -672,9 +673,19 @@ async function syncAllFromCloud() {
   }
 }
 
+var _pushInProgress = false;
+
 async function pushAllToCloud() {
   if (!_sb || !_currentUser) return;
   if (_currentUser.role === 'field') return;
+  // Concurrency lock — prevent overlapping pushes which cause duplicate line item inserts
+  if (_pushInProgress) {
+    // Re-schedule for after current push completes
+    clearTimeout(window._syncTimer);
+    window._syncTimer = setTimeout(pushAllToCloud, 3000);
+    return;
+  }
+  _pushInProgress = true;
   // Background push — silent, no spinner, no UI blocking
   var syncEl = document.getElementById('dash-last-updated');
   if (syncEl) syncEl.textContent = 'Saving...';
@@ -1099,6 +1110,8 @@ async function pushAllToCloud() {
   } catch(e) {
     console.error('Push error:', e);
     showToast('Sync error — changes saved locally', 'warning');
+  } finally {
+    _pushInProgress = false;
   }
   var syncEl = document.getElementById('dash-last-updated');
   if (syncEl) syncEl.textContent = 'Saved ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
