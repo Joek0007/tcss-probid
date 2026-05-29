@@ -93,6 +93,18 @@ function renderCPOverview(customer, quotes, jobs, contacts, projects) {
       (customer.phone?'<div>📞 <a href="tel:'+escHtml(customer.phone)+'" style="color:#1565c0">'+escHtml(customer.phone)+'</a></div>':'')+
       (customer.email?'<div>✉️ <a href="mailto:'+escHtml(customer.email)+'" style="color:#1565c0">'+escHtml(customer.email)+'</a></div>':'')+
       (customer.address?'<div>📍 '+escHtml(customer.address)+'</div>':'')+
+      '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e0e7ef;display:flex;gap:16px">'+
+        '<div>'+
+          '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Payment Terms</span><br>'+
+          '<span style="font-size:13px;font-weight:700;color:#1565c0">'+escHtml(customer.defaultTerms||'Due on Receipt')+'</span>'+
+        '</div>'+
+        '<div>'+
+          '<span style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Tax Status</span><br>'+
+          (customer.taxExempt
+            ? '<span style="font-size:13px;font-weight:700;color:#2e7d32">✓ Tax Exempt</span>'
+            : '<span style="font-size:13px;font-weight:600;color:#546e7a">Taxable</span>')+
+        '</div>'+
+      '</div>'+
       (customer.notes?'<div style="margin-top:8px;color:#546e7a;font-size:12px;font-style:italic">'+escHtml(customer.notes)+'</div>':'')+
     '</div>'+
     '<div style="margin-top:12px;display:flex;gap:8px">'+

@@ -1103,7 +1103,7 @@ function switchMsTab(tab) {
   // Render tab content on first open
   if (tab==='workorders')   renderMsWOSettings();
   if (tab==='roles')        renderMsRolesTab();
-  if (tab==='quoting')      { setTimeout(renderMarginFloorsEditor, 50); }
+  if (tab==='quoting')      { setTimeout(function(){ renderMarginFloorsEditor(); renderMsPaymentTerms(); }, 50); }
   if (tab==='inventory')    typeof renderLocationSettings === 'function' && renderLocationSettings();
   if (tab==='time')         typeof renderMsTimeSettings   === 'function' && renderMsTimeSettings();
 }
@@ -1365,4 +1365,152 @@ function saveMsWORate(key, val) {
   DB.woSettings[key] = parseFloat(val)||0;
   saveDB();
   showToast('Rate saved ✓','success',2000);
+}
+
+// ============================================================
+// PAYMENT TERMS — Master Settings
+// ============================================================
+
+var PAYMENT_TERMS_DEFAULT = [
+  'Due on Receipt',
+  'Net 15',
+  'Net 30',
+  'Net 45',
+  'Net 60',
+  '50% Down, Balance on Completion',
+  '25% Down, Balance on Completion'
+];
+
+function getPaymentTermsList() {
+  var saved = DB.settings && DB.settings.paymentTerms;
+  return (saved && saved.length) ? saved : PAYMENT_TERMS_DEFAULT.slice();
+}
+
+function renderMsPaymentTerms() {
+  var el = document.getElementById('ms-payment-terms-section');
+  if (!el) return;
+  var terms = getPaymentTermsList();
+
+  el.innerHTML =
+    '<div class="card">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
+      '<div class="card-title" style="margin:0">💳 Payment Terms</div>'+
+      '<button class="btn btn-primary btn-sm" onclick="addPaymentTerm()">+ Add Term</button>'+
+    '</div>'+
+    '<p style="font-size:12px;color:#546e7a;margin-bottom:12px">Drag ⣿ to reorder. First item is the default for new customers and quotes.</p>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    '<tbody id="pt-tbody">'+
+    terms.map(function(t, i) {
+      return '<tr data-pt-idx="'+i+'" style="border-bottom:1px solid #f0f4f8">'+
+        '<td style="padding:6px 6px;cursor:grab;color:#90a4ae;font-size:18px;user-select:none;width:24px" '+
+        'draggable="true" data-pt-idx="'+i+'" '+
+        'ondragstart="ptDragStart(event)" ondragend="ptDragEnd(event)">⣿</td>'+
+        '<td style="padding:6px 8px">'+
+          '<input value="'+escHtml(t)+'" onchange="updatePaymentTerm('+i+',this.value)" '+
+          'style="width:100%;padding:6px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;box-sizing:border-box">'+
+        '</td>'+
+        '<td style="padding:6px 8px;width:32px;text-align:center">'+
+          (i===0?'<span style="font-size:10px;color:#2e7d32;font-weight:700">DEFAULT</span>':
+          '<button onclick="deletePaymentTerm('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:16px;padding:0">×</button>')+
+        '</td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table>'+
+    '<div style="margin-top:12px">'+
+      '<button class="btn btn-primary" onclick="savePaymentTerms()">💾 Save Payment Terms</button>'+
+    '</div>'+
+    '</div>';
+
+  _initPtDrag();
+}
+
+var _ptDragSrcIdx = null;
+function _initPtDrag() {
+  var tbody = document.getElementById('pt-tbody');
+  if (!tbody) return;
+  tbody.addEventListener('dragover', function(e){
+    e.preventDefault();
+    var tr = e.target.closest('tr');
+    tbody.querySelectorAll('tr').forEach(function(r){ r.style.borderTop=''; });
+    if (tr) tr.style.borderTop = '2px solid #1565c0';
+  });
+  tbody.addEventListener('drop', function(e){
+    e.preventDefault();
+    var tr = e.target.closest('tr');
+    if (!tr) return;
+    var targetIdx = parseInt(tr.getAttribute('data-pt-idx'));
+    if (_ptDragSrcIdx===null || isNaN(targetIdx) || _ptDragSrcIdx===targetIdx) return;
+    var terms = getPaymentTermsList();
+    var moved = terms.splice(_ptDragSrcIdx,1)[0];
+    terms.splice(targetIdx,0,moved);
+    if (!DB.settings) DB.settings={};
+    DB.settings.paymentTerms = terms;
+    saveDB(); renderMsPaymentTerms();
+    showToast('Order saved ✓','success',1500);
+  });
+  tbody.addEventListener('dragleave', function(e){
+    if (!tbody.contains(e.relatedTarget))
+      tbody.querySelectorAll('tr').forEach(function(r){ r.style.borderTop=''; });
+  });
+}
+function ptDragStart(e) {
+  _ptDragSrcIdx = parseInt(e.currentTarget.getAttribute('data-pt-idx'));
+  var row = e.currentTarget.closest('tr'); if(row) row.style.opacity='0.4';
+  e.dataTransfer.effectAllowed='move';
+}
+function ptDragEnd(e) {
+  var row = e.currentTarget.closest('tr'); if(row) row.style.opacity='';
+  document.querySelectorAll('#pt-tbody tr').forEach(function(r){ r.style.borderTop=''; r.style.opacity=''; });
+  _ptDragSrcIdx=null;
+}
+function updatePaymentTerm(idx, val) {
+  var terms = getPaymentTermsList();
+  if (terms[idx]!==undefined) terms[idx]=val;
+  if (!DB.settings) DB.settings={};
+  DB.settings.paymentTerms = terms;
+}
+function addPaymentTerm() {
+  var terms = getPaymentTermsList();
+  terms.push('New Term');
+  if (!DB.settings) DB.settings={};
+  DB.settings.paymentTerms = terms;
+  saveDB(); renderMsPaymentTerms();
+  var rows = document.querySelectorAll('#pt-tbody tr');
+  if (rows.length) { var inp=rows[rows.length-1].querySelector('input'); if(inp){inp.focus();inp.select();} }
+}
+function deletePaymentTerm(idx) {
+  var terms = getPaymentTermsList();
+  if (!confirm('Remove "'+terms[idx]+'"?')) return;
+  terms.splice(idx,1);
+  if (!DB.settings) DB.settings={};
+  DB.settings.paymentTerms = terms;
+  saveDB(); renderMsPaymentTerms();
+}
+function savePaymentTerms() {
+  var terms = getPaymentTermsList();
+  var rows = document.querySelectorAll('#pt-tbody tr[data-pt-idx]');
+  rows.forEach(function(row){
+    var idx = parseInt(row.getAttribute('data-pt-idx'));
+    var inp = row.querySelector('input');
+    if (inp && terms[idx]!==undefined) terms[idx]=inp.value.trim()||terms[idx];
+  });
+  if (!DB.settings) DB.settings={};
+  DB.settings.paymentTerms = terms;
+  saveDB();
+  // Refresh all payment terms dropdowns
+  refreshAllPaymentTermsDropdowns();
+  showToast('Payment terms saved ✓','success',2000);
+}
+
+function refreshAllPaymentTermsDropdowns() {
+  var terms = getPaymentTermsList();
+  var opts = '<option value="">— Select —</option>' +
+    terms.map(function(t){ return '<option value="'+escHtml(t)+'">'+escHtml(t)+'</option>'; }).join('');
+  ['qq-pt','m-cterms'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    var cur = el.value;
+    el.innerHTML = opts;
+    if (cur) el.value = cur;
+  });
 }

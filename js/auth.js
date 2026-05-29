@@ -626,7 +626,7 @@ async function syncAllFromCloud() {
       if (ve) { errors.push('vendors: '+ve.message); }
       else if (vendorRows) {
         DB.vendors = vendorRows.map(function(v){
-          return { id:v.id, name:v.name, contact:v.contact_name, phone:v.phone, email:v.email, acctNum:v.account_num, address:v.address, city:v.city, state:v.state, zip:v.zip, terms:v.payment_terms||'Net 30', taxExempt:!!v.tax_exempt, notes:v.notes, active:v.is_active!==false };
+          return { id:v.id, name:v.name, contact:v.contact_name, phone:v.phone, email:v.email, acctNum:v.account_num, address:v.address, city:v.city, state:v.state, zip:v.zip, defaultTerms:v.default_terms||'Due on Receipt', taxExempt:!!v.tax_exempt, notes:v.notes, active:v.is_active!==false };
         });
       }
     } catch(e) { errors.push('vendors: '+e.message); }
@@ -845,7 +845,8 @@ async function pushAllToCloud() {
           city: c.city || null,
           state: c.state || null,
           zip: c.zip || null,
-          default_terms: c.defaultTerms || null,
+          default_terms: c.defaultTerms || 'Due on Receipt',
+          tax_exempt: !!c.taxExempt,
           hot_note_tech:   c.hotNoteTech || null,
           hot_note_office: c.hotNoteOffice || null,
           notes: c.notes || null,

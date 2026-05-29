@@ -1784,7 +1784,7 @@ function openInvoiceModal(job) {
   if (!cust && job.customer) cust = (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(job.customer||'').toLowerCase(); });
 
   // Payment terms — customer default → quote → Net 30
-  var terms = (cust&&cust.defaultTerms) || (quote&&quote.pt) || 'Net 30';
+  var terms = (cust&&cust.defaultTerms) || (quote&&quote.pt) || 'Due on Receipt';
   var daysMap = {'Due on Receipt':0,'Net 15':15,'Net 30':30,'Net 45':45,'Net 60':60,'50% Deposit / 50% on Completion':30};
   var days = daysMap[terms];
   var dueDate = '';
@@ -2264,7 +2264,7 @@ function _custAddress(c) {
 function newCustomer() {
   document.getElementById('modal-cust-title').textContent='New Customer';
   _custFieldIds().forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-  var sel=document.getElementById('m-cterms'); if(sel) sel.value='';
+  var sel=document.getElementById('m-cterms'); if(sel) sel.value='Due on Receipt'; var _taxEl=document.getElementById('m-ctax-taxable'); if(_taxEl) _taxEl.checked=true;
   openModal('modal-customer');
 }
 function editCustomer(id) {
@@ -2275,7 +2275,8 @@ function editCustomer(id) {
   sv('m-cname',c.name); sv('m-cphone',c.phone); sv('m-cemail',c.email);
   sv('m-cstreet',c.street||(c.address&&!c.city?c.address:'')); sv('m-ccity',c.city||''); sv('m-cstate',c.state||''); sv('m-czip',c.zip||'');
   sv('m-cnotes',c.notes); sv('m-cid',c.id);
-  var sel=document.getElementById('m-cterms'); if(sel) sel.value=c.defaultTerms||'';
+  var sel=document.getElementById('m-cterms'); if(sel) sel.value=c.defaultTerms||'Due on Receipt';
+  var taxEl=document.getElementById(c.taxExempt?'m-ctax-exempt':'m-ctax-taxable'); if(taxEl) taxEl.checked=true;
   var htEl=document.getElementById('m-c-hotnote-tech');   if(htEl) htEl.value=c.hotNoteTech||'';
   var hoEl=document.getElementById('m-c-hotnote-office'); if(hoEl) hoEl.value=c.hotNoteOffice||'';
   openModal('modal-customer');
@@ -2294,7 +2295,8 @@ function _buildCustomerData(id) {
     state:        state,
     zip:          zip,
     address:      addrParts.join(' '),
-    defaultTerms:  (document.getElementById('m-cterms')||{}).value||'',
+    defaultTerms:  (document.getElementById('m-cterms')||{}).value||'Due on Receipt',
+    taxExempt:     document.getElementById('m-ctax-exempt') ? !!document.getElementById('m-ctax-exempt').checked : false,
     notes:         gv('m-cnotes'),
     hotNoteTech:   (document.getElementById('m-c-hotnote-tech')||{}).value||'',
     hotNoteOffice: (document.getElementById('m-c-hotnote-office')||{}).value||''
@@ -2330,7 +2332,7 @@ function saveCustomerAndAnother() {
   else DB.customers.push(data);
   saveDB(); renderCustomers();
   _custFieldIds().forEach(function(fid){var el=document.getElementById(fid);if(el)el.value='';});
-  var sel=document.getElementById('m-cterms'); if(sel) sel.value='';
+  var sel=document.getElementById('m-cterms'); if(sel) sel.value='Due on Receipt'; var _taxEl=document.getElementById('m-ctax-taxable'); if(_taxEl) _taxEl.checked=true;
   const titleEl=document.getElementById('modal-cust-title'); if(titleEl) titleEl.textContent='New Customer';
   const nameEl=document.getElementById('m-cname'); if(nameEl) nameEl.focus();
   showToast('"'+name+'" saved — ready for next customer','success');
@@ -2522,6 +2524,11 @@ function newQuoteForContact(contactId) {
       if (cyEl && !cyEl.value) cyEl.value = cust.city||'';
       if (stEl && !stEl.value) stEl.value = cust.state||'NC';
       if (zpEl && !zpEl.value) zpEl.value = cust.zip||'';
+      // Apply customer defaults: payment terms and tax exempt
+      var ptEl2 = document.getElementById('qq-pt');
+      if (ptEl2 && cust.defaultTerms) { refreshAllPaymentTermsDropdowns && refreshAllPaymentTermsDropdowns(); ptEl2.value = cust.defaultTerms; }
+      var txEl2 = document.getElementById('qq-tx');
+      if (txEl2 && cust.taxExempt) txEl2.value = '0';
     }
     // Do NOT dispatch input events — that triggers draft save which can wipe quote data
   }, 300);

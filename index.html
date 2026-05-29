@@ -1480,7 +1480,7 @@ table{font-size:12.5px}
         </div>
         <div class="form-row cols2">
           <div><label>Valid Until</label><input id="qq-vu" type="date"></div>
-          <div><label>Quote Terms</label><input id="qq-pt" placeholder="Net 30 upon approval"></div>
+          <div><label>Payment Terms</label><select id="qq-pt" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"><option value="Due on Receipt">Due on Receipt</option><option value="Net 15">Net 15</option><option value="Net 30">Net 30</option><option value="Net 45">Net 45</option><option value="Net 60">Net 60</option><option value="50% Down, Balance on Completion">50% Down, Balance on Completion</option><option value="25% Down, Balance on Completion">25% Down, Balance on Completion</option></select></div>
         </div>
         <div class="form-row"><div><label>Scope / Notes (used in proposal)</label><textarea id="qq-notes" rows="3" placeholder="Describe the scope of work..."></textarea></div></div>
         <div class="form-row"><div><label>Terms &amp; Conditions</label><textarea id="qq-tc" rows="2" placeholder="Payment terms, warranty info..."></textarea></div></div>
@@ -4296,6 +4296,14 @@ table{font-size:12.5px}
   <!-- ===== QUOTING ===== -->
   <div class="ms-section" id="ms-quoting">
     <div class="ms-grid">
+      <!-- Payment Terms -->
+      <div class="card ms-full">
+        <div id="ms-payment-terms-section">
+          <!-- Rendered by renderMsPaymentTerms() -->
+        </div>
+      </div>
+
+      <!-- Margin Floors -->
 
   <div class="card" style="margin-top:0">
     <div class="card-title">📄 Proposal Defaults — Assumptions &amp; Exclusions</div>
@@ -5205,7 +5213,18 @@ table{font-size:12.5px}
       <div class="form-row cols2"><div><label>Phone</label><input id="m-cphone"></div><div><label>Email</label><input id="m-cemail" type="email"></div></div>
       <div class="form-row"><div><label>Street Address</label><input id="m-cstreet" placeholder="Street address"></div></div>
       <div class="form-row cols3"><div><label>City</label><input id="m-ccity" placeholder="City"></div><div><label>State</label><input id="m-cstate" placeholder="NC" maxlength="2" style="text-transform:uppercase"></div><div><label>Zip</label><input id="m-czip" placeholder="00000" maxlength="10"></div></div>
-      <div class="form-row"><div><label>Default Payment Terms</label><select id="m-cterms"><option value="">— None —</option><option value="Due on Receipt">Due on Receipt</option><option value="Net 15">Net 15</option><option value="Net 30">Net 30</option><option value="Net 45">Net 45</option><option value="Net 60">Net 60</option><option value="50% Deposit / 50% on Completion">50% Deposit / 50% on Completion</option><option value="Progress Billing">Progress Billing</option></select></div></div>
+      <div class="form-row"><div><label>Default Payment Terms</label><select id="m-cterms"><option value="Due on Receipt">Due on Receipt</option><option value="Net 15">Net 15</option><option value="Net 30">Net 30</option><option value="Net 45">Net 45</option><option value="Net 60">Net 60</option><option value="50% Down, Balance on Completion">50% Down, Balance on Completion</option><option value="25% Down, Balance on Completion">25% Down, Balance on Completion</option></select></div></div>
+      <div class="form-row"><div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+        <label style="font-size:13px;font-weight:700;color:#546e7a">Tax Status:</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="radio" name="m-ctax" id="m-ctax-taxable" value="taxable" checked>
+          <span style="font-size:13px">Taxable</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="radio" name="m-ctax" id="m-ctax-exempt" value="exempt">
+          <span style="font-size:13px;color:#2e7d32;font-weight:600">Tax Exempt</span>
+        </label>
+      </div></div>
       <div class="form-row"><div><label>Notes</label><textarea id="m-cnotes" rows="2"></textarea></div></div>
       <div class="form-row"><div><label>⚡ Tech Hot Note <span style="font-size:11px;color:#e65100">(Pops up for field techs on every work order)</span></label><textarea id="m-c-hotnote-tech" rows="2" placeholder="e.g. Always call site manager before arriving. Access code: 4521"></textarea></div></div>
       <div class="form-row"><div><label>🏢 Office Hot Note <span style="font-size:11px;color:#1565c0">(Pops up for office only when creating a new work order)</span></label><textarea id="m-c-hotnote-office" rows="2" placeholder="e.g. Net 30 terms. Always get PO number before dispatching."></textarea></div></div>
