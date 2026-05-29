@@ -33,7 +33,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e;mi
 #topbar .page-title{font-size:18px;font-weight:700;color:#0d1b2a;flex:1}
 #topbar .topbar-right{display:flex;align-items:center;gap:10px}
 .badge-company{background:#e3f2fd;color:#1565c0;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600}
-#content{margin-left:var(--sidebar);margin-top:var(--top);padding:28px;min-height:calc(100vh - var(--top))}
+#content{margin-left:var(--sidebar);margin-top:var(--top);padding:24px 28px 28px;min-height:calc(100vh - var(--top));box-sizing:border-box;overflow-x:hidden}
 .page{display:none}.page.active{display:block}
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
 .page-header h2{font-size:22px;font-weight:700;color:#0d1b2a}
@@ -4014,14 +4014,14 @@ table{font-size:12.5px}
   <div id="audit-log-content"></div>
 </div>
 
-<div class="page" id="page-settings">
+<div class="page" id="page-settings" style="max-width:1400px">
   <div class="page-header">
     <h2>⚙️ Settings</h2>
     <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
   </div>
 
   <!-- MASTER SETTINGS TAB NAV -->
-  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:20px;border-bottom:2px solid #e0e7ef;padding-bottom:0">
+  <div style="display:flex;gap:0;flex-wrap:nowrap;margin-bottom:20px;border-bottom:2px solid #e0e7ef;padding-bottom:0;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch">
     <button class="ms-tab active" onclick="switchMsTab('company')"         data-tab="company">🏢 Company</button>
     <button class="ms-tab"        onclick="switchMsTab('workorders')"      data-tab="workorders">🔨 Work Orders</button>
     <button class="ms-tab"        onclick="switchMsTab('roles')"           data-tab="roles">🔐 Roles & Permissions</button>
@@ -4032,12 +4032,13 @@ table{font-size:12.5px}
   </div>
 
   <style>
-    .ms-tab { background:none; border:none; border-bottom:3px solid transparent; padding:8px 16px; font-size:13px; font-weight:600; color:#546e7a; cursor:pointer; margin-bottom:-2px; border-radius:6px 6px 0 0; transition:all .15s; }
+    .ms-tab { background:none; border:none; border-bottom:3px solid transparent; padding:8px 16px; font-size:13px; font-weight:600; color:#546e7a; cursor:pointer; margin-bottom:-2px; border-radius:6px 6px 0 0; transition:all .15s; white-space:nowrap; }
     .ms-tab:hover { background:#f0f4f8; color:#1565c0; }
     .ms-tab.active { color:#1565c0; border-bottom-color:#1565c0; background:#e3f2fd; }
     .ms-section { display:none; }
     .ms-section.active { display:block; }
-    .ms-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .ms-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; width:100%; box-sizing:border-box; }
+    .ms-grid > * { min-width:0; }
     .ms-full { grid-column:1/-1; }
   </style>
 
@@ -4296,16 +4297,12 @@ table{font-size:12.5px}
   <!-- ===== QUOTING ===== -->
   <div class="ms-section" id="ms-quoting">
     <div class="ms-grid">
-      <!-- Payment Terms -->
-      <div class="card ms-full">
-        <div id="ms-payment-terms-section">
-          <!-- Rendered by renderMsPaymentTerms() -->
-        </div>
+      <!-- Payment Terms + Margin Floors — JS renders directly, no outer card wrapper -->
+      <div class="ms-full" id="ms-payment-terms-section">
+        <!-- Rendered by renderMsPaymentTerms() -->
       </div>
 
-      <!-- Margin Floors -->
-
-  <div class="card" style="margin-top:0">
+      <div class="card ms-full">
     <div class="card-title">📄 Proposal Defaults — Assumptions &amp; Exclusions</div>
     <p style="font-size:12px;color:#546e7a;margin-bottom:14px">These appear on every client proposal. Edit, reorder, add, or remove lines. Use the toggles to include or exclude each section.</p>
 
@@ -4350,7 +4347,7 @@ table{font-size:12.5px}
   </div>
 
   <!-- TERMS BY JOB TYPE -->
-  <div class="card" style="margin-top:16px">
+  <div class="card ms-full">
     <div class="card-title">📜 Terms &amp; Conditions by Job Type</div>
     <p style="font-size:12px;color:#546e7a;margin-bottom:4px">Your <strong>Base T&amp;C</strong> (set in Pricing Defaults above) applies to every proposal. Add job-type-specific addendums below — they automatically append to the base T&amp;C when that job type is selected.</p>
     <p style="font-size:11px;color:#90a4ae;margin-bottom:14px">Leave blank to use base T&amp;C only for that job type.</p>
@@ -4370,7 +4367,7 @@ table{font-size:12.5px}
   <!--   2) Below-floor only (vs all quotes)                        -->
   <!-- PIN-gated, audit-logged, no modal overlays                   -->
   <!-- ============================================================ -->
-  <div class="card" id="ma-card" style="margin-top:16px">
+  <div class="card ms-full" id="ma-card">
     <div class="card-title">🔒 Manager Approval Workflow</div>
     <p style="font-size:12px;color:#546e7a;margin-bottom:12px">PIN-protected approval gate for Print and Email actions. Preview is always available. Choose whether ALL quotes need approval, or only those below the margin floor.</p>
 
