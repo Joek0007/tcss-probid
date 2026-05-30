@@ -84,6 +84,8 @@ function loadDB() {
     if (!DB.absences)        DB.absences        = [];
     if (!DB.wtProjects)      DB.wtProjects      = [];
     if (!DB.wtTemplates)     DB.wtTemplates     = [];
+    if (!DB.wtItemCatalog)   DB.wtItemCatalog   = [];
+    if (!DB.wtRoomTemplates) DB.wtRoomTemplates = [];
     if (!DB.wtBuildings)     DB.wtBuildings     = [];
     if (!DB.wtRooms)         DB.wtRooms         = [];
     if (!DB.wtItems)         DB.wtItems         = [];
