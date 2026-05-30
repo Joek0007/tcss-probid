@@ -442,7 +442,17 @@ function wtIsVerifyRole() {
 }
 
 // ─── MAIN PAGE ENTRY ─────────────────────────────────────────────────────────
+function wtScrollTop() {
+  // Scroll both the window and the content area to top
+  window.scrollTo(0, 0);
+  var m = document.getElementById('wt-main');
+  if (m) m.scrollTop = 0;
+  var content = document.getElementById('content');
+  if (content) content.scrollTop = 0;
+}
+
 function renderWorkTracking() {
+  wtScrollTop();
   wtFlushOfflineQueue();
   if (WT.view === 'list' || !WT.proj) {
     wtRenderProjectList();
@@ -495,54 +505,23 @@ function wtRenderProjectList() {
 
 function wtProjectCard(p) {
   var statusColor = { active:'#2e7d32', paused:'#e65100', completed:'#1565c0', archived:'#90a4ae' };
-  var d = WT.data[p.id] || {};
-  var items = d.items || [];
-  var checkoffs = d.checkoffs || [];
-  var pct = items.length ? Math.round(checkoffs.filter(function(c){ return c.status==='confirmed'; }).length / (items.length * 5) * 100) : 0;
-  return '<div class="card" style="cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow=\'0 6px 20px rgba(0,0,0,.12)\'" onmouseleave="this.style.boxShadow=\'\'" onclick="wtOpenProject(\''+p.id+'\')">'+
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">'+
-      '<div>'+
+  return '<div class="card" style="transition:box-shadow .15s;border-left:3px solid '+(statusColor[p.status]||'#90a4ae')+'" onmouseenter="this.style.boxShadow=\'0 6px 20px rgba(0,0,0,.12)\'" onmouseleave="this.style.boxShadow=\'\'" >'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'+
+      '<div style="flex:1;min-width:0">'+
         '<div style="font-size:16px;font-weight:800;color:#0d1b2a">'+escHtml(p.name)+'</div>'+
-        (p.customer_name ? '<div style="font-size:12px;color:#546e7a;margin-top:2px">'+escHtml(p.customer_name)+'</div>' : '')+
+        (p.customer_name?'<div style="font-size:12px;color:#546e7a;margin-top:2px">'+escHtml(p.customer_name)+'</div>':'')+
+        (p.systems&&p.systems.length?'<div style="font-size:11px;color:#90a4ae;margin-top:2px">'+p.systems.length+' systems selected</div>':'')+
       '</div>'+
-      '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:'+(statusColor[p.status]||'#90a4ae')+'20;color:'+(statusColor[p.status]||'#90a4ae')+'">'+
+      '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:'+(statusColor[p.status]||'#90a4ae')+'20;color:'+(statusColor[p.status]||'#90a4ae')+';flex-shrink:0">'+
         (p.status||'active').toUpperCase()+
       '</span>'+
     '</div>'+
-    '<div style="margin-bottom:10px">'+
-      '<div style="display:flex;justify-content:space-between;font-size:11px;color:#546e7a;margin-bottom:4px">'+
-        '<span>Overall Progress</span><span style="font-weight:700;color:#0d1b2a">'+pct+'%</span>'+
-      '</div>'+
-      '<div style="background:#e0e0e0;border-radius:4px;height:8px">'+
-        '<div style="background:#1565c0;height:8px;border-radius:4px;width:'+pct+'%;transition:width .3s"></div>'+
-      '</div>'+
-    '</div>'+
-    '<div style="display:flex;gap:16px;font-size:12px;color:#546e7a">'+
-      '<span>🏗 '+(d.buildings||[]).length+' buildings</span>'+
-      '<span>📋 '+items.length+' items</span>'+
-      '<span>🔄 '+(d.reworks||[]).filter(function(r){ return r.status!=='resolved'; }).length+' reworks</span>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #f0f0f0">'+
+      '<div style="font-size:12px;color:#90a4ae">Created '+new Date(p.created_at).toLocaleDateString()+'</div>'+
+      '<button onclick="wtOpenProject(\''+p.id+'\')" class="btn btn-primary btn-sm">Open Project →</button>'+
     '</div>'+
   '</div>';
 }
-
-async function wtOpenProject(projId) {
-  var p = (DB.wtProjects||[]).find(function(x){ return x.id===projId; });
-  if (!p) return;
-  WT.proj = p;
-  WT.view = 'dashboard';
-  WT.bldgId = null; WT.floorId = null; WT.roomId = null;
-  showSpinner('Loading project…');
-  try {
-    await wtLoadProjectData(projId);
-    wtRenderDashboard();
-  } catch(e) {
-    showToast('Error loading project: '+e.message, 'error');
-  } finally {
-    hideSpinner();
-  }
-}
-
-// ─── DASHBOARD / HEATMAP ──────────────────────────────────────────────────────
 function wtRenderDashboard() {
   var el = document.getElementById('wt-main'); if (!el) return;
   WT.view = 'dashboard';
@@ -751,22 +730,23 @@ function wtDayDrill() {
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 function wtNav(view) {
   WT.view = view;
+  wtScrollTop();
   wtRenderCurrentView();
 }
 
 function wtNavBuilding(bldgId) {
   WT.view = 'building'; WT.bldgId = bldgId;
-  wtRenderBuildingView();
+  wtScrollTop(); wtRenderBuildingView();
 }
 
 function wtNavFloor(floorId) {
   WT.view = 'floor'; WT.floorId = floorId;
-  wtRenderFloorView();
+  wtScrollTop(); wtRenderFloorView();
 }
 
 function wtNavRoom(roomId) {
   WT.view = 'room'; WT.roomId = roomId;
-  wtRenderRoomView();
+  wtScrollTop(); wtRenderRoomView();
 }
 
 function wtBreadcrumb() {
@@ -1886,20 +1866,41 @@ function wtShowReport(type) {
 
 // ─── QUICK ADD HELPERS ────────────────────────────────────────────────────────
 async function wtAddBuilding() {
-  var name = prompt('Building name (e.g. "Building 1", "Clubhouse"):');
-  if (!name) return;
-  var type = prompt('Type: residential / common_area / network_closet / infrastructure', 'residential');
-  if (!type) type = 'residential';
+  var types = wtGetBuildingTypes();
+  var typeOpts = types.map(function(t){ return '<option value="'+t.id+'">'+escHtml(t.label)+'</option>'; }).join('');
+  var html = '<div class="modal-overlay open" id="wt-addbldg-modal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box sm">'+
+      '<div class="modal-head"><h3>+ Add Building</h3><button class="btn-icon" onclick="document.getElementById(\'wt-addbldg-modal\').remove()">✕</button></div>'+
+      '<div class="modal-body">'+
+        '<div style="margin-bottom:14px"><label class="wiz-label">BUILDING NAME *</label>'+
+          '<input id="ab-name" class="form-control" placeholder="e.g. Building 1, Clubhouse, Parking Garage"></div>'+
+        '<div style="margin-bottom:20px"><label class="wiz-label">TYPE</label>'+
+          '<select id="ab-type" class="form-control">'+typeOpts+'</select></div>'+
+        '<button class="btn btn-primary" style="width:100%" onclick="wtSubmitAddBuilding()">Add Building</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+  var e=document.getElementById('wt-addbldg-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(function(){ var el=document.getElementById('ab-name'); if(el) el.focus(); }, 100);
+}
+
+async function wtSubmitAddBuilding() {
+  var name = (document.getElementById('ab-name')||{}).value||'';
+  var type = (document.getElementById('ab-type')||{}).value||'residential';
+  if (!name.trim()) { showToast('Name is required','warning'); return; }
+  var modal = document.getElementById('wt-addbldg-modal'); if(modal) modal.remove();
   try {
+    var d = WT.data[WT.proj.id];
     var { data, error } = await _sb.from('wt_buildings').insert({
       project_id: WT.proj.id, name:name.trim(),
-      building_type: type.trim(), sort_order: 0
+      building_type: type, sort_order: (d&&d.buildings?d.buildings.length:0)
     }).select().single();
     if (error) throw error;
-    var d = WT.data[WT.proj.id]; if (d) d.buildings.push(data);
+    if (d) d.buildings.push(data);
     wtRenderDashboard();
-    showToast('🏗 Building added', 'success');
-  } catch(e) { showToast('Error: '+e.message, 'error'); }
+    showToast('🏗 Building added','success');
+  } catch(e) { showToast('Error: '+e.message,'error'); }
 }
 
 async function wtAddFloor(bldgId) {
@@ -2402,6 +2403,19 @@ function wtDeleteTemplate(tplId) {
 // Step 4: Unit → Template Mapping
 // Step 5: Systems + Review
 
+// ─── WIZARD DRAFT (auto-save) ─────────────────────────────────────────────────
+var WT_WIZ_DRAFT = 'wt_wizard_draft';
+
+function wtWizSaveDraft() {
+  try { localStorage.setItem(WT_WIZ_DRAFT, JSON.stringify(_wiz)); } catch(e) {}
+}
+function wtWizClearDraft() {
+  try { localStorage.removeItem(WT_WIZ_DRAFT); } catch(e) {}
+}
+function wtWizLoadDraft() {
+  try { var d=localStorage.getItem(WT_WIZ_DRAFT); return d?JSON.parse(d):null; } catch(e) { return null; }
+}
+
 var _wiz = {
   step: 1, totalSteps: 5,
   proj: { name:'', jobId:'', customerName:'', structureType:'multi', systems:[] },
@@ -2411,6 +2425,15 @@ var _wiz = {
 };
 
 function openNewProjectWizard() {
+  var draft = wtWizLoadDraft();
+  if (draft && draft.proj && draft.proj.name && draft.proj.name.trim()) {
+    if (confirm('You have an unsaved project "'+draft.proj.name+'" in progress (Step '+draft.step+' of 5).\nResume where you left off?')) {
+      _wiz = draft;
+      wtShowWizard();
+      return;
+    }
+    wtWizClearDraft();
+  }
   _wiz = {
     step:1, totalSteps:5,
     proj:{ name:'', jobId:'', customerName:'', structureType:'multi', systems:[] },
@@ -2449,6 +2472,63 @@ function wtShowWizard() {
   document.body.insertAdjacentHTML('beforeend', html);
 }
 
+// ─── BUILDING TYPES ───────────────────────────────────────────────────────────
+function wtGetBuildingTypes() {
+  if (!DB.wtBuildingTypes || !DB.wtBuildingTypes.length) {
+    DB.wtBuildingTypes = [
+      { id:'residential',    label:'Residential'    },
+      { id:'common_area',    label:'Common Area'    },
+      { id:'network_closet', label:'Network Closet' },
+      { id:'infrastructure', label:'Infrastructure' },
+      { id:'parking',        label:'Parking'        },
+      { id:'recreational',   label:'Recreational'   },
+      { id:'retail',         label:'Retail'         },
+      { id:'office',         label:'Office'         },
+    ];
+    saveDB();
+  }
+  return DB.wtBuildingTypes;
+}
+
+function wtBtRender() {
+  var types = wtGetBuildingTypes();
+  return types.map(function(t, i){
+    var del = types.length>1
+      ? '<button onclick="wtBtDelete('+i+')" style="padding:4px 8px;font-size:11px;border:1px solid #ffcdd2;border-radius:6px;background:#fff;color:#c62828;cursor:pointer">Del</button>'
+      : '';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:6px">'+
+      '<input value="'+escHtml(t.label)+'" oninput="wtBtRename('+i+',this.value)" '+
+        'style="flex:1;font-size:13px;font-weight:600;border:none;border-bottom:2px solid #e0e0e0;padding:3px 0;background:transparent;color:#0d1b2a">'+
+      del+'</div>';
+  }).join('');
+}
+function wtBtRename(i, val) { if (DB.wtBuildingTypes[i]) { DB.wtBuildingTypes[i].label=val; saveDB(); } }
+function wtBtDelete(i) {
+  DB.wtBuildingTypes.splice(i,1); saveDB();
+  var el=document.getElementById('bt-list'); if(el) el.innerHTML=wtBtRender();
+}
+function wtBtAdd() {
+  DB.wtBuildingTypes.push({ id:'bt_'+Date.now(), label:'New Type' }); saveDB();
+  var el=document.getElementById('bt-list'); if(el) el.innerHTML=wtBtRender();
+}
+function wtOpenBuildingTypeManager() {
+  var html = '<div class="modal-overlay open" id="wt-bt-modal" onclick="if(event.target===this)this.remove()" style="z-index:10002">'+
+    '<div class="modal-box sm">'+
+      '<div class="modal-head"><h3>Building Types</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'wt-bt-modal\').remove()">&#x2715;</button>'+
+      '</div>'+
+      '<div class="modal-body">'+
+        '<p style="font-size:13px;color:#546e7a;margin:0 0 14px">Edit, add, or remove building type options used in the wizard.</p>'+
+        '<div id="bt-list">'+wtBtRender()+'</div>'+
+        '<button onclick="wtBtAdd()" style="font-size:13px;color:#1565c0;background:#e3f2fd;border:2px dashed #90caf9;border-radius:8px;cursor:pointer;padding:10px;width:100%;font-weight:700;margin-top:8px">+ Add Type</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+  var e=document.getElementById('wt-bt-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+
 // Step 1 — Basics
 function wtWizStep1() {
   var jobOptions = (DB.jobs||[]).map(function(j){ return '<option value="'+j.id+'"'+(j.id===_wiz.proj.jobId?' selected':'')+'>'+escHtml(j.name||'')+(j.customerName?' — '+escHtml(j.customerName):'')+'</option>'; }).join('');
@@ -2456,7 +2536,8 @@ function wtWizStep1() {
     '<div style="margin-bottom:14px"><label class="wiz-label">PROJECT NAME *</label>'+
       '<input id="wiz-name" class="form-control" placeholder="e.g. Smith Properties Phase 2" value="'+escHtml(_wiz.proj.name||'')+'"></div>'+
     '<div style="margin-bottom:14px"><label class="wiz-label">LINK TO JOB (optional)</label>'+
-      '<select id="wiz-job" class="form-control" onchange="var j=(DB.jobs||[]).find(function(x){return x.id===this.value});if(j&&j.customerName)document.getElementById(\'wiz-cust\').value=j.customerName"><option value="">— None —</option>'+jobOptions+'</select></div>'+
+      '<select id="wiz-job" class="form-control" onchange="var j=(DB.jobs||[]).find(function(x){return x.id===this.value});if(j){if(j.customerName)document.getElementById(\'wiz-cust\').value=j.customerName||\'\';}document.getElementById(\'wiz-job-hint\').textContent=j?(j.number?j.number+\' \u2014 \':\'\')+(j.customerName||\'\'):\'\'"><option value="">— None —</option>'+jobOptions+'</select>'+
+      '<div id="wiz-job-hint" style="font-size:11px;color:#1565c0;margin-top:4px;min-height:14px"></div></div>'+
     '<div style="margin-bottom:20px"><label class="wiz-label">CUSTOMER NAME</label>'+
       '<input id="wiz-cust" class="form-control" placeholder="Customer / Property name" value="'+escHtml(_wiz.proj.customerName||'')+'"></div>'+
     '<div style="margin-bottom:24px"><label class="wiz-label">PROJECT TYPE</label>'+
@@ -2479,7 +2560,8 @@ function wtWizStep2() {
         numbering:{ mode:'sequential', startNum:1, digits:2, prefix:'', customList:'' } }] }];
   }
   return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Buildings & Floors</h4>'+
-    '<p style="font-size:13px;color:#546e7a;margin:0 0 16px">Set up each building with its floors and unit mix.</p>'+
+    '<p style="font-size:13px;color:#546e7a;margin:0 0 4px">Set up each building with its floors and unit mix.</p>'+
+    '<p style="font-size:12px;color:#1565c0;margin:0 0 14px;cursor:pointer" onclick="wtOpenBuildingTypeManager()">⚙ Manage building types</p>'+
     '<div id="wiz-bldg-list">'+wtWizRenderBuildings()+'</div>'+
     '<button onclick="wtWizAddBuilding()" style="font-size:13px;color:#1565c0;background:#e3f2fd;border:2px dashed #90caf9;border-radius:10px;cursor:pointer;padding:12px;width:100%;font-weight:700;margin-bottom:20px">+ Add Building</button>'+
     '<div style="display:flex;justify-content:space-between">'+
@@ -2495,8 +2577,8 @@ function wtWizRenderBuildings() {
         '<input value="'+escHtml(b.name)+'" oninput="_wiz.buildings['+bi+'].name=this.value" '+
           'style="flex:1;font-size:15px;font-weight:700;border:none;border-bottom:2px solid #e0e0e0;padding:4px 0;background:transparent;color:#0d1b2a">'+
         '<select oninput="_wiz.buildings['+bi+'].type=this.value" style="font-size:12px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px">'+
-          ['residential','common_area','network_closet','infrastructure'].map(function(t){
-            return '<option value="'+t+'"'+(b.type===t?' selected':'')+'>'+t.replace('_',' ')+'</option>';
+          wtGetBuildingTypes().map(function(t){
+            return '<option value="'+t.id+'"'+(b.type===t.id?' selected':'')+'>'+escHtml(t.label)+'</option>';
           }).join('')+
         '</select>'+
         (_wiz.buildings.length>1?'<button onclick="_wiz.buildings.splice('+bi+',1);wtWizRefreshStep2()" style="background:#ffebee;color:#c62828;border:none;border-radius:6px;padding:4px 8px;cursor:pointer">✕</button>':'')+
@@ -2564,10 +2646,14 @@ function wtWizStep3() {
             // Sequential options
             '<div id="wiz-nb-seq-'+bi+'-'+fi+'" style="display:'+(nb.mode==='sequential'?'block':'none')+'">'+
               '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
-                '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">PREFIX (optional)</label>'+
-                  '<input id="wiz-nb-pfx-'+bi+'-'+fi+'" value="'+escHtml(nb.prefix||'')+'" placeholder="e.g. A, B, Bldg1-" '+
+                '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">PREFIX</label>'+
+                  '<input id="wiz-nb-pfx-'+bi+'-'+fi+'" value="'+escHtml(nb.prefix||'')+'" placeholder="e.g. A-, Bldg1-" '+
                     'oninput="_wiz.buildings['+bi+'].floors['+fi+'].numbering.prefix=this.value;wtWizRefreshPreview('+bi+','+fi+')" '+
-                    'style="width:90px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px"></div>'+
+                    'style="width:80px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px"></div>'+
+              '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">SUFFIX</label>'+
+                  '<input id="wiz-nb-sfx-'+bi+'-'+fi+'" value="'+escHtml(nb.suffix||'')+'" placeholder="e.g. A, B" '+
+                    'oninput="_wiz.buildings['+bi+'].floors['+fi+'].numbering.suffix=this.value;wtWizRefreshPreview('+bi+','+fi+')" '+
+                    'style="width:70px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px"></div>'+
                 '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">START NUMBER</label>'+
                   '<input id="wiz-nb-start-'+bi+'-'+fi+'" type="number" value="'+(nb.startNum||1)+'" min="1" '+
                     'oninput="_wiz.buildings['+bi+'].floors['+fi+'].numbering.startNum=parseInt(this.value)||1;wtWizRefreshPreview('+bi+','+fi+')" '+
@@ -2613,9 +2699,14 @@ function wtWizSetNumberMode(bi, fi, mode) {
   var cust = document.getElementById('wiz-nb-cust-'+bi+'-'+fi);
   if(seq)  seq.style.display  = mode==='sequential'?'block':'none';
   if(cust) cust.style.display = mode==='custom'?'block':'none';
-  // Re-style the tab buttons
-  var btns = document.querySelectorAll('[onclick^="wtWizSetNumberMode('+bi+','+fi);
-  // Simplified: just refresh preview
+  // Re-style tab buttons for this floor
+  ['sequential','custom'].forEach(function(m){
+    var btn = document.getElementById('wiz-nb-mode-btn-'+bi+'-'+fi+'-'+m);
+    if (!btn) return;
+    btn.style.border    = '2px solid '+(m===mode?'#1565c0':'#e0e0e0');
+    btn.style.background = m===mode?'#1565c0':'#fff';
+    btn.style.color      = m===mode?'#fff':'#546e7a';
+  });
   wtWizRefreshPreview(bi,fi);
 }
 
@@ -2639,24 +2730,21 @@ function wtGenerateRoomNumbers(nb, count, floorNum) {
   if (!nb) return [];
   if (nb.mode === 'custom') {
     var raw = (nb.customList||'').replace(/\n/g,',').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
-    // Pad or trim to count
     while (raw.length < count) raw.push(String(raw.length+1));
     return raw.slice(0, count);
   }
   // Sequential
-  var nums = [];
   var useFloor = nb.useFloorNum !== false;
-  var prefix   = nb.prefix || '';
+  var prefix   = nb.prefix  || '';
+  var suffix   = nb.suffix  || '';
   var digits   = parseInt(nb.digits) || 2;
   var start    = parseInt(nb.startNum) || 1;
   var floorPfx = useFloor ? String(floorNum) : '';
-
+  var nums = [];
   for (var i=0; i<count; i++) {
     var unitNum = start + i;
-    var unitStr = digits > 0
-      ? String(unitNum).padStart(digits, '0')
-      : String(unitNum);
-    nums.push(prefix + floorPfx + unitStr);
+    var unitStr = digits > 0 ? String(unitNum).padStart(digits,'0') : String(unitNum);
+    nums.push(prefix + floorPfx + unitStr + suffix);
   }
   return nums;
 }
@@ -2675,7 +2763,7 @@ function wtWizStep4() {
 
   return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Unit Templates</h4>'+
     '<p style="font-size:13px;color:#546e7a;margin:0 0 4px">Map each unit type to a room template. This defines exactly what items get installed in every room.</p>'+
-    '<p style="font-size:12px;color:#1565c0;margin:0 0 16px;cursor:pointer" onclick="document.getElementById(\'wt-wizard-modal\').remove();wtOpenTemplateManager()">✏ Edit templates first?</p>'+
+    '<p style="font-size:12px;color:#1565c0;margin:0 0 16px;cursor:pointer" onclick="wtWizSaveDraft();document.getElementById(\'wt-wizard-modal\').remove();wtOpenTemplateManager()">✏ Edit templates first? (wizard progress saved)</p>'+
     types.map(function(ut){
       var matched = tmpls.find(function(t){ return t.unit_type===ut; });
       var selId   = _wiz.templateMap[ut] || (matched?matched.id:'');
@@ -2762,6 +2850,7 @@ function wtWizNext(fromStep) {
     if (!_wiz.buildings.length) { showToast('Add at least one building','warning'); return; }
   }
   _wiz.step = fromStep + 1;
+  wtWizSaveDraft();
   var e=document.getElementById('wt-wizard-modal'); if(e) e.remove();
   wtShowWizard();
 }
@@ -2881,8 +2970,10 @@ async function wtCreateProject() {
     DB.wtProjects.unshift(proj);
     saveDB();
 
+    wtWizClearDraft();
     document.getElementById('wt-wizard-modal').remove();
     WT.proj = proj; WT.view = 'dashboard';
+    wtScrollTop();
     showToast('✅ "'+proj.name+'" created — '+d.rooms.length+' rooms, '+d.items.length+' items','success');
     wtRenderDashboard();
 
