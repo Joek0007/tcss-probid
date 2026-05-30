@@ -520,25 +520,16 @@ async function syncAllFromCloud() {
       }
     } catch(e) { errors.push('time_entries: '+e.message); }
 
-    // 11. Work Tracking
+    // 11. Work Tracking — sync project metadata only (items/checkoffs fetched on demand)
     try {
-      var { data: wtRows, error: wte } = await _sb.from('work_tracking').select('*').order('created_at', { ascending: false });
-      if (wte) { errors.push('work_tracking: '+wte.message); }
-      else if (wtRows) {
-        var cloudWtIds = new Set(wtRows.map(function(w){ return String(w.id); }));
-        var localOnlyWt = (DB.wtCheckoffs||[]).filter(function(w){ return w.id && !cloudWtIds.has(String(w.id)); });
-        DB.wtCheckoffs = wtRows.map(function(w){
-          return {
-            id: w.id, projectId: w.project_id, buildingId: w.building_id,
-            roomId: w.room_id, itemId: w.item_id, assignedTo: w.assigned_to,
-            status: w.status||'pending', completedAt: w.completed_at,
-            completedBy: w.completed_by, notes: w.notes,
-            rework: !!w.rework, reworkReason: w.rework_reason,
-            createdAt: w.created_at
-          };
-        }).concat(localOnlyWt);
-      }
-    } catch(e) { errors.push('work_tracking: '+e.message); }
+      var { data: wtProjRows, error: wtpe } = await _sb.from('wt_projects').select('*').in('status',['active','paused']).order('created_at', { ascending: false });
+      if (wtpe) { errors.push('wt_projects: '+wtpe.message); }
+      else if (wtProjRows) { DB.wtProjects = wtProjRows; }
+    } catch(e) { errors.push('wt_projects: '+e.message); }
+    try {
+      var { data: wtTplRows, error: wtte } = await _sb.from('wt_templates').select('id,name,template_type,customer_id,created_at').order('created_at', { ascending: false });
+      if (!wtte && wtTplRows) DB.wtTemplates = wtTplRows;
+    } catch(e) { /* templates optional */ }
 
     // 12. Job Photos
     if (typeof syncJobPhotos === 'function') { try { await syncJobPhotos(); } catch(e) { errors.push('job_photos: '+e.message); } }
