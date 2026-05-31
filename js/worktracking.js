@@ -1707,26 +1707,8 @@ async function wtAddRoom(floorId, bldgId) {
 }
 
 async function wtAddItem(roomId, bldgId) {
-  var typeKeys = Object.keys(WT_ITEM_TYPES);
-  var typeList = typeKeys.map(function(k,i){ return (i+1)+'. '+WT_ITEM_TYPES[k].label; }).join('\n');
-  var pick = prompt('Item type:\n'+typeList+'\n\nEnter number:');
-  if (!pick) return;
-  var typeKey = typeKeys[parseInt(pick)-1] || 'other';
-  var name = prompt('Item name / label:', WT_ITEM_TYPES[typeKey].label+' 1');
-  if (!name) return;
-  try {
-    var d = wtProjData();
-    var sortOrder = (d.items||[]).filter(function(i){ return i.room_id===roomId; }).length;
-    var { data, error } = await _sb.from('wt_items').insert({
-      room_id:roomId, building_id:bldgId, project_id:WT.proj.id,
-      name:name.trim(), category:WT_ITEM_TYPES[typeKey].cat||'other',
-      item_type:typeKey, sort_order:sortOrder
-    }).select().single();
-    if (error) throw error;
-    if (WT.data[WT.proj.id]) WT.data[WT.proj.id].items.push(data);
-    wtRenderRoomView();
-    showToast('Item added', 'success');
-  } catch(e) { showToast('Error: '+e.message, 'error'); }
+  // Replaced by catalog picker
+  wtOpenItemPicker(roomId, bldgId);
 }
 
 async function wtSaveBuildingTemplate(bldgId) {
@@ -3209,6 +3191,232 @@ function wtGenerateRoomItems(room, bldgId, projId, systems) { return []; }
 
 
 
+
+// ─── ROOM ITEM PICKER ─────────────────────────────────────────────────────────
+// Full catalog browser with quantity controls for any room
+var _wtPicker = { roomId:null, bldgId:null, sel:{}, catFilter:'all', search:'' };
+
+function wtOpenItemPicker(roomId, bldgId) {
+  _wtPicker = { roomId:roomId, bldgId:bldgId, sel:{}, catFilter:'all', search:'' };
+  var d = wtProjData();
+  var room = (d.rooms||[]).find(function(r){ return r.id===roomId; });
+  var roomName = room ? room.name : 'Room';
+
+  var html = '<div class="modal-overlay open" id="wt-picker-modal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:680px;max-height:92vh;display:flex;flex-direction:column">'+
+      '<div class="modal-head" style="flex-shrink:0">'+
+        '<div>'+
+          '<h3 style="margin:0">+ Add Items</h3>'+
+          '<div style="font-size:12px;color:#90a4ae;margin-top:2px">'+escHtml(roomName)+'</div>'+
+        '</div>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'wt-picker-modal\').remove()">&#x2715;</button>'+
+      '</div>'+
+      // Filter bar
+      '<div style="padding:10px 16px;border-bottom:1px solid #f0f0f0;display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap">'+
+        '<div style="display:flex;gap:4px">'+
+          ['all','outlet','device','backbone'].map(function(cat){
+            var labels = {all:'All',outlet:'Outlets',device:'Devices',backbone:'Backbone'};
+            var active = _wtPicker.catFilter===cat;
+            return '<button onclick="wtPickerFilter(\''+cat+'\')" '+
+              'style="padding:5px 12px;font-size:12px;font-weight:700;border:2px solid '+(active?'#1565c0':'#e0e0e0')+';border-radius:20px;background:'+(active?'#1565c0':'#fff')+';color:'+(active?'#fff':'#546e7a')+';cursor:pointer">'+
+              labels[cat]+'</button>';
+          }).join('')+
+        '</div>'+
+        '<input id="wt-picker-search" placeholder="&#x1F50D; Search..." oninput="wtPickerSearch(this.value)" '+
+          'style="flex:1;min-width:120px;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px">'+
+      '</div>'+
+      // Catalog list
+      '<div id="wt-picker-list" style="overflow-y:auto;flex:1;padding:8px 0">'+
+        wtPickerListHtml()+
+      '</div>'+
+      // Selection summary + add button
+      '<div id="wt-picker-footer" style="padding:14px 16px;border-top:1px solid #e0e0e0;flex-shrink:0">'+
+        wtPickerFooterHtml()+
+      '</div>'+
+    '</div>'+
+  '</div>';
+  var e=document.getElementById('wt-picker-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function wtPickerListHtml() {
+  var catalog = wtGetCatalog();
+  var filtered = catalog.filter(function(item){
+    if (_wtPicker.catFilter !== 'all' && item.category !== _wtPicker.catFilter) return false;
+    if (_wtPicker.search && item.name.toLowerCase().indexOf(_wtPicker.search.toLowerCase()) < 0) return false;
+    return true;
+  });
+  if (!filtered.length) return '<div style="text-align:center;padding:40px;color:#90a4ae">No items match your filter.</div>';
+
+  // Group by category
+  var groups = {outlet:[],device:[],backbone:[],infrastructure:[],other:[]};
+  filtered.forEach(function(item){ (groups[item.category]||groups.other).push(item); });
+  var catLabels = {outlet:'Outlets & Faceplates',device:'Devices',backbone:'Backbone',infrastructure:'Infrastructure',other:'Other'};
+  var catColors = {outlet:'#1565c0',device:'#2e7d32',backbone:'#7b1fa2',infrastructure:'#e65100',other:'#546e7a'};
+
+  return Object.keys(groups).filter(function(k){ return groups[k].length>0; }).map(function(cat){
+    return '<div>'+
+      '<div style="padding:8px 16px 4px;font-size:10px;font-weight:800;color:'+catColors[cat]+';text-transform:uppercase;letter-spacing:.8px;background:#fafafa;border-bottom:1px solid #f0f0f0">'+
+        catLabels[cat]+
+      '</div>'+
+      groups[cat].map(function(item){
+        var qty = _wtPicker.sel[item.id] || 0;
+        var selected = qty > 0;
+        var cables = (item.cable_types||[]).join(', ');
+        var itype = WT_ITEM_TYPES[item.item_type]||WT_ITEM_TYPES.other;
+        return '<div id="wt-pick-row-'+item.id+'" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #f5f5f5;background:'+(selected?'#e8f5e9':'#fff')+';transition:background .1s">'+
+          '<span style="font-size:20px;flex-shrink:0">'+itype.icon+'</span>'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-size:13px;font-weight:'+(selected?'700':'500')+';color:#0d1b2a">'+escHtml(item.name)+'</div>'+
+            '<div style="font-size:11px;color:#90a4ae">'+
+              (item.cable_count?item.cable_count+'× ':'')+(cables?escHtml(cables):'')+(item.outlet_type?' · '+item.outlet_type.replace('_',' '):'')+
+            '</div>'+
+          '</div>'+
+          // Quantity controls
+          '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+
+            '<button onclick="wtPickerDecr(\''+item.id+'\')" '+
+              'style="width:28px;height:28px;border:1px solid '+(selected?'#2e7d32':'#e0e0e0')+';border-radius:6px;background:'+(selected?'#e8f5e9':'#fff')+';color:'+(selected?'#2e7d32':'#90a4ae')+';font-size:16px;cursor:pointer;font-weight:700;line-height:1">&#x2212;</button>'+
+            '<span id="wt-pick-qty-'+item.id+'" style="min-width:28px;text-align:center;font-size:15px;font-weight:700;color:'+(selected?'#2e7d32':'#90a4ae')+'">'+qty+'</span>'+
+            '<button onclick="wtPickerIncr(\''+item.id+'\')" '+
+              'style="width:28px;height:28px;border:1px solid '+(selected?'#2e7d32':'#e0e0e0')+';border-radius:6px;background:'+(selected?'#2e7d32':'#fff')+';color:'+(selected?'#fff':'#546e7a')+';font-size:16px;cursor:pointer;font-weight:700;line-height:1">+</button>'+
+          '</div>'+
+        '</div>';
+      }).join('')+
+    '</div>';
+  }).join('');
+}
+
+function wtPickerFooterHtml() {
+  var totalQty = Object.values(_wtPicker.sel).reduce(function(s,q){ return s+q; }, 0);
+  var summaryItems = Object.keys(_wtPicker.sel).filter(function(id){ return _wtPicker.sel[id]>0; });
+  var summary = summaryItems.length
+    ? summaryItems.map(function(id){
+        var ci = wtCatalogItem(id);
+        return (ci?escHtml(ci.name):'?')+' &times;'+_wtPicker.sel[id];
+      }).join('&nbsp; · &nbsp;')
+    : '<span style="color:#90a4ae">No items selected — use + buttons above</span>';
+
+  return '<div style="font-size:12px;color:#546e7a;margin-bottom:10px;min-height:16px">'+summary+'</div>'+
+    '<button class="btn btn-primary" style="width:100%;font-size:15px;padding:12px" '+
+      (totalQty===0?'disabled style="width:100%;font-size:15px;padding:12px;opacity:.5;cursor:not-allowed"':'')+
+      ' onclick="wtPickerAddItems()">'+
+      (totalQty>0?'Add '+totalQty+' Item'+(totalQty>1?'s':'')+' to Room':'Select items above')+
+    '</button>';
+}
+
+function wtPickerIncr(itemId) {
+  _wtPicker.sel[itemId] = (_wtPicker.sel[itemId]||0) + 1;
+  wtPickerRefreshRow(itemId);
+  wtPickerRefreshFooter();
+}
+
+function wtPickerDecr(itemId) {
+  var cur = _wtPicker.sel[itemId]||0;
+  if (cur <= 0) return;
+  _wtPicker.sel[itemId] = cur - 1;
+  if (_wtPicker.sel[itemId] === 0) delete _wtPicker.sel[itemId];
+  wtPickerRefreshRow(itemId);
+  wtPickerRefreshFooter();
+}
+
+function wtPickerRefreshRow(itemId) {
+  var row = document.getElementById('wt-pick-row-'+itemId);
+  var qtyEl = document.getElementById('wt-pick-qty-'+itemId);
+  if (!row || !qtyEl) return;
+  var qty = _wtPicker.sel[itemId]||0;
+  var sel = qty > 0;
+  row.style.background = sel ? '#e8f5e9' : '#fff';
+  qtyEl.textContent = qty;
+  qtyEl.style.color = sel ? '#2e7d32' : '#90a4ae';
+  var btns = row.querySelectorAll('button');
+  // minus button
+  if (btns[0]) {
+    btns[0].style.borderColor = sel ? '#2e7d32' : '#e0e0e0';
+    btns[0].style.background  = sel ? '#e8f5e9' : '#fff';
+    btns[0].style.color       = sel ? '#2e7d32' : '#90a4ae';
+  }
+  // plus button
+  if (btns[1]) {
+    btns[1].style.borderColor = sel ? '#2e7d32' : '#e0e0e0';
+    btns[1].style.background  = sel ? '#2e7d32' : '#fff';
+    btns[1].style.color       = sel ? '#fff'    : '#546e7a';
+  }
+  // name bold
+  var nameEl = row.querySelector('div > div:first-child');
+  if (nameEl) nameEl.style.fontWeight = sel ? '700' : '500';
+}
+
+function wtPickerRefreshFooter() {
+  var el = document.getElementById('wt-picker-footer');
+  if (el) el.innerHTML = wtPickerFooterHtml();
+}
+
+function wtPickerFilter(cat) {
+  _wtPicker.catFilter = cat;
+  var el = document.getElementById('wt-picker-list');
+  if (el) el.innerHTML = wtPickerListHtml();
+  // Re-style filter buttons
+  document.querySelectorAll('#wt-picker-modal button[onclick^="wtPickerFilter"]').forEach(function(b){
+    var bCat = b.getAttribute('onclick').match(/'([^']+)'/)[1];
+    var active = bCat === cat;
+    b.style.border = '2px solid '+(active?'#1565c0':'#e0e0e0');
+    b.style.background = active?'#1565c0':'#fff';
+    b.style.color = active?'#fff':'#546e7a';
+  });
+}
+
+function wtPickerSearch(val) {
+  _wtPicker.search = val;
+  var el = document.getElementById('wt-picker-list');
+  if (el) el.innerHTML = wtPickerListHtml();
+}
+
+async function wtPickerAddItems() {
+  var selected = Object.keys(_wtPicker.sel).filter(function(id){ return _wtPicker.sel[id]>0; });
+  if (!selected.length) return;
+
+  var d = wtProjData();
+  var sortStart = (d.items||[]).filter(function(i){ return i.room_id===_wtPicker.roomId; }).length;
+  var inserts = [];
+
+  selected.forEach(function(catalogId){
+    var ci = wtCatalogItem(catalogId);
+    if (!ci) return;
+    var qty = _wtPicker.sel[catalogId];
+    for (var q=0; q<qty; q++) {
+      inserts.push({
+        room_id:     _wtPicker.roomId,
+        building_id: _wtPicker.bldgId,
+        project_id:  WT.proj.id,
+        name:        ci.name + (qty>1 ? ' #'+(q+1) : ''),
+        category:    ci.category,
+        item_type:   ci.item_type,
+        cable_count: ci.cable_count||0,
+        cable_types: ci.cable_types||[],
+        outlet_type: ci.outlet_type||null,
+        phases_required: ['rough_in','rough_in_verify','devicing','testing','final_verify'],
+        sort_order:  sortStart + inserts.length,
+      });
+    }
+  });
+
+  var btn = document.querySelector('#wt-picker-footer .btn-primary');
+  if (btn) { btn.disabled=true; btn.textContent='Adding...'; }
+
+  try {
+    var { data:newItems, error } = await _sb.from('wt_items').insert(inserts).select();
+    if (error) throw error;
+    if (WT.data[WT.proj.id]) WT.data[WT.proj.id].items.push.apply(WT.data[WT.proj.id].items, newItems);
+    document.getElementById('wt-picker-modal').remove();
+    wtRenderRoomView();
+    showToast('&#x2705; '+inserts.length+' item'+(inserts.length>1?'s':'')+' added to room','success');
+  } catch(e) {
+    showToast('Error: '+e.message,'error');
+    if (btn) { btn.disabled=false; btn.textContent='Add '+inserts.length+' Items to Room'; }
+  }
+}
+
+
 // ─── EDIT / DELETE LAYER ──────────────────────────────────────────────────────
 async function wtEditProject() {
   if (!WT.proj) return;
@@ -3556,7 +3764,12 @@ function wtRenderRoomView() {
       '</div>'+
     '</div>'+
     items.map(function(item){ return wtItemChecklistCard(item, d); }).join('')+
-    (!items.length?'<div class="card" style="text-align:center;padding:40px;color:#90a4ae">No items yet. Click "+ Item" to add.</div>':'');
+    (!items.length?'<div class="card" style="text-align:center;padding:60px 20px;color:#90a4ae">'+
+    '<div style="font-size:36px;margin-bottom:12px">&#x1F4CB;</div>'+
+    '<div style="font-size:15px;font-weight:700;margin-bottom:8px;color:#546e7a">No items yet</div>'+
+    '<div style="font-size:13px;margin-bottom:20px">Open your catalog and select what belongs in this room.</div>'+
+    '<button class="btn btn-primary" onclick="wtOpenItemPicker(\''+r.id+'\',\''+r.building_id+'\')" >&#x1F4CB; Add Items from Catalog</button>'+
+    '</div>':'');
 }
 
 // ─── UPDATED ITEM CHECKLIST CARD (adds edit/delete) ───────────────────────────
