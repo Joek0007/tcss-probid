@@ -477,31 +477,6 @@ function wtRenderCurrentView() {
   }
 }
 
-// ─── PROJECT LIST ─────────────────────────────────────────────────────────────
-function wtRenderProjectList() {
-  var el = document.getElementById('wt-main'); if (!el) return;
-  var projects = DB.wtProjects || [];
-  el.innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">'+
-      '<h2 style="margin:0;font-size:22px;font-weight:800;color:#0d1b2a">✅ Work Tracking Projects</h2>'+
-      '<div style="display:flex;gap:8px;align-items:center">'+
-        '<span id="wt-online-badge" style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;background:#f5f5f5"></span>'+
-        '<button class="btn btn-primary" onclick="openNewProjectWizard()">+ New Project</button>'+
-      '</div>'+
-    '</div>'+
-    (!projects.length
-      ? '<div class="card" style="text-align:center;padding:60px 20px;color:#90a4ae">'+
-          '<div style="font-size:48px;margin-bottom:16px">🏗</div>'+
-          '<div style="font-size:18px;font-weight:700;margin-bottom:8px">No projects yet</div>'+
-          '<div style="font-size:14px;margin-bottom:24px">Set up your first project with the guided wizard.</div>'+
-          '<button class="btn btn-primary" onclick="openNewProjectWizard()">+ Create First Project</button>'+
-        '</div>'
-      : '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">'+
-          projects.map(wtProjectCard).join('')+
-        '</div>'
-    );
-  wtUpdateOnlineBadge();
-}
 
 function wtProjectCard(p) {
   var statusColor = { active:'#2e7d32', paused:'#e65100', completed:'#1565c0', archived:'#90a4ae' };
@@ -523,73 +498,31 @@ function wtProjectCard(p) {
   '</div>';
 }
 async function wtOpenProject(projId) {
-  var p = (DB.wtProjects||[]).find(function(x){ return x.id===projId; });
-  if (!p) { showToast('Project not found','error'); return; }
-  WT.proj = p;
-  WT.view = 'dashboard';
-  WT.bldgId = null; WT.floorId = null; WT.roomId = null;
-  wtScrollTop();
-  showSpinner('Loading project…');
   try {
+    var p = (DB.wtProjects||[]).find(function(x){ return x.id===projId; });
+    if (!p) {
+      // Try a direct Supabase fetch if not in local cache
+      if (_sb) {
+        var { data:pd } = await _sb.from('wt_projects').select('*').eq('id',projId).single();
+        if (pd) { p = pd; if (!DB.wtProjects) DB.wtProjects=[]; DB.wtProjects.push(pd); saveDB(); }
+      }
+      if (!p) { showToast('Project not found — try refreshing the page','error'); return; }
+    }
+    WT.proj = p;
+    WT.view = 'dashboard';
+    WT.bldgId = null; WT.floorId = null; WT.roomId = null;
+    wtScrollTop();
+    // Show inline loading state immediately
+    var el = document.getElementById('wt-main');
+    if (el) el.innerHTML = '<div style="padding:60px;text-align:center;color:#546e7a"><div style="font-size:32px;margin-bottom:12px">&#x231B;</div><div style="font-size:16px;font-weight:600">Loading '+escHtml(p.name)+'...</div></div>';
     await wtLoadProjectData(projId);
     wtRenderDashboard();
   } catch(e) {
-    showToast('Error loading project: '+e.message,'error');
-  } finally {
-    hideSpinner();
+    console.error('wtOpenProject error:', e);
+    showToast('Error: '+(e.message||String(e)),'error');
   }
 }
 
-function wtRenderDashboard() {
-  var el = document.getElementById('wt-main'); if (!el) return;
-  WT.view = 'dashboard';
-  var p = WT.proj; if (!p) return;
-  var d = wtProjData();
-  var buildings = d.buildings || [];
-
-  el.innerHTML =
-    wtBreadcrumb()+
-    // Project header
-    '<div class="card" style="margin-bottom:16px">'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">'+
-        '<div>'+
-          '<div style="font-size:20px;font-weight:800;color:#0d1b2a">'+escHtml(p.name)+'</div>'+
-          (p.customer_name?'<div style="font-size:13px;color:#546e7a">'+escHtml(p.customer_name)+'</div>':'')+
-        '</div>'+
-        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-          '<button class="btn btn-outline btn-sm" onclick="wtNav(\'field\')">📱 Field View</button>'+
-          '<button class="btn btn-outline btn-sm" onclick="wtNav(\'confirm\')">✅ Confirm</button>'+
-          '<button class="btn btn-outline btn-sm" onclick="wtNav(\'reworks\')">🔄 Reworks</button>'+
-          '<button class="btn btn-outline btn-sm" onclick="wtNav(\'flags\')">🚩 Flags</button>'+
-          '<button class="btn btn-outline btn-sm" onclick="wtNav(\'reports\')">📈 Reports</button>'+
-          '<button class="btn btn-primary btn-sm" onclick="wtAddBuilding()">+ Building</button>'+
-        '</div>'+
-      '</div>'+
-      // Overall phase bar
-      '<div style="margin-top:16px;display:flex;gap:6px">'+
-        WT_PHASES.map(function(ph){
-          var pct = wtPhasePct(ph.id, null);
-          return '<div style="flex:1;min-width:0">'+
-            '<div style="font-size:10px;font-weight:700;color:'+ph.color+';margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ph.short+'</div>'+
-            '<div style="background:#e0e0e0;border-radius:3px;height:10px">'+
-              '<div style="background:'+ph.color+';height:10px;border-radius:3px;width:'+pct+'%"></div>'+
-            '</div>'+
-            '<div style="font-size:10px;color:#546e7a;margin-top:2px">'+pct+'%</div>'+
-          '</div>';
-        }).join('')+
-      '</div>'+
-    '</div>'+
-    // View toggle
-    '<div style="display:flex;gap:4px;margin-bottom:16px">'+
-      ['heatmap','table','day'].map(function(t){
-        return '<button onclick="wtDashTab(\''+t+'\')" style="padding:7px 16px;font-size:12px;font-weight:600;border:2px solid '+(WT.dashTab===t?'#1565c0':'#e0e0e0')+';border-radius:8px;background:'+(WT.dashTab===t?'#1565c0':'#fff')+';color:'+(WT.dashTab===t?'#fff':'#546e7a')+';cursor:pointer">'+
-          {heatmap:'🔥 Heatmap',table:'📊 Phase Table',day:'📅 Day Drill'}[t]+
-        '</button>';
-      }).join('')+
-    '</div>'+
-    // View content
-    '<div id="wt-dash-content">'+wtRenderDashContent()+'</div>';
-}
 
 function wtDashTab(tab) {
   WT.dashTab = tab;
@@ -797,195 +730,9 @@ function wtBreadcrumb() {
   '</div>';
 }
 
-// ─── BUILDING VIEW ────────────────────────────────────────────────────────────
-function wtRenderBuildingView() {
-  var el = document.getElementById('wt-main'); if (!el) return;
-  WT.view = 'building';
-  var d = wtProjData();
-  var b = (d.buildings||[]).find(function(x){ return x.id===WT.bldgId; });
-  if (!b) { wtNav('dashboard'); return; }
-  var floors = (d.floors||[]).filter(function(f){ return f.building_id===b.id; });
-  var items = (d.items||[]).filter(function(i){ return i.building_id===b.id; });
 
-  el.innerHTML = wtBreadcrumb()+
-    '<div class="card" style="margin-bottom:16px">'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">'+
-        '<div>'+
-          '<div style="font-size:20px;font-weight:800;color:#0d1b2a">'+escHtml(b.name)+'</div>'+
-          '<div style="font-size:12px;color:#546e7a">'+floors.length+' floors · '+items.length+' items · '+wtBuildingPct(b.id)+'% complete</div>'+
-        '</div>'+
-        '<div style="display:flex;gap:8px">'+
-          '<button class="btn btn-outline btn-sm" onclick="wtAddFloor(\''+b.id+'\')">+ Floor</button>'+
-          '<button class="btn btn-primary btn-sm" onclick="wtSaveBuildingTemplate(\''+b.id+'\')">💾 Save as Template</button>'+
-        '</div>'+
-      '</div>'+
-      // Phase bar
-      '<div style="display:flex;gap:6px">'+
-        WT_PHASES.map(function(ph){
-          var p = wtPhasePct(ph.id, b.id);
-          return '<div style="flex:1;min-width:0">'+
-            '<div style="font-size:10px;font-weight:700;color:'+ph.color+';margin-bottom:3px">'+ph.short+'</div>'+
-            '<div style="background:#e0e0e0;border-radius:3px;height:8px">'+
-              '<div style="background:'+ph.color+';height:8px;border-radius:3px;width:'+p+'%"></div>'+
-            '</div>'+
-            '<div style="font-size:10px;color:#546e7a;margin-top:2px">'+p+'%</div>'+
-          '</div>';
-        }).join('')+
-      '</div>'+
-    '</div>'+
-    // Floor list
-    (floors.length
-      ? floors.map(function(f){
-          var fRooms = (d.rooms||[]).filter(function(r){ return r.floor_id===f.id; });
-          var fItems = (d.items||[]).filter(function(i){ return i.room_id && fRooms.some(function(r){ return r.id===i.room_id; }); });
-          var fDone = fItems.filter(function(i){ return wtItemPct(i)===100; }).length;
-          var fPct = fItems.length ? Math.round(fDone/fItems.length*100) : 0;
-          return '<div class="card" style="margin-bottom:10px;cursor:pointer;border-left:3px solid #1565c0" onclick="wtNavFloor(\''+f.id+'\')" onmouseenter="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,.1)\'" onmouseleave="this.style.boxShadow=\'\'">'+
-            '<div style="display:flex;align-items:center;justify-content:space-between">'+
-              '<div>'+
-                '<div style="font-size:15px;font-weight:700;color:#0d1b2a">'+escHtml(f.name)+'</div>'+
-                '<div style="font-size:12px;color:#546e7a">'+fRooms.length+' rooms · '+fItems.length+' items</div>'+
-              '</div>'+
-              '<div style="text-align:right">'+
-                '<div style="font-size:20px;font-weight:800;color:#1565c0">'+fPct+'%</div>'+
-                '<div style="font-size:10px;color:#90a4ae">complete</div>'+
-              '</div>'+
-            '</div>'+
-            '<div style="background:#e0e0e0;border-radius:3px;height:6px;margin-top:8px">'+
-              '<div style="background:#1565c0;height:6px;border-radius:3px;width:'+fPct+'%"></div>'+
-            '</div>'+
-          '</div>';
-        }).join('')
-      : '<div class="card" style="text-align:center;padding:40px;color:#90a4ae">No floors yet. Click "+ Floor" to add one.</div>'
-    );
-}
 
-// ─── FLOOR VIEW ───────────────────────────────────────────────────────────────
-function wtRenderFloorView() {
-  var el = document.getElementById('wt-main'); if (!el) return;
-  WT.view = 'floor';
-  var d = wtProjData();
-  var f = (d.floors||[]).find(function(x){ return x.id===WT.floorId; });
-  if (!f) { wtNavBuilding(WT.bldgId); return; }
-  WT.bldgId = f.building_id;
-  var rooms = (d.rooms||[]).filter(function(r){ return r.floor_id===f.id; });
 
-  el.innerHTML = wtBreadcrumb()+
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">'+
-      '<h3 style="margin:0;font-size:18px;font-weight:800;color:#0d1b2a">'+escHtml(f.name)+'</h3>'+
-      '<div style="display:flex;gap:8px">'+
-        '<button class="btn btn-outline btn-sm" onclick="wtOpenRenumberTool(\''+f.id+'\')" style="color:#6a1b9a;border-color:#ce93d8">&#x2116; Renumber</button>'+
-        '<button class="btn btn-outline btn-sm" onclick="wtAddRoom(\''+f.id+'\',\''+f.building_id+'\')" >+ Add Room</button>'+
-      '</div>'+
-    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">'+
-      rooms.map(function(r){
-        var rItems = (d.items||[]).filter(function(i){ return i.room_id===r.id; });
-        var pct = rItems.length ? Math.round(rItems.reduce(function(s,i){ return s+wtItemPct(i);},0)/rItems.length) : 0;
-        var col = pct===100?'#2e7d32':pct>0?'#1565c0':'#90a4ae';
-        var pending = (d.checkoffs||[]).filter(function(c){
-          return rItems.some(function(i){ return i.id===c.item_id; }) && c.status==='complete';
-        }).length;
-        return '<div class="card" style="cursor:pointer;border-top:3px solid '+col+';padding:16px" onclick="wtNavRoom(\''+r.id+'\')" onmouseenter="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,.12)\'" onmouseleave="this.style.boxShadow=\'\'">'+
-          '<div style="font-size:14px;font-weight:800;color:#0d1b2a;margin-bottom:2px">'+escHtml(r.name)+'</div>'+
-          (r.unit_type?'<div style="font-size:11px;color:#546e7a;margin-bottom:8px">'+escHtml(r.unit_type)+'</div>':'')+
-          '<div style="font-size:24px;font-weight:900;color:'+col+'">'+pct+'%</div>'+
-          '<div style="background:#e0e0e0;border-radius:3px;height:5px;margin:6px 0">'+
-            '<div style="background:'+col+';height:5px;border-radius:3px;width:'+pct+'%"></div>'+
-          '</div>'+
-          '<div style="font-size:11px;color:#90a4ae">'+rItems.length+' items'+(pending?' · '+pending+' pending confirm':'')+' </div>'+
-        '</div>';
-      }).join('')+
-      // Add room card
-      '<div class="card" style="cursor:pointer;border:2px dashed #e0e0e0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;color:#90a4ae;min-height:100px" onclick="wtAddRoom(\''+f.id+'\',\''+f.building_id+'\')" onmouseenter="this.style.borderColor=\'#1565c0\';this.style.color=\'#1565c0\'" onmouseleave="this.style.borderColor=\'#e0e0e0\';this.style.color=\'#90a4ae\'">'+
-        '<div style="font-size:24px;margin-bottom:4px">+</div>'+
-        '<div style="font-size:12px;font-weight:600">Add Room</div>'+
-      '</div>'+
-    '</div>';
-}
-
-// ─── ROOM VIEW (CHECKLIST) ────────────────────────────────────────────────────
-function wtRenderRoomView() {
-  var el = document.getElementById('wt-main'); if (!el) return;
-  WT.view = 'room';
-  var d = wtProjData();
-  var r = (d.rooms||[]).find(function(x){ return x.id===WT.roomId; });
-  if (!r) { wtNavFloor(WT.floorId); return; }
-  WT.bldgId = r.building_id; WT.floorId = r.floor_id;
-  var items = (d.items||[]).filter(function(i){ return i.room_id===r.id; });
-  var rPct = items.length ? Math.round(items.reduce(function(s,i){ return s+wtItemPct(i);},0)/items.length) : 0;
-
-  el.innerHTML = wtBreadcrumb()+
-    '<div class="card" style="margin-bottom:16px">'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">'+
-        '<div>'+
-          '<div style="font-size:20px;font-weight:800;color:#0d1b2a">'+escHtml(r.name)+'</div>'+
-          (r.unit_type?'<div style="font-size:12px;color:#546e7a">'+escHtml(r.unit_type)+' · '+items.length+' items</div>':'')+
-        '</div>'+
-        '<div style="display:flex;gap:8px">'+
-          '<button class="btn btn-outline btn-sm" onclick="wtAddItem(\''+r.id+'\',\''+r.building_id+'\')">+ Item</button>'+
-          '<button class="btn btn-outline btn-sm" onclick="wtAddFlag(null,\''+r.id+'\')">🚩 Flag Issue</button>'+
-        '</div>'+
-      '</div>'+
-      '<div style="margin-top:8px;background:#e0e0e0;border-radius:4px;height:8px">'+
-        '<div style="background:'+(rPct===100?'#2e7d32':'#1565c0')+';height:8px;border-radius:4px;width:'+rPct+'%"></div>'+
-      '</div>'+
-    '</div>'+
-    // Items checklist
-    items.map(function(item){
-      return wtItemChecklistCard(item, d);
-    }).join('')+
-    (!items.length
-      ? '<div class="card" style="text-align:center;padding:40px;color:#90a4ae">No items yet. Click "+ Item" to add.</div>'
-      : ''
-    );
-}
-
-function wtItemChecklistCard(item, d) {
-  var phases = item.phases_required || ['rough_in','rough_in_verify','devicing','testing','final_verify'];
-  var pct = wtItemPct(item);
-  var itype = WT_ITEM_TYPES[item.item_type] || WT_ITEM_TYPES.other;
-
-  return '<div class="card" style="margin-bottom:10px">'+
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
-      '<div style="display:flex;align-items:center;gap:8px">'+
-        '<span style="font-size:18px">'+itype.icon+'</span>'+
-        '<div>'+
-          '<div style="font-size:14px;font-weight:700;color:#0d1b2a">'+escHtml(item.name)+'</div>'+
-          '<div style="font-size:11px;color:#546e7a">'+itype.label+(item.cable_count?' · '+item.cable_count+'x cable':''+(item.device_model?' · '+escHtml(item.device_model):''))+'</div>'+
-        '</div>'+
-      '</div>'+
-      '<span style="font-size:16px;font-weight:800;color:'+(pct===100?'#2e7d32':pct>0?'#1565c0':'#90a4ae')+'">'+pct+'%</span>'+
-    '</div>'+
-    // Phase buttons
-    '<div style="display:flex;gap:4px;flex-wrap:wrap">'+
-      phases.map(function(phId){
-        var ph = WT_PHASES.find(function(x){ return x.id===phId; }) || {};
-        var co = wtGetCheckoff(item.id, phId);
-        var st = co ? co.status : 'pending';
-        var bg = st==='confirmed'?ph.color:st==='complete'?ph.bg:'#f5f5f5';
-        var clr = st==='confirmed'?'#fff':st==='complete'?ph.color:'#90a4ae';
-        var border = '2px solid '+(st==='confirmed'?ph.color:st==='complete'?ph.color:'#e0e0e0');
-        var icon = st==='confirmed'?'✅':st==='complete'?'⏳':st==='rejected'?'❌':'';
-        return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
-          'style="flex:1;min-width:60px;padding:8px 4px;border:'+border+';border-radius:8px;background:'+bg+';color:'+clr+';font-size:10px;font-weight:700;cursor:pointer;text-align:center">'+
-          icon+(icon?' ':'')+escHtml(ph.short||phId)+
-          (co&&co.checked_by&&co.checked_by.length
-            ?'<div style="font-size:9px;margin-top:2px;opacity:.8">'+
-              (Array.isArray(co.checked_by)?co.checked_by.map(function(t){return (t.user_name||'').split(' ')[0];}).join('+'):'')+
-            '</div>'
-            :'')+
-        '</button>';
-      }).join('')+
-    '</div>'+
-    // Comments snippet
-    (function(){
-      var comments = (d.comments||[]).filter(function(c){ return c.item_id===item.id; });
-      return comments.length ? '<div style="margin-top:8px;font-size:11px;color:#546e7a;border-top:1px solid #f0f0f0;padding-top:6px">'+
-        '💬 '+comments.length+' comment'+(comments.length>1?'s':'')+
-      '</div>' : '';
-    })()+
-  '</div>';
-}
 
 // ─── CHECK-OFF MODAL ──────────────────────────────────────────────────────────
 var _wtCheckoffItem = null;
