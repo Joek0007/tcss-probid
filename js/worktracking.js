@@ -451,14 +451,151 @@ function wtScrollTop() {
   if (content) content.scrollTop = 0;
 }
 
+
+// ─── PERSISTENT NAV BAR ───────────────────────────────────────────────────────
+function wtNavBar() {
+  // Only show when inside a project
+  if (!WT.proj || WT.view === 'list') return '';
+  var canGoBack = (WT.view !== 'dashboard');
+  var backAction = '';
+  if (WT.view === 'building')  backAction = 'wtNav(\'dashboard\')';
+  else if (WT.view === 'floor') backAction = 'wtNavBuilding(\''+WT.bldgId+'\')';
+  else if (WT.view === 'room')  backAction = 'wtNavFloor(\''+WT.floorId+'\')';
+  else if (WT.view === 'field'||WT.view==='confirm'||WT.view==='reworks'||WT.view==='flags'||WT.view==='reports')
+    backAction = 'wtNav(\'dashboard\')';
+
+  return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0 14px;flex-wrap:wrap">'+
+    // Home button — always goes to project list
+    '<button onclick="WT.view=\'list\';WT.proj=null;wtRenderProjectList()" '+
+      'style="padding:6px 12px;font-size:12px;font-weight:700;border:1px solid #e0e0e0;border-radius:8px;background:#fff;color:#546e7a;cursor:pointer;display:flex;align-items:center;gap:5px">'+
+      '&#x1F3E0; Projects</button>'+
+    (canGoBack
+      ? '<button onclick="'+backAction+'" '+
+          'style="padding:6px 12px;font-size:12px;font-weight:700;border:1px solid #e0e0e0;border-radius:8px;background:#fff;color:#546e7a;cursor:pointer;display:flex;align-items:center;gap:5px">'+
+          '&#x2190; Back</button>'
+      : '')+
+    // Current location pill
+    '<div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#90a4ae;padding:0 4px">'+
+      (function(){
+        var d=wtProjData();
+        var parts=[escHtml(WT.proj.name)];
+        if(WT.bldgId){var b=(d.buildings||[]).find(function(x){return x.id===WT.bldgId;});if(b)parts.push(escHtml(b.name));}
+        if(WT.floorId){var f=(d.floors||[]).find(function(x){return x.id===WT.floorId;});if(f)parts.push(escHtml(f.name));}
+        if(WT.roomId){var r=(d.rooms||[]).find(function(x){return x.id===WT.roomId;});if(r)parts.push(escHtml(r.name));}
+        return parts.join(' &rsaquo; ');
+      })()+
+    '</div>'+
+  '</div>';
+}
+
 function renderWorkTracking() {
   wtScrollTop();
   wtFlushOfflineQueue();
+  wtInstallBackGuard();
   if (WT.view === 'list' || !WT.proj) {
     wtRenderProjectList();
   } else {
     wtRenderCurrentView();
   }
+}
+
+// ─── BROWSER BACK BUTTON GUARD ────────────────────────────────────────────────
+var _wtBackGuardInstalled = false;
+
+function wtInstallBackGuard() {
+  if (_wtBackGuardInstalled) return;
+  _wtBackGuardInstalled = true;
+
+  // Push a state so the back button has something to intercept
+  history.pushState({ wtApp: true }, '', window.location.href);
+
+  window.addEventListener('popstate', function wtPopHandler(e) {
+    // Check if Work Tracking page is active
+    var wtPage = document.getElementById('page-worktracking');
+    if (!wtPage || !wtPage.classList.contains('active')) return;
+
+    // Re-push state immediately to prevent actual navigation
+    history.pushState({ wtApp: true }, '', window.location.href);
+
+    // Show our own leave dialog
+    wtShowLeaveDialog();
+  });
+}
+
+function wtShowLeaveDialog() {
+  // If wizard is open, close it first as a softer warning
+  var wizOpen = document.getElementById('wt-wizard-modal') || document.getElementById('wt-abw-modal');
+  if (wizOpen) {
+    wtShowLeaveModal(
+      'Wizard in Progress',
+      'Your wizard progress is saved as a draft.\nYou can resume it next time you click + New Project or + Building.',
+      'Stay in Wizard',
+      'Close Wizard',
+      function(leave) { if (leave) { wizOpen.remove(); } }
+    );
+    return;
+  }
+
+  // If inside a project, offer to go back to project list or leave app
+  if (WT.proj && WT.view !== 'list') {
+    wtShowLeaveModal(
+      'Where do you want to go?',
+      'Use the buttons below to navigate — the browser back button doesn\'t work inside ProBid.',
+      '← Back to Projects',
+      'Leave ProBid',
+      function(leave) {
+        if (!leave) {
+          // Go back to project list within the app
+          WT.view = 'list'; WT.proj = null;
+          wtRenderProjectList();
+        } else {
+          // Actually navigate away — pop the guard state
+          _wtBackGuardInstalled = false;
+          history.back();
+        }
+      }
+    );
+    return;
+  }
+
+  // On project list — offer to leave app
+  wtShowLeaveModal(
+    'Leave ProBid?',
+    'You are about to leave the ProBid application.',
+    'Stay in ProBid',
+    'Leave ProBid',
+    function(leave) {
+      if (leave) {
+        _wtBackGuardInstalled = false;
+        history.back();
+      }
+    }
+  );
+}
+
+function wtShowLeaveModal(title, message, stayLabel, leaveLabel, callback) {
+  var existing = document.getElementById('wt-leave-modal');
+  if (existing) existing.remove();
+
+  var html = '<div id="wt-leave-modal" style="'+
+    'position:fixed;top:0;left:0;width:100%;height:100%;'+
+    'background:rgba(0,0,0,.55);z-index:99999;'+
+    'display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">'+
+    '<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:32px;box-shadow:0 24px 60px rgba(0,0,0,.25);text-align:center">'+
+      '<div style="font-size:36px;margin-bottom:16px">&#x26A0;&#xFE0F;</div>'+
+      '<div style="font-size:18px;font-weight:800;color:#0d1b2a;margin-bottom:10px">'+escHtml(title)+'</div>'+
+      '<div style="font-size:14px;color:#546e7a;margin-bottom:28px;line-height:1.5">'+escHtml(message)+'</div>'+
+      '<div style="display:flex;gap:12px;justify-content:center">'+
+        '<button onclick="document.getElementById(\'wt-leave-modal\').remove();('+callback.toString()+')(false)" '+
+          'class="btn btn-primary" style="flex:1;max-width:180px;padding:12px">'+
+          escHtml(stayLabel)+'</button>'+
+        '<button onclick="document.getElementById(\'wt-leave-modal\').remove();('+callback.toString()+')(true)" '+
+          'style="flex:1;max-width:180px;padding:12px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;color:#546e7a;font-size:14px;font-weight:700;cursor:pointer">'+
+          escHtml(leaveLabel)+'</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+  document.body.insertAdjacentHTML('beforeend', html);
 }
 
 function wtRenderCurrentView() {
@@ -981,7 +1118,7 @@ function wtRenderFieldView() {
   });
   var unassigned = pending.filter(function(i){ return !myItems.some(function(x){ return x.id===i.id; }); });
 
-  el.innerHTML = wtBreadcrumb()+
+  el.innerHTML = wtNavBar()+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">'+
       '<div>'+
         '<h3 style="margin:0;font-size:18px;font-weight:800;color:#0d1b2a">📱 Field View</h3>'+
@@ -1096,7 +1233,7 @@ function wtRenderConfirmView() {
   var d = wtProjData();
   var pending = (d.checkoffs||[]).filter(function(c){ return c.status==='complete'; });
 
-  el.innerHTML = wtBreadcrumb()+
+  el.innerHTML = wtNavBar()+
     '<div class="card" style="margin-bottom:12px">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
         '<div class="card-title" style="margin:0">✅ Pending Confirmation</div>'+
@@ -1196,7 +1333,7 @@ function wtRenderReworksView() {
   var inProg = reworks.filter(function(r){ return r.status==='in_progress'; });
   var done   = reworks.filter(function(r){ return r.status==='resolved'; });
 
-  el.innerHTML = wtBreadcrumb()+
+  el.innerHTML = wtNavBar()+
     '<div class="card" style="margin-bottom:12px">'+
       '<div style="display:flex;align-items:center;justify-content:space-between">'+
         '<div class="card-title" style="margin:0">🔄 Rework Log</div>'+
@@ -1380,7 +1517,7 @@ function wtRenderFlagsView() {
   var open  = flags.filter(function(f){ return f.status!=='resolved'; });
   var done  = flags.filter(function(f){ return f.status==='resolved'; });
 
-  el.innerHTML = wtBreadcrumb()+
+  el.innerHTML = wtNavBar()+
     '<div class="card" style="margin-bottom:12px">'+
       '<div style="display:flex;align-items:center;justify-content:space-between">'+
         '<div class="card-title" style="margin:0">🚩 Site Flags & Issues</div>'+
@@ -1543,7 +1680,7 @@ async function wtSubmitFlagResolve(flagId) {
 function wtRenderReportsView() {
   var el = document.getElementById('wt-main'); if (!el) return;
   WT.view = 'reports';
-  el.innerHTML = wtBreadcrumb()+
+  el.innerHTML = wtNavBar()+
     '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">'+
       ['weekly','leaderboard','rework_stats'].map(function(r){
         return '<button onclick="wtShowReport(\''+r+'\')" style="padding:8px 16px;font-size:13px;font-weight:600;border:2px solid #e0e0e0;border-radius:8px;background:#fff;color:#546e7a;cursor:pointer">'+
@@ -4148,7 +4285,7 @@ function wtRenderDashboard() {
   var buildings = d.buildings || [];
 
   el.innerHTML =
-    wtBreadcrumb()+
+    wtNavBar()+
     '<div class="card" style="margin-bottom:16px">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">'+
         '<div>'+
@@ -4198,7 +4335,7 @@ function wtRenderBuildingView() {
   var floors = (d.floors||[]).filter(function(f){ return f.building_id===b.id; });
   var items  = (d.items||[]).filter(function(i){ return i.building_id===b.id; });
 
-  el.innerHTML = wtBreadcrumb()+
+  el.innerHTML = wtNavBar()+
     '<div class="card" style="margin-bottom:16px">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">'+
         '<div>'+
@@ -4263,7 +4400,7 @@ function wtRenderFloorView() {
   WT.bldgId = f.building_id;
   var rooms = (d.rooms||[]).filter(function(r){ return r.floor_id===f.id; });
 
-  el.innerHTML = wtBreadcrumb()+
+  el.innerHTML = wtNavBar()+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">'+
       '<h3 style="margin:0;font-size:18px;font-weight:800;color:#0d1b2a">'+escHtml(f.name)+'</h3>'+
       '<div style="display:flex;gap:8px">'+
@@ -4309,7 +4446,7 @@ function wtRenderRoomView() {
   var items = (d.items||[]).filter(function(i){ return i.room_id===r.id; });
   var rPct = items.length ? Math.round(items.reduce(function(s,i){ return s+wtItemPct(i); },0)/items.length) : 0;
 
-  el.innerHTML = wtBreadcrumb()+
+  el.innerHTML = wtNavBar()+
     '<div class="card" style="margin-bottom:16px">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">'+
         '<div>'+

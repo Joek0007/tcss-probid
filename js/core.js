@@ -173,6 +173,18 @@ function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log'};
 
 function goPage(id) {
+  // Warn if leaving Work Tracking while inside a project or wizard
+  var wtPage = document.getElementById('page-worktracking');
+  var wtActive = wtPage && wtPage.classList.contains('active');
+  if (id !== 'worktracking' && wtActive) {
+    var wizOpen = !!document.getElementById('wt-wizard-modal') || !!document.getElementById('wt-abw-modal');
+    var inProject = typeof WT !== 'undefined' && WT.proj && WT.view !== 'list';
+    if (wizOpen) {
+      if (!confirm('You are in the middle of a wizard.\n\nYour progress has been saved as a draft — you can resume it next time.\n\nLeave anyway?')) return;
+    } else if (inProject) {
+      if (!confirm('Leave Work Tracking?\n\nAll your work is saved. You can come back any time.')) return;
+    }
+  }
   // Warn if leaving Quick Quote with unsaved changes — only if QQ page is actually visible
   var qqPage = document.getElementById('page-qq');
   var qqActive = qqPage && qqPage.classList.contains('active');
