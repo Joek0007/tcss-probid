@@ -2491,6 +2491,10 @@ function wtWizStep3() {
           'style="padding:8px 14px;font-size:12px;border:1px solid #1565c0;border-radius:8px;background:#e3f2fd;color:#1565c0;cursor:pointer;font-weight:600">Set All →</button>'+
         '<button onclick="wtWizCopyFloorModal()" '+
           'style="padding:8px 14px;font-size:12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer">📋 Copy Floor</button>'+
+        (_wiz.buildings.length>1
+          ?'<button onclick="wtWizCopyBuildingModal()" '+
+            'style="padding:8px 14px;font-size:12px;border:1px solid #7b1fa2;border-radius:8px;background:#f3e5f5;color:#7b1fa2;cursor:pointer;font-weight:600">🏗 Copy Building →</button>'
+          :'')+
       '</div>'+
     '</div>'+
 
@@ -2892,6 +2896,78 @@ function wtWizDoCopyFloor() {
   showToast('📋 Floor copied to '+copyCount+' floor'+(copyCount>1?'s':''),'success');
 }
 
+
+// ─── COPY BUILDING (wizard) ────────────────────────────────────────────────────
+function wtWizCopyBuildingModal() {
+  var srcIdx = _wiz.s3bldg;
+  var src = _wiz.buildings[srcIdx];
+  if (!src) return;
+  var totalRooms = (src.floors||[]).reduce(function(s,f){ return s+(f.rooms||[]).length; },0);
+  if (!totalRooms) { showToast('This building has no rooms to copy','warning'); return; }
+
+  var targets = _wiz.buildings.filter(function(b,i){ return i!==srcIdx; });
+  var html = '<div class="modal-overlay open" id="wt-cpbldg-modal" onclick="if(event.target===this)this.remove()" style="z-index:10002">'+
+    '<div class="modal-box sm">'+
+      '<div class="modal-head"><h3>&#x1F3D7; Copy Building</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'wt-cpbldg-modal\').remove()">&#x2715;</button></div>'+
+      '<div class="modal-body">'+
+        '<div style="padding:12px;background:#f3e5f5;border-radius:8px;margin-bottom:16px;font-size:13px;color:#7b1fa2">'+
+          'Copy all floors, rooms, and type assignments from <strong>'+escHtml(src.name)+'</strong><br>'+
+          '<span style="font-size:11px">('+src.floors.length+' floors &nbsp;·&nbsp; '+totalRooms+' rooms)</span>'+
+        '</div>'+
+        '<div style="font-size:12px;font-weight:700;color:#546e7a;margin-bottom:8px">COPY TO:</div>'+
+        targets.map(function(b){
+          var bRooms=(b.floors||[]).reduce(function(s,f){ return s+(f.rooms||[]).length; },0);
+          return '<label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">'+
+            '<input type="checkbox" data-cpbldg="'+escHtml(b.name)+'" style="width:18px;height:18px">'+
+            '<div>'+
+              '<div style="font-size:13px;font-weight:700">'+escHtml(b.name)+'</div>'+
+              '<div style="font-size:11px;color:#90a4ae">'+
+                (bRooms>0?'Currently has '+bRooms+' rooms — will be replaced':'Empty — ready to copy into')+
+              '</div>'+
+            '</div>'+
+          '</label>';
+        }).join('')+
+        '<div style="margin-top:14px;padding:8px;background:#fff3e0;border-radius:6px;font-size:11px;color:#e65100">'+
+          '&#x26A0; This replaces all existing floors and rooms in the selected buildings.'+
+        '</div>'+
+        '<button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="wtWizDoCopyBuilding('+srcIdx+')">&#x1F3D7; Copy Building</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+  var e=document.getElementById('wt-cpbldg-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function wtWizDoCopyBuilding(srcIdx) {
+  var srcBldg = _wiz.buildings[srcIdx];
+  if (!srcBldg) return;
+  var checked = document.querySelectorAll('#wt-cpbldg-modal [data-cpbldg]:checked');
+  if (!checked.length) { showToast('Select at least one building to copy to','warning'); return; }
+
+  var copyCount = 0;
+  checked.forEach(function(cb){
+    var targetName = cb.getAttribute('data-cpbldg');
+    var targetIdx = _wiz.buildings.findIndex(function(b){ return b.name===targetName; });
+    if (targetIdx < 0 || targetIdx===srcIdx) return;
+    // Deep copy floors+rooms, generate fresh IDs
+    _wiz.buildings[targetIdx].floors = JSON.parse(JSON.stringify(srcBldg.floors)).map(function(f){
+      f.id = 'f_'+Date.now()+'_'+Math.random();
+      f.rooms = f.rooms.map(function(r){
+        r.id = 'r_'+Date.now()+'_'+Math.random();
+        return r;
+      });
+      return f;
+    });
+    copyCount++;
+  });
+
+  document.getElementById('wt-cpbldg-modal').remove();
+  wtWizSaveDraft();
+  wtWizRefreshStep3();
+  showToast('&#x1F3D7; Building copied to '+copyCount+' building'+(copyCount>1?'s':''),'success');
+}
+
 function wtWizBldgProgress() {
   var b=_wiz.buildings[_wiz.s3bldg]; if(!b) return '';
   var totalRooms=0, typedRooms=0;
@@ -3004,9 +3080,19 @@ function wtWizNext(fromStep) {
     // Ensure all buildings have at least one floor initialized
     _wiz.buildings.forEach(function(b){ if(!b.floors) b.floors=[]; });
   } else if (fromStep===3) {
-    // Validate: all buildings must have at least one floor with at least one room
-    var empty=_wiz.buildings.find(function(b){ return !b.floors||!b.floors.length||!b.floors[0].rooms||!b.floors[0].rooms.length; });
-    if(empty){ showToast('"'+empty.name+'" has no rooms — add at least one room','warning'); return; }
+    // Validate: at least ONE building must have rooms configured
+    var anyRooms = _wiz.buildings.some(function(b){
+      return b.floors && b.floors.some(function(f){ return f.rooms && f.rooms.length>0; });
+    });
+    if (!anyRooms) { showToast('Add rooms to at least one building before continuing','warning'); return; }
+    // Warn (not block) about buildings with no rooms
+    var empties = _wiz.buildings.filter(function(b){
+      return !b.floors || !b.floors.length || !b.floors.some(function(f){ return f.rooms && f.rooms.length>0; });
+    });
+    if (empties.length) {
+      var names = empties.map(function(b){ return '"'+b.name+'"'; }).join(', ');
+      if (!confirm(names+' '+(empties.length>1?'have':'has')+' no rooms and will be created empty. Continue anyway?')) return;
+    }
   }
   _wiz.step=fromStep+1;
   wtWizSaveDraft();
