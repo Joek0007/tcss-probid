@@ -3048,7 +3048,10 @@ function wtRenderFloorView() {
   el.innerHTML = wtBreadcrumb()+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">'+
       '<h3 style="margin:0;font-size:18px;font-weight:800;color:#0d1b2a">'+escHtml(f.name)+'</h3>'+
-      '<button class="btn btn-outline btn-sm" onclick="wtAddRoom(\''+f.id+'\',\''+f.building_id+'\')">+ Add Room</button>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button class="btn btn-outline btn-sm" onclick="wtOpenRenumberTool(\''+f.id+'\')" style="color:#6a1b9a;border-color:#ce93d8">&#x2116; Renumber</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="wtAddRoom(\''+f.id+'\',\''+f.building_id+'\')" >+ Add Room</button>'+
+      '</div>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px">'+
       rooms.map(function(r){
