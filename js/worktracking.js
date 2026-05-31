@@ -3755,7 +3755,7 @@ function wtRenderRoomView() {
         '</div>'+
         '<div style="display:flex;gap:8px">'+
           '<button class="btn btn-outline btn-sm" onclick="wtEditRoom(\''+r.id+'\')">✏ Edit Room</button>'+
-          '<button class="btn btn-outline btn-sm" onclick="wtAddItem(\''+r.id+'\',\''+r.building_id+'\')">+ Item</button>'+
+          '<button class="btn btn-outline btn-sm" onclick="wtAddItem(\''+r.id+'\',\''+r.building_id+'\')">+ Add Items</button>'+
           '<button class="btn btn-outline btn-sm" onclick="wtAddFlag(null,\''+r.id+'\')">🚩 Flag</button>'+
         '</div>'+
       '</div>'+
