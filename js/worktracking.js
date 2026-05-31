@@ -2191,6 +2191,33 @@ var _wiz = {
   templateMap: {}, // unitType → tplId
 };
 
+// ============================================================
+// PROJECT WIZARD V2 — Floor-first, room-by-room roster
+// ============================================================
+
+var _wiz = {
+  step:1, totalSteps:5,
+  proj:{ name:'', jobId:'', customerName:'', structureType:'multi', systems:[] },
+  buildings:[],
+  s3bldg:0, s3floor:0,
+};
+
+// Unit type definitions — used throughout wizard and app
+var WT_UNIT_DEF = [
+  { id:'Studio', short:'S',   color:'#7b1fa2', bg:'#f3e5f5' },
+  { id:'1BR',    short:'1BR', color:'#1565c0', bg:'#e3f2fd' },
+  { id:'2BR',    short:'2BR', color:'#2e7d32', bg:'#e8f5e9' },
+  { id:'3BR',    short:'3BR', color:'#e65100', bg:'#fff3e0' },
+  { id:'4BR',    short:'4BR', color:'#c62828', bg:'#ffebee' },
+  { id:'Common', short:'CMN', color:'#546e7a', bg:'#eceff1' },
+  { id:'Other',  short:'OTH', color:'#90a4ae', bg:'#f5f5f5' },
+];
+
+function wtUnitDef(id) {
+  return WT_UNIT_DEF.find(function(t){ return t.id===id; }) || WT_UNIT_DEF[6];
+}
+
+// ─── WIZARD OPEN / SHOW ───────────────────────────────────────────────────────
 function openNewProjectWizard() {
   var draft = wtWizLoadDraft();
   if (draft && draft.proj && draft.proj.name && draft.proj.name.trim()) {
@@ -2201,566 +2228,673 @@ function openNewProjectWizard() {
     }
     wtWizClearDraft();
   }
-  _wiz = {
-    step:1, totalSteps:5,
+  _wiz = { step:1, totalSteps:5,
     proj:{ name:'', jobId:'', customerName:'', structureType:'multi', systems:[] },
-    buildings:[], templateMap:{},
-  };
+    buildings:[], s3bldg:0, s3floor:0 };
   wtShowWizard();
 }
 
 function wtShowWizard() {
   var e=document.getElementById('wt-wizard-modal'); if(e) e.remove();
-  var stepLabels = ['Basics','Buildings','Numbering','Templates','Review'];
-  var content = [wtWizStep1, wtWizStep2, wtWizStep3, wtWizStep4, wtWizStep5][_wiz.step-1]();
-
-  var html = '<div class="modal-overlay open" id="wt-wizard-modal">'+
-    '<div class="modal-box" style="max-width:700px;max-height:92vh">'+
-      '<div class="modal-head">'+
-        '<div>'+
-          '<h3 style="margin:0">🏗 New Project Wizard</h3>'+
-          '<div style="font-size:11px;color:#90a4ae;margin-top:2px">Step '+_wiz.step+' of '+_wiz.totalSteps+' — '+stepLabels[_wiz.step-1]+'</div>'+
-        '</div>'+
+  var labels = ['Basics','Buildings','Rooms','Systems','Review'];
+  var content = [wtWizStep1,wtWizStep2,wtWizStep3,wtWizStep4,wtWizStep5][_wiz.step-1]();
+  var html='<div class="modal-overlay open" id="wt-wizard-modal">'+
+    '<div class="modal-box" style="max-width:860px;max-height:94vh;display:flex;flex-direction:column">'+
+      '<div class="modal-head" style="flex-shrink:0">'+
+        '<div><h3 style="margin:0">🏗 New Project Wizard</h3>'+
+          '<div style="font-size:11px;color:#90a4ae;margin-top:2px">Step '+_wiz.step+' of 5 — '+labels[_wiz.step-1]+'</div></div>'+
         '<button class="btn-icon" onclick="document.getElementById(\'wt-wizard-modal\').remove()">✕</button>'+
       '</div>'+
-      '<div style="display:flex;gap:0;padding:0 22px;border-bottom:1px solid #f0f0f0">'+
-        stepLabels.map(function(l,i){
-          var active = i+1===_wiz.step, done = i+1<_wiz.step;
-          return '<div style="flex:1;text-align:center;padding:8px 4px;font-size:11px;font-weight:'+(active?'800':'600')+';'+
-            'color:'+(active?'#1565c0':done?'#2e7d32':'#90a4ae')+';'+
-            'border-bottom:3px solid '+(active?'#1565c0':done?'#2e7d32':'transparent')+';margin-bottom:-1px">'+
-            (done?'✓ ':'')+l+
-          '</div>';
+      '<div style="display:flex;gap:0;padding:0 22px;border-bottom:1px solid #f0f0f0;flex-shrink:0">'+
+        labels.map(function(l,i){
+          var a=i+1===_wiz.step,d=i+1<_wiz.step;
+          return '<div style="flex:1;text-align:center;padding:8px 4px;font-size:11px;font-weight:'+(a?800:600)+';'+
+            'color:'+(a?'#1565c0':d?'#2e7d32':'#90a4ae')+';border-bottom:3px solid '+(a?'#1565c0':d?'#2e7d32':'transparent')+';margin-bottom:-1px">'+
+            (d?'✓ ':'')+l+'</div>';
         }).join('')+
       '</div>'+
-      '<div class="modal-body" style="overflow-y:auto;max-height:calc(92vh-140px)">'+content+'</div>'+
-    '</div>'+
-  '</div>';
-  document.body.insertAdjacentHTML('beforeend', html);
+      '<div class="modal-body" style="overflow-y:auto;flex:1;padding:20px 22px">'+content+'</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
 }
 
-// ─── BUILDING TYPES ───────────────────────────────────────────────────────────
-function wtGetBuildingTypes() {
-  if (!DB.wtBuildingTypes || !DB.wtBuildingTypes.length) {
-    DB.wtBuildingTypes = [
-      { id:'residential',    label:'Residential'    },
-      { id:'common_area',    label:'Common Area'    },
-      { id:'network_closet', label:'Network Closet' },
-      { id:'infrastructure', label:'Infrastructure' },
-      { id:'parking',        label:'Parking'        },
-      { id:'recreational',   label:'Recreational'   },
-      { id:'retail',         label:'Retail'         },
-      { id:'office',         label:'Office'         },
-    ];
-    saveDB();
-  }
-  return DB.wtBuildingTypes;
-}
-
-function wtBtRender() {
-  var types = wtGetBuildingTypes();
-  return types.map(function(t, i){
-    var del = types.length>1
-      ? '<button onclick="wtBtDelete('+i+')" style="padding:4px 8px;font-size:11px;border:1px solid #ffcdd2;border-radius:6px;background:#fff;color:#c62828;cursor:pointer">Del</button>'
-      : '';
-    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:6px">'+
-      '<input value="'+escHtml(t.label)+'" oninput="wtBtRename('+i+',this.value)" '+
-        'style="flex:1;font-size:13px;font-weight:600;border:none;border-bottom:2px solid #e0e0e0;padding:3px 0;background:transparent;color:#0d1b2a">'+
-      del+'</div>';
-  }).join('');
-}
-function wtBtRename(i, val) { if (DB.wtBuildingTypes[i]) { DB.wtBuildingTypes[i].label=val; saveDB(); } }
-function wtBtDelete(i) {
-  DB.wtBuildingTypes.splice(i,1); saveDB();
-  var el=document.getElementById('bt-list'); if(el) el.innerHTML=wtBtRender();
-}
-function wtBtAdd() {
-  DB.wtBuildingTypes.push({ id:'bt_'+Date.now(), label:'New Type' }); saveDB();
-  var el=document.getElementById('bt-list'); if(el) el.innerHTML=wtBtRender();
-}
-function wtOpenBuildingTypeManager() {
-  var html = '<div class="modal-overlay open" id="wt-bt-modal" onclick="if(event.target===this)this.remove()" style="z-index:10002">'+
-    '<div class="modal-box sm">'+
-      '<div class="modal-head"><h3>Building Types</h3>'+
-        '<button class="btn-icon" onclick="document.getElementById(\'wt-bt-modal\').remove()">&#x2715;</button>'+
-      '</div>'+
-      '<div class="modal-body">'+
-        '<p style="font-size:13px;color:#546e7a;margin:0 0 14px">Edit, add, or remove building type options used in the wizard.</p>'+
-        '<div id="bt-list">'+wtBtRender()+'</div>'+
-        '<button onclick="wtBtAdd()" style="font-size:13px;color:#1565c0;background:#e3f2fd;border:2px dashed #90caf9;border-radius:8px;cursor:pointer;padding:10px;width:100%;font-weight:700;margin-top:8px">+ Add Type</button>'+
-      '</div>'+
-    '</div>'+
-  '</div>';
-  var e=document.getElementById('wt-bt-modal'); if(e) e.remove();
-  document.body.insertAdjacentHTML('beforeend', html);
-}
-
-
-// Step 1 — Basics
+// ─── STEP 1: BASICS ───────────────────────────────────────────────────────────
 function wtWizStep1() {
-  var jobOptions = (DB.jobs||[]).map(function(j){ return '<option value="'+j.id+'"'+(j.id===_wiz.proj.jobId?' selected':'')+'>'+escHtml(j.name||'')+(j.customerName?' — '+escHtml(j.customerName):'')+'</option>'; }).join('');
+  var jobOpts=(DB.jobs||[]).map(function(j){
+    return '<option value="'+j.id+'"'+(j.id===_wiz.proj.jobId?' selected':'')+'>'+
+      escHtml(j.name||'')+(j.customerName?' — '+escHtml(j.customerName):'')+'</option>';
+  }).join('');
   return '<h4 style="margin:0 0 20px;font-size:16px;font-weight:800">Project Basics</h4>'+
     '<div style="margin-bottom:14px"><label class="wiz-label">PROJECT NAME *</label>'+
       '<input id="wiz-name" class="form-control" placeholder="e.g. Smith Properties Phase 2" value="'+escHtml(_wiz.proj.name||'')+'"></div>'+
-    '<div style="margin-bottom:14px"><label class="wiz-label">LINK TO JOB (optional)</label>'+
-      '<select id="wiz-job" class="form-control" onchange="var j=(DB.jobs||[]).find(function(x){return x.id===this.value});if(j){if(j.customerName)document.getElementById(\'wiz-cust\').value=j.customerName||\'\';}document.getElementById(\'wiz-job-hint\').textContent=j?(j.number?j.number+\' \u2014 \':\'\')+(j.customerName||\'\'):\'\'"><option value="">— None —</option>'+jobOptions+'</select>'+
-      '<div id="wiz-job-hint" style="font-size:11px;color:#1565c0;margin-top:4px;min-height:14px"></div></div>'+
+    '<div style="margin-bottom:14px"><label class="wiz-label">LINK TO JOB <span style="font-weight:400;text-transform:none">(optional — connects tracking to your quote)</span></label>'+
+      '<select id="wiz-job" class="form-control" onchange="var j=(DB.jobs||[]).find(function(x){return x.id===this.value});if(j&&j.customerName)document.getElementById(\'wiz-cust\').value=j.customerName||\'\'">'+
+        '<option value="">— None —</option>'+jobOpts+'</select></div>'+
     '<div style="margin-bottom:20px"><label class="wiz-label">CUSTOMER NAME</label>'+
       '<input id="wiz-cust" class="form-control" placeholder="Customer / Property name" value="'+escHtml(_wiz.proj.customerName||'')+'"></div>'+
     '<div style="margin-bottom:24px"><label class="wiz-label">PROJECT TYPE</label>'+
       '<div style="display:flex;gap:10px">'+
-        [['multi','🏘 Multi-Building','Multiple buildings on one project'],['single','🏠 Single Building','One building or structure']].map(function(t){
+        [['multi','🏘 Multi-Building','Multiple buildings on one project'],
+         ['single','🏠 Single Building','One building or structure']].map(function(t){
           var s=_wiz.proj.structureType===t[0];
           return '<div onclick="document.querySelectorAll(\'[data-pt]\').forEach(function(e){e.style.border=\'2px solid #e0e0e0\';e.style.background=\'#fff\'});this.style.border=\'2px solid #1565c0\';this.style.background=\'#e3f2fd\';_wiz.proj.structureType=\''+t[0]+'\'" data-pt="'+t[0]+'" '+
             'style="flex:1;padding:14px;border:2px solid '+(s?'#1565c0':'#e0e0e0')+';border-radius:10px;cursor:pointer;background:'+(s?'#e3f2fd':'#fff')+'">'+
-            '<div style="font-size:15px;margin-bottom:4px">'+t[1]+'</div><div style="font-size:11px;color:#546e7a">'+t[2]+'</div></div>';
+            '<div style="font-size:15px;margin-bottom:4px">'+t[1]+'</div>'+
+            '<div style="font-size:11px;color:#546e7a">'+t[2]+'</div></div>';
         }).join('')+
       '</div></div>'+
-    '<div style="display:flex;justify-content:flex-end"><button class="btn btn-primary" onclick="wtWizNext(1)">Next →</button></div>';
+    '<div style="display:flex;justify-content:flex-end">'+
+      '<button class="btn btn-primary" onclick="wtWizNext(1)">Next → Buildings</button></div>';
 }
 
-// Step 2 — Buildings & Floors
+// ─── STEP 2: BUILDINGS ────────────────────────────────────────────────────────
 function wtWizStep2() {
   if (!_wiz.buildings.length) {
-    _wiz.buildings = [{ id:'b_'+Date.now(), name:'Building 1', type:'residential',
-      floors:[{ id:'f_'+Date.now(), name:'Floor 1', num:1, units:[{ unitType:'2BR', qty:8 }],
-        numbering:{ mode:'sequential', startNum:1, digits:2, prefix:'', customList:'' } }] }];
+    _wiz.buildings=[{ id:'b_'+Date.now(), name:'Building 1', type:'residential', floors:[] }];
   }
-  return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Buildings & Floors</h4>'+
-    '<p style="font-size:13px;color:#546e7a;margin:0 0 4px">Set up each building with its floors and unit mix.</p>'+
-    '<p style="font-size:12px;color:#1565c0;margin:0 0 14px;cursor:pointer" onclick="wtOpenBuildingTypeManager()">⚙ Manage building types</p>'+
-    '<div id="wiz-bldg-list">'+wtWizRenderBuildings()+'</div>'+
-    '<button onclick="wtWizAddBuilding()" style="font-size:13px;color:#1565c0;background:#e3f2fd;border:2px dashed #90caf9;border-radius:10px;cursor:pointer;padding:12px;width:100%;font-weight:700;margin-bottom:20px">+ Add Building</button>'+
+  var types=wtGetBuildingTypes();
+  return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Buildings</h4>'+
+    '<p style="font-size:13px;color:#546e7a;margin:0 0 4px">Add all buildings on this project. You\'ll set up floors and rooms in the next step.</p>'+
+    '<p style="font-size:12px;color:#1565c0;margin:0 0 16px;cursor:pointer" onclick="wtOpenBuildingTypeManager()">⚙ Manage building types</p>'+
+    '<div id="wiz-s2-list">'+wtWizS2Render()+'</div>'+
+    '<button onclick="wtWizS2Add()" style="font-size:13px;color:#1565c0;background:#e3f2fd;border:2px dashed #90caf9;border-radius:10px;cursor:pointer;padding:12px;width:100%;font-weight:700;margin-bottom:24px">+ Add Building</button>'+
     '<div style="display:flex;justify-content:space-between">'+
       '<button class="btn btn-outline" onclick="_wiz.step=1;wtShowWizard()">← Back</button>'+
-      '<button class="btn btn-primary" onclick="wtWizNext(2)">Next →</button>'+
-    '</div>';
+      '<button class="btn btn-primary" onclick="wtWizNext(2)">Next → Rooms</button></div>';
 }
 
-function wtWizRenderBuildings() {
-  return _wiz.buildings.map(function(b, bi){
-    return '<div class="card" style="margin-bottom:12px;border-left:3px solid #1565c0">'+
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
-        '<input value="'+escHtml(b.name)+'" oninput="_wiz.buildings['+bi+'].name=this.value" '+
-          'style="flex:1;font-size:15px;font-weight:700;border:none;border-bottom:2px solid #e0e0e0;padding:4px 0;background:transparent;color:#0d1b2a">'+
-        '<select oninput="_wiz.buildings['+bi+'].type=this.value" style="font-size:12px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px">'+
-          wtGetBuildingTypes().map(function(t){
-            return '<option value="'+t.id+'"'+(b.type===t.id?' selected':'')+'>'+escHtml(t.label)+'</option>';
-          }).join('')+
-        '</select>'+
-        (_wiz.buildings.length>1?'<button onclick="_wiz.buildings.splice('+bi+',1);wtWizRefreshStep2()" style="background:#ffebee;color:#c62828;border:none;border-radius:6px;padding:4px 8px;cursor:pointer">✕</button>':'')+
-      '</div>'+
-      b.floors.map(function(fl,fi){
-        return '<div style="background:#f9f9f9;border-radius:8px;padding:10px;margin-bottom:8px">'+
-          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
-            '<input value="'+escHtml(fl.name)+'" oninput="_wiz.buildings['+bi+'].floors['+fi+'].name=this.value" '+
-              'style="flex:1;font-size:13px;font-weight:600;border:1px solid #e0e0e0;border-radius:6px;padding:5px 8px">'+
-            (b.floors.length>1?'<button onclick="_wiz.buildings['+bi+'].floors.splice('+fi+',1);wtWizRefreshStep2()" style="background:none;border:none;color:#90a4ae;cursor:pointer">✕</button>':'')+
-          '</div>'+
-          fl.units.map(function(u,ui){
-            return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
-              '<select oninput="_wiz.buildings['+bi+'].floors['+fi+'].units['+ui+'].unitType=this.value" style="flex:1;font-size:12px;padding:5px 8px;border:1px solid #e0e0e0;border-radius:6px">'+
-                WT_UNIT_TYPES.map(function(t){ return '<option value="'+t+'"'+(u.unitType===t?' selected':'')+'>'+t+'</option>'; }).join('')+
-              '</select>'+
-              '<span style="font-size:12px;color:#546e7a">×</span>'+
-              '<input type="number" value="'+u.qty+'" min="1" oninput="_wiz.buildings['+bi+'].floors['+fi+'].units['+ui+'].qty=parseInt(this.value)||1" '+
-                'style="width:58px;text-align:center;font-size:13px;font-weight:700;border:1px solid #e0e0e0;border-radius:6px;padding:5px">'+
-              (fl.units.length>1?'<button onclick="_wiz.buildings['+bi+'].floors['+fi+'].units.splice('+ui+',1);wtWizRefreshStep2()" style="background:none;border:none;color:#90a4ae;cursor:pointer">✕</button>':'')+
-            '</div>';
-          }).join('')+
-          '<button onclick="_wiz.buildings['+bi+'].floors['+fi+'].units.push({unitType:\'2BR\',qty:1});wtWizRefreshStep2()" style="font-size:11px;color:#1565c0;background:none;border:none;cursor:pointer;padding:0">+ unit type</button>'+
-        '</div>';
-      }).join('')+
-      '<button onclick="_wiz.buildings['+bi+'].floors.push({id:\'f_\'+Date.now(),name:\'Floor \'+(_wiz.buildings['+bi+'].floors.length+1),num:_wiz.buildings['+bi+'].floors.length+1,units:[{unitType:\'2BR\',qty:8}],numbering:{mode:\'sequential\',startNum:1,digits:2,prefix:\'\',customList:\'\'}});wtWizRefreshStep2()" '+
-        'style="font-size:12px;color:#1565c0;background:none;border:2px dashed #ccc;border-radius:8px;cursor:pointer;padding:8px 14px;width:100%;margin-top:4px">+ Add Floor</button>'+
+function wtWizS2Render() {
+  var types=wtGetBuildingTypes();
+  return _wiz.buildings.map(function(b,bi){
+    var typeOpts=types.map(function(t){
+      return '<option value="'+t.id+'"'+(b.type===t.id?' selected':'')+'>'+escHtml(t.label)+'</option>';
+    }).join('');
+    return '<div style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #e0e0e0;border-radius:10px;margin-bottom:8px;background:#fff">'+
+      '<input value="'+escHtml(b.name)+'" oninput="_wiz.buildings['+bi+'].name=this.value" '+
+        'style="flex:1;font-size:14px;font-weight:700;border:none;border-bottom:2px solid #e0e0e0;padding:4px 0;background:transparent;color:#0d1b2a">'+
+      '<select oninput="_wiz.buildings['+bi+'].type=this.value" style="font-size:12px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px">'+typeOpts+'</select>'+
+      (_wiz.buildings.length>1
+        ?'<button onclick="_wiz.buildings.splice('+bi+',1);document.getElementById(\'wiz-s2-list\').innerHTML=wtWizS2Render()" '+
+          'style="padding:5px 10px;font-size:12px;border:1px solid #ffcdd2;border-radius:6px;background:#fff;color:#c62828;cursor:pointer">✕</button>'
+        :'')+
     '</div>';
   }).join('');
 }
 
-function wtWizAddBuilding() {
-  _wiz.buildings.push({ id:'b_'+Date.now(), name:'Building '+(_wiz.buildings.length+1), type:'residential',
-    floors:[{ id:'f_'+Date.now(), name:'Floor 1', num:1, units:[{ unitType:'2BR', qty:8 }],
-      numbering:{ mode:'sequential', startNum:1, digits:2, prefix:'', customList:'' } }] });
-  wtWizRefreshStep2();
+function wtWizS2Add() {
+  _wiz.buildings.push({ id:'b_'+Date.now(), name:'Building '+(_wiz.buildings.length+1), type:'residential', floors:[] });
+  var el=document.getElementById('wiz-s2-list'); if(el) el.innerHTML=wtWizS2Render();
 }
 
-function wtWizRefreshStep2() {
-  var e=document.getElementById('wiz-bldg-list');
-  if(e) e.innerHTML = wtWizRenderBuildings();
-}
-
-// Step 3 — Room Numbering
+// ─── STEP 3: FLOOR & ROOM ROSTER ─────────────────────────────────────────────
 function wtWizStep3() {
-  return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Room Numbering</h4>'+
-    '<p style="font-size:13px;color:#546e7a;margin:0 0 16px">Define how rooms are numbered on each floor. Rooms will appear exactly as they do on the plans.</p>'+
-    _wiz.buildings.map(function(b, bi){
-      return '<div style="margin-bottom:20px">'+
-        '<div style="font-size:14px;font-weight:800;color:#0d1b2a;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #e3f2fd">🏗 '+escHtml(b.name)+'</div>'+
-        b.floors.map(function(fl,fi){
-          var nb = fl.numbering || { mode:'sequential', startNum:1, digits:2, prefix:'', customList:'' };
-          var totalUnits = fl.units.reduce(function(s,u){ return s+u.qty; },0);
-          var preview = wtWizNumberingPreview(nb, totalUnits, fl.num);
-          return '<div style="background:#f9f9f9;border-radius:10px;padding:12px;margin-bottom:8px">'+
-            '<div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:10px">'+escHtml(fl.name)+' ('+totalUnits+' units)</div>'+
-            // Mode tabs
-            '<div style="display:flex;gap:6px;margin-bottom:10px">'+
-              [['sequential','Auto-Sequential'],['custom','Custom List']].map(function(m){
-                var sel = nb.mode===m[0];
-                return '<button onclick="wtWizSetNumberMode('+bi+','+fi+',\''+m[0]+'\')" '+
-                  'style="padding:6px 14px;font-size:12px;font-weight:700;border:2px solid '+(sel?'#1565c0':'#e0e0e0')+';border-radius:8px;background:'+(sel?'#1565c0':'#fff')+';color:'+(sel?'#fff':'#546e7a')+';cursor:pointer">'+m[1]+'</button>';
-              }).join('')+
-            '</div>'+
-            // Sequential options
-            '<div id="wiz-nb-seq-'+bi+'-'+fi+'" style="display:'+(nb.mode==='sequential'?'block':'none')+'">'+
-              '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
-                '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">PREFIX</label>'+
-                  '<input id="wiz-nb-pfx-'+bi+'-'+fi+'" value="'+escHtml(nb.prefix||'')+'" placeholder="e.g. A-, Bldg1-" '+
-                    'oninput="_wiz.buildings['+bi+'].floors['+fi+'].numbering.prefix=this.value;wtWizRefreshPreview('+bi+','+fi+')" '+
-                    'style="width:80px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px"></div>'+
-              '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">SUFFIX</label>'+
-                  '<input id="wiz-nb-sfx-'+bi+'-'+fi+'" value="'+escHtml(nb.suffix||'')+'" placeholder="e.g. A, B" '+
-                    'oninput="_wiz.buildings['+bi+'].floors['+fi+'].numbering.suffix=this.value;wtWizRefreshPreview('+bi+','+fi+')" '+
-                    'style="width:70px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px"></div>'+
-                '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">START NUMBER</label>'+
-                  '<input id="wiz-nb-start-'+bi+'-'+fi+'" type="number" value="'+(nb.startNum||1)+'" min="1" '+
-                    'oninput="_wiz.buildings['+bi+'].floors['+fi+'].numbering.startNum=parseInt(this.value)||1;wtWizRefreshPreview('+bi+','+fi+')" '+
-                    'style="width:80px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
-                '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">DIGITS</label>'+
-                  '<select id="wiz-nb-dgt-'+bi+'-'+fi+'" onchange="_wiz.buildings['+bi+'].floors['+fi+'].numbering.digits=parseInt(this.value);wtWizRefreshPreview('+bi+','+fi+')" '+
-                    'style="padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px">'+
-                    [['2','2 digits (01, 02...)'],['3','3 digits (001, 002...)'],['0','No padding (1, 2...)']].map(function(d){
-                      return '<option value="'+d[0]+'"'+(String(nb.digits||2)===d[0]?' selected':'')+'>'+d[1]+'</option>';
-                    }).join('')+
-                  '</select></div>'+
-                '<div style="flex:1"><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">FLOOR NUMBER IN PREFIX?</label>'+
-                  '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px">'+
-                    '<input type="checkbox" '+(nb.useFloorNum!==false?'checked':'')+' onchange="_wiz.buildings['+bi+'].floors['+fi+'].numbering.useFloorNum=this.checked;wtWizRefreshPreview('+bi+','+fi+')" style="width:16px;height:16px">'+
-                    '<span style="font-size:12px">Auto-prepend floor '+fl.num+'</span>'+
-                  '</label></div>'+
-              '</div>'+
-            '</div>'+
-            // Custom list
-            '<div id="wiz-nb-cust-'+bi+'-'+fi+'" style="display:'+(nb.mode==='custom'?'block':'none')+'">'+
-              '<label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">ROOM NUMBERS <span style="font-weight:400">(one per line or comma-separated — need '+totalUnits+')</span></label>'+
-              '<textarea id="wiz-nb-list-'+bi+'-'+fi+'" rows="3" class="form-control" '+
-                'placeholder="101, 102, 103A, 103B..." '+
-                'oninput="_wiz.buildings['+bi+'].floors['+fi+'].numbering.customList=this.value;wtWizRefreshPreview('+bi+','+fi+')">'+escHtml(nb.customList||'')+'</textarea>'+
-            '</div>'+
-            // Preview
-            '<div id="wiz-nb-prev-'+bi+'-'+fi+'" style="margin-top:10px;padding:8px 10px;background:#fff;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;color:#546e7a">'+
-              '<span style="font-weight:700;color:#0d1b2a">Preview: </span>'+escHtml(preview)+
-            '</div>'+
-          '</div>';
-        }).join('')+
-      '</div>';
-    }).join('')+
-    '<div style="display:flex;justify-content:space-between;margin-top:8px">'+
-      '<button class="btn btn-outline" onclick="_wiz.step=2;wtShowWizard()">← Back</button>'+
-      '<button class="btn btn-primary" onclick="wtWizNext(3)">Next →</button>'+
-    '</div>';
-}
+  if (!_wiz.buildings.length) { _wiz.step=2; wtShowWizard(); return ''; }
+  _wiz.s3bldg = Math.max(0,Math.min(_wiz.s3bldg,_wiz.buildings.length-1));
+  var b = _wiz.buildings[_wiz.s3bldg];
+  if (!b.floors) b.floors=[];
+  if (!b.floors.length) b.floors.push({ id:'f_'+Date.now(), name:'Floor 1', floorNum:1, rooms:[] });
+  _wiz.s3floor = Math.max(0,Math.min(_wiz.s3floor,b.floors.length-1));
+  var fl = b.floors[_wiz.s3floor];
+  var untyped = fl.rooms.filter(function(r){ return !r.unitType; }).length;
 
-function wtWizSetNumberMode(bi, fi, mode) {
-  _wiz.buildings[bi].floors[fi].numbering.mode = mode;
-  var seq  = document.getElementById('wiz-nb-seq-'+bi+'-'+fi);
-  var cust = document.getElementById('wiz-nb-cust-'+bi+'-'+fi);
-  if(seq)  seq.style.display  = mode==='sequential'?'block':'none';
-  if(cust) cust.style.display = mode==='custom'?'block':'none';
-  // Re-style tab buttons for this floor
-  ['sequential','custom'].forEach(function(m){
-    var btn = document.getElementById('wiz-nb-mode-btn-'+bi+'-'+fi+'-'+m);
-    if (!btn) return;
-    btn.style.border    = '2px solid '+(m===mode?'#1565c0':'#e0e0e0');
-    btn.style.background = m===mode?'#1565c0':'#fff';
-    btn.style.color      = m===mode?'#fff':'#546e7a';
-  });
-  wtWizRefreshPreview(bi,fi);
-}
+  return '<h4 style="margin:0 0 4px;font-size:16px;font-weight:800">Floor & Room Setup</h4>'+
+    '<p style="font-size:13px;color:#546e7a;margin:0 0 14px">Generate room numbers from your plans, then tap to assign each room\'s type.</p>'+
 
-function wtWizRefreshPreview(bi, fi) {
-  var fl = _wiz.buildings[bi] && _wiz.buildings[bi].floors[fi];
-  if (!fl) return;
-  var totalUnits = fl.units.reduce(function(s,u){ return s+u.qty; },0);
-  var preview = wtWizNumberingPreview(fl.numbering, totalUnits, fl.num);
-  var el = document.getElementById('wiz-nb-prev-'+bi+'-'+fi);
-  if (el) el.innerHTML = '<span style="font-weight:700;color:#0d1b2a">Preview: </span>'+escHtml(preview);
-}
-
-function wtWizNumberingPreview(nb, count, floorNum) {
-  var nums = wtGenerateRoomNumbers(nb, count, floorNum);
-  if (!nums.length) return 'No rooms';
-  var show = nums.slice(0,5);
-  return show.join(', ')+(nums.length>5?' ... '+nums[nums.length-1]:'');
-}
-
-function wtGenerateRoomNumbers(nb, count, floorNum) {
-  if (!nb) return [];
-  if (nb.mode === 'custom') {
-    var raw = (nb.customList||'').replace(/\n/g,',').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
-    while (raw.length < count) raw.push(String(raw.length+1));
-    return raw.slice(0, count);
-  }
-  // Sequential
-  var useFloor = nb.useFloorNum !== false;
-  var prefix   = nb.prefix  || '';
-  var suffix   = nb.suffix  || '';
-  var digits   = parseInt(nb.digits) || 2;
-  var start    = parseInt(nb.startNum) || 1;
-  var floorPfx = useFloor ? String(floorNum) : '';
-  var nums = [];
-  for (var i=0; i<count; i++) {
-    var unitNum = start + i;
-    var unitStr = digits > 0 ? String(unitNum).padStart(digits,'0') : String(unitNum);
-    nums.push(prefix + floorPfx + unitStr + suffix);
-  }
-  return nums;
-}
-
-// Step 4 — Unit → Template Mapping
-function wtWizStep4() {
-  // Collect all unique unit types across all buildings/floors
-  var unitTypes = {};
-  _wiz.buildings.forEach(function(b){
-    b.floors.forEach(function(f){
-      f.units.forEach(function(u){ unitTypes[u.unitType]=true; });
-    });
-  });
-  var types = Object.keys(unitTypes);
-  var tmpls = wtGetTemplates();
-
-  return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Unit Templates</h4>'+
-    '<p style="font-size:13px;color:#546e7a;margin:0 0 4px">Map each unit type to a room template. This defines exactly what items get installed in every room.</p>'+
-    '<p style="font-size:12px;color:#1565c0;margin:0 0 16px;cursor:pointer" onclick="wtWizSaveDraft();document.getElementById(\'wt-wizard-modal\').remove();wtOpenTemplateManager()">✏ Edit templates first? (wizard progress saved)</p>'+
-    types.map(function(ut){
-      var matched = tmpls.find(function(t){ return t.unit_type===ut; });
-      var selId   = _wiz.templateMap[ut] || (matched?matched.id:'');
-      if (!_wiz.templateMap[ut] && selId) _wiz.templateMap[ut] = selId;
-      return '<div style="margin-bottom:14px">'+
-        '<label style="font-size:13px;font-weight:800;color:#0d1b2a;display:block;margin-bottom:6px">'+ut+'</label>'+
-        '<select onchange="_wiz.templateMap[\''+ut+'\']=this.value" class="form-control" style="max-width:400px">'+
-          '<option value="">— No template (generate no items) —</option>'+
-          tmpls.map(function(t){
-            return '<option value="'+t.id+'"'+(t.id===selId?' selected':'')+'>'+escHtml(t.name)+'</option>';
+    // Building tabs (only if multi-building)
+    (_wiz.buildings.length>1
+      ?'<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">'+
+          _wiz.buildings.map(function(bd,i){
+            var a=i===_wiz.s3bldg;
+            return '<button onclick="_wiz.s3bldg='+i+';_wiz.s3floor=0;wtWizRefreshStep3()" '+
+              'style="padding:6px 14px;font-size:12px;font-weight:700;border:2px solid '+(a?'#1565c0':'#e0e0e0')+';border-radius:8px;background:'+(a?'#1565c0':'#fff')+';color:'+(a?'#fff':'#546e7a')+';cursor:pointer">'+
+              escHtml(bd.name)+'</button>';
           }).join('')+
-        '</select>'+
-        // Preview selected template
-        (selId ? function(){
-          var tpl = tmpls.find(function(t){ return t.id===selId; });
-          if (!tpl) return '';
-          var itemCount = (tpl.areas||[]).reduce(function(s,a){ return s+(a.items||[]).reduce(function(s2,i){ return s2+i.qty; },0); },0);
-          return '<div style="margin-top:6px;font-size:12px;color:#546e7a">'+escHtml(tpl.name)+' · '+(tpl.areas||[]).length+' areas · '+itemCount+' items per room</div>';
-        }() : '')+
-      '</div>';
-    }).join('')+
-    '<div style="display:flex;justify-content:space-between;margin-top:20px">'+
-      '<button class="btn btn-outline" onclick="_wiz.step=3;wtShowWizard()">← Back</button>'+
-      '<button class="btn btn-primary" onclick="wtWizNext(4)">Next →</button>'+
-    '</div>';
+        '</div>' : '')+
+
+    // Floor tabs
+    '<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center">'+
+      b.floors.map(function(f,i){
+        var a=i===_wiz.s3floor;
+        var done=f.rooms.length>0&&f.rooms.every(function(r){ return r.unitType; });
+        return '<button onclick="_wiz.s3floor='+i+';wtWizRefreshStep3()" '+
+          'style="padding:5px 14px;font-size:12px;font-weight:700;border:2px solid '+(a?'#1565c0':done?'#2e7d32':'#e0e0e0')+';border-radius:20px;background:'+(a?'#1565c0':done?'#e8f5e9':'#fff')+';color:'+(a?'#fff':done?'#2e7d32':'#546e7a')+';cursor:pointer">'+
+          escHtml(f.name)+
+          ' <span style="font-size:10px;opacity:.8">('+f.rooms.length+')</span>'+
+          (done?' ✓':'')+
+        '</button>';
+      }).join('')+
+      '<button onclick="wtWizS3AddFloor()" '+
+        'style="padding:5px 12px;font-size:12px;border:2px dashed #ccc;border-radius:20px;background:#fff;color:#546e7a;cursor:pointer">+ Floor</button>'+
+      (b.floors.length>1
+        ?'<button onclick="wtWizS3DeleteFloor()" style="padding:5px 8px;font-size:11px;border:1px solid #ffcdd2;border-radius:20px;background:#fff;color:#c62828;cursor:pointer" title="Delete this floor">🗑</button>'
+        :'')+
+    '</div>'+
+
+    // Floor name
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'+
+      '<input id="wiz-fl-name" value="'+escHtml(fl.name)+'" '+
+        'oninput="_wiz.buildings[_wiz.s3bldg].floors[_wiz.s3floor].name=this.value" '+
+        'style="font-size:14px;font-weight:700;border:none;border-bottom:2px solid #e0e0e0;padding:4px 0;background:transparent;color:#0d1b2a;width:160px" placeholder="Floor name">'+
+      '<span style="font-size:11px;color:#90a4ae">floor name</span>'+
+    '</div>'+
+
+    // Quick generate bar
+    '<div style="background:#f5f7fa;border-radius:10px;padding:12px 14px;margin-bottom:12px">'+
+      '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">&#x26A1; Quick Generate Room Numbers</div>'+
+      '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">'+
+        '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Prefix</label>'+
+          '<input id="wiz-gp" placeholder="e.g. A" style="width:55px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
+        '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Start #</label>'+
+          '<input id="wiz-gs" type="number" value="101" style="width:65px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
+        '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Count</label>'+
+          '<input id="wiz-gc" type="number" value="'+(fl.rooms.length||12)+'" min="1" style="width:60px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
+        '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Format</label>'+
+          '<select id="wiz-gd" style="padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
+            '<option value="0">1, 2, 3...</option>'+
+            '<option value="2" selected>01, 02, 03...</option>'+
+            '<option value="3">001, 002...</option>'+
+          '</select></div>'+
+        '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Suffix</label>'+
+          '<input id="wiz-gx" placeholder="" style="width:50px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
+        '<button onclick="wtWizGenRooms()" class="btn btn-primary btn-sm" style="flex-shrink:0">&#x25B6; Generate</button>'+
+      '</div>'+
+      (fl.rooms.length?'<div style="font-size:11px;color:#e65100;margin-top:6px">⚠ This replaces the '+fl.rooms.length+' existing rooms — type assignments will be lost.</div>':'')+
+    '</div>'+
+
+    // Roster
+    '<div id="wiz-roster-wrap">'+wtWizRosterHtml()+'</div>'+
+
+    // Footer
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:8px">'+
+      '<button onclick="wtWizRosterAddRoom()" '+
+        'style="padding:8px 16px;font-size:13px;color:#2e7d32;background:#e8f5e9;border:2px dashed #a5d6a7;border-radius:8px;cursor:pointer;font-weight:700">+ Add Room</button>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button onclick="wtWizSetAllModal()" '+
+          'style="padding:8px 14px;font-size:12px;border:1px solid #1565c0;border-radius:8px;background:#e3f2fd;color:#1565c0;cursor:pointer;font-weight:600">Set All →</button>'+
+        '<button onclick="wtWizCopyFloorModal()" '+
+          'style="padding:8px 14px;font-size:12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer">📋 Copy Floor</button>'+
+      '</div>'+
+    '</div>'+
+
+    // Building completion overview
+    wtWizBldgProgress()+
+
+    '<div style="display:flex;justify-content:space-between;margin-top:12px">'+
+      '<button class="btn btn-outline" onclick="_wiz.step=2;wtShowWizard()">← Back</button>'+
+      '<button class="btn btn-primary" onclick="wtWizNext(3)">Next → Systems</button></div>';
 }
 
-// Step 5 — Systems + Review
-function wtWizStep5() {
-  var systems = [
-    { id:'structured_wiring',  label:'Structured Wiring (Cat6)', icon:'🔌' },
-    { id:'wireless_ap',        label:'Wireless APs',             icon:'📡' },
-    { id:'access_control',     label:'Access Control',           icon:'🚪' },
-    { id:'deadbolts',          label:'Electronic Deadbolts',     icon:'🔐' },
-    { id:'fiber_interbuilding',label:'Fiber Interbuilding',      icon:'🔗' },
-    { id:'clubhouse_av',       label:'Clubhouse AV',             icon:'🔊' },
-    { id:'perimeter_cameras',  label:'Perimeter Cameras',        icon:'📷' },
-    { id:'gate_access',        label:'Gate / Perimeter Access',  icon:'🏗' },
+function wtWizRosterHtml() {
+  var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
+  if (!fl) return '';
+  if (!fl.rooms.length) return '<div style="padding:30px;text-align:center;color:#90a4ae;border:1px solid #e0e0e0;border-radius:10px">'+
+    'No rooms yet — use Quick Generate above or add rooms one by one below.</div>';
+
+  var typeHdrs = WT_UNIT_DEF.map(function(t){
+    return '<th style="text-align:center;padding:6px 4px;font-size:10px;font-weight:700;color:'+t.color+';min-width:38px">'+t.short+'</th>';
+  }).join('');
+
+  var rows = fl.rooms.map(function(r,ri){
+    var typeCells = WT_UNIT_DEF.map(function(t){
+      var sel = r.unitType===t.id;
+      return '<td style="text-align:center;padding:4px 2px">'+
+        '<button onclick="wtWizSetType('+ri+',\''+t.id+'\')" '+
+          'title="'+t.id+'" '+
+          'style="width:34px;height:28px;border:2px solid '+(sel?t.color:'#e0e0e0')+';border-radius:6px;'+
+          'background:'+(sel?t.color:'#fff')+';color:'+(sel?'#fff':t.color)+';'+
+          'font-size:10px;font-weight:800;cursor:pointer;transition:all .1s">'+
+          t.short+
+        '</button></td>';
+    }).join('');
+
+    return '<tr style="background:'+(r.unitType?'#fff':'#fffde7')+'" id="wiz-row-'+ri+'">'+
+      '<td style="padding:6px 8px;font-size:11px;color:#90a4ae;text-align:right;width:30px">'+(ri+1)+'</td>'+
+      '<td style="padding:4px 6px;width:100px">'+
+        '<input value="'+escHtml(r.number)+'" '+
+          'oninput="_wiz.buildings[_wiz.s3bldg].floors[_wiz.s3floor].rooms['+ri+'].number=this.value" '+
+          'style="width:100%;padding:5px 7px;border:1px solid '+(r.number?'#e0e0e0':'#f57c00')+';border-radius:6px;font-size:13px;font-weight:700;color:#0d1b2a;box-sizing:border-box">'+
+      '</td>'+
+      typeCells+
+      '<td style="padding:4px 6px;width:32px">'+
+        '<button onclick="wtWizDeleteRoom('+ri+')" '+
+          'style="width:28px;height:28px;border:1px solid #ffcdd2;border-radius:6px;background:#fff;color:#c62828;cursor:pointer;font-size:12px">✕</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+
+  return '<div style="overflow-x:auto;border:1px solid #e0e0e0;border-radius:10px">'+
+    '<table style="width:100%;border-collapse:collapse;min-width:500px">'+
+      '<thead><tr style="background:#f5f7fa">'+
+        '<th style="width:30px"></th>'+
+        '<th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#546e7a;width:100px">ROOM #</th>'+
+        typeHdrs+
+        '<th style="width:32px"></th>'+
+      '</tr></thead>'+
+      '<tbody>'+rows+'</tbody>'+
+    '</table>'+
+  '</div>';
+}
+
+function wtWizSetType(ri, typeId) {
+  var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
+  if (!fl||!fl.rooms[ri]) return;
+  fl.rooms[ri].unitType = fl.rooms[ri].unitType===typeId ? null : typeId;
+  // Re-render just the row for performance
+  var row = document.getElementById('wiz-row-'+ri);
+  if (row) {
+    var t = wtUnitDef(fl.rooms[ri].unitType);
+    row.style.background = fl.rooms[ri].unitType ? '#fff' : '#fffde7';
+    var btns = row.querySelectorAll('button[title]');
+    btns.forEach(function(btn){
+      var tid = btn.getAttribute('title');
+      var td = wtUnitDef(tid);
+      var sel = fl.rooms[ri].unitType === tid;
+      btn.style.border = '2px solid '+(sel?td.color:'#e0e0e0');
+      btn.style.background = sel?td.color:'#fff';
+      btn.style.color = sel?'#fff':td.color;
+    });
+  }
+}
+
+function wtWizGenRooms() {
+  var pfx  = (document.getElementById('wiz-gp')||{}).value||'';
+  var sfx  = (document.getElementById('wiz-gx')||{}).value||'';
+  var start= parseInt((document.getElementById('wiz-gs')||{}).value)||1;
+  var cnt  = parseInt((document.getElementById('wiz-gc')||{}).value)||12;
+  var dgt  = parseInt((document.getElementById('wiz-gd')||{}).value)||2;
+  cnt = Math.max(1, Math.min(cnt, 200));
+
+  var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
+  if (!fl) return;
+  var rooms=[];
+  for (var i=0;i<cnt;i++) {
+    var num=start+i;
+    var ns=dgt>0?String(num).padStart(dgt,'0'):String(num);
+    rooms.push({ id:'r_'+Date.now()+'_'+i, number:pfx+ns+sfx, unitType:null });
+  }
+  fl.rooms=rooms;
+  var el=document.getElementById('wiz-roster-wrap');
+  if(el) el.innerHTML=wtWizRosterHtml();
+}
+
+function wtWizRosterAddRoom() {
+  var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
+  if (!fl) return;
+  fl.rooms.push({ id:'r_'+Date.now(), number:'', unitType:null });
+  var el=document.getElementById('wiz-roster-wrap');
+  if(el) el.innerHTML=wtWizRosterHtml();
+  // Focus the new room number input
+  setTimeout(function(){
+    var inputs=document.querySelectorAll('#wiz-roster-wrap input');
+    if(inputs.length) inputs[inputs.length-1].focus();
+  },80);
+}
+
+function wtWizDeleteRoom(ri) {
+  var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
+  if (!fl) return;
+  fl.rooms.splice(ri,1);
+  var el=document.getElementById('wiz-roster-wrap');
+  if(el) el.innerHTML=wtWizRosterHtml();
+}
+
+function wtWizS3AddFloor() {
+  var b=_wiz.buildings[_wiz.s3bldg]; if(!b) return;
+  var n=b.floors.length+1;
+  b.floors.push({ id:'f_'+Date.now(), name:'Floor '+n, floorNum:n, rooms:[] });
+  _wiz.s3floor=b.floors.length-1;
+  wtWizRefreshStep3();
+}
+
+function wtWizS3DeleteFloor() {
+  var b=_wiz.buildings[_wiz.s3bldg]; if(!b||b.floors.length<=1) return;
+  if (!confirm('Delete "'+b.floors[_wiz.s3floor].name+'"? All rooms on this floor will be removed.')) return;
+  b.floors.splice(_wiz.s3floor,1);
+  _wiz.s3floor=Math.max(0,_wiz.s3floor-1);
+  wtWizRefreshStep3();
+}
+
+function wtWizRefreshStep3() {
+  var e=document.getElementById('wt-wizard-modal'); if(e) e.remove();
+  wtShowWizard();
+}
+
+// Set All — assign one type to all unassigned rooms on current floor
+function wtWizSetAllModal() {
+  var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
+  if(!fl) return;
+  var untyped=fl.rooms.filter(function(r){ return !r.unitType; }).length;
+  var html='<div class="modal-overlay open" id="wt-setall-modal" onclick="if(event.target===this)this.remove()" style="z-index:10002">'+
+    '<div class="modal-box sm">'+
+      '<div class="modal-head"><h3>Set Type</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'wt-setall-modal\').remove()">✕</button></div>'+
+      '<div class="modal-body">'+
+        '<p style="font-size:13px;color:#546e7a;margin:0 0 16px">Apply a type to rooms on this floor:</p>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">'+
+          WT_UNIT_DEF.map(function(t){
+            return '<button onclick="wtWizDoSetAll(\''+t.id+'\',false)" '+
+              'style="padding:10px 16px;font-size:13px;font-weight:700;border:2px solid '+t.color+';border-radius:8px;background:'+t.bg+';color:'+t.color+';cursor:pointer">'+t.id+'</button>';
+          }).join('')+
+        '</div>'+
+        (untyped<fl.rooms.length
+          ?'<div style="border-top:1px solid #f0f0f0;padding-top:12px">'+
+              '<p style="font-size:12px;color:#546e7a;margin:0 0 10px">Or set ONLY the '+untyped+' unassigned rooms:</p>'+
+              '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+                WT_UNIT_DEF.map(function(t){
+                  return '<button onclick="wtWizDoSetAll(\''+t.id+'\',true)" '+
+                    'style="padding:8px 12px;font-size:12px;font-weight:700;border:2px solid '+t.color+';border-radius:8px;background:#fff;color:'+t.color+';cursor:pointer">'+t.id+' (unassigned only)</button>';
+                }).join('')+
+              '</div></div>'
+          :'')+
+      '</div></div></div>';
+  var e=document.getElementById('wt-setall-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+
+function wtWizDoSetAll(typeId, unassignedOnly) {
+  var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
+  if(!fl) return;
+  fl.rooms.forEach(function(r){
+    if (!unassignedOnly || !r.unitType) r.unitType=typeId;
+  });
+  document.getElementById('wt-setall-modal').remove();
+  var el=document.getElementById('wiz-roster-wrap');
+  if(el) el.innerHTML=wtWizRosterHtml();
+}
+
+// Copy Floor — copy current floor's room roster to other floors
+function wtWizCopyFloorModal() {
+  var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
+  if(!fl||!fl.rooms.length) { showToast('Add rooms to this floor first','warning'); return; }
+  var otherFloors=b.floors.filter(function(f,i){ return i!==_wiz.s3floor; });
+  var html='<div class="modal-overlay open" id="wt-cpfl-modal" onclick="if(event.target===this)this.remove()" style="z-index:10002">'+
+    '<div class="modal-box sm">'+
+      '<div class="modal-head"><h3>📋 Copy Floor</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'wt-cpfl-modal\').remove()">✕</button></div>'+
+      '<div class="modal-body">'+
+        '<p style="font-size:13px;color:#546e7a;margin:0 0 4px">Copy <strong>'+escHtml(fl.name)+'</strong> ('+fl.rooms.length+' rooms) to:</p>'+
+        '<p style="font-size:11px;color:#90a4ae;margin:0 0 14px">Room numbers and types will be copied exactly.</p>'+
+        (otherFloors.length
+          ?'<div style="margin-bottom:14px">'+
+              otherFloors.map(function(f){
+                return '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">'+
+                  '<input type="checkbox" data-fid="'+f.id+'" style="width:16px;height:16px">'+
+                  '<span style="font-size:13px;font-weight:600">'+escHtml(f.name)+'</span>'+
+                  '<span style="font-size:11px;color:#90a4ae">('+f.rooms.length+' rooms)</span>'+
+                '</label>';
+              }).join('')+
+            '</div>'
+          :'<p style="color:#90a4ae;font-size:13px">No other floors yet.</p>')+
+        '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-bottom:12px">'+
+          '<label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:6px">ALSO CREATE NEW FLOORS:</label>'+
+          '<input id="cp-new" type="number" min="0" value="0" style="width:60px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center">'+
+          '<span style="font-size:12px;color:#546e7a;margin-left:8px">additional floors</span>'+
+        '</div>'+
+        '<button class="btn btn-primary" style="width:100%" onclick="wtWizDoCopyFloor()">📋 Copy</button>'+
+      '</div></div></div>';
+  var e=document.getElementById('wt-cpfl-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+
+function wtWizDoCopyFloor() {
+  var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
+  if(!fl) return;
+  var srcRooms=JSON.parse(JSON.stringify(fl.rooms));
+  var copyCount=0;
+  // Copy to checked floors
+  document.querySelectorAll('#wt-cpfl-modal [data-fid]:checked').forEach(function(cb){
+    var fid=cb.getAttribute('data-fid');
+    var target=b.floors.find(function(f){ return f.id===fid; });
+    if(target){
+      target.rooms=srcRooms.map(function(r){ return Object.assign({},r,{id:'r_'+Date.now()+'_'+Math.random()}); });
+      copyCount++;
+    }
+  });
+  // Create new floors
+  var newCount=parseInt((document.getElementById('cp-new')||{}).value)||0;
+  for(var i=0;i<newCount;i++){
+    var n=b.floors.length+1;
+    b.floors.push({
+      id:'f_'+Date.now()+'_'+i, name:'Floor '+n, floorNum:n,
+      rooms:srcRooms.map(function(r){ return Object.assign({},r,{id:'r_'+Date.now()+'_'+Math.random()}); })
+    });
+    copyCount++;
+  }
+  document.getElementById('wt-cpfl-modal').remove();
+  wtWizRefreshStep3();
+  showToast('📋 Floor copied to '+copyCount+' floor'+(copyCount>1?'s':''),'success');
+}
+
+function wtWizBldgProgress() {
+  var b=_wiz.buildings[_wiz.s3bldg]; if(!b) return '';
+  var totalRooms=0, typedRooms=0;
+  b.floors.forEach(function(f){
+    totalRooms+=f.rooms.length;
+    typedRooms+=f.rooms.filter(function(r){ return r.unitType; }).length;
+  });
+  if(!totalRooms) return '';
+  var pct=Math.round(typedRooms/totalRooms*100);
+  return '<div style="padding:10px 12px;background:#f5f7fa;border-radius:8px;margin-bottom:8px">'+
+    '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">'+
+      '<span style="font-weight:700;color:#0d1b2a">'+escHtml(b.name)+' — '+totalRooms+' rooms across '+b.floors.length+' floor'+(b.floors.length>1?'s':'')+'</span>'+
+      '<span style="font-weight:700;color:'+(pct===100?'#2e7d32':'#e65100')+'">'+typedRooms+'/'+totalRooms+' typed</span>'+
+    '</div>'+
+    '<div style="background:#e0e0e0;border-radius:3px;height:6px">'+
+      '<div style="background:'+(pct===100?'#2e7d32':'#1565c0')+';height:6px;border-radius:3px;width:'+pct+'%;transition:width .3s"></div>'+
+    '</div>'+
+  '</div>';
+}
+
+// ─── STEP 4: SYSTEMS ─────────────────────────────────────────────────────────
+function wtWizStep4() {
+  var systems=[
+    { id:'structured_wiring',  label:'Structured Wiring',  icon:'🔌', desc:'Cat6 outlets throughout' },
+    { id:'wireless_ap',        label:'Wireless APs',        icon:'📡', desc:'PoE AP locations' },
+    { id:'access_control',     label:'Access Control',      icon:'🚪', desc:'Readers, strikes, mag-locks' },
+    { id:'deadbolts',          label:'Electronic Deadbolts',icon:'🔐', desc:'Tenant door deadbolts' },
+    { id:'fiber_interbuilding',label:'Fiber Interbuilding', icon:'🔗', desc:'Building-to-MDF backbone' },
+    { id:'clubhouse_av',       label:'Clubhouse AV',        icon:'🔊', desc:'Speakers, TV drops' },
+    { id:'perimeter_cameras',  label:'Perimeter Cameras',   icon:'📷', desc:'Exterior cameras' },
+    { id:'gate_access',        label:'Gate Access',         icon:'🏗',  desc:'Vehicle & pedestrian gates' },
   ];
-
-  var totalRooms = 0;
-  _wiz.buildings.forEach(function(b){ b.floors.forEach(function(f){ f.units.forEach(function(u){ totalRooms+=u.qty; }); }); });
-  var totalFloors = _wiz.buildings.reduce(function(s,b){ return s+b.floors.length; },0);
-
-  return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Systems & Review</h4>'+
-    '<p style="font-size:13px;color:#546e7a;margin:0 0 14px">Select all systems on this project, then review before creating.</p>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px">'+
+  return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Systems</h4>'+
+    '<p style="font-size:13px;color:#546e7a;margin:0 0 16px">Select all systems being installed. These determine which catalog items get generated per room.</p>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px">'+
       systems.map(function(s){
-        var sel = _wiz.proj.systems.indexOf(s.id)>=0;
+        var sel=_wiz.proj.systems.indexOf(s.id)>=0;
         return '<div onclick="var i=_wiz.proj.systems.indexOf(\''+s.id+'\');if(i>=0)_wiz.proj.systems.splice(i,1);else _wiz.proj.systems.push(\''+s.id+'\');this.style.border=\'2px solid \'+(i<0?\'#1565c0\':\'#e0e0e0\');this.style.background=\'\'+(i<0?\'#e3f2fd\':\'#fff\')" '+
-          'style="padding:12px;border:2px solid '+(sel?'#1565c0':'#e0e0e0')+';border-radius:10px;cursor:pointer;background:'+(sel?'#e3f2fd':'#fff')+';display:flex;align-items:center;gap:8px">'+
-          '<span style="font-size:18px">'+s.icon+'</span>'+
-          '<span style="font-size:13px;font-weight:600;color:#0d1b2a">'+s.label+'</span>'+
-        '</div>';
+          'style="padding:12px;border:2px solid '+(sel?'#1565c0':'#e0e0e0')+';border-radius:10px;cursor:pointer;background:'+(sel?'#e3f2fd':'#fff')+';display:flex;align-items:center;gap:10px">'+
+          '<span style="font-size:20px">'+s.icon+'</span>'+
+          '<div><div style="font-size:13px;font-weight:700;color:#0d1b2a">'+s.label+'</div>'+
+          '<div style="font-size:11px;color:#546e7a">'+s.desc+'</div></div></div>';
       }).join('')+
     '</div>'+
-    // Summary card
-    '<div class="card" style="background:#f9fbff;margin-bottom:20px">'+
-      '<div style="font-size:15px;font-weight:800;color:#0d1b2a;margin-bottom:8px">📋 '+escHtml(_wiz.proj.name)+'</div>'+
-      (_wiz.proj.customerName?'<div style="font-size:13px;color:#546e7a;margin-bottom:8px">'+escHtml(_wiz.proj.customerName)+'</div>':'')+
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'+
-        [['🏗',_wiz.buildings.length,'Buildings'],['🏢',totalFloors,'Floors'],['🚪',totalRooms,'Rooms']].map(function(r){
-          return '<div style="text-align:center;padding:10px;background:#fff;border-radius:8px;border:1px solid #e0e0e0">'+
-            '<div style="font-size:11px;color:#546e7a">'+r[0]+' '+r[2]+'</div>'+
-            '<div style="font-size:22px;font-weight:900;color:#0d1b2a">'+r[1]+'</div>'+
-          '</div>';
-        }).join('')+
-      '</div>'+
+    '<div style="display:flex;justify-content:space-between">'+
+      '<button class="btn btn-outline" onclick="_wiz.step=3;wtShowWizard()">← Back</button>'+
+      '<button class="btn btn-primary" onclick="wtWizNext(4)">Next → Review</button></div>';
+}
+
+// ─── STEP 5: REVIEW ───────────────────────────────────────────────────────────
+function wtWizStep5() {
+  var totalRooms=0, typedRooms=0, totalItems=0;
+  var tmpls=wtGetTemplates();
+  _wiz.buildings.forEach(function(b){
+    b.floors.forEach(function(f){
+      totalRooms+=f.rooms.length;
+      f.rooms.forEach(function(r){
+        if(r.unitType){ typedRooms++; }
+        var tpl=r.unitType?tmpls.find(function(t){ return t.unit_type===r.unitType; }):null;
+        if(tpl) totalItems+=(tpl.areas||[]).reduce(function(s,a){ return s+(a.items||[]).reduce(function(s2,i){ return s2+i.qty; },0); },0);
+      });
+    });
+  });
+  var untyped=totalRooms-typedRooms;
+  return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Review & Create</h4>'+
+    '<p style="font-size:13px;color:#546e7a;margin:0 0 16px">Confirm everything before the wizard generates your project.</p>'+
+    // Project summary
+    '<div class="card" style="background:#f9fbff;margin-bottom:12px">'+
+      '<div style="font-size:16px;font-weight:800;color:#0d1b2a;margin-bottom:4px">'+escHtml(_wiz.proj.name)+'</div>'+
+      (_wiz.proj.customerName?'<div style="font-size:13px;color:#546e7a">'+escHtml(_wiz.proj.customerName)+'</div>':'')+
+    '</div>'+
+    // Counts grid
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">'+
+      [['🏗',_wiz.buildings.length,'Buildings'],['🏢',_wiz.buildings.reduce(function(s,b){ return s+b.floors.length; },0),'Floors'],['🚪',totalRooms,'Rooms'],['📋','~'+totalItems,'Items']].map(function(r){
+        return '<div style="text-align:center;padding:12px;background:#fff;border:1px solid #e0e0e0;border-radius:8px">'+
+          '<div style="font-size:11px;color:#546e7a">'+r[0]+' '+r[2]+'</div>'+
+          '<div style="font-size:22px;font-weight:900;color:#0d1b2a">'+r[1]+'</div></div>';
+      }).join('')+
+    '</div>'+
+    // Warnings
+    (untyped>0
+      ?'<div style="padding:12px;background:#fff3e0;border-left:4px solid #e65100;border-radius:8px;margin-bottom:12px;font-size:13px;color:#e65100">'+
+          '⚠ <strong>'+untyped+' room'+(untyped>1?'s are':' is')+' untyped.</strong> Those rooms will be created without items. You can add them manually after setup.'+
+        '</div>'
+      :'')+
+    // Building breakdown
+    '<div style="margin-bottom:20px">'+
+      _wiz.buildings.map(function(b){
+        var bRooms=b.floors.reduce(function(s,f){ return s+f.rooms.length; },0);
+        return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px">'+
+          '<span style="font-weight:700">'+escHtml(b.name)+'</span>'+
+          '<span style="color:#546e7a">'+b.floors.length+' floors &nbsp;·&nbsp; '+bRooms+' rooms</span></div>';
+      }).join('')+
     '</div>'+
     '<div style="display:flex;justify-content:space-between">'+
       '<button class="btn btn-outline" onclick="_wiz.step=4;wtShowWizard()">← Back</button>'+
-      '<button class="btn btn-primary" id="wiz-create-btn" onclick="wtCreateProject()">🚀 Create Project</button>'+
-    '</div>';
+      '<button class="btn btn-primary" id="wiz-create-btn" onclick="wtCreateProject()">🚀 Create Project</button></div>';
 }
 
+// ─── WIZARD NAVIGATION ────────────────────────────────────────────────────────
 function wtWizNext(fromStep) {
   if (fromStep===1) {
-    var name = (document.getElementById('wiz-name')||{}).value||'';
-    if (!name.trim()) { showToast('Project name is required','warning'); return; }
-    _wiz.proj.name = name.trim();
-    _wiz.proj.jobId = (document.getElementById('wiz-job')||{}).value||'';
-    _wiz.proj.customerName = (document.getElementById('wiz-cust')||{}).value||'';
+    var name=(document.getElementById('wiz-name')||{}).value||'';
+    if(!name.trim()){ showToast('Project name is required','warning'); return; }
+    _wiz.proj.name=name.trim();
+    _wiz.proj.jobId=(document.getElementById('wiz-job')||{}).value||'';
+    _wiz.proj.customerName=(document.getElementById('wiz-cust')||{}).value||'';
   } else if (fromStep===2) {
-    if (!_wiz.buildings.length) { showToast('Add at least one building','warning'); return; }
+    if(!_wiz.buildings.length){ showToast('Add at least one building','warning'); return; }
+    // Ensure all buildings have at least one floor initialized
+    _wiz.buildings.forEach(function(b){ if(!b.floors) b.floors=[]; });
+  } else if (fromStep===3) {
+    // Validate: all buildings must have at least one floor with at least one room
+    var empty=_wiz.buildings.find(function(b){ return !b.floors||!b.floors.length||!b.floors[0].rooms||!b.floors[0].rooms.length; });
+    if(empty){ showToast('"'+empty.name+'" has no rooms — add at least one room','warning'); return; }
   }
-  _wiz.step = fromStep + 1;
+  _wiz.step=fromStep+1;
   wtWizSaveDraft();
   var e=document.getElementById('wt-wizard-modal'); if(e) e.remove();
   wtShowWizard();
 }
 
+// ─── CREATE PROJECT ───────────────────────────────────────────────────────────
 async function wtCreateProject() {
-  var btn = document.getElementById('wiz-create-btn');
-  if (btn) { btn.disabled=true; btn.textContent='Creating…'; }
-
+  var btn=document.getElementById('wiz-create-btn');
+  if(btn){ btn.disabled=true; btn.textContent='Creating…'; }
   try {
-    if (!_sb) throw new Error('Not connected to Supabase');
-
-    // 1. Create project record
+    if(!_sb) throw new Error('Not connected to Supabase');
+    var tmpls=wtGetTemplates();
+    // 1. Create project
     var { data:proj, error:pe } = await _sb.from('wt_projects').insert({
-      name: _wiz.proj.name,
-      job_id: _wiz.proj.jobId||null,
-      customer_name: _wiz.proj.customerName||null,
-      structure_type: _wiz.proj.structureType,
-      systems: _wiz.proj.systems,
-      status: 'active',
-      created_by: wtCurrentUserId(),
-      created_by_name: wtCurrentUserName(),
+      name:_wiz.proj.name, job_id:_wiz.proj.jobId||null,
+      customer_name:_wiz.proj.customerName||null,
+      structure_type:_wiz.proj.structureType,
+      systems:_wiz.proj.systems, status:'active',
+      created_by:wtCurrentUserId(), created_by_name:wtCurrentUserName(),
     }).select().single();
-    if (pe) throw pe;
+    if(pe) throw pe;
 
-    WT.data[proj.id] = { buildings:[], floors:[], rooms:[], items:[], checkoffs:[], reworks:[], flags:[] };
-    var d = WT.data[proj.id];
-    var tmpls = wtGetTemplates();
+    WT.data[proj.id]={ buildings:[], floors:[], rooms:[], items:[], checkoffs:[], reworks:[], flags:[] };
+    var d=WT.data[proj.id];
 
     // 2. Buildings → Floors → Rooms → Items
-    for (var bi=0; bi<_wiz.buildings.length; bi++) {
-      var bldg = _wiz.buildings[bi];
-      var { data:bRec, error:be } = await _sb.from('wt_buildings').insert({
-        project_id:proj.id, name:bldg.name, building_type:bldg.type, sort_order:bi
+    for(var bi=0;bi<_wiz.buildings.length;bi++){
+      var wb=_wiz.buildings[bi];
+      var { data:bRec, error:be }=await _sb.from('wt_buildings').insert({
+        project_id:proj.id, name:wb.name, building_type:wb.type, sort_order:bi
       }).select().single();
-      if (be) throw be;
+      if(be) throw be;
       d.buildings.push(bRec);
 
-      for (var fi=0; fi<bldg.floors.length; fi++) {
-        var fl = bldg.floors[fi];
-        var { data:fRec, error:fe } = await _sb.from('wt_floors').insert({
+      for(var fi=0;fi<(wb.floors||[]).length;fi++){
+        var wf=wb.floors[fi];
+        var { data:fRec, error:fe }=await _sb.from('wt_floors').insert({
           building_id:bRec.id, project_id:proj.id,
-          name:fl.name, floor_number:fl.num, sort_order:fi
+          name:wf.name, floor_number:wf.floorNum||fi+1, sort_order:fi
         }).select().single();
-        if (fe) throw fe;
+        if(fe) throw fe;
         d.floors.push(fRec);
 
-        // Generate room numbers
-        var totalUnits = fl.units.reduce(function(s,u){ return s+u.qty; },0);
-        var roomNumbers = wtGenerateRoomNumbers(fl.numbering, totalUnits, fl.num);
-
-        // Expand units into individual rooms
-        var roomDefs = [];
-        fl.units.forEach(function(u){
-          for (var qi=0; qi<u.qty; qi++) {
-            roomDefs.push({ unitType:u.unitType });
-          }
-        });
+        if(!wf.rooms||!wf.rooms.length) continue;
 
         // Batch insert rooms
-        var roomInserts = roomDefs.map(function(rd, ri){
-          return {
-            floor_id:fRec.id, building_id:bRec.id, project_id:proj.id,
-            name: roomNumbers[ri] || (rd.unitType+' '+(ri+1)),
-            room_number: roomNumbers[ri] || null,
-            unit_type: rd.unitType,
-            sort_order: ri,
-          };
+        var roomIns=wf.rooms.map(function(r,ri){
+          return { floor_id:fRec.id, building_id:bRec.id, project_id:proj.id,
+            name:r.number||('Room '+(ri+1)), room_number:r.number||null,
+            unit_type:r.unitType||null, sort_order:ri };
         });
-
-        var { data:roomRecs, error:re } = await _sb.from('wt_rooms').insert(roomInserts).select();
-        if (re) throw re;
-        d.rooms.push.apply(d.rooms, roomRecs);
+        var { data:roomRecs, error:re }=await _sb.from('wt_rooms').insert(roomIns).select();
+        if(re) throw re;
+        d.rooms.push.apply(d.rooms,roomRecs);
 
         // Generate items from templates
-        var itemInserts = [];
-        roomRecs.forEach(function(room){
-          var tplId = _wiz.templateMap[room.unit_type];
-          var tpl   = tplId ? tmpls.find(function(t){ return t.id===tplId; }) : null;
-          if (!tpl) return;
-          var sort = 0;
+        var itemIns=[];
+        for(var ri2=0;ri2<wf.rooms.length;ri2++){
+          var wr=wf.rooms[ri2], rRec=roomRecs[ri2];
+          if(!wr.unitType) continue;
+          var tpl=tmpls.find(function(t){ return t.unit_type===wr.unitType; });
+          if(!tpl) continue;
+          var sort=0;
           (tpl.areas||[]).forEach(function(area){
             (area.items||[]).forEach(function(ai){
-              var ci = wtCatalogItem(ai.catalog_id);
-              if (!ci) return;
-              for (var q=0; q<ai.qty; q++) {
-                var itemName = ci.name+(ai.qty>1?' #'+(q+1):'')+' — '+area.name;
-                itemInserts.push({
-                  room_id:room.id, building_id:bRec.id, project_id:proj.id,
-                  name: itemName,
-                  category: ci.category,
-                  item_type: ci.item_type,
-                  cable_count: ci.cable_count||0,
-                  cable_types: ci.cable_types||[],
-                  outlet_type: ci.outlet_type||null,
-                  phases_required: ['rough_in','rough_in_verify','devicing','testing','final_verify'],
-                  sort_order: sort++,
+              var ci=wtCatalogItem(ai.catalog_id); if(!ci) return;
+              for(var q=0;q<(ai.qty||1);q++){
+                itemIns.push({
+                  room_id:rRec.id, building_id:bRec.id, project_id:proj.id,
+                  name:ci.name+(ai.qty>1?' #'+(q+1):'')+' — '+area.name,
+                  category:ci.category, item_type:ci.item_type,
+                  cable_count:ci.cable_count||0, cable_types:ci.cable_types||[],
+                  outlet_type:ci.outlet_type||null,
+                  phases_required:['rough_in','rough_in_verify','devicing','testing','final_verify'],
+                  sort_order:sort++,
                 });
               }
             });
           });
-        });
-
-        if (itemInserts.length) {
-          // Insert in batches of 100
-          for (var chunk=0; chunk<itemInserts.length; chunk+=100) {
-            var batch = itemInserts.slice(chunk, chunk+100);
-            var { data:itemRecs, error:ie } = await _sb.from('wt_items').insert(batch).select();
-            if (ie) throw ie;
-            d.items.push.apply(d.items, itemRecs);
-          }
+        }
+        // Insert items in batches of 100
+        for(var chunk=0;chunk<itemIns.length;chunk+=100){
+          var batch=itemIns.slice(chunk,chunk+100);
+          var { data:iRecs, error:ie }=await _sb.from('wt_items').insert(batch).select();
+          if(ie) throw ie;
+          d.items.push.apply(d.items,iRecs);
         }
       }
     }
 
-    // 3. Add to local DB
-    if (!DB.wtProjects) DB.wtProjects = [];
+    // 3. Save to local DB
+    if(!DB.wtProjects) DB.wtProjects=[];
     DB.wtProjects.unshift(proj);
     saveDB();
-
     wtWizClearDraft();
+
     document.getElementById('wt-wizard-modal').remove();
-    WT.proj = proj; WT.view = 'dashboard';
+    WT.proj=proj; WT.view='dashboard';
     wtScrollTop();
     showToast('✅ "'+proj.name+'" created — '+d.rooms.length+' rooms, '+d.items.length+' items','success');
     wtRenderDashboard();
 
   } catch(e) {
-    showToast('Error creating project: '+(e.message||e),'error');
-    if (btn) { btn.disabled=false; btn.textContent='🚀 Create Project'; }
+    console.error('wtCreateProject error:',e);
+    showToast('Error: '+(e.message||String(e)),'error');
+    if(btn){ btn.disabled=false; btn.textContent='🚀 Create Project'; }
   }
 }
 
-// Old generateRoomItems shim (no longer used by wizard but kept for manual adds)
-function wtGenerateRoomItems(room, bldgId, projId, systems) {
-  var items = []; var sort = 0;
-  var ut = room.unit_type||'2BR';
-  var beds = ut==='Studio'?0:ut==='1BR'?1:ut==='2BR'?2:ut==='3BR'?3:ut==='4BR'?4:0;
-  function add(name,type,cat,extra){ items.push(Object.assign({room_id:room.id,building_id:bldgId,project_id:projId,name:name,category:cat,item_type:type,phases_required:['rough_in','rough_in_verify','devicing','testing','final_verify'],sort_order:sort++},extra||{})); }
-  if(systems.indexOf('structured_wiring')>=0){ add('Living Room Outlet','outlet','outlet',{cable_count:2,cable_types:['Cat6'],outlet_type:'double_gang'}); for(var i=1;i<=beds;i++) add('Bedroom '+i+' Outlet','outlet','outlet',{cable_count:1,cable_types:['Cat6'],outlet_type:'single_gang'}); add('Structured Wiring Panel','panel','device',{}); }
-  if(systems.indexOf('wireless_ap')>=0) add('Wireless AP','ap','device',{});
-  if(systems.indexOf('deadbolts')>=0&&ut!=='Common'&&ut!=='IDF/MDF') add('Entry Door Deadbolt','deadbolt','device',{});
-  return items;
-}
+// Legacy shim
+function wtGenerateRoomItems(room, bldgId, projId, systems) { return []; }
+
+
 
 // ─── EDIT / DELETE LAYER ──────────────────────────────────────────────────────
 async function wtEditProject() {
