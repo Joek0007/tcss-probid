@@ -2361,7 +2361,7 @@ function wtWizStep2() {
   }
   var types=wtGetBuildingTypes();
   return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Buildings</h4>'+
-    '<p style="font-size:13px;color:#546e7a;margin:0 0 4px">Add all buildings on this project. You\'ll set up floors and rooms in the next step.</p>'+
+    '<p style="font-size:13px;color:#546e7a;margin:0 0 4px">Name each building exactly as it appears on the plans — your team will use these names to navigate the job.</p>'+
     '<p style="font-size:12px;color:#1565c0;margin:0 0 16px;cursor:pointer" onclick="wtOpenBuildingTypeManager()">⚙ Manage building types</p>'+
     '<div id="wiz-s2-list">'+wtWizS2Render()+'</div>'+
     '<button onclick="wtWizS2Add()" style="font-size:13px;color:#1565c0;background:#e3f2fd;border:2px dashed #90caf9;border-radius:10px;cursor:pointer;padding:12px;width:100%;font-weight:700;margin-bottom:24px">+ Add Building</button>'+
@@ -2378,7 +2378,8 @@ function wtWizS2Render() {
     }).join('');
     return '<div style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #e0e0e0;border-radius:10px;margin-bottom:8px;background:#fff">'+
       '<input value="'+escHtml(b.name)+'" oninput="_wiz.buildings['+bi+'].name=this.value" '+
-        'style="flex:1;font-size:14px;font-weight:700;border:none;border-bottom:2px solid #e0e0e0;padding:4px 0;background:transparent;color:#0d1b2a">'+
+        'placeholder="e.g. North Tower, Clubhouse" '+
+        'style="flex:1;font-size:14px;font-weight:700;border:none;border-bottom:2px solid #1565c0;padding:4px 0;background:transparent;color:#0d1b2a">'+
       '<select oninput="_wiz.buildings['+bi+'].type=this.value" style="font-size:12px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px">'+typeOpts+'</select>'+
       (_wiz.buildings.length>1
         ?'<button onclick="_wiz.buildings.splice('+bi+',1);document.getElementById(\'wiz-s2-list\').innerHTML=wtWizS2Render()" '+
@@ -2450,22 +2451,23 @@ function wtWizStep3() {
       '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">&#x26A1; Quick Generate Room Numbers</div>'+
       '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">'+
         '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Prefix</label>'+
-          '<input id="wiz-gp" placeholder="e.g. A" style="width:55px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
+          '<input id="wiz-gp" placeholder="e.g. A" oninput="wtWizUpdatePreview()" style="width:55px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
         '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Start #</label>'+
-          '<input id="wiz-gs" type="number" value="101" style="width:65px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
+          '<input id="wiz-gs" type="number" value="101" oninput="wtWizUpdatePreview()" style="width:65px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
         '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Count</label>'+
           '<input id="wiz-gc" type="number" value="'+(fl.rooms.length||12)+'" min="1" style="width:60px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
         '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Format</label>'+
-          '<select id="wiz-gd" style="padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
+          '<select id="wiz-gd" onchange="wtWizUpdatePreview()" style="padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
             '<option value="0">1, 2, 3...</option>'+
             '<option value="2" selected>01, 02, 03...</option>'+
             '<option value="3">001, 002...</option>'+
           '</select></div>'+
         '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Suffix</label>'+
-          '<input id="wiz-gx" placeholder="" style="width:50px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
-        '<button onclick="wtWizGenRooms()" class="btn btn-primary btn-sm" style="flex-shrink:0">&#x25B6; Generate</button>'+
+          '<input id="wiz-gx" placeholder="" oninput="wtWizUpdatePreview()" style="width:50px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
+        '<button onclick="wtWizGenRooms()" class="btn btn-primary btn-sm" style="flex-shrink:0" id="wiz-gen-btn">&#x25B6; '+(fl.rooms.length?'Regenerate':'Generate')+'</button>'+
       '</div>'+
-      (fl.rooms.length?'<div style="font-size:11px;color:#e65100;margin-top:6px">⚠ This replaces the '+fl.rooms.length+' existing rooms — type assignments will be lost.</div>':'')+
+      '<div id="wiz-gen-preview" style="margin-top:8px;font-size:12px;font-weight:600;color:#1565c0">'+wtWizGenPreview()+'</div>'+
+      (fl.rooms.length?'<div style="font-size:11px;color:#e65100;margin-top:4px">⚠ '+fl.rooms.length+' existing rooms will be replaced — type assignments will be lost.</div>':'')+
     '</div>'+
 
     // Roster
@@ -2563,6 +2565,32 @@ function wtWizSetType(ri, typeId) {
   }
 }
 
+
+// Live preview of generated room numbers
+function wtWizGenPreview() {
+  var pfx   = (document.getElementById('wiz-gp')||{}).value||'';
+  var sfx   = (document.getElementById('wiz-gx')||{}).value||'';
+  var start = parseInt((document.getElementById('wiz-gs')||{}).value)||1;
+  var cnt   = parseInt((document.getElementById('wiz-gc')||{}).value)||12;
+  var dgt   = parseInt((document.getElementById('wiz-gd')||{}).value)||2;
+  cnt = Math.max(1, Math.min(cnt, 200));
+  function fmt(n) { return dgt>0 ? String(n).padStart(dgt,'0') : String(n); }
+  var first = pfx + fmt(start) + sfx;
+  var last  = pfx + fmt(start + cnt - 1) + sfx;
+  var mid   = cnt > 2 ? pfx + fmt(start + 1) + sfx : null;
+  var preview = cnt===1 ? first
+    : cnt===2 ? first+', '+last
+    : cnt<=5 ? Array.from({length:cnt},function(_,i){ return pfx+fmt(start+i)+sfx; }).join(', ')
+    : first+', '+(mid?mid+', ':'')+'…, '+last;
+  return '&#x1F50D; Preview: <span style="color:#0d1b2a;font-family:monospace">'+
+    escHtml(preview)+'</span> &nbsp;('+cnt+' rooms)';
+}
+
+function wtWizUpdatePreview() {
+  var el = document.getElementById('wiz-gen-preview');
+  if (el) el.innerHTML = wtWizGenPreview();
+}
+
 function wtWizGenRooms() {
   var pfx  = (document.getElementById('wiz-gp')||{}).value||'';
   var sfx  = (document.getElementById('wiz-gx')||{}).value||'';
@@ -2573,15 +2601,22 @@ function wtWizGenRooms() {
 
   var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
   if (!fl) return;
+  // Build old type map keyed by room number so regenerate preserves assignments
+  var oldTypes={};
+  (fl.rooms||[]).forEach(function(r){ if(r.unitType) oldTypes[r.number]=r.unitType; });
   var rooms=[];
   for (var i=0;i<cnt;i++) {
     var num=start+i;
     var ns=dgt>0?String(num).padStart(dgt,'0'):String(num);
-    rooms.push({ id:'r_'+Date.now()+'_'+i, number:pfx+ns+sfx, unitType:null });
+    var rnum=pfx+ns+sfx;
+    rooms.push({ id:'r_'+Date.now()+'_'+i, number:rnum, unitType:oldTypes[rnum]||null });
   }
   fl.rooms=rooms;
   var el=document.getElementById('wiz-roster-wrap');
   if(el) el.innerHTML=wtWizRosterHtml();
+  // Update button label
+  var btn=document.getElementById('wiz-gen-btn');
+  if(btn) btn.innerHTML='&#x21BB; Regenerate';
 }
 
 function wtWizRosterAddRoom() {
