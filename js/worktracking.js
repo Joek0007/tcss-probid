@@ -2191,6 +2191,62 @@ var _wiz = {
   templateMap: {}, // unitType → tplId
 };
 
+
+// ─── BUILDING TYPES ───────────────────────────────────────────────────────────
+function wtGetBuildingTypes() {
+  if (!DB.wtBuildingTypes || !DB.wtBuildingTypes.length) {
+    DB.wtBuildingTypes = [
+      { id:'residential',    label:'Residential'    },
+      { id:'common_area',    label:'Common Area'    },
+      { id:'network_closet', label:'Network Closet' },
+      { id:'infrastructure', label:'Infrastructure' },
+      { id:'parking',        label:'Parking'        },
+      { id:'recreational',   label:'Recreational'   },
+      { id:'retail',         label:'Retail'         },
+      { id:'office',         label:'Office'         },
+    ];
+    saveDB();
+  }
+  return DB.wtBuildingTypes;
+}
+
+function wtBtRender() {
+  var types = wtGetBuildingTypes();
+  return types.map(function(t, i){
+    var del = types.length > 1
+      ? '<button onclick="wtBtDelete('+i+')" style="padding:4px 8px;font-size:11px;border:1px solid #ffcdd2;border-radius:6px;background:#fff;color:#c62828;cursor:pointer">Del</button>'
+      : '';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:6px">'+
+      '<input value="'+escHtml(t.label)+'" oninput="wtBtRename('+i+',this.value)" '+
+        'style="flex:1;font-size:13px;font-weight:600;border:none;border-bottom:2px solid #e0e0e0;padding:3px 0;background:transparent;color:#0d1b2a">'+
+      del+'</div>';
+  }).join('');
+}
+function wtBtRename(i, val) { if (DB.wtBuildingTypes[i]) { DB.wtBuildingTypes[i].label=val; saveDB(); } }
+function wtBtDelete(i) {
+  DB.wtBuildingTypes.splice(i,1); saveDB();
+  var el=document.getElementById('bt-list'); if(el) el.innerHTML=wtBtRender();
+}
+function wtBtAdd() {
+  DB.wtBuildingTypes.push({ id:'bt_'+Date.now(), label:'New Type' }); saveDB();
+  var el=document.getElementById('bt-list'); if(el) el.innerHTML=wtBtRender();
+}
+function wtOpenBuildingTypeManager() {
+  var html = '<div class="modal-overlay open" id="wt-bt-modal" onclick="if(event.target===this)this.remove()" style="z-index:10002">'+
+    '<div class="modal-box sm">'+
+      '<div class="modal-head"><h3>Building Types</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'wt-bt-modal\').remove()">&#x2715;</button></div>'+
+      '<div class="modal-body">'+
+        '<p style="font-size:13px;color:#546e7a;margin:0 0 14px">Edit, add, or remove building type options used in the wizard.</p>'+
+        '<div id="bt-list">'+wtBtRender()+'</div>'+
+        '<button onclick="wtBtAdd()" style="font-size:13px;color:#1565c0;background:#e3f2fd;border:2px dashed #90caf9;border-radius:8px;cursor:pointer;padding:10px;width:100%;font-weight:700;margin-top:8px">+ Add Type</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+  var e=document.getElementById('wt-bt-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
 // ============================================================
 // PROJECT WIZARD V2 — Floor-first, room-by-room roster
 // ============================================================
@@ -2220,13 +2276,24 @@ function wtUnitDef(id) {
 // ─── WIZARD OPEN / SHOW ───────────────────────────────────────────────────────
 function openNewProjectWizard() {
   var draft = wtWizLoadDraft();
-  if (draft && draft.proj && draft.proj.name && draft.proj.name.trim()) {
+  // Validate draft is compatible with V5 format (rooms array, not units)
+  var draftValid = draft && draft.proj && draft.proj.name && draft.proj.name.trim() &&
+    Array.isArray(draft.buildings) && typeof draft.s3bldg === 'number';
+  if (draftValid) {
     if (confirm('You have an unsaved project "'+draft.proj.name+'" in progress (Step '+draft.step+' of 5).\nResume where you left off?')) {
       _wiz = draft;
+      // Ensure buildings have rooms arrays not units (V4→V5 migration)
+      (_wiz.buildings||[]).forEach(function(b){
+        (b.floors||[]).forEach(function(f){
+          if (!f.rooms) f.rooms = [];
+        });
+      });
       wtShowWizard();
       return;
     }
     wtWizClearDraft();
+  } else if (draft) {
+    wtWizClearDraft(); // clear incompatible old draft silently
   }
   _wiz = { step:1, totalSteps:5,
     proj:{ name:'', jobId:'', customerName:'', structureType:'multi', systems:[] },
