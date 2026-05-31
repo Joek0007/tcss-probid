@@ -37,7 +37,34 @@ const MF_DEFAULTS = { 'New Construction':35, 'Remodel':40, 'Service Call':50, 'U
 let DB = { quotes:[], customers:[], contacts:[], jobs:[], team:[], catalog:[], templates:[], settings:{}, marginFloors:{}, quoteSeq:1000, jobSeq:1, deletedIds:{quotes:[],team:[],customers:[],contacts:[],jobs:[]}, workOrders:[], woLabor:[], woExpenses:[], woParts:[], woChecklist:[], woSettings:null, woSeq:1000, jobPhotos:[], commsLog:[], invoicePayments:[], purchaseOrders:[], vendors:[], poSeq:1000, invLocations:[], invTransfers:[] };
 
 function saveDB() {
-  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) { console.warn('Save error', e); }
+  try {
+    localStorage.setItem(DB_KEY, JSON.stringify(DB));
+  } catch(e) {
+    if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+      // localStorage is full — strip large WT defaults (they're re-generatable) and retry
+      try {
+        var slim = Object.assign({}, DB);
+        // Remove catalog/templates/buildingTypes — regenerated from defaults on demand
+        if (slim.wtItemCatalog && slim.wtItemCatalog.length > 0 &&
+            slim.wtItemCatalog[0].id && slim.wtItemCatalog[0].id.startsWith('itm_')) {
+          delete slim.wtItemCatalog;   // default catalog, not customized
+        }
+        if (slim.wtRoomTemplates && slim.wtRoomTemplates.length > 0 &&
+            slim.wtRoomTemplates[0].id && slim.wtRoomTemplates[0].id.startsWith('tpl_')) {
+          delete slim.wtRoomTemplates; // default templates
+        }
+        if (slim.wtBuildingTypes) delete slim.wtBuildingTypes;
+        // Also trim wizard draft from DB if somehow stored there
+        localStorage.setItem(DB_KEY, JSON.stringify(slim));
+        console.warn('saveDB: trimmed WT defaults to fit quota');
+      } catch(e2) {
+        console.error('saveDB: quota still exceeded after trim', e2);
+        showToast && showToast('Storage full — please clear old data or use a different browser profile','error');
+      }
+    } else {
+      console.warn('Save error', e);
+    }
+  }
   // Don't schedule a push if we're in the middle of a sync pull — data just came FROM Supabase
   if (window._syncInProgress) return;
   // Debounced cloud push — no recursion

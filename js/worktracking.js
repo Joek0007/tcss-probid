@@ -1830,8 +1830,8 @@ var WT_DEFAULT_TEMPLATES = [
 // ─── CATALOG HELPERS ─────────────────────────────────────────────────────────
 function wtGetCatalog() {
   if (!DB.wtItemCatalog || !DB.wtItemCatalog.length) {
+    // Return defaults in memory without persisting — only save when user modifies
     DB.wtItemCatalog = JSON.parse(JSON.stringify(WT_DEFAULT_CATALOG));
-    saveDB();
   }
   return DB.wtItemCatalog;
 }
@@ -1839,7 +1839,6 @@ function wtGetCatalog() {
 function wtGetTemplates() {
   if (!DB.wtRoomTemplates || !DB.wtRoomTemplates.length) {
     DB.wtRoomTemplates = JSON.parse(JSON.stringify(WT_DEFAULT_TEMPLATES));
-    saveDB();
   }
   return DB.wtRoomTemplates;
 }
@@ -2175,7 +2174,9 @@ var WT_WIZ_DRAFT = 'wt_wizard_draft';
 
 function wtWizSaveDraft() {
   try {
-    localStorage.setItem(WT_WIZ_DRAFT, JSON.stringify(_wiz));
+    // Trim generated IDs from draft to reduce size — they get regenerated on create
+    var slim = JSON.parse(JSON.stringify(_wiz));
+    localStorage.setItem(WT_WIZ_DRAFT, JSON.stringify(slim));
     // Flash the "Draft saved" badge
     var badge = document.getElementById('wiz-save-badge');
     if (badge) {
@@ -2183,7 +2184,17 @@ function wtWizSaveDraft() {
       clearTimeout(wtWizSaveDraft._t);
       wtWizSaveDraft._t = setTimeout(function(){ badge.style.opacity='0'; }, 2000);
     }
-  } catch(e) {}
+  } catch(e) {
+    if (e.name === 'QuotaExceededError') {
+      // Try clearing old wizard drafts first, then retry
+      try {
+        localStorage.removeItem(WT_WIZ_DRAFT);
+        localStorage.setItem(WT_WIZ_DRAFT, JSON.stringify(_wiz));
+      } catch(e2) {
+        console.warn('Wizard draft could not be saved — localStorage full');
+      }
+    }
+  }
 }
 function wtWizClearDraft() {
   try { localStorage.removeItem(WT_WIZ_DRAFT); } catch(e) {}
@@ -2214,7 +2225,6 @@ function wtGetBuildingTypes() {
       { id:'retail',         label:'Retail'         },
       { id:'office',         label:'Office'         },
     ];
-    saveDB();
   }
   return DB.wtBuildingTypes;
 }
