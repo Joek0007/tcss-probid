@@ -506,18 +506,23 @@ function wtInstallBackGuard() {
   if (_wtBackGuardInstalled) return;
   _wtBackGuardInstalled = true;
 
-  // Push a state so the back button has something to intercept
-  history.pushState({ wtApp: true }, '', window.location.href);
+  // Push two states so we always have one to fall back to
+  history.pushState({ probid: 'guard' }, document.title, window.location.href);
+  history.pushState({ probid: 'active' }, document.title, window.location.href);
 
-  window.addEventListener('popstate', function wtPopHandler(e) {
-    // Check if Work Tracking page is active
+  window.addEventListener('popstate', function(e) {
+    // Only intercept if Work Tracking page is active
     var wtPage = document.getElementById('page-worktracking');
-    if (!wtPage || !wtPage.classList.contains('active')) return;
+    if (!wtPage || !wtPage.classList.contains('active')) {
+      // Not in WT — re-push so guard stays intact
+      history.pushState({ probid: 'active' }, document.title, window.location.href);
+      return;
+    }
 
-    // Re-push state immediately to prevent actual navigation
-    history.pushState({ wtApp: true }, '', window.location.href);
+    // Re-push immediately to prevent leaving the page
+    history.pushState({ probid: 'active' }, document.title, window.location.href);
 
-    // Show our own leave dialog
+    // Show the leave dialog
     wtShowLeaveDialog();
   });
 }
@@ -573,24 +578,35 @@ function wtShowLeaveDialog() {
   );
 }
 
+var _wtLeaveCallback = null;
+
+function wtLeaveChoice(leave) {
+  var modal = document.getElementById('wt-leave-modal');
+  if (modal) modal.remove();
+  if (_wtLeaveCallback) { var cb = _wtLeaveCallback; _wtLeaveCallback = null; cb(leave); }
+}
+
 function wtShowLeaveModal(title, message, stayLabel, leaveLabel, callback) {
   var existing = document.getElementById('wt-leave-modal');
   if (existing) existing.remove();
+  _wtLeaveCallback = callback;
 
   var html = '<div id="wt-leave-modal" style="'+
     'position:fixed;top:0;left:0;width:100%;height:100%;'+
     'background:rgba(0,0,0,.55);z-index:99999;'+
     'display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">'+
-    '<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:32px;box-shadow:0 24px 60px rgba(0,0,0,.25);text-align:center">'+
-      '<div style="font-size:36px;margin-bottom:16px">&#x26A0;&#xFE0F;</div>'+
+    '<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:32px;'+
+      'box-shadow:0 24px 60px rgba(0,0,0,.25);text-align:center">'+
+      '<div style="font-size:40px;margin-bottom:16px">&#x26A0;</div>'+
       '<div style="font-size:18px;font-weight:800;color:#0d1b2a;margin-bottom:10px">'+escHtml(title)+'</div>'+
-      '<div style="font-size:14px;color:#546e7a;margin-bottom:28px;line-height:1.5">'+escHtml(message)+'</div>'+
+      '<div style="font-size:14px;color:#546e7a;margin-bottom:28px;line-height:1.6">'+escHtml(message)+'</div>'+
       '<div style="display:flex;gap:12px;justify-content:center">'+
-        '<button onclick="document.getElementById(\'wt-leave-modal\').remove();('+callback.toString()+')(false)" '+
-          'class="btn btn-primary" style="flex:1;max-width:180px;padding:12px">'+
+        '<button onclick="wtLeaveChoice(false)" class="btn btn-primary" '+
+          'style="flex:1;max-width:180px;padding:14px;font-size:14px">'+
           escHtml(stayLabel)+'</button>'+
-        '<button onclick="document.getElementById(\'wt-leave-modal\').remove();('+callback.toString()+')(true)" '+
-          'style="flex:1;max-width:180px;padding:12px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;color:#546e7a;font-size:14px;font-weight:700;cursor:pointer">'+
+        '<button onclick="wtLeaveChoice(true)" '+
+          'style="flex:1;max-width:180px;padding:14px;font-size:14px;font-weight:700;'+
+          'border:2px solid #e0e0e0;border-radius:10px;background:#fff;color:#546e7a;cursor:pointer">'+
           escHtml(leaveLabel)+'</button>'+
       '</div>'+
     '</div>'+
@@ -1128,15 +1144,9 @@ function wtRenderFieldView() {
       '</div>'+
       '<button class="btn btn-outline btn-sm" onclick="wtAddFlag(null,null)">🚩 Report Issue</button>'+
     '</div>'+
-    // Navigate by building
-    '<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:16px">'+
-      '<button onclick="document.getElementById(\'wt-field-area\').value=\'\';wtRenderFieldItems()" '+
-        'style="flex-shrink:0;padding:8px 14px;border:2px solid #1565c0;border-radius:20px;background:#1565c0;color:#fff;font-size:12px;font-weight:700;cursor:pointer">All</button>'+
-      buildings.map(function(b){
-        return '<button onclick="document.getElementById(\'wt-field-area\').value=\''+b.id+'\';wtRenderFieldItems()" '+
-          'style="flex-shrink:0;padding:8px 14px;border:2px solid #e0e0e0;border-radius:20px;background:#fff;color:#546e7a;font-size:12px;font-weight:600;cursor:pointer">'+
-          escHtml(b.name)+'</button>';
-      }).join('')+
+    // Navigate by building — use wtSetFieldFilter() for proper highlight
+    '<div id="wt-field-filters" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:16px">'+
+      wtFieldFilterButtons(buildings, '')+
     '</div>'+
     // Search + phase filter
     '<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">'+
@@ -1153,6 +1163,35 @@ function wtRenderFieldView() {
 
   wtRenderFieldItems();
   wtUpdateOnlineBadge();
+}
+
+
+// Field view filter helpers
+function wtFieldFilterButtons(buildings, activeId) {
+  var btns = '<button onclick="wtSetFieldFilter(\'\')" data-ff="" '+
+    'style="flex-shrink:0;padding:8px 14px;border:2px solid '+(activeId===''?'#1565c0':'#e0e0e0')+';border-radius:20px;'+
+    'background:'+(activeId===''?'#1565c0':'#fff')+';color:'+(activeId===''?'#fff':'#546e7a')+';'+
+    'font-size:12px;font-weight:700;cursor:pointer">All</button>';
+  (buildings||[]).forEach(function(b){
+    var active = activeId===b.id;
+    btns += '<button onclick="wtSetFieldFilter(\''+b.id+'\')" data-ff="'+b.id+'" '+
+      'style="flex-shrink:0;padding:8px 14px;border:2px solid '+(active?'#1565c0':'#e0e0e0')+';border-radius:20px;'+
+      'background:'+(active?'#1565c0':'#fff')+';color:'+(active?'#fff':'#546e7a')+';'+
+      'font-size:12px;font-weight:700;cursor:pointer">'+escHtml(b.name)+'</button>';
+  });
+  return btns;
+}
+
+function wtSetFieldFilter(bldgId) {
+  // Update hidden input
+  var inp = document.getElementById('wt-field-area');
+  if (inp) inp.value = bldgId;
+  // Re-render just the filter buttons with new active state
+  var d = wtProjData();
+  var filterBar = document.getElementById('wt-field-filters');
+  if (filterBar) filterBar.innerHTML = wtFieldFilterButtons(d.buildings||[], bldgId);
+  // Re-render items
+  wtRenderFieldItems();
 }
 
 function wtRenderFieldItems() {
