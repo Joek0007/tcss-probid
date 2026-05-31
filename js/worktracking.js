@@ -855,8 +855,10 @@ function wtRenderFloorView() {
   el.innerHTML = wtBreadcrumb()+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">'+
       '<h3 style="margin:0;font-size:18px;font-weight:800;color:#0d1b2a">'+escHtml(f.name)+'</h3>'+
-      '<button class="btn btn-outline btn-sm" onclick="wtAddRoom(\''+f.id+'\',\''+f.building_id+'\')">+ Room / Unit</button>'+
-    '</div>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button class="btn btn-outline btn-sm" onclick="wtOpenRenumberTool(\''+f.id+'\')" style="color:#6a1b9a;border-color:#ce93d8">&#x2116; Renumber</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="wtAddRoom(\''+f.id+'\',\''+f.building_id+'\')" >+ Add Room</button>'+
+      '</div>'+
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">'+
       rooms.map(function(r){
         var rItems = (d.items||[]).filter(function(i){ return i.room_id===r.id; });
@@ -3224,6 +3226,7 @@ function wtRenderBuildingView() {
           '<button class="btn btn-outline btn-sm" onclick="wtEditBuilding(\''+b.id+'\')">✏ Rename</button>'+
           '<button class="btn btn-outline btn-sm" style="color:#c62828;border-color:#ffcdd2" onclick="wtDeleteBuilding(\''+b.id+'\')">🗑 Delete</button>'+
           '<button class="btn btn-outline btn-sm" onclick="wtAddFloor(\''+b.id+'\')">+ Floor</button>'+
+          '<button class="btn btn-outline btn-sm" onclick="wtOpenDuplicateBuildingModal(\''+b.id+'\')" style="color:#1565c0;border-color:#1565c0">&#x2398; Duplicate</button>'+
           '<button class="btn btn-primary btn-sm" onclick="wtSaveBuildingTemplate(\''+b.id+'\')">💾 Save Template</button>'+
         '</div>'+
       '</div>'+
@@ -3254,6 +3257,7 @@ function wtRenderBuildingView() {
                   '<div style="font-size:20px;font-weight:800;color:#1565c0">'+fPct+'%</div>'+
                   '<div style="font-size:10px;color:#90a4ae">complete</div>'+
                 '</div>'+
+                '<button onclick="wtQuickAddRoom(\''+f.id+'\',\''+f.building_id+'\')" style="padding:4px 10px;font-size:11px;border:1px solid #2e7d32;border-radius:6px;background:#e8f5e9;color:#2e7d32;cursor:pointer;font-weight:700">+ Room</button>'+
                 '<button onclick="wtEditFloor(\''+f.id+'\')" style="padding:4px 8px;font-size:11px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;cursor:pointer">✏</button>'+
                 '<button onclick="wtDeleteFloor(\''+f.id+'\')" style="padding:4px 8px;font-size:11px;border:1px solid #ffcdd2;border-radius:6px;background:#fff;color:#c62828;cursor:pointer">🗑</button>'+
               '</div>'+
@@ -3380,6 +3384,370 @@ function wtItemChecklistCard(item, d) {
     '</div>'+
   '</div>';
 }
+
+
+// ─── DUPLICATE BUILDING ───────────────────────────────────────────────────────
+function wtOpenDuplicateBuildingModal(bldgId) {
+  var d = wtProjData();
+  var src = (d.buildings||[]).find(function(b){ return b.id===bldgId; });
+  if (!src) return;
+
+  // Auto-suggest next name
+  var suggestName = (function(){
+    var m = src.name.match(/^(.*?)(\d+)(\s*)$/);
+    if (m) {
+      var nums = (d.buildings||[]).map(function(b){
+        var bm = b.name.match(/^(.*?)(\d+)(\s*)$/);
+        return bm && bm[1]===m[1] ? parseInt(bm[2]) : 0;
+      });
+      return m[1] + (Math.max.apply(null,nums)+1) + m[3];
+    }
+    return src.name + ' (copy)';
+  })();
+
+  var types = wtGetBuildingTypes();
+  var typeOpts = types.map(function(t){
+    return '<option value="'+t.id+'"'+(t.id===src.building_type?' selected':'')+'>'+escHtml(t.label)+'</option>';
+  }).join('');
+
+  var srcFloors  = (d.floors||[]).filter(function(f){ return f.building_id===bldgId; });
+  var srcRooms   = (d.rooms||[]).filter(function(r){ return r.building_id===bldgId; });
+  var srcItems   = (d.items||[]).filter(function(i){ return i.building_id===bldgId; });
+
+  var html = '<div class="modal-overlay open" id="wt-dup-modal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box sm">'+
+      '<div class="modal-head"><h3>&#x2398; Duplicate Building</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'wt-dup-modal\').remove()">&#x2715;</button></div>'+
+      '<div class="modal-body">'+
+        '<div style="padding:12px;background:#e3f2fd;border-radius:8px;margin-bottom:16px;font-size:13px;color:#1565c0">'+
+          'Copies all floors, rooms, and items from <strong>'+escHtml(src.name)+'</strong>.<br>'+
+          '<span style="font-size:11px">'+srcFloors.length+' floors &nbsp;·&nbsp; '+srcRooms.length+' rooms &nbsp;·&nbsp; '+srcItems.length+' items &nbsp;·&nbsp; Room numbers carry over &nbsp;·&nbsp; No check-off history copied.</span>'+
+        '</div>'+
+        '<div style="margin-bottom:14px"><label class="wiz-label">NEW BUILDING NAME</label>'+
+          '<input id="dup-name" class="form-control" value="'+escHtml(suggestName)+'"></div>'+
+        '<div style="margin-bottom:20px"><label class="wiz-label">TYPE</label>'+
+          '<select id="dup-type" class="form-control">'+typeOpts+'</select></div>'+
+        '<button class="btn btn-primary" style="width:100%" id="dup-btn" onclick="wtDuplicateBuilding(\''+bldgId+'\')">&#x2398; Duplicate Building</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+  var e=document.getElementById('wt-dup-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(function(){ var el=document.getElementById('dup-name'); if(el){el.focus();el.select();} },100);
+}
+
+async function wtDuplicateBuilding(srcBldgId) {
+  var name = (document.getElementById('dup-name')||{}).value||'';
+  var type = (document.getElementById('dup-type')||{}).value||'residential';
+  if (!name.trim()) { showToast('Name is required','warning'); return; }
+
+  var btn = document.getElementById('dup-btn');
+  if (btn) { btn.disabled=true; btn.textContent='Duplicating...'; }
+
+  var d = wtProjData();
+  var srcFloors = (d.floors||[]).filter(function(f){ return f.building_id===srcBldgId; });
+
+  try {
+    // 1 — Create new building
+    var { data:newBldg, error:be } = await _sb.from('wt_buildings').insert({
+      project_id: WT.proj.id, name: name.trim(),
+      building_type: type, sort_order: (d.buildings||[]).length
+    }).select().single();
+    if (be) throw be;
+    d.buildings.push(newBldg);
+
+    // 2 — Duplicate each floor
+    for (var fi=0; fi<srcFloors.length; fi++) {
+      var srcFl = srcFloors[fi];
+      var { data:newFl, error:fe } = await _sb.from('wt_floors').insert({
+        building_id: newBldg.id, project_id: WT.proj.id,
+        name: srcFl.name, floor_number: srcFl.floor_number, sort_order: srcFl.sort_order
+      }).select().single();
+      if (fe) throw fe;
+      d.floors.push(newFl);
+
+      // 3 — Duplicate rooms (same names = same numbers)
+      var srcRooms = (d.rooms||[]).filter(function(r){ return r.floor_id===srcFl.id; })
+        .sort(function(a,b){ return (a.sort_order||0)-(b.sort_order||0); });
+
+      if (!srcRooms.length) continue;
+
+      var roomInserts = srcRooms.map(function(r){
+        return { floor_id:newFl.id, building_id:newBldg.id, project_id:WT.proj.id,
+          name:r.name, room_number:r.room_number||r.name, unit_type:r.unit_type, sort_order:r.sort_order };
+      });
+
+      var { data:newRooms, error:re } = await _sb.from('wt_rooms').insert(roomInserts).select();
+      if (re) throw re;
+      d.rooms.push.apply(d.rooms, newRooms);
+
+      // 4 — Duplicate items (no check-offs)
+      var itemInserts = [];
+      for (var ri=0; ri<srcRooms.length; ri++) {
+        var srcItems = (d.items||[]).filter(function(i){ return i.room_id===srcRooms[ri].id; })
+          .sort(function(a,b){ return (a.sort_order||0)-(b.sort_order||0); });
+        srcItems.forEach(function(item){
+          itemInserts.push({
+            room_id:newRooms[ri].id, building_id:newBldg.id, project_id:WT.proj.id,
+            name:item.name, category:item.category, item_type:item.item_type,
+            cable_count:item.cable_count||0, cable_types:item.cable_types||[],
+            outlet_type:item.outlet_type||null, device_model:item.device_model||null,
+            device_serial:item.device_serial||null, source_location:item.source_location||null,
+            dest_location:item.dest_location||null,
+            phases_required:item.phases_required||['rough_in','rough_in_verify','devicing','testing','final_verify'],
+            photo_required_phases:item.photo_required_phases||[],
+            sort_order:item.sort_order||0
+          });
+        });
+      }
+
+      // Batch insert items in chunks of 100
+      for (var chunk=0; chunk<itemInserts.length; chunk+=100) {
+        var batch = itemInserts.slice(chunk, chunk+100);
+        var { data:newItems, error:ie } = await _sb.from('wt_items').insert(batch).select();
+        if (ie) throw ie;
+        d.items.push.apply(d.items, newItems);
+      }
+    }
+
+    var modal = document.getElementById('wt-dup-modal'); if(modal) modal.remove();
+    wtRenderDashboard();
+    showToast('&#x2398; "'+name.trim()+'" created — '+d.rooms.filter(function(r){ return r.building_id===newBldg.id; }).length+' rooms, '+d.items.filter(function(i){ return i.building_id===newBldg.id; }).length+' items','success');
+
+  } catch(e) {
+    showToast('Error: '+e.message,'error');
+    if(btn){ btn.disabled=false; btn.textContent='&#x2398; Duplicate Building'; }
+  }
+}
+
+// ─── FLOOR RENUMBER TOOL ─────────────────────────────────────────────────────
+var _wtRn = { floorId:null, rooms:[], dragSrc:-1 };
+
+function wtOpenRenumberTool(floorId) {
+  var d = wtProjData();
+  var fl = (d.floors||[]).find(function(f){ return f.id===floorId; });
+  if (!fl) return;
+
+  _wtRn.floorId = floorId;
+  _wtRn.dragSrc = -1;
+  _wtRn.rooms = (d.rooms||[])
+    .filter(function(r){ return r.floor_id===floorId; })
+    .sort(function(a,b){ return (a.sort_order||0)-(b.sort_order||0); })
+    .map(function(r){ return { id:r.id, currentName:r.name, newName:r.name }; });
+
+  var html = '<div class="modal-overlay open" id="wt-rn-modal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:620px;max-height:92vh">'+
+      '<div class="modal-head">'+
+        '<div><h3>&#x2116; Renumber Rooms</h3>'+
+          '<div style="font-size:12px;color:#90a4ae;margin-top:2px">'+escHtml(fl.name)+' &mdash; '+_wtRn.rooms.length+' rooms</div>'+
+        '</div>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'wt-rn-modal\').remove()">&#x2715;</button>'+
+      '</div>'+
+      // Pattern bar
+      '<div style="padding:14px 22px;background:#f5f7fa;border-bottom:1px solid #e0e0e0">'+
+        '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Auto-Pattern Generator</div>'+
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'+
+          '<div><label style="font-size:11px;color:#546e7a;display:block;margin-bottom:3px">Prefix</label>'+
+            '<input id="rn-prefix" class="form-control" style="width:80px" placeholder="e.g. A-"></div>'+
+          '<div><label style="font-size:11px;color:#546e7a;display:block;margin-bottom:3px">Start #</label>'+
+            '<input id="rn-start" type="number" class="form-control" style="width:70px;text-align:center" value="1"></div>'+
+          '<div><label style="font-size:11px;color:#546e7a;display:block;margin-bottom:3px">Digits</label>'+
+            '<select id="rn-digits" class="form-control" style="width:100px">'+
+              '<option value="0">None (1,2...)</option>'+
+              '<option value="2" selected>2-digit (01...)</option>'+
+              '<option value="3">3-digit (001...)</option>'+
+            '</select></div>'+
+          '<div><label style="font-size:11px;color:#546e7a;display:block;margin-bottom:3px">Suffix</label>'+
+            '<input id="rn-suffix" class="form-control" style="width:70px" placeholder="e.g. B"></div>'+
+          '<div style="padding-bottom:1px">'+
+            '<button onclick="wtRnApplyPattern()" class="btn btn-outline btn-sm" style="white-space:nowrap">&#x21BB; Apply Pattern</button>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+      // Room list
+      '<div class="modal-body" style="overflow-y:auto;max-height:calc(92vh-260px);padding:0">'+
+        '<div style="display:grid;grid-template-columns:36px 1fr 1fr;gap:0;font-size:11px;font-weight:700;color:#546e7a;padding:10px 16px;border-bottom:2px solid #e0e0e0;background:#fafafa">'+
+          '<span></span><span>CURRENT</span><span>NEW NUMBER</span>'+
+        '</div>'+
+        '<div id="wt-rn-list">'+wtRnRenderRows()+'</div>'+
+      '</div>'+
+      '<div style="padding:14px 22px;border-top:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:center">'+
+        '<button class="btn btn-outline" onclick="document.getElementById(\'wt-rn-modal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="wtApplyRenumber()">Apply Changes ('+_wtRn.rooms.length+' rooms)</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+  var e=document.getElementById('wt-rn-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function wtRnRenderRows() {
+  return _wtRn.rooms.map(function(r, i){
+    var changed = r.newName !== r.currentName;
+    return '<div draggable="true" id="rn-row-'+i+'" '+
+      'ondragstart="wtRnDragStart('+i+')" '+
+      'ondragover="event.preventDefault();wtRnDragOver('+i+')" '+
+      'ondragend="wtRnDragEnd()" '+
+      'style="display:grid;grid-template-columns:36px 1fr 1fr;gap:0;align-items:center;'+
+        'padding:8px 16px;border-bottom:1px solid #f0f0f0;'+
+        'background:'+(changed?'#fff8e1':'#fff')+';cursor:grab;'+
+        'transition:background .15s">'+
+      '<span style="font-size:18px;color:#90a4ae;cursor:grab;user-select:none" title="Drag to reorder">&#8942;</span>'+
+      '<span style="font-size:13px;color:#546e7a;font-weight:500">'+escHtml(r.currentName)+'</span>'+
+      '<div style="padding-right:8px">'+
+        '<input value="'+escHtml(r.newName)+'" oninput="_wtRn.rooms['+i+'].newName=this.value;wtRnRefreshChanged()" '+
+          'style="width:100%;padding:6px 8px;border:1px solid '+(changed?'#f57c00':'#e0e0e0')+';border-radius:6px;font-size:13px;font-weight:'+(changed?'700':'400')+';'+
+          'color:'+(changed?'#e65100':'#0d1b2a')+';box-sizing:border-box">'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function wtRnRefreshChanged() {
+  // Re-color rows without full re-render to avoid losing focus
+  _wtRn.rooms.forEach(function(r, i){
+    var row = document.getElementById('rn-row-'+i);
+    if (!row) return;
+    var changed = r.newName !== r.currentName;
+    row.style.background = changed ? '#fff8e1' : '#fff';
+    var inp = row.querySelector('input');
+    if (inp) {
+      inp.style.border = '1px solid '+(changed?'#f57c00':'#e0e0e0');
+      inp.style.fontWeight = changed?'700':'400';
+      inp.style.color = changed?'#e65100':'#0d1b2a';
+    }
+  });
+}
+
+function wtRnDragStart(i) {
+  _wtRn.dragSrc = i;
+  var row = document.getElementById('rn-row-'+i);
+  if (row) row.style.opacity = '0.4';
+}
+
+function wtRnDragOver(i) {
+  if (_wtRn.dragSrc < 0 || _wtRn.dragSrc === i) return;
+  var item = _wtRn.rooms.splice(_wtRn.dragSrc, 1)[0];
+  _wtRn.rooms.splice(i, 0, item);
+  _wtRn.dragSrc = i;
+  var el = document.getElementById('wt-rn-list');
+  if (el) el.innerHTML = wtRnRenderRows();
+  // Restore opacity on the moved row
+  var row = document.getElementById('rn-row-'+i);
+  if (row) row.style.opacity = '0.4';
+}
+
+function wtRnDragEnd() {
+  _wtRn.dragSrc = -1;
+  var el = document.getElementById('wt-rn-list');
+  if (el) el.innerHTML = wtRnRenderRows();
+}
+
+function wtRnRefreshList() {
+  var el = document.getElementById('wt-rn-list');
+  if (el) el.innerHTML = wtRnRenderRows();
+}
+
+function wtRnApplyPattern() {
+  var prefix = (document.getElementById('rn-prefix')||{}).value||'';
+  var suffix = (document.getElementById('rn-suffix')||{}).value||'';
+  var start  = parseInt((document.getElementById('rn-start')||{}).value)||1;
+  var digits = parseInt((document.getElementById('rn-digits')||{}).value)||2;
+  _wtRn.rooms.forEach(function(r, i){
+    var num    = start + i;
+    var numStr = digits > 0 ? String(num).padStart(digits,'0') : String(num);
+    r.newName  = prefix + numStr + suffix;
+  });
+  wtRnRefreshList();
+}
+
+async function wtApplyRenumber() {
+  var changed = _wtRn.rooms.filter(function(r){ return r.newName.trim() && r.newName !== r.currentName; });
+  if (!changed.length && _wtRn.rooms.every(function(r,i){ return (r.sort_order||i)===i; })) {
+    showToast('No changes to apply','info');
+    return;
+  }
+
+  var btn = document.querySelector('#wt-rn-modal .btn-primary');
+  if (btn) { btn.disabled=true; btn.textContent='Saving...'; }
+
+  try {
+    // Update each room — name + sort_order
+    for (var i=0; i<_wtRn.rooms.length; i++) {
+      var r = _wtRn.rooms[i];
+      var newName = r.newName.trim() || r.currentName;
+      var { error } = await _sb.from('wt_rooms').update({
+        name: newName, room_number: newName, sort_order: i
+      }).eq('id', r.id);
+      if (error) throw error;
+      // Update local cache
+      var cached = (WT.data[WT.proj.id].rooms||[]).find(function(x){ return x.id===r.id; });
+      if (cached) { cached.name=newName; cached.room_number=newName; cached.sort_order=i; }
+    }
+    var modal = document.getElementById('wt-rn-modal'); if(modal) modal.remove();
+    wtRenderFloorView();
+    showToast('&#x2116; '+_wtRn.rooms.length+' rooms renumbered','success');
+  } catch(e) {
+    showToast('Error: '+e.message,'error');
+    if(btn){ btn.disabled=false; btn.textContent='Apply Changes ('+_wtRn.rooms.length+' rooms)'; }
+  }
+}
+
+// Quick-add room from building view (without navigating to floor)
+function wtQuickAddRoom(floorId, buildingId) {
+  var d = wtProjData();
+  var fl = (d.floors||[]).find(function(f){ return f.id===floorId; });
+  if (!fl) return;
+
+  var html = '<div class="modal-overlay open" id="wt-qaroom-modal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box sm">'+
+      '<div class="modal-head">'+
+        '<div><h3>+ Add Room</h3>'+
+          '<div style="font-size:12px;color:#90a4ae;margin-top:2px">'+escHtml(fl.name)+'</div>'+
+        '</div>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'wt-qaroom-modal\').remove()">&#x2715;</button>'+
+      '</div>'+
+      '<div class="modal-body">'+
+        '<div style="margin-bottom:12px"><label class="wiz-label">ROOM NAME / NUMBER *</label>'+
+          '<input id="qar-name" class="form-control" placeholder="e.g. 101, Unit 204B, Suite 300"></div>'+
+        '<div style="margin-bottom:20px"><label class="wiz-label">UNIT TYPE</label>'+
+          '<select id="qar-utype" class="form-control">'+
+            '<option value="">— Select —</option>'+
+            WT_UNIT_TYPES.map(function(t){ return '<option value="'+t+'">'+t+'</option>'; }).join('')+
+          '</select></div>'+
+        '<div style="display:flex;gap:8px">'+
+          '<button class="btn btn-outline" style="flex:1" onclick="document.getElementById(\'wt-qaroom-modal\').remove()">Cancel</button>'+
+          '<button class="btn btn-primary" style="flex:1" onclick="wtSubmitQuickAddRoom(\''+floorId+'\',\''+buildingId+'\')">Add Room</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+  var e=document.getElementById('wt-qaroom-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(function(){ var el=document.getElementById('qar-name'); if(el) el.focus(); },100);
+}
+
+async function wtSubmitQuickAddRoom(floorId, buildingId) {
+  var name  = (document.getElementById('qar-name')||{}).value||'';
+  var utype = (document.getElementById('qar-utype')||{}).value||null;
+  if (!name.trim()) { showToast('Room name is required','warning'); return; }
+  var modal = document.getElementById('wt-qaroom-modal'); if(modal) modal.remove();
+  try {
+    var d = wtProjData();
+    var sortOrder = (d.rooms||[]).filter(function(r){ return r.floor_id===floorId; }).length;
+    var { data, error } = await _sb.from('wt_rooms').insert({
+      floor_id:floorId, building_id:buildingId, project_id:WT.proj.id,
+      name:name.trim(), room_number:name.trim(), unit_type:utype||null, sort_order:sortOrder
+    }).select().single();
+    if (error) throw error;
+    if (WT.data[WT.proj.id]) WT.data[WT.proj.id].rooms.push(data);
+    // Refresh current view
+    if (WT.view==='building') wtRenderBuildingView();
+    else if (WT.view==='floor') wtRenderFloorView();
+    showToast('Room added: '+name.trim(),'success');
+  } catch(e) { showToast('Error: '+e.message,'error'); }
+}
+
 
 // ─── CSS HELPER (injected once) ───────────────────────────────────────────────
 (function() {
