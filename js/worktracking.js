@@ -522,6 +522,24 @@ function wtProjectCard(p) {
     '</div>'+
   '</div>';
 }
+async function wtOpenProject(projId) {
+  var p = (DB.wtProjects||[]).find(function(x){ return x.id===projId; });
+  if (!p) { showToast('Project not found','error'); return; }
+  WT.proj = p;
+  WT.view = 'dashboard';
+  WT.bldgId = null; WT.floorId = null; WT.roomId = null;
+  wtScrollTop();
+  showSpinner('Loading project…');
+  try {
+    await wtLoadProjectData(projId);
+    wtRenderDashboard();
+  } catch(e) {
+    showToast('Error loading project: '+e.message,'error');
+  } finally {
+    hideSpinner();
+  }
+}
+
 function wtRenderDashboard() {
   var el = document.getElementById('wt-main'); if (!el) return;
   WT.view = 'dashboard';
