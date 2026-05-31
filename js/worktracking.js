@@ -2174,7 +2174,16 @@ function wtDeleteTemplate(tplId) {
 var WT_WIZ_DRAFT = 'wt_wizard_draft';
 
 function wtWizSaveDraft() {
-  try { localStorage.setItem(WT_WIZ_DRAFT, JSON.stringify(_wiz)); } catch(e) {}
+  try {
+    localStorage.setItem(WT_WIZ_DRAFT, JSON.stringify(_wiz));
+    // Flash the "Draft saved" badge
+    var badge = document.getElementById('wiz-save-badge');
+    if (badge) {
+      badge.style.opacity = '1';
+      clearTimeout(wtWizSaveDraft._t);
+      wtWizSaveDraft._t = setTimeout(function(){ badge.style.opacity='0'; }, 2000);
+    }
+  } catch(e) {}
 }
 function wtWizClearDraft() {
   try { localStorage.removeItem(WT_WIZ_DRAFT); } catch(e) {}
@@ -2309,7 +2318,10 @@ function wtShowWizard() {
     '<div class="modal-box" style="max-width:860px;max-height:94vh;display:flex;flex-direction:column">'+
       '<div class="modal-head" style="flex-shrink:0">'+
         '<div><h3 style="margin:0">🏗 New Project Wizard</h3>'+
-          '<div style="font-size:11px;color:#90a4ae;margin-top:2px">Step '+_wiz.step+' of 5 — '+labels[_wiz.step-1]+'</div></div>'+
+          '<div style="display:flex;align-items:center;gap:10px;margin-top:2px">'+
+            '<span style="font-size:11px;color:#90a4ae">Step '+_wiz.step+' of 5 — '+labels[_wiz.step-1]+'</span>'+
+            '<span id="wiz-save-badge" style="font-size:10px;color:#2e7d32;font-weight:700;opacity:0;transition:opacity .5s">✓ Draft saved</span>'+
+          '</div></div>'+
         '<button class="btn-icon" onclick="document.getElementById(\'wt-wizard-modal\').remove()">✕</button>'+
       '</div>'+
       '<div style="display:flex;gap:0;padding:0 22px;border-bottom:1px solid #f0f0f0;flex-shrink:0">'+
@@ -2438,12 +2450,20 @@ function wtWizStep3() {
         :'')+
     '</div>'+
 
-    // Floor name
-    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'+
-      '<input id="wiz-fl-name" value="'+escHtml(fl.name)+'" '+
-        'oninput="_wiz.buildings[_wiz.s3bldg].floors[_wiz.s3floor].name=this.value" '+
-        'style="font-size:14px;font-weight:700;border:none;border-bottom:2px solid #e0e0e0;padding:4px 0;background:transparent;color:#0d1b2a;width:160px" placeholder="Floor name">'+
-      '<span style="font-size:11px;color:#90a4ae">floor name</span>'+
+    // Building + Floor name row
+    '<div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap">'+
+      '<div style="display:flex;align-items:center;gap:6px">'+
+        '<span style="font-size:11px;color:#90a4ae;font-weight:700">BUILDING:</span>'+
+        '<input id="wiz-bld-name" value="'+escHtml(b.name)+'" '+
+          'oninput="_wiz.buildings[_wiz.s3bldg].name=this.value;wtWizSaveDraft();var tabs=document.querySelectorAll(\'[data-bldg-tab]\');if(tabs[_wiz.s3bldg])tabs[_wiz.s3bldg].textContent=this.value||(\'Building \'+(+_wiz.s3bldg+1))" '+
+          'style="font-size:14px;font-weight:700;border:none;border-bottom:2px solid #1565c0;padding:4px 0;background:transparent;color:#0d1b2a;width:180px" placeholder="Building name">'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:6px">'+
+        '<span style="font-size:11px;color:#90a4ae;font-weight:700">FLOOR:</span>'+
+        '<input id="wiz-fl-name" value="'+escHtml(fl.name)+'" '+
+          'oninput="_wiz.buildings[_wiz.s3bldg].floors[_wiz.s3floor].name=this.value;wtWizSaveDraft()" '+
+          'style="font-size:14px;font-weight:700;border:none;border-bottom:2px solid #e0e0e0;padding:4px 0;background:transparent;color:#0d1b2a;width:120px" placeholder="Floor name">'+
+      '</div>'+
     '</div>'+
 
     // Generate bar — refreshable div
@@ -2542,6 +2562,9 @@ function wtWizSetType(ri, typeId) {
       btn.style.color = sel?'#fff':td.color;
     });
   }
+  // Auto-save after type assignment
+  clearTimeout(wtWizSetType._t);
+  wtWizSetType._t = setTimeout(wtWizSaveDraft, 800);
 }
 
 
@@ -2673,6 +2696,7 @@ function wtWizGenRooms2() {
   if(el) el.innerHTML=wtWizRosterHtml();
   var bar=document.getElementById('wiz-gen-bar');
   if(bar) bar.innerHTML=wtWizGenBarHtml(fl);
+  wtWizSaveDraft();
 }
 
 function wtWizApplyPrefix() {
@@ -2683,6 +2707,7 @@ function wtWizApplyPrefix() {
   fl.rooms.forEach(function(r){ r.number=pfx+r.number; });
   var el=document.getElementById('wiz-roster-wrap'); if(el) el.innerHTML=wtWizRosterHtml();
   var bar=document.getElementById('wiz-gen-bar'); if(bar) bar.innerHTML=wtWizGenBarHtml(fl);
+  wtWizSaveDraft();
   showToast('Prefix "'+pfx+'" added to all '+fl.rooms.length+' rooms','success');
 }
 
@@ -2694,6 +2719,7 @@ function wtWizApplySuffix() {
   fl.rooms.forEach(function(r){ r.number=r.number+sfx; });
   var el=document.getElementById('wiz-roster-wrap'); if(el) el.innerHTML=wtWizRosterHtml();
   var bar=document.getElementById('wiz-gen-bar'); if(bar) bar.innerHTML=wtWizGenBarHtml(fl);
+  wtWizSaveDraft();
   showToast('Suffix "'+sfx+'" added to all '+fl.rooms.length+' rooms','success');
 }
 
@@ -2707,6 +2733,7 @@ function wtWizRosterAddRoom() {
   var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
   if (!fl) return;
   fl.rooms.push({ id:'r_'+Date.now(), number:'', unitType:null });
+  wtWizSaveDraft();
   var el=document.getElementById('wiz-roster-wrap');
   if(el) el.innerHTML=wtWizRosterHtml();
   // Focus the new room number input
@@ -2720,6 +2747,7 @@ function wtWizDeleteRoom(ri) {
   var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
   if (!fl) return;
   fl.rooms.splice(ri,1);
+  wtWizSaveDraft();
   var el=document.getElementById('wiz-roster-wrap');
   if(el) el.innerHTML=wtWizRosterHtml();
 }
@@ -2729,6 +2757,7 @@ function wtWizS3AddFloor() {
   var n=b.floors.length+1;
   b.floors.push({ id:'f_'+Date.now(), name:'Floor '+n, floorNum:n, rooms:[] });
   _wiz.s3floor=b.floors.length-1;
+  wtWizSaveDraft();
   wtWizRefreshStep3();
 }
 
@@ -2784,6 +2813,7 @@ function wtWizDoSetAll(typeId, unassignedOnly) {
     if (!unassignedOnly || !r.unitType) r.unitType=typeId;
   });
   document.getElementById('wt-setall-modal').remove();
+  wtWizSaveDraft();
   var el=document.getElementById('wiz-roster-wrap');
   if(el) el.innerHTML=wtWizRosterHtml();
 }
@@ -2847,6 +2877,7 @@ function wtWizDoCopyFloor() {
     copyCount++;
   }
   document.getElementById('wt-cpfl-modal').remove();
+  wtWizSaveDraft();
   wtWizRefreshStep3();
   showToast('📋 Floor copied to '+copyCount+' floor'+(copyCount>1?'s':''),'success');
 }
