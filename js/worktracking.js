@@ -491,7 +491,6 @@ function wtNavBar() {
 function renderWorkTracking() {
   wtScrollTop();
   wtFlushOfflineQueue();
-  wtInstallBackGuard();
   if (WT.view === 'list' || !WT.proj) {
     wtRenderProjectList();
   } else {
@@ -499,120 +498,6 @@ function renderWorkTracking() {
   }
 }
 
-// ─── BROWSER BACK BUTTON GUARD ────────────────────────────────────────────────
-var _wtBackGuardInstalled = false;
-
-function wtInstallBackGuard() {
-  if (_wtBackGuardInstalled) return;
-  _wtBackGuardInstalled = true;
-
-  // Push two states so we always have one to fall back to
-  history.pushState({ probid: 'guard' }, document.title, window.location.href);
-  history.pushState({ probid: 'active' }, document.title, window.location.href);
-
-  window.addEventListener('popstate', function(e) {
-    // Only intercept if Work Tracking page is active
-    var wtPage = document.getElementById('page-worktracking');
-    if (!wtPage || !wtPage.classList.contains('active')) {
-      // Not in WT — re-push so guard stays intact
-      history.pushState({ probid: 'active' }, document.title, window.location.href);
-      return;
-    }
-
-    // Re-push immediately to prevent leaving the page
-    history.pushState({ probid: 'active' }, document.title, window.location.href);
-
-    // Show the leave dialog
-    wtShowLeaveDialog();
-  });
-}
-
-function wtShowLeaveDialog() {
-  // If wizard is open, close it first as a softer warning
-  var wizOpen = document.getElementById('wt-wizard-modal') || document.getElementById('wt-abw-modal');
-  if (wizOpen) {
-    wtShowLeaveModal(
-      'Wizard in Progress',
-      'Your wizard progress is saved as a draft.\nYou can resume it next time you click + New Project or + Building.',
-      'Stay in Wizard',
-      'Close Wizard',
-      function(leave) { if (leave) { wizOpen.remove(); } }
-    );
-    return;
-  }
-
-  // If inside a project, offer to go back to project list or leave app
-  if (WT.proj && WT.view !== 'list') {
-    wtShowLeaveModal(
-      'Where do you want to go?',
-      'Use the buttons below to navigate — the browser back button doesn\'t work inside ProBid.',
-      '← Back to Projects',
-      'Leave ProBid',
-      function(leave) {
-        if (!leave) {
-          // Go back to project list within the app
-          WT.view = 'list'; WT.proj = null;
-          wtRenderProjectList();
-        } else {
-          // Actually navigate away — pop the guard state
-          _wtBackGuardInstalled = false;
-          history.back();
-        }
-      }
-    );
-    return;
-  }
-
-  // On project list — offer to leave app
-  wtShowLeaveModal(
-    'Leave ProBid?',
-    'You are about to leave the ProBid application.',
-    'Stay in ProBid',
-    'Leave ProBid',
-    function(leave) {
-      if (leave) {
-        _wtBackGuardInstalled = false;
-        history.back();
-      }
-    }
-  );
-}
-
-var _wtLeaveCallback = null;
-
-function wtLeaveChoice(leave) {
-  var modal = document.getElementById('wt-leave-modal');
-  if (modal) modal.remove();
-  if (_wtLeaveCallback) { var cb = _wtLeaveCallback; _wtLeaveCallback = null; cb(leave); }
-}
-
-function wtShowLeaveModal(title, message, stayLabel, leaveLabel, callback) {
-  var existing = document.getElementById('wt-leave-modal');
-  if (existing) existing.remove();
-  _wtLeaveCallback = callback;
-
-  var html = '<div id="wt-leave-modal" style="'+
-    'position:fixed;top:0;left:0;width:100%;height:100%;'+
-    'background:rgba(0,0,0,.55);z-index:99999;'+
-    'display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">'+
-    '<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:32px;'+
-      'box-shadow:0 24px 60px rgba(0,0,0,.25);text-align:center">'+
-      '<div style="font-size:40px;margin-bottom:16px">&#x26A0;</div>'+
-      '<div style="font-size:18px;font-weight:800;color:#0d1b2a;margin-bottom:10px">'+escHtml(title)+'</div>'+
-      '<div style="font-size:14px;color:#546e7a;margin-bottom:28px;line-height:1.6">'+escHtml(message)+'</div>'+
-      '<div style="display:flex;gap:12px;justify-content:center">'+
-        '<button onclick="wtLeaveChoice(false)" class="btn btn-primary" '+
-          'style="flex:1;max-width:180px;padding:14px;font-size:14px">'+
-          escHtml(stayLabel)+'</button>'+
-        '<button onclick="wtLeaveChoice(true)" '+
-          'style="flex:1;max-width:180px;padding:14px;font-size:14px;font-weight:700;'+
-          'border:2px solid #e0e0e0;border-radius:10px;background:#fff;color:#546e7a;cursor:pointer">'+
-          escHtml(leaveLabel)+'</button>'+
-      '</div>'+
-    '</div>'+
-  '</div>';
-  document.body.insertAdjacentHTML('beforeend', html);
-}
 
 function wtRenderCurrentView() {
   switch (WT.view) {

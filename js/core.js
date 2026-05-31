@@ -172,20 +172,162 @@ function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 // ---- NAVIGATION ----
 const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log'};
 
+
+// ============================================================
+// APP-WIDE BROWSER BACK BUTTON GUARD
+// Intercepts the browser back button for the entire ProBid app
+// so users can never accidentally leave by hitting back.
+// ============================================================
+var _probidBackGuardInstalled = false;
+var _probidLeaveCallback = null;
+
+function probidInstallBackGuard() {
+  if (_probidBackGuardInstalled) return;
+  _probidBackGuardInstalled = true;
+
+  // Push two history states — one to absorb the back press,
+  // one to stay on so we always have a state to re-push to
+  history.pushState({ probid: 'guard' }, document.title, window.location.href);
+  history.pushState({ probid: 'active' }, document.title, window.location.href);
+
+  window.addEventListener('popstate', function(e) {
+    // Re-push immediately so the page never actually changes
+    history.pushState({ probid: 'active' }, document.title, window.location.href);
+
+    // Determine context and show the right dialog
+    probidShowBackDialog();
+  });
+}
+
+function probidShowBackDialog() {
+  // ── Work Tracking: wizard open ────────────────────────────
+  var wizOpen = document.getElementById('wt-wizard-modal') ||
+                document.getElementById('wt-abw-modal');
+  if (wizOpen) {
+    probidLeaveModal(
+      'Wizard in Progress',
+      'Your progress is saved as a draft. You can resume it next time you open the wizard.',
+      'Stay in Wizard',
+      'Close Wizard',
+      function(leave) { if (leave) wizOpen.remove(); }
+    );
+    return;
+  }
+
+  // ── Work Tracking: inside a project ───────────────────────
+  var wtPage = document.getElementById('page-worktracking');
+  var wtActive = wtPage && wtPage.classList.contains('active');
+  if (wtActive && typeof WT !== 'undefined' && WT.proj && WT.view !== 'list') {
+    probidLeaveModal(
+      'Where do you want to go?',
+      'Use the navigation buttons inside the app — the browser back button doesn\'t work here.',
+      '← Back to Projects',
+      'Leave ProBid',
+      function(leave) {
+        if (!leave) {
+          if (typeof wtRenderProjectList === 'function') {
+            WT.view = 'list'; WT.proj = null;
+            wtRenderProjectList();
+          }
+        } else {
+          probidActuallyLeave();
+        }
+      }
+    );
+    return;
+  }
+
+  // ── Quick Quote: unsaved changes ──────────────────────────
+  var qqPage = document.getElementById('page-qq');
+  var qqActive = qqPage && qqPage.classList.contains('active');
+  if (qqActive && typeof _qqDirty !== 'undefined' && _qqDirty) {
+    probidLeaveModal(
+      'Unsaved Quote Changes',
+      'You have unsaved changes in the Quick Quote. If you leave they will be lost.',
+      'Stay & Save',
+      'Leave Anyway',
+      function(leave) { if (leave) probidActuallyLeave(); }
+    );
+    return;
+  }
+
+  // ── Any other page: simple leave confirmation ──────────────
+  probidLeaveModal(
+    'Leave ProBid?',
+    'You are about to exit the ProBid application.',
+    'Stay in ProBid',
+    'Leave ProBid',
+    function(leave) { if (leave) probidActuallyLeave(); }
+  );
+}
+
+function probidActuallyLeave() {
+  // Remove the guard so history.back() works normally
+  _probidBackGuardInstalled = false;
+  window.removeEventListener('popstate', probidShowBackDialog);
+  history.go(-2); // go back past both pushed states
+}
+
+function probidLeaveModal(title, message, stayLabel, leaveLabel, callback) {
+  var existing = document.getElementById('probid-leave-modal');
+  if (existing) existing.remove();
+  _probidLeaveCallback = callback;
+
+  var html = '<div id="probid-leave-modal" style="'+
+    'position:fixed;top:0;left:0;width:100%;height:100%;'+
+    'background:rgba(13,27,42,.65);z-index:999999;'+
+    'display:flex;align-items:center;justify-content:center;'+
+    'padding:20px;box-sizing:border-box">'+
+    '<div style="background:#fff;border-radius:20px;max-width:440px;width:100%;'+
+      'padding:36px 32px;box-shadow:0 32px 80px rgba(0,0,0,.3);text-align:center;'+
+      'animation:probidModalIn .2s ease-out">'+
+      '<div style="font-size:44px;margin-bottom:16px">⚠</div>'+
+      '<div style="font-size:20px;font-weight:800;color:#0d1b2a;margin-bottom:10px">'+
+        title+'</div>'+
+      '<div style="font-size:14px;color:#546e7a;margin-bottom:30px;line-height:1.6">'+
+        message+'</div>'+
+      '<div style="display:flex;gap:12px">'+
+        '<button onclick="probidLeaveChoice(false)" '+
+          'style="flex:1;padding:14px;font-size:14px;font-weight:800;'+
+          'background:#1565c0;color:#fff;border:none;border-radius:10px;cursor:pointer">'+
+          stayLabel+'</button>'+
+        '<button onclick="probidLeaveChoice(true)" '+
+          'style="flex:1;padding:14px;font-size:14px;font-weight:700;'+
+          'border:2px solid #e0e0e0;border-radius:10px;background:#fff;'+
+          'color:#546e7a;cursor:pointer">'+
+          leaveLabel+'</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>'+
+  '<style>@keyframes probidModalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}</style>';
+
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function probidLeaveChoice(leave) {
+  var modal = document.getElementById('probid-leave-modal');
+  if (modal) modal.remove();
+  if (_probidLeaveCallback) {
+    var cb = _probidLeaveCallback;
+    _probidLeaveCallback = null;
+    cb(leave);
+  }
+}
+
 function goPage(id) {
-  // Warn if leaving Work Tracking while inside a project or wizard
+  // Warn if leaving Work Tracking via sidebar nav (wizard or active project)
   var wtPage = document.getElementById('page-worktracking');
   var wtActive = wtPage && wtPage.classList.contains('active');
   if (id !== 'worktracking' && wtActive) {
     var wizOpen = !!document.getElementById('wt-wizard-modal') || !!document.getElementById('wt-abw-modal');
     var inProject = typeof WT !== 'undefined' && WT.proj && WT.view !== 'list';
     if (wizOpen) {
-      if (!confirm('You are in the middle of a wizard.\n\nYour progress has been saved as a draft — you can resume it next time.\n\nLeave anyway?')) return;
+      if (!confirm('You are in the middle of a wizard.\nYour progress is saved as a draft.\nLeave anyway?')) return;
     } else if (inProject) {
-      if (!confirm('Leave Work Tracking?\n\nAll your work is saved. You can come back any time.')) return;
+      if (!confirm('Leave Work Tracking?\nAll your work is saved.\nLeave anyway?')) return;
     }
   }
-  // Warn if leaving Quick Quote with unsaved changes — only if QQ page is actually visible
+  // Warn if leaving Quick Quote with unsaved changes
   var qqPage = document.getElementById('page-qq');
   var qqActive = qqPage && qqPage.classList.contains('active');
   if (id !== 'qq' && qqActive && typeof _qqDirty !== 'undefined' && _qqDirty) {
@@ -1202,3 +1344,6 @@ function populateJTDropdown() {
   }).join('');
   if (!sel.value && list.length) sel.value = list[0].jobType;
 }
+
+// Install app-wide back button guard on load
+probidInstallBackGuard();
