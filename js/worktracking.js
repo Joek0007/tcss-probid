@@ -2117,6 +2117,12 @@ function wtAbwNext(fromStep) {
   if(fromStep===1){
     var name=(document.getElementById('abw-name')||{}).value||'';
     if(!name.trim()){showToast('Building name is required','warning');return;}
+    // Check for duplicate building name in this project
+    var existingNames=(wtProjData().buildings||[]).map(function(b){ return b.name.trim().toLowerCase(); });
+    if(existingNames.indexOf(name.trim().toLowerCase())>=0){
+      showToast('"'+name.trim()+'" already exists in this project — use a different name','warning');
+      return;
+    }
     _wtABW.bldg.name=name.trim();
   } else if(fromStep===2){
     var anyRooms=(_wtABW.bldg.floors||[]).some(function(f){return f.rooms&&f.rooms.length>0;});
@@ -2135,6 +2141,14 @@ async function wtAbwCreate() {
     if(!_sb)throw new Error('Not connected to Supabase');
     var d=wtProjData();
     var tmpls=wtGetTemplates();
+
+    // Final duplicate name check
+    var existingNames=(d.buildings||[]).map(function(b){ return b.name.trim().toLowerCase(); });
+    if(existingNames.indexOf(_wtABW.bldg.name.trim().toLowerCase())>=0){
+      showToast('"'+_wtABW.bldg.name+'" already exists — go back and rename it','warning');
+      if(btn){btn.disabled=false;btn.textContent='&#x1F680; Add Building';}
+      return;
+    }
 
     // 1. Create building
     var {data:bRec,error:be}=await _sb.from('wt_buildings').insert({
@@ -2217,23 +2231,7 @@ async function wtAddBuilding() {
   wtOpenAddBuildingWizard();
 }
 
-async function wtSubmitAddBuilding() {
-  var name = (document.getElementById('ab-name')||{}).value||'';
-  var type = (document.getElementById('ab-type')||{}).value||'residential';
-  if (!name.trim()) { showToast('Name is required','warning'); return; }
-  var modal = document.getElementById('wt-addbldg-modal'); if(modal) modal.remove();
-  try {
-    var d = WT.data[WT.proj.id];
-    var { data, error } = await _sb.from('wt_buildings').insert({
-      project_id: WT.proj.id, name:name.trim(),
-      building_type: type, sort_order: (d&&d.buildings?d.buildings.length:0)
-    }).select().single();
-    if (error) throw error;
-    if (d) d.buildings.push(data);
-    wtRenderDashboard();
-    showToast('🏗 Building added','success');
-  } catch(e) { showToast('Error: '+e.message,'error'); }
-}
+
 
 async function wtAddFloor(bldgId) {
   var d = wtProjData();
