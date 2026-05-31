@@ -1632,24 +1632,589 @@ function wtShowReport(type) {
 }
 
 // ─── QUICK ADD HELPERS ────────────────────────────────────────────────────────
-async function wtAddBuilding() {
-  var types = wtGetBuildingTypes();
-  var typeOpts = types.map(function(t){ return '<option value="'+t.id+'">'+escHtml(t.label)+'</option>'; }).join('');
-  var html = '<div class="modal-overlay open" id="wt-addbldg-modal" onclick="if(event.target===this)this.remove()">'+
-    '<div class="modal-box sm">'+
-      '<div class="modal-head"><h3>+ Add Building</h3><button class="btn-icon" onclick="document.getElementById(\'wt-addbldg-modal\').remove()">✕</button></div>'+
-      '<div class="modal-body">'+
-        '<div style="margin-bottom:14px"><label class="wiz-label">BUILDING NAME *</label>'+
-          '<input id="ab-name" class="form-control" placeholder="e.g. Building 1, Clubhouse, Parking Garage"></div>'+
-        '<div style="margin-bottom:20px"><label class="wiz-label">TYPE</label>'+
-          '<select id="ab-type" class="form-control">'+typeOpts+'</select></div>'+
-        '<button class="btn btn-primary" style="width:100%" onclick="wtSubmitAddBuilding()">Add Building</button>'+
+
+// ============================================================
+// ADD BUILDING WIZARD — runs inside an existing project
+// 4 steps: Basics → Floors & Rooms → Systems → Review & Create
+// ============================================================
+
+var _wtABW = {
+  step: 1,
+  bldg: { name:'', type:'residential', floors:[] },
+  systems: [],
+  s2floor: 0,
+};
+
+function wtOpenAddBuildingWizard() {
+  var d = wtProjData();
+  var nextNum = (d.buildings||[]).length + 1;
+  _wtABW = {
+    step: 1,
+    bldg: { name:'Building '+nextNum, type:'residential', floors:[] },
+    systems: (WT.proj && WT.proj.systems) ? WT.proj.systems.slice() : [],
+    s2floor: 0,
+  };
+  wtShowABW();
+}
+
+function wtShowABW() {
+  var e=document.getElementById('wt-abw-modal'); if(e) e.remove();
+  var labels=['Basics','Floors & Rooms','Systems','Review'];
+  var content=[wtAbwStep1,wtAbwStep2,wtAbwStep3,wtAbwStep4][_wtABW.step-1]();
+  var html='<div class="modal-overlay open" id="wt-abw-modal">'+
+    '<div class="modal-box" style="max-width:860px;max-height:94vh;display:flex;flex-direction:column">'+
+      '<div class="modal-head" style="flex-shrink:0">'+
+        '<div>'+
+          '<h3 style="margin:0">🏗 Add Building</h3>'+
+          '<div style="font-size:11px;color:#90a4ae;margin-top:2px">'+escHtml(WT.proj?WT.proj.name:'')+' &mdash; Step '+_wtABW.step+' of 4</div>'+
+        '</div>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'wt-abw-modal\').remove()">&#x2715;</button>'+
+      '</div>'+
+      '<div style="display:flex;gap:0;padding:0 22px;border-bottom:1px solid #f0f0f0;flex-shrink:0">'+
+        labels.map(function(l,i){
+          var a=i+1===_wtABW.step,d=i+1<_wtABW.step;
+          return '<div style="flex:1;text-align:center;padding:8px 4px;font-size:11px;font-weight:'+(a?800:600)+';'+
+            'color:'+(a?'#1565c0':d?'#2e7d32':'#90a4ae')+';border-bottom:3px solid '+(a?'#1565c0':d?'#2e7d32':'transparent')+';margin-bottom:-1px">'+
+            (d?'&#x2713; ':'')+l+'</div>';
+        }).join('')+
+      '</div>'+
+      '<div class="modal-body" style="overflow-y:auto;flex:1;padding:20px 22px">'+content+'</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+
+function wtAbwRefreshStep2() {
+  var e=document.getElementById('wt-abw-modal'); if(e) e.remove();
+  wtShowABW();
+}
+
+// ─── STEP 1: BASICS ──────────────────────────────────────────────────────────
+function wtAbwStep1() {
+  var types=wtGetBuildingTypes();
+  return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Building Details</h4>'+
+    '<p style="font-size:13px;color:#546e7a;margin:0 0 20px">Name this building exactly as it appears on the plans.</p>'+
+    '<div style="margin-bottom:16px"><label class="wiz-label">BUILDING NAME *</label>'+
+      '<input id="abw-name" class="form-control" value="'+escHtml(_wtABW.bldg.name)+'" placeholder="e.g. Building 3, Parking Garage, Clubhouse"></div>'+
+    '<div style="margin-bottom:24px"><label class="wiz-label">BUILDING TYPE</label>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px">'+
+        types.map(function(t){
+          var sel=_wtABW.bldg.type===t.id;
+          return '<div onclick="document.querySelectorAll(\'[data-abwt]\').forEach(function(e){e.style.border=\'1px solid #e0e0e0\';e.style.background=\'#fff\'});this.style.border=\'2px solid #1565c0\';this.style.background=\'#e3f2fd\';_wtABW.bldg.type=\''+t.id+'\'" data-abwt="'+t.id+'" '+
+            'style="padding:10px 14px;border:'+(sel?'2px solid #1565c0':'1px solid #e0e0e0')+';border-radius:8px;cursor:pointer;background:'+(sel?'#e3f2fd':'#fff')+';font-size:13px;font-weight:600;color:#0d1b2a">'+
+            escHtml(t.label)+'</div>';
+        }).join('')+
+      '</div></div>'+
+    '<div style="display:flex;justify-content:flex-end">'+
+      '<button class="btn btn-primary" onclick="wtAbwNext(1)">Next &#x2192; Floors &amp; Rooms</button></div>';
+}
+
+// ─── STEP 2: FLOORS & ROOM ROSTER ────────────────────────────────────────────
+function wtAbwStep2() {
+  var bldg=_wtABW.bldg;
+  if (!bldg.floors||!bldg.floors.length) {
+    bldg.floors=[{id:'f_'+Date.now(),name:'Floor 1',floorNum:1,rooms:[]}];
+  }
+  _wtABW.s2floor=Math.max(0,Math.min(_wtABW.s2floor,bldg.floors.length-1));
+  var fl=bldg.floors[_wtABW.s2floor];
+
+  return '<h4 style="margin:0 0 4px;font-size:16px;font-weight:800">Floors &amp; Room Setup</h4>'+
+    '<p style="font-size:13px;color:#546e7a;margin:0 0 14px">Build the room roster for each floor, then assign unit types.</p>'+
+    // Floor tabs
+    '<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center">'+
+      bldg.floors.map(function(f,i){
+        var a=i===_wtABW.s2floor;
+        var done=f.rooms.length>0&&f.rooms.every(function(r){ return r.unitType; });
+        return '<button onclick="_wtABW.s2floor='+i+';wtAbwRefreshStep2()" '+
+          'style="padding:5px 14px;font-size:12px;font-weight:700;border:2px solid '+(a?'#1565c0':done?'#2e7d32':'#e0e0e0')+';border-radius:20px;background:'+(a?'#1565c0':done?'#e8f5e9':'#fff')+';color:'+(a?'#fff':done?'#2e7d32':'#546e7a')+';cursor:pointer">'+
+          escHtml(f.name)+' <span style="font-size:10px;opacity:.8">('+f.rooms.length+')</span>'+
+          (done?' &#x2713;':'')+
+        '</button>';
+      }).join('')+
+      '<button onclick="wtAbwAddFloor()" style="padding:5px 12px;font-size:12px;border:2px dashed #ccc;border-radius:20px;background:#fff;color:#546e7a;cursor:pointer">+ Floor</button>'+
+      (bldg.floors.length>1?'<button onclick="wtAbwDeleteFloor()" style="padding:5px 8px;font-size:11px;border:1px solid #ffcdd2;border-radius:20px;background:#fff;color:#c62828;cursor:pointer" title="Delete floor">&#x1F5D1;</button>':'')+
+    '</div>'+
+    // Floor + building name inline edit
+    '<div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap">'+
+      '<div style="display:flex;align-items:center;gap:6px">'+
+        '<span style="font-size:11px;color:#90a4ae;font-weight:700">BUILDING:</span>'+
+        '<input id="abw-bname" value="'+escHtml(bldg.name)+'" oninput="_wtABW.bldg.name=this.value" '+
+          'style="font-size:14px;font-weight:700;border:none;border-bottom:2px solid #1565c0;padding:3px 0;background:transparent;color:#0d1b2a;width:180px">'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:6px">'+
+        '<span style="font-size:11px;color:#90a4ae;font-weight:700">FLOOR:</span>'+
+        '<input id="abw-fname" value="'+escHtml(fl.name)+'" oninput="_wtABW.bldg.floors[_wtABW.s2floor].name=this.value" '+
+          'style="font-size:14px;font-weight:700;border:none;border-bottom:2px solid #e0e0e0;padding:3px 0;background:transparent;color:#0d1b2a;width:120px">'+
       '</div>'+
     '</div>'+
+    // Generate bar
+    '<div id="abw-gen-bar">'+wtAbwGenBarHtml(fl)+'</div>'+
+    '<div style="height:12px"></div>'+
+    // Roster
+    '<div id="abw-roster-wrap">'+wtAbwRosterHtml()+'</div>'+
+    // Footer
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;margin-bottom:20px;flex-wrap:wrap;gap:8px">'+
+      '<button onclick="wtAbwAddRoom()" style="padding:8px 16px;font-size:13px;color:#2e7d32;background:#e8f5e9;border:2px dashed #a5d6a7;border-radius:8px;cursor:pointer;font-weight:700">+ Add Room</button>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button onclick="wtAbwSetAllModal()" style="padding:8px 14px;font-size:12px;border:1px solid #1565c0;border-radius:8px;background:#e3f2fd;color:#1565c0;cursor:pointer;font-weight:600">Set All &#x2192;</button>'+
+        '<button onclick="wtAbwCopyFloorModal()" style="padding:8px 14px;font-size:12px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer">&#x1F4CB; Copy Floor</button>'+
+      '</div>'+
+    '</div>'+
+    wtAbwBldgProgress()+
+    '<div style="display:flex;justify-content:space-between;margin-top:8px">'+
+      '<button class="btn btn-outline" onclick="_wtABW.step=1;wtShowABW()">&#x2190; Back</button>'+
+      '<button class="btn btn-primary" onclick="wtAbwNext(2)">Next &#x2192; Systems</button></div>';
+}
+
+// ─── ABW ROSTER HELPERS ───────────────────────────────────────────────────────
+function wtAbwRosterHtml() {
+  var fl=_wtABW.bldg.floors[_wtABW.s2floor];
+  if (!fl||!fl.rooms.length) return '<div style="padding:30px;text-align:center;color:#90a4ae;border:1px solid #e0e0e0;border-radius:10px">No rooms yet — use Quick Generate above or add rooms one by one.</div>';
+
+  var typeHdrs=WT_UNIT_DEF.map(function(t){
+    return '<th style="text-align:center;padding:6px 4px;font-size:10px;font-weight:700;color:'+t.color+';min-width:38px">'+t.short+'</th>';
+  }).join('');
+
+  var rows=fl.rooms.map(function(r,ri){
+    var typeCells=WT_UNIT_DEF.map(function(t){
+      var sel=r.unitType===t.id;
+      return '<td style="text-align:center;padding:4px 2px">'+
+        '<button onclick="wtAbwSetType('+ri+',\''+t.id+'\')" title="'+t.id+'" '+
+          'style="width:34px;height:28px;border:2px solid '+(sel?t.color:'#e0e0e0')+';border-radius:6px;background:'+(sel?t.color:'#fff')+';color:'+(sel?'#fff':t.color)+';font-size:10px;font-weight:800;cursor:pointer">'+
+          t.short+'</button></td>';
+    }).join('');
+    return '<tr style="background:'+(r.unitType?'#fff':'#fffde7')+'" id="abw-row-'+ri+'">'+
+      '<td style="padding:6px 8px;font-size:11px;color:#90a4ae;text-align:right;width:30px">'+(ri+1)+'</td>'+
+      '<td style="padding:4px 6px;width:100px">'+
+        '<input value="'+escHtml(r.number)+'" oninput="_wtABW.bldg.floors[_wtABW.s2floor].rooms['+ri+'].number=this.value" '+
+          'style="width:100%;padding:5px 7px;border:1px solid '+(r.number?'#e0e0e0':'#f57c00')+';border-radius:6px;font-size:13px;font-weight:700;color:#0d1b2a;box-sizing:border-box">'+
+      '</td>'+
+      typeCells+
+      '<td style="padding:4px 6px;width:32px">'+
+        '<button onclick="wtAbwDeleteRoom('+ri+')" style="width:28px;height:28px;border:1px solid #ffcdd2;border-radius:6px;background:#fff;color:#c62828;cursor:pointer;font-size:12px">&#x2715;</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+
+  return '<div style="overflow-x:auto;border:1px solid #e0e0e0;border-radius:10px">'+
+    '<table style="width:100%;border-collapse:collapse;min-width:500px">'+
+      '<thead><tr style="background:#f5f7fa">'+
+        '<th style="width:30px"></th>'+
+        '<th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#546e7a;width:100px">ROOM #</th>'+
+        typeHdrs+'<th style="width:32px"></th>'+
+      '</tr></thead>'+
+      '<tbody>'+rows+'</tbody>'+
+    '</table></div>';
+}
+
+function wtAbwGenBarHtml(fl) {
+  var hasRooms=fl&&fl.rooms&&fl.rooms.length>0;
+  var firstVal=hasRooms?fl.rooms[0].number:'101';
+  var lastVal=hasRooms?fl.rooms[fl.rooms.length-1].number:'125';
+  return '<div style="background:#f5f7fa;border-radius:10px;padding:14px 16px">'+
+    '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">&#x26A1; Generate Room Numbers</div>'+
+    '<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px">'+
+      '<div><label style="font-size:11px;color:#546e7a;font-weight:700;display:block;margin-bottom:4px">FIRST ROOM</label>'+
+        '<input id="abw-first" value="'+escHtml(firstVal)+'" oninput="wtAbwUpdatePreview()" placeholder="e.g. 1001" '+
+          'style="width:90px;padding:8px 10px;border:2px solid #1565c0;border-radius:8px;font-size:16px;font-weight:700;text-align:center;color:#0d1b2a"></div>'+
+      '<div style="font-size:22px;color:#90a4ae;padding-bottom:4px">&#x2192;</div>'+
+      '<div><label style="font-size:11px;color:#546e7a;font-weight:700;display:block;margin-bottom:4px">LAST ROOM</label>'+
+        '<input id="abw-last" value="'+escHtml(lastVal)+'" oninput="wtAbwUpdatePreview()" placeholder="e.g. 1025" '+
+          'style="width:90px;padding:8px 10px;border:2px solid #1565c0;border-radius:8px;font-size:16px;font-weight:700;text-align:center;color:#0d1b2a"></div>'+
+      '<div><label style="font-size:11px;color:#546e7a;font-weight:700;display:block;margin-bottom:4px">SUFFIX <span style="font-weight:400">(opt)</span></label>'+
+        '<input id="abw-sfx" oninput="wtAbwUpdatePreview()" placeholder="e.g. A" '+
+          'style="width:65px;padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:14px;text-align:center"></div>'+
+      '<button onclick="wtAbwGenRooms()" class="btn btn-primary" style="flex-shrink:0;height:38px">'+
+        (hasRooms?'&#x21BB; Regenerate':'&#x25B6; Generate')+
+      '</button>'+
+    '</div>'+
+    '<div id="abw-gen-preview" style="font-size:12px;font-weight:600;min-height:18px">'+
+      wtWizGenPreview2(firstVal,lastVal,'')+
+    '</div>'+
+    (hasRooms
+      ?'<div style="border-top:1px solid #e0e0e0;margin-top:12px;padding-top:12px">'+
+          '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Modify Existing Room Numbers</div>'+
+          '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">'+
+            '<div style="display:flex;align-items:center;gap:6px">'+
+              '<span style="font-size:12px;color:#546e7a;font-weight:600">Add Prefix:</span>'+
+              '<input id="abw-mod-pfx" placeholder="e.g. A" style="width:65px;padding:5px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center">'+
+              '<button onclick="wtAbwApplyPrefix()" class="btn btn-outline btn-sm">Apply to All</button>'+
+            '</div>'+
+            '<div style="display:flex;align-items:center;gap:6px">'+
+              '<span style="font-size:12px;color:#546e7a;font-weight:600">Add Suffix:</span>'+
+              '<input id="abw-mod-sfx" placeholder="e.g. A" style="width:65px;padding:5px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center">'+
+              '<button onclick="wtAbwApplySuffix()" class="btn btn-outline btn-sm">Apply to All</button>'+
+            '</div>'+
+          '</div>'+
+          '<div style="font-size:11px;color:#e65100;margin-top:8px">&#x26A0; Regenerate replaces all '+fl.rooms.length+' rooms but preserves types for matching numbers.</div>'+
+        '</div>'
+      :'')+
   '</div>';
-  var e=document.getElementById('wt-addbldg-modal'); if(e) e.remove();
-  document.body.insertAdjacentHTML('beforeend', html);
-  setTimeout(function(){ var el=document.getElementById('ab-name'); if(el) el.focus(); }, 100);
+}
+
+function wtAbwUpdatePreview() {
+  var first=(document.getElementById('abw-first')||{}).value||'';
+  var last=(document.getElementById('abw-last')||{}).value||'';
+  var sfx=(document.getElementById('abw-sfx')||{}).value||'';
+  var el=document.getElementById('abw-gen-preview');
+  if(el) el.innerHTML=wtWizGenPreview2(first,last,sfx);
+}
+
+function wtAbwGenRooms() {
+  var first=((document.getElementById('abw-first')||{}).value||'').trim();
+  var last=((document.getElementById('abw-last')||{}).value||'').trim();
+  var sfx=(document.getElementById('abw-sfx')||{}).value||'';
+  if(!first){showToast('Enter the first room number','warning');return;}
+  var f=wtWizParseRoom(first),l=last?wtWizParseRoom(last):f;
+  if(!f){showToast('Invalid format','warning');return;}
+  if(!l)l=f;
+  var start=f.num,end=l.num;
+  if(end<start){showToast('Last Room must be >= First Room','warning');return;}
+  var count=end-start+1;
+  if(count>200){showToast('Maximum 200 rooms per floor','warning');return;}
+  var digits=Math.max(f.digits,l.digits),prefix=f.prefix,suffix=f.suffix+sfx;
+  var fl=_wtABW.bldg.floors[_wtABW.s2floor]; if(!fl)return;
+  var oldTypes={};
+  (fl.rooms||[]).forEach(function(r){if(r.unitType)oldTypes[r.number]=r.unitType;});
+  var rooms=[];
+  for(var i=0;i<count;i++){
+    var num=start+i,rnum=prefix+String(num).padStart(digits,'0')+suffix;
+    rooms.push({id:'r_'+Date.now()+'_'+i,number:rnum,unitType:oldTypes[rnum]||null});
+  }
+  fl.rooms=rooms;
+  var el=document.getElementById('abw-roster-wrap');if(el)el.innerHTML=wtAbwRosterHtml();
+  var bar=document.getElementById('abw-gen-bar');if(bar)bar.innerHTML=wtAbwGenBarHtml(fl);
+}
+
+function wtAbwSetType(ri,typeId) {
+  var fl=_wtABW.bldg.floors[_wtABW.s2floor];if(!fl||!fl.rooms[ri])return;
+  fl.rooms[ri].unitType=fl.rooms[ri].unitType===typeId?null:typeId;
+  var row=document.getElementById('abw-row-'+ri);if(!row)return;
+  row.style.background=fl.rooms[ri].unitType?'#fff':'#fffde7';
+  row.querySelectorAll('button[title]').forEach(function(btn){
+    var tid=btn.getAttribute('title'),td=wtUnitDef(tid),sel=fl.rooms[ri].unitType===tid;
+    btn.style.border='2px solid '+(sel?td.color:'#e0e0e0');
+    btn.style.background=sel?td.color:'#fff';
+    btn.style.color=sel?'#fff':td.color;
+  });
+}
+
+function wtAbwAddRoom() {
+  var fl=_wtABW.bldg.floors[_wtABW.s2floor];if(!fl)return;
+  fl.rooms.push({id:'r_'+Date.now(),number:'',unitType:null});
+  var el=document.getElementById('abw-roster-wrap');if(el)el.innerHTML=wtAbwRosterHtml();
+  setTimeout(function(){var inputs=document.querySelectorAll('#abw-roster-wrap input');if(inputs.length)inputs[inputs.length-1].focus();},80);
+}
+
+function wtAbwDeleteRoom(ri) {
+  var fl=_wtABW.bldg.floors[_wtABW.s2floor];if(!fl)return;
+  fl.rooms.splice(ri,1);
+  var el=document.getElementById('abw-roster-wrap');if(el)el.innerHTML=wtAbwRosterHtml();
+}
+
+function wtAbwApplyPrefix() {
+  var pfx=(document.getElementById('abw-mod-pfx')||{}).value||'';
+  if(!pfx.trim()){showToast('Enter a prefix','warning');return;}
+  var fl=_wtABW.bldg.floors[_wtABW.s2floor];if(!fl||!fl.rooms.length)return;
+  fl.rooms.forEach(function(r){r.number=pfx+r.number;});
+  var el=document.getElementById('abw-roster-wrap');if(el)el.innerHTML=wtAbwRosterHtml();
+  var bar=document.getElementById('abw-gen-bar');if(bar)bar.innerHTML=wtAbwGenBarHtml(fl);
+  showToast('Prefix added to all rooms','success');
+}
+
+function wtAbwApplySuffix() {
+  var sfx=(document.getElementById('abw-mod-sfx')||{}).value||'';
+  if(!sfx.trim()){showToast('Enter a suffix','warning');return;}
+  var fl=_wtABW.bldg.floors[_wtABW.s2floor];if(!fl||!fl.rooms.length)return;
+  fl.rooms.forEach(function(r){r.number=r.number+sfx;});
+  var el=document.getElementById('abw-roster-wrap');if(el)el.innerHTML=wtAbwRosterHtml();
+  var bar=document.getElementById('abw-gen-bar');if(bar)bar.innerHTML=wtAbwGenBarHtml(fl);
+  showToast('Suffix added to all rooms','success');
+}
+
+function wtAbwAddFloor() {
+  var n=_wtABW.bldg.floors.length+1;
+  _wtABW.bldg.floors.push({id:'f_'+Date.now(),name:'Floor '+n,floorNum:n,rooms:[]});
+  _wtABW.s2floor=_wtABW.bldg.floors.length-1;
+  wtAbwRefreshStep2();
+}
+
+function wtAbwDeleteFloor() {
+  if(_wtABW.bldg.floors.length<=1)return;
+  if(!confirm('Delete "'+_wtABW.bldg.floors[_wtABW.s2floor].name+'"?'))return;
+  _wtABW.bldg.floors.splice(_wtABW.s2floor,1);
+  _wtABW.s2floor=Math.max(0,_wtABW.s2floor-1);
+  wtAbwRefreshStep2();
+}
+
+function wtAbwSetAllModal() {
+  var fl=_wtABW.bldg.floors[_wtABW.s2floor];if(!fl)return;
+  var untyped=fl.rooms.filter(function(r){return!r.unitType;}).length;
+  var html='<div class="modal-overlay open" id="wt-abw-setall" onclick="if(event.target===this)this.remove()" style="z-index:10002">'+
+    '<div class="modal-box sm"><div class="modal-head"><h3>Set Type</h3>'+
+      '<button class="btn-icon" onclick="document.getElementById(\'wt-abw-setall\').remove()">&#x2715;</button></div>'+
+    '<div class="modal-body">'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+
+        WT_UNIT_DEF.map(function(t){
+          return '<button onclick="wtAbwDoSetAll(\''+t.id+'\',false)" '+
+            'style="padding:10px 16px;font-size:13px;font-weight:700;border:2px solid '+t.color+';border-radius:8px;background:'+t.bg+';color:'+t.color+';cursor:pointer">'+t.id+'</button>';
+        }).join('')+
+      '</div>'+
+      (untyped<fl.rooms.length?'<div style="border-top:1px solid #f0f0f0;padding-top:10px">'+
+        '<p style="font-size:12px;color:#546e7a;margin:0 0 8px">Unassigned rooms only ('+untyped+'):</p>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+          WT_UNIT_DEF.map(function(t){
+            return '<button onclick="wtAbwDoSetAll(\''+t.id+'\',true)" '+
+              'style="padding:8px 12px;font-size:12px;font-weight:700;border:2px solid '+t.color+';border-radius:8px;background:#fff;color:'+t.color+';cursor:pointer">'+t.id+' (unassigned)</button>';
+          }).join('')+
+        '</div></div>':'')+ 
+    '</div></div></div>';
+  var e=document.getElementById('wt-abw-setall');if(e)e.remove();
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+
+function wtAbwDoSetAll(typeId,unassignedOnly) {
+  var fl=_wtABW.bldg.floors[_wtABW.s2floor];if(!fl)return;
+  fl.rooms.forEach(function(r){if(!unassignedOnly||!r.unitType)r.unitType=typeId;});
+  document.getElementById('wt-abw-setall').remove();
+  var el=document.getElementById('abw-roster-wrap');if(el)el.innerHTML=wtAbwRosterHtml();
+}
+
+function wtAbwCopyFloorModal() {
+  var fl=_wtABW.bldg.floors[_wtABW.s2floor];
+  if(!fl||!fl.rooms.length){showToast('Add rooms first','warning');return;}
+  var others=_wtABW.bldg.floors.filter(function(f,i){return i!==_wtABW.s2floor;});
+  var html='<div class="modal-overlay open" id="wt-abw-cpfl" onclick="if(event.target===this)this.remove()" style="z-index:10002">'+
+    '<div class="modal-box sm"><div class="modal-head"><h3>&#x1F4CB; Copy Floor</h3>'+
+      '<button class="btn-icon" onclick="document.getElementById(\'wt-abw-cpfl\').remove()">&#x2715;</button></div>'+
+    '<div class="modal-body">'+
+      '<p style="font-size:13px;color:#546e7a;margin:0 0 12px">Copy <strong>'+escHtml(fl.name)+'</strong> ('+fl.rooms.length+' rooms) to:</p>'+
+      (others.length?others.map(function(f){
+        return '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">'+
+          '<input type="checkbox" data-abwfid="'+f.id+'" style="width:16px;height:16px">'+
+          '<span style="font-size:13px;font-weight:600">'+escHtml(f.name)+'</span>'+
+          '<span style="font-size:11px;color:#90a4ae">('+f.rooms.length+' rooms)</span></label>';
+      }).join(''):'<p style="color:#90a4ae;font-size:13px">No other floors yet.</p>')+
+      '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0">'+
+        '<label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:6px">CREATE NEW FLOORS:</label>'+
+        '<input id="abw-cp-new" type="number" min="0" value="0" style="width:60px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center">'+
+        '<span style="font-size:12px;color:#546e7a;margin-left:8px">additional floors</span></div>'+
+      '<button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="wtAbwDoCopyFloor()">&#x1F4CB; Copy</button>'+
+    '</div></div></div>';
+  var e=document.getElementById('wt-abw-cpfl');if(e)e.remove();
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+
+function wtAbwDoCopyFloor() {
+  var srcFl=_wtABW.bldg.floors[_wtABW.s2floor];if(!srcFl)return;
+  var srcRooms=JSON.parse(JSON.stringify(srcFl.rooms));
+  var count=0;
+  document.querySelectorAll('#wt-abw-cpfl [data-abwfid]:checked').forEach(function(cb){
+    var fid=cb.getAttribute('data-abwfid');
+    var tgt=_wtABW.bldg.floors.find(function(f){return f.id===fid;});
+    if(tgt){tgt.rooms=srcRooms.map(function(r){return Object.assign({},r,{id:'r_'+Date.now()+'_'+Math.random()});});count++;}
+  });
+  var newCount=parseInt((document.getElementById('abw-cp-new')||{}).value)||0;
+  for(var i=0;i<newCount;i++){
+    var n=_wtABW.bldg.floors.length+1;
+    _wtABW.bldg.floors.push({id:'f_'+Date.now()+'_'+i,name:'Floor '+n,floorNum:n,
+      rooms:srcRooms.map(function(r){return Object.assign({},r,{id:'r_'+Date.now()+'_'+Math.random()});})});
+    count++;
+  }
+  document.getElementById('wt-abw-cpfl').remove();
+  wtAbwRefreshStep2();
+  showToast('&#x1F4CB; Floor copied to '+count+' floor'+(count>1?'s':''),'success');
+}
+
+function wtAbwBldgProgress() {
+  var bldg=_wtABW.bldg;
+  var totalRooms=0,typedRooms=0;
+  (bldg.floors||[]).forEach(function(f){
+    totalRooms+=f.rooms.length;
+    typedRooms+=f.rooms.filter(function(r){return r.unitType;}).length;
+  });
+  if(!totalRooms)return '';
+  var pct=Math.round(typedRooms/totalRooms*100);
+  return '<div style="padding:10px 12px;background:#f5f7fa;border-radius:8px;margin-bottom:8px">'+
+    '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">'+
+      '<span style="font-weight:700;color:#0d1b2a">'+escHtml(bldg.name)+' &mdash; '+totalRooms+' rooms across '+bldg.floors.length+' floor'+(bldg.floors.length>1?'s':'')+'</span>'+
+      '<span style="font-weight:700;color:'+(pct===100?'#2e7d32':'#e65100')+'">'+typedRooms+'/'+totalRooms+' typed</span>'+
+    '</div>'+
+    '<div style="background:#e0e0e0;border-radius:3px;height:6px">'+
+      '<div style="background:'+(pct===100?'#2e7d32':'#1565c0')+';height:6px;border-radius:3px;width:'+pct+'%;transition:width .3s"></div>'+
+    '</div>'+
+  '</div>';
+}
+
+// ─── STEP 3: SYSTEMS ─────────────────────────────────────────────────────────
+function wtAbwStep3() {
+  var systems=[
+    {id:'structured_wiring',label:'Structured Wiring',icon:'&#x1F50C;',desc:'Cat6 outlets'},
+    {id:'wireless_ap',label:'Wireless APs',icon:'&#x1F4E1;',desc:'PoE AP locations'},
+    {id:'access_control',label:'Access Control',icon:'&#x1F6AA;',desc:'Readers, strikes'},
+    {id:'deadbolts',label:'Electronic Deadbolts',icon:'&#x1F510;',desc:'Tenant deadbolts'},
+    {id:'fiber_interbuilding',label:'Fiber Interbuilding',icon:'&#x1F517;',desc:'Backbone fiber'},
+    {id:'clubhouse_av',label:'Clubhouse AV',icon:'&#x1F50A;',desc:'Speakers, TV drops'},
+    {id:'perimeter_cameras',label:'Perimeter Cameras',icon:'&#x1F4F7;',desc:'Exterior cameras'},
+    {id:'gate_access',label:'Gate Access',icon:'&#x1F3D7;',desc:'Vehicle gates'},
+  ];
+  return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Systems</h4>'+
+    '<p style="font-size:13px;color:#546e7a;margin:0 0 16px">Select systems for <strong>'+escHtml(_wtABW.bldg.name)+'</strong>. This building can differ from the rest of the project.</p>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px">'+
+      systems.map(function(s){
+        var sel=_wtABW.systems.indexOf(s.id)>=0;
+        return '<div onclick="var i=_wtABW.systems.indexOf(\''+s.id+'\');if(i>=0)_wtABW.systems.splice(i,1);else _wtABW.systems.push(\''+s.id+'\');this.style.border=\'2px solid \'+(i<0?\'#1565c0\':\'#e0e0e0\');this.style.background=\'\'+(i<0?\'#e3f2fd\':\'#fff\')" '+
+          'style="padding:12px;border:2px solid '+(sel?'#1565c0':'#e0e0e0')+';border-radius:10px;cursor:pointer;background:'+(sel?'#e3f2fd':'#fff')+';display:flex;align-items:center;gap:10px">'+
+          '<span style="font-size:20px">'+s.icon+'</span>'+
+          '<div><div style="font-size:13px;font-weight:700;color:#0d1b2a">'+s.label+'</div>'+
+          '<div style="font-size:11px;color:#546e7a">'+s.desc+'</div></div></div>';
+      }).join('')+
+    '</div>'+
+    '<div style="display:flex;justify-content:space-between">'+
+      '<button class="btn btn-outline" onclick="_wtABW.step=2;wtShowABW()">&#x2190; Back</button>'+
+      '<button class="btn btn-primary" onclick="wtAbwNext(3)">Next &#x2192; Review</button></div>';
+}
+
+// ─── STEP 4: REVIEW & CREATE ─────────────────────────────────────────────────
+function wtAbwStep4() {
+  var totalRooms=0,typedRooms=0,totalItems=0;
+  var tmpls=wtGetTemplates();
+  (_wtABW.bldg.floors||[]).forEach(function(f){
+    totalRooms+=f.rooms.length;
+    f.rooms.forEach(function(r){
+      if(r.unitType)typedRooms++;
+      var tpl=r.unitType?tmpls.find(function(t){return t.unit_type===r.unitType;}):null;
+      if(tpl)totalItems+=(tpl.areas||[]).reduce(function(s,a){return s+(a.items||[]).reduce(function(s2,i){return s2+i.qty;},0);},0);
+    });
+  });
+  var untyped=totalRooms-typedRooms;
+  return '<h4 style="margin:0 0 6px;font-size:16px;font-weight:800">Review &amp; Add</h4>'+
+    '<p style="font-size:13px;color:#546e7a;margin:0 0 16px">Confirm before adding this building to the project.</p>'+
+    '<div class="card" style="background:#f9fbff;margin-bottom:12px">'+
+      '<div style="font-size:16px;font-weight:800;color:#0d1b2a;margin-bottom:4px">'+escHtml(_wtABW.bldg.name)+'</div>'+
+      '<div style="font-size:13px;color:#546e7a">'+escHtml((_wtABW.bldg.type||'').replace('_',' '))+'</div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">'+
+      [['&#x1F3E2;',(_wtABW.bldg.floors||[]).length,'Floors'],['&#x1F6AA;',totalRooms,'Rooms'],['&#x1F4CB;','~'+totalItems,'Items'],['&#x2699;',_wtABW.systems.length,'Systems']].map(function(r){
+        return '<div style="text-align:center;padding:12px;background:#fff;border:1px solid #e0e0e0;border-radius:8px">'+
+          '<div style="font-size:11px;color:#546e7a">'+r[0]+' '+r[2]+'</div>'+
+          '<div style="font-size:22px;font-weight:900;color:#0d1b2a">'+r[1]+'</div></div>';
+      }).join('')+
+    '</div>'+
+    (untyped?'<div style="padding:12px;background:#fff3e0;border-left:4px solid #e65100;border-radius:8px;margin-bottom:12px;font-size:13px;color:#e65100">'+
+      '&#x26A0; '+untyped+' room'+(untyped>1?'s are':' is')+' untyped — will be created without items.</div>':'')+
+    (_wtABW.bldg.floors||[]).map(function(f){
+      return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px">'+
+        '<span style="font-weight:700">'+escHtml(f.name)+'</span>'+
+        '<span style="color:#546e7a">'+f.rooms.length+' rooms</span></div>';
+    }).join('')+
+    '<div style="display:flex;justify-content:space-between;margin-top:24px">'+
+      '<button class="btn btn-outline" onclick="_wtABW.step=3;wtShowABW()">&#x2190; Back</button>'+
+      '<button class="btn btn-primary" id="abw-create-btn" onclick="wtAbwCreate()">&#x1F680; Add Building</button></div>';
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────────────────────────
+function wtAbwNext(fromStep) {
+  if(fromStep===1){
+    var name=(document.getElementById('abw-name')||{}).value||'';
+    if(!name.trim()){showToast('Building name is required','warning');return;}
+    _wtABW.bldg.name=name.trim();
+  } else if(fromStep===2){
+    var anyRooms=(_wtABW.bldg.floors||[]).some(function(f){return f.rooms&&f.rooms.length>0;});
+    if(!anyRooms){showToast('Add at least one room before continuing','warning');return;}
+  }
+  _wtABW.step=fromStep+1;
+  var e=document.getElementById('wt-abw-modal');if(e)e.remove();
+  wtShowABW();
+}
+
+// ─── CREATE BUILDING IN PROJECT ───────────────────────────────────────────────
+async function wtAbwCreate() {
+  var btn=document.getElementById('abw-create-btn');
+  if(btn){btn.disabled=true;btn.textContent='Adding...';}
+  try {
+    if(!_sb)throw new Error('Not connected to Supabase');
+    var d=wtProjData();
+    var tmpls=wtGetTemplates();
+
+    // 1. Create building
+    var {data:bRec,error:be}=await _sb.from('wt_buildings').insert({
+      project_id:WT.proj.id, name:_wtABW.bldg.name,
+      building_type:_wtABW.bldg.type||'residential',
+      sort_order:(d.buildings||[]).length
+    }).select().single();
+    if(be)throw be;
+    d.buildings.push(bRec);
+
+    // 2. Floors → Rooms → Items
+    for(var fi=0;fi<(_wtABW.bldg.floors||[]).length;fi++){
+      var wf=_wtABW.bldg.floors[fi];
+      var {data:fRec,error:fe}=await _sb.from('wt_floors').insert({
+        building_id:bRec.id,project_id:WT.proj.id,
+        name:wf.name,floor_number:wf.floorNum||fi+1,sort_order:fi
+      }).select().single();
+      if(fe)throw fe;
+      d.floors.push(fRec);
+
+      if(!wf.rooms||!wf.rooms.length)continue;
+
+      var roomIns=wf.rooms.map(function(r,ri){
+        return{floor_id:fRec.id,building_id:bRec.id,project_id:WT.proj.id,
+          name:r.number||('Room '+(ri+1)),room_number:r.number||null,
+          unit_type:r.unitType||null,sort_order:ri};
+      });
+      var {data:roomRecs,error:re}=await _sb.from('wt_rooms').insert(roomIns).select();
+      if(re)throw re;
+      d.rooms.push.apply(d.rooms,roomRecs);
+
+      // Generate items from templates
+      var itemIns=[];
+      for(var ri=0;ri<wf.rooms.length;ri++){
+        var wr=wf.rooms[ri],rRec=roomRecs[ri];
+        if(!wr.unitType)continue;
+        var tpl=tmpls.find(function(t){return t.unit_type===wr.unitType;});
+        if(!tpl)continue;
+        var sort=0;
+        (tpl.areas||[]).forEach(function(area){
+          (area.items||[]).forEach(function(ai){
+            var ci=wtCatalogItem(ai.catalog_id);if(!ci)return;
+            for(var q=0;q<(ai.qty||1);q++){
+              itemIns.push({
+                room_id:rRec.id,building_id:bRec.id,project_id:WT.proj.id,
+                name:ci.name+(ai.qty>1?' #'+(q+1):'')+' \u2014 '+area.name,
+                category:ci.category,item_type:ci.item_type,
+                cable_count:ci.cable_count||0,cable_types:ci.cable_types||[],
+                outlet_type:ci.outlet_type||null,
+                phases_required:['rough_in','rough_in_verify','devicing','testing','final_verify'],
+                sort_order:sort++
+              });
+            }
+          });
+        });
+      }
+      for(var chunk=0;chunk<itemIns.length;chunk+=100){
+        var batch=itemIns.slice(chunk,chunk+100);
+        var {data:iRecs,error:ie}=await _sb.from('wt_items').insert(batch).select();
+        if(ie)throw ie;
+        d.items.push.apply(d.items,iRecs);
+      }
+    }
+
+    document.getElementById('wt-abw-modal').remove();
+    wtRenderDashboard();
+    showToast('&#x1F3D7; "'+_wtABW.bldg.name+'" added \u2014 '+
+      d.rooms.filter(function(r){return r.building_id===bRec.id;}).length+' rooms, '+
+      d.items.filter(function(i){return i.building_id===bRec.id;}).length+' items','success');
+
+  } catch(e){
+    console.error('wtAbwCreate error:',e);
+    showToast('Error: '+(e.message||String(e)),'error');
+    if(btn){btn.disabled=false;btn.textContent='&#x1F680; Add Building';}
+  }
+}
+
+
+async function wtAddBuilding() {
+  wtOpenAddBuildingWizard();
 }
 
 async function wtSubmitAddBuilding() {
