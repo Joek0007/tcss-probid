@@ -2446,29 +2446,8 @@ function wtWizStep3() {
       '<span style="font-size:11px;color:#90a4ae">floor name</span>'+
     '</div>'+
 
-    // Quick generate bar
-    '<div style="background:#f5f7fa;border-radius:10px;padding:12px 14px;margin-bottom:12px">'+
-      '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">&#x26A1; Quick Generate Room Numbers</div>'+
-      '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">'+
-        '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Prefix</label>'+
-          '<input id="wiz-gp" placeholder="e.g. A" oninput="wtWizUpdatePreview()" style="width:55px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
-        '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Start #</label>'+
-          '<input id="wiz-gs" type="number" value="101" oninput="wtWizUpdatePreview()" style="width:65px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
-        '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Count</label>'+
-          '<input id="wiz-gc" type="number" value="'+(fl.rooms.length||12)+'" min="1" style="width:60px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
-        '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Format</label>'+
-          '<select id="wiz-gd" onchange="wtWizUpdatePreview()" style="padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px">'+
-            '<option value="0">1, 2, 3...</option>'+
-            '<option value="2" selected>01, 02, 03...</option>'+
-            '<option value="3">001, 002...</option>'+
-          '</select></div>'+
-        '<div><label style="font-size:10px;color:#90a4ae;display:block;margin-bottom:3px">Suffix</label>'+
-          '<input id="wiz-gx" placeholder="" oninput="wtWizUpdatePreview()" style="width:50px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center"></div>'+
-        '<button onclick="wtWizGenRooms()" class="btn btn-primary btn-sm" style="flex-shrink:0" id="wiz-gen-btn">&#x25B6; '+(fl.rooms.length?'Regenerate':'Generate')+'</button>'+
-      '</div>'+
-      '<div id="wiz-gen-preview" style="margin-top:8px;font-size:12px;font-weight:600;color:#1565c0">'+wtWizGenPreview()+'</div>'+
-      (fl.rooms.length?'<div style="font-size:11px;color:#e65100;margin-top:4px">⚠ '+fl.rooms.length+' existing rooms will be replaced — type assignments will be lost.</div>':'')+
-    '</div>'+
+    // Generate bar — refreshable div
+    '<div id="wiz-gen-bar">'+wtWizGenBarHtml(fl)+'</div>'+
 
     // Roster
     '<div id="wiz-roster-wrap">'+wtWizRosterHtml()+'</div>'+
@@ -2567,57 +2546,162 @@ function wtWizSetType(ri, typeId) {
 
 
 // Live preview of generated room numbers
-function wtWizGenPreview() {
-  var pfx   = (document.getElementById('wiz-gp')||{}).value||'';
-  var sfx   = (document.getElementById('wiz-gx')||{}).value||'';
-  var start = parseInt((document.getElementById('wiz-gs')||{}).value)||1;
-  var cnt   = parseInt((document.getElementById('wiz-gc')||{}).value)||12;
-  var dgt   = parseInt((document.getElementById('wiz-gd')||{}).value)||2;
-  cnt = Math.max(1, Math.min(cnt, 200));
-  function fmt(n) { return dgt>0 ? String(n).padStart(dgt,'0') : String(n); }
-  var first = pfx + fmt(start) + sfx;
-  var last  = pfx + fmt(start + cnt - 1) + sfx;
-  var mid   = cnt > 2 ? pfx + fmt(start + 1) + sfx : null;
-  var preview = cnt===1 ? first
-    : cnt===2 ? first+', '+last
-    : cnt<=5 ? Array.from({length:cnt},function(_,i){ return pfx+fmt(start+i)+sfx; }).join(', ')
-    : first+', '+(mid?mid+', ':'')+'…, '+last;
-  return '&#x1F50D; Preview: <span style="color:#0d1b2a;font-family:monospace">'+
-    escHtml(preview)+'</span> &nbsp;('+cnt+' rooms)';
+
+// ─── GENERATE BAR HELPERS ─────────────────────────────────────────────────────
+function wtWizParseRoom(s) {
+  s = (s||'').trim();
+  var m = s.match(/^([^0-9]*)(\d+)([^0-9]*)$/);
+  return m ? { prefix:m[1], num:parseInt(m[2]), digits:m[2].length, suffix:m[3] } : null;
 }
 
-function wtWizUpdatePreview() {
-  var el = document.getElementById('wiz-gen-preview');
-  if (el) el.innerHTML = wtWizGenPreview();
+function wtWizGenPreview2(firstVal, lastVal, sfx) {
+  sfx = sfx||'';
+  var f = wtWizParseRoom(firstVal);
+  if (!f) return firstVal ? '<span style="color:#c62828">Invalid room number</span>' : '';
+  var l = wtWizParseRoom(lastVal);
+  if (!l) l = f;
+  var start=f.num, end=l.num;
+  if (end < start) return '<span style="color:#c62828">Last must be &ge; First</span>';
+  var count = end-start+1;
+  if (count > 200) return '<span style="color:#c62828">Max 200 rooms ('+count+' selected)</span>';
+  var digits = Math.max(f.digits, l.digits);
+  var pfx=f.prefix, sfxAll=f.suffix+sfx;
+  function fmt(n){ return pfx+String(n).padStart(digits,'0')+sfxAll; }
+  var preview;
+  if (count<=5) {
+    var arr=[]; for(var i=0;i<count;i++) arr.push(fmt(start+i));
+    preview = arr.join(', ');
+  } else {
+    preview = fmt(start)+', '+fmt(start+1)+', ..., '+fmt(end);
+  }
+  return '&#x1F50D; <span style="color:#0d1b2a;font-family:monospace">'+
+    escHtml(preview)+'</span> &nbsp;<span style="color:#546e7a">('+count+
+    ' room'+(count>1?'s':'')+')</span>';
 }
 
-function wtWizGenRooms() {
-  var pfx  = (document.getElementById('wiz-gp')||{}).value||'';
-  var sfx  = (document.getElementById('wiz-gx')||{}).value||'';
-  var start= parseInt((document.getElementById('wiz-gs')||{}).value)||1;
-  var cnt  = parseInt((document.getElementById('wiz-gc')||{}).value)||12;
-  var dgt  = parseInt((document.getElementById('wiz-gd')||{}).value)||2;
-  cnt = Math.max(1, Math.min(cnt, 200));
+function wtWizUpdatePreview2() {
+  var first=(document.getElementById('wiz-first')||{}).value||'';
+  var last =(document.getElementById('wiz-last') ||{}).value||'';
+  var sfx  =(document.getElementById('wiz-sfx2') ||{}).value||'';
+  var el=document.getElementById('wiz-gen-preview2');
+  if(el) el.innerHTML=wtWizGenPreview2(first,last,sfx);
+}
 
+function wtWizGenBarHtml(fl) {
+  var hasRooms = fl && fl.rooms && fl.rooms.length > 0;
+  var firstVal = hasRooms ? fl.rooms[0].number : '101';
+  var lastVal  = hasRooms ? fl.rooms[fl.rooms.length-1].number : '125';
+  return '<div style="background:#f5f7fa;border-radius:10px;padding:14px 16px">'+
+    '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">&#x26A1; Generate Room Numbers</div>'+
+    '<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px">'+
+      '<div>'+
+        '<label style="font-size:11px;color:#546e7a;font-weight:700;display:block;margin-bottom:4px">FIRST ROOM</label>'+
+        '<input id="wiz-first" value="'+escHtml(firstVal)+'" oninput="wtWizUpdatePreview2()" '+
+          'placeholder="e.g. 1001" '+
+          'style="width:90px;padding:8px 10px;border:2px solid #1565c0;border-radius:8px;font-size:16px;font-weight:700;text-align:center;color:#0d1b2a">'+
+      '</div>'+
+      '<div style="font-size:22px;color:#90a4ae;padding-bottom:4px">&#x2192;</div>'+
+      '<div>'+
+        '<label style="font-size:11px;color:#546e7a;font-weight:700;display:block;margin-bottom:4px">LAST ROOM</label>'+
+        '<input id="wiz-last" value="'+escHtml(lastVal)+'" oninput="wtWizUpdatePreview2()" '+
+          'placeholder="e.g. 1025" '+
+          'style="width:90px;padding:8px 10px;border:2px solid #1565c0;border-radius:8px;font-size:16px;font-weight:700;text-align:center;color:#0d1b2a">'+
+      '</div>'+
+      '<div>'+
+        '<label style="font-size:11px;color:#546e7a;font-weight:700;display:block;margin-bottom:4px">SUFFIX <span style="font-weight:400;text-transform:none">(optional)</span></label>'+
+        '<input id="wiz-sfx2" oninput="wtWizUpdatePreview2()" '+
+          'placeholder="e.g. A" '+
+          'style="width:65px;padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:14px;text-align:center">'+
+      '</div>'+
+      '<button onclick="wtWizGenRooms2()" class="btn btn-primary" style="flex-shrink:0;height:38px">'+
+        (hasRooms ? '&#x21BB; Regenerate' : '&#x25B6; Generate')+
+      '</button>'+
+    '</div>'+
+    '<div id="wiz-gen-preview2" style="font-size:12px;font-weight:600;min-height:18px">'+
+      wtWizGenPreview2(firstVal, lastVal, '')+
+    '</div>'+
+    (hasRooms
+      ? '<div style="border-top:1px solid #e0e0e0;margin-top:12px;padding-top:12px">'+
+          '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Modify Existing Room Numbers</div>'+
+          '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">'+
+            '<div style="display:flex;align-items:center;gap:6px">'+
+              '<span style="font-size:12px;color:#546e7a;font-weight:600">Add Prefix:</span>'+
+              '<input id="mod-pfx" placeholder="e.g. A" style="width:65px;padding:5px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center">'+
+              '<button onclick="wtWizApplyPrefix()" class="btn btn-outline btn-sm">Apply to All</button>'+
+            '</div>'+
+            '<div style="display:flex;align-items:center;gap:6px">'+
+              '<span style="font-size:12px;color:#546e7a;font-weight:600">Add Suffix:</span>'+
+              '<input id="mod-sfx" placeholder="e.g. A" style="width:65px;padding:5px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center">'+
+              '<button onclick="wtWizApplySuffix()" class="btn btn-outline btn-sm">Apply to All</button>'+
+            '</div>'+
+          '</div>'+
+          '<div style="font-size:11px;color:#e65100;margin-top:8px">'+
+            '&#x26A0; Regenerate replaces all '+fl.rooms.length+' rooms but preserves types for matching numbers.'+
+          '</div>'+
+        '</div>'
+      : '')+
+  '</div>';
+}
+
+function wtWizGenRooms2() {
+  var first=((document.getElementById('wiz-first')||{}).value||'').trim();
+  var last =((document.getElementById('wiz-last') ||{}).value||'').trim();
+  var sfx  = (document.getElementById('wiz-sfx2') ||{}).value||'';
+  if (!first) { showToast('Enter the first room number','warning'); return; }
+  var f=wtWizParseRoom(first);
+  var l=last?wtWizParseRoom(last):f;
+  if (!f) { showToast('Invalid format — enter something like 101 or A101','warning'); return; }
+  if (!l) l=f;
+  var start=f.num, end=l.num;
+  if (end<start) { showToast('Last Room must be >= First Room','warning'); return; }
+  var count=end-start+1;
+  if (count>200) { showToast('Maximum 200 rooms per floor','warning'); return; }
+  var digits=Math.max(f.digits,l.digits);
+  var prefix=f.prefix, suffix=f.suffix+sfx;
   var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
   if (!fl) return;
-  // Build old type map keyed by room number so regenerate preserves assignments
   var oldTypes={};
   (fl.rooms||[]).forEach(function(r){ if(r.unitType) oldTypes[r.number]=r.unitType; });
   var rooms=[];
-  for (var i=0;i<cnt;i++) {
+  for (var i=0;i<count;i++) {
     var num=start+i;
-    var ns=dgt>0?String(num).padStart(dgt,'0'):String(num);
-    var rnum=pfx+ns+sfx;
+    var rnum=prefix+String(num).padStart(digits,'0')+suffix;
     rooms.push({ id:'r_'+Date.now()+'_'+i, number:rnum, unitType:oldTypes[rnum]||null });
   }
   fl.rooms=rooms;
   var el=document.getElementById('wiz-roster-wrap');
   if(el) el.innerHTML=wtWizRosterHtml();
-  // Update button label
-  var btn=document.getElementById('wiz-gen-btn');
-  if(btn) btn.innerHTML='&#x21BB; Regenerate';
+  var bar=document.getElementById('wiz-gen-bar');
+  if(bar) bar.innerHTML=wtWizGenBarHtml(fl);
 }
+
+function wtWizApplyPrefix() {
+  var pfx=(document.getElementById('mod-pfx')||{}).value||'';
+  if (!pfx.trim()) { showToast('Enter a prefix to apply','warning'); return; }
+  var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
+  if(!fl||!fl.rooms.length) return;
+  fl.rooms.forEach(function(r){ r.number=pfx+r.number; });
+  var el=document.getElementById('wiz-roster-wrap'); if(el) el.innerHTML=wtWizRosterHtml();
+  var bar=document.getElementById('wiz-gen-bar'); if(bar) bar.innerHTML=wtWizGenBarHtml(fl);
+  showToast('Prefix "'+pfx+'" added to all '+fl.rooms.length+' rooms','success');
+}
+
+function wtWizApplySuffix() {
+  var sfx=(document.getElementById('mod-sfx')||{}).value||'';
+  if (!sfx.trim()) { showToast('Enter a suffix to apply','warning'); return; }
+  var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
+  if(!fl||!fl.rooms.length) return;
+  fl.rooms.forEach(function(r){ r.number=r.number+sfx; });
+  var el=document.getElementById('wiz-roster-wrap'); if(el) el.innerHTML=wtWizRosterHtml();
+  var bar=document.getElementById('wiz-gen-bar'); if(bar) bar.innerHTML=wtWizGenBarHtml(fl);
+  showToast('Suffix "'+sfx+'" added to all '+fl.rooms.length+' rooms','success');
+}
+
+// Shims for old function names
+function wtWizGenPreview()  { return ''; }
+function wtWizUpdatePreview() {}
+function wtWizGenRooms()    { wtWizGenRooms2(); }
+
 
 function wtWizRosterAddRoom() {
   var b=_wiz.buildings[_wiz.s3bldg], fl=b&&b.floors[_wiz.s3floor];
