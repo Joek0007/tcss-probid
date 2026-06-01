@@ -167,37 +167,67 @@ async function loadCurrentUserProfile() {
 }
 
 function applyRolePermissions(role) {
-  var fieldRoles = ['helper_tech'];
-  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team','purchaseorders','vendors','scanner','auditlog'];
-  var leadTechShow  = ['dash','field','jobs','dispatch','worktracking','workorders','customers','contacts','reports','catalog','tools','inventory','calendar','timesheet'];
+  var fieldRoles    = ['helper_tech'];
+  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings',
+    'qq','quotes','invoices','timesheet','team','purchaseorders','vendors','scanner','auditlog'];
+  var leadTechShow  = ['dash','field','jobs','dispatch','worktracking','workorders',
+    'customers','contacts','reports','catalog','tools','inventory','calendar','timesheet'];
   var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
-  var isCustomRole  = typeof BUILT_IN_ROLES !== 'undefined' && BUILT_IN_ROLES.indexOf(role) < 0;
 
+  // ── Inject a persistent <style> tag with !important so no redraw can override ──
+  var styleId = 'probid-role-permissions';
+  var old = document.getElementById(styleId); if (old) old.remove();
+  var css = '';
+
+  if (role === 'owner' || role === 'manager') {
+    // Show everything — no hiding needed
+  } else if (role === 'lead_tech') {
+    document.querySelectorAll('.nav-item[data-page]').forEach(function(n){
+      var p = n.getAttribute('data-page');
+      if (leadTechShow.indexOf(p) < 0) css += '.nav-item[data-page="'+p+'"]{display:none!important}';
+    });
+  } else if (fieldRoles.indexOf(role) >= 0) {
+    fieldOnlyHide.forEach(function(p){
+      css += '.nav-item[data-page="'+p+'"]{display:none!important}';
+    });
+  } else if (role === 'back_office') {
+    css += '.nav-item[data-page="team"]{display:none!important}';
+  } else {
+    // Unknown role — hide sensitive pages
+    fieldOnlyHide.forEach(function(p){
+      css += '.nav-item[data-page="'+p+'"]{display:none!important}';
+    });
+  }
+
+  if (css) {
+    var style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+
+  // Also set inline styles as backup
   var nav = document.querySelectorAll('.nav-item[data-page]');
   nav.forEach(function(item) {
     var page = item.getAttribute('data-page');
-    if (role === 'owner') {
+    if (role === 'owner' || role === 'manager') {
       item.style.display = '';
     } else if (role === 'lead_tech') {
       item.style.display = leadTechShow.indexOf(page) >= 0 ? '' : 'none';
-    } else if (role === 'estimator') {
-      item.style.display = estimatorShow.indexOf(page) >= 0 ? '' : 'none';
-    } else if (fieldRoles.indexOf(role) >= 0 || role === 'field') {
+    } else if (fieldRoles.indexOf(role) >= 0) {
       item.style.display = fieldOnlyHide.indexOf(page) >= 0 ? 'none' : '';
-    } else if (role === 'office') {
+    } else if (role === 'back_office') {
       item.style.display = page === 'team' ? 'none' : '';
     } else {
-      // All other roles (project_manager, custom roles, manager, back_office)
-      // Show everything except team page — permissions matrix governs actions
-      item.style.display = page === 'team' ? 'none' : '';
+      item.style.display = fieldOnlyHide.indexOf(page) >= 0 ? 'none' : '';
     }
   });
 
   // Hide rate column on Team page from non-owners
-  var rateHeaders = document.querySelectorAll('.team-rate-col');
-  rateHeaders.forEach(function(el) { el.style.display = role === 'owner' ? '' : 'none'; });
+  document.querySelectorAll('.team-rate-col').forEach(function(el){
+    el.style.display = role === 'owner' ? '' : 'none';
+  });
 
-  // Render permissions editor if on settings page
   if (role === 'owner') setTimeout(renderPermissionsEditor, 200);
 }
 
