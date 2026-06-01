@@ -827,9 +827,7 @@ function openWTCheckoffModal(itemId, phase) {
                 '<label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">STATUS</label>'+
                 '<div style="display:flex;gap:8px">'+
                   '<button id="wt-co-btn-complete" onclick="wtCoSelectStatus(\'complete\',\''+ph.color+'\',\''+ph.bg+'\')" style="flex:1;padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:14px;font-weight:700;cursor:pointer">&#x2713; Complete</button>'+
-                    'style="flex:1;padding:10px;border:2px solid #e0e0e0;border-radius:8px;background:#fff;font-size:13px;font-weight:600;cursor:pointer">✓ Complete</button>'+
                   '<button id="wt-co-btn-progress" onclick="wtCoSelectStatus(\'in_progress\',\'#f57c00\',\'#fff8e1\')" style="flex:1;padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:14px;font-weight:700;cursor:pointer">&#x23F3; In Progress</button>'+
-                    'style="flex:1;padding:10px;border:2px solid #e0e0e0;border-radius:8px;background:#fff;font-size:13px;font-weight:600;cursor:pointer">⏳ In Progress</button>'+
                 '</div>'+
                 '<input type="hidden" id="wt-co-status" value="">'+
               '</div>'+
@@ -1409,18 +1407,21 @@ async function wtQuickComplete(itemId, phId) {
   var item = (d.items||[]).find(function(i){ return i.id===itemId; });
   if (!item) return;
   var co = wtGetCheckoff(itemId, phId) || {};
+  var checkers = Array.isArray(co.checked_by) ? co.checked_by.slice() : [];
+  var myEntry = { user_id:wtCurrentUserId(), user_name:wtCurrentUserName(), checked_at:new Date().toISOString() };
+  var myIdx = checkers.findIndex(function(t){ return t.user_id===wtCurrentUserId(); });
+  if (myIdx>=0) checkers[myIdx]=myEntry; else checkers.push(myEntry);
+
   var payload = Object.assign({}, co, {
-    item_id:   itemId,
-    phase:     phId,
-    status:    'complete',
-    note:      co.note || '',
-    photos:    co.photos || [],
-    checked_by: (function(){
-      var existing = Array.isArray(co.checked_by) ? co.checked_by : [];
-      var already = existing.some(function(t){ return t.user_id===wtCurrentUserId(); });
-      if (!already) existing.push({ user_id:wtCurrentUserId(), user_name:wtCurrentUserName(), checked_at:new Date().toISOString() });
-      return existing;
-    })(),
+    item_id:    itemId,
+    project_id: WT.proj ? WT.proj.id : null,
+    phase:      phId,
+    status:     'complete',
+    note:       co.note || '',
+    photos:     co.photos || [],
+    checked_by: checkers,
+    checked_at: new Date().toISOString(),
+    offline_id: 'offl_'+Date.now(),
   });
   try {
     await wtSaveCheckoff(payload);
