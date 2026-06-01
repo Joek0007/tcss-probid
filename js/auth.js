@@ -166,67 +166,52 @@ async function loadCurrentUserProfile() {
   }
 }
 
-function applyRolePermissions(role) {
-  var fieldRoles    = ['helper_tech'];
+// Pages to hide per role — used by applyRolePermissions and MutationObserver
+var _navObserver = null;
+
+function getRoleHideList(role) {
   var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings',
     'qq','quotes','invoices','timesheet','team','purchaseorders','vendors','scanner','auditlog'];
-  var leadTechShow  = ['dash','field','jobs','dispatch','worktracking','workorders',
-    'customers','contacts','reports','catalog','tools','inventory','calendar','timesheet'];
-  var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
+  var leadTechHide  = ['catalog','templates','settings','qq','quotes','invoices',
+    'team','purchaseorders','vendors','scanner','auditlog'];
+  if (role === 'owner' || role === 'manager' || role === 'back_office') return [];
+  if (role === 'lead_tech') return leadTechHide;
+  if (role === 'helper_tech') return fieldOnlyHide;
+  return fieldOnlyHide; // safe default
+}
 
-  // ── Inject a persistent <style> tag with !important so no redraw can override ──
-  var styleId = 'probid-role-permissions';
-  var old = document.getElementById(styleId); if (old) old.remove();
-  var css = '';
+function applyRolePermissions(role) {
+  var hideList = getRoleHideList(role);
 
-  if (role === 'owner' || role === 'manager') {
-    // Show everything — no hiding needed
-  } else if (role === 'lead_tech') {
-    document.querySelectorAll('.nav-item[data-page]').forEach(function(n){
-      var p = n.getAttribute('data-page');
-      if (leadTechShow.indexOf(p) < 0) css += '.nav-item[data-page="'+p+'"]{display:none!important}';
+  // Apply hide to all current nav items
+  function hideNav() {
+    document.querySelectorAll('.nav-item[data-page]').forEach(function(el) {
+      var page = el.getAttribute('data-page');
+      el.style.setProperty('display', hideList.indexOf(page) >= 0 ? 'none' : '', 'important');
     });
-  } else if (fieldRoles.indexOf(role) >= 0) {
-    fieldOnlyHide.forEach(function(p){
-      css += '.nav-item[data-page="'+p+'"]{display:none!important}';
-    });
-  } else if (role === 'back_office') {
-    css += '.nav-item[data-page="team"]{display:none!important}';
-  } else {
-    // Unknown role — hide sensitive pages
-    fieldOnlyHide.forEach(function(p){
-      css += '.nav-item[data-page="'+p+'"]{display:none!important}';
+    // Rate column
+    document.querySelectorAll('.team-rate-col').forEach(function(el) {
+      el.style.setProperty('display', role === 'owner' ? '' : 'none', 'important');
     });
   }
 
-  if (css) {
-    var style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = css;
-    document.head.appendChild(style);
+  hideNav();
+
+  // Stop any previous observer
+  if (_navObserver) { _navObserver.disconnect(); _navObserver = null; }
+
+  // Watch the nav container — if anything re-shows a hidden item, hide it again instantly
+  if (hideList.length > 0) {
+    var navContainer = document.querySelector('.sidebar') ||
+                       document.querySelector('nav')     ||
+                       document.querySelector('.nav-items') ||
+                       document.body;
+    _navObserver = new MutationObserver(function() { hideNav(); });
+    _navObserver.observe(navContainer, {
+      childList: true, subtree: true,
+      attributes: true, attributeFilter: ['style','class']
+    });
   }
-
-  // Also set inline styles as backup
-  var nav = document.querySelectorAll('.nav-item[data-page]');
-  nav.forEach(function(item) {
-    var page = item.getAttribute('data-page');
-    if (role === 'owner' || role === 'manager') {
-      item.style.display = '';
-    } else if (role === 'lead_tech') {
-      item.style.display = leadTechShow.indexOf(page) >= 0 ? '' : 'none';
-    } else if (fieldRoles.indexOf(role) >= 0) {
-      item.style.display = fieldOnlyHide.indexOf(page) >= 0 ? 'none' : '';
-    } else if (role === 'back_office') {
-      item.style.display = page === 'team' ? 'none' : '';
-    } else {
-      item.style.display = fieldOnlyHide.indexOf(page) >= 0 ? 'none' : '';
-    }
-  });
-
-  // Hide rate column on Team page from non-owners
-  document.querySelectorAll('.team-rate-col').forEach(function(el){
-    el.style.display = role === 'owner' ? '' : 'none';
-  });
 
   if (role === 'owner') setTimeout(renderPermissionsEditor, 200);
 }
