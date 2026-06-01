@@ -826,9 +826,9 @@ function openWTCheckoffModal(itemId, phase) {
               '<div style="margin-bottom:12px">'+
                 '<label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">STATUS</label>'+
                 '<div style="display:flex;gap:8px">'+
-                  '<button id="wt-co-btn-complete" onclick="document.getElementById(\'wt-co-status\').value=\'complete\';document.querySelectorAll(\'[id^=wt-co-btn]\').forEach(function(b){b.style.border=\'2px solid #e0e0e0\';b.style.background=\'#fff\'});this.style.border=\'2px solid '+ph.color+'\';this.style.background=\''+ph.bg+'\'" '+
+                  '<button id="wt-co-btn-complete" onclick="wtCoSelectStatus(\'complete\',\''+ph.color+'\',\''+ph.bg+'\')" style="flex:1;padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:14px;font-weight:700;cursor:pointer">&#x2713; Complete</button>'+
                     'style="flex:1;padding:10px;border:2px solid #e0e0e0;border-radius:8px;background:#fff;font-size:13px;font-weight:600;cursor:pointer">✓ Complete</button>'+
-                  '<button id="wt-co-btn-progress" onclick="document.getElementById(\'wt-co-status\').value=\'in_progress\';document.querySelectorAll(\'[id^=wt-co-btn]\').forEach(function(b){b.style.border=\'2px solid #e0e0e0\';b.style.background=\'#fff\'});this.style.border=\'2px solid #f57c00\';this.style.background=\'#fff8e1\'" '+
+                  '<button id="wt-co-btn-progress" onclick="wtCoSelectStatus(\'in_progress\',\'#f57c00\',\'#fff8e1\')" style="flex:1;padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:14px;font-weight:700;cursor:pointer">&#x23F3; In Progress</button>'+
                     'style="flex:1;padding:10px;border:2px solid #e0e0e0;border-radius:8px;background:#fff;font-size:13px;font-weight:600;cursor:pointer">⏳ In Progress</button>'+
                 '</div>'+
                 '<input type="hidden" id="wt-co-status" value="">'+
@@ -850,11 +850,11 @@ function openWTCheckoffModal(itemId, phase) {
                 '</label>'+
               '</div>'+
               '<div style="display:flex;gap:8px">'+
-                '<button class="btn btn-primary" style="flex:1" onclick="wtSubmitCheckoff()">Submit</button>'+
-                (co&&(co.status==='complete'||co.status==='in_progress')&&canVerify
-                  ? '<button class="btn btn-success" style="flex:1" onclick="wtConfirmCheckoff(\''+itemId+'\',\''+phase+'\')">✅ Confirm</button>'
+                '<button class="btn btn-primary" style="flex:1;padding:14px;font-size:14px" onclick="wtSubmitCheckoff()">Submit</button>'+
+                (!wtIsFieldTech()&&co&&(co.status==='complete'||co.status==='in_progress')&&canVerify
+                  ? '<button class="btn btn-success" style="flex:1" onclick="wtConfirmCheckoff(\''+itemId+'\',\''+phase+'\')" >&#x2705; Confirm</button>'
                   : '')+
-                (co&&co.status!=='rejected'&&co.status!=='confirmed'&&(_currentUser&&(_currentUser.role==='admin'||_currentUser.role==='owner'||_currentUser.role==='lead_tech'))
+                (!wtIsFieldTech()&&co&&co.status!=='rejected'&&co.status!=='confirmed'&&(_currentUser&&(_currentUser.role==='admin'||_currentUser.role==='owner'||_currentUser.role==='lead_tech'))
                   ? '<button class="btn btn-outline" onclick="wtRejectCheckoffPrompt(\''+itemId+'\',\''+phase+'\')">Reject</button>'
                   : '')+
               '</div>'+
@@ -1001,154 +1001,437 @@ function closeWTCheckoffModal() {
   var m = document.getElementById('wt-checkoff-modal'); if (m) m.remove();
 }
 
+function wtCoSelectStatus(status, color, bg) {
+  document.getElementById('wt-co-status').value = status;
+  document.querySelectorAll('[id^=wt-co-btn]').forEach(function(b){
+    b.style.border = '2px solid #e0e0e0';
+    b.style.background = '#fff';
+    b.style.color = '';
+  });
+  var btn = document.getElementById('wt-co-btn-'+(status==='complete'?'complete':'progress'));
+  if (btn) { btn.style.border='2px solid '+color; btn.style.background=bg; btn.style.color=color; }
+}
+
 // ─── FIELD VIEW ───────────────────────────────────────────────────────────────
+// ─── FIELD VIEW — IMPROVED ────────────────────────────────────────────────────
+
+function wtIsFieldTech() {
+  var r = _currentUser ? _currentUser.role : '';
+  return r === 'field_tech';
+}
+
 function wtRenderFieldView() {
   var el = document.getElementById('wt-main'); if (!el) return;
   WT.view = 'field';
+  if (!WT.fieldFilter)      WT.fieldFilter      = '';
+  if (!WT.fieldFloorFilter) WT.fieldFloorFilter = '';
+  if (!WT.fieldPhase)       WT.fieldPhase       = '';
+  if (!WT.fieldMyItems)     WT.fieldMyItems     = false;
+
   var d = wtProjData();
   var buildings = d.buildings || [];
-  var allItems  = d.items || [];
 
-  // Items not yet fully confirmed
-  var pending = allItems.filter(function(i){ return wtItemPct(i) < 100; });
-  var myItems  = pending.filter(function(i){
-    return (d.checkoffs||[]).some(function(c){
-      return c.item_id===i.id && Array.isArray(c.checked_by) &&
-        c.checked_by.some(function(t){ return t.user_id===wtCurrentUserId(); });
+  // Smart default: find the phase most items are currently working on
+  if (!WT.fieldPhase) {
+    var phaseCounts = {};
+    (d.items||[]).forEach(function(item){
+      var phases = item.phases_required || WT_PHASES.map(function(p){return p.id;});
+      for (var pi=0; pi<phases.length; pi++) {
+        var co = wtGetCheckoff(item.id, phases[pi]);
+        var st = co ? co.status : 'pending';
+        if (st !== 'confirmed') { phaseCounts[phases[pi]] = (phaseCounts[phases[pi]]||0)+1; break; }
+      }
     });
-  });
-  var unassigned = pending.filter(function(i){ return !myItems.some(function(x){ return x.id===i.id; }); });
+    var topPhase = '';
+    var topCount = 0;
+    Object.keys(phaseCounts).forEach(function(ph){ if (phaseCounts[ph]>topCount){ topCount=phaseCounts[ph]; topPhase=ph; } });
+    WT.fieldPhase = topPhase || '';
+  }
 
-  el.innerHTML = wtNavBar()+
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">'+
+  var isOffline = !WT.online;
+
+  el.innerHTML =
+    // ── Offline banner ──────────────────────────────────────────────
+    (isOffline
+      ? '<div id="wt-offline-banner" style="background:#c62828;color:#fff;padding:14px 16px;border-radius:10px;margin-bottom:14px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:10px">'+
+          '<span style="font-size:20px">🔴</span>'+
+          '<div><div>OFFLINE — working without signal</div>'+
+          '<div style="font-size:12px;font-weight:400;opacity:.85;margin-top:2px">Check-offs are saved locally and will sync automatically when you reconnect.</div></div>'+
+        '</div>'
+      : '') +
+
+    // ── Header ──────────────────────────────────────────────────────
+    wtNavBar()+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">'+
       '<div>'+
         '<h3 style="margin:0;font-size:18px;font-weight:800;color:#0d1b2a">📱 Field View</h3>'+
-        '<div style="font-size:12px;color:#546e7a">'+escHtml(wtCurrentUserName())+' · '+
-          '<span id="wt-online-badge" style="font-weight:600"></span>'+
+        '<div style="font-size:12px;color:#546e7a;margin-top:2px">'+escHtml(wtCurrentUserName())+
+          (isOffline ? '' : ' · <span style="color:#2e7d32;font-weight:600">● Online</span>')+
         '</div>'+
       '</div>'+
       '<button class="btn btn-outline btn-sm" onclick="wtAddFlag(null,null)">🚩 Report Issue</button>'+
     '</div>'+
-    // Navigate by building — use wtSetFieldFilter() for proper highlight
-    '<div id="wt-field-filters" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:16px">'+
-      wtFieldFilterButtons(buildings, '')+
+
+    // ── Building filter ──────────────────────────────────────────────
+    (buildings.length > 1
+      ? '<div id="wt-field-filters" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px">'+
+          wtFieldFilterButtons(buildings, WT.fieldFilter)+
+        '</div>'
+      : '<input type="hidden" id="wt-field-area" value="">') +
+
+    // ── Floor filter (shows when building selected) ──────────────────
+    '<div id="wt-floor-filters" style="margin-bottom:12px">'+
+      wtFloorFilterButtons(d, WT.fieldFilter, WT.fieldFloorFilter)+
     '</div>'+
-    // Search + phase filter
-    '<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">'+
-      '<input id="wt-field-search" placeholder="🔍 Search items..." oninput="wtRenderFieldItems()" '+
-        'style="flex:1;min-width:160px;padding:10px 12px;border:2px solid #e0e0e0;border-radius:10px;font-size:14px">'+
-      '<select id="wt-field-phase" onchange="wtRenderFieldItems()" '+
-        'style="padding:10px;border:2px solid #e0e0e0;border-radius:10px;font-size:13px">'+
-        '<option value="">All Phases</option>'+
-        WT_PHASES.map(function(ph){ return '<option value="'+ph.id+'">'+ph.short+' — '+ph.label+'</option>'; }).join('')+
-      '</select>'+
+
+    // ── Phase filter pills ───────────────────────────────────────────
+    '<div style="margin-bottom:14px">'+
+      '<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">PHASE</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+        wtPhaseFilterButtons(WT.fieldPhase)+
+      '</div>'+
     '</div>'+
-    '<input type="hidden" id="wt-field-area" value="">'+
+
+    // ── My Items + Search ────────────────────────────────────────────
+    '<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">'+
+      '<button onclick="wtToggleMyItems()" id="wt-myitems-btn" '+
+        'style="padding:8px 14px;font-size:12px;font-weight:700;border:2px solid '+(WT.fieldMyItems?'#7b1fa2':'#e0e0e0')+';border-radius:20px;background:'+(WT.fieldMyItems?'#f3e5f5':'#fff')+';color:'+(WT.fieldMyItems?'#7b1fa2':'#546e7a')+';cursor:pointer;white-space:nowrap">'+
+        '👤 My Items</button>'+
+      '<input id="wt-field-search" placeholder="🔍 Search..." oninput="wtRenderFieldItems()" '+
+        'style="flex:1;min-width:120px;padding:8px 12px;border:2px solid #e0e0e0;border-radius:20px;font-size:14px">'+
+    '</div>'+
+
+    // ── Hidden inputs for state ──────────────────────────────────────
+    '<input type="hidden" id="wt-field-area" value="'+(WT.fieldFilter||'')+'">'+
+    '<input type="hidden" id="wt-field-phase" value="'+(WT.fieldPhase||'')+'">'+
+
+    // ── Item list ────────────────────────────────────────────────────
     '<div id="wt-field-items"></div>';
 
   wtRenderFieldItems();
   wtUpdateOnlineBadge();
 }
 
-
-// Field view filter helpers
+// ─── FILTER BUTTON HELPERS ────────────────────────────────────────────────────
 function wtFieldFilterButtons(buildings, activeId) {
-  var btns = '<button onclick="wtSetFieldFilter(\'\')" data-ff="" '+
-    'style="flex-shrink:0;padding:8px 14px;border:2px solid '+(activeId===''?'#1565c0':'#e0e0e0')+';border-radius:20px;'+
-    'background:'+(activeId===''?'#1565c0':'#fff')+';color:'+(activeId===''?'#fff':'#546e7a')+';'+
-    'font-size:12px;font-weight:700;cursor:pointer">All</button>';
+  var html = '<button onclick="wtSetFieldFilter(\'\')" '+
+    'style="flex-shrink:0;padding:10px 16px;font-size:13px;font-weight:700;'+
+    'border:2px solid '+(activeId===''?'#1565c0':'#e0e0e0')+';border-radius:22px;'+
+    'background:'+(activeId===''?'#1565c0':'#fff')+';color:'+(activeId===''?'#fff':'#546e7a')+';cursor:pointer">All</button>';
   (buildings||[]).forEach(function(b){
-    var active = activeId===b.id;
-    btns += '<button onclick="wtSetFieldFilter(\''+b.id+'\')" data-ff="'+b.id+'" '+
-      'style="flex-shrink:0;padding:8px 14px;border:2px solid '+(active?'#1565c0':'#e0e0e0')+';border-radius:20px;'+
-      'background:'+(active?'#1565c0':'#fff')+';color:'+(active?'#fff':'#546e7a')+';'+
-      'font-size:12px;font-weight:700;cursor:pointer">'+escHtml(b.name)+'</button>';
+    var active = activeId === b.id;
+    html += '<button onclick="wtSetFieldFilter(\''+b.id+'\')" '+
+      'style="flex-shrink:0;padding:10px 16px;font-size:13px;font-weight:700;'+
+      'border:2px solid '+(active?'#1565c0':'#e0e0e0')+';border-radius:22px;'+
+      'background:'+(active?'#1565c0':'#fff')+';color:'+(active?'#fff':'#546e7a')+';cursor:pointer">'+
+      escHtml(b.name)+'</button>';
   });
-  return btns;
+  return html;
+}
+
+function wtFloorFilterButtons(d, bldgId, activeFloorId) {
+  if (!bldgId) return '';
+  var floors = (d.floors||[]).filter(function(f){ return f.building_id === bldgId; });
+  if (!floors.length) return '';
+  var html = '<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px">'+
+    '<button onclick="wtSetFloorFilter(\'\')" '+
+      'style="flex-shrink:0;padding:7px 14px;font-size:12px;font-weight:700;'+
+      'border:2px solid '+(activeFloorId===''?'#1565c0':'#e0e0e0')+';border-radius:20px;'+
+      'background:'+(activeFloorId===''?'#1565c0':'#fff')+';color:'+(activeFloorId===''?'#fff':'#546e7a')+';cursor:pointer">All Floors</button>';
+  floors.forEach(function(f){
+    var active = activeFloorId === f.id;
+    // Count pending items on this floor
+    var floorRooms = (d.rooms||[]).filter(function(r){ return r.floor_id===f.id; }).map(function(r){ return r.id; });
+    var pending = (d.items||[]).filter(function(i){ return floorRooms.indexOf(i.room_id)>=0 && wtItemPct(i)<100; }).length;
+    html += '<button onclick="wtSetFloorFilter(\''+f.id+'\')" '+
+      'style="flex-shrink:0;padding:7px 14px;font-size:12px;font-weight:700;'+
+      'border:2px solid '+(active?'#1565c0':'#e0e0e0')+';border-radius:20px;'+
+      'background:'+(active?'#1565c0':'#fff')+';color:'+(active?'#fff':'#546e7a')+';cursor:pointer">'+
+      escHtml(f.name)+(pending?' <span style="font-size:10px;opacity:.8">('+pending+')</span>':'')+
+    '</button>';
+  });
+  return html + '</div>';
+}
+
+function wtPhaseFilterButtons(activePhase) {
+  var all = '<button onclick="wtSetPhaseFilter(\'\')" '+
+    'style="padding:8px 14px;font-size:12px;font-weight:700;'+
+    'border:2px solid '+(activePhase===''?'#546e7a':'#e0e0e0')+';border-radius:20px;'+
+    'background:'+(activePhase===''?'#546e7a':'#fff')+';color:'+(activePhase===''?'#fff':'#546e7a')+';cursor:pointer">All</button>';
+  var phases = WT_PHASES.map(function(ph){
+    var active = activePhase === ph.id;
+    return '<button onclick="wtSetPhaseFilter(\''+ph.id+'\')" '+
+      'style="padding:8px 14px;font-size:12px;font-weight:700;'+
+      'border:2px solid '+(active?ph.color:'#e0e0e0')+';border-radius:20px;'+
+      'background:'+(active?ph.color:'#fff')+';color:'+(active?'#fff':ph.color)+';cursor:pointer">'+
+      escHtml(ph.short)+'</button>';
+  }).join('');
+  return all + phases;
 }
 
 function wtSetFieldFilter(bldgId) {
-  // Update hidden input
-  var inp = document.getElementById('wt-field-area');
-  if (inp) inp.value = bldgId;
-  // Re-render just the filter buttons with new active state
-  var d = wtProjData();
-  var filterBar = document.getElementById('wt-field-filters');
-  if (filterBar) filterBar.innerHTML = wtFieldFilterButtons(d.buildings||[], bldgId);
-  // Re-render items
+  WT.fieldFilter = bldgId;
+  WT.fieldFloorFilter = '';
+  var inp = document.getElementById('wt-field-area'); if (inp) inp.value = bldgId;
+  var fb = document.getElementById('wt-field-filters');
+  if (fb) { var d=wtProjData(); fb.innerHTML=wtFieldFilterButtons(d.buildings||[], bldgId); }
+  var ff = document.getElementById('wt-floor-filters');
+  if (ff) { ff.innerHTML=wtFloorFilterButtons(wtProjData(), bldgId, ''); }
   wtRenderFieldItems();
 }
 
+function wtSetFloorFilter(floorId) {
+  WT.fieldFloorFilter = floorId;
+  var ff = document.getElementById('wt-floor-filters');
+  if (ff) { ff.innerHTML=wtFloorFilterButtons(wtProjData(), WT.fieldFilter, floorId); }
+  wtRenderFieldItems();
+}
+
+function wtSetPhaseFilter(phase) {
+  WT.fieldPhase = phase;
+  var inp = document.getElementById('wt-field-phase'); if (inp) inp.value = phase;
+  var pf = document.querySelector('#wt-main [style*="PHASE"]');
+  // Re-render just the phase pills
+  var allPills = document.querySelector('#wt-main [style*="PHASE"]');
+  if (allPills && allPills.nextElementSibling) {
+    allPills.nextElementSibling.innerHTML = wtPhaseFilterButtons(phase);
+  }
+  wtRenderFieldItems();
+}
+
+function wtToggleMyItems() {
+  WT.fieldMyItems = !WT.fieldMyItems;
+  var btn = document.getElementById('wt-myitems-btn');
+  if (btn) {
+    btn.style.border = '2px solid '+(WT.fieldMyItems?'#7b1fa2':'#e0e0e0');
+    btn.style.background = WT.fieldMyItems?'#f3e5f5':'#fff';
+    btn.style.color = WT.fieldMyItems?'#7b1fa2':'#546e7a';
+  }
+  wtRenderFieldItems();
+}
+
+// ─── FIELD ITEMS RENDER — IMPROVED ────────────────────────────────────────────
 function wtRenderFieldItems() {
   var el = document.getElementById('wt-field-items'); if (!el) return;
   var d = wtProjData();
-  var search = ((document.getElementById('wt-field-search')||{}).value||'').toLowerCase();
-  var phFilter = (document.getElementById('wt-field-phase')||{}).value||'';
-  var areaFilter = (document.getElementById('wt-field-area')||{}).value||'';
+  var search     = ((document.getElementById('wt-field-search')||{}).value||'').toLowerCase();
+  var phFilter   = WT.fieldPhase || '';
+  var bldgFilter = WT.fieldFilter || '';
+  var floorFilter= WT.fieldFloorFilter || '';
+  var myOnly     = WT.fieldMyItems || false;
+  var myUid      = wtCurrentUserId();
 
+  // Filter items
   var items = (d.items||[]).filter(function(i){
-    if (areaFilter && i.building_id !== areaFilter) return false;
+    if (bldgFilter && i.building_id !== bldgFilter) return false;
+    if (floorFilter) {
+      var room = (d.rooms||[]).find(function(r){ return r.id===i.room_id; });
+      if (!room || room.floor_id !== floorFilter) return false;
+    }
     if (search && i.name.toLowerCase().indexOf(search) < 0) return false;
+    if (myOnly) {
+      var touched = (d.checkoffs||[]).some(function(c){
+        return c.item_id===i.id && Array.isArray(c.checked_by) &&
+          c.checked_by.some(function(t){ return t.user_id===myUid; });
+      });
+      if (!touched) return false;
+    }
     return true;
   });
 
-  // Group by room
-  var roomMap = {};
+  if (!items.length) {
+    el.innerHTML = '<div style="text-align:center;padding:48px 20px;color:#90a4ae">'+
+      '<div style="font-size:32px;margin-bottom:12px">'+(myOnly?'👤':'🔍')+'</div>'+
+      '<div style="font-size:15px;font-weight:600">'+(myOnly?'No items checked off yet':'No items match your filter')+'</div>'+
+      (myOnly?'<div style="font-size:13px;margin-top:6px">Items you check off will appear here</div>':'')+
+    '</div>';
+    return;
+  }
+
+  // Group by building → floor → room
+  var bldgMap = {};
   items.forEach(function(i){
-    var rId = i.room_id || '_none';
-    if (!roomMap[rId]) roomMap[rId] = [];
-    roomMap[rId].push(i);
+    var bId = i.building_id||'_none';
+    var room = (d.rooms||[]).find(function(r){ return r.id===i.room_id; });
+    var fId  = room ? room.floor_id : '_none';
+    if (!bldgMap[bId]) bldgMap[bId] = {};
+    if (!bldgMap[bId][fId]) bldgMap[bId][fId] = {};
+    var rId  = i.room_id||'_none';
+    if (!bldgMap[bId][fId][rId]) bldgMap[bId][fId][rId] = [];
+    bldgMap[bId][fId][rId].push(i);
   });
 
   var html = '';
-  Object.keys(roomMap).forEach(function(rId){
-    var room = (d.rooms||[]).find(function(r){ return r.id===rId; });
-    var floor = room ? (d.floors||[]).find(function(f){ return f.id===room.floor_id; }) : null;
-    var bldg  = room ? (d.buildings||[]).find(function(b){ return b.id===room.building_id; }) : null;
-    var rItems = roomMap[rId];
 
-    html += '<div class="card" style="margin-bottom:12px">'+
-      '<div style="font-size:14px;font-weight:800;color:#0d1b2a;margin-bottom:4px">'+
-        escHtml(room ? room.name : 'No Room')+
-      '</div>'+
-      '<div style="font-size:11px;color:#90a4ae;margin-bottom:10px">'+
-        (bldg?escHtml(bldg.name)+' · ':'')+
-        (floor?escHtml(floor.name):'')+'</div>'+
-      rItems.map(function(item){
-        var phases = item.phases_required || ['rough_in','rough_in_verify','devicing','testing','final_verify'];
-        var phasesToShow = phFilter ? phases.filter(function(p){ return p===phFilter; }) : phases;
-        return '<div style="border-top:1px solid #f0f0f0;padding:10px 0">'+
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
-            '<div>'+
-              '<span style="font-size:16px">'+(WT_ITEM_TYPES[item.item_type]||{icon:'⚙'}).icon+'</span>'+
-              ' <span style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(item.name)+'</span>'+
+  Object.keys(bldgMap).forEach(function(bId){
+    var bldg = (d.buildings||[]).find(function(b){ return b.id===bId; });
+
+    Object.keys(bldgMap[bId]).forEach(function(fId){
+      var floor = (d.floors||[]).find(function(f){ return f.id===fId; });
+
+      // ── Floor section header with progress bar ─────────────────
+      var floorRoomIds = Object.keys(bldgMap[bId][fId]);
+      var allFloorItems = [];
+      floorRoomIds.forEach(function(rId){ allFloorItems = allFloorItems.concat(bldgMap[bId][fId][rId]); });
+      var doneCount = allFloorItems.filter(function(i){ return wtItemPct(i)===100; }).length;
+      var pct = allFloorItems.length ? Math.round(doneCount/allFloorItems.length*100) : 0;
+      var headerColor = pct===100?'#2e7d32':pct>50?'#1565c0':'#546e7a';
+
+      html += '<div style="margin-bottom:20px">'+
+        // Section header
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#f5f7fa;border-radius:10px 10px 0 0;border:1px solid #e0e0e0;border-bottom:none">'+
+          '<div style="font-size:13px;font-weight:800;color:'+headerColor+'">'+
+            (bldg&&!bldgFilter?escHtml(bldg.name)+' &rsaquo; ':'')+
+            escHtml(floor?floor.name:'No Floor')+
+          '</div>'+
+          '<div style="display:flex;align-items:center;gap:10px">'+
+            '<div style="background:#e0e0e0;border-radius:4px;height:8px;width:80px">'+
+              '<div style="background:'+headerColor+';height:8px;border-radius:4px;width:'+pct+'%;transition:width .3s"></div>'+
             '</div>'+
-            '<span style="font-size:13px;font-weight:800;color:'+(wtItemPct(item)===100?'#2e7d32':'#1565c0')+'">'+wtItemPct(item)+'%</span>'+
+            '<span style="font-size:12px;font-weight:700;color:'+headerColor+'">'+doneCount+'/'+allFloorItems.length+'</span>'+
           '</div>'+
-          // Phase buttons — big tap targets for field use
-          '<div style="display:grid;grid-template-columns:repeat('+phasesToShow.length+',1fr);gap:6px">'+
-            phasesToShow.map(function(phId){
-              var ph = WT_PHASES.find(function(x){ return x.id===phId; }) || {};
-              var co = wtGetCheckoff(item.id, phId);
-              var st = co ? co.status : 'pending';
-              var isLocked = st==='confirmed';
-              var bg = st==='confirmed'?ph.color:st==='complete'?ph.bg:'#f5f5f5';
-              var clr = st==='confirmed'?'#fff':st==='complete'?ph.color:'#90a4ae';
-              var border = st==='confirmed'||st==='complete' ? ph.color : '#e0e0e0';
-              return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
-                'style="padding:12px 6px;border:2px solid '+border+';border-radius:10px;background:'+bg+';color:'+clr+';font-size:11px;font-weight:700;cursor:pointer;min-height:52px;text-align:center;line-height:1.3">'+
-                (st==='confirmed'?'✅':'')+(st==='complete'?'⏳':'')+(st==='rejected'?'❌':'')+
-                '<div>'+escHtml(ph.short||phId)+'</div>'+
-              '</button>';
-            }).join('')+
+        '</div>'+
+        // Rooms
+        '<div style="border:1px solid #e0e0e0;border-radius:0 0 10px 10px;overflow:hidden">';
+
+      var roomKeys = Object.keys(bldgMap[bId][fId]);
+      roomKeys.forEach(function(rId, rIdx){
+        var room = (d.rooms||[]).find(function(r){ return r.id===rId; });
+        var rItems = bldgMap[bId][fId][rId];
+        var rDone = rItems.filter(function(i){ return wtItemPct(i)===100; }).length;
+        var rAllDone = rDone === rItems.length;
+
+        html += '<div style="'+(rIdx>0?'border-top:1px solid #f0f0f0;':'')+'padding:12px 14px">'+
+          // Room name
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
+            '<div style="font-size:14px;font-weight:700;color:#0d1b2a">'+
+              escHtml(room?room.name:'No Room')+
+              (room&&room.unit_type?'<span style="font-size:11px;font-weight:600;margin-left:6px;padding:2px 7px;border-radius:10px;background:'+
+                (wtUnitDef(room.unit_type).bg||'#f5f5f5')+';color:'+(wtUnitDef(room.unit_type).color||'#546e7a')+'">'+
+                escHtml(room.unit_type)+'</span>':'') +
+            '</div>'+
+            (rAllDone?'<span style="font-size:12px;font-weight:700;color:#2e7d32">✅ Done</span>':
+              '<span style="font-size:11px;color:#90a4ae">'+rDone+'/'+rItems.length+' done</span>')+
           '</div>'+
+          // Items
+          rItems.map(function(item){
+            var phases = item.phases_required || WT_PHASES.map(function(p){ return p.id; });
+            var phasesToShow = phFilter ? phases.filter(function(p){ return p===phFilter; }) : phases;
+            var overallPct = wtItemPct(item);
+
+            // Short item name — strip room/area suffix after " — "
+            var shortName = item.name.split(' — ')[0];
+
+            return '<div style="padding:10px 0;border-top:1px solid #f8f8f8">'+
+              // Item header
+              '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+                '<div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">'+
+                  '<span style="font-size:16px;flex-shrink:0">'+(WT_ITEM_TYPES[item.item_type]||{icon:'⚙'}).icon+'</span>'+
+                  '<span style="font-size:13px;font-weight:700;color:#0d1b2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(item.name)+'">'+escHtml(shortName)+'</span>'+
+                '</div>'+
+                '<span style="font-size:13px;font-weight:800;flex-shrink:0;margin-left:8px;color:'+(overallPct===100?'#2e7d32':'#1565c0')+'">'+overallPct+'%</span>'+
+              '</div>'+
+              // Phase buttons — if one phase filtered, show ONE big button
+              (phasesToShow.length === 1
+                ? wtBigPhaseButton(item, phasesToShow[0])
+                : '<div style="display:grid;grid-template-columns:repeat('+phasesToShow.length+',1fr);gap:6px">'+
+                    phasesToShow.map(function(phId){ return wtSmallPhaseButton(item, phId); }).join('')+
+                  '</div>')+
+            '</div>';
+          }).join('')+
         '</div>';
-      }).join('')+
-    '</div>';
+      });
+
+      html += '</div></div>';
+    });
   });
 
-  el.innerHTML = html || '<div style="text-align:center;padding:40px;color:#90a4ae">No items match your filter.</div>';
+  el.innerHTML = html;
 }
+
+function wtSmallPhaseButton(item, phId) {
+  var ph = WT_PHASES.find(function(x){ return x.id===phId; }) || {};
+  var co = wtGetCheckoff(item.id, phId);
+  var st = co ? co.status : 'pending';
+  var bg     = st==='confirmed'?ph.color : st==='complete'?ph.bg : '#f5f5f5';
+  var clr    = st==='confirmed'?'#fff'   : st==='complete'?ph.color : '#90a4ae';
+  var border = (st==='confirmed'||st==='complete') ? ph.color : '#e0e0e0';
+  var icon   = st==='confirmed'?'✅' : st==='complete'?'⏳' : st==='rejected'?'❌' : '';
+  return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
+    'style="padding:10px 4px;border:2px solid '+border+';border-radius:10px;background:'+bg+';color:'+clr+';'+
+    'font-size:11px;font-weight:700;cursor:pointer;min-height:52px;text-align:center;line-height:1.3">'+
+    icon+'<div>'+escHtml(ph.short||phId)+'</div>'+
+  '</button>';
+}
+
+function wtBigPhaseButton(item, phId) {
+  var ph = WT_PHASES.find(function(x){ return x.id===phId; }) || {};
+  var co = wtGetCheckoff(item.id, phId);
+  var st = co ? co.status : 'pending';
+  // For verify phases always open modal — can't be quick-completed
+  if (ph.isVerify) {
+    var bg  = st==='confirmed'?ph.color : st==='complete'?ph.bg : '#f5f5f5';
+    var clr = st==='confirmed'?'#fff'   : st==='complete'?ph.color : '#90a4ae';
+    var icon = st==='confirmed'?'✅ Confirmed':st==='complete'?'⏳ Awaiting Confirm':st==='rejected'?'❌ Rejected':'Tap to Verify';
+    return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
+      'style="width:100%;padding:16px;border:2px solid '+(st==='pending'?'#e0e0e0':ph.color)+';border-radius:12px;background:'+bg+';color:'+clr+';font-size:14px;font-weight:700;cursor:pointer">'+
+      icon+'</button>';
+  }
+  // Non-verify: show big Mark Complete button if pending, or status badge if done
+  if (st === 'confirmed') {
+    return '<div style="padding:14px;background:'+ph.color+';border-radius:12px;color:#fff;font-size:14px;font-weight:700;text-align:center">'+
+      '✅ Confirmed</div>';
+  }
+  if (st === 'complete') {
+    return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
+      'style="width:100%;padding:14px;border:2px solid '+ph.color+';border-radius:12px;background:'+ph.bg+';color:'+ph.color+';font-size:14px;font-weight:700;cursor:pointer">'+
+      '⏳ Awaiting Confirmation — tap to update</button>';
+  }
+  if (st === 'rejected') {
+    return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
+      'style="width:100%;padding:14px;border:2px solid #c62828;border-radius:12px;background:#ffebee;color:#c62828;font-size:14px;font-weight:700;cursor:pointer">'+
+      '❌ Rejected — tap to redo</button>';
+  }
+  if (st === 'in_progress') {
+    return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
+      'style="width:100%;padding:14px;border:2px solid #f57c00;border-radius:12px;background:#fff8e1;color:#f57c00;font-size:14px;font-weight:700;cursor:pointer">'+
+      '⏳ In Progress — tap to complete</button>';
+  }
+  // Pending — big green Mark Complete button + quick-tap
+  return '<button onclick="wtQuickComplete(\''+item.id+'\',\''+phId+'\')" '+
+    'style="width:100%;padding:18px;border:none;border-radius:12px;background:'+ph.color+';color:#fff;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:.3px">'+
+    '✓ Mark '+escHtml(ph.short)+' Complete</button>';
+}
+
+async function wtQuickComplete(itemId, phId) {
+  // One-tap complete for non-verify phases — no modal needed
+  var d = wtProjData();
+  var item = (d.items||[]).find(function(i){ return i.id===itemId; });
+  if (!item) return;
+  var co = wtGetCheckoff(itemId, phId) || {};
+  var payload = Object.assign({}, co, {
+    item_id:   itemId,
+    phase:     phId,
+    status:    'complete',
+    note:      co.note || '',
+    photos:    co.photos || [],
+    checked_by: (function(){
+      var existing = Array.isArray(co.checked_by) ? co.checked_by : [];
+      var already = existing.some(function(t){ return t.user_id===wtCurrentUserId(); });
+      if (!already) existing.push({ user_id:wtCurrentUserId(), user_name:wtCurrentUserName(), checked_at:new Date().toISOString() });
+      return existing;
+    })(),
+  });
+  try {
+    await wtSaveCheckoff(payload);
+    wtRenderFieldItems();
+    showToast('✓ '+escHtml(WT_PHASES.find(function(p){return p.id===phId;})||{short:phId}).short+' marked complete', 'success');
+  } catch(e) {
+    showToast('Error: '+e.message, 'error');
+  }
+}
+
+
 
 // ─── CONFIRM VIEW ─────────────────────────────────────────────────────────────
 function wtRenderConfirmView() {
