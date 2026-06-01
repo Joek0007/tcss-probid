@@ -828,7 +828,7 @@ function openWTCheckoffModal(itemId, phase) {
                   '<button id="wt-co-btn-complete" onclick="wtCoSelectStatus(\'complete\',\''+ph.color+'\',\''+ph.bg+'\')" style="flex:1;padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:14px;font-weight:700;cursor:pointer">&#x2713; Complete</button>'+
                   '<button id="wt-co-btn-progress" onclick="wtCoSelectStatus(\'in_progress\',\'#f57c00\',\'#fff8e1\')" style="flex:1;padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:14px;font-weight:700;cursor:pointer">&#x23F3; In Progress</button>'+
                 '</div>'+
-                '<input type="hidden" id="wt-co-status" value="">'+
+                '<input type="hidden" id="wt-co-status" value="'+(co?co.status||'':'')+'">'+
               '</div>'+
               '<div style="margin-bottom:12px">'+
                 '<label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">NOTE (optional)</label>'+
@@ -864,6 +864,18 @@ function openWTCheckoffModal(itemId, phase) {
   var existing = document.getElementById('wt-checkoff-modal');
   if (existing) existing.remove();
   document.body.insertAdjacentHTML('beforeend', html);
+
+  // Pre-highlight the current status button if one exists
+  if (co && co.status && (co.status === 'complete' || co.status === 'in_progress')) {
+    setTimeout(function(){
+      var statusVal = co.status;
+      var color = statusVal === 'complete' ? '#1565c0' : '#f57c00';
+      var bg    = statusVal === 'complete' ? '#e3f2fd' : '#fff8e1';
+      var btnId = statusVal === 'complete' ? 'wt-co-btn-complete' : 'wt-co-btn-progress';
+      var btn = document.getElementById(btnId);
+      if (btn) { btn.style.border='2px solid '+color; btn.style.background=bg; btn.style.color=color; }
+    }, 50);
+  }
 }
 
 function item_photo_required(itemId, phase) {
@@ -1347,18 +1359,32 @@ function wtRenderFieldItems() {
   el.innerHTML = html;
 }
 
+// ── Phase status color constants — consistent everywhere ──────────────────────
+var WT_ST = {
+  pending:   { bg:'#f5f5f5',   border:'#e0e0e0', color:'#90a4ae' },
+  in_progress:{ bg:'#fff8e1',  border:'#f9a825', color:'#f57c00' },
+  complete:  { bg:'#e3f2fd',   border:'#1565c0', color:'#1565c0' },
+  confirmed: { bg:'#e8f5e9',   border:'#2e7d32', color:'#2e7d32' },
+  rejected:  { bg:'#ffebee',   border:'#c62828', color:'#c62828' },
+};
+
+function wtStIcon(st) {
+  return st==='confirmed'?'✅' : st==='complete'?'☑' : st==='rejected'?'❌' : st==='in_progress'?'⏳' : '';
+}
+
 function wtSmallPhaseButton(item, phId) {
   var ph = WT_PHASES.find(function(x){ return x.id===phId; }) || {};
   var co = wtGetCheckoff(item.id, phId);
   var st = co ? co.status : 'pending';
-  var bg     = st==='confirmed'?ph.color : st==='complete'?ph.bg : '#f5f5f5';
-  var clr    = st==='confirmed'?'#fff'   : st==='complete'?ph.color : '#90a4ae';
-  var border = (st==='confirmed'||st==='complete') ? ph.color : '#e0e0e0';
-  var icon   = st==='confirmed'?'✅' : st==='complete'?'⏳' : st==='rejected'?'❌' : '';
-  return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
-    'style="padding:10px 4px;border:2px solid '+border+';border-radius:10px;background:'+bg+';color:'+clr+';'+
-    'font-size:11px;font-weight:700;cursor:pointer;min-height:52px;text-align:center;line-height:1.3">'+
-    icon+'<div>'+escHtml(ph.short||phId)+'</div>'+
+  var s  = WT_ST[st] || WT_ST.pending;
+  var locked = st === 'confirmed';
+  var onclick = locked ? '' : 'openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')';
+  return '<button '+(onclick?'onclick="'+onclick+'"':'')+' '+
+    'style="padding:10px 4px;border:2px solid '+s.border+';border-radius:10px;'+
+    'background:'+s.bg+';color:'+s.color+';'+
+    'font-size:11px;font-weight:700;cursor:'+(locked?'default':'pointer')+';'+
+    'min-height:52px;text-align:center;line-height:1.3">'+
+    wtStIcon(st)+'<div>'+escHtml(ph.short||phId)+'</div>'+
   '</button>';
 }
 
@@ -1366,38 +1392,55 @@ function wtBigPhaseButton(item, phId) {
   var ph = WT_PHASES.find(function(x){ return x.id===phId; }) || {};
   var co = wtGetCheckoff(item.id, phId);
   var st = co ? co.status : 'pending';
-  // For verify phases always open modal — can't be quick-completed
-  if (ph.isVerify) {
-    var bg  = st==='confirmed'?ph.color : st==='complete'?ph.bg : '#f5f5f5';
-    var clr = st==='confirmed'?'#fff'   : st==='complete'?ph.color : '#90a4ae';
-    var icon = st==='confirmed'?'✅ Confirmed':st==='complete'?'⏳ Awaiting Confirm':st==='rejected'?'❌ Rejected':'Tap to Verify';
-    return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
-      'style="width:100%;padding:16px;border:2px solid '+(st==='pending'?'#e0e0e0':ph.color)+';border-radius:12px;background:'+bg+';color:'+clr+';font-size:14px;font-weight:700;cursor:pointer">'+
-      icon+'</button>';
-  }
-  // Non-verify: show big Mark Complete button if pending, or status badge if done
+  var s  = WT_ST[st] || WT_ST.pending;
+
+  // ── Confirmed — locked, solid green, no tap ───────────────────────────────
   if (st === 'confirmed') {
-    return '<div style="padding:14px;background:'+ph.color+';border-radius:12px;color:#fff;font-size:14px;font-weight:700;text-align:center">'+
+    return '<div style="padding:14px;background:#2e7d32;border-radius:12px;'+
+      'color:#fff;font-size:14px;font-weight:700;text-align:center;'+
+      'display:flex;align-items:center;justify-content:center;gap:8px">'+
       '✅ Confirmed</div>';
   }
-  if (st === 'complete') {
-    return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
-      'style="width:100%;padding:14px;border:2px solid '+ph.color+';border-radius:12px;background:'+ph.bg+';color:'+ph.color+';font-size:14px;font-weight:700;cursor:pointer">'+
-      '⏳ Awaiting Confirmation — tap to update</button>';
-  }
+
+  // ── Rejected ──────────────────────────────────────────────────────────────
   if (st === 'rejected') {
     return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
-      'style="width:100%;padding:14px;border:2px solid #c62828;border-radius:12px;background:#ffebee;color:#c62828;font-size:14px;font-weight:700;cursor:pointer">'+
-      '❌ Rejected — tap to redo</button>';
+      'style="width:100%;padding:14px;border:2px solid #c62828;border-radius:12px;'+
+      'background:#ffebee;color:#c62828;font-size:14px;font-weight:700;cursor:pointer">'+
+      '❌ Rejected — tap to resubmit</button>';
   }
+
+  // ── Verify phases — always open modal ─────────────────────────────────────
+  if (ph.isVerify) {
+    var vLabel = st==='complete' ? '☑ Submitted — awaiting verification'
+               : st==='in_progress' ? '⏳ In Progress — tap to update'
+               : 'Tap to Verify';
+    return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
+      'style="width:100%;padding:16px;border:2px solid '+s.border+';border-radius:12px;'+
+      'background:'+s.bg+';color:'+s.color+';font-size:14px;font-weight:700;cursor:pointer">'+
+      vLabel+'</button>';
+  }
+
+  // ── Complete (awaiting confirmation) ──────────────────────────────────────
+  if (st === 'complete') {
+    return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
+      'style="width:100%;padding:14px;border:2px solid #1565c0;border-radius:12px;'+
+      'background:#e3f2fd;color:#1565c0;font-size:14px;font-weight:700;cursor:pointer">'+
+      '☑ Submitted — tap to undo or update</button>';
+  }
+
+  // ── In Progress ───────────────────────────────────────────────────────────
   if (st === 'in_progress') {
     return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
-      'style="width:100%;padding:14px;border:2px solid #f57c00;border-radius:12px;background:#fff8e1;color:#f57c00;font-size:14px;font-weight:700;cursor:pointer">'+
+      'style="width:100%;padding:14px;border:2px solid #f9a825;border-radius:12px;'+
+      'background:#fff8e1;color:#f57c00;font-size:14px;font-weight:700;cursor:pointer">'+
       '⏳ In Progress — tap to complete</button>';
   }
-  // Pending — big green Mark Complete button + quick-tap
+
+  // ── Pending — one-tap complete ────────────────────────────────────────────
   return '<button onclick="wtQuickComplete(\''+item.id+'\',\''+phId+'\')" '+
-    'style="width:100%;padding:18px;border:none;border-radius:12px;background:'+ph.color+';color:#fff;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:.3px">'+
+    'style="width:100%;padding:18px;border:none;border-radius:12px;'+
+    'background:#1565c0;color:#fff;font-size:15px;font-weight:800;cursor:pointer">'+
     '✓ Mark '+escHtml(ph.short)+' Complete</button>';
 }
 
