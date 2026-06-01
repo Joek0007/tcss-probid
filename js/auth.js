@@ -154,13 +154,14 @@ async function loadCurrentUserProfile() {
     console.warn('[Profile] No profile row found. Error:', res.error);
     // Fallback: create a minimal currentUser from the auth session
     // so the app doesn't completely break
-    // No profile found — do NOT default to owner. Show error and stop.
+    // No profile found — use safe fallback with limited permissions
     _currentUser = {
       id: uid,
       full_name: email.split('@')[0],
       role: 'helper_tech',
       email: email
     };
+    applyRolePermissions(_currentUser.role);
     updateUserBadge(_currentUser);
     showToast('Profile not found for ' + email + ' — contact your administrator.', 'error', 8000);
   }

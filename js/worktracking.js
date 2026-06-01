@@ -546,14 +546,14 @@ async function wtOpenProject(projId) {
       if (!p) { showToast('Project not found — try refreshing the page','error'); return; }
     }
     WT.proj = p;
-    WT.view = 'dashboard';
     WT.bldgId = null; WT.floorId = null; WT.roomId = null;
+    // Field techs skip the dashboard entirely — go straight to Field View
+    WT.view = wtIsFieldTech() ? 'field' : 'dashboard';
     wtScrollTop();
-    // Show inline loading state immediately
     var el = document.getElementById('wt-main');
     if (el) el.innerHTML = '<div style="padding:60px;text-align:center;color:#546e7a"><div style="font-size:32px;margin-bottom:12px">&#x231B;</div><div style="font-size:16px;font-weight:600">Loading '+escHtml(p.name)+'...</div></div>';
     await wtLoadProjectData(projId);
-    wtRenderDashboard();
+    if (wtIsFieldTech()) { wtRenderFieldView(); } else { wtRenderDashboard(); }
   } catch(e) {
     console.error('wtOpenProject error:', e);
     showToast('Error: '+(e.message||String(e)),'error');
@@ -4501,13 +4501,13 @@ function wtRenderDashboard() {
           (p.customer_name?'<div style="font-size:13px;color:#546e7a">'+escHtml(p.customer_name)+'</div>':'')+
         '</div>'+
         '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-          '<button class="btn btn-outline btn-sm" onclick="wtEditProject()">✏ Edit</button>'+
+          (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtEditProject()">✏ Edit</button>' : '')+
           '<button class="btn btn-outline btn-sm" onclick="wtNav(\'field\')">📱 Field View</button>'+
-          '<button class="btn btn-outline btn-sm" onclick="wtNav(\'confirm\')">✅ Confirm</button>'+
-          '<button class="btn btn-outline btn-sm" onclick="wtNav(\'reworks\')">🔄 Reworks</button>'+
+          (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtNav(\'confirm\')">✅ Confirm</button>' : '')+
+          (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtNav(\'reworks\')">🔄 Reworks</button>' : '')+
           '<button class="btn btn-outline btn-sm" onclick="wtNav(\'flags\')">🚩 Flags</button>'+
-          '<button class="btn btn-outline btn-sm" onclick="wtNav(\'reports\')">📈 Reports</button>'+
-          '<button class="btn btn-primary btn-sm" onclick="wtAddBuilding()">+ Building</button>'+
+          (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtNav(\'reports\')">📈 Reports</button>' : '')+
+          (!wtIsFieldTech() ? '<button class="btn btn-primary btn-sm" onclick="wtAddBuilding()">+ Building</button>' : '')+
         '</div>'+
       '</div>'+
       '<div style="margin-top:16px;display:flex;gap:6px">'+
