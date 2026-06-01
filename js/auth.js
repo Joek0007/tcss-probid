@@ -151,19 +151,20 @@ async function loadCurrentUserProfile() {
     console.warn('[Profile] No profile row found. Error:', res.error);
     // Fallback: create a minimal currentUser from the auth session
     // so the app doesn't completely break
+    // No profile found — do NOT default to owner. Show error and stop.
     _currentUser = {
       id: uid,
       full_name: email.split('@')[0],
-      role: 'owner',
+      role: 'helper_tech',
       email: email
     };
     updateUserBadge(_currentUser);
-    showToast('Profile not found — using fallback. Check Supabase profiles table.', 'warning', 5000);
+    showToast('Profile not found for ' + email + ' — contact your administrator.', 'error', 8000);
   }
 }
 
 function applyRolePermissions(role) {
-  var fieldRoles = ['helper_tech','subcontractor','field'];
+  var fieldRoles = ['helper_tech'];
   var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings','qq','quotes','invoices','timesheet','team','purchaseorders','vendors','scanner','auditlog'];
   var leadTechShow  = ['dash','field','jobs','dispatch','worktracking','workorders','customers','contacts','reports','catalog','tools','inventory','calendar','timesheet'];
   var estimatorShow = ['dash','quotes','customers','contacts','catalog','templates'];
@@ -680,7 +681,7 @@ var _pushInProgress = false;
 
 async function pushAllToCloud() {
   if (!_sb || !_currentUser) return;
-  if (_currentUser.role === 'field') return;
+  if (_currentUser.role === 'helper_tech') return;
   // Concurrency lock — prevent overlapping pushes which cause duplicate line item inserts
   if (_pushInProgress) {
     // Re-schedule for after current push completes

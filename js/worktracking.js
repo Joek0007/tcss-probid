@@ -436,9 +436,8 @@ function wtCurrentUserId() {
 }
 
 function wtIsVerifyRole() {
-  // Verification phases require lead_tech, project_manager, or admin
   var r = _currentUser ? _currentUser.role : '';
-  return r==='admin'||r==='owner'||r==='lead_tech'||r==='project_manager'||r==='office';
+  return r==='owner'||r==='lead_tech'||r==='manager'||r==='back_office';
 }
 
 // ─── MAIN PAGE ENTRY ─────────────────────────────────────────────────────────
@@ -1014,8 +1013,9 @@ function wtCoSelectStatus(status, color, bg) {
 // ─── FIELD VIEW — IMPROVED ────────────────────────────────────────────────────
 
 function wtIsFieldTech() {
+  // Matches the actual Supabase user_role enum values for field technicians
   var r = _currentUser ? _currentUser.role : '';
-  return r === 'field_tech';
+  return r === 'helper_tech' || r === 'field' || r === 'field_tech';
 }
 
 function wtRenderFieldView() {
