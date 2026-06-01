@@ -147,6 +147,9 @@ async function loadCurrentUserProfile() {
     applyRolePermissions(_currentUser.role);
     updateUserBadge(_currentUser);
     console.log('[Profile] Loaded:', _currentUser.full_name, _currentUser.role);
+    // Re-apply after page renders — renderDash() can reset nav display
+    setTimeout(function(){ applyRolePermissions(_currentUser.role); }, 300);
+    setTimeout(function(){ applyRolePermissions(_currentUser.role); }, 1000);
   } else {
     console.warn('[Profile] No profile row found. Error:', res.error);
     // Fallback: create a minimal currentUser from the auth session
