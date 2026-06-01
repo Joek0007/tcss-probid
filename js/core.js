@@ -188,7 +188,14 @@ function probidInstallBackGuard() {
   // Push one state so the back button has something to hit
   history.pushState({ probid: true }, '');
 
+  // Delay activation — some browsers fire popstate on load
+  // if there is an existing history state from a prior session
+  var _guardReady = false;
+  setTimeout(function(){ _guardReady = true; }, 600);
+
   window.addEventListener('popstate', function(e) {
+    // Ignore events that fire during page load settle time
+    if (!_guardReady) return;
     // If we explicitly told it to leave, allow it once
     if (_probidAllowLeave) {
       _probidAllowLeave = false;
