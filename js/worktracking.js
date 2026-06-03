@@ -1426,11 +1426,11 @@ function wtBigPhaseButton(item, phId) {
     return '<div style="display:flex;gap:8px">'+
       '<div style="flex:1;padding:14px;background:#e3f2fd;border:2px solid #1565c0;border-radius:12px;'+
         'color:#1565c0;font-size:14px;font-weight:700;text-align:center">'+
-        '&#x2611; Done — awaiting confirmation</div>'+
+        '&#x2714; Submitted</div>'+
       '<button onclick="wtUndoComplete(\''+item.id+'\',\''+phId+'\')" '+
         'title="Undo — mark as not done" '+
-        'style="padding:14px 18px;border:2px solid #e0e0e0;border-radius:12px;background:#fff;'+
-        'color:#546e7a;font-size:13px;font-weight:700;cursor:pointer">Undo</button>'+
+        'style="padding:14px 18px;border:3px solid #c62828;border-radius:12px;background:#fff;'+
+        'color:#c62828;font-size:14px;font-weight:800;cursor:pointer">Undo</button>'+
     '</div>';
   }
 
