@@ -323,7 +323,7 @@ async function wtLoadProjectData(projId) {
   if (!_sb) return;
   WT.loading = true;
   try {
-    var [bRes, fRes, rRes, iRes, coRes, rwRes, flRes] = await Promise.all([
+    var [bRes, fRes, rRes, iRes, coRes, rwRes, flRes, asRes] = await Promise.all([
       _sb.from('wt_buildings').select('*').eq('project_id', projId).order('sort_order'),
       _sb.from('wt_floors').select('*').eq('project_id', projId).order('sort_order'),
       _sb.from('wt_rooms').select('*').eq('project_id', projId).order('sort_order'),
@@ -331,6 +331,7 @@ async function wtLoadProjectData(projId) {
       _sb.from('wt_checkoffs').select('*').eq('project_id', projId),
       _sb.from('wt_reworks').select('*').eq('project_id', projId).order('created_at', {ascending:false}),
       _sb.from('wt_flags').select('*').eq('project_id', projId).order('created_at', {ascending:false}),
+      _sb.from('wt_assignments').select('*').eq('project_id', projId),
     ]);
     WT.data[projId] = {
       buildings: bRes.data  || [],
@@ -339,7 +340,7 @@ async function wtLoadProjectData(projId) {
       items:     iRes.data  || [],
       checkoffs: coRes.data || [],
       reworks:   rwRes.data || [],
-      flags:     flRes.data || [],
+      flags:     flRes.data || [], assignments: (typeof asRes!=="undefined"?asRes.data:[]) || [],
     };
   } finally {
     WT.loading = false;
@@ -4435,6 +4436,254 @@ async function wtPickerAddItems() {
 }
 
 
+// ============================================================
+// WORK TRACKING — ASSIGNMENT SYSTEM
+// Assigns techs to projects, gates field view access,
+// creates notifications on assignment
+// ============================================================
+
+// ── Load assignments for a project ───────────────────────────────────────────
+async function wtLoadAssignments(projId) {
+  if (!_sb || !projId) return [];
+  try {
+    var { data, error } = await _sb.from('wt_assignments')
+      .select('*').eq('project_id', projId).order('created_at');
+    if (error) throw error;
+    return data || [];
+  } catch(e) {
+    console.error('wtLoadAssignments:', e);
+    return [];
+  }
+}
+
+// ── Check if current user is assigned to a project ───────────────────────────
+function wtIsAssigned(projId) {
+  // Owners, managers, back_office see everything regardless
+  var r = _currentUser ? _currentUser.role : '';
+  if (r === 'owner' || r === 'manager' || r === 'back_office' || r === 'lead_tech') return true;
+
+  var d = WT.data[projId];
+  if (!d || !d.assignments || !d.assignments.length) return true; // no assignments set yet — open access
+  var myName = wtCurrentUserName().toLowerCase();
+  var myId   = wtCurrentUserId();
+  return d.assignments.some(function(a){
+    return a.assigned_to === myId ||
+           (a.assigned_to_name||'').toLowerCase() === myName;
+  });
+}
+
+// ── Project list — filter for field techs ────────────────────────────────────
+function wtGetVisibleProjects() {
+  var all = DB.wtProjects || [];
+  if (!wtIsFieldTech()) return all;
+  // Field techs only see projects they're assigned to
+  return all.filter(function(p){ return wtIsAssigned(p.id); });
+}
+
+// ── Assignment panel on project dashboard ─────────────────────────────────────
+function wtRenderAssignmentPanel() {
+  var d = wtProjData();
+  var assignments = d.assignments || [];
+  if (!assignments.length && !wtIsVerifyRole()) return '';
+
+  var items = assignments.length
+    ? assignments.map(function(a){
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0">'+
+          '<div style="display:flex;align-items:center;gap:8px">'+
+            '<div style="width:32px;height:32px;border-radius:50%;background:#1565c0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">'+
+              escHtml((a.assigned_to_name||'?').charAt(0).toUpperCase())+
+            '</div>'+
+            '<div>'+
+              '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(a.assigned_to_name||'Unknown')+'</div>'+
+              '<div style="font-size:11px;color:#90a4ae">'+escHtml(a.role_on_project||'tech')+'</div>'+
+            '</div>'+
+          '</div>'+
+          (wtIsVerifyRole()
+            ?'<button onclick="wtRemoveAssignment(\''+a.id+'\')" '+
+              'style="padding:4px 8px;font-size:11px;border:1px solid #ffcdd2;border-radius:6px;background:#fff;color:#c62828;cursor:pointer">Remove</button>'
+            :'')+
+        '</div>';
+      }).join('')
+    : '<div style="font-size:13px;color:#90a4ae;padding:8px 0">No techs assigned yet.</div>';
+
+  return '<div class="card" style="margin-bottom:16px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+      '<div style="font-size:14px;font-weight:800;color:#0d1b2a">👥 Assigned Techs</div>'+
+      (wtIsVerifyRole()
+        ?'<button onclick="wtOpenAssignModal()" class="btn btn-outline btn-sm">+ Assign</button>'
+        :'')+
+    '</div>'+
+    items+
+  '</div>';
+}
+
+// ── Assign tech modal ─────────────────────────────────────────────────────────
+function wtOpenAssignModal() {
+  var d = wtProjData();
+  var assigned = (d.assignments||[]).map(function(a){ return a.assigned_to_name||''; });
+  var team = (DB.team||[]).filter(function(m){
+    return m.role === 'helper_tech' || m.role === 'lead_tech' ||
+           m.role === 'field' || m.role === 'field_tech';
+  });
+  // Also include profiles from DB if available
+  var profiles = DB.profiles || [];
+
+  var rows = team.map(function(m){
+    var isAssigned = assigned.indexOf(m.name) >= 0;
+    return '<label style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">'+
+      '<input type="checkbox" data-tname="'+escHtml(m.name)+'" '+(isAssigned?'checked':'')+' style="width:18px;height:18px">'+
+      '<div style="width:36px;height:36px;border-radius:50%;background:#546e7a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">'+
+        escHtml((m.name||'?').charAt(0).toUpperCase())+
+      '</div>'+
+      '<div>'+
+        '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(m.name||'')+'</div>'+
+        '<div style="font-size:11px;color:#90a4ae">'+escHtml(m.role||'')+(m.phone?' · '+escHtml(m.phone):'')+'</div>'+
+      '</div>'+
+    '</label>';
+  }).join('');
+
+  if (!rows) rows = '<div style="color:#90a4ae;font-size:13px;padding:16px 0">No techs found in your team. Add team members first.</div>';
+
+  var html = '<div class="modal-overlay open" id="wt-assign-modal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box sm">'+
+      '<div class="modal-head"><h3>👥 Assign Techs</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'wt-assign-modal\').remove()">&#x2715;</button></div>'+
+      '<div class="modal-body">'+
+        '<p style="font-size:13px;color:#546e7a;margin:0 0 14px">Select who is working on <strong>'+escHtml(WT.proj?WT.proj.name:'this project')+'</strong>. Assigned techs will see this project in their Field View.</p>'+
+        '<div style="max-height:340px;overflow-y:auto">'+rows+'</div>'+
+        '<button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="wtSaveAssignments()">Save Assignments</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+  var e = document.getElementById('wt-assign-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function wtSaveAssignments() {
+  var d = wtProjData();
+  var projId = WT.proj ? WT.proj.id : null;
+  if (!projId) return;
+
+  var checked = [];
+  document.querySelectorAll('#wt-assign-modal [data-tname]:checked').forEach(function(cb){
+    checked.push(cb.getAttribute('data-tname'));
+  });
+
+  var btn = document.querySelector('#wt-assign-modal .btn-primary');
+  if (btn) { btn.disabled=true; btn.textContent='Saving...'; }
+
+  try {
+    // Get current assignments
+    var current = d.assignments || [];
+    var currentNames = current.map(function(a){ return a.assigned_to_name||''; });
+
+    // Figure out who to add and who to remove
+    var toAdd    = checked.filter(function(n){ return currentNames.indexOf(n) < 0; });
+    var toRemove = current.filter(function(a){ return checked.indexOf(a.assigned_to_name||'') < 0; });
+
+    // Remove unchecked
+    for (var ri=0; ri<toRemove.length; ri++) {
+      if (_sb) await _sb.from('wt_assignments').delete().eq('id', toRemove[ri].id);
+    }
+
+    // Add new
+    var newAssignments = [];
+    for (var ai=0; ai<toAdd.length; ai++) {
+      var techName = toAdd[ai];
+      var teamMember = (DB.team||[]).find(function(m){ return m.name===techName; });
+      var rec = {
+        project_id:       projId,
+        assigned_to:      (teamMember&&teamMember.userId) ? teamMember.userId : wtCurrentUserId(), // fallback to assigner
+        assigned_to_name: techName,
+        assigned_by:      wtCurrentUserId(),
+        role_on_project:  (teamMember&&teamMember.role)||'tech',
+        assignment_date:  new Date().toISOString().split('T')[0],
+      };
+      if (_sb) {
+        var { data:newRec, error } = await _sb.from('wt_assignments').insert(rec).select().single();
+        if (error) throw error;
+        newAssignments.push(newRec);
+        // Create notification for the assigned tech
+        await wtNotifyAssignment(newRec, techName);
+      }
+    }
+
+    // Update local cache
+    d.assignments = current
+      .filter(function(a){ return checked.indexOf(a.assigned_to_name||'') >= 0; })
+      .concat(newAssignments);
+
+    document.getElementById('wt-assign-modal').remove();
+    wtRenderDashboard();
+    showToast('👥 Assignments saved — '+checked.length+' tech'+(checked.length>1?'s':'')+' assigned', 'success');
+
+  } catch(e) {
+    console.error('wtSaveAssignments:', e);
+    showToast('Error: '+e.message, 'error');
+    if (btn) { btn.disabled=false; btn.textContent='Save Assignments'; }
+  }
+}
+
+async function wtRemoveAssignment(assignmentId) {
+  if (!confirm('Remove this tech from the project?')) return;
+  try {
+    if (_sb) {
+      var { error } = await _sb.from('wt_assignments').delete().eq('id', assignmentId);
+      if (error) throw error;
+    }
+    var d = wtProjData();
+    if (d.assignments) {
+      var idx = d.assignments.findIndex(function(a){ return a.id===assignmentId; });
+      if (idx>=0) d.assignments.splice(idx,1);
+    }
+    wtRenderDashboard();
+    showToast('Tech removed from project', 'success');
+  } catch(e) {
+    showToast('Error: '+e.message, 'error');
+  }
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+async function wtNotifyAssignment(assignment, techName) {
+  if (!_sb || !WT.proj) return;
+  try {
+    await _sb.from('wt_notifications').insert({
+      user_id:    assignment.assigned_to,
+      user_name:  techName,
+      type:       'assignment',
+      title:      'You have been assigned to a project',
+      message:    'You are now assigned to ' + (WT.proj.name||'a project') + '. Open Work Tracking to get started.',
+      project_id: assignment.project_id,
+    });
+  } catch(e) {
+    console.warn('wtNotifyAssignment:', e);
+  }
+}
+
+async function wtLoadNotifications() {
+  if (!_sb || !_currentUser) return;
+  try {
+    var { data, error } = await _sb.from('wt_notifications')
+      .select('*')
+      .eq('user_id', wtCurrentUserId())
+      .eq('read', false)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (error) throw error;
+    if (data && data.length) {
+      WT.notifications = data;
+      wtUpdateNotificationBell();
+    }
+  } catch(e) { /* silent */ }
+}
+
+function wtUpdateNotificationBell() {
+  var count = (WT.notifications||[]).filter(function(n){ return !n.read; }).length;
+  var bell = document.querySelector('.notif-badge, #notif-count, .bell-count');
+  if (bell) bell.textContent = count > 0 ? count : '';
+}
+
+
 // ─── EDIT / DELETE LAYER ──────────────────────────────────────────────────────
 async function wtEditProject() {
   if (!WT.proj) return;
@@ -4610,6 +4859,7 @@ function wtRenderDashboard() {
           '<div style="font-size:20px;font-weight:800;color:#0d1b2a">'+escHtml(p.name)+'</div>'+
           (p.customer_name?'<div style="font-size:13px;color:#546e7a">'+escHtml(p.customer_name)+'</div>':'')+
         '</div>'+
+          wtRenderAssignmentPanel()+
         '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
           (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtEditProject()">✏ Edit</button>' : '')+
           '<button class="btn btn-outline btn-sm" onclick="wtNav(\'field\')">📱 Field View</button>'+
@@ -4617,6 +4867,7 @@ function wtRenderDashboard() {
           (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtNav(\'reworks\')">🔄 Reworks</button>' : '')+
           '<button class="btn btn-outline btn-sm" onclick="wtNav(\'flags\')">🚩 Flags</button>'+
           (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtNav(\'reports\')">📈 Reports</button>' : '')+
+          (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtOpenAssignModal()">&#x1F465; Team</button>' : '')+
           (!wtIsFieldTech() ? '<button class="btn btn-primary btn-sm" onclick="wtAddBuilding()">+ Building</button>' : '')+
         '</div>'+
       '</div>'+

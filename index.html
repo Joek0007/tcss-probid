@@ -4725,6 +4725,7 @@ table{font-size:12.5px}
       <div style="padding:16px;border-top:1px solid #e0e7ef;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#f8f9fa">
         <button class="btn btn-primary" onclick="saveWorkOrder()">💾 Save Work Order</button>
         <button class="btn btn-outline" id="wo-btn-invoice" onclick="createWOInvoice()" style="display:none">🧾 Create Invoice</button>
+        <button class="btn btn-outline btn-sm" id="wo-btn-wt" onclick="wtOpenFromWorkOrder()" style="color:#7b1fa2;border-color:#ce93d8" title="Open or create Work Tracking project for this job">📋 Work Tracking</button>
         <button class="btn btn-success btn-sm" onclick="woStartTimer('work')" id="wo-timer-work-btn">▶ Work Timer</button>
         <button class="btn btn-outline btn-sm" onclick="woStartTimer('travel')" id="wo-timer-travel-btn">🚗 Travel Timer</button>
         <span id="wo-timer-display" style="font-size:13px;font-weight:700;color:#1565c0;min-width:80px"></span>

@@ -1748,3 +1748,46 @@ function wdocFileSelected(input) {
     if (other) other.value = '';
   }
 }
+
+// ─── WORK TRACKING TIE-IN ────────────────────────────────────────────────────
+function wtOpenFromWorkOrder() {
+  var wo = _woCurrentId ? (DB.workOrders||[]).find(function(w){ return w.id===_woCurrentId; }) : null;
+  if (!wo) { showToast('Save the work order first','warning'); return; }
+
+  // Check if a WT project already exists for this WO/job
+  var existing = (DB.wtProjects||[]).find(function(p){
+    return p.job_id === wo.id || p.job_id === wo.jobId ||
+           (p.name && wo.description && p.name.toLowerCase() === wo.description.toLowerCase().substring(0,50));
+  });
+
+  if (existing) {
+    // Open the existing project in Work Tracking
+    showToast('Opening Work Tracking project...','success');
+    goPage('worktracking');
+    setTimeout(function(){
+      if (typeof wtOpenProject === 'function') wtOpenProject(existing.id);
+    }, 300);
+    return;
+  }
+
+  // No project yet — launch wizard pre-filled with WO data
+  if (!confirm('No Work Tracking project found for this work order.\nLaunch the wizard to create one?')) return;
+  goPage('worktracking');
+  setTimeout(function(){
+    if (typeof openNewProjectWizard !== 'function') return;
+    openNewProjectWizard();
+    // Pre-fill after wizard opens
+    setTimeout(function(){
+      var nameEl = document.getElementById('wiz-name');
+      var custEl = document.getElementById('wiz-cust');
+      if (nameEl) nameEl.value = wo.description || wo.woNumber || '';
+      if (custEl) custEl.value = wo.customerName || '';
+      // Store WO id for linking on create
+      if (typeof _wiz !== 'undefined') {
+        _wiz.proj.jobId = wo.id;
+        _wiz.proj.customerName = wo.customerName || '';
+        _wiz.proj.name = wo.description || wo.woNumber || '';
+      }
+    }, 400);
+  }, 400);
+}
