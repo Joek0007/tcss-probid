@@ -1423,10 +1423,15 @@ function wtBigPhaseButton(item, phId) {
 
   // ── Complete (awaiting confirmation) ──────────────────────────────────────
   if (st === 'complete') {
-    return '<button onclick="openWTCheckoffModal(\''+item.id+'\',\''+phId+'\')" '+
-      'style="width:100%;padding:14px;border:2px solid #1565c0;border-radius:12px;'+
-      'background:#e3f2fd;color:#1565c0;font-size:14px;font-weight:700;cursor:pointer">'+
-      '☑ Submitted — tap to undo or update</button>';
+    return '<div style="display:flex;gap:8px">'+
+      '<div style="flex:1;padding:14px;background:#e3f2fd;border:2px solid #1565c0;border-radius:12px;'+
+        'color:#1565c0;font-size:14px;font-weight:700;text-align:center">'+
+        '&#x2611; Done — awaiting confirmation</div>'+
+      '<button onclick="wtUndoComplete(\''+item.id+'\',\''+phId+'\')" '+
+        'title="Undo — mark as not done" '+
+        'style="padding:14px 18px;border:2px solid #e0e0e0;border-radius:12px;background:#fff;'+
+        'color:#546e7a;font-size:13px;font-weight:700;cursor:pointer">Undo</button>'+
+    '</div>';
   }
 
   // ── In Progress ───────────────────────────────────────────────────────────
@@ -1442,6 +1447,30 @@ function wtBigPhaseButton(item, phId) {
     'style="width:100%;padding:18px;border:none;border-radius:12px;'+
     'background:#1565c0;color:#fff;font-size:15px;font-weight:800;cursor:pointer">'+
     '✓ Mark '+escHtml(ph.short)+' Complete</button>';
+}
+
+async function wtUndoComplete(itemId, phId) {
+  // Remove the checkoff entirely — as if nothing was done
+  if (!confirm('Mark this item as not done? The check-off will be removed.')) return;
+  var d = wtProjData();
+  try {
+    if (_sb) {
+      var { error } = await _sb.from('wt_checkoffs')
+        .delete()
+        .eq('item_id', itemId)
+        .eq('phase', phId);
+      if (error) throw error;
+    }
+    // Remove from local cache
+    if (d.checkoffs) {
+      var idx = d.checkoffs.findIndex(function(c){ return c.item_id===itemId && c.phase===phId; });
+      if (idx >= 0) d.checkoffs.splice(idx, 1);
+    }
+    wtRenderFieldItems();
+    showToast('Check-off removed', 'success');
+  } catch(e) {
+    showToast('Error: '+e.message, 'error');
+  }
 }
 
 async function wtQuickComplete(itemId, phId) {
