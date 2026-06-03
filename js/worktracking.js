@@ -1163,18 +1163,28 @@ function wtFloorFilterButtons(d, bldgId, activeFloorId) {
   return html + '</div>';
 }
 
+// Full phase names for field techs — no cryptic abbreviations
+var WT_PHASE_LABELS = {
+  rough_in:        'Rough-In',
+  rough_in_verify: 'RI Verify',
+  devicing:        'Device & Term',
+  testing:         'Test & Label',
+  final_verify:    'Final Verify',
+};
+
 function wtPhaseFilterButtons(activePhase) {
   var all = '<button onclick="wtSetPhaseFilter(\'\')" '+
-    'style="padding:8px 14px;font-size:12px;font-weight:700;'+
+    'style="padding:8px 14px;font-size:12px;font-weight:700;white-space:nowrap;'+
     'border:2px solid '+(activePhase===''?'#546e7a':'#e0e0e0')+';border-radius:20px;'+
     'background:'+(activePhase===''?'#546e7a':'#fff')+';color:'+(activePhase===''?'#fff':'#546e7a')+';cursor:pointer">All</button>';
   var phases = WT_PHASES.map(function(ph){
     var active = activePhase === ph.id;
+    var label  = WT_PHASE_LABELS[ph.id] || ph.short;
     return '<button onclick="wtSetPhaseFilter(\''+ph.id+'\')" '+
-      'style="padding:8px 14px;font-size:12px;font-weight:700;'+
+      'style="padding:8px 14px;font-size:12px;font-weight:700;white-space:nowrap;'+
       'border:2px solid '+(active?ph.color:'#e0e0e0')+';border-radius:20px;'+
       'background:'+(active?ph.color:'#fff')+';color:'+(active?'#fff':ph.color)+';cursor:pointer">'+
-      escHtml(ph.short)+'</button>';
+      escHtml(label)+'</button>';
   }).join('');
   return all + phases;
 }
@@ -1221,6 +1231,19 @@ function wtToggleMyItems() {
 }
 
 // ─── FIELD ITEMS RENDER — IMPROVED ────────────────────────────────────────────
+function wtItemPhaseCount(item) {
+  var phases = item.phases_required || WT_PHASES.map(function(p){ return p.id; });
+  var done = phases.filter(function(phId){
+    var co = wtGetCheckoff(item.id, phId);
+    return co && (co.status === 'confirmed' || co.status === 'complete');
+  }).length;
+  var confirmed = phases.filter(function(phId){
+    var co = wtGetCheckoff(item.id, phId);
+    return co && co.status === 'confirmed';
+  }).length;
+  return { done: done, confirmed: confirmed, total: phases.length };
+}
+
 function wtRenderFieldItems() {
   var el = document.getElementById('wt-field-items'); if (!el) return;
   var d = wtProjData();
@@ -1283,22 +1306,37 @@ function wtRenderFieldItems() {
       var floorRoomIds = Object.keys(bldgMap[bId][fId]);
       var allFloorItems = [];
       floorRoomIds.forEach(function(rId){ allFloorItems = allFloorItems.concat(bldgMap[bId][fId][rId]); });
-      var doneCount = allFloorItems.filter(function(i){ return wtItemPct(i)===100; }).length;
-      var pct = allFloorItems.length ? Math.round(doneCount/allFloorItems.length*100) : 0;
-      var headerColor = pct===100?'#2e7d32':pct>50?'#1565c0':'#546e7a';
+      // Phase-aware progress count
+      var phActive = WT.fieldPhase || '';
+      var countable = allFloorItems;
+      var doneCount, totalCount;
+      if (phActive) {
+        // Show how many items have this phase confirmed
+        totalCount = allFloorItems.length;
+        doneCount  = allFloorItems.filter(function(i){
+          var co = wtGetCheckoff(i.id, phActive);
+          return co && (co.status==='confirmed'||co.status==='complete');
+        }).length;
+      } else {
+        totalCount = allFloorItems.length;
+        doneCount  = allFloorItems.filter(function(i){ return wtItemPct(i)===100; }).length;
+      }
+      var pct = totalCount ? Math.round(doneCount/totalCount*100) : 0;
+      var headerColor = pct===100?'#2e7d32':pct>0?'#1565c0':'#546e7a';
+      var phaseLabel  = phActive ? (WT_PHASE_LABELS[phActive]||phActive)+': ' : '';
 
       html += '<div style="margin-bottom:20px">'+
-        // Section header
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#f5f7fa;border-radius:10px 10px 0 0;border:1px solid #e0e0e0;border-bottom:none">'+
           '<div style="font-size:13px;font-weight:800;color:'+headerColor+'">'+
             (bldg&&!bldgFilter?escHtml(bldg.name)+' &rsaquo; ':'')+
             escHtml(floor?floor.name:'No Floor')+
           '</div>'+
           '<div style="display:flex;align-items:center;gap:10px">'+
+            (phaseLabel?'<span style="font-size:11px;color:#546e7a;font-weight:600">'+escHtml(phaseLabel)+'</span>':'')+
             '<div style="background:#e0e0e0;border-radius:4px;height:8px;width:80px">'+
               '<div style="background:'+headerColor+';height:8px;border-radius:4px;width:'+pct+'%;transition:width .3s"></div>'+
             '</div>'+
-            '<span style="font-size:12px;font-weight:700;color:'+headerColor+'">'+doneCount+'/'+allFloorItems.length+'</span>'+
+            '<span style="font-size:12px;font-weight:700;color:'+headerColor+'">'+doneCount+'/'+totalCount+'</span>'+
           '</div>'+
         '</div>'+
         // Rooms

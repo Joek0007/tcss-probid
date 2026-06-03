@@ -5310,20 +5310,31 @@ table{font-size:12.5px}
 <script src="js/auth.js"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
-  <div class="mob-nav-item active" onclick="mobileNav('dash')" id="mob-dash">
+  <!-- Default nav (owner/manager/back_office/lead_tech) -->
+  <div class="mob-nav-item active mob-role-default" onclick="mobileNav('dash')" id="mob-dash">
     <span class="mob-icon">📊</span>Dash
   </div>
-  <div class="mob-nav-item" onclick="mobileNav('qq')" id="mob-qq">
+  <div class="mob-nav-item mob-role-default" onclick="mobileNav('qq')" id="mob-qq">
     <span class="mob-icon">⚡</span>Quote
   </div>
-  <div class="mob-nav-item" onclick="mobileNav('field')" id="mob-field">
+  <div class="mob-nav-item mob-role-default" onclick="mobileNav('field')" id="mob-field">
     <span class="mob-icon">⏱</span>Clock
   </div>
-  <div class="mob-nav-item" onclick="mobileNav('tools')" id="mob-tools">
+  <div class="mob-nav-item mob-role-default" onclick="mobileNav('tools')" id="mob-tools">
     <span class="mob-icon">🔧</span>Tools
   </div>
-  <div class="mob-nav-item mob-nav-more" onclick="toggleMobileMenu()" id="mob-more">
+  <div class="mob-nav-item mob-nav-more mob-role-default" onclick="toggleMobileMenu()" id="mob-more">
     <span class="mob-icon">☰</span>More
+  </div>
+  <!-- Field tech nav (helper_tech) — hidden by default, shown via JS -->
+  <div class="mob-nav-item mob-role-tech" onclick="goPage('worktracking')" id="mob-wt" style="display:none">
+    <span class="mob-icon">📋</span>Work
+  </div>
+  <div class="mob-nav-item mob-role-tech" onclick="mobileNav('field')" id="mob-clock" style="display:none">
+    <span class="mob-icon">⏱</span>Clock
+  </div>
+  <div class="mob-nav-item mob-role-tech" onclick="goPage('worktracking');setTimeout(function(){if(typeof wtAddFlag==='function')wtAddFlag(null,null);},300)" id="mob-issue" style="display:none">
+    <span class="mob-icon">🚩</span>Issue
   </div>
 </div>
 

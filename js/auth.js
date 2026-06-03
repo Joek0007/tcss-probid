@@ -215,6 +215,15 @@ function applyRolePermissions(role) {
   }
 
   if (role === 'owner') setTimeout(renderPermissionsEditor, 200);
+
+  // Switch mobile bottom nav for field techs
+  var isTech = (role === 'helper_tech');
+  document.querySelectorAll('.mob-role-default').forEach(function(el){
+    el.style.display = isTech ? 'none' : '';
+  });
+  document.querySelectorAll('.mob-role-tech').forEach(function(el){
+    el.style.display = isTech ? '' : 'none';
+  });
 }
 
 function updateUserBadge(profile) {
