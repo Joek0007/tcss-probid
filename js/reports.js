@@ -474,7 +474,187 @@ function renderQuotes() {
   }).join('');
 }
 
+// ============================================================
+// FIELD TECH DASHBOARD
+// Replaces the owner dashboard for helper_tech role
+// Shows: today's assignments, clock status, assigned projects,
+//        open flags, recent notifications
+// ============================================================
+
+function wtRenderTechDashboard() {
+  var el = document.getElementById('page-dash');
+  if (!el || !wtIsFieldTech()) return;
+
+  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var myName = wtCurrentUserName();
+  var myId   = wtCurrentUserId();
+
+  // My assigned projects
+  var myProjects = (DB.wtProjects||[]).filter(function(p){
+    return (p.status==='active'||p.status==='paused') && wtIsAssigned(p.id);
+  });
+
+  // Today's jobs I'm on
+  var myJobs = (DB.jobs||[]).filter(function(j){
+    return j.scheduledDate === today &&
+           (j.assignedTechs||j.techs||[]).some(function(t){
+             return (typeof t==='string'?t:t.name||'').toLowerCase() === myName.toLowerCase();
+           });
+  });
+
+  // My open flags
+  var myFlags = [];
+  myProjects.forEach(function(p){
+    var d = WT.data[p.id];
+    if (d && d.flags) {
+      d.flags.filter(function(f){ return f.status!=='resolved'; }).forEach(function(f){
+        myFlags.push(Object.assign({}, f, {projectName: p.name}));
+      });
+    }
+  });
+
+  // Clock status
+  var clocked = _clockState && _clockState.status !== 'out';
+  var clockLabel = clocked ? ('Clocked in — '+(_clockState.jobName||'on site')) : 'Not clocked in';
+  var clockColor = clocked ? '#2e7d32' : '#90a4ae';
+
+  var html = '<div style="padding:16px;max-width:600px;margin:0 auto">' +
+
+    // Header
+    '<div style="margin-bottom:20px">' +
+      '<div style="font-size:22px;font-weight:800;color:#0d1b2a">Good '+getGreeting()+', '+escHtml(myName.split(' ')[0])+'</div>' +
+      '<div style="font-size:13px;color:#546e7a;margin-top:2px">'+formatDateFriendly(today)+'</div>' +
+    '</div>' +
+
+    // Clock status card
+    '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">' +
+      '<div>' +
+        '<div style="font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Clock Status</div>' +
+        '<div style="font-size:14px;font-weight:700;color:'+clockColor+'">'+
+          (clocked?'🟢':'⚪')+' '+escHtml(clockLabel)+
+        '</div>' +
+      '</div>' +
+      '<button onclick="goPage(\'field\')" style="padding:8px 16px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">⏱ Clock</button>' +
+    '</div>' +
+
+    // Today's jobs
+    (myJobs.length ? (
+      '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:16px;margin-bottom:14px">' +
+        '<div style="font-size:13px;font-weight:800;color:#0d1b2a;margin-bottom:12px">📅 Today\'s Schedule</div>' +
+        myJobs.map(function(j){
+          return '<div style="padding:10px 0;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between">' +
+            '<div>' +
+              '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(j.name||'Job')+'</div>' +
+              '<div style="font-size:11px;color:#546e7a">'+escHtml(j.customer||j.customerName||'')+(j.siteAddr?' · '+escHtml(j.siteAddr):'')+'</div>' +
+            '</div>' +
+            '<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;background:#e3f2fd;color:#1565c0">'+escHtml(j.status||'Scheduled')+'</span>' +
+          '</div>';
+        }).join('') +
+      '</div>'
+    ) : '') +
+
+    // My Work Tracking projects
+    (myProjects.length ? (
+      '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:16px;margin-bottom:14px">' +
+        '<div style="font-size:13px;font-weight:800;color:#0d1b2a;margin-bottom:12px">📋 My Projects</div>' +
+        myProjects.map(function(p){
+          var d = WT.data[p.id] || {};
+          var items = d.items || [];
+          var confirmed = items.filter(function(i){ return wtItemPct&&wtItemPct(i)===100; }).length;
+          var pct = items.length ? Math.round(confirmed/items.length*100) : 0;
+          return '<div onclick="wtOpenProject(\''+p.id+'\')" style="padding:12px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
+              '<div style="font-size:14px;font-weight:700;color:#0d1b2a">'+escHtml(p.name)+'</div>' +
+              '<span style="font-size:12px;font-weight:700;color:'+(pct===100?'#2e7d32':'#1565c0')+'">'+pct+'%</span>' +
+            '</div>' +
+            '<div style="background:#e0e0e0;border-radius:3px;height:6px">' +
+              '<div style="background:'+(pct===100?'#2e7d32':'#1565c0')+';height:6px;border-radius:3px;width:'+pct+'%"></div>' +
+            '</div>' +
+          '</div>';
+        }).join('') +
+      '</div>'
+    ) : (
+      '<div style="background:#f5f7fa;border-radius:12px;padding:24px;text-align:center;margin-bottom:14px;color:#90a4ae">' +
+        '<div style="font-size:28px;margin-bottom:8px">📋</div>' +
+        '<div style="font-size:14px;font-weight:600">No projects assigned yet</div>' +
+        '<div style="font-size:12px;margin-top:4px">Your manager will assign you to a project</div>' +
+      '</div>'
+    )) +
+
+    // Open flags
+    (myFlags.length ? (
+      '<div style="background:#fff3e0;border-radius:12px;border:1px solid #ffe0b2;padding:16px;margin-bottom:14px">' +
+        '<div style="font-size:13px;font-weight:800;color:#e65100;margin-bottom:10px">🚩 Open Issues ('+myFlags.length+')</div>' +
+        myFlags.slice(0,3).map(function(f){
+          return '<div style="font-size:13px;padding:6px 0;border-bottom:1px solid #ffe0b2">' +
+            '<div style="font-weight:600">'+escHtml(f.title||f.description||'Issue')+'</div>' +
+            '<div style="font-size:11px;color:#e65100">'+escHtml(f.projectName||'')+'</div>' +
+          '</div>';
+        }).join('') +
+      '</div>'
+    ) : '') +
+
+    // Notifications
+    wtRenderTechNotifications() +
+
+  '</div>';
+
+  el.innerHTML = html;
+}
+
+function wtRenderTechNotifications() {
+  var notifs = (WT.notifications||[]).filter(function(n){ return !n.read; });
+  if (!notifs.length) return '';
+  return '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:16px;margin-bottom:14px">' +
+    '<div style="font-size:13px;font-weight:800;color:#0d1b2a;margin-bottom:10px">🔔 Notifications ('+notifs.length+')</div>' +
+    notifs.slice(0,5).map(function(n){
+      return '<div style="padding:10px 0;border-bottom:1px solid #f0f0f0">' +
+        '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(n.title||'')+'</div>' +
+        '<div style="font-size:12px;color:#546e7a;margin-top:2px">'+escHtml(n.message||'')+'</div>' +
+        '<div style="font-size:11px;color:#90a4ae;margin-top:4px">'+escHtml(formatTimeAgo(n.created_at||''))+'</div>' +
+      '</div>';
+    }).join('') +
+    (notifs.length > 5 ? '<div style="font-size:12px;color:#1565c0;padding-top:8px;cursor:pointer" onclick="wtMarkAllNotificationsRead()">Mark all as read</div>' : '') +
+  '</div>';
+}
+
+async function wtMarkAllNotificationsRead() {
+  if (!_sb) return;
+  var ids = (WT.notifications||[]).map(function(n){ return n.id; });
+  if (!ids.length) return;
+  await _sb.from('wt_notifications').update({read:true}).in('id', ids);
+  WT.notifications = [];
+  var el = document.getElementById('page-dash');
+  if (el && wtIsFieldTech()) wtRenderTechDashboard();
+}
+
+function getGreeting() {
+  var h = new Date().getHours();
+  return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+}
+
+function formatDateFriendly(dateStr) {
+  if (!dateStr) return '';
+  var d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+}
+
+function formatTimeAgo(isoStr) {
+  if (!isoStr) return '';
+  var diff = Math.floor((Date.now() - new Date(isoStr)) / 60000);
+  if (diff < 1)  return 'Just now';
+  if (diff < 60) return diff + 'm ago';
+  if (diff < 1440) return Math.floor(diff/60) + 'h ago';
+  return Math.floor(diff/1440) + 'd ago';
+}
+
+
 function renderDash() {
+  // Field techs get their own dashboard
+  if (typeof wtIsFieldTech === 'function' && wtIsFieldTech()) {
+    setTimeout(wtRenderTechDashboard, 100);
+    return;
+  }
   const today = getTodayISO();
 
   // ---- QUOTE METRICS ----

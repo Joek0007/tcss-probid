@@ -45,11 +45,22 @@ function renderCalendar() {
   }
 
   if (showJobs) {
+    var myName = (typeof wtCurrentUserName === 'function') ? wtCurrentUserName().toLowerCase() : '';
+    var isTech = (typeof wtIsFieldTech === 'function') && wtIsFieldTech();
     (DB.jobs||[]).forEach(function(j) {
-      if (j.scheduledDate) addEvent(j.scheduledDate, { type:'job', id:j.id, label:j.name||'Job', customer:j.customer||'', status:j.status||'' });
+      if (!j.scheduledDate) return;
+      // Field techs only see jobs they're assigned to
+      if (isTech && myName) {
+        var techs = j.assignedTechs || j.techs || [];
+        var onJob = techs.some(function(t){
+          return (typeof t==='string'?t:t.name||'').toLowerCase() === myName;
+        });
+        if (!onJob) return;
+      }
+      addEvent(j.scheduledDate, { type:'job', id:j.id, label:j.name||'Job', customer:j.customer||'', status:j.status||'' });
     });
   }
-  if (showFollowups) {
+  if (showFollowups && !(typeof wtIsFieldTech==='function' && wtIsFieldTech())) {
     (DB.quotes||[]).forEach(function(q) {
       if (q.followupDate) addEvent(q.followupDate, { type:'followup', id:q.id, label:(q.num||'')+(q.cn?' — '+q.cn:''), status:q.status||'' });
     });
