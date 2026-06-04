@@ -146,7 +146,7 @@ function renderWorkOrders() {
     var st = WO_STATUSES.find(function(s){ return s.id===wo.status; }) || { color:'#e0e0e0' };
     var prColor = wo.priority==='Urgent'?'#c62828':wo.priority==='High'?'#e65100':wo.priority==='Normal'?'#546e7a':'#90a4ae';
     var prBg    = wo.priority==='Urgent'?'#ffebee':wo.priority==='High'?'#fff3e0':'#f5f5f5';
-    var isRole  = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='lead_tech');
+    var isRole  = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='lead_tech');
     return '<div style="display:grid;grid-template-columns:100px 1fr 1fr 120px 130px 120px auto;gap:8px;padding:12px 16px;border-bottom:1px solid #f5f7fa;align-items:center" onmouseover="this.style.background=\'#f8f9fa\'" onmouseout="this.style.background=\'\'">'+
       '<div style="font-weight:700;color:#1565c0;font-size:13px">'+escHtml(wo.woNumber||'')+'</div>'+
       '<div style="font-weight:600;font-size:13px">'+escHtml(wo.customerName||'—')+'</div>'+
@@ -198,22 +198,8 @@ function openNewWorkOrder() {
 
   // Internal notes only for office/owner
   var intSection=document.getElementById('wo-internal-notes-section');
-  if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?'':'none';
+  if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?'':'none';
 
-  // Apply WO permissions
-  if(typeof hasPermission==='function'){
-    var _canFin=hasPermission('wo.view_financial');
-    var _canEdit=hasPermission('wo.edit');
-    var _canInv=hasPermission('wo.invoice');
-    var _canCO=hasPermission('wo.change_order');
-    setTimeout(function(){
-      var lb=document.getElementById('wo-labor-rate');if(lb&&lb.closest&&lb.closest('div'))lb.closest('div').style.display=_canFin?'':'none';
-      var tx=document.getElementById('wo-tax-rate');if(tx&&tx.closest&&tx.closest('div'))tx.closest('div').style.display=_canFin?'':'none';
-      var ib=document.getElementById('wo-btn-invoice');if(ib)ib.style.display=_canInv?'':'none';
-      var cb=document.getElementById('wo-btn-co');if(cb)cb.style.display=_canCO?'':'none';
-      if(!_canEdit){document.querySelectorAll('#wo-desc,#wo-site-addr,#wo-site-city,#wo-site-state,#wo-site-zip').forEach(function(el){if(el){el.readOnly=true;el.style.background='#f5f5f5';}});}
-    },300);
-  }
   // Apply WO permissions
   if(typeof hasPermission==='function'){
     var _canFin=hasPermission('wo.view_financial');
@@ -275,11 +261,11 @@ function openWorkOrder(id) {
 
   // Show/hide invoice button
   var invBtn = document.getElementById('wo-btn-invoice');
-  if(invBtn) invBtn.style.display=(wo.status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office')))?'':'none';
+  if(invBtn) invBtn.style.display=(wo.status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'':'none';
 
   // Internal notes visibility
   var intSection=document.getElementById('wo-internal-notes-section');
-  if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?'':'none';
+  if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?'':'none';
 
   switchWOTab((typeof wtIsFieldTech==='function'&&wtIsFieldTech())?'fieldlog':'labor');
   setTimeout(function(){var cp=document.getElementById('wo-change-orders-panel');if(cp){var woId=_woCurrentId;cp.innerHTML=renderWOChangeOrders(woId);var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});if(wo&&wo.parentWoId&&wo.isChangeOrder){var par=(DB.workOrders||[]).find(function(w){return w.id===wo.parentWoId;});if(par)_renderParentWOBanner(par);}}},200);
@@ -292,7 +278,7 @@ function openWorkOrder(id) {
 function _checkHotNotes(customerId, woId, isNew) {
   var cust = (DB.customers||[]).find(function(c){ return c.id===customerId; });
   if (!cust) return;
-  var isOffice = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office');
+  var isOffice = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office');
   var isTech   = _currentUser && (_currentUser.role==='field'||_currentUser.role==='lead_tech');
   var queue = [];
 
@@ -393,7 +379,7 @@ function saveWorkOrder() {
     dateClosed:   (!WO_STATUSES.find(function(s){return s.id===status&&s.open;}))?today:null,
     laborRate:    parseFloat(gv('wo-labor-rate'))||125,
     taxRate:      parseFloat(gv('wo-tax-rate'))||0,
-    internalNotes:(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?gv('wo-internal-notes'):'',
+    internalNotes:(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?gv('wo-internal-notes'):'',
     createdAt:    isNew ? new Date().toISOString() : (_existingWO.createdAt||new Date().toISOString()),
     updatedAt:    new Date().toISOString(),
     createdBy:    isNew ? ((_currentUser&&_currentUser.id)||null) : (_existingWO.createdBy||null),
@@ -416,7 +402,7 @@ function saveWorkOrder() {
 
   // Update invoice button visibility
   var invBtn=document.getElementById('wo-btn-invoice');
-  if(invBtn) invBtn.style.display=(status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office')))?'':'none';
+  if(invBtn) invBtn.style.display=(status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'':'none';
 
   // Urgent notification
   if (priority==='Urgent') _triggerUrgentAlert(data);
@@ -469,7 +455,7 @@ function deleteWorkOrder(id) {
 function onWOStatusChange(status) {
   var urgBadge=document.getElementById('wo-urgent-badge');
   var invBtn=document.getElementById('wo-btn-invoice');
-  if(invBtn) invBtn.style.display=(status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office')))?'':'none';
+  if(invBtn) invBtn.style.display=(status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'':'none';
 }
 function onWOPriorityChange(val) {
   var badge=document.getElementById('wo-urgent-badge');
@@ -668,7 +654,7 @@ function renderWOLaborTab(woId) {
   });
 
   var dateKeys = Object.keys(byDate).sort(); // chronological order
-  var isAdmin  = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager'||_currentUser.role==='lead_tech');
+  var isAdmin  = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager'||_currentUser.role==='lead_tech');
   var myName   = _currentUser ? _currentUser.full_name : '';
 
   html += '<div style="border-top:2px solid #e0e7ef;padding-top:14px">'+
@@ -927,7 +913,7 @@ function deleteWOExpense(id) {
 // ---- PARTS TAB ----
 function renderWOPartsTab(woId) {
   var parts    = (DB.woParts||[]).filter(function(p){ return p.woId===woId; });
-  var isOffice = _currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='lead_tech');
+  var isOffice = _currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='lead_tech');
 
   // Counts by status
   var requested = parts.filter(function(p){ return p.status==='requested'; });
@@ -1712,7 +1698,7 @@ async function uploadWODocument(file, woId, label) {
 
 function renderWODocsTab(woId) {
   var docs = (DB.woDocuments||[]).filter(function(d){ return d.woId===woId && !d.deleted; });
-  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
+  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
 
   var html =
     '<div style="margin-bottom:16px">'+

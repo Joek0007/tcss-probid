@@ -314,7 +314,7 @@ function updateUserBadge(profile) {
     var initials = name.split(' ').filter(Boolean).map(function(n){ return n[0]; }).join('').substring(0,2).toUpperCase() || '?';
     badge.textContent = initials;
     badge.title = (profile.full_name||profile.email||'User') + ' (' + (profile.role||'user') + ')';
-    badge.style.background = profile.role==='owner' ? '#1565c0' : profile.role==='office' ? '#2e7d32' : profile.role==='lead_tech' ? '#6a1b9a' : '#546e7a';
+    badge.style.background = profile.role==='owner' ? '#1565c0' : profile.role==='back_office' ? '#2e7d32' : profile.role==='lead_tech' ? '#6a1b9a' : '#546e7a';
   }
   var nameBadge = document.getElementById('user-name-badge');
   if (nameBadge) {

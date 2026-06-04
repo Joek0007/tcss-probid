@@ -823,7 +823,7 @@ async function loadTimesheets() {
 // ---- OPEN / POPULATE ENTRY MODAL ----
 
 function openAddTimeEntry(prefillTech, prefillDate, prefillWoId) {
-  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
+  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
   if (!isAdmin) { showToast('Admin access required','error'); return; }
 
   // Clear form
@@ -864,7 +864,7 @@ function openAddTimeEntry(prefillTech, prefillDate, prefillWoId) {
 }
 
 function openEditTimeEntry(entryId) {
-  var canDelete = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
+  var canDelete = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
   var entry = (DB.timeEntries||[]).find(function(e){ return e.id===entryId; });
   if (!entry) { showToast('Entry not found','error'); return; }
 
@@ -911,7 +911,7 @@ function onTeTypeChange() {
   if (woSel) {
     var currentVal = woSel.value;
     var myName2  = (document.getElementById('te-tech')||{}).value || '';
-    var isAdmin2 = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager'||_currentUser.role==='back_office');
+    var isAdmin2 = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager'||_currentUser.role==='back_office');
 
     // Get open statuses from settings or defaults
     var openStatuses = ((DB.woSettings&&DB.woSettings.statuses)||WO_STATUSES)
@@ -1085,7 +1085,7 @@ function saveManualTimeEntry() {
 function deleteTimeEntry() {
   var editId = (document.getElementById('te-edit-id')||{}).value||'';
   if (!editId) return;
-  var canDelete = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
+  var canDelete = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
   if (!canDelete) { showToast('Permission denied','error'); return; }
   if (!confirm('Delete this time entry? This is logged in the audit trail.')) return;
 
@@ -1493,7 +1493,7 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
 function initAllTimesheetsTab() {
   var container = document.getElementById('ts-all-content');
   if (!container) return;
-  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
+  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
   if (!isAdmin) return;
 }
 

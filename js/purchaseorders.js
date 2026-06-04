@@ -177,7 +177,7 @@ function renderPOList() {
         '<button class="btn btn-outline btn-sm" onclick="openPO(\''+po.id+'\')">Open</button>'+
         ((['Sent','Partially Received'].includes(po.status))?'<button class="btn btn-success btn-sm" onclick="openReceiving(\''+po.id+'\')">📥 Receive</button>':'')+
         '<button class="btn btn-outline btn-sm" onclick="printPOById(\''+po.id+'\')">🖨</button>'+
-        ((_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?'<button class="btn btn-danger btn-sm" onclick="deletePO(\''+po.id+'\')">✕</button>':'')+
+        ((_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?'<button class="btn btn-danger btn-sm" onclick="deletePO(\''+po.id+'\')">✕</button>':'')+
       '</div>'+
     '</div>';
   }).join('');
