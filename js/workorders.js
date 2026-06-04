@@ -1450,9 +1450,59 @@ function saveTeamModal() {
   if (_sb && _currentUser) {
     _sb.from('work_orders').update({assigned_techs:wo.assignedTechs}).eq('id',wo.id).then(function(){});
   }
+
+  // Sync newly added techs to calendar + send notifications
+  var newlyAdded = _assigned.filter(function(n){ return prev.indexOf(n)<0; });
+  if (newlyAdded.length) wtSyncWOTechsToCalendar(wo, newlyAdded);
+
   closeModal('modal-wo-team');
   renderAssignedTechs(_woCurrentId);
   showToast('Team updated ✓','success',2000);
+}
+
+// Sync WO tech assignments to the linked job's calendar entry
+function wtSyncWOTechsToCalendar(wo, newTechs) {
+  if (!wo || !newTechs.length) return;
+
+  // Find the linked job (by jobId reference or matching WO number)
+  var linkedJob = null;
+  if (wo.jobId) {
+    linkedJob = (DB.jobs||[]).find(function(j){ return j.id===wo.jobId; });
+  }
+  if (!linkedJob && wo.woNumber) {
+    linkedJob = (DB.jobs||[]).find(function(j){
+      return j.woNumber===wo.woNumber || j.name===wo.description;
+    });
+  }
+
+  if (linkedJob) {
+    // Add techs to job's assigned list for calendar visibility
+    if (!linkedJob.assignedTechs) linkedJob.assignedTechs = [];
+    var changed = false;
+    newTechs.forEach(function(name){
+      if (linkedJob.assignedTechs.indexOf(name)<0) {
+        linkedJob.assignedTechs.push(name);
+        changed = true;
+      }
+    });
+    // Set scheduled date from WO date if not already set
+    if (!linkedJob.scheduledDate && (wo.dateRequested||wo.scheduledDate)) {
+      linkedJob.scheduledDate = wo.dateRequested || wo.scheduledDate;
+      changed = true;
+    }
+    if (changed) {
+      saveDB();
+      if (_sb) _sb.from('jobs').update({
+        assigned_techs: linkedJob.assignedTechs,
+        scheduled_date: linkedJob.scheduledDate,
+      }).eq('id', linkedJob.id).then(function(){});
+    }
+  }
+
+  // Send in-app notifications to newly assigned techs
+  if (typeof addWOAssignmentNotifications === 'function') {
+    addWOAssignmentNotifications(wo, newTechs);
+  }
 }
 
 function toggleAssignedTech(techName) {

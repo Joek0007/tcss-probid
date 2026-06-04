@@ -46,7 +46,9 @@ function addNotification(type, title, body, action) {
 }
 
 function updateNotifBadge() {
-  var unread = _notifications.filter(function(n){ return !n.read; }).length;
+  var localUnread = (_notifications||[]).filter(function(n){ return !n.read; }).length;
+  var remoteUnread = (WT.notifications||[]).filter(function(n){ return !n.read; }).length;
+  var unread = localUnread + remoteUnread;
   var badge = document.getElementById('notif-badge');
   if (!badge) return;
   badge.style.display = unread > 0 ? 'flex' : 'none';
@@ -71,35 +73,133 @@ function toggleNotifPanel() {
   }
 }
 
+var WT_NOTIF_ICONS = {
+  assignment:    '🏗',
+  confirmed:     '✅',
+  rejected:      '❌',
+  flag_resolved: '🚩',
+  assignment_wo: '📋',
+  // legacy local types
+  lunch:'🍽', item_reopened:'🔄', eod:'📊', message:'💬', absence:'🚨', confirm:'✅'
+};
+
+function wtGetAllNotifications() {
+  // Merge local + Supabase WT notifications, deduped, sorted newest first
+  var local = (_notifications||[]).map(function(n){
+    return { id:n.id, type:n.type, title:n.title, body:n.body||'',
+      time:n.time, read:n.read, source:'local', action:n.action||null,
+      project_id:null };
+  });
+  var remote = (WT.notifications||[]).map(function(n){
+    return { id:'wt_'+n.id, type:n.type, title:n.title, body:n.message||'',
+      time:n.created_at, read:n.read||false, source:'supabase',
+      action:null, project_id:n.project_id||null, item_id:n.item_id||null,
+      raw_id:n.id };
+  });
+  var all = local.concat(remote);
+  all.sort(function(a,b){ return new Date(b.time)-new Date(a.time); });
+  return all;
+}
+
 function renderNotifPanel() {
   var list = document.getElementById('notif-panel-list'); if(!list) return;
-  if (!_notifications.length) {
-    list.innerHTML='<div style="padding:20px;text-align:center;color:#90a4ae;font-size:13px">No notifications yet.</div>';
+  var all = wtGetAllNotifications();
+
+  if (!all.length) {
+    list.innerHTML='<div style="padding:24px;text-align:center;color:#90a4ae;font-size:13px">'+
+      '<div style="font-size:28px;margin-bottom:8px">🔔</div>'+
+      'No notifications yet.</div>';
     return;
   }
-  var typeIcons = {assignment:'📅',lunch:'🍽',item_reopened:'🔄',eod:'📊',message:'💬',absence:'🚨',confirm:'✅'};
-  list.innerHTML = _notifications.slice(0,20).map(function(n){
-    var t = new Date(n.time);
-    var timeStr = t.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
-    return '<div class="notif-item'+(n.read?'':' unread')+'" onclick="readNotif(\''+n.id+'\')">'+(n.action?'data-action="'+escHtml(n.action)+'"':'')+'>'+
-      '<div class="notif-item-title">'+(typeIcons[n.type]||'🔔')+' '+escHtml(n.title)+'</div>'+
-      '<div class="notif-item-body">'+escHtml(n.body||'')+'</div>'+
-      '<div class="notif-item-time">'+timeStr+'</div>'+
+
+  list.innerHTML = all.slice(0,30).map(function(n){
+    var icon = WT_NOTIF_ICONS[n.type] || '🔔';
+    var timeStr = formatTimeAgo ? formatTimeAgo(n.time) : (new Date(n.time)).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+    return '<div class="notif-item'+(n.read?'':' unread')+'" '+
+      'data-nid="'+n.id+'" data-src="'+n.source+'" '+
+      (n.raw_id?'data-rid="'+n.raw_id+'" ':'')+
+      (n.project_id?'data-pid="'+n.project_id+'" ':'')+
+      'onclick="wtReadNotifEl(this)" '+
+      'style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">'+
+      '<span style="font-size:18px;flex-shrink:0;margin-top:2px">'+icon+'</span>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div class="notif-item-title">'+escHtml(n.title)+'</div>'+
+        '<div class="notif-item-body">'+escHtml(n.body)+'</div>'+
+        '<div class="notif-item-time">'+escHtml(timeStr)+'</div>'+
+      '</div>'+
+      (!n.read?'<div style="width:8px;height:8px;border-radius:50%;background:#1565c0;flex-shrink:0;margin-top:6px"></div>':'')+
     '</div>';
   }).join('');
 }
 
-function readNotif(id) {
-  var n = _notifications.find(function(x){ return x.id===id; });
-  if (n) n.read=true;
+function wtReadNotif(id, source, rawId, projectId) {
+  // Mark local notification as read
+  if (source === 'local') {
+    var n = _notifications.find(function(x){ return x.id===id; });
+    if (n) { n.read=true; }
+  }
+  // Mark Supabase notification as read
+  if (source === 'supabase' && rawId && _sb) {
+    _sb.from('wt_notifications').update({read:true}).eq('id',rawId).then(function(){});
+    if (WT.notifications) {
+      var wn = WT.notifications.find(function(x){ return x.id===rawId; });
+      if (wn) wn.read = true;
+    }
+  }
   updateNotifBadge();
   renderNotifPanel();
+  // Navigate to relevant screen
+  if (projectId) {
+    document.getElementById('notif-panel').classList.remove('open');
+    goPage('worktracking');
+    setTimeout(function(){ if(typeof wtOpenProject==='function') wtOpenProject(projectId); }, 300);
+  }
+}
+
+function readNotif(id) { wtReadNotif(id,'local',null,null); }
+
+function wtReadNotifEl(el) {
+  var id  = el.getAttribute('data-nid');
+  var src = el.getAttribute('data-src') || 'local';
+  var rid = el.getAttribute('data-rid') || null;
+  var pid = el.getAttribute('data-pid') || null;
+  wtReadNotif(id, src, rid, pid);
 }
 
 function markAllNotifsRead() {
   _notifications.forEach(function(n){ n.read=true; });
+  // Mark all Supabase notifications as read
+  var unreadIds = (WT.notifications||[]).filter(function(n){return !n.read;}).map(function(n){return n.id;});
+  if (unreadIds.length && _sb) {
+    _sb.from('wt_notifications').update({read:true}).in('id',unreadIds).then(function(){});
+    (WT.notifications||[]).forEach(function(n){ n.read=true; });
+  }
   updateNotifBadge();
   renderNotifPanel();
+}
+
+function addWOAssignmentNotifications(wo, techNames) {
+  // Add local notification for owner (they assigned someone)
+  addNotification('assignment_wo',
+    'Team assigned to '+escHtml(wo.woNumber||'WO'),
+    techNames.join(', ')+' added to '+escHtml(wo.description||'work order'),
+    null
+  );
+  // Send Supabase notification to each tech
+  if (!_sb) return;
+  techNames.forEach(function(name){
+    var member = (DB.team||[]).find(function(m){ return m.name===name; });
+    if (!member || !member.userId) return;
+    _sb.from('wt_notifications').insert({
+      user_id:    member.userId,
+      user_name:  name,
+      type:       'assignment_wo',
+      title:      'You have been assigned to a work order',
+      message:    'Work Order: '+(wo.woNumber||'')+(wo.description?' — '+wo.description:'')+
+                  (wo.dateRequested?' · Scheduled: '+wo.dateRequested:''),
+      project_id: null,
+    }).then(function(){});
+  });
 }
 
 // ============================================================
@@ -4678,9 +4778,10 @@ async function wtLoadNotifications() {
 }
 
 function wtUpdateNotificationBell() {
-  var count = (WT.notifications||[]).filter(function(n){ return !n.read; }).length;
-  var bell = document.querySelector('.notif-badge, #notif-count, .bell-count');
-  if (bell) bell.textContent = count > 0 ? count : '';
+  updateNotifBadge();
+  // Also refresh panel if open
+  var panel = document.getElementById('notif-panel');
+  if (panel && panel.classList.contains('open')) renderNotifPanel();
 }
 
 
