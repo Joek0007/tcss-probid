@@ -856,6 +856,17 @@ var PERM_DEFS = [
   {key:'job.create',      label:'Create / Edit Jobs',         group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'job.delete',      label:'Delete Jobs',                group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'job.closeout',    label:'Job Closeout / Sign-off',    group:'Jobs',           fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+
+  // ── Work Order permissions ────────────────────────────────────────────────
+  {key:'wo.create',        label:'Create New Work Orders',     group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wo.edit',          label:'Edit WO Details',            group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wo.delete',        label:'Delete Work Orders',         group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'wo.view_financial',label:'View Rates & Financials',    group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wo.change_status', label:'Change WO Status',           group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wo.invoice',       label:'Create Invoices from WO',    group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'wo.change_order',  label:'Create Change Orders',       group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wo.settings',      label:'Access WO Settings',         group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'wo.view_assigned_only',label:'See Only Assigned WOs',  group:'Work Orders',    fixed:false, defaults:{owner:0,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:1,project_manager:0,subcontractor:1}},
   {key:'wt.create',       label:'Create WT Projects',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wt.checkoff',     label:'Field Check-off Items',      group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
   {key:'wt.confirm',      label:'Confirm Check-offs',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},

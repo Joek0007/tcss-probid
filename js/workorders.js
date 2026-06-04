@@ -87,12 +87,11 @@ function renderWorkOrders() {
     return (b.createdAt||'').localeCompare(a.createdAt||'');
   });
 
-  // ---- PERMISSION FILTER — assignment-based, not role-hardcoded ----
+  // ---- PERMISSION FILTER — uses permissions matrix ----
   var myName  = _currentUser ? _currentUser.full_name : '';
-  var myRole  = _currentUser ? _currentUser.role : '';
-  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager'||myRole==='back_office';
+  var assignedOnly = typeof hasPermission==='function' && hasPermission('wo.view_assigned_only');
 
-  if (!isAdmin && myName) {
+  if (assignedOnly && myName) {
     var myProfile = (DB.team||[]).find(function(m){ return m.name===myName; });
     var seeAllWOs = myProfile && myProfile.woViewMode === 'all';
     if (!seeAllWOs) {
@@ -125,6 +124,12 @@ function renderWorkOrders() {
       (review?'<div style="background:#ffebee;color:#c62828;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700">👁 '+review+' Ready for Review</div>':'') +
       (pricing?'<div style="background:#fff3e0;color:#e65100;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700">💰 '+pricing+' Ready for Pricing</div>':'');
   }
+
+  // Hide/show action buttons based on permissions
+  var newWoBtn = document.querySelector('#page-workorders .btn-primary');
+  var woSetBtn = document.querySelector('#page-workorders .btn-outline[onclick*="wo-settings"]');
+  if (newWoBtn) newWoBtn.style.display = (typeof hasPermission==='function' && !hasPermission('wo.create')) ? 'none' : '';
+  if (woSetBtn) woSetBtn.style.display = (typeof hasPermission==='function' && !hasPermission('wo.settings')) ? 'none' : '';
 
   var body = document.getElementById('wo-list-body');
   if (!body) return;
@@ -195,6 +200,34 @@ function openNewWorkOrder() {
   var intSection=document.getElementById('wo-internal-notes-section');
   if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?'':'none';
 
+  // Apply WO permissions
+  if(typeof hasPermission==='function'){
+    var _canFin=hasPermission('wo.view_financial');
+    var _canEdit=hasPermission('wo.edit');
+    var _canInv=hasPermission('wo.invoice');
+    var _canCO=hasPermission('wo.change_order');
+    setTimeout(function(){
+      var lb=document.getElementById('wo-labor-rate');if(lb&&lb.closest&&lb.closest('div'))lb.closest('div').style.display=_canFin?'':'none';
+      var tx=document.getElementById('wo-tax-rate');if(tx&&tx.closest&&tx.closest('div'))tx.closest('div').style.display=_canFin?'':'none';
+      var ib=document.getElementById('wo-btn-invoice');if(ib)ib.style.display=_canInv?'':'none';
+      var cb=document.getElementById('wo-btn-co');if(cb)cb.style.display=_canCO?'':'none';
+      if(!_canEdit){document.querySelectorAll('#wo-desc,#wo-site-addr,#wo-site-city,#wo-site-state,#wo-site-zip').forEach(function(el){if(el){el.readOnly=true;el.style.background='#f5f5f5';}});}
+    },300);
+  }
+  // Apply WO permissions
+  if(typeof hasPermission==='function'){
+    var _canFin=hasPermission('wo.view_financial');
+    var _canEdit=hasPermission('wo.edit');
+    var _canInv=hasPermission('wo.invoice');
+    var _canCO=hasPermission('wo.change_order');
+    setTimeout(function(){
+      var lb=document.getElementById('wo-labor-rate');if(lb&&lb.closest&&lb.closest('div'))lb.closest('div').style.display=_canFin?'':'none';
+      var tx=document.getElementById('wo-tax-rate');if(tx&&tx.closest&&tx.closest('div'))tx.closest('div').style.display=_canFin?'':'none';
+      var ib=document.getElementById('wo-btn-invoice');if(ib)ib.style.display=_canInv?'':'none';
+      var cb=document.getElementById('wo-btn-co');if(cb)cb.style.display=_canCO?'':'none';
+      if(!_canEdit){document.querySelectorAll('#wo-desc,#wo-site-addr,#wo-site-city,#wo-site-state,#wo-site-zip').forEach(function(el){if(el){el.readOnly=true;el.style.background='#f5f5f5';}});}
+    },300);
+  }
   switchWOTab((typeof wtIsFieldTech==='function'&&wtIsFieldTech())?'fieldlog':'labor');
   setTimeout(function(){var cp=document.getElementById('wo-change-orders-panel');if(cp){var woId=_woCurrentId;cp.innerHTML=renderWOChangeOrders(woId);var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});if(wo&&wo.parentWoId&&wo.isChangeOrder){var par=(DB.workOrders||[]).find(function(w){return w.id===wo.parentWoId;});if(par)_renderParentWOBanner(par);}}},200);
   openModal('modal-work-order');

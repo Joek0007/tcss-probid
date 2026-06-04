@@ -127,6 +127,10 @@ async function signIn(email, password) {
         renderDash();
         if (_currentUser) applyRolePermissions(_currentUser.role);
       }
+      // Run self-test to catch permission issues early
+      setTimeout(function(){
+        if (_currentUser) runPermissionsSelfTest(_currentUser.role);
+      }, 1000);
     }, 500);
     setTimeout(initPhase3, 800);
     startSessionTimeout();
@@ -320,6 +324,88 @@ function updateUserBadge(profile) {
 }
 
 // ---- SYNC ----
+
+// ── Permission system self-test ───────────────────────────────────────────────
+// Runs automatically after login in dev mode — logs results to console
+function runPermissionsSelfTest(role) {
+  if (!role) return;
+  var results = { pass: 0, fail: 0, issues: [] };
+
+  // Test 1: getPermMatrix is available
+  if (typeof getPermMatrix !== 'function') {
+    results.issues.push('FAIL: getPermMatrix not available');
+    results.fail++;
+  } else {
+    results.pass++;
+  }
+
+  // Test 2: matrix has page.* keys
+  var matrix = typeof getPermMatrix === 'function' ? getPermMatrix() : {};
+  var pageKeys = Object.keys(matrix).filter(function(k){ return k.indexOf('page.') === 0; });
+  if (pageKeys.length < 10) {
+    results.issues.push('FAIL: Only '+pageKeys.length+' page permission keys found (expected 23)');
+    results.fail++;
+  } else {
+    results.pass++;
+  }
+
+  // Test 3: nav items have data-page attribute
+  var navItems = document.querySelectorAll('.nav-item[data-page]');
+  if (navItems.length < 5) {
+    results.issues.push('FAIL: Only '+navItems.length+' nav items found');
+    results.fail++;
+  } else {
+    results.pass++;
+  }
+
+  // Test 4: body has role class
+  var hasRoleClass = document.body.className.indexOf('role-') >= 0;
+  if (!hasRoleClass) {
+    results.issues.push('FAIL: No role class on body — permissions may not apply');
+    results.fail++;
+  } else {
+    results.pass++;
+  }
+
+  // Test 5: for helper_tech — verify pages that should be hidden ARE hidden
+  if (role === 'helper_tech') {
+    var shouldBeHidden = ['qq','quotes','customers','catalog','reports','dispatch','jobs'];
+    shouldBeHidden.forEach(function(page) {
+      var el = document.querySelector('.nav-item[data-page="'+page+'"]');
+      if (el && el.offsetParent !== null) {
+        results.issues.push('WARN: nav item "'+page+'" is visible but should be hidden for helper_tech');
+        results.fail++;
+      } else if (el) {
+        results.pass++;
+      }
+    });
+    var shouldBeVisible = ['workorders','worktracking','field','tools','calendar'];
+    shouldBeVisible.forEach(function(page) {
+      var el = document.querySelector('.nav-item[data-page="'+page+'"]');
+      if (el && el.offsetParent === null) {
+        results.issues.push('WARN: nav item "'+page+'" is hidden but should be visible for helper_tech');
+        results.fail++;
+      } else if (el) {
+        results.pass++;
+      }
+    });
+  }
+
+  // Report
+  var status = results.fail === 0 ? '✅ ALL PASS' : '⚠️ '+results.fail+' ISSUE(S)';
+  console.group('%c[ProBid Permissions Self-Test] '+status+' ('+results.pass+' passed)',
+    results.fail === 0 ? 'color:#2e7d32;font-weight:700' : 'color:#c62828;font-weight:700');
+  console.log('Role:', role);
+  console.log('Page keys in matrix:', pageKeys.length);
+  console.log('Nav items found:', navItems.length);
+  console.log('Body classes:', document.body.className);
+  if (results.issues.length) {
+    results.issues.forEach(function(issue){ console.warn(issue); });
+  }
+  console.groupEnd();
+  return results;
+}
+
 async function syncAllFromCloud() {
   // Always re-enforce role permissions when sync completes
   var _syncRole = _currentUser ? _currentUser.role : null;
