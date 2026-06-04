@@ -114,7 +114,15 @@ async function signIn(email, password) {
     startClockInReminder();
     checkYearEndForfeiture();
     setTimeout(flushOfflineQueue, 2000);
-    setTimeout(initPhase2, 500);
+    setTimeout(function initPhase2() {
+      // Phase 2 init — runs 500ms after login
+      // Start location morning detection for field techs
+      if (typeof startMorningDetection === 'function') startMorningDetection();
+      // Restore clock session if tech was previously clocked in
+      if (typeof restoreClockSession === 'function') restoreClockSession();
+      // Render dashboard
+      if (typeof renderDash === 'function') renderDash();
+    }, 500);
     setTimeout(initPhase3, 800);
     startSessionTimeout();
     startAutoSync();
