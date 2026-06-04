@@ -193,6 +193,8 @@ function goPage(id) {
   }
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});
+  // Enforce nav permissions on every navigation — one place, always runs
+  if (typeof enforceNavPermissions === 'function') enforceNavPermissions();
   // Always close dispatch detail panel when navigating away
   var dp = document.getElementById('dispatch-detail-panel');
   if (dp) dp.style.display = 'none';
