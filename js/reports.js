@@ -1047,1043 +1047,146 @@ async function openQuarterlyReview(techName) {
 }
 
 
-function wtRenderTechDashboard() {
+async function wtRenderTechDashboard() {
   var el = document.getElementById('page-dash');
   if (!el || !wtIsFieldTech()) return;
 
-  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
-  var myName = wtCurrentUserName();
-  var myId   = wtCurrentUserId();
+  var today     = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var myName    = wtCurrentUserName();
 
-  // My assigned projects
+  // Gather all async data FIRST, then build html all at once
   var myProjects = (DB.wtProjects||[]).filter(function(p){
     return (p.status==='active'||p.status==='paused') && wtIsAssigned(p.id);
   });
 
-  // Today's jobs I'm on
   var myJobs = (DB.jobs||[]).filter(function(j){
     return j.scheduledDate === today &&
-           (j.assignedTechs||j.techs||[]).some(function(t){
-             return (typeof t==='string'?t:t.name||'').toLowerCase() === myName.toLowerCase();
-           });
+      (j.assignedTechs||j.techs||[]).some(function(t){
+        return (typeof t==='string'?t:t.name||'').toLowerCase() === myName.toLowerCase();
+      });
   });
 
-  // My open flags
   var myFlags = [];
   myProjects.forEach(function(p){
     var d = WT.data[p.id];
-    if (d && d.flags) {
-      d.flags.filter(function(f){ return f.status!=='resolved'; }).forEach(function(f){
-        myFlags.push(Object.assign({}, f, {projectName: p.name}));
-      });
-    }
+    if (d && d.flags) d.flags.filter(function(f){ return f.status!=='resolved'; })
+      .forEach(function(f){ myFlags.push(Object.assign({},f,{projectName:p.name})); });
   });
 
+  // Async: log completion rate for this month
+  var monthStart = today.substring(0,7)+'-01';
+  var logStats   = await calcLogCompletionRate(myName, monthStart, today);
+
   // Clock status
-  var clocked = _clockState && _clockState.status !== 'out';
-  var clockLabel = clocked ? ('Clocked in — '+(_clockState.jobName||'on site')) : 'Not clocked in';
+  var clocked    = _clockState && _clockState.status !== 'out';
+  var clockLabel = clocked ? 'Clocked in'+((_clockState.jobName)?' — '+_clockState.jobName:'') : 'Not clocked in';
   var clockColor = clocked ? '#2e7d32' : '#90a4ae';
 
-  var html = '<div style="padding:16px;max-width:600px;margin:0 auto">' +
+  // Log rate section
+  var logRateHtml = '';
+  if (logStats && logStats.worked > 0) {
+    var lrClr = logStats.rate>=80?'#2e7d32':logStats.rate>=50?'#e65100':'#c62828';
+    var lrBg  = logStats.rate>=80?'#e8f5e9':logStats.rate>=50?'#fff3e0':'#ffebee';
+    logRateHtml =
+      '<div style="background:'+lrBg+';border-radius:12px;padding:16px;margin-bottom:14px;'+
+        'display:flex;align-items:center;justify-content:space-between">'+
+        '<div>'+
+          '<div style="font-size:13px;font-weight:800;color:#0d1b2a">Field Log Completion</div>'+
+          '<div style="font-size:12px;color:#546e7a;margin-top:2px">This month: '+logStats.logged+' of '+logStats.worked+' days logged</div>'+
+        '</div>'+
+        '<div style="font-size:28px;font-weight:800;color:'+lrClr+'">'+logStats.rate+'%</div>'+
+      '</div>';
+  }
+
+  // Notifications section
+  var notifHtml = wtRenderTechNotifications ? wtRenderTechNotifications() : '';
+
+  // ── Build html all at once ─────────────────────────────────────────────
+  el.innerHTML =
+    '<div style="padding:16px;max-width:600px;margin:0 auto">'+
 
     // Header
-    '<div style="margin-bottom:20px">' +
-      '<div style="font-size:22px;font-weight:800;color:#0d1b2a">Good '+getGreeting()+', '+escHtml(myName.split(' ')[0])+'</div>' +
-      '<div style="font-size:13px;color:#546e7a;margin-top:2px">'+formatDateFriendly(today)+'</div>' +
-    '</div>' +
+    '<div style="margin-bottom:20px">'+
+      '<div style="font-size:22px;font-weight:800;color:#0d1b2a">Good '+
+        (typeof getGreeting==='function'?getGreeting():'day')+', '+escHtml(myName.split(' ')[0])+'</div>'+
+      '<div style="font-size:13px;color:#546e7a;margin-top:2px">'+
+        (typeof formatDateFriendly==='function'?formatDateFriendly(today):today)+'</div>'+
+    '</div>'+
 
-    // Clock status card
-    '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">' +
-      '<div>' +
-        '<div style="font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Clock Status</div>' +
-        '<div style="font-size:14px;font-weight:700;color:'+clockColor+'">'+
-          (clocked?'🟢':'⚪')+' '+escHtml(clockLabel)+
-        '</div>' +
-      '</div>' +
-      '<button onclick="goPage(\'field\')" style="padding:8px 16px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">⏱ Clock</button>' +
-    '</div>' +
+    // Clock card
+    '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:16px;margin-bottom:14px;'+
+        'display:flex;align-items:center;justify-content:space-between">'+
+      '<div>'+
+        '<div style="font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Clock Status</div>'+
+        '<div style="font-size:14px;font-weight:700;color:'+clockColor+'">'+(clocked?'🟢':'⚪')+' '+escHtml(clockLabel)+'</div>'+
+      '</div>'+
+      '<button onclick="goPage(&quot;field&quot;)" style="padding:8px 16px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">⏱ Clock</button>'+
+    '</div>'+
 
-    // Today's jobs
-    (myJobs.length ? (
-      '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:16px;margin-bottom:14px">' +
-        '<div style="font-size:13px;font-weight:800;color:#0d1b2a;margin-bottom:12px">📅 Today\'s Schedule</div>' +
+    // Today's schedule
+    (myJobs.length ?
+      '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:16px;margin-bottom:14px">'+
+        '<div style="font-size:13px;font-weight:800;color:#0d1b2a;margin-bottom:12px">📅 Today&#39;s Schedule</div>'+
         myJobs.map(function(j){
-          return '<div style="padding:10px 0;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between">' +
-            '<div>' +
-              '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(j.name||'Job')+'</div>' +
-              '<div style="font-size:11px;color:#546e7a">'+escHtml(j.customer||j.customerName||'')+(j.siteAddr?' · '+escHtml(j.siteAddr):'')+'</div>' +
-            '</div>' +
-            '<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;background:#e3f2fd;color:#1565c0">'+escHtml(j.status||'Scheduled')+'</span>' +
+          return '<div style="padding:10px 0;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between">'+
+            '<div>'+
+              '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(j.name||'Job')+'</div>'+
+              '<div style="font-size:11px;color:#546e7a">'+escHtml(j.customer||j.customerName||'')+(j.siteAddr?' · '+escHtml(j.siteAddr):'')+'</div>'+
+            '</div>'+
+            '<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;background:#e3f2fd;color:#1565c0">'+escHtml(j.status||'Scheduled')+'</span>'+
           '</div>';
-        }).join('') +
+        }).join('')+
       '</div>'
-    ) : '') +
+    : '') +
 
-    // My Work Tracking projects
-    (myProjects.length ? (
-      '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:16px;margin-bottom:14px">' +
-        '<div style="font-size:13px;font-weight:800;color:#0d1b2a;margin-bottom:12px">📋 My Projects</div>' +
+    // My projects
+    (myProjects.length ?
+      '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:16px;margin-bottom:14px">'+
+        '<div style="font-size:13px;font-weight:800;color:#0d1b2a;margin-bottom:12px">📋 My Projects</div>'+
         myProjects.map(function(p){
           var d = WT.data[p.id] || {};
           var items = d.items || [];
-          var confirmed = items.filter(function(i){ return wtItemPct&&wtItemPct(i)===100; }).length;
+          var confirmed = items.filter(function(i){ return typeof wtItemPct==='function'&&wtItemPct(i)===100; }).length;
           var pct = items.length ? Math.round(confirmed/items.length*100) : 0;
-          return '<div onclick="wtOpenProject(\''+p.id+'\')" style="padding:12px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
-              '<div style="font-size:14px;font-weight:700;color:#0d1b2a">'+escHtml(p.name)+'</div>' +
-              '<span style="font-size:12px;font-weight:700;color:'+(pct===100?'#2e7d32':'#1565c0')+'">'+pct+'%</span>' +
-            '</div>' +
-            '<div style="background:#e0e0e0;border-radius:3px;height:6px">' +
-              '<div style="background:'+(pct===100?'#2e7d32':'#1565c0')+';height:6px;border-radius:3px;width:'+pct+'%"></div>' +
-            '</div>' +
+          return '<div onclick="wtOpenProject(\'+p.id+\')\" style="padding:12px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">'+
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
+              '<div style="font-size:14px;font-weight:700;color:#0d1b2a">'+escHtml(p.name)+'</div>'+
+              '<span style="font-size:12px;font-weight:700;color:'+(pct===100?'#2e7d32':'#1565c0')+'">'+pct+'%</span>'+
+            '</div>'+
+            '<div style="background:#e0e0e0;border-radius:3px;height:6px">'+
+              '<div style="background:'+(pct===100?'#2e7d32':'#1565c0')+';height:6px;border-radius:3px;width:'+pct+'%"></div>'+
+            '</div>'+
           '</div>';
-        }).join('') +
+        }).join('')+
       '</div>'
-    ) : (
-      '<div style="background:#f5f7fa;border-radius:12px;padding:24px;text-align:center;margin-bottom:14px;color:#90a4ae">' +
-        '<div style="font-size:28px;margin-bottom:8px">📋</div>' +
-        '<div style="font-size:14px;font-weight:600">No projects assigned yet</div>' +
-        '<div style="font-size:12px;margin-top:4px">Your manager will assign you to a project</div>' +
+    :
+      '<div style="background:#f5f7fa;border-radius:12px;padding:24px;text-align:center;margin-bottom:14px;color:#90a4ae">'+
+        '<div style="font-size:28px;margin-bottom:8px">📋</div>'+
+        '<div style="font-size:14px;font-weight:600">No projects assigned yet</div>'+
+        '<div style="font-size:12px;margin-top:4px">Your manager will assign you to a project</div>'+
       '</div>'
-    )) +
+    ) +
 
     // Open flags
-    (myFlags.length ? (
-      '<div style="background:#fff3e0;border-radius:12px;border:1px solid #ffe0b2;padding:16px;margin-bottom:14px">' +
-        '<div style="font-size:13px;font-weight:800;color:#e65100;margin-bottom:10px">🚩 Open Issues ('+myFlags.length+')</div>' +
+    (myFlags.length ?
+      '<div style="background:#fff3e0;border-radius:12px;border:1px solid #ffe0b2;padding:16px;margin-bottom:14px">'+
+        '<div style="font-size:13px;font-weight:800;color:#e65100;margin-bottom:10px">🚩 Open Issues ('+myFlags.length+')</div>'+
         myFlags.slice(0,3).map(function(f){
-          return '<div style="font-size:13px;padding:6px 0;border-bottom:1px solid #ffe0b2">' +
-            '<div style="font-weight:600">'+escHtml(f.title||f.description||'Issue')+'</div>' +
-            '<div style="font-size:11px;color:#e65100">'+escHtml(f.projectName||'')+'</div>' +
+          return '<div style="font-size:13px;padding:6px 0;border-bottom:1px solid #ffe0b2">'+
+            '<div style="font-weight:600">'+escHtml(f.title||f.description||'Issue')+'</div>'+
+            '<div style="font-size:11px;color:#e65100">'+escHtml(f.projectName||'')+'</div>'+
           '</div>';
-        }).join('') +
+        }).join('')+
       '</div>'
-    ) : '') +
+    : '') +
 
-    // Log completion rate for this tech
-    await (async function(){
-      var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
-      var monthStart = today.substring(0,7)+'-01';
-      var stats = await calcLogCompletionRate(myName, monthStart, today);
-      if (stats.worked > 0) {
-        var color = stats.rate>=80?'#2e7d32':stats.rate>=50?'#e65100':'#c62828';
-        var bg    = stats.rate>=80?'#e8f5e9':stats.rate>=50?'#fff3e0':'#ffebee';
-        var extra = document.createElement('div');
-        extra.style.cssText = 'background:'+bg+';border-radius:12px;padding:16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between';
-        extra.innerHTML =
-          '<div>'+
-            '<div style="font-size:13px;font-weight:800;color:#0d1b2a">Field Log Completion</div>'+
-            '<div style="font-size:12px;color:#546e7a;margin-top:2px">This month: '+stats.logged+' of '+stats.worked+' days logged</div>'+
-          '</div>'+
-          '<div style="font-size:28px;font-weight:800;color:'+color+'">'+stats.rate+'%</div>';
-        var dashEl = document.getElementById('page-dash');
-        var firstChild = dashEl ? dashEl.querySelector('div') : null;
-        if (firstChild && firstChild.parentNode) firstChild.parentNode.insertBefore(extra, firstChild.nextSibling.nextSibling);
-      }
-    })() ||
+    // Log completion rate
+    logRateHtml +
 
     // Notifications
-    wtRenderTechNotifications() +
+    notifHtml +
 
-  '</div>';
-
-  el.innerHTML = html;
-}
-
-function wtRenderTechNotifications() {
-  var notifs = (WT.notifications||[]).filter(function(n){ return !n.read; });
-  if (!notifs.length) return '';
-  return '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:16px;margin-bottom:14px">' +
-    '<div style="font-size:13px;font-weight:800;color:#0d1b2a;margin-bottom:10px">🔔 Notifications ('+notifs.length+')</div>' +
-    notifs.slice(0,5).map(function(n){
-      return '<div style="padding:10px 0;border-bottom:1px solid #f0f0f0">' +
-        '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(n.title||'')+'</div>' +
-        '<div style="font-size:12px;color:#546e7a;margin-top:2px">'+escHtml(n.message||'')+'</div>' +
-        '<div style="font-size:11px;color:#90a4ae;margin-top:4px">'+escHtml(formatTimeAgo(n.created_at||''))+'</div>' +
-      '</div>';
-    }).join('') +
-    (notifs.length > 5 ? '<div style="font-size:12px;color:#1565c0;padding-top:8px;cursor:pointer" onclick="wtMarkAllNotificationsRead()">Mark all as read</div>' : '') +
-  '</div>';
-}
-
-async function wtMarkAllNotificationsRead() {
-  if (!_sb) return;
-  var ids = (WT.notifications||[]).map(function(n){ return n.id; });
-  if (!ids.length) return;
-  await _sb.from('wt_notifications').update({read:true}).in('id', ids);
-  WT.notifications = [];
-  var el = document.getElementById('page-dash');
-  if (el && wtIsFieldTech()) wtRenderTechDashboard();
-}
-
-function getGreeting() {
-  var h = new Date().getHours();
-  return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
-}
-
-function formatDateFriendly(dateStr) {
-  if (!dateStr) return '';
-  var d = new Date(dateStr + 'T12:00:00');
-  return d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
-}
-
-function formatTimeAgo(isoStr) {
-  if (!isoStr) return '';
-  var diff = Math.floor((Date.now() - new Date(isoStr)) / 60000);
-  if (diff < 1)  return 'Just now';
-  if (diff < 60) return diff + 'm ago';
-  if (diff < 1440) return Math.floor(diff/60) + 'h ago';
-  return Math.floor(diff/1440) + 'd ago';
+    '</div>';
 }
 
 
-function renderDash() {
-  // Field techs get their own dashboard
-  if (typeof wtIsFieldTech === 'function' && wtIsFieldTech()) {
-    setTimeout(wtRenderTechDashboard, 100);
-    return;
-  }
-  // Load journal data for dashboard blip
-  setTimeout(loadJournalForDash, 800);
-  const today = getTodayISO();
-
-  // ---- QUOTE METRICS ----
-  let tq=0, rev=0, wonRev=0, totalMargin=0, marginCount=0, followupsDue=0,
-      aging7=0, aging14=0, aging30=0, draftsNotReady=0;
-  const pipeline = { draft:0, sent:0, followup:0, approved:0, declined:0 };
-  DB.quotes.forEach(function(q) {
-    tq++; rev += q.total||0;
-    if (q.status==='approved') wonRev += q.total||0;
-    if (q.achievedMargin!=null) { totalMargin += q.achievedMargin; marginCount++; }
-    pipeline[q.status||'draft'] = (pipeline[q.status||'draft']||0) + 1;
-    if (isFollowupDue(q)) followupsDue++;
-    var ageBase = q.createdDate||((q.createdAt||'').split('T')[0])||q.dt||'';
-    if (ageBase && q.status!=='approved' && q.status!=='declined') {
-      var age = Math.floor((new Date(today)-new Date(ageBase))/86400000);
-      if (age>=7) aging7++; if (age>=14) aging14++; if (age>=30) aging30++;
-    }
-    if ((q.status||'draft')==='draft'&&String(q.readiness||'').toUpperCase()!=='READY') draftsNotReady++;
-  });
-
-  // ---- JOB METRICS ----
-  const activeJobs = DB.jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; });
-
-  // ---- FIELD ACTIVITY ----
-  // Who's clocked in today (from workDays with no totalPaidMins = still active)
-  const todayWorkDays = (DB.workDays||[]).filter(function(d){ return d.date===today&&!d.totalPaidMins; });
-  // Also include current user if clocked in
-  var liveUsers = todayWorkDays.map(function(d){ return {name:d.techName,status:'onsite',job:''}; });
-  if (_clockState.status!=='out'&&_currentUser) {
-    var alreadyIn = liveUsers.find(function(u){ return u.name===_currentUser.full_name; });
-    if (!alreadyIn) liveUsers.unshift({name:_currentUser.full_name,status:_clockState.status,job:_clockState.jobName||''});
-    else { alreadyIn.status=_clockState.status; alreadyIn.job=_clockState.jobName||''; }
-  }
-  var teamTotal = (DB.team||[]).length;
-  var clockedInCount = liveUsers.length;
-
-  // ---- TOOLS ----
-  const toolsOut = (DB.toolCheckouts||[]).filter(function(c){ return !c.returnedAt&&c.status!=='verified'; }).length;
-  const pendingVerify = (DB.toolCheckouts||[]).filter(function(c){ return c.status==='pending_verify'; }).length;
-  const toolFlags = (DB.tools||[]).filter(function(t){ return t.flags&&t.flags.length; }).length;
-
-  // ---- WORK TRACKING ----
-  const wtProjects = (DB.wtProjects||[]);
-  var wtPcts = wtProjects.map(function(p){
-    var items=(DB.wtItems||[]).filter(function(i){return i.projectId===p.id;});
-    var done=items.filter(function(i){return i.status==='done';}).length;
-    return items.length?Math.round(done/items.length*100):0;
-  });
-  var wtAvg = wtPcts.length?Math.round(wtPcts.reduce(function(s,v){return s+v;},0)/wtPcts.length):null;
-
-  // ---- OPEN FLAGS ----
-  var openFlags = (DB.lunchFlags||[]).filter(function(f){return f.status==='pending_review';}).length;
-  openFlags += (DB.timeOffRequests||[]).filter(function(r){return r.status==='pending';}).length;
-
-  // ---- ABSENCES TODAY ----
-  var todayAbsences = (DB.absences||[]).filter(function(a){return a.date===today;});
-
-  // ---- WORK ORDER METRICS ----
-  var woAll     = DB.workOrders||[];
-  var woOpen    = woAll.filter(function(w){ return ['New','Open','Waiting on Customer','Parts Needed','Parts Ordered','Parts Received — Partial','Parts Received — Complete','Ready for Review','Ready for Pricing'].includes(w.status); });
-  var woUrgent  = woOpen.filter(function(w){ return w.priority==='Urgent'; });
-  var woReview  = woAll.filter(function(w){ return w.status==='Ready for Review'; });
-  var woPricing = woAll.filter(function(w){ return w.status==='Ready for Pricing'; });
-
-  // ---- UPDATE STAT TILES ----
-  function setT(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
-  setT('ds-tq', tq);
-  setT('ds-won-rev', '$'+Math.round(wonRev).toLocaleString());
-  setT('ds-active-jobs', activeJobs.length);
-  setT('ds-clocked-in', clockedInCount+(teamTotal?' / '+teamTotal:''));
-  setT('ds-wt-pct', wtAvg!==null?wtAvg+'%':'—');
-  setT('ds-tools-out', toolsOut);
-  setT('ds-followups', followupsDue);
-  setT('ds-flags', openFlags);
-
-  // Work Orders tile
-  var woTileEl = document.getElementById('ds-wo-tile');
-  if (woTileEl) {
-    woTileEl.innerHTML =
-      '<div style="font-size:28px;font-weight:900;color:'+(woUrgent.length?'#c62828':'#1565c0')+'">'+woOpen.length+'</div>'+
-      '<div style="font-size:11px;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-top:2px">OPEN WOs</div>'+
-      (woUrgent.length?'<div style="font-size:10px;font-weight:700;color:#c62828;margin-top:4px;animation:pulse 1s infinite">🚨 '+woUrgent.length+' URGENT</div>':'')+
-      (woReview.length?'<div style="font-size:10px;color:#e65100;margin-top:2px">'+woReview.length+' ready for review</div>':'')+
-      (woPricing.length?'<div style="font-size:10px;color:#2e7d32;margin-top:2px">'+woPricing.length+' ready to invoice</div>':'');
-  }
-
-  var lastUpdated = document.getElementById('dash-last-updated');
-  if (lastUpdated) lastUpdated.textContent = 'Updated '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
-
-  // Reorder alert
-  if (typeof renderDashReorderAlert === 'function') renderDashReorderAlert();
-
-  // ---- ALERT BAR ----
-  buildAlerts();
-
-  // ---- ABSENCE CARD ----
-  var absCard = document.getElementById('dash-absence-card');
-  var absDetail = document.getElementById('dash-absence-detail');
-  var absCount = document.getElementById('dash-absence-count');
-  if (absCard) absCard.style.display = todayAbsences.length?'block':'none';
-  if (absCount) absCount.textContent = todayAbsences.length+' team member'+(todayAbsences.length!==1?'s':'')+' out';
-  if (absDetail && todayAbsences.length) {
-    var covLabels={pto:'PTO',vacation:'Vacation',makeup:'Make up',unpaid:'Unpaid'};
-    absDetail.innerHTML = todayAbsences.map(function(a){
-      return '<div class="dash-field-row">'+
-        '<div class="dash-field-avatar" style="background:#ffebee;color:#c62828">'+escHtml((a.techName||'?')[0].toUpperCase())+'</div>'+
-        '<div style="flex:1">'+
-          '<div style="font-weight:700;font-size:13px">'+escHtml(a.techName||'')+'</div>'+
-          '<div style="font-size:11px;color:#546e7a">'+escHtml(a.reasonLabel||a.reason||'')+(a.coverage?' · '+escHtml(covLabels[a.coverage]||a.coverage):'')+'</div>'+
-        '</div>'+
-        (a.isLate?'<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">Late</span>':
-                  '<span style="background:#e8f5e9;color:#2e7d32;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">On time</span>')+
-      '</div>';
-    }).join('');
-  }
-  // Also update the old absence alerts div for compatibility
-  renderAbsenceDashboard();
-
-  // ---- FIELD ACTIVITY ----
-  var fieldEl = document.getElementById('dash-field-activity');
-  if (fieldEl) {
-    var statusLabels={at_homebase:'At Base',traveling:'Traveling',onsite:'On Site',break:'On Break',lunch:'At Lunch',returning:'Returning',out:'Not started'};
-    var statusColors={at_homebase:'#1565c0',traveling:'#1565c0',onsite:'#2e7d32',break:'#e65100',lunch:'#6a1b9a',returning:'#1565c0',out:'#90a4ae'};
-    var statusBgs={at_homebase:'#e3f2fd',traveling:'#e3f2fd',onsite:'#e8f5e9',break:'#fff3e0',lunch:'#f3e5f5',returning:'#e3f2fd',out:'#f5f5f5'};
-
-    // Show all team members with their status
-    var allTeam = (DB.team||[]).map(function(m){
-      var live = liveUsers.find(function(u){ return u.name===m.name; });
-      return {name:m.name, status:live?live.status:'out', job:live?live.job:''};
-    });
-    // Put clocked-in at top
-    allTeam.sort(function(a,b){ return (a.status==='out'?1:0)-(b.status==='out'?1:0); });
-    if (!allTeam.length && !liveUsers.length) {
-      fieldEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No team members configured.</div>';
-    } else {
-      var toShow = allTeam.slice(0,8);
-      fieldEl.innerHTML = toShow.map(function(t){
-        var initials=(t.name||'?').split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
-        var bgColor=statusBgs[t.status]||'#f5f5f5';
-        var txColor=statusColors[t.status]||'#90a4ae';
-        return '<div class="dash-field-row">'+
-          '<div class="dash-field-avatar" style="background:'+bgColor+';color:'+txColor+'">'+escHtml(initials)+'</div>'+
-          '<div style="flex:1;min-width:0">'+
-            '<div style="font-weight:700;font-size:13px">'+escHtml(t.name||'')+'</div>'+
-            (t.job?'<div style="font-size:11px;color:#546e7a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(t.job)+'</div>':'')+
-          '</div>'+
-          '<span class="dash-field-status '+(t.status==='out'?'out':t.status==='break'?'break':t.status==='lunch'?'lunch':'in')+'">'+
-            escHtml(statusLabels[t.status]||t.status)+
-          '</span>'+
-        '</div>';
-      }).join('');
-      if (allTeam.length > 8) fieldEl.innerHTML += '<div style="font-size:11px;color:#90a4ae;padding:6px 0">+'+( allTeam.length-8)+' more team members</div>';
-    }
-  }
-
-  // ---- ACTIVE JOBS ----
-  var jobsEl = document.getElementById('dash-jobs-list');
-  if (jobsEl) {
-    if (!activeJobs.length) {
-      jobsEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No active jobs right now.</div>';
-    } else {
-      jobsEl.innerHTML = activeJobs.slice(0,6).map(function(j){
-        // Find linked WT project — job ID first, then customer ID, then name
-        var wtProj = (DB.wtProjects||[]).find(function(p){
-          return p.jobId===j.id ||
-            (j.customerId && p.customerId===j.customerId) ||
-            (p.customer||'').toLowerCase()===(j.customer||'').toLowerCase();
-        });
-        var pct = null;
-        if (wtProj) {
-          var items=(DB.wtItems||[]).filter(function(i){return i.projectId===wtProj.id;});
-          var done=items.filter(function(i){return i.status==='done';}).length;
-          pct=items.length?Math.round(done/items.length*100):0;
-        }
-        var scColor=j.status==='In Progress'?'#2e7d32':'#1565c0';
-        var scBg=j.status==='In Progress'?'#e8f5e9':'#e3f2fd';
-        var custId = j.customerId || '';
-        var custDisplay = custId
-          ? '<a href="#" onclick="openCustomerProfile(\''+custId+'\');return false" style="color:#1565c0;text-decoration:none">'+escHtml(j.customer||'—')+'</a>'
-          : escHtml(j.customer||'—');
-        return '<div class="dash-job-row">'+
-          '<div style="flex:1;min-width:0">'+
-            '<div style="font-weight:700;font-size:13px">'+escHtml(j.name||'')+'</div>'+
-            '<div style="font-size:11px;color:#546e7a">'+custDisplay+(j.assignedTo?' · '+escHtml(j.assignedTo):'')+'</div>'+
-            (pct!==null?'<div class="wt-progress-bar" style="width:120px;margin-top:4px;height:5px;border-radius:3px"><div class="wt-progress-fill" style="width:'+pct+'%;height:5px"></div></div>':'')+''+
-          '</div>'+
-          '<div style="display:flex;align-items:center;gap:6px">'+
-            (pct!==null?'<span style="font-size:11px;font-weight:700;color:#1565c0">'+pct+'%</span>':'')+
-            '<span style="background:'+scBg+';color:'+scColor+';border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">'+escHtml(j.status)+'</span>'+
-          '</div>'+
-        '</div>';
-      }).join('');
-      if (activeJobs.length>6) jobsEl.innerHTML+='<div style="font-size:11px;color:#90a4ae;padding:6px 0;text-align:center">+'+( activeJobs.length-6)+' more — <a href="#" onclick="goPage(\'jobs\');return false" style="color:#1565c0">view all</a></div>';
-    }
-  }
-
-  // ---- FOLLOW-UPS ----
-  const fuCard = document.getElementById('dash-followup-card');
-  const fuTbl  = document.getElementById('dash-followup-tbl');
-  const fuCount = document.getElementById('dash-followup-count');
-  const dueFups = DB.quotes.filter(isFollowupDue).sort(function(a,b){
-    return (isFollowupOverdue(b)?1:0)-(isFollowupOverdue(a)?1:0)||new Date(a.followupDate||today)-new Date(b.followupDate||today);
-  });
-  if (fuCard) fuCard.style.display = dueFups.length?'block':'none';
-  if (fuCount) fuCount.textContent = dueFups.length+' pending';
-  if (fuTbl && dueFups.length) {
-    fuTbl.innerHTML = dueFups.map(function(q){
-      var overdue=isFollowupOverdue(q);
-      var custLink = q.customerId
-        ? '<a href="#" onclick="openCustomerProfile(\''+q.customerId+'\');return false" style="color:#1565c0;text-decoration:none">'+escHtml(q.cn||'')+'</a>'
-        : escHtml(q.cn||'');
-      return '<tr style="'+(overdue?'background:#fff8f8':'')+'">'+
-        '<td style="font-weight:700;color:#1565c0;font-size:12px">'+escHtml(q.num||'')+'</td>'+
-        '<td style="font-size:12px">'+custLink+'</td>'+
-        '<td style="font-size:12px">'+escHtml(q.jn||'')+'</td>'+
-        '<td style="font-weight:700;color:'+(overdue?'#c62828':'#e65100')+'">'+escHtml(q.followupDate||'')+(overdue?' ⚠️':'')+'</td>'+
-        '<td style="white-space:nowrap">'+
-          '<button class="btn btn-outline btn-sm" data-action="editQuote" data-id="'+q.id+'">Edit</button> '+
-          '<button class="btn btn-ghost btn-sm" data-action="snoozeFollowup" data-id="'+q.id+'">Snooze 3d</button>'+
-        '</td>'+
-      '</tr>';
-    }).join('');
-  }
-
-  // ---- PIPELINE ----
-  const pipelineBar = document.getElementById('pipeline-bar');
-  const pipelineLegend = document.getElementById('pipeline-legend');
-  const pipelineDetail = document.getElementById('pipeline-detail');
-  const PIPE_COLORS={draft:'#607d8b',sent:'#1565c0',followup:'#6a1b9a',approved:'#2e7d32',declined:'#c62828'};
-  const PIPE_LABELS={draft:'Draft',sent:'Sent',followup:'Follow-Up',approved:'Won',declined:'Lost'};
-  if (pipelineBar&&tq>0) {
-    pipelineBar.innerHTML=Object.keys(pipeline).map(function(k){
-      var count=pipeline[k]||0;if(!count)return'';var pct2=count/tq*100;var showNum=pct2>=6;
-      return '<div class="pipeline-seg '+k+'" style="width:'+pct2+'%;min-width:'+(count>0?'24px':'0')+'">'+(showNum?'<span style="pointer-events:none">'+count+'</span>':'')+'</div>';
-    }).join('');
-    pipelineLegend.innerHTML=Object.keys(pipeline).map(function(k){
-      if(!pipeline[k])return'';
-      return '<div class="pipeline-legend-item"><div class="pipeline-legend-dot" style="background:'+PIPE_COLORS[k]+'"></div><span>'+PIPE_LABELS[k]+': <strong>'+pipeline[k]+'</strong></span></div>';
-    }).join('');
-    if (pipelineDetail) {
-      var winRate=tq>0?((pipeline.approved||0)/tq*100).toFixed(0):0;
-      pipelineDetail.innerHTML='Win rate: <strong>'+winRate+'%</strong> &nbsp;·&nbsp; Aging 7/14/30d: <strong>'+aging7+' / '+aging14+' / '+aging30+'</strong> &nbsp;·&nbsp; Avg margin: <strong>'+(marginCount>0?pct(totalMargin/marginCount):'—')+'</strong>';
-    }
-  } else if (pipelineBar) {
-    pipelineBar.innerHTML='<div style="width:100%;background:#f0f0f0;height:32px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#90a4ae;border-radius:6px">No quotes yet</div>';
-    if(pipelineLegend)pipelineLegend.innerHTML='';
-  }
-
-  // Recent quotes under pipeline
-  var rqEl = document.getElementById('dash-recent-quotes-list');
-  if (rqEl) {
-    var recentQ = DB.quotes.slice().sort(function(a,b){
-      return getQuotePriority(a).sort-getQuotePriority(b).sort||new Date(b.dt||b.createdAt||0)-new Date(a.dt||a.createdAt||0);
-    }).slice(0,5);
-    rqEl.innerHTML = recentQ.length ? recentQ.map(function(q){
-      var fu=isFollowupDue(q)?'<span class="followup-due'+(isFollowupOverdue(q)?' followup-overdue':'')+'"> FU</span>':'';
-      var custId = q.customerId || '';
-      var custLink = custId
-        ? '<a href="#" onclick="openCustomerProfile(\''+custId+'\');return false" style="color:#1565c0;text-decoration:none;font-size:12px">'+escHtml(q.cn||'')+'</a>'
-        : '<span style="font-size:12px">'+escHtml(q.cn||'')+'</span>';
-      return '<div class="dash-quote-row">'+
-        '<div>'+
-          '<span style="font-weight:700;color:#1565c0;font-size:12px;cursor:pointer" onclick="editQuote(\''+q.id+'\')">'+escHtml(q.num||'')+'</span>'+
-          ' '+custLink+fu+
-          '<div style="font-size:11px;color:#546e7a">'+escHtml(q.jn||'')+'</div>'+
-        '</div>'+
-        '<div style="text-align:right">'+
-          '<div style="font-weight:700;font-size:13px">'+fmt(q.total||0)+'</div>'+
-          '<span class="status-badge s-'+(q.status||'draft')+'" style="font-size:9px">'+(q.status||'draft')+'</span>'+
-        '</div>'+
-      '</div>';
-    }).join('') : '<div style="color:#90a4ae;font-size:13px">No quotes yet.</div>';
-  }
-
-  // ---- WORK TRACKING PROJECTS ----
-  var wtEl = document.getElementById('dash-wt-projects');
-  var wtCard = document.getElementById('dash-wt-card');
-  if (wtEl) {
-    var activeWTP = (DB.wtProjects||[]).slice(0,4);
-    if (!activeWTP.length) {
-      wtEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No work tracking projects yet.</div>';
-      if(wtCard) wtCard.style.display='none';
-    } else {
-      if(wtCard) wtCard.style.display='block';
-      wtEl.innerHTML = activeWTP.map(function(p){
-        var items=(DB.wtItems||[]).filter(function(i){return i.projectId===p.id;});
-        var done=items.filter(function(i){return i.status==='done';}).length;
-        var rough=items.filter(function(i){return (i.phaseStatus&&i.phaseStatus.rough)==='done';}).length;
-        var device=items.filter(function(i){return (i.phaseStatus&&i.phaseStatus.device)==='done';}).length;
-        var test=items.filter(function(i){return (i.phaseStatus&&i.phaseStatus.test)==='done';}).length;
-        var pct2=items.length?Math.round(done/items.length*100):0;
-        var pending=(DB.wtCheckoffs||[]).filter(function(c){return c.projectId===p.id&&!c.confirmed;}).length;
-        // Find customer for this project — use customerId if set
-        var custId = p.customerId || (p.customer ? ((DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(p.customer||'').toLowerCase(); })||{}).id : null);
-        var custLink = custId
-          ? '<a href="#" onclick="openCustomerProfile(\''+custId+'\');return false" style="font-size:10px;color:#1565c0;text-decoration:none">'+escHtml(p.customer||'')+'</a>'
-          : (p.customer?'<span style="font-size:10px;color:#90a4ae">'+escHtml(p.customer)+'</span>':'');
-        return '<div class="dash-wt-row" style="cursor:pointer" onclick="loadWTProject(\''+p.id+'\');goPage(\'worktracking\')">'+
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'+
-            '<div>'+
-              '<div style="font-weight:700;font-size:13px">'+escHtml(p.name||'')+'</div>'+
-              (custLink?'<div>'+custLink+'</div>':'')+
-            '</div>'+
-            '<div style="display:flex;align-items:center;gap:6px">'+
-              (pending?'<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700">'+pending+' to confirm</span>':'')+
-              '<span style="font-weight:800;font-size:13px;color:#1565c0">'+pct2+'%</span>'+
-            '</div>'+
-          '</div>'+
-          '<div class="wt-progress-bar" style="height:6px;border-radius:3px;margin-bottom:4px"><div class="wt-progress-fill" style="width:'+pct2+'%;height:6px"></div></div>'+
-          '<div style="display:flex;gap:10px;font-size:10px;color:#90a4ae">'+
-            '<span>R: '+rough+'/'+items.length+'</span>'+
-            '<span>D: '+device+'/'+items.length+'</span>'+
-            '<span>T: '+test+'/'+items.length+'</span>'+
-            (p.leadTech?'<span>Lead: '+escHtml(p.leadTech)+'</span>':'')+
-          '</div>'+
-        '</div>';
-      }).join('');
-    }
-  }
-
-  // ---- TOOLS OVERVIEW ----
-  var toolsEl = document.getElementById('dash-tools-overview');
-  if (toolsEl) {
-    var checkedOut = (DB.toolCheckouts||[]).filter(function(c){return !c.returnedAt&&c.status!=='verified';});
-    var pv = checkedOut.filter(function(c){return c.status==='pending_verify';});
-    var overdue = checkedOut.filter(function(c){
-      return c.expectedReturn&&c.expectedReturn<today&&c.status!=='pending_verify';
-    });
-    if (!checkedOut.length) {
-      toolsEl.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">All tools accounted for.</div>';
-    } else {
-      toolsEl.innerHTML=
-        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">'+
-          dashMini(checkedOut.length,'Out','#1565c0','#e3f2fd')+
-          dashMini(pv.length,'Pending Verify',pv.length?'#e65100':'#2e7d32',pv.length?'#fff3e0':'#e8f5e9')+
-          dashMini(overdue.length,'Overdue',overdue.length?'#c62828':'#2e7d32',overdue.length?'#ffebee':'#e8f5e9')+
-        '</div>'+
-        (overdue.length?
-          '<div style="font-size:12px;font-weight:700;color:#c62828;margin-bottom:6px">⚠ Overdue Returns:</div>'+
-          overdue.slice(0,3).map(function(c){
-            var tool=(DB.tools||[]).find(function(t){return t.id===c.toolId;});
-            return '<div class="dash-tool-row">'+
-              '<span style="font-size:16px">'+(tool&&tool.photoUrl?'':'🔧')+'</span>'+
-              '<div style="flex:1"><div style="font-weight:700;font-size:12px">'+escHtml((tool&&tool.name)||'Tool')+'</div>'+
-              '<div style="font-size:11px;color:#546e7a">'+escHtml(c.toName||'')+'  · Due: '+escHtml(c.expectedReturn||'—')+'</div></div>'+
-            '</div>';
-          }).join(''):'')+
-        (pv.length?'<div style="font-size:12px;color:#e65100;margin-top:4px">'+pv.length+' tool'+(pv.length!==1?'s':'')+' returned, awaiting inspection</div>':'');
-    }
-  }
-
-  const cb = document.getElementById('company-badge');
-  if (cb) cb.textContent = (DB.settings.cname||'TCSS').substring(0,12);
-}
-
-function dashMini(val, label, color, bg) {
-  return '<div style="background:'+bg+';border-radius:8px;padding:8px;text-align:center">'+
-    '<div style="font-weight:800;font-size:16px;color:'+color+'">'+val+'</div>'+
-    '<div style="font-size:10px;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'+escHtml(label)+'</div>'+
-  '</div>';
-}
-
-function saveQQ() {
-  let existing = null;
-  // Primary lookup: by hidden ID field (set when editing an existing quote)
-  const qqIdEl = document.getElementById('qq-id');
-  const qqId   = qqIdEl ? qqIdEl.value : '';
-  if (qqId) { existing = DB.quotes.find(function(q){ return q.id===qqId; }); }
-  // Fallback: by number (only if no ID stored)
-  if (!existing) {
-    const num = (document.getElementById('qq-num')||{}).value || '';
-    if (num) { existing = DB.quotes.find(function(q){ return q.num===num; }); }
-  }
-  const q = getQData(existing ? existing.id : Date.now().toString());
-  // Auto-resolve customerId if not set (name typed manually without dropdown)
-  if (!q.customerId && q.cn) {
-    var matched = DB.customers.find(function(c){ return (c.name||'').toLowerCase()===(q.cn||'').toLowerCase(); });
-    if (matched) q.customerId = matched.id;
-  }
-  // Auto-resolve contactId if not set
-  if (!q.contactId && q.contactName) {
-    var matchedContact = DB.contacts.find(function(c){ return (c.name||'').toLowerCase()===(q.contactName||'').toLowerCase(); });
-    if (matchedContact) q.contactId = matchedContact.id;
-  }
-  if (!q.num || !existing) { q.num = nextQNum(); if(document.getElementById('qq-num')) document.getElementById('qq-num').value = q.num; }
-  q.id = existing ? existing.id : q.id;
-  if (!q.followupDate) q.followupDate = calcFollowupDate(q.dt || getTodayISO());
-  if (!q.createdDate) q.createdDate = (existing && existing.createdDate) || ((existing && existing.createdAt||'').split('T')[0]) || getTodayISO();
-  if (existing) {
-    const idx = DB.quotes.indexOf(existing);
-    if (existing.execSummary && !q.execSummary) q.execSummary = existing.execSummary;
-    if (existing.createdAt && !q.createdAt) q.createdAt = existing.createdAt;
-    DB.quotes[idx] = q;
-    // Still upsert customer in case phone/email/address changed
-    var cust = upsertCustomer(q);
-    if (cust && !q.customerId) { q.customerId = cust.id; DB.quotes[idx] = q; }
-  } else {
-    // New quote — upsert customer first so we get the ID back
-    var newCust = upsertCustomer(q);
-    if (newCust) q.customerId = newCust.id;
-    DB.quotes.unshift(q);
-  }
-  saveDB();
-  clearQQDraft();
-  setQQDirty(false, 'Quote ' + q.num + ' saved successfully');
-  showToast('Quote '+q.num+' saved','success');
-  renderDash();
-  renderQuotes();
-  updateQQStage3UI();
-  qqStage4Init();
-}
-
-(function initStage5Watchers(){
-  document.addEventListener('input', function(e){
-    if (!e.target) return;
-    if (e.target.id === 'qq-dt') {
-      var fu = document.getElementById('qq-followup');
-      if (fu && !fu.value) fu.value = calcFollowupDate(e.target.value || getTodayISO());
-    }
-    if (e.target.id === 'qq-followup' || e.target.id === 'qq-dt' || e.target.id === 'qq-status') setTimeout(qqStage4Init, 0);
-  }, true);
-  document.addEventListener('change', function(e){
-    if (!e.target) return;
-    if (e.target.id === 'qq-status' || e.target.id === 'qq-followup' || e.target.id === 'qq-dt') setTimeout(qqStage4Init, 0);
-  }, true);
-})();
-
-// ---- INIT ----
-// =============================================
-// DEMO DATA SEED
-// =============================================
-function seedDemoData() {
-  // Only seed if completely empty
-  if (DB.quotes.length > 0 || DB.customers.length > 0) return;
-
-  var now = new Date();
-  function daysAgo(n){ var d=new Date(now); d.setDate(d.getDate()-n); return d.toISOString().split('T')[0]; }
-  function daysAhead(n){ var d=new Date(now); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; }
-
-  // ---- CUSTOMERS (5) ----
-  DB.customers = [
-    { id:'cust1', name:'Meridian Office Group',    phone:'(910) 555-0101', email:'jsmith@meridianoffice.com',   address:'1240 Commerce Blvd, Asheboro, NC 27203', notes:'Preferred client - large commercial' },
-    { id:'cust2', name:'Pinecrest Industrial',     phone:'(910) 555-0188', email:'ops@pinecrestind.com',        address:'3890 Industrial Pkwy, Asheboro, NC 27205', notes:'Warehouse expansion ongoing' },
-    { id:'cust3', name:'Randolph County Schools',  phone:'(336) 555-0234', email:'facilities@randolphcs.edu',   address:'2222 Learning Lane, Asheboro, NC 27203', notes:'State bid process - net 45' },
-    { id:'cust4', name:'Blue Ridge Medical Ctr',   phone:'(336) 555-0310', email:'it@blueridgemed.org',         address:'500 Health Dr, Archdale, NC 27263', notes:'HIPAA sensitive - badge access required' },
-    { id:'cust5', name:'Oakwood Retail Plaza',     phone:'(910) 555-0422', email:'mgmt@oakwoodplaza.com',       address:'188 Oakwood Blvd, Randleman, NC 27317', notes:'Multi-tenant property' }
-  ];
-
-  // ---- CONTACTS (5) ----
-  DB.contacts = [
-    { id:'cont1', name:'James Smith',     company:'Meridian Office Group',   title:'Facilities Director',  phone:'(910) 555-0101', email:'jsmith@meridianoffice.com' },
-    { id:'cont2', name:'Linda Torres',    company:'Pinecrest Industrial',    title:'Operations Manager',   phone:'(910) 555-0188', email:'ltorres@pinecrestind.com' },
-    { id:'cont3', name:'Dr. Ray Nguyen',  company:'Randolph County Schools', title:'Dir. of Facilities',   phone:'(336) 555-0234', email:'rnguyen@randolphcs.edu' },
-    { id:'cont4', name:'Carol Hutchins',  company:'Blue Ridge Medical Ctr',  title:'IT Director',          phone:'(336) 555-0310', email:'chutchins@blueridgemed.org' },
-    { id:'cont5', name:'Tom Brackett',    company:'Oakwood Retail Plaza',    title:'Property Manager',     phone:'(910) 555-0422', email:'tbrackett@oakwoodplaza.com' }
-  ];
-
-  // ---- TEAM ----
-  DB.team = [
-    { id:'tm1', name:'Marcus Webb',   role:'Lead Technician',  phone:'(910) 555-0501', email:'mwebb@tcss.com',   skills:'Cameras, Access Control, IDF' },
-    { id:'tm2', name:'Devon Price',   role:'Technician',       phone:'(910) 555-0502', email:'dprice@tcss.com',  skills:'Structured Wiring, Fiber' },
-    { id:'tm3', name:'Alicia Grant',  role:'Estimator',        phone:'(910) 555-0503', email:'agrant@tcss.com',  skills:'Estimating, Project Management' }
-  ];
-
-  // Helper: build a quote object
-  function makeQuote(cfg) {
-    var laborHrs  = cfg.items.reduce(function(s,i){return s+(i.lh||0)*(i.qty||1);},0);
-    var matCost   = cfg.items.reduce(function(s,i){return s+(i.mc||0)*(i.qty||1);},0);
-    var laborRate = 100;
-    var margin    = cfg.margin||38;
-    var laborSell = laborHrs * laborRate;
-    var totalCost = matCost + laborSell;
-    var sellBT    = margin < 100 ? totalCost/(1-margin/100) : totalCost;
-    var taxAmt    = sellBT * ((cfg.taxRate||0)/100);
-    var total     = sellBT + taxAmt - (cfg.discount||0);
-    var achieved  = sellBT>0?((sellBT-totalCost)/sellBT*100):0;
-    var health    = achieved>=35?'Healthy':achieved>=25?'Watch':'Low';
-    return {
-      id:              cfg.id,
-      num:             cfg.num,
-      cn:              cfg.cn,
-      ph:              cfg.ph||'',
-      em:              cfg.em||'',
-      ad:              cfg.ad||'',
-      jn:              cfg.jn,
-      jt:              cfg.jt||'New Construction',
-      env:             cfg.env||'office',
-      envLabel:        (cfg.env&&ENV_PRESETS[cfg.env])?ENV_PRESETS[cfg.env].label:'Office',
-      rep:             cfg.rep||'Alicia Grant',
-      dt:              cfg.dt,
-      vu:              cfg.vu||daysAhead(30),
-      status:          cfg.status||'draft',
-      followupDate:    cfg.followup||daysAhead(7),
-      notes:           cfg.notes||'',
-      intNotes:        cfg.intNotes||'',
-      laborRate:       laborRate,
-      targetMargin:    margin,
-      taxRate:         cfg.taxRate||0,
-      discount:        cfg.discount||0,
-      totalMaterialCost: matCost,
-      totalLaborHours:   laborHrs,
-      laborSell:       laborSell,
-      totalCost:       totalCost,
-      sellBeforeTax:   sellBT,
-      materialSell:    sellBT - laborSell,
-      taxAmt:          taxAmt,
-      total:           Math.round(total*100)/100,
-      achievedMargin:  Math.round(achieved*10)/10,
-      pricingHealth:   health,
-      items:           cfg.items,
-      equipmentRows:   [],
-      permits:         { lv: cfg.permitLV||false, none: !cfg.permitLV },
-      lumpSum:         { enabled: false },
-      wonDate:         cfg.wonDate||null,
-      quoteSeq:        null
-    };
-  }
-
-  // ---- QUOTES (12) ----
-  DB.quoteSeq = 1012;
-  var Q = [
-    // 1. Won - Meridian Office cameras + access
-    makeQuote({ id:'q1', num:'Q-1001', cn:'Meridian Office Group', ph:'(910) 555-0101', em:'jsmith@meridianoffice.com',
-      jn:'Meridian HQ — 8 Camera + 2 Door Access', jt:'New Construction', env:'office', margin:40,
-      dt:daysAgo(45), vu:daysAgo(15), status:'approved', followup:daysAgo(38), wonDate:daysAgo(40),
-      rep:'Alicia Grant', permitLV:true,
-      notes:'Install 8 cameras covering lobby, parking, and server room. 2-door access control at main entrance and server room.',
-      items:[
-        {desc:'IP Camera Outdoor Bullet 4MP',cat:'Security',qty:6,unit:'ea',mc:115,lh:2.0},
-        {desc:'IP Camera Indoor Dome 4MP',cat:'Security',qty:2,unit:'ea',mc:95,lh:1.5},
-        {desc:'NVR 16-Channel 4K',cat:'Security',qty:1,unit:'ea',mc:420,lh:3.0},
-        {desc:'2TB Surveillance HDD',cat:'Security',qty:2,unit:'ea',mc:75,lh:0.25},
-        {desc:'Access Control Panel 2-Door',cat:'Access Control',qty:1,unit:'ea',mc:320,lh:4.0},
-        {desc:'Card Reader Proximity',cat:'Access Control',qty:2,unit:'ea',mc:85,lh:1.5},
-        {desc:'Magnetic Lock 600lb',cat:'Access Control',qty:2,unit:'ea',mc:95,lh:2.0},
-        {desc:'CAT6 Cable (per 1000ft)',cat:'Structured Wiring',qty:2,unit:'roll',mc:85,lh:0},
-        {desc:'General Labor',cat:'Labor',qty:24,unit:'hr',mc:0,lh:1.0}
-      ]
-    }),
-
-    // 2. Won - Pinecrest Industrial structured wiring
-    makeQuote({ id:'q2', num:'Q-1002', cn:'Pinecrest Industrial', ph:'(910) 555-0188', em:'ops@pinecrestind.com',
-      jn:'Pinecrest Warehouse — Network Infrastructure', jt:'Remodel', env:'warehouse', margin:42,
-      dt:daysAgo(38), vu:daysAgo(8), status:'approved', followup:daysAgo(31), wonDate:daysAgo(33),
-      rep:'Alicia Grant', permitLV:true,
-      notes:'Full network infrastructure for 40,000 sqft warehouse. IDF rack buildout, 36 data drops, fiber backbone.',
-      items:[
-        {desc:'CAT6 Cable (per 1000ft)',cat:'Structured Wiring',qty:5,unit:'roll',mc:85,lh:0},
-        {desc:'CAT6 Jack Keystone',cat:'Structured Wiring',qty:36,unit:'ea',mc:4.5,lh:0.15},
-        {desc:'CAT6 Patch Panel 24-Port',cat:'Structured Wiring',qty:2,unit:'ea',mc:55,lh:1.0},
-        {desc:'Wall-Mount Server Rack 12U',cat:'Infrastructure',qty:1,unit:'ea',mc:285,lh:2.0},
-        {desc:'PoE+ Managed Switch 24-Port (1U)',cat:'Networking',qty:1,unit:'ea',mc:485,lh:1.0},
-        {desc:'UPS Battery Backup 1500VA (1U)',cat:'Infrastructure',qty:1,unit:'ea',mc:295,lh:0.75},
-        {desc:'Fiber — Single Mode OS2 (per 1000ft)',cat:'Fiber',qty:1,unit:'roll',mc:145,lh:0},
-        {desc:'General Labor',cat:'Labor',qty:32,unit:'hr',mc:0,lh:1.0}
-      ]
-    }),
-
-    // 3. Won - Blue Ridge Medical Verkada
-    makeQuote({ id:'q3', num:'Q-1003', cn:'Blue Ridge Medical Ctr', ph:'(336) 555-0310', em:'it@blueridgemed.org',
-      jn:'Blue Ridge — Verkada 12 Camera System', jt:'Upgrade', env:'office', margin:42,
-      dt:daysAgo(30), vu:daysAgo(0), status:'approved', followup:daysAgo(23), wonDate:daysAgo(25),
-      rep:'Alicia Grant', permitLV:true,
-      notes:'Replace existing analog system with Verkada cloud-managed cameras. 12 cameras covering all entrances, corridors, and parking.',
-      items:[
-        {desc:'Verkada CD62 Outdoor Camera',cat:'Security',qty:8,unit:'ea',mc:429,lh:2.0},
-        {desc:'Verkada CD42 Indoor Dome Camera',cat:'Security',qty:4,unit:'ea',mc:349,lh:1.5},
-        {desc:'Verkada CMD Bridge',cat:'Security',qty:1,unit:'ea',mc:299,lh:1.0},
-        {desc:'Verkada License - 1yr (per camera)',cat:'Security',qty:12,unit:'ea',mc:149,lh:0},
-        {desc:'PoE+ Switch 16-Port',cat:'Networking',qty:1,unit:'ea',mc:245,lh:0.75},
-        {desc:'CAT6 Cable (per 1000ft)',cat:'Structured Wiring',qty:3,unit:'roll',mc:85,lh:0},
-        {desc:'Camera Mounting Bracket',cat:'Security',qty:12,unit:'ea',mc:18,lh:0.25},
-        {desc:'General Labor - Config & Commission',cat:'Labor',qty:20,unit:'hr',mc:0,lh:1.0}
-      ]
-    }),
-
-    // 4. Sent - Randolph County Schools
-    makeQuote({ id:'q4', num:'Q-1004', cn:'Randolph County Schools', ph:'(336) 555-0234', em:'facilities@randolphcs.edu',
-      jn:'RCS Admin Bldg — Access Control 4 Door', jt:'New Construction', env:'office', margin:38,
-      dt:daysAgo(14), vu:daysAhead(16), status:'sent', followup:daysAhead(3),
-      rep:'Alicia Grant',
-      notes:'4-door access control for admin building. Card readers at all exterior doors plus server closet.',
-      items:[
-        {desc:'Access Control Panel 2-Door',cat:'Access Control',qty:2,unit:'ea',mc:320,lh:4.0},
-        {desc:'Card Reader Proximity',cat:'Access Control',qty:4,unit:'ea',mc:85,lh:1.5},
-        {desc:'Magnetic Lock 600lb',cat:'Access Control',qty:4,unit:'ea',mc:95,lh:2.0},
-        {desc:'Door Sensor Contact',cat:'Access Control',qty:4,unit:'ea',mc:18,lh:0.5},
-        {desc:'REX Motion Sensor',cat:'Access Control',qty:4,unit:'ea',mc:35,lh:0.5},
-        {desc:'CAT6 Cable (per 1000ft)',cat:'Structured Wiring',qty:2,unit:'roll',mc:85,lh:0},
-        {desc:'General Labor',cat:'Labor',qty:20,unit:'hr',mc:0,lh:1.0}
-      ]
-    }),
-
-    // 5. Follow-Up - Oakwood Retail
-    makeQuote({ id:'q5', num:'Q-1005', cn:'Oakwood Retail Plaza', ph:'(910) 555-0422', em:'mgmt@oakwoodplaza.com',
-      jn:'Oakwood Plaza — 16 Camera Exterior System', jt:'New Construction', env:'exterior', margin:44,
-      dt:daysAgo(21), vu:daysAhead(9), status:'followup', followup:daysAgo(2),
-      rep:'Alicia Grant',
-      notes:'Full exterior camera coverage for 8-unit retail plaza. Includes parking lot, dumpster area, and all building corners.',
-      items:[
-        {desc:'IP Camera Outdoor Bullet 4MP',cat:'Security',qty:16,unit:'ea',mc:115,lh:2.0},
-        {desc:'NVR 16-Channel 4K',cat:'Security',qty:1,unit:'ea',mc:420,lh:3.0},
-        {desc:'2TB Surveillance HDD',cat:'Security',qty:3,unit:'ea',mc:75,lh:0.25},
-        {desc:'Camera Cable RG59+Power',cat:'Security',qty:2400,unit:'ft',mc:0.35,lh:0.01},
-        {desc:'Camera Mounting Bracket',cat:'Security',qty:16,unit:'ea',mc:18,lh:0.25},
-        {desc:'PoE Switch 8-Port',cat:'Security',qty:2,unit:'ea',mc:110,lh:0.75},
-        {desc:'General Labor',cat:'Labor',qty:36,unit:'hr',mc:0,lh:1.0}
-      ]
-    }),
-
-    // 6. Draft - Meridian second project
-    makeQuote({ id:'q6', num:'Q-1006', cn:'Meridian Office Group', ph:'(910) 555-0101', em:'jsmith@meridianoffice.com',
-      jn:'Meridian — Branch Office Structured Wiring', jt:'Remodel', env:'office', margin:38,
-      dt:daysAgo(7), vu:daysAhead(23), status:'draft', followup:daysAhead(7),
-      rep:'Alicia Grant',
-      notes:'New branch office buildout. 24 data drops, patch panel, and WAP installation.',
-      items:[
-        {desc:'CAT6 Cable (per 1000ft)',cat:'Structured Wiring',qty:3,unit:'roll',mc:85,lh:0},
-        {desc:'CAT6 Jack Keystone',cat:'Structured Wiring',qty:24,unit:'ea',mc:4.5,lh:0.15},
-        {desc:'CAT6 Patch Panel 24-Port',cat:'Structured Wiring',qty:1,unit:'ea',mc:55,lh:1.0},
-        {desc:'Wireless Access Point',cat:'Networking',qty:3,unit:'ea',mc:185,lh:1.5},
-        {desc:'Network Switch 24-Port',cat:'Networking',qty:1,unit:'ea',mc:180,lh:1.0},
-        {desc:'Low Voltage Bracket',cat:'Structured Wiring',qty:24,unit:'ea',mc:2.5,lh:0.1},
-        {desc:'General Labor',cat:'Labor',qty:18,unit:'hr',mc:0,lh:1.0}
-      ]
-    }),
-
-    // 7. Sent - Pinecrest second project
-    makeQuote({ id:'q7', num:'Q-1007', cn:'Pinecrest Industrial', ph:'(910) 555-0188', em:'ops@pinecrestind.com',
-      jn:'Pinecrest — 8 Camera Loading Dock', jt:'Addition', env:'warehouse', margin:42,
-      dt:daysAgo(10), vu:daysAhead(20), status:'sent', followup:daysAhead(5),
-      rep:'Alicia Grant',
-      notes:'Extend camera coverage to loading dock area. 8 weatherproof cameras with night vision.',
-      items:[
-        {desc:'IP Camera Outdoor Bullet 4MP',cat:'Security',qty:8,unit:'ea',mc:115,lh:2.0},
-        {desc:'NVR 8-Channel 4K',cat:'Security',qty:1,unit:'ea',mc:280,lh:2.5},
-        {desc:'2TB Surveillance HDD',cat:'Security',qty:2,unit:'ea',mc:75,lh:0.25},
-        {desc:'Camera Cable RG59+Power',cat:'Security',qty:800,unit:'ft',mc:0.35,lh:0.01},
-        {desc:'Camera Mounting Bracket',cat:'Security',qty:8,unit:'ea',mc:18,lh:0.25},
-        {desc:'General Labor',cat:'Labor',qty:18,unit:'hr',mc:0,lh:1.0}
-      ]
-    }),
-
-    // 8. Won - Service call
-    makeQuote({ id:'q8', num:'Q-1008', cn:'Oakwood Retail Plaza', ph:'(910) 555-0422', em:'mgmt@oakwoodplaza.com',
-      jn:'Oakwood — Network Troubleshoot & Repair', jt:'Service Call', env:'office', margin:55,
-      dt:daysAgo(18), vu:daysAgo(3), status:'approved', followup:daysAgo(11), wonDate:daysAgo(16),
-      rep:'Alicia Grant',
-      notes:'Intermittent network outages in tenant units 3 and 5. Diagnose and repair.',
-      items:[
-        {desc:'Service Call (First Hour)',cat:'Labor',qty:1,unit:'ea',mc:0,lh:1.0},
-        {desc:'General Labor',cat:'Labor',qty:2,unit:'hr',mc:0,lh:1.0},
-        {desc:'CAT6 Patch Cable 5ft',cat:'Structured Wiring',qty:4,unit:'ea',mc:5,lh:0.05}
-      ]
-    }),
-
-    // 9. Draft - Blue Ridge second
-    makeQuote({ id:'q9', num:'Q-1009', cn:'Blue Ridge Medical Ctr', ph:'(336) 555-0310', em:'it@blueridgemed.org',
-      jn:'Blue Ridge — Fiber Backbone Upgrade', jt:'Upgrade', env:'office', margin:40,
-      dt:daysAgo(5), vu:daysAhead(25), status:'draft', followup:daysAhead(7),
-      rep:'Alicia Grant',
-      notes:'Replace copper backbone between MDF and 3 IDFs with single-mode fiber. Includes all terminations and testing.',
-      items:[
-        {desc:'Fiber — Single Mode OS2 (per 1000ft)',cat:'Fiber',qty:2,unit:'roll',mc:145,lh:0},
-        {desc:'Fiber Splice Enclosure',cat:'Fiber',qty:4,unit:'ea',mc:85,lh:1.5},
-        {desc:'Fiber Patch Cable SM 3ft (LC-LC)',cat:'Fiber',qty:12,unit:'ea',mc:12,lh:0.1},
-        {desc:'Fiber Media Converter (SM)',cat:'Fiber',qty:3,unit:'ea',mc:55,lh:0.5},
-        {desc:'General Labor',cat:'Labor',qty:16,unit:'hr',mc:0,lh:1.0}
-      ]
-    }),
-
-    // 10. Declined - Schools second
-    makeQuote({ id:'q10', num:'Q-1010', cn:'Randolph County Schools', ph:'(336) 555-0234', em:'facilities@randolphcs.edu',
-      jn:'RCS Elementary — 20 Camera System', jt:'New Construction', env:'office', margin:38,
-      dt:daysAgo(25), vu:daysAgo(10), status:'declined', followup:daysAgo(18),
-      rep:'Alicia Grant',
-      notes:'Full camera system for elementary school. Went with lower bid.',
-      items:[
-        {desc:'IP Camera Indoor Dome 4MP',cat:'Security',qty:12,unit:'ea',mc:95,lh:1.5},
-        {desc:'IP Camera Outdoor Bullet 4MP',cat:'Security',qty:8,unit:'ea',mc:115,lh:2.0},
-        {desc:'NVR 16-Channel 4K',cat:'Security',qty:1,unit:'ea',mc:420,lh:3.0},
-        {desc:'2TB Surveillance HDD',cat:'Security',qty:2,unit:'ea',mc:75,lh:0.25},
-        {desc:'CAT6 Cable (per 1000ft)',cat:'Structured Wiring',qty:3,unit:'roll',mc:85,lh:0},
-        {desc:'General Labor',cat:'Labor',qty:28,unit:'hr',mc:0,lh:1.0}
-      ]
-    }),
-
-    // 11. Sent - New customer
-    makeQuote({ id:'q11', num:'Q-1011', cn:'Carolina Auto Group', ph:'(910) 555-0600', em:'mgr@carolinaauto.com',
-      jn:'Carolina Auto — Dealership Camera System', jt:'New Construction', env:'exterior', margin:42,
-      dt:daysAgo(8), vu:daysAhead(22), status:'sent', followup:daysAhead(6),
-      rep:'Alicia Grant',
-      notes:'Complete camera system for car dealership. Interior showroom, service bay, and full lot coverage.',
-      items:[
-        {desc:'IP Camera Outdoor Bullet 4MP',cat:'Security',qty:12,unit:'ea',mc:115,lh:2.0},
-        {desc:'IP Camera Indoor Dome 4MP',cat:'Security',qty:6,unit:'ea',mc:95,lh:1.5},
-        {desc:'NVR 16-Channel 4K',cat:'Security',qty:1,unit:'ea',mc:420,lh:3.0},
-        {desc:'2TB Surveillance HDD',cat:'Security',qty:3,unit:'ea',mc:75,lh:0.25},
-        {desc:'PoE Switch 8-Port',cat:'Security',qty:2,unit:'ea',mc:110,lh:0.75},
-        {desc:'Camera Cable RG59+Power',cat:'Security',qty:2000,unit:'ft',mc:0.35,lh:0.01},
-        {desc:'Camera Mounting Bracket',cat:'Security',qty:18,unit:'ea',mc:18,lh:0.25},
-        {desc:'General Labor',cat:'Labor',qty:30,unit:'hr',mc:0,lh:1.0}
-      ]
-    }),
-
-    // 12. Draft - IDF buildout
-    makeQuote({ id:'q12', num:'Q-1012', cn:'Meridian Office Group', ph:'(910) 555-0101', em:'jsmith@meridianoffice.com',
-      jn:'Meridian — IDF Rack Buildout (Floor 3)', jt:'Addition', env:'mixed', margin:38,
-      dt:daysAgo(3), vu:daysAhead(27), status:'draft', followup:daysAhead(7),
-      rep:'Alicia Grant',
-      notes:'New IDF for floor 3 expansion. Full rack buildout with managed switch and fiber uplink.',
-      items:[
-        {desc:'Wall-Mount Server Rack 12U',cat:'Infrastructure',qty:1,unit:'ea',mc:285,lh:2.0},
-        {desc:'CAT6 Patch Panel 24-Port',cat:'Structured Wiring',qty:2,unit:'ea',mc:55,lh:1.0},
-        {desc:'1U Rackmount Power Strip (PDU)',cat:'Infrastructure',qty:1,unit:'ea',mc:95,lh:0.5},
-        {desc:'1U Cable Management Ring',cat:'Infrastructure',qty:2,unit:'ea',mc:28,lh:0.25},
-        {desc:'PoE+ Managed Switch 24-Port (1U)',cat:'Networking',qty:1,unit:'ea',mc:485,lh:1.0},
-        {desc:'UPS Battery Backup 1500VA (1U)',cat:'Infrastructure',qty:1,unit:'ea',mc:295,lh:0.75},
-        {desc:'General Labor - Rack Build & Dress',cat:'Labor',qty:6,unit:'hr',mc:0,lh:1.0}
-      ]
-    })
-  ];
-  DB.quotes = Q;
-
-  // ---- JOBS (5: 3 complete, 2 active) ----
-  DB.jobs = [
-    // Job 1 — Complete with closeout
-    {
-      id:'j1', num:'J-001', name:'Meridian HQ — 8 Camera + 2 Door Access',
-      customer:'Meridian Office Group', qid:'q1', qnum:'Q-1001',
-      env:'office', status:'Complete',
-      estLaborHours:24, actualLaborHours:26.5,
-      laborHours:24, estTotal:Q[0].total,
-      startDate:daysAgo(35), assignedTo:'Marcus Webb',
-      address:'1240 Commerce Blvd, Asheboro, NC 27203',
-      notes:'All cameras installed. Access control programmed.',
-      closeout:{
-        savedAt:new Date(now.getTime()-25*86400000).toISOString(),
-        actHrs:26.5, estHrs:24,
-        issues:'Conduit run in server room was longer than expected due to existing equipment placement.',
-        materials:'Needed 2 extra RJ45 keystones not in original estimate.',
-        difficulty:3,
-        feedback:'Add 10% labor buffer for server room installs. Conduit routing always takes longer.',
-        tech:'Marcus Webb', date:daysAgo(27),
-        variance:'10.4', varianceHrs:'2.5'
-      }
-    },
-    // Job 2 — Complete with closeout
-    {
-      id:'j2', num:'J-002', name:'Pinecrest Warehouse — Network Infrastructure',
-      customer:'Pinecrest Industrial', qid:'q2', qnum:'Q-1002',
-      env:'warehouse', status:'Complete',
-      estLaborHours:32, actualLaborHours:30,
-      laborHours:32, estTotal:Q[1].total,
-      startDate:daysAgo(28), assignedTo:'Devon Price',
-      address:'3890 Industrial Pkwy, Asheboro, NC 27205',
-      notes:'IDF rack complete. All 36 drops tested and certified.',
-      closeout:{
-        savedAt:new Date(now.getTime()-18*86400000).toISOString(),
-        actHrs:30, estHrs:32,
-        issues:'No major issues. Site was well prepared.',
-        materials:'All materials on estimate were sufficient.',
-        difficulty:2,
-        feedback:'Warehouse drops are straightforward. Estimate was accurate. Keep current numbers.',
-        tech:'Devon Price', date:daysAgo(20),
-        variance:'-6.3', varianceHrs:'-2.0'
-      }
-    },
-    // Job 3 — Complete with closeout
-    {
-      id:'j3', num:'J-003', name:'Oakwood Plaza — Network Troubleshoot & Repair',
-      customer:'Oakwood Retail Plaza', qid:'q8', qnum:'Q-1008',
-      env:'office', status:'Complete',
-      estLaborHours:3, actualLaborHours:3.5,
-      laborHours:3, estTotal:Q[7].total,
-      startDate:daysAgo(15), assignedTo:'Marcus Webb',
-      address:'188 Oakwood Blvd, Randleman, NC 27317',
-      notes:'Faulty patch cables replaced. Switch port reset. Network stable.',
-      closeout:{
-        savedAt:new Date(now.getTime()-13*86400000).toISOString(),
-        actHrs:3.5, estHrs:3,
-        issues:'Had to trace cabling behind tenant wall — took extra 30 min.',
-        materials:'Used 4 patch cables from stock.',
-        difficulty:2,
-        feedback:'Service calls to this building always run a bit long due to cable routing in walls.',
-        tech:'Marcus Webb', date:daysAgo(13),
-        variance:'16.7', varianceHrs:'0.5'
-      }
-    },
-    // Job 4 — In Progress
-    {
-      id:'j4', num:'J-004', name:'Blue Ridge Medical — Verkada 12 Camera System',
-      customer:'Blue Ridge Medical Ctr', qid:'q3', qnum:'Q-1003',
-      env:'office', status:'In Progress',
-      estLaborHours:20, actualLaborHours:12,
-      laborHours:20, estTotal:Q[2].total,
-      startDate:daysAgo(5), assignedTo:'Marcus Webb',
-      address:'500 Health Dr, Archdale, NC 27263',
-      notes:'Day 1-2 complete: All cameras mounted and cabled. Day 3: Commissioning and Verkada setup in progress.',
-      closeout:null
-    },
-    // Job 5 — Scheduled
-    {
-      id:'j5', num:'J-005', name:'Meridian — Branch Office Structured Wiring',
-      customer:'Meridian Office Group', qid:'q6', qnum:'Q-1006',
-      env:'office', status:'Scheduled',
-      estLaborHours:18, actualLaborHours:0,
-      laborHours:18, estTotal:Q[5].total,
-      startDate:daysAhead(5), assignedTo:'Devon Price',
-      address:'1240 Commerce Blvd, Asheboro, NC 27203',
-      notes:'Scheduled for next week. Materials pre-staged at shop.',
-      closeout:null
-    }
-  ];
-  DB.jobSeq = 6;
-
-  // ---- SETTINGS ----
-  DB.settings = Object.assign({
-    cname:'Total Communications Systems & Solutions',
-    cphone:'(910) 555-0100',
-    cemail:'info@tcssolutions.com',
-    caddr:'1100 Commerce Dr, Asheboro, NC 27203',
-    clic:'LVA-2024-TCSS',
-    cweb:'www.tcssolutions.com',
-    ctag:'Low Voltage Specialists',
-    laborRate:100,
-    targetMargin:38,
-    taxRate:0,
-    validDays:30,
-    payTerms:'50% deposit, balance due upon completion',
-    tc:'All work performed to NEC and local AHJ standards. One-year labor warranty on all installations. Materials covered by manufacturer warranty.',
-    followupDays:7,
-    perDiemMarkup:15,
-    uname:'Alicia Grant',
-    utitle:'Estimator',
-    uphone:'(910) 555-0503',
-    uemail:'agrant@tcss.com'
-  }, DB.settings);
-
-  saveDB();
-  console.log('Demo data seeded: 5 customers, 5 contacts, 12 quotes, 5 jobs');
-}

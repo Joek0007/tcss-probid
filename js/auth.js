@@ -14,7 +14,9 @@ function init() {
   if (qqHasRecoverableDraft()) { try { if (confirm('Recover the last unsaved Quick Quote draft from this browser?')) restoreQQDraft(); else clearQQDraft(); } catch(e){} }
   updateQQStage3UI();
   renderTplLibrary();
-  renderDash();
+  // Only render dash if no Supabase auth — if there is a session it will render after profile loads
+  // Avoid rendering owner dashboard briefly before tech dashboard kicks in
+  if (!window._sb) renderDash();
   loadMarginFloors();
   loadLogoOnStartup();
   initLogoUpload();
@@ -842,7 +844,13 @@ async function syncAllFromCloud() {
   window._syncInProgress = false;
   try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
   clearTimeout(window._syncTimer); // Cancel any push timer that snuck in during sync
-  renderDash();
+  // Re-apply permissions after sync then render correct dashboard for role
+  if (_currentUser) applyRolePermissions(_currentUser.role);
+  if (typeof wtIsFieldTech === 'function' && wtIsFieldTech()) {
+    if (typeof wtRenderTechDashboard === 'function') wtRenderTechDashboard();
+  } else {
+    renderDash();
+  }
   hideSpinner();
   if (errors.length) {
     console.warn('[Sync] Partial errors:', errors);
