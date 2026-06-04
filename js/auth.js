@@ -1,4 +1,8 @@
 
+// Safety stubs — functions that may not be defined in all builds
+if (typeof seedDemoData === 'undefined')          window.seedDemoData          = function(){};
+if (typeof seedCatalogAndTemplates === 'undefined') window.seedCatalogAndTemplates = function(){};
+
 function init() {
   loadDB();
   seedCatalogAndTemplates();
