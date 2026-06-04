@@ -116,12 +116,17 @@ async function signIn(email, password) {
     setTimeout(flushOfflineQueue, 2000);
     setTimeout(function initPhase2() {
       // Phase 2 init — runs 500ms after login
+      // Re-enforce role permissions after all syncs have settled
+      if (_currentUser) applyRolePermissions(_currentUser.role);
       // Start location morning detection for field techs
       if (typeof startMorningDetection === 'function') startMorningDetection();
       // Restore clock session if tech was previously clocked in
       if (typeof restoreClockSession === 'function') restoreClockSession();
-      // Render dashboard
-      if (typeof renderDash === 'function') renderDash();
+      // Render dashboard — but re-enforce permissions immediately after
+      if (typeof renderDash === 'function') {
+        renderDash();
+        if (_currentUser) applyRolePermissions(_currentUser.role);
+      }
     }, 500);
     setTimeout(initPhase3, 800);
     startSessionTimeout();
@@ -177,8 +182,11 @@ async function loadCurrentUserProfile() {
   }
 }
 
-// Pages to hide per role — used by applyRolePermissions and MutationObserver
-var _navObserver = null;
+// ── Role permission system ───────────────────────────────────────────────────
+// Uses a <style> tag with !important — survives any DOM rebuild
+// Also runs on a short interval after login to catch late renders
+
+var _roleEnforceInterval = null;
 
 function getRoleHideList(role) {
   var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings',
@@ -188,41 +196,70 @@ function getRoleHideList(role) {
   if (role === 'owner' || role === 'manager' || role === 'back_office') return [];
   if (role === 'lead_tech') return leadTechHide;
   if (role === 'helper_tech') return fieldOnlyHide;
-  return fieldOnlyHide; // safe default
+  return fieldOnlyHide; // safe default for unknown roles
 }
 
 function applyRolePermissions(role) {
   var hideList = getRoleHideList(role);
 
-  // Apply hide to all current nav items
+  // ── Layer 1: CSS <style> tag with !important ──────────────────────────────
+  // Survives DOM rebuilds — rules apply to any nav item that exists now or later
+  var styleId = 'probid-role-permissions';
+  var old = document.getElementById(styleId);
+  if (old) old.remove();
+
+  if (hideList.length > 0) {
+    var css = hideList.map(function(page) {
+      return '.nav-item[data-page=' + page + ']{display:none!important}';
+    }).join('');
+    // Rate column for non-owners
+    if (role !== 'owner') css += '.team-rate-col{display:none!important}';
+    var style = document.createElement('style');
+    style.id   = styleId;
+    style.type = 'text/css';
+    style.appendChild(document.createTextNode(css));
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  // ── Layer 2: Inline styles as immediate backup ────────────────────────────
   function hideNav() {
     document.querySelectorAll('.nav-item[data-page]').forEach(function(el) {
       var page = el.getAttribute('data-page');
-      el.style.setProperty('display', hideList.indexOf(page) >= 0 ? 'none' : '', 'important');
+      if (hideList.indexOf(page) >= 0) {
+        el.style.setProperty('display', 'none', 'important');
+      } else {
+        el.style.removeProperty('display');
+      }
     });
-    // Rate column
     document.querySelectorAll('.team-rate-col').forEach(function(el) {
       el.style.setProperty('display', role === 'owner' ? '' : 'none', 'important');
     });
   }
-
   hideNav();
 
-  // Stop any previous observer
-  if (_navObserver) { _navObserver.disconnect(); _navObserver = null; }
-
-  // Watch the nav container — if anything re-shows a hidden item, hide it again instantly
+  // ── Layer 3: Short-lived interval to catch late renders ───────────────────
+  // Runs every 300ms for 8 seconds after login then stops
+  if (_roleEnforceInterval) clearInterval(_roleEnforceInterval);
   if (hideList.length > 0) {
-    var navContainer = document.querySelector('.sidebar') ||
-                       document.querySelector('nav')     ||
-                       document.querySelector('.nav-items') ||
-                       document.body;
-    _navObserver = new MutationObserver(function() { hideNav(); });
-    _navObserver.observe(navContainer, {
-      childList: true, subtree: true,
-      attributes: true, attributeFilter: ['style','class']
-    });
+    var enforceCount = 0;
+    _roleEnforceInterval = setInterval(function() {
+      hideNav();
+      enforceCount++;
+      if (enforceCount >= 27) { // ~8 seconds
+        clearInterval(_roleEnforceInterval);
+        _roleEnforceInterval = null;
+      }
+    }, 300);
   }
+
+  // Mobile nav switching
+  var isTech = (role === 'helper_tech');
+  document.querySelectorAll('.mob-role-default').forEach(function(el) {
+    el.style.display = isTech ? 'none' : '';
+  });
+  document.querySelectorAll('.mob-role-tech').forEach(function(el) {
+    el.style.display = isTech ? '' : 'none';
+  });
 
   if (role === 'owner') setTimeout(renderPermissionsEditor, 200);
 
@@ -255,6 +292,8 @@ function updateUserBadge(profile) {
 
 // ---- SYNC ----
 async function syncAllFromCloud() {
+  // Always re-enforce role permissions when sync completes
+  var _syncRole = _currentUser ? _currentUser.role : null;
   if (!_sb || !_currentUser) return;
   window._syncInProgress = true;
   showSpinner('Syncing with cloud...');
