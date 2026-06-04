@@ -150,6 +150,27 @@ async function signOut() {
   window.location.reload();
 }
 
+function updateUserBadge(profile) {
+  if (!profile) return;
+  // Update topbar badge circle
+  var badge = document.getElementById('user-badge');
+  if (badge) {
+    var initials = (profile.full_name||'?').split(' ').map(function(w){ return w[0]||''; }).slice(0,2).join('').toUpperCase();
+    badge.textContent = initials || '?';
+    var roleColors = {owner:'#1565c0',manager:'#2e7d32',back_office:'#e65100',lead_tech:'#6a1b9a',helper_tech:'#546e7a'};
+    badge.style.background = roleColors[profile.role] || '#546e7a';
+  }
+  // Update topbar name
+  var nameBadge = document.getElementById('user-name-badge');
+  if (nameBadge) nameBadge.textContent = (profile.full_name||'').split(' ')[0];
+  // Update user menu
+  var menuName = document.getElementById('user-menu-name');
+  var menuRole = document.getElementById('user-menu-role');
+  if (menuName) menuName.textContent = profile.full_name || '';
+  var roleLabels = {owner:'Owner',manager:'Manager',back_office:'Back Office',lead_tech:'Lead Technician',helper_tech:'Field Technician'};
+  if (menuRole) menuRole.textContent = roleLabels[profile.role] || profile.role || '';
+}
+
 async function loadCurrentUserProfile() {
   if (!_sb) { console.warn('[Profile] No Supabase client'); return; }
   var session = await _sb.auth.getSession();
