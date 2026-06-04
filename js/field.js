@@ -159,7 +159,7 @@ async function doStartTravel(){
       clock_in_lat:lat,clock_in_lng:lng,date:now.toISOString().split('T')[0]};
     var sessionId=null;
     if(_sb&&_currentUser){var res=await _sb.from('clock_sessions').insert(session).select().single();if(res.data)sessionId=res.data.id;}
-    _clockState.status='traveling';_clockState.sessionId=sessionId;
+    _clockState.status='traveling';onClockStateChange('traveling');_clockState.sessionId=sessionId;
     _clockState.dayStart=now;_clockState.travelOutStart=now;
     _clockState.jobId=jobId;_clockState.jobName=jobName;
     _clockState.todayEvents.push({type:'travel_start',time:now,lat:lat,lng:lng,label:'Started Travel'});
@@ -186,7 +186,7 @@ async function doArriveOnSite(){
     _clockState.onsiteStart=now;
     if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({status:'clocked_in'}).eq('id',_clockState.sessionId);
     await logTimeEvent('clock_in',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
-    _clockState.status='onsite';
+    _clockState.status='onsite';onClockStateChange('onsite');
     _clockState.todayEvents.push({type:'clock_in',time:now,lat:lat,lng:lng,label:'Arrived On Site',flagged:geo.reason==='out_of_range'});
     updateClockUI();showToast('Clocked in to '+_clockState.jobName,'success');
   });
@@ -207,7 +207,7 @@ async function doLeaveOnSite(){
     _clockState.travelBackStart=now;
     if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({status:'returning'}).eq('id',_clockState.sessionId);
     await logTimeEvent('clock_out',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
-    _clockState.status='returning';
+    _clockState.status='returning';onClockStateChange('returning');
     _clockState.todayEvents.push({type:'clock_out',time:now,lat:lat,lng:lng,label:'Left Job Site',flagged:geo.reason==='out_of_range'});
     updateClockUI();showToast('Clocked out — traveling back','info');
   });
@@ -263,7 +263,7 @@ async function _doArriveBackActual(){
     saveDB();
     showToast('Day complete — '+formatMinutes(totalPaid)+' total paid ('+formatMinutes(totalOnsite)+' on site, '+formatMinutes(totalTravel)+' travel)','success',6000);
     clearInterval(_clockState.timerInterval);
-    _clockState.status='out';_clockState.sessionId=null;
+    _clockState.status='out';onClockStateChange('out');_clockState.sessionId=null;
     _clockState.travelOutStart=null;_clockState.onsiteStart=null;_clockState.travelBackStart=null;
     _clockState.dayStart=null;_clockState.homebaseStart=null;
     _clockState.travelOutMins=0;_clockState.onsiteMins=0;
@@ -283,7 +283,7 @@ async function doNextJob(){
     _clockState.onsiteMins+=Math.round((now-(_clockState.onsiteStart||now))/60000);
     var prev=_clockState.jobName;
     _clockState.jobId=nextId;_clockState.jobName=nextName;
-    _clockState.status='traveling';_clockState.travelOutStart=now;_clockState.onsiteStart=null;
+    _clockState.status='traveling';onClockStateChange('traveling');_clockState.travelOutStart=now;_clockState.onsiteStart=null;
     await logTimeEvent('job_change',lat,lng,acc,'Left '+prev+' → '+nextName);
     _clockState.todayEvents.push({type:'job_change',time:now,lat:lat,lng:lng,label:'Left '+prev+' → '+nextName});
     updateClockUI();startClockTimer();
@@ -1496,3 +1496,391 @@ function initAllTimesheetsTab() {
   var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='office'||_currentUser.role==='manager');
   if (!isAdmin) return;
 }
+
+// ============================================================
+// SMART LOCATION MONITORING
+// Detects arrivals at job sites and return to base
+// Triggers field log prompts at the right moment
+// Battery-conscious: polls on intervals, not continuous streaming
+// ============================================================
+
+var _locMonitor = {
+  interval:       null,
+  active:         false,
+  lastLat:        null,
+  lastLng:        null,
+  arrivalShown:   false,
+  departureShown: false,
+  baseReturnShown:false,
+  consecutiveNear:0,     // how many consecutive checks within radius (avoid false positives)
+  consecutiveFar: 0,     // how many consecutive checks outside radius
+};
+
+var LOC_POLL_TRAVEL_MS  = 3 * 60 * 1000;  // check every 3 min while traveling
+var LOC_POLL_ONSITE_MS  = 4 * 60 * 1000;  // check every 4 min while on site
+var LOC_POLL_RETURN_MS  = 3 * 60 * 1000;  // check every 3 min while returning
+var LOC_ARRIVE_CONFIRM  = 2;  // need 2 consecutive "near" readings to confirm arrival
+var LOC_DEPART_CONFIRM  = 2;  // need 2 consecutive "far" readings to confirm departure
+var LOC_BASE_RADIUS_FT  = 800; // slightly larger radius for base detection
+
+// ── Start monitoring ──────────────────────────────────────────────────────────
+function startLocationMonitoring() {
+  if (!navigator.geolocation) return;
+  if (!(DB.settings && DB.settings.autoDetectArrivals !== false)) return; // off by default until opted in
+
+  stopLocationMonitoring();
+  _locMonitor.active = true;
+  _locMonitor.arrivalShown = false;
+  _locMonitor.departureShown = false;
+  _locMonitor.consecutiveNear = 0;
+  _locMonitor.consecutiveFar = 0;
+
+  var pollMs = _clockState.status === 'traveling'  ? LOC_POLL_TRAVEL_MS
+             : _clockState.status === 'onsite'     ? LOC_POLL_ONSITE_MS
+             : _clockState.status === 'returning'  ? LOC_POLL_RETURN_MS
+             : LOC_POLL_TRAVEL_MS;
+
+  _locMonitor.interval = setInterval(function() {
+    if (_clockState.status === 'out') { stopLocationMonitoring(); return; }
+    _runLocationCheck();
+  }, pollMs);
+
+  // Run immediately once
+  setTimeout(_runLocationCheck, 5000);
+}
+
+function stopLocationMonitoring() {
+  if (_locMonitor.interval) {
+    clearInterval(_locMonitor.interval);
+    _locMonitor.interval = null;
+  }
+  _locMonitor.active = false;
+}
+
+function _runLocationCheck() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      var lat = pos.coords.latitude;
+      var lng = pos.coords.longitude;
+      var acc = pos.coords.accuracy;
+      _locMonitor.lastLat = lat;
+      _locMonitor.lastLng = lng;
+
+      // Update stored GPS position
+      _clockState.gpsLat = lat;
+      _clockState.gpsLng = lng;
+      _clockState.gpsAccuracy = acc;
+
+      var status = _clockState.status;
+
+      if (status === 'traveling') {
+        _checkJobArrival(lat, lng);
+      } else if (status === 'onsite') {
+        _checkJobDeparture(lat, lng);
+      } else if (status === 'returning') {
+        _checkBaseReturn(lat, lng);
+      }
+    },
+    function(err) { /* silent fail on GPS error */ },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 120000 }
+  );
+}
+
+// ── Check if arriving at job site ────────────────────────────────────────────
+function _checkJobArrival(lat, lng) {
+  if (_locMonitor.arrivalShown) return;
+  if (!_clockState.jobId) return;
+
+  var job = (DB.jobs||[]).find(function(j){ return j.id === _clockState.jobId; });
+  if (!job) return;
+
+  // Auto-set anchor if not set
+  if (!job.gpsAnchor) {
+    // First visit — we don't have an anchor yet
+    // Check if WO has a site address we could geocode — for now skip
+    return;
+  }
+
+  var dist = geoDistanceFt(lat, lng, job.gpsAnchor.lat, job.gpsAnchor.lng);
+
+  if (dist <= GEO_RADIUS_FT) {
+    _locMonitor.consecutiveNear++;
+    _locMonitor.consecutiveFar = 0;
+    if (_locMonitor.consecutiveNear >= LOC_ARRIVE_CONFIRM && !_locMonitor.arrivalShown) {
+      _locMonitor.arrivalShown = true;
+      _showArrivalPrompt(job, dist);
+    }
+  } else {
+    _locMonitor.consecutiveNear = 0;
+    _locMonitor.consecutiveFar++;
+  }
+}
+
+// ── Check if departing job site ───────────────────────────────────────────────
+function _checkJobDeparture(lat, lng) {
+  if (_locMonitor.departureShown) return;
+  if (!_clockState.jobId) return;
+
+  var job = (DB.jobs||[]).find(function(j){ return j.id === _clockState.jobId; });
+  if (!job || !job.gpsAnchor) return;
+
+  var dist = geoDistanceFt(lat, lng, job.gpsAnchor.lat, job.gpsAnchor.lng);
+  var departureRadius = GEO_RADIUS_FT * 1.8; // slightly wider — allow some movement
+
+  if (dist > departureRadius) {
+    _locMonitor.consecutiveFar++;
+    _locMonitor.consecutiveNear = 0;
+    if (_locMonitor.consecutiveFar >= LOC_DEPART_CONFIRM && !_locMonitor.departureShown) {
+      _locMonitor.departureShown = true;
+      _showDeparturePrompt(job);
+    }
+  } else {
+    _locMonitor.consecutiveFar = 0;
+    _locMonitor.consecutiveNear++;
+  }
+}
+
+// ── Check if back at base ─────────────────────────────────────────────────────
+function _checkBaseReturn(lat, lng) {
+  if (_locMonitor.baseReturnShown) return;
+
+  var officeAnchor = DB.settings && DB.settings.officeGpsLat
+    ? { lat: DB.settings.officeGpsLat, lng: DB.settings.officeGpsLng } : null;
+
+  // If out of town, check hotel instead
+  if (_clockState.outOfTown && _clockState.hotelGpsLat) {
+    officeAnchor = { lat: _clockState.hotelGpsLat, lng: _clockState.hotelGpsLng };
+  }
+
+  if (!officeAnchor) return;
+
+  var dist = geoDistanceFt(lat, lng, officeAnchor.lat, officeAnchor.lng);
+
+  if (dist <= LOC_BASE_RADIUS_FT) {
+    _locMonitor.consecutiveNear++;
+    if (_locMonitor.consecutiveNear >= LOC_ARRIVE_CONFIRM && !_locMonitor.baseReturnShown) {
+      _locMonitor.baseReturnShown = true;
+      _showBaseReturnNudge();
+    }
+  } else {
+    _locMonitor.consecutiveNear = 0;
+  }
+}
+
+// ── Arrival prompt ────────────────────────────────────────────────────────────
+function _showArrivalPrompt(job, distFt) {
+  // Don't show if already on site
+  if (_clockState.status === 'onsite') return;
+
+  var distStr = distFt < 100 ? 'You\'re right on site' : 'About '+Math.round(distFt)+' ft away';
+
+  showLocNotification(
+    '📍 Arrived at Job Site?',
+    escHtml(job.name||'Job Site') + '<br><span style="font-size:12px;color:#546e7a">' + distStr + '</span>',
+    'Yes — I\'m Here',
+    'Not Yet',
+    function(confirmed) {
+      if (confirmed && typeof doArriveOnSite === 'function') {
+        doArriveOnSite();
+      }
+    }
+  );
+}
+
+// ── Departure prompt ──────────────────────────────────────────────────────────
+function _showDeparturePrompt(job) {
+  // Find the WO linked to this job
+  var wo = null;
+  if (_clockState.jobId) {
+    wo = (DB.workOrders||[]).find(function(w){
+      return w.jobId === _clockState.jobId ||
+             w.id === _clockState.jobId;
+    });
+  }
+
+  var woId = wo ? wo.id : null;
+
+  showLocNotification(
+    '🚗 Left the Job Site?',
+    'Looks like you\'ve left <strong>' + escHtml(job.name||'the job site') + '</strong>.<br>' +
+    '<span style="font-size:12px;color:#546e7a">Log your work while it\'s fresh — takes 2 minutes.</span>',
+    '📝 Log Now',
+    'I\'m Still Here',
+    function(confirmed) {
+      if (confirmed) {
+        if (woId) {
+          // Go directly to WO field log
+          goPage('workorders');
+          setTimeout(function(){
+            if (typeof openWorkOrder === 'function') {
+              openWorkOrder(woId);
+              setTimeout(function(){
+                switchWOTab('fieldlog');
+                setTimeout(function(){ openFieldLogEntry(woId); }, 300);
+              }, 500);
+            }
+          }, 300);
+        } else {
+          // No WO linked — just leave the site
+          if (typeof doLeaveOnSite === 'function') doLeaveOnSite();
+        }
+      } else {
+        // Tech says still there — reset departure counter
+        _locMonitor.consecutiveFar = 0;
+        _locMonitor.departureShown = false;
+      }
+    }
+  );
+}
+
+// ── Return-to-base nudge ──────────────────────────────────────────────────────
+function _showBaseReturnNudge() {
+  // Find any open field log entries for today
+  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var myName = _currentUser ? _currentUser.full_name : '';
+
+  var todayLabor = (DB.woLabor||[]).filter(function(l){
+    return l.techName === myName && (l.clockIn||'').startsWith(today);
+  });
+  var workedWoIds = [...new Set(todayLabor.map(function(l){ return l.woId; }))];
+  var missing = workedWoIds.filter(function(id){
+    var logs = _woFieldLogs ? (_woFieldLogs[id]||[]) : [];
+    return !logs.some(function(l){ return l.log_date===today && l.tech_name===myName; });
+  });
+
+  if (!missing.length) {
+    // All logs done — just show a nice confirmation
+    showToast('✅ You\'re back at base — all field logs are complete. Great work!', 'success', 5000);
+    return;
+  }
+
+  showLocNotification(
+    '🏠 Welcome Back to Base',
+    'You\'re back! You have <strong>' + missing.length + ' work order' +
+    (missing.length > 1 ? 's' : '') + '</strong> that still need field notes.<br>' +
+    '<span style="font-size:12px;color:#546e7a">Log them now while the details are fresh.</span>',
+    '📝 Log Now',
+    'I\'ll Do It Later',
+    function(confirmed) {
+      if (confirmed && typeof checkFieldLogBeforeClockOut === 'function') {
+        checkFieldLogBeforeClockOut(function(){});
+      }
+    }
+  );
+}
+
+// ── Reusable location notification banner ─────────────────────────────────────
+var _locNotifCallback = null;
+
+function showLocNotification(title, body, confirmLabel, dismissLabel, callback) {
+  var existing = document.getElementById('loc-notif-banner');
+  if (existing) existing.remove();
+
+  _locNotifCallback = callback;
+
+  var el = document.createElement('div');
+  el.id = 'loc-notif-banner';
+  el.style.cssText =
+    'position:fixed;top:0;left:0;right:0;z-index:99990;' +
+    'background:#1565c0;color:#fff;padding:14px 16px;' +
+    'display:flex;align-items:center;justify-content:space-between;gap:12px;' +
+    'box-shadow:0 4px 20px rgba(0,0,0,.3);flex-wrap:wrap';
+
+  el.innerHTML =
+    '<div style="flex:1;min-width:0">' +
+      '<div style="font-size:14px;font-weight:800;margin-bottom:2px">' + title + '</div>' +
+      '<div style="font-size:13px;opacity:.9;line-height:1.4">' + body + '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;flex-shrink:0">' +
+      '<button id="loc-notif-confirm" ' +
+        'style="padding:8px 16px;background:#fff;color:#1565c0;border:none;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer">' +
+        confirmLabel + '</button>' +
+      '<button id="loc-notif-dismiss" ' +
+        'style="padding:8px 12px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;font-size:12px;cursor:pointer">' +
+        dismissLabel + '</button>' +
+    '</div>';
+
+  document.body.appendChild(el);
+
+  // Wire buttons
+  el.querySelector('#loc-notif-confirm').addEventListener('click', function() {
+    el.remove();
+    if (_locNotifCallback) { var cb = _locNotifCallback; _locNotifCallback = null; cb(true); }
+  });
+  el.querySelector('#loc-notif-dismiss').addEventListener('click', function() {
+    el.remove();
+    if (_locNotifCallback) { var cb = _locNotifCallback; _locNotifCallback = null; cb(false); }
+  });
+
+  // Auto-dismiss after 45 seconds
+  setTimeout(function() {
+    var banner = document.getElementById('loc-notif-banner');
+    if (banner) {
+      banner.remove();
+      if (_locNotifCallback) { _locNotifCallback = null; }
+    }
+  }, 45000);
+
+  // Also try browser notification if permission granted
+  _tryBrowserNotification(title, body.replace(/<[^>]+>/g, ''));
+}
+
+function _tryBrowserNotification(title, body) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    try {
+      new Notification(title, {
+        body:  body,
+        icon:  '/favicon.ico',
+        badge: '/favicon.ico',
+        tag:   'probid-location',
+        renotify: true
+      });
+    } catch(e) { /* silent */ }
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission();
+  }
+}
+
+// ── Hook into clock state changes ────────────────────────────────────────────
+// Call this whenever _clockState.status changes
+function onClockStateChange(newStatus) {
+  switch(newStatus) {
+    case 'traveling':
+      _locMonitor.arrivalShown = false;
+      _locMonitor.consecutiveNear = 0;
+      _locMonitor.consecutiveFar = 0;
+      startLocationMonitoring();
+      break;
+    case 'onsite':
+      _locMonitor.departureShown = false;
+      _locMonitor.consecutiveFar = 0;
+      _locMonitor.consecutiveNear = 0;
+      startLocationMonitoring();
+      break;
+    case 'returning':
+      _locMonitor.baseReturnShown = false;
+      _locMonitor.consecutiveNear = 0;
+      startLocationMonitoring();
+      break;
+    case 'out':
+      stopLocationMonitoring();
+      break;
+  }
+}
+
+// ── Settings toggle ───────────────────────────────────────────────────────────
+function toggleAutoDetectArrivals() {
+  var cb = document.getElementById('s-auto-arrivals');
+  if (!DB.settings) DB.settings = {};
+  DB.settings.autoDetectArrivals = cb ? cb.checked : !DB.settings.autoDetectArrivals;
+  saveDB();
+  showToast(
+    DB.settings.autoDetectArrivals
+      ? '✅ Auto arrival detection ON — app will prompt when you arrive at job sites'
+      : 'Auto arrival detection OFF',
+    'info', 3000
+  );
+}
+

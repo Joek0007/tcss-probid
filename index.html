@@ -4035,6 +4035,20 @@ table{font-size:12.5px}
     <!-- FIELD OPERATIONS SETTINGS -->
     <div class="card"><div class="card-title">📍 Field Operations</div>
       <div style="margin-bottom:14px">
+        <!-- Auto arrival detection -->
+        <div style="margin-bottom:14px;padding:12px;border:1px solid #e0e0e0;border-radius:10px">
+          <div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:4px">Auto Arrival &amp; Departure Detection</div>
+          <div class="section-toggle-row" onclick="toggleAutoDetectArrivals()">
+            <label class="toggle-switch">
+              <input type="checkbox" id="s-auto-arrivals" onchange="toggleAutoDetectArrivals()">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-value-label" id="s-auto-arrivals-label">OFF</span>
+            <span class="toggle-label">Detect when techs arrive/leave job sites — prompts field log automatically</span>
+          </div>
+          <div style="font-size:11px;color:#90a4ae;margin-top:6px">Requires location permission. Checks every 3-4 minutes — does not run continuously.</div>
+        </div>
+
         <div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:4px">Geofence Enforcement</div>
         <div style="font-size:12px;color:#546e7a;margin-bottom:10px">When ON, techs must be within 500 ft of the job site to clock in or out. The first tech to clock in on a job establishes the site anchor point.</div>
         <div class="section-toggle-row" onclick="toggleGeofenceEnforcement()">
