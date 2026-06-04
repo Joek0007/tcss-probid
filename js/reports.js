@@ -481,6 +481,489 @@ function renderQuotes() {
 //        open flags, recent notifications
 // ============================================================
 
+// ============================================================
+// TECH PERFORMANCE JOURNAL
+// Manager-maintained permanent record of tech behavior
+// Both positive and negative entries
+// ============================================================
+
+var TJ_POS_CATEGORIES = [
+  'Volunteered / Above & Beyond',
+  'Customer Compliment',
+  'Saved a Job / Caught an Issue',
+  'Helped a Teammate',
+  'Quality Above Expectations',
+  'Perfect Log Compliance',
+  'Professional Conduct',
+  'Safety Leadership',
+  'Other Positive',
+];
+
+var TJ_NEG_CATEGORIES = [
+  'Late / No-Show',
+  'Customer Complaint',
+  'Safety Violation',
+  'Dishonesty',
+  'Poor Attitude',
+  'Equipment Damage',
+  'Rework / Careless Work',
+  'Incomplete / Late Logs',
+  'Insubordination',
+  'Other Negative',
+];
+
+var _tjState = {
+  type: 'positive',
+  techName: '',
+  category: '',
+};
+
+// ── Open the quick-add modal ──────────────────────────────────────────────────
+function openJournalEntry(techName, preType) {
+  _tjState = { type: preType||'positive', techName: techName||'', category:'' };
+  var team = (DB.team||[]).filter(function(m){ return m.active!==false; });
+
+  var techOptions = team.map(function(m){
+    return '<option value="'+escHtml(m.name)+'"'+(m.name===techName?' selected':'')+'>'+escHtml(m.name)+'</option>';
+  }).join('');
+
+  var html = '<div class="modal-overlay open" id="tj-modal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:520px">'+
+      '<div class="modal-head">'+
+        '<h3>📝 Log Journal Entry</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'tj-modal\').remove()">&#x2715;</button>'+
+      '</div>'+
+      '<div class="modal-body">'+
+
+        // Tech selector
+        '<div style="margin-bottom:16px">'+
+          '<label class="wiz-label">TEAM MEMBER *</label>'+
+          '<select id="tj-tech" class="form-control" onchange="_tjState.techName=this.value">'+
+            '<option value="">— Select tech —</option>'+
+            techOptions+
+          '</select>'+
+        '</div>'+
+
+        // Type toggle — big and obvious
+        '<div style="margin-bottom:16px">'+
+          '<label class="wiz-label">ENTRY TYPE *</label>'+
+          '<div style="display:flex;gap:10px">'+
+            '<button id="tj-btn-pos" onclick="tjSetType(\'positive\')" '+
+              'style="flex:1;padding:14px;font-size:15px;font-weight:800;border:3px solid '+(_tjState.type==='positive'?'#2e7d32':'#e0e0e0')+';border-radius:12px;background:'+(_tjState.type==='positive'?'#e8f5e9':'#fff')+';color:'+(_tjState.type==='positive'?'#2e7d32':'#90a4ae')+';cursor:pointer">'+
+              '👍 Positive</button>'+
+            '<button id="tj-btn-neg" onclick="tjSetType(\'negative\')" '+
+              'style="flex:1;padding:14px;font-size:15px;font-weight:800;border:3px solid '+(_tjState.type==='negative'?'#c62828':'#e0e0e0')+';border-radius:12px;background:'+(_tjState.type==='negative'?'#ffebee':'#fff')+';color:'+(_tjState.type==='negative'?'#c62828':'#90a4ae')+';cursor:pointer">'+
+              '👎 Negative</button>'+
+          '</div>'+
+        '</div>'+
+
+        // Category
+        '<div style="margin-bottom:16px">'+
+          '<label class="wiz-label">CATEGORY *</label>'+
+          '<div id="tj-categories" style="display:flex;gap:6px;flex-wrap:wrap">'+
+            tjCategoryButtons(_tjState.type, '')+
+          '</div>'+
+        '</div>'+
+
+        // What happened
+        '<div style="margin-bottom:16px">'+
+          '<label class="wiz-label">WHAT HAPPENED *</label>'+
+          '<textarea id="tj-desc" class="form-control" rows="4" '+
+            'placeholder="Describe what you observed or were told. Be specific — who, what, when, where."'+
+            'style="resize:vertical;min-height:100px"></textarea>'+
+        '</div>'+
+
+        // Related WO (optional)
+        '<div style="margin-bottom:20px">'+
+          '<label class="wiz-label">RELATED WORK ORDER <span style="font-weight:400;text-transform:none">(optional)</span></label>'+
+          '<select id="tj-wo" class="form-control">'+
+            '<option value="">— None —</option>'+
+            (DB.workOrders||[]).slice(0,30).map(function(w){
+              return '<option value="'+w.id+'">'+escHtml((w.woNumber||w.id)+' — '+(w.customerName||w.description||'').substring(0,40))+'</option>';
+            }).join('')+
+          '</select>'+
+        '</div>'+
+
+        '<button class="btn btn-primary" style="width:100%;padding:14px;font-size:15px" onclick="saveJournalEntry()">'+
+          '💾 Save Entry</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+
+  var e = document.getElementById('tj-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(function(){
+    var sel = document.getElementById('tj-tech');
+    if (sel && !techName) sel.focus();
+  }, 100);
+}
+
+function tjCategoryButtons(type, selected) {
+  var cats = type === 'positive' ? TJ_POS_CATEGORIES : TJ_NEG_CATEGORIES;
+  var color = type === 'positive' ? '#2e7d32' : '#c62828';
+  var bg    = type === 'positive' ? '#e8f5e9'  : '#ffebee';
+  return cats.map(function(cat){
+    var active = cat === selected;
+    return '<button onclick="tjSetCategory(\''+escHtml(cat)+'\')" '+
+      'style="padding:6px 12px;font-size:12px;font-weight:600;border:2px solid '+(active?color:'#e0e0e0')+';border-radius:20px;background:'+(active?bg:'#fff')+';color:'+(active?color:'#546e7a')+';cursor:pointer">'+
+      escHtml(cat)+'</button>';
+  }).join('');
+}
+
+function tjSetType(type) {
+  _tjState.type = type;
+  _tjState.category = '';
+  var posBtn = document.getElementById('tj-btn-pos');
+  var negBtn = document.getElementById('tj-btn-neg');
+  var catDiv = document.getElementById('tj-categories');
+  if (posBtn) {
+    posBtn.style.border = '3px solid '+(type==='positive'?'#2e7d32':'#e0e0e0');
+    posBtn.style.background = type==='positive'?'#e8f5e9':'#fff';
+    posBtn.style.color = type==='positive'?'#2e7d32':'#90a4ae';
+  }
+  if (negBtn) {
+    negBtn.style.border = '3px solid '+(type==='negative'?'#c62828':'#e0e0e0');
+    negBtn.style.background = type==='negative'?'#ffebee':'#fff';
+    negBtn.style.color = type==='negative'?'#c62828':'#90a4ae';
+  }
+  if (catDiv) catDiv.innerHTML = tjCategoryButtons(type, '');
+}
+
+function tjSetCategory(cat) {
+  _tjState.category = cat;
+  var catDiv = document.getElementById('tj-categories');
+  if (catDiv) catDiv.innerHTML = tjCategoryButtons(_tjState.type, cat);
+}
+
+async function saveJournalEntry() {
+  var techName = (document.getElementById('tj-tech')||{}).value || _tjState.techName;
+  var desc     = ((document.getElementById('tj-desc')||{}).value||'').trim();
+  var woEl     = document.getElementById('tj-wo');
+  var woId     = woEl ? woEl.value : '';
+  var wo       = woId ? (DB.workOrders||[]).find(function(w){ return w.id===woId; }) : null;
+
+  if (!techName)         { showToast('Select a team member','warning'); return; }
+  if (!_tjState.category){ showToast('Select a category','warning'); return; }
+  if (!desc)             { showToast('Describe what happened','warning'); return; }
+
+  var member = (DB.team||[]).find(function(m){ return m.name===techName; });
+
+  var entry = {
+    tech_id:        member && member.userId ? member.userId : null,
+    tech_name:      techName,
+    entry_type:     _tjState.type,
+    category:       _tjState.category,
+    description:    desc,
+    wo_id:          woId || null,
+    wo_number:      wo ? (wo.woNumber||null) : null,
+    entered_by_id:  wtCurrentUserId(),
+    entered_by_name:wtCurrentUserName(),
+    entry_date:     new Date().toISOString().split('T')[0],
+  };
+
+  var btn = document.querySelector('#tj-modal .btn-primary');
+  if (btn) { btn.disabled=true; btn.textContent='Saving...'; }
+
+  try {
+    if (_sb) {
+      var { data, error } = await _sb.from('tech_journal').insert(entry).select().single();
+      if (error) throw error;
+      entry = data;
+    }
+
+    // Cache locally
+    if (!DB.techJournal) DB.techJournal = [];
+    DB.techJournal.unshift(entry);
+
+    // Send positive notification to tech immediately
+    if (_tjState.type === 'positive' && entry.tech_id && _sb) {
+      await _sb.from('wt_notifications').insert({
+        user_id:    entry.tech_id,
+        user_name:  techName,
+        type:       'journal_positive',
+        title:      '👍 Great work noted by '+escHtml(wtCurrentUserName()),
+        message:    escHtml(_tjState.category)+': '+escHtml(desc.substring(0,100)),
+        project_id: null,
+      });
+    }
+
+    document.getElementById('tj-modal').remove();
+
+    // Refresh dashboard blip if visible
+    renderJournalBlip();
+    showToast((entry.entry_type==='positive'?'👍':'📝')+' Entry saved for '+escHtml(techName),'success');
+
+  } catch(e) {
+    console.error('saveJournalEntry:', e);
+    showToast('Error: '+e.message,'error');
+    if (btn) { btn.disabled=false; btn.textContent='💾 Save Entry'; }
+  }
+}
+
+// ── Journal dashboard blip ────────────────────────────────────────────────────
+async function loadJournalForDash() {
+  if (!_sb || !_currentUser) return;
+  if (!['owner','manager','back_office','lead_tech'].includes(_currentUser.role)) return;
+  try {
+    var thirtyDaysAgo = new Date(Date.now()-30*86400000).toISOString().split('T')[0];
+    var { data } = await _sb.from('tech_journal')
+      .select('*').gte('entry_date', thirtyDaysAgo)
+      .order('created_at',{ascending:false}).limit(50);
+    if (data) { DB.techJournal = data; renderJournalBlip(); }
+  } catch(e) { console.warn('loadJournalForDash:', e); }
+}
+
+function renderJournalBlip() {
+  var el = document.getElementById('dash-journal-blip');
+  if (!el) return;
+
+  var entries = DB.techJournal || [];
+  if (!entries.length) {
+    el.innerHTML = '<div style="color:#90a4ae;font-size:13px">No entries this month.</div>';
+    return;
+  }
+
+  // This week
+  var weekAgo = new Date(Date.now()-7*86400000).toISOString().split('T')[0];
+  var thisWeek = entries.filter(function(e){ return e.entry_date >= weekAgo; });
+  var posWeek  = thisWeek.filter(function(e){ return e.entry_type==='positive'; }).length;
+  var negWeek  = thisWeek.filter(function(e){ return e.entry_type==='negative'; }).length;
+
+  // Recent entries (last 3)
+  var recent = entries.slice(0,3);
+
+  el.innerHTML =
+    // Summary counts
+    '<div style="display:flex;gap:12px;margin-bottom:12px">'+
+      '<div style="flex:1;padding:10px;background:#e8f5e9;border-radius:8px;text-align:center">'+
+        '<div style="font-size:22px;font-weight:800;color:#2e7d32">'+posWeek+'</div>'+
+        '<div style="font-size:10px;font-weight:700;color:#2e7d32">POSITIVE</div>'+
+        '<div style="font-size:9px;color:#546e7a">this week</div>'+
+      '</div>'+
+      '<div style="flex:1;padding:10px;background:#ffebee;border-radius:8px;text-align:center">'+
+        '<div style="font-size:22px;font-weight:800;color:#c62828">'+negWeek+'</div>'+
+        '<div style="font-size:10px;font-weight:700;color:#c62828">NEGATIVE</div>'+
+        '<div style="font-size:9px;color:#546e7a">this week</div>'+
+      '</div>'+
+    '</div>'+
+    // Recent entries
+    recent.map(function(e){
+      var isPos = e.entry_type==='positive';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0f0f0">'+
+        '<span style="font-size:16px">'+(isPos?'👍':'⚠️')+'</span>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:12px;font-weight:700;color:#0d1b2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+
+            escHtml(e.tech_name)+' — '+escHtml(e.category)+
+          '</div>'+
+          '<div style="font-size:11px;color:#90a4ae">'+escHtml(formatTimeAgo?formatTimeAgo(e.created_at):e.entry_date)+'</div>'+
+        '</div>'+
+      '</div>';
+    }).join('')+
+    // Actions
+    '<div style="display:flex;gap:8px;margin-top:10px">'+
+      '<button onclick="openJournalEntry(\'\')" class="btn btn-primary btn-sm" style="flex:1">'+
+        '📝 Log Entry</button>'+
+      '<button onclick="openTechJournalView()" class="btn btn-outline btn-sm" style="flex:1">'+
+        'View All</button>'+
+    '</div>';
+}
+
+// ── Full journal view ─────────────────────────────────────────────────────────
+async function openTechJournalView(techName) {
+  var entries = DB.techJournal || [];
+
+  // Filter by tech if specified
+  if (techName) {
+    entries = entries.filter(function(e){ return e.tech_name===techName; });
+  }
+
+  // Load fresh from Supabase
+  if (_sb) {
+    try {
+      var q = _sb.from('tech_journal').select('*').order('entry_date',{ascending:false}).limit(200);
+      if (techName) q = q.eq('tech_name', techName);
+      var { data } = await q;
+      if (data) entries = data;
+    } catch(e) { console.warn(e); }
+  }
+
+  var team = [...new Set((DB.team||[]).map(function(m){ return m.name; }))];
+
+  var html = '<div class="modal-overlay open" id="tj-view-modal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:700px;max-height:90vh;display:flex;flex-direction:column">'+
+      '<div class="modal-head" style="flex-shrink:0">'+
+        '<h3>📋 Tech Journal</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'tj-view-modal\').remove()">&#x2715;</button>'+
+      '</div>'+
+      '<div style="padding:12px 16px;border-bottom:1px solid #f0f0f0;display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;align-items:center">'+
+        // Tech filter
+        '<select id="tj-filter-tech" onchange="tjFilterView()" style="padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px">'+
+          '<option value="">All Techs</option>'+
+          team.map(function(n){ return '<option value="'+escHtml(n)+'"'+(n===techName?' selected':'')+'>'+escHtml(n)+'</option>'; }).join('')+
+        '</select>'+
+        // Type filter
+        '<select id="tj-filter-type" onchange="tjFilterView()" style="padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px">'+
+          '<option value="">All Entries</option>'+
+          '<option value="positive">👍 Positive Only</option>'+
+          '<option value="negative">⚠️ Negative Only</option>'+
+        '</select>'+
+        // Date range
+        '<select id="tj-filter-period" onchange="tjFilterView()" style="padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px">'+
+          '<option value="30">Last 30 days</option>'+
+          '<option value="90">Last Quarter</option>'+
+          '<option value="180">Last 6 Months</option>'+
+          '<option value="365">Last Year</option>'+
+          '<option value="all">All Time</option>'+
+        '</select>'+
+        '<button onclick="openJournalEntry(\'\')" class="btn btn-primary btn-sm" style="margin-left:auto">+ New Entry</button>'+
+      '</div>'+
+      '<div id="tj-view-list" style="overflow-y:auto;flex:1;padding:0 16px">'+
+        tjRenderEntryList(entries)+
+      '</div>'+
+    '</div>'+
+  '</div>';
+
+  var e = document.getElementById('tj-view-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function tjRenderEntryList(entries) {
+  if (!entries.length) return '<div style="text-align:center;padding:40px;color:#90a4ae">'+
+    '<div style="font-size:32px;margin-bottom:12px">📋</div>'+
+    '<div style="font-size:14px;font-weight:600">No entries found</div>'+
+  '</div>';
+
+  return entries.map(function(e){
+    var isPos = e.entry_type === 'positive';
+    return '<div style="padding:14px 0;border-bottom:1px solid #f0f0f0;display:flex;gap:12px;align-items:flex-start">'+
+      // Type indicator
+      '<div style="width:36px;height:36px;border-radius:50%;background:'+(isPos?'#e8f5e9':'#ffebee')+';'+
+        'display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">'+
+        (isPos?'👍':'⚠️')+
+      '</div>'+
+      // Content
+      '<div style="flex:1;min-width:0">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:4px">'+
+          '<div style="font-size:14px;font-weight:800;color:#0d1b2a">'+escHtml(e.tech_name)+'</div>'+
+          '<div style="font-size:11px;color:#90a4ae">'+escHtml(e.entry_date)+'</div>'+
+        '</div>'+
+        '<div style="font-size:12px;font-weight:700;color:'+(isPos?'#2e7d32':'#c62828')+';margin-bottom:6px">'+
+          escHtml(e.category)+
+        '</div>'+
+        '<div style="font-size:13px;color:#0d1b2a;line-height:1.5">'+escHtml(e.description)+'</div>'+
+        (e.wo_number?'<div style="font-size:11px;color:#1565c0;margin-top:4px">WO: '+escHtml(e.wo_number)+'</div>':'')+
+        '<div style="font-size:11px;color:#90a4ae;margin-top:4px">Logged by: '+escHtml(e.entered_by_name)+'</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+async function tjFilterView() {
+  var tech   = (document.getElementById('tj-filter-tech')||{}).value||'';
+  var type   = (document.getElementById('tj-filter-type')||{}).value||'';
+  var period = (document.getElementById('tj-filter-period')||{}).value||'30';
+
+  var cutoff = period==='all' ? null :
+    new Date(Date.now()-parseInt(period)*86400000).toISOString().split('T')[0];
+
+  if (!_sb) return;
+  try {
+    var q = _sb.from('tech_journal').select('*').order('entry_date',{ascending:false}).limit(200);
+    if (tech)   q = q.eq('tech_name', tech);
+    if (type)   q = q.eq('entry_type', type);
+    if (cutoff) q = q.gte('entry_date', cutoff);
+    var { data } = await q;
+    var list = document.getElementById('tj-view-list');
+    if (list) list.innerHTML = tjRenderEntryList(data||[]);
+  } catch(e) { showToast('Error loading entries','error'); }
+}
+
+// ── Quarterly review per tech ─────────────────────────────────────────────────
+async function openQuarterlyReview(techName) {
+  var now = new Date();
+  var quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3, 1);
+  var qStart = quarterStart.toISOString().split('T')[0];
+
+  var entries = [];
+  if (_sb) {
+    try {
+      var { data } = await _sb.from('tech_journal')
+        .select('*').eq('tech_name', techName)
+        .gte('entry_date', qStart).order('entry_date',{ascending:false});
+      entries = data || [];
+    } catch(e) {}
+  }
+
+  var pos = entries.filter(function(e){ return e.entry_type==='positive'; });
+  var neg = entries.filter(function(e){ return e.entry_type==='negative'; });
+  var member = (DB.team||[]).find(function(m){ return m.name===techName; }) || {};
+
+  // Log completion rate from wt_notifications or workdays
+  var workDays = (DB.workDays||[]).filter(function(d){
+    return d.techName===techName && d.date>=qStart;
+  });
+  var loggedDays = workDays.filter(function(d){ return d.notes||d.summary; }).length;
+  var logRate = workDays.length ? Math.round(loggedDays/workDays.length*100) : null;
+
+  var qLabel = ['Q1','Q2','Q3','Q4'][Math.floor(now.getMonth()/3)]+' '+now.getFullYear();
+
+  var html = '<div class="modal-overlay open" id="tj-review-modal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:600px;max-height:90vh;display:flex;flex-direction:column">'+
+      '<div class="modal-head" style="flex-shrink:0">'+
+        '<h3>📊 Quarterly Review — '+escHtml(techName)+'</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'tj-review-modal\').remove()">&#x2715;</button>'+
+      '</div>'+
+      '<div style="overflow-y:auto;flex:1;padding:20px">'+
+
+        // Header
+        '<div style="background:#f5f7fa;border-radius:12px;padding:16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">'+
+          '<div style="width:52px;height:52px;border-radius:50%;background:#1565c0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;flex-shrink:0">'+
+            escHtml((techName||'?').charAt(0).toUpperCase())+
+          '</div>'+
+          '<div>'+
+            '<div style="font-size:18px;font-weight:800;color:#0d1b2a">'+escHtml(techName)+'</div>'+
+            '<div style="font-size:13px;color:#546e7a">'+escHtml(member.role||member.title||'Technician')+' · '+qLabel+'</div>'+
+          '</div>'+
+        '</div>'+
+
+        // Score cards
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">'+
+          '<div style="padding:14px;background:#e8f5e9;border-radius:10px;text-align:center">'+
+            '<div style="font-size:28px;font-weight:800;color:#2e7d32">'+pos.length+'</div>'+
+            '<div style="font-size:11px;font-weight:700;color:#2e7d32">POSITIVE</div>'+
+          '</div>'+
+          '<div style="padding:14px;background:#ffebee;border-radius:10px;text-align:center">'+
+            '<div style="font-size:28px;font-weight:800;color:#c62828">'+neg.length+'</div>'+
+            '<div style="font-size:11px;font-weight:700;color:#c62828">NEGATIVE</div>'+
+          '</div>'+
+          '<div style="padding:14px;background:#e3f2fd;border-radius:10px;text-align:center">'+
+            '<div style="font-size:28px;font-weight:800;color:#1565c0">'+(logRate!==null?logRate+'%':'—')+'</div>'+
+            '<div style="font-size:11px;font-weight:700;color:#1565c0">LOG RATE</div>'+
+          '</div>'+
+        '</div>'+
+
+        // Journal entries timeline
+        '<div style="font-size:14px;font-weight:800;color:#0d1b2a;margin-bottom:10px">Journal Entries This Quarter</div>'+
+        (entries.length
+          ? tjRenderEntryList(entries)
+          : '<div style="color:#90a4ae;font-size:13px;padding:16px 0">No journal entries this quarter.</div>')+
+
+        // Manager notes area for review
+        '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e0e0e0">'+
+          '<label class="wiz-label">REVIEW NOTES (private — for your records)</label>'+
+          '<textarea id="tj-review-notes" class="form-control" rows="4" placeholder="Your observations for this review period..."></textarea>'+
+          '<button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="openJournalEntry(\''+escHtml(techName)+'\')">+ Add Journal Entry</button>'+
+        '</div>'+
+
+      '</div>'+
+    '</div>'+
+  '</div>';
+
+  var e = document.getElementById('tj-review-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+
 function wtRenderTechDashboard() {
   var el = document.getElementById('page-dash');
   if (!el || !wtIsFieldTech()) return;
@@ -655,6 +1138,8 @@ function renderDash() {
     setTimeout(wtRenderTechDashboard, 100);
     return;
   }
+  // Load journal data for dashboard blip
+  setTimeout(loadJournalForDash, 800);
   const today = getTodayISO();
 
   // ---- QUOTE METRICS ----

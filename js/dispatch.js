@@ -284,7 +284,12 @@ function renderDispatchTechRows(team, dayJobs, boardDate, isToday) {
           (absent?'<span style="font-size:16px">🚫</span>':escHtml(initials))+
         '</div>'+
         '<div class="dispatch-tech-info">'+
-          '<div class="dispatch-tech-name">'+escHtml(name)+'</div>'+
+          '<div style="display:flex;align-items:center;justify-content:space-between">'+
+            '<div class="dispatch-tech-name">'+escHtml(name)+'</div>'+
+            '<button onclick="event.stopPropagation();openJournalEntry(\''+escHtml(name)+'\')") '+
+              'title="Log journal entry for '+escHtml(name)+'" '+
+              'style="padding:2px 6px;font-size:10px;border:1px solid #e0e0e0;border-radius:4px;background:#fff;cursor:pointer;color:#546e7a;flex-shrink:0">📝</button>'+
+          '</div>'+
           '<div class="dispatch-tech-status">'+
             '<div class="dispatch-tech-status-dot'+(statusInfo.pulse?' pulse':'')+'" style="background:'+statusInfo.dot+'"></div>'+
             '<span style="color:'+statusInfo.text+';font-size:10px">'+(absent?'<span style="color:#c62828">Out</span>':statusInfo.label)+'</span>'+

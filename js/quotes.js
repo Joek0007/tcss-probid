@@ -2638,6 +2638,8 @@ function renderTeam() {
       '<td>'+statusBadge+'</td>'+
       '<td style="white-space:nowrap">'+
         '<button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> '+
+        '<button class="btn btn-outline btn-sm" onclick="openTechJournalView(\''+escHtml(t.name)+'\')" style="color:#1565c0">📋 Journal</button> '+
+        '<button class="btn btn-outline btn-sm" onclick="openQuarterlyReview(\''+escHtml(t.name)+'\')" style="color:#7b1fa2">📊 Review</button> '+
         (!hasLogin && t.email ? '<button class="btn btn-outline btn-sm" data-action="inviteTeamMember" data-id="'+t.id+'">✉ Invite</button> ' : '')+
         (isOwner ? '<button class="btn btn-danger btn-sm" data-action="delTeamMember" data-id="'+t.id+'">Del</button>' : '')+
       '</td>'+
