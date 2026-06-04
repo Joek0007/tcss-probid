@@ -743,6 +743,39 @@ body.dark-mode .clock-card,body.dark-mode .card{background:var(--bg2)!important;
 body.dark-mode .sidebar{background:#111!important;border-color:#222!important}
 body.dark-mode .nav-item{color:#888!important}
 body.dark-mode .nav-item.active{background:#1a1a2e!important;color:#90caf9!important}
+/* ── Role-based nav permissions ─────────────────────────────────────────── */
+/* helper_tech: hide everything except their core pages */
+body.role-helper-tech .nav-item[data-page="qq"],
+body.role-helper-tech .nav-item[data-page="quotes"],
+body.role-helper-tech .nav-item[data-page="catalog"],
+body.role-helper-tech .nav-item[data-page="templates"],
+body.role-helper-tech .nav-item[data-page="reports"],
+body.role-helper-tech .nav-item[data-page="customers"],
+body.role-helper-tech .nav-item[data-page="contacts"],
+body.role-helper-tech .nav-item[data-page="settings"],
+body.role-helper-tech .nav-item[data-page="invoices"],
+body.role-helper-tech .nav-item[data-page="timesheet"],
+body.role-helper-tech .nav-item[data-page="team"],
+body.role-helper-tech .nav-item[data-page="purchaseorders"],
+body.role-helper-tech .nav-item[data-page="vendors"],
+body.role-helper-tech .nav-item[data-page="scanner"],
+body.role-helper-tech .nav-item[data-page="auditlog"],
+body.role-helper-tech .team-rate-col
+{ display:none!important }
+/* lead_tech: hide estimating + business management pages */
+body.role-lead-tech .nav-item[data-page="qq"],
+body.role-lead-tech .nav-item[data-page="quotes"],
+body.role-lead-tech .nav-item[data-page="catalog"],
+body.role-lead-tech .nav-item[data-page="templates"],
+body.role-lead-tech .nav-item[data-page="invoices"],
+body.role-lead-tech .nav-item[data-page="team"],
+body.role-lead-tech .nav-item[data-page="purchaseorders"],
+body.role-lead-tech .nav-item[data-page="vendors"],
+body.role-lead-tech .nav-item[data-page="scanner"],
+body.role-lead-tech .nav-item[data-page="auditlog"],
+body.role-lead-tech .nav-item[data-page="settings"],
+body.role-lead-tech .team-rate-col
+{ display:none!important }
 body.dark-mode .page-header h2{color:var(--text)!important}
 body.dark-mode .modal-box{background:#1e1e1e!important;border-color:#333!important;color:var(--text)!important}
 body.dark-mode .modal-head{background:#111!important;border-color:#333!important}

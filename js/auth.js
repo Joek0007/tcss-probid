@@ -183,76 +183,26 @@ async function loadCurrentUserProfile() {
 }
 
 // ── Role permission system ───────────────────────────────────────────────────
-// Uses a <style> tag with !important — survives any DOM rebuild
-// Also runs on a short interval after login to catch late renders
+// CSS lives in index.html — we just toggle a body class. Simple. Bulletproof.
 
 var _roleEnforceInterval = null;
 
-function getRoleHideList(role) {
-  var fieldOnlyHide = ['catalog','templates','reports','customers','contacts','settings',
-    'qq','quotes','invoices','timesheet','team','purchaseorders','vendors','scanner','auditlog'];
-  var leadTechHide  = ['catalog','templates','settings','qq','quotes','invoices',
-    'team','purchaseorders','vendors','scanner','auditlog'];
-  if (role === 'owner' || role === 'manager' || role === 'back_office') return [];
-  if (role === 'lead_tech') return leadTechHide;
-  if (role === 'helper_tech') return fieldOnlyHide;
-  return fieldOnlyHide; // safe default for unknown roles
-}
-
 function applyRolePermissions(role) {
-  var hideList = getRoleHideList(role);
+  // Remove any previous role class
+  document.body.classList.remove('role-helper-tech', 'role-lead-tech', 'role-back-office', 'role-manager', 'role-owner');
 
-  // ── Layer 1: CSS <style> tag with !important ──────────────────────────────
-  // Survives DOM rebuilds — rules apply to any nav item that exists now or later
-  var styleId = 'probid-role-permissions';
-  var old = document.getElementById(styleId);
-  if (old) old.remove();
+  // Set the correct role class — CSS in index.html does the rest
+  var cssClass = {
+    'helper_tech': 'role-helper-tech',
+    'lead_tech':   'role-lead-tech',
+    'back_office': 'role-back-office',
+    'manager':     'role-manager',
+    'owner':       'role-owner',
+  }[role] || 'role-helper-tech'; // unknown role defaults to most restricted
 
-  if (hideList.length > 0) {
-    var css = hideList.map(function(page) {
-      return '.nav-item[data-page=' + page + ']{display:none!important}';
-    }).join('');
-    // Rate column for non-owners
-    if (role !== 'owner') css += '.team-rate-col{display:none!important}';
-    var style = document.createElement('style');
-    style.id   = styleId;
-    style.type = 'text/css';
-    style.appendChild(document.createTextNode(css));
-    (document.head || document.documentElement).appendChild(style);
-  }
+  document.body.classList.add(cssClass);
 
-  // ── Layer 2: Inline styles as immediate backup ────────────────────────────
-  function hideNav() {
-    document.querySelectorAll('.nav-item[data-page]').forEach(function(el) {
-      var page = el.getAttribute('data-page');
-      if (hideList.indexOf(page) >= 0) {
-        el.style.setProperty('display', 'none', 'important');
-      } else {
-        el.style.removeProperty('display');
-      }
-    });
-    document.querySelectorAll('.team-rate-col').forEach(function(el) {
-      el.style.setProperty('display', role === 'owner' ? '' : 'none', 'important');
-    });
-  }
-  hideNav();
-
-  // ── Layer 3: Short-lived interval to catch late renders ───────────────────
-  // Runs every 300ms for 8 seconds after login then stops
-  if (_roleEnforceInterval) clearInterval(_roleEnforceInterval);
-  if (hideList.length > 0) {
-    var enforceCount = 0;
-    _roleEnforceInterval = setInterval(function() {
-      hideNav();
-      enforceCount++;
-      if (enforceCount >= 27) { // ~8 seconds
-        clearInterval(_roleEnforceInterval);
-        _roleEnforceInterval = null;
-      }
-    }, 300);
-  }
-
-  // Mobile nav switching
+  // Mobile bottom nav switching
   var isTech = (role === 'helper_tech');
   document.querySelectorAll('.mob-role-default').forEach(function(el) {
     el.style.display = isTech ? 'none' : '';
@@ -261,16 +211,18 @@ function applyRolePermissions(role) {
     el.style.display = isTech ? '' : 'none';
   });
 
-  if (role === 'owner') setTimeout(renderPermissionsEditor, 200);
+  // Short enforcement interval — re-sets the class in case anything removes it
+  if (_roleEnforceInterval) clearInterval(_roleEnforceInterval);
+  var count = 0;
+  _roleEnforceInterval = setInterval(function() {
+    if (!document.body.classList.contains(cssClass)) {
+      document.body.classList.add(cssClass);
+    }
+    count++;
+    if (count >= 30) { clearInterval(_roleEnforceInterval); _roleEnforceInterval = null; }
+  }, 500);
 
-  // Switch mobile bottom nav for field techs
-  var isTech = (role === 'helper_tech');
-  document.querySelectorAll('.mob-role-default').forEach(function(el){
-    el.style.display = isTech ? 'none' : '';
-  });
-  document.querySelectorAll('.mob-role-tech').forEach(function(el){
-    el.style.display = isTech ? '' : 'none';
-  });
+  if (role === 'owner') setTimeout(renderPermissionsEditor, 200);
 }
 
 function updateUserBadge(profile) {
