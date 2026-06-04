@@ -215,6 +215,17 @@ async function doLeaveOnSite(){
 
 // PHASE 4 — ARRIVE BACK / END DAY
 async function doArriveBack(){
+  // Check for incomplete field logs before ending the day
+  if (typeof checkFieldLogBeforeClockOut === 'function') {
+    checkFieldLogBeforeClockOut(function(){
+      _doArriveBackActual();
+    });
+    return;
+  }
+  _doArriveBackActual();
+}
+
+async function _doArriveBackActual(){
   getGPS(async function(lat,lng,acc){
     var now=new Date();
     var travelBackMins=_clockState.travelBackStart?Math.round((now-_clockState.travelBackStart)/60000):0;

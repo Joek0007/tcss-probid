@@ -195,7 +195,7 @@ function openNewWorkOrder() {
   var intSection=document.getElementById('wo-internal-notes-section');
   if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?'':'none';
 
-  switchWOTab('labor');
+  switchWOTab((typeof wtIsFieldTech==='function'&&wtIsFieldTech())?'fieldlog':'labor');
   openModal('modal-work-order');
 }
 
@@ -247,7 +247,7 @@ function openWorkOrder(id) {
   var intSection=document.getElementById('wo-internal-notes-section');
   if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?'':'none';
 
-  switchWOTab('labor');
+  switchWOTab((typeof wtIsFieldTech==='function'&&wtIsFieldTech())?'fieldlog':'labor');
   openModal('modal-work-order');
 
   // Hot notes
@@ -534,6 +534,7 @@ function switchWOTab(tab) {
   if (tab==='checklist') content.innerHTML = renderWOChecklistTab(id);
   if (tab==='comments')  content.innerHTML = (typeof renderCommsLog==='function') ? '<div style="margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="openCommsModal(\'\',\''+id+'\')">+ Log Communication</button></div>' + renderCommsLog(null, id) : '';
   if (tab==='photos')    { content.innerHTML = renderWODocsTab(id); }
+  if (tab==='fieldlog')  { renderWOFieldLogTab(id); }
 }
 
 // ---- LABOR TAB ----
@@ -1841,3 +1842,436 @@ function wtOpenFromWorkOrder() {
     }, 400);
   }, 400);
 }
+
+// ============================================================
+// WORK ORDER FIELD LOG
+// Structured daily log entry per tech per WO
+// Accessible from WO Field Log tab + clock-out nudge
+// ============================================================
+
+var _woFieldLogs = {};  // cache: woId -> array of log entries
+
+// ── Load logs for a WO ───────────────────────────────────────────────────────
+async function loadWOFieldLogs(woId) {
+  if (!_sb || !woId) return [];
+  try {
+    var { data, error } = await _sb.from('wo_field_logs')
+      .select('*').eq('wo_id', woId)
+      .order('log_date', {ascending: false})
+      .order('created_at', {ascending: false});
+    if (error) throw error;
+    _woFieldLogs[woId] = data || [];
+    return _woFieldLogs[woId];
+  } catch(e) {
+    console.error('loadWOFieldLogs:', e);
+    return [];
+  }
+}
+
+// ── Render the Field Log tab ──────────────────────────────────────────────────
+async function renderWOFieldLogTab(woId) {
+  var content = document.getElementById('wo-tab-content');
+  if (!content) return;
+
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (!wo) return;
+
+  content.innerHTML = '<div style="padding:20px;text-align:center;color:#90a4ae">Loading field log...</div>';
+
+  var logs = await loadWOFieldLogs(woId);
+  var isTech = typeof wtIsFieldTech === 'function' && wtIsFieldTech();
+
+  // Check if tech already logged today
+  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var myName = typeof wtCurrentUserName === 'function' ? wtCurrentUserName() : (_currentUser?_currentUser.full_name:'');
+  var loggedToday = logs.some(function(l){
+    return l.log_date === today && l.tech_name === myName;
+  });
+
+  content.innerHTML =
+    // Header with add button
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'+
+      '<div>'+
+        '<div style="font-size:14px;font-weight:800;color:#0d1b2a">Field Log</div>'+
+        '<div style="font-size:12px;color:#546e7a">'+logs.length+' entr'+(logs.length===1?'y':'ies')+' · '+
+          (loggedToday
+            ? '<span style="color:#2e7d32;font-weight:700">✓ You logged today</span>'
+            : '<span style="color:#e65100;font-weight:700">⚠ No entry for today yet</span>')+
+        '</div>'+
+      '</div>'+
+      '<button onclick="openFieldLogEntry(\''+woId+'\')" class="btn btn-primary" '+
+        'style="'+(loggedToday?'background:#546e7a;border-color:#546e7a':'')+'">'+
+        (loggedToday ? '+ Add Another Entry' : '📝 Log Today\'s Work')+
+      '</button>'+
+    '</div>'+
+
+    // Log entries grouped by date
+    (logs.length ? renderFieldLogEntries(logs, woId) :
+      '<div style="text-align:center;padding:40px;background:#f5f7fa;border-radius:12px;color:#90a4ae">'+
+        '<div style="font-size:32px;margin-bottom:12px">📝</div>'+
+        '<div style="font-size:15px;font-weight:700;margin-bottom:6px">No field log entries yet</div>'+
+        '<div style="font-size:13px;margin-bottom:20px">Log what you did on this job each day you work it.</div>'+
+        '<button onclick="openFieldLogEntry(\''+woId+'\')" class="btn btn-primary">📝 Log Today\'s Work</button>'+
+      '</div>');
+}
+
+function renderFieldLogEntries(logs, woId) {
+  // Group by date
+  var byDate = {};
+  logs.forEach(function(l){
+    if (!byDate[l.log_date]) byDate[l.log_date] = [];
+    byDate[l.log_date].push(l);
+  });
+
+  return Object.keys(byDate).map(function(date){
+    var dayLogs = byDate[date];
+    var dateLabel = formatDateFriendly ? formatDateFriendly(date) : date;
+    return '<div style="margin-bottom:20px">'+
+      '<div style="font-size:12px;font-weight:800;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f0f0f0">'+
+        escHtml(dateLabel)+
+      '</div>'+
+      dayLogs.map(function(l){ return renderFieldLogCard(l, woId); }).join('')+
+    '</div>';
+  }).join('');
+}
+
+function renderFieldLogCard(l, woId) {
+  var isOwn = l.tech_name === (typeof wtCurrentUserName==='function'?wtCurrentUserName():'');
+  var canEdit = isOwn || (_currentUser && ['owner','manager','back_office'].includes(_currentUser.role));
+
+  return '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:16px;margin-bottom:10px">'+
+    // Header
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div style="width:36px;height:36px;border-radius:50%;background:#1565c0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0">'+
+          escHtml((l.tech_name||'?').charAt(0).toUpperCase())+
+        '</div>'+
+        '<div>'+
+          '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(l.tech_name)+'</div>'+
+          '<div style="font-size:11px;color:#90a4ae">'+
+            (l.time_spent ? l.time_spent+'h logged' : 'Time not recorded')+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        (l.customer_present?'<span style="font-size:11px;background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:10px;font-weight:700">Customer Present</span>':'')+
+        (l.follow_up_needed?'<span style="font-size:11px;background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-weight:700">⚠ Follow-up Needed</span>':'')+
+      '</div>'+
+    '</div>'+
+
+    // Work performed
+    '<div style="margin-bottom:10px">'+
+      '<div style="font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Work Performed</div>'+
+      '<div style="font-size:13px;color:#0d1b2a;line-height:1.6;white-space:pre-wrap">'+escHtml(l.work_performed)+'</div>'+
+    '</div>'+
+
+    // Issues
+    (l.issues ? '<div style="margin-bottom:10px;padding:10px;background:#fff3e0;border-radius:8px">'+
+      '<div style="font-size:11px;font-weight:700;color:#e65100;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Issues Encountered</div>'+
+      '<div style="font-size:13px;color:#0d1b2a;line-height:1.5;white-space:pre-wrap">'+escHtml(l.issues)+'</div>'+
+    '</div>' : '')+
+
+    // Follow-up notes
+    (l.follow_up_needed && l.follow_up_notes ? '<div style="margin-bottom:10px;padding:10px;background:#e3f2fd;border-radius:8px">'+
+      '<div style="font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Follow-up Required</div>'+
+      '<div style="font-size:13px;color:#0d1b2a;line-height:1.5">'+escHtml(l.follow_up_notes)+'</div>'+
+    '</div>' : '')+
+
+    // Site conditions
+    (l.site_conditions ? '<div style="font-size:12px;color:#546e7a;font-style:italic;margin-top:6px">Site conditions: '+escHtml(l.site_conditions)+'</div>' : '')+
+
+  '</div>';
+}
+
+// ── Open the log entry modal ──────────────────────────────────────────────────
+function openFieldLogEntry(woId) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var myName = typeof wtCurrentUserName === 'function' ? wtCurrentUserName() : (_currentUser?_currentUser.full_name:'');
+
+  // Pre-populate time from clock if active
+  var timeHint = '';
+  if (typeof _clockState !== 'undefined' && _clockState.status !== 'out' && _clockState.clockInTime) {
+    var elapsed = (Date.now() - new Date(_clockState.clockInTime)) / 3600000;
+    timeHint = elapsed.toFixed(1);
+  }
+
+  var html = '<div class="modal-overlay open" id="fl-modal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:560px;max-height:94vh;display:flex;flex-direction:column">'+
+      '<div class="modal-head" style="flex-shrink:0">'+
+        '<div>'+
+          '<h3 style="margin:0">📝 Field Log Entry</h3>'+
+          '<div style="font-size:12px;color:#90a4ae;margin-top:2px">'+escHtml(wo?wo.woNumber||wo.description||'Work Order':'Work Order')+'</div>'+
+        '</div>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'fl-modal\').remove()">&#x2715;</button>'+
+      '</div>'+
+      '<div class="modal-body" style="overflow-y:auto;flex:1">'+
+
+        // Date + tech
+        '<div style="display:flex;gap:10px;margin-bottom:14px">'+
+          '<div style="flex:1">'+
+            '<label class="wiz-label">DATE</label>'+
+            '<input type="date" id="fl-date" class="form-control" value="'+today+'">'+
+          '</div>'+
+          '<div style="flex:2">'+
+            '<label class="wiz-label">TECH</label>'+
+            '<input id="fl-tech" class="form-control" value="'+escHtml(myName)+'" '+
+              (typeof wtIsFieldTech==='function'&&wtIsFieldTech()?'readonly style="background:#f5f5f5"':'')+'>'+
+          '</div>'+
+        '</div>'+
+
+        // Work performed — the most important field
+        '<div style="margin-bottom:14px">'+
+          '<label class="wiz-label">WHAT DID YOU DO TODAY? *</label>'+
+          '<textarea id="fl-work" class="form-control" rows="5" '+
+            'placeholder="Describe the work you performed on this job today. Be specific — what was installed, where, how many, any challenges you worked through."></textarea>'+
+        '</div>'+
+
+        // Time spent
+        '<div style="margin-bottom:14px">'+
+          '<label class="wiz-label">TIME ON THIS JOB (hours)</label>'+
+          '<input type="number" id="fl-time" class="form-control" step="0.25" min="0" max="24" '+
+            'value="'+timeHint+'" placeholder="e.g. 3.5" style="max-width:140px">'+
+          (timeHint?'<div style="font-size:11px;color:#1565c0;margin-top:4px">&#x23F1; Auto-filled from your clock — adjust if needed</div>':'')+
+        '</div>'+
+
+        // Issues
+        '<div style="margin-bottom:14px">'+
+          '<label class="wiz-label">ISSUES ENCOUNTERED <span style="font-weight:400;text-transform:none">(optional)</span></label>'+
+          '<textarea id="fl-issues" class="form-control" rows="3" '+
+            'placeholder="Any problems, obstacles, or things that slowed you down? Missing materials, access issues, rework needed?"></textarea>'+
+        '</div>'+
+
+        // Toggles row
+        '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">'+
+          '<label style="display:flex;align-items:center;gap:8px;cursor:pointer">'+
+            '<input type="checkbox" id="fl-customer" style="width:18px;height:18px">'+
+            '<span style="font-size:13px;font-weight:600">Customer was present</span>'+
+          '</label>'+
+          '<label style="display:flex;align-items:center;gap:8px;cursor:pointer">'+
+            '<input type="checkbox" id="fl-followup" style="width:18px;height:18px" onchange="document.getElementById(\'fl-followup-notes\').style.display=this.checked?\'block\':\'none\'">'+
+            '<span style="font-size:13px;font-weight:600">Follow-up needed</span>'+
+          '</label>'+
+        '</div>'+
+
+        // Follow-up notes (hidden by default)
+        '<div id="fl-followup-notes" style="display:none;margin-bottom:14px">'+
+          '<label class="wiz-label">FOLLOW-UP DETAILS</label>'+
+          '<textarea id="fl-followup-text" class="form-control" rows="2" '+
+            'placeholder="What needs to happen next? Who needs to know?"></textarea>'+
+        '</div>'+
+
+        // Site conditions
+        '<div style="margin-bottom:20px">'+
+          '<label class="wiz-label">SITE CONDITIONS <span style="font-weight:400;text-transform:none">(optional)</span></label>'+
+          '<input id="fl-site" class="form-control" placeholder="Anything unusual — access restricted, weather affected work, area not ready, etc.">'+
+        '</div>'+
+
+        '<button class="btn btn-primary" id="fl-submit-btn" style="width:100%;padding:14px;font-size:15px" onclick="saveFieldLogEntry(\''+woId+'\')">'+
+          '💾 Submit Field Log</button>'+
+
+      '</div>'+
+    '</div>'+
+  '</div>';
+
+  var e = document.getElementById('fl-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(function(){
+    var ta = document.getElementById('fl-work');
+    if (ta) ta.focus();
+  }, 150);
+}
+
+// ── Save the log entry ────────────────────────────────────────────────────────
+async function saveFieldLogEntry(woId) {
+  var work = ((document.getElementById('fl-work')||{}).value||'').trim();
+  var tech = ((document.getElementById('fl-tech')||{}).value||'').trim();
+  var date = (document.getElementById('fl-date')||{}).value || getTodayISO();
+  var time = parseFloat((document.getElementById('fl-time')||{}).value)||null;
+  var issues  = ((document.getElementById('fl-issues')||{}).value||'').trim();
+  var custPres = (document.getElementById('fl-customer')||{}).checked||false;
+  var followUp = (document.getElementById('fl-followup')||{}).checked||false;
+  var followUpNotes = ((document.getElementById('fl-followup-text')||{}).value||'').trim();
+  var site    = ((document.getElementById('fl-site')||{}).value||'').trim();
+
+  if (!work) { showToast('Describe the work you performed — that field is required','warning'); return; }
+  if (!tech) { showToast('Tech name is required','warning'); return; }
+
+  var btn = document.getElementById('fl-submit-btn');
+  if (btn) { btn.disabled=true; btn.textContent='Saving...'; }
+
+  var member = (DB.team||[]).find(function(m){ return m.name===tech; });
+  var entry = {
+    wo_id:           woId,
+    tech_id:         member&&member.userId ? member.userId : (wtCurrentUserId?wtCurrentUserId():null),
+    tech_name:       tech,
+    log_date:        date,
+    work_performed:  work,
+    time_spent:      time,
+    issues:          issues || null,
+    follow_up_needed:followUp,
+    follow_up_notes: followUp ? followUpNotes||null : null,
+    customer_present:custPres,
+    site_conditions: site || null,
+    photos:          [],
+  };
+
+  try {
+    if (_sb) {
+      var { data, error } = await _sb.from('wo_field_logs').insert(entry).select().single();
+      if (error) throw error;
+      entry = data;
+    }
+
+    // Update local cache
+    if (!_woFieldLogs[woId]) _woFieldLogs[woId] = [];
+    _woFieldLogs[woId].unshift(entry);
+
+    // Mark this WO as having a log today (for clock-out check)
+    if (!DB.woFieldLogDates) DB.woFieldLogDates = {};
+    if (!DB.woFieldLogDates[woId]) DB.woFieldLogDates[woId] = [];
+    DB.woFieldLogDates[woId].push(date);
+
+    document.getElementById('fl-modal').remove();
+
+    // Refresh the tab if still on it
+    if (_woTab === 'fieldlog') renderWOFieldLogTab(woId);
+
+    // Notify manager of follow-up if needed
+    if (followUp && _sb) {
+      await notifyFollowUpNeeded(woId, tech, followUpNotes);
+    }
+
+    showToast('📝 Field log saved — good work, '+escHtml(tech.split(' ')[0])+'!','success');
+
+  } catch(e) {
+    console.error('saveFieldLogEntry:', e);
+    showToast('Error saving log: '+e.message,'error');
+    if (btn) { btn.disabled=false; btn.textContent='💾 Submit Field Log'; }
+  }
+}
+
+async function notifyFollowUpNeeded(woId, techName, notes) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (!_sb) return;
+  // Notify owner and managers
+  var managers = (DB.team||[]).filter(function(m){
+    return m.userId && ['owner','manager','back_office'].includes(m.role);
+  });
+  for (var i=0; i<managers.length; i++) {
+    await _sb.from('wt_notifications').insert({
+      user_id:    managers[i].userId,
+      user_name:  managers[i].name,
+      type:       'follow_up',
+      title:      '⚠ Follow-up needed — '+(wo?wo.woNumber||'WO':'WO'),
+      message:    techName+' flagged a follow-up: '+(notes||'See field log'),
+      project_id: null,
+    });
+  }
+}
+
+// ── Clock-out nudge ───────────────────────────────────────────────────────────
+async function checkFieldLogBeforeClockOut(onProceed) {
+  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var myName = _currentUser ? _currentUser.full_name : '';
+
+  // Find WOs this tech worked today (from labor entries)
+  var todayLabor = (DB.woLabor||[]).filter(function(l){
+    return l.techName===myName &&
+           (l.clockIn||'').startsWith(today);
+  });
+  var workedWoIds = [...new Set(todayLabor.map(function(l){ return l.woId; }))];
+
+  if (!workedWoIds.length) { onProceed(); return; }
+
+  // Check which ones have no field log today
+  var missingLogs = [];
+  for (var i=0; i<workedWoIds.length; i++) {
+    var woId = workedWoIds[i];
+    var logs = _woFieldLogs[woId] || await loadWOFieldLogs(woId);
+    var hasLog = logs.some(function(l){ return l.log_date===today && l.tech_name===myName; });
+    if (!hasLog) {
+      var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+      missingLogs.push({ woId:woId, woNum:wo?wo.woNumber||woId:woId, desc:wo?wo.description||'':'', woObj:wo });
+    }
+  }
+
+  if (!missingLogs.length) { onProceed(); return; }
+
+  // Show the nudge modal
+  var html = '<div class="modal-overlay open" id="fl-nudge-modal" style="z-index:99998">'+
+    '<div class="modal-box" style="max-width:460px;text-align:center">'+
+      '<div style="font-size:40px;margin-bottom:12px">📝</div>'+
+      '<div style="font-size:18px;font-weight:800;color:#0d1b2a;margin-bottom:8px">Before you clock out</div>'+
+      '<div style="font-size:14px;color:#546e7a;margin-bottom:20px;line-height:1.6">'+
+        'You worked <strong>'+missingLogs.length+'</strong> job'+(missingLogs.length>1?'s':'')+' today without submitting field notes.<br>'+
+        'It only takes 2 minutes while it\'s fresh.'+
+      '</div>'+
+      // List the WOs missing logs
+      '<div style="background:#f5f7fa;border-radius:10px;padding:12px;margin-bottom:20px;text-align:left">'+
+        missingLogs.map(function(m){
+          return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e0e0e0">'+
+            '<div>'+
+              '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(m.woNum)+'</div>'+
+              '<div style="font-size:11px;color:#546e7a">'+escHtml(m.desc.substring(0,45))+'</div>'+
+            '</div>'+
+            '<button onclick="flNudgeOpenLog(\''+m.woId+'\')" '+
+              'style="padding:6px 12px;font-size:12px;font-weight:700;border:none;border-radius:8px;background:#1565c0;color:#fff;cursor:pointer">'+
+              'Log Now</button>'+
+          '</div>';
+        }).join('')+
+      '</div>'+
+      // Buttons
+      '<div style="display:flex;gap:10px">'+
+        '<button onclick="flNudgeProceed()" '+
+          'style="flex:1;padding:12px;font-size:13px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;color:#546e7a;cursor:pointer;font-weight:700">'+
+          'Skip & Clock Out</button>'+
+        '<button onclick="flNudgeDismiss()" class="btn btn-primary" style="flex:1;padding:12px">'+
+          'Log All Now</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+
+  // Store callback
+  window._flNudgeCallback = onProceed;
+  window._flMissingLogs   = missingLogs;
+
+  var e = document.getElementById('fl-nudge-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function flNudgeProceed() {
+  var e = document.getElementById('fl-nudge-modal'); if(e) e.remove();
+  if (window._flNudgeCallback) window._flNudgeCallback();
+}
+
+function flNudgeDismiss() {
+  var e = document.getElementById('fl-nudge-modal'); if(e) e.remove();
+  // Open the first WO needing a log
+  if (window._flMissingLogs && window._flMissingLogs.length) {
+    var first = window._flMissingLogs[0];
+    // Navigate to WO
+    goPage('workorders');
+    setTimeout(function(){
+      if (typeof openWorkOrder === 'function') {
+        openWorkOrder(first.woId);
+        setTimeout(function(){ switchWOTab('fieldlog'); }, 500);
+      }
+    }, 300);
+  }
+}
+
+function flNudgeOpenLog(woId) {
+  var e = document.getElementById('fl-nudge-modal'); if(e) e.remove();
+  goPage('workorders');
+  setTimeout(function(){
+    if (typeof openWorkOrder === 'function') {
+      openWorkOrder(woId);
+      setTimeout(function(){
+        switchWOTab('fieldlog');
+        setTimeout(function(){ openFieldLogEntry(woId); }, 300);
+      }, 500);
+    }
+  }, 300);
+}
+
