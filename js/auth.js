@@ -209,7 +209,8 @@ function applyRolePermissions(role) {
 
 function enforceNavPermissions() {
   var role = _activeRole || (_currentUser ? _currentUser.role : null);
-  if (!role) return;
+  if (!role) { console.log('[Nav] enforceNavPermissions: no role, skipping'); return; }
+  console.log('[Nav] enforceNavPermissions running for role:', role);
 
   // Get page visibility from permissions matrix
   var perms = {};
@@ -250,6 +251,7 @@ function enforceNavPermissions() {
     });
   }
 
+  console.log('[Nav] perms computed:', JSON.stringify(perms));
   // Apply visibility
   document.querySelectorAll('.nav-item[data-page]').forEach(function(el){
     var page = el.getAttribute('data-page');
@@ -276,6 +278,12 @@ function enforceNavPermissions() {
   document.querySelectorAll('.team-rate-col').forEach(function(el){
     el.style.setProperty('display', role==='owner'?'':'none','important');
   });
+  // Also set body class as CSS backup
+  document.body.classList.remove('role-helper-tech','role-lead-tech','role-back-office','role-manager','role-owner');
+  var cls = {'helper_tech':'role-helper-tech','lead_tech':'role-lead-tech',
+    'back_office':'role-back-office','manager':'role-manager','owner':'role-owner'}[role];
+  if (cls) document.body.classList.add(cls);
+  console.log('[Nav] Done. Body classes:', document.body.className);
 }
 
 
