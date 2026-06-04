@@ -4737,6 +4737,7 @@ table{font-size:12.5px}
       <!-- Tabs -->
       <div style="border-top:2px solid #e0e7ef">
         <div style="display:flex;overflow-x:auto;background:#f8f9fa">
+          <div id="wo-change-orders-panel"></div>
           <button class="wo-tab" onclick="switchWOTab('fieldlog')" id="wotab-fieldlog">📝 Field Log</button>
           <button class="wo-tab active" onclick="switchWOTab('labor')" id="wotab-labor">⏱ Labor</button>
           <button class="wo-tab" onclick="switchWOTab('expenses')" id="wotab-expenses">💰 Expenses</button>
@@ -4752,6 +4753,7 @@ table{font-size:12.5px}
         <button class="btn btn-primary" onclick="saveWorkOrder()">💾 Save Work Order</button>
         <button class="btn btn-outline" id="wo-btn-invoice" onclick="createWOInvoice()" style="display:none">🧾 Create Invoice</button>
         <button class="btn btn-outline btn-sm" id="wo-btn-wt" onclick="wtOpenFromWorkOrder()" style="color:#7b1fa2;border-color:#ce93d8" title="Open or create Work Tracking project for this job">📋 Work Tracking</button>
+        <button class="btn btn-outline btn-sm" id="wo-btn-co" onclick="createChangeOrder(_woCurrentId)" style="color:#e65100;border-color:#ffb300" title="Create a linked change order for this work order">+ Change Order</button>
         <button class="btn btn-success btn-sm" onclick="woStartTimer('work')" id="wo-timer-work-btn">▶ Work Timer</button>
         <button class="btn btn-outline btn-sm" onclick="woStartTimer('travel')" id="wo-timer-travel-btn">🚗 Travel Timer</button>
         <span id="wo-timer-display" style="font-size:13px;font-weight:700;color:#1565c0;min-width:80px"></span>

@@ -196,6 +196,7 @@ function openNewWorkOrder() {
   if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?'':'none';
 
   switchWOTab((typeof wtIsFieldTech==='function'&&wtIsFieldTech())?'fieldlog':'labor');
+  setTimeout(function(){var cp=document.getElementById('wo-change-orders-panel');if(cp){var woId=_woCurrentId;cp.innerHTML=renderWOChangeOrders(woId);var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});if(wo&&wo.parentWoId&&wo.isChangeOrder){var par=(DB.workOrders||[]).find(function(w){return w.id===wo.parentWoId;});if(par)_renderParentWOBanner(par);}}},200);
   openModal('modal-work-order');
 }
 
@@ -248,6 +249,7 @@ function openWorkOrder(id) {
   if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='office'))?'':'none';
 
   switchWOTab((typeof wtIsFieldTech==='function'&&wtIsFieldTech())?'fieldlog':'labor');
+  setTimeout(function(){var cp=document.getElementById('wo-change-orders-panel');if(cp){var woId=_woCurrentId;cp.innerHTML=renderWOChangeOrders(woId);var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});if(wo&&wo.parentWoId&&wo.isChangeOrder){var par=(DB.workOrders||[]).find(function(w){return w.id===wo.parentWoId;});if(par)_renderParentWOBanner(par);}}},200);
   openModal('modal-work-order');
 
   // Hot notes
@@ -363,8 +365,13 @@ function saveWorkOrder() {
     updatedAt:    new Date().toISOString(),
     createdBy:    isNew ? ((_currentUser&&_currentUser.id)||null) : (_existingWO.createdBy||null),
     createdByName:isNew ? ((_currentUser&&_currentUser.full_name)||'Unknown') : (_existingWO.createdByName||'Unknown'),
-    assignedTechs:isNew ? [] : (_existingWO.assignedTechs||[])
+    assignedTechs:   isNew ? [] : (_existingWO.assignedTechs||[]),
+    parentWoId:      isNew ? (window._newWOParentId||null) : (_existingWO.parentWoId||null),
+    isChangeOrder:   isNew ? !!(window._newWOParentId) : (_existingWO.isChangeOrder||false),
+    changeOrderReason: isNew ? (window._newWOCOReason||null) : (_existingWO.changeOrderReason||null),
   };
+  // Clear the CO context after consuming it
+  if (isNew) { window._newWOParentId=null; window._newWOCOReason=null; }
 
   if (isNew) {
     DB.workOrders.push(data);
@@ -716,6 +723,7 @@ function addWOLaborEntry() {
   if (woRec&&woRec.status==='New'){woRec.status='Open';var sel=document.getElementById('wo-status');if(sel)sel.value='Open';}
   autoPromoteWOStatus(woId);
   saveDB(); switchWOTab('labor');
+  setTimeout(function(){var cp=document.getElementById('wo-change-orders-panel');if(cp)cp.innerHTML=renderWOChangeOrders(_woCurrentId);},300);
   showToast('Labor entry added','success');
 }
 
@@ -1201,7 +1209,10 @@ async function _pushWOToCloud(wo) {
       assigned_techs:wo.assignedTechs||[],
       created_by:    wo.createdBy||_currentUser.id,
       created_by_name:wo.createdByName||null,
-      updated_at:    new Date().toISOString()
+      updated_at:     new Date().toISOString(),
+      parent_wo_id:   wo.parentWoId||null,
+      is_change_order:wo.isChangeOrder||false,
+      change_order_reason: wo.changeOrderReason||null,
     });
     if(error) console.warn('[WO Push]',error.message);
   } catch(e) { console.warn('[WO Push]',e.message); }
@@ -1798,6 +1809,146 @@ function wdocFileSelected(input) {
     var other = input.id==='wdoc-cam' ? document.getElementById('wdoc-file') : document.getElementById('wdoc-cam');
     if (other) other.value = '';
   }
+}
+
+// ─── CHANGE ORDERS ───────────────────────────────────────────────────────────
+
+function createChangeOrder(parentWoId) {
+  var parent = (DB.workOrders||[]).find(function(w){ return w.id===parentWoId; });
+  if (!parent) { showToast('Save the work order first','warning'); return; }
+
+  // Show a quick reason modal before creating
+  var html = '<div class="modal-overlay open" id="co-reason-modal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:480px">'+
+      '<div class="modal-head">'+
+        '<h3>📋 New Change Order</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(&quot;co-reason-modal&quot;).remove()">&#x2715;</button>'+
+      '</div>'+
+      '<div class="modal-body">'+
+        '<div style="background:#f5f7fa;border-radius:10px;padding:12px;margin-bottom:16px">'+
+          '<div style="font-size:12px;font-weight:700;color:#546e7a;margin-bottom:4px">PARENT WORK ORDER</div>'+
+          '<div style="font-size:14px;font-weight:800;color:#0d1b2a">'+escHtml(parent.woNumber||'')+'</div>'+
+          '<div style="font-size:13px;color:#546e7a">'+escHtml(parent.customerName||'')+(parent.description?' — '+parent.description.substring(0,50):'')+'</div>'+
+        '</div>'+
+        '<div style="margin-bottom:16px">'+
+          '<label class="wiz-label">REASON FOR CHANGE ORDER *</label>'+
+          '<textarea id="co-reason" class="form-control" rows="3" '+
+            'placeholder="What is the additional scope of work? Why is this change order needed?"></textarea>'+
+        '</div>'+
+        '<button class="btn btn-primary" style="width:100%" onclick="confirmCreateChangeOrder(\"'+parentWoId+'\")">'+
+          '📋 Create Change Order</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+
+  var e = document.getElementById('co-reason-modal'); if(e) e.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(function(){ var el=document.getElementById('co-reason'); if(el) el.focus(); }, 100);
+}
+
+function confirmCreateChangeOrder(parentWoId) {
+  var reason = ((document.getElementById('co-reason')||{}).value||'').trim();
+  if (!reason) { showToast('Describe the reason for this change order','warning'); return; }
+
+  var parent = (DB.workOrders||[]).find(function(w){ return w.id===parentWoId; });
+  if (!parent) return;
+
+  document.getElementById('co-reason-modal').remove();
+
+  // Set context for the new WO
+  window._newWOParentId = parentWoId;
+  window._newWOCOReason = reason;
+
+  // Open new WO pre-filled with parent data
+  _woCurrentId = null;
+  newWorkOrder();
+
+  // Pre-fill fields from parent after modal renders
+  setTimeout(function(){
+    function sv(id, val) { var el=document.getElementById(id); if(el&&val) el.value=val; }
+    sv('wo-customer-id',   parent.customerId||'');
+    sv('wo-site-addr',     parent.siteAddr||'');
+    sv('wo-site-city',     parent.siteCity||'');
+    sv('wo-site-state',    parent.siteState||'');
+    sv('wo-site-zip',      parent.siteZip||'');
+    sv('wo-labor-rate',    parent.laborRate||125);
+    sv('wo-tax-rate',      parent.taxRate||0);
+
+    // Set customer name display
+    var custNameEl = document.getElementById('wo-customer-name-display');
+    if (custNameEl) custNameEl.textContent = parent.customerName||'';
+
+    // Pre-fill description with CO context
+    var descEl = document.getElementById('wo-desc');
+    if (descEl) descEl.value = 'Change Order — '+escHtml(parent.woNumber||'')+(parent.description?' ('+parent.description.substring(0,40)+')':'');
+
+    // Show parent WO banner
+    _renderParentWOBanner(parent);
+
+    showToast('📋 Change Order started — linked to '+escHtml(parent.woNumber||''),'info', 4000);
+  }, 400);
+}
+
+function _renderParentWOBanner(parent) {
+  var existing = document.getElementById('co-parent-banner');
+  if (existing) existing.remove();
+  var headerArea = document.querySelector('#page-workorders .wo-header-area, #wo-form-top');
+  if (!headerArea) return;
+  var banner = document.createElement('div');
+  banner.id = 'co-parent-banner';
+  banner.style.cssText = 'background:#fff3e0;border:2px solid #ffb300;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px';
+  banner.innerHTML =
+    '<div>'+
+      '<div style="font-size:12px;font-weight:700;color:#e65100;text-transform:uppercase;letter-spacing:.4px">Change Order — Linked to Parent</div>'+
+      '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(parent.woNumber||'')+' — '+escHtml(parent.customerName||'')+'</div>'+
+    '</div>'+
+    '<button onclick="openWorkOrder(\"'+parent.id+'\")" '+
+      'style="padding:6px 12px;font-size:12px;font-weight:700;border:2px solid #e65100;border-radius:8px;background:#fff;color:#e65100;cursor:pointer">'+
+      'View Parent WO</button>';
+  headerArea.insertBefore(banner, headerArea.firstChild);
+}
+
+function renderWOChangeOrders(woId) {
+  var children = (DB.workOrders||[]).filter(function(w){
+    return w.parentWoId === woId && !w.deleted;
+  });
+  if (!children.length) return '';
+
+  var rows = children.map(function(co){
+    var statusInfo = WO_STATUSES.find(function(s){ return s.id===co.status; }) || {};
+    var labor = (DB.woLabor||[]).filter(function(l){ return l.woId===co.id; });
+    var totalHours = labor.reduce(function(s,l){ return s+(l.hours||0); }, 0);
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0;flex-wrap:wrap;gap:8px">'+
+      '<div>'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<span style="font-size:13px;font-weight:800;color:#1565c0;cursor:pointer" onclick="openWorkOrder(\"'+co.id+'\")">'+escHtml(co.woNumber||co.id)+'</span>'+
+          '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:'+(statusInfo.color||'#e0e0e0')+';font-weight:700">'+escHtml(co.status||'New')+'</span>'+
+        '</div>'+
+        (co.changeOrderReason?'<div style="font-size:12px;color:#546e7a;margin-top:2px">'+escHtml(co.changeOrderReason.substring(0,60))+'</div>':'')+
+        '<div style="font-size:11px;color:#90a4ae;margin-top:2px">'+
+          (totalHours?totalHours.toFixed(1)+'h logged · ':'')+
+          'Created: '+escHtml((co.createdAt||'').split('T')[0])+
+        '</div>'+
+      '</div>'+
+      '<button onclick="openWorkOrder(\"'+co.id+'\")" class="btn btn-outline btn-sm">Open</button>'+
+    '</div>';
+  }).join('');
+
+  var totalCOs = children.length;
+  var openCOs  = children.filter(function(c){ return WO_STATUSES.find(function(s){ return s.id===c.status&&s.open; }); }).length;
+
+  return '<div style="margin:16px 0;border:1px solid #ffb300;border-radius:12px;overflow:hidden">'+
+    '<div style="background:#fff3e0;padding:12px 16px;display:flex;align-items:center;justify-content:space-between">'+
+      '<div style="font-size:14px;font-weight:800;color:#e65100">📋 Change Orders ('+totalCOs+')</div>'+
+      '<div style="font-size:12px;color:#e65100">'+openCOs+' open</div>'+
+    '</div>'+
+    '<div style="padding:0 16px;background:#fff">'+rows+'</div>'+
+    '<div style="padding:10px 16px;background:#fffde7;border-top:1px solid #ffb300">'+
+      '<button onclick="createChangeOrder(\"'+woId+'\")" '+
+        'style="font-size:13px;font-weight:700;color:#e65100;background:none;border:none;cursor:pointer;padding:0">'+
+        '+ Add Another Change Order</button>'+
+    '</div>'+
+  '</div>';
 }
 
 // ─── WORK TRACKING TIE-IN ────────────────────────────────────────────────────
