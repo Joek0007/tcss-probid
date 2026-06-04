@@ -183,26 +183,105 @@ async function loadCurrentUserProfile() {
 }
 
 // ── Role permission system ───────────────────────────────────────────────────
-// CSS lives in index.html — we just toggle a body class. Simple. Bulletproof.
+// Reads from PERM_DEFS / getPermMatrix() — fully configurable in Settings
+// Falls back to CSS body class as a safety net
 
 var _roleEnforceInterval = null;
 
-function applyRolePermissions(role) {
-  // Remove any previous role class
-  document.body.classList.remove('role-helper-tech', 'role-lead-tech', 'role-back-office', 'role-manager', 'role-owner');
+// Map nav data-page values to their page.* permission key
+var NAV_PAGE_PERM_MAP = {
+  'qq':           'page.qq',
+  'quotes':       'page.quotes',
+  'jobs':         'page.jobs',
+  'dispatch':     'page.dispatch',
+  'invoices':     'page.invoices',
+  'workorders':   'page.workorders',
+  'purchaseorders':'page.purchaseorders',
+  'vendors':      'page.vendors',
+  'customers':    'page.customers',
+  'contacts':     'page.contacts',
+  'team':         'page.team',
+  'catalog':      'page.catalog',
+  'templates':    'page.templates',
+  'reports':      'page.reports',
+  'auditlog':     'page.auditlog',
+  'calendar':     'page.calendar',
+  'inventory':    'page.inventory',
+  'scanner':      'page.scanner',
+  'tools':        'page.tools',
+  'field':        'page.timeclock',
+  'timesheet':    'page.timesheet',
+  'worktracking': 'page.worktracking',
+  'settings':     'page.settings',
+};
 
-  // Set the correct role class — CSS in index.html does the rest
-  var cssClass = {
+function getPagePermissions(role) {
+  // Returns object: { pageName: true/false }
+  // true = visible, false = hidden
+  if (role === 'owner') {
+    // Owner sees everything
+    var all = {};
+    Object.keys(NAV_PAGE_PERM_MAP).forEach(function(p){ all[p] = true; });
+    return all;
+  }
+  // Use matrix if available
+  if (typeof getPermMatrix === 'function') {
+    var matrix = getPermMatrix();
+    var result = {};
+    Object.keys(NAV_PAGE_PERM_MAP).forEach(function(page) {
+      var permKey = NAV_PAGE_PERM_MAP[page];
+      result[page] = matrix[permKey] ? !!matrix[permKey][role] : false;
+    });
+    return result;
+  }
+  return {};
+}
+
+function applyRolePermissions(role) {
+  if (!role) return;
+
+  // ── Set body class (CSS fallback) ────────────────────────────────────────
+  document.body.classList.remove(
+    'role-helper-tech','role-lead-tech','role-back-office',
+    'role-manager','role-owner'
+  );
+  var cssClass = ({
     'helper_tech': 'role-helper-tech',
     'lead_tech':   'role-lead-tech',
     'back_office': 'role-back-office',
     'manager':     'role-manager',
     'owner':       'role-owner',
-  }[role] || 'role-helper-tech'; // unknown role defaults to most restricted
-
+  })[role] || 'role-helper-tech';
   document.body.classList.add(cssClass);
 
-  // Mobile bottom nav switching
+  // ── Apply nav visibility from permissions matrix ──────────────────────────
+  function enforceNav() {
+    var perms = getPagePermissions(role);
+    // Nav items
+    document.querySelectorAll('.nav-item[data-page]').forEach(function(el) {
+      var page = el.getAttribute('data-page');
+      if (page === 'dash') return; // Dashboard always visible
+      var visible = perms[page] !== undefined ? perms[page] : (role === 'owner');
+      el.style.setProperty('display', visible ? '' : 'none', 'important');
+    });
+    // Nav section labels — hide if all children in section are hidden
+    document.querySelectorAll('.nav-group').forEach(function(section) {
+      var items = section.querySelectorAll('.nav-item[data-page]');
+      var anyVisible = false;
+      items.forEach(function(item) {
+        if (item.style.display !== 'none') anyVisible = true;
+      });
+      section.style.display = anyVisible ? '' : 'none';
+    });
+    // Rate columns
+    document.querySelectorAll('.team-rate-col').forEach(function(el) {
+      el.style.setProperty('display', role === 'owner' ? '' : 'none', 'important');
+    });
+  }
+
+  enforceNav();
+
+  // ── Mobile nav switching ─────────────────────────────────────────────────
   var isTech = (role === 'helper_tech');
   document.querySelectorAll('.mob-role-default').forEach(function(el) {
     el.style.display = isTech ? 'none' : '';
@@ -211,15 +290,13 @@ function applyRolePermissions(role) {
     el.style.display = isTech ? '' : 'none';
   });
 
-  // Short enforcement interval — re-sets the class in case anything removes it
+  // ── Enforcement interval — catches late renders ──────────────────────────
   if (_roleEnforceInterval) clearInterval(_roleEnforceInterval);
   var count = 0;
   _roleEnforceInterval = setInterval(function() {
-    if (!document.body.classList.contains(cssClass)) {
-      document.body.classList.add(cssClass);
-    }
+    enforceNav();
     count++;
-    if (count >= 30) { clearInterval(_roleEnforceInterval); _roleEnforceInterval = null; }
+    if (count >= 20) { clearInterval(_roleEnforceInterval); _roleEnforceInterval = null; }
   }, 500);
 
   if (role === 'owner') setTimeout(renderPermissionsEditor, 200);

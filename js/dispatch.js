@@ -888,6 +888,31 @@ var PERM_DEFS = [
   {key:'settings.company',label:'Company Settings',            group:'Settings',       fixed:true,  defaults:{owner:1,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'docs.view',   label:'View WO Documents',   group:'Documents', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,project_manager:1,helper_tech:0,subcontractor:0}},
   {key:'docs.upload', label:'Upload WO Documents', group:'Documents', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,project_manager:1,helper_tech:0,subcontractor:0}},
+
+  // ── Page Access — controls nav visibility ──────────────────────────────────
+  {key:'page.qq',          label:'Quick Quote Page',      group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.quotes',      label:'Quotes Page',           group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.jobs',        label:'Active Jobs Page',      group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'page.dispatch',    label:'Dispatch Board',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'page.invoices',    label:'Invoices Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.workorders',  label:'Work Orders Page',      group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
+  {key:'page.purchaseorders',label:'Purchase Orders Page',group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.vendors',     label:'Vendors Page',          group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.customers',   label:'Customers Page',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'page.contacts',    label:'Contacts Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'page.team',        label:'Team Page',             group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.catalog',     label:'Price Catalog Page',    group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.templates',   label:'Job Templates Page',    group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.reports',     label:'Reports Page',          group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'page.auditlog',    label:'Audit Log Page',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.calendar',    label:'Calendar Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
+  {key:'page.inventory',   label:'Inventory Page',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'page.scanner',     label:'Scanner Page',          group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:1,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.tools',       label:'Tools Page',            group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
+  {key:'page.timeclock',   label:'Time Clock Page',       group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
+  {key:'page.timesheet',   label:'Timesheets Page',       group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'page.worktracking',label:'Work Tracking Page',    group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
+  {key:'page.settings',    label:'Settings Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
 ];
 
 function getPermMatrix() {
