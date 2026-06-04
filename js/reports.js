@@ -765,7 +765,9 @@ function renderJournalBlip() {
         '📝 Log Entry</button>'+
       '<button onclick="openTechJournalView()" class="btn btn-outline btn-sm" style="flex:1">'+
         'View All</button>'+
-    '</div>';
+    '</div>'+
+    '<div id="dash-log-rates" style="margin-top:10px"></div>';
+  setTimeout(renderTeamLogRates, 1200);
 }
 
 // ── Full journal view ─────────────────────────────────────────────────────────
@@ -858,6 +860,37 @@ function tjRenderEntryList(entries) {
   }).join('');
 }
 
+async function renderTeamLogRates() {
+  var el = document.getElementById('dash-log-rates');
+  if (!el) return;
+  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var monthStart = today.substring(0,7)+'-01';
+
+  var fieldTechs = (DB.team||[]).filter(function(m){
+    return m.role==='helper_tech'||m.role==='lead_tech'||m.role==='field_tech';
+  }).slice(0,6);
+
+  if (!fieldTechs.length) return;
+
+  el.innerHTML = '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Log Rate — This Month</div>';
+
+  for (var i=0; i<fieldTechs.length; i++) {
+    var m = fieldTechs[i];
+    var stats = await calcLogCompletionRate(m.name, monthStart, today);
+    if (!stats.worked) continue;
+    var color = stats.rate>=80?'#2e7d32':stats.rate>=50?'#e65100':'#c62828';
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f5f5f5';
+    row.innerHTML =
+      '<div style="font-size:12px;font-weight:600;color:#0d1b2a;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(m.name)+'</div>'+
+      '<div style="background:#e0e0e0;border-radius:4px;height:6px;width:60px;flex-shrink:0">'+
+        '<div style="background:'+color+';height:6px;border-radius:4px;width:'+stats.rate+'%"></div>'+
+      '</div>'+
+      '<div style="font-size:12px;font-weight:800;color:'+color+';min-width:36px;text-align:right">'+stats.rate+'%</div>';
+    el.appendChild(row);
+  }
+}
+
 async function tjFilterView() {
   var tech   = (document.getElementById('tj-filter-tech')||{}).value||'';
   var type   = (document.getElementById('tj-filter-type')||{}).value||'';
@@ -879,6 +912,58 @@ async function tjFilterView() {
 }
 
 // ── Quarterly review per tech ─────────────────────────────────────────────────
+
+// ── Log completion rate calculation ──────────────────────────────────────────
+// Compares days a tech worked (from workDays) vs days they submitted a field log
+async function calcLogCompletionRate(techName, startDate, endDate) {
+  // Work days in range
+  var workDays = (DB.workDays||[]).filter(function(d){
+    return d.techName === techName &&
+           d.date >= startDate &&
+           (!endDate || d.date <= endDate);
+  });
+
+  // Also check clock sessions for days not in workDays yet
+  var clockDays = (DB.timeEntries||[]).filter(function(e){
+    return e.techName === techName &&
+           e.date >= startDate &&
+           (!endDate || e.date <= endDate) &&
+           e.entryType === 'day_end';
+  }).map(function(e){ return e.date; });
+
+  // Combine unique worked dates
+  var workedSet = {};
+  workDays.forEach(function(d){ workedSet[d.date] = true; });
+  clockDays.forEach(function(d){ workedSet[d] = true; });
+  var workedDates = Object.keys(workedSet);
+
+  if (!workedDates.length) return { rate: null, worked: 0, logged: 0 };
+
+  // Get field log dates from Supabase
+  var loggedDates = {};
+  if (_sb) {
+    try {
+      var { data } = await _sb.from('wo_field_logs')
+        .select('log_date')
+        .eq('tech_name', techName)
+        .gte('log_date', startDate)
+        .lte('log_date', endDate || new Date().toISOString().split('T')[0]);
+      if (data) data.forEach(function(r){ loggedDates[r.log_date] = true; });
+    } catch(e) { console.warn('calcLogCompletionRate:', e); }
+  }
+
+  // Count how many worked days have at least one field log
+  var loggedCount = workedDates.filter(function(d){ return loggedDates[d]; }).length;
+  var rate = Math.round(loggedCount / workedDates.length * 100);
+
+  return {
+    rate:   rate,
+    worked: workedDates.length,
+    logged: loggedCount,
+    missed: workedDates.length - loggedCount,
+  };
+}
+
 async function openQuarterlyReview(techName) {
   var now = new Date();
   var quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3, 1);
@@ -898,12 +983,9 @@ async function openQuarterlyReview(techName) {
   var neg = entries.filter(function(e){ return e.entry_type==='negative'; });
   var member = (DB.team||[]).find(function(m){ return m.name===techName; }) || {};
 
-  // Log completion rate from wt_notifications or workdays
-  var workDays = (DB.workDays||[]).filter(function(d){
-    return d.techName===techName && d.date>=qStart;
-  });
-  var loggedDays = workDays.filter(function(d){ return d.notes||d.summary; }).length;
-  var logRate = workDays.length ? Math.round(loggedDays/workDays.length*100) : null;
+  // Real log completion rate from wo_field_logs vs worked days
+  var logStats = await calcLogCompletionRate(techName, qStart, new Date().toISOString().split('T')[0]);
+  var logRate = logStats.rate;
 
   var qLabel = ['Q1','Q2','Q3','Q4'][Math.floor(now.getMonth()/3)]+' '+now.getFullYear();
 
@@ -936,9 +1018,10 @@ async function openQuarterlyReview(techName) {
             '<div style="font-size:28px;font-weight:800;color:#c62828">'+neg.length+'</div>'+
             '<div style="font-size:11px;font-weight:700;color:#c62828">NEGATIVE</div>'+
           '</div>'+
-          '<div style="padding:14px;background:#e3f2fd;border-radius:10px;text-align:center">'+
-            '<div style="font-size:28px;font-weight:800;color:#1565c0">'+(logRate!==null?logRate+'%':'—')+'</div>'+
-            '<div style="font-size:11px;font-weight:700;color:#1565c0">LOG RATE</div>'+
+          '<div style="padding:14px;background:'+(logRate===null?'#f5f5f5':logRate>=80?'#e8f5e9':logRate>=50?'#fff3e0':'#ffebee')+';border-radius:10px;text-align:center">'+
+            '<div style="font-size:28px;font-weight:800;color:'+(logRate===null?'#90a4ae':logRate>=80?'#2e7d32':logRate>=50?'#e65100':'#c62828')+'">'+(logRate!==null?logRate+'%':'—')+'</div>'+
+            '<div style="font-size:11px;font-weight:700;color:'+(logRate===null?'#90a4ae':logRate>=80?'#2e7d32':logRate>=50?'#e65100':'#c62828')+'">LOG RATE</div>'+
+            (logStats.worked?'<div style="font-size:10px;color:#546e7a;margin-top:2px">'+logStats.logged+'/'+logStats.worked+' days</div>':'')+
           '</div>'+
         '</div>'+
 
@@ -1076,6 +1159,28 @@ function wtRenderTechDashboard() {
         }).join('') +
       '</div>'
     ) : '') +
+
+    // Log completion rate for this tech
+    await (async function(){
+      var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+      var monthStart = today.substring(0,7)+'-01';
+      var stats = await calcLogCompletionRate(myName, monthStart, today);
+      if (stats.worked > 0) {
+        var color = stats.rate>=80?'#2e7d32':stats.rate>=50?'#e65100':'#c62828';
+        var bg    = stats.rate>=80?'#e8f5e9':stats.rate>=50?'#fff3e0':'#ffebee';
+        var extra = document.createElement('div');
+        extra.style.cssText = 'background:'+bg+';border-radius:12px;padding:16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between';
+        extra.innerHTML =
+          '<div>'+
+            '<div style="font-size:13px;font-weight:800;color:#0d1b2a">Field Log Completion</div>'+
+            '<div style="font-size:12px;color:#546e7a;margin-top:2px">This month: '+stats.logged+' of '+stats.worked+' days logged</div>'+
+          '</div>'+
+          '<div style="font-size:28px;font-weight:800;color:'+color+'">'+stats.rate+'%</div>';
+        var dashEl = document.getElementById('page-dash');
+        var firstChild = dashEl ? dashEl.querySelector('div') : null;
+        if (firstChild && firstChild.parentNode) firstChild.parentNode.insertBefore(extra, firstChild.nextSibling.nextSibling);
+      }
+    })() ||
 
     // Notifications
     wtRenderTechNotifications() +
