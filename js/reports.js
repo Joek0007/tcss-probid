@@ -1049,7 +1049,8 @@ async function openQuarterlyReview(techName) {
 
 async function wtRenderTechDashboard() {
   var el = document.getElementById('page-dash');
-  if (!el || !wtIsFieldTech()) return;
+  var _techRole = typeof _currentUser !== 'undefined' && _currentUser ? _currentUser.role : null;
+  if (!el || _techRole !== 'helper_tech') return;
 
   var today     = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
   var myName    = wtCurrentUserName();

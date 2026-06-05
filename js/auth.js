@@ -850,10 +850,11 @@ async function syncAllFromCloud() {
   clearTimeout(window._syncTimer); // Cancel any push timer that snuck in during sync
   // Re-apply permissions after sync then render correct dashboard for role
   if (_currentUser) applyRolePermissions(_currentUser.role);
-  if (typeof wtIsFieldTech === 'function' && wtIsFieldTech()) {
+  if (_currentUser && _currentUser.role === 'helper_tech') {
     if (typeof wtRenderTechDashboard === 'function') wtRenderTechDashboard();
+    else if (typeof renderDash === 'function') renderDash();
   } else {
-    renderDash();
+    if (typeof renderDash === 'function') renderDash();
   }
   hideSpinner();
   if (errors.length) {
