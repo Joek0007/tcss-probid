@@ -656,8 +656,8 @@ async function saveJournalEntry() {
     description:    desc,
     wo_id:          woId || null,
     wo_number:      wo ? (wo.woNumber||null) : null,
-    entered_by_id:  wtCurrentUserId(),
-    entered_by_name:wtCurrentUserName(),
+    entered_by_id:  (typeof wtCurrentUserId==='function'?wtCurrentUserId():null),
+    entered_by_name:(typeof wtCurrentUserName==='function'?wtCurrentUserName():''),
     entry_date:     new Date().toISOString().split('T')[0],
   };
 
@@ -681,7 +681,7 @@ async function saveJournalEntry() {
         user_id:    entry.tech_id,
         user_name:  techName,
         type:       'journal_positive',
-        title:      '👍 Great work noted by '+escHtml(wtCurrentUserName()),
+        title:      '👍 Great work noted by '+escHtml((typeof wtCurrentUserName==='function'?wtCurrentUserName():'')),
         message:    escHtml(_tjState.category)+': '+escHtml(desc.substring(0,100)),
         project_id: null,
       });
@@ -1053,11 +1053,11 @@ async function wtRenderTechDashboard() {
   if (!el || _techRole !== 'helper_tech') return;
 
   var today     = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
-  var myName    = wtCurrentUserName();
+  var myName    = (typeof wtCurrentUserName==='function'?wtCurrentUserName():'');
 
   // Gather all async data FIRST, then build html all at once
   var myProjects = (DB.wtProjects||[]).filter(function(p){
-    return (p.status==='active'||p.status==='paused') && wtIsAssigned(p.id);
+    return (p.status==='active'||p.status==='paused') && (typeof wtIsAssigned==='function'?wtIsAssigned(p.id):true);
   });
 
   var myJobs = (DB.jobs||[]).filter(function(j){
@@ -1100,7 +1100,7 @@ async function wtRenderTechDashboard() {
   }
 
   // Notifications section
-  var notifHtml = wtRenderTechNotifications ? wtRenderTechNotifications() : '';
+  var notifHtml = typeof wtRenderTechNotifications === 'function' ? wtRenderTechNotifications() : '';
 
   // ── Build html all at once ─────────────────────────────────────────────
   el.innerHTML =
@@ -1147,7 +1147,7 @@ async function wtRenderTechDashboard() {
         myProjects.map(function(p){
           var d = WT.data[p.id] || {};
           var items = d.items || [];
-          var confirmed = items.filter(function(i){ return typeof wtItemPct==='function'&&wtItemPct(i)===100; }).length;
+          var confirmed = items.filter(function(i){ return typeof wtItemPct==='function'&&(typeof wtItemPct==='function'&&wtItemPct(i)===100); }).length;
           var pct = items.length ? Math.round(confirmed/items.length*100) : 0;
           return '<div onclick="wtOpenProject(\'+p.id+\')\" style="padding:12px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">'+
             '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
@@ -1247,7 +1247,7 @@ function renderDash() {
     var d = (typeof WT!=='undefined'&&WT.data&&WT.data[p.id]) || {};
     var items = d.items || [];
     if (!items.length) return 0;
-    var done = items.filter(function(i){ return typeof wtItemPct==='function'&&wtItemPct(i)===100; }).length;
+    var done = items.filter(function(i){ return typeof wtItemPct==='function'&&(typeof wtItemPct==='function'&&wtItemPct(i)===100); }).length;
     return Math.round(done/items.length*100);
   });
   var wtAvg = wtPcts.length ? Math.round(wtPcts.reduce(function(s,v){ return s+v; },0)/wtPcts.length) : null;
@@ -1384,7 +1384,7 @@ function renderDash() {
       wtEl.innerHTML = activeWTP.map(function(p){
         var d = (typeof WT!=='undefined'&&WT.data&&WT.data[p.id]) || {};
         var items = d.items||[];
-        var done  = items.filter(function(i){ return typeof wtItemPct==='function'&&wtItemPct(i)===100; }).length;
+        var done  = items.filter(function(i){ return typeof wtItemPct==='function'&&(typeof wtItemPct==='function'&&wtItemPct(i)===100); }).length;
         var pct   = items.length ? Math.round(done/items.length*100) : 0;
         var phases = (d.checkoffs||[]);
         var riDone = phases.filter(function(c){ return c.phase==='rough_in'&&c.status==='confirmed'; }).length;
