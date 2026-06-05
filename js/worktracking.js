@@ -4705,6 +4705,8 @@ async function wtSaveAssignments() {
         newAssignments.push(newRec);
         // Create notification for the assigned tech
         await wtNotifyAssignment(newRec, techName);
+        // Send SMS
+        sendAssignmentSMS(techName, WT.proj ? WT.proj.name : 'a project', null);
       }
     }
 
@@ -7168,6 +7170,16 @@ function loadSettings() {
   if (gfNote) gfNote.innerHTML = s.geofenceEnforce
     ? '<span style="color:#c62828;font-weight:700">🔒 Hard mode ON</span> — techs are blocked if outside 500 ft of job site.'
     : 'Currently: <strong>Soft mode</strong> — GPS is captured and flagged but techs are never blocked.';
+  // ClickSend SMS settings
+  sv('s-csuser', s.csUser||'');
+  var csKeyEl = document.getElementById('s-cskey');
+  if (csKeyEl) csKeyEl.placeholder = s.csKey ? '••••• (key saved)' : 'API key from ClickSend dashboard';
+  sv('s-csfrom', s.csFrom||'TCSS');
+  var csBadge = document.getElementById('clicksend-status-badge');
+  if (csBadge) {
+    if (s.csUser && s.csKey) { csBadge.textContent='✅ Connected'; csBadge.style.background='#e8f5e9'; csBadge.style.color='#2e7d32'; }
+    else { csBadge.textContent='⏳ Not configured'; csBadge.style.background='#fff3e0'; csBadge.style.color='#e65100'; }
+  }
   // SendGrid email settings
   sv('s-sgfromname', s.sgFromName||'TCSS Proposals');
   sv('s-sgfrom',     s.sgFrom||'');
@@ -7217,6 +7229,92 @@ function saveSendGridSettings() {
   saveDB();
   loadSettings();
   showToast('Email settings saved','success');
+}
+
+// ── ClickSend SMS ────────────────────────────────────────────────────────────
+async function sendSMS(toPhone, message) {
+  var s   = DB.settings || {};
+  var user = s.csUser;
+  var key  = s.csKey;
+  if (!user || !key) {
+    console.warn('[SMS] ClickSend credentials not configured');
+    return false;
+  }
+  // Normalize phone — strip non-digits then add +1 if US number
+  var digits = toPhone.replace(/\D/g,'');
+  if (digits.length === 10) digits = '1' + digits;
+  var e164 = '+' + digits;
+
+  try {
+    var res = await fetch('https://rest.clicksend.com/v3/sms/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Basic ' + btoa(user + ':' + key)
+      },
+      body: JSON.stringify({
+        messages: [{
+          source: 'probid',
+          body: message,
+          to: e164,
+          from: s.csFrom || 'TCSS'
+        }]
+      })
+    });
+    var data = await res.json();
+    if (data.response_code === 'SUCCESS') {
+      console.log('[SMS] Sent to', e164);
+      return true;
+    } else {
+      console.warn('[SMS] Failed:', data);
+      return false;
+    }
+  } catch(e) {
+    console.error('[SMS] Error:', e);
+    return false;
+  }
+}
+
+// Send SMS to a team member by name
+async function sendSMSToTech(techName, message) {
+  var member = (DB.team||[]).find(function(m){ return m.name === techName; });
+  if (!member || !member.phone) {
+    console.warn('[SMS] No phone for', techName);
+    return false;
+  }
+  return sendSMS(member.phone, message);
+}
+
+// Send assignment notification SMS
+async function sendAssignmentSMS(techName, projectOrWOName, scheduledDate) {
+  var msg = 'TCSS: You have been assigned to ' + projectOrWOName;
+  if (scheduledDate) msg += ' — starting ' + scheduledDate;
+  msg += '. Open the ProBid app for details.';
+  return sendSMSToTech(techName, msg);
+}
+
+function saveClickSendSettings() {
+  function gv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+  DB.settings = DB.settings || {};
+  var newKey = gv('s-cskey');
+  if (newKey) DB.settings.csKey = newKey;
+  DB.settings.csUser = gv('s-csuser');
+  DB.settings.csFrom = gv('s-csfrom') || 'TCSS';
+  saveDB();
+  loadSettings();
+  showToast('SMS settings saved','success');
+}
+
+async function testClickSendSMS() {
+  var phone = prompt('Enter a phone number to send a test SMS to (10 digits):');
+  if (!phone) return;
+  showToast('Sending test SMS...','info',2000);
+  var ok = await sendSMS(phone, 'TCSS ProBid: SMS notifications are working correctly.');
+  if (ok) {
+    showToast('Test SMS sent successfully!','success',4000);
+  } else {
+    showToast('SMS failed — check your ClickSend credentials in settings','error',5000);
+  }
 }
 
 async function sendViaSendGrid(toEmail, toName, subject, bodyText, htmlBody) {

@@ -1530,9 +1530,15 @@ function wtSyncWOTechsToCalendar(wo, newTechs) {
     }
   }
 
-  // Send in-app notifications to newly assigned techs
+  // Send in-app notifications + SMS to newly assigned techs
   if (typeof addWOAssignmentNotifications === 'function') {
     addWOAssignmentNotifications(wo, newTechs);
+  }
+  // SMS notification
+  if (typeof sendAssignmentSMS === 'function') {
+    newTechs.forEach(function(name){
+      sendAssignmentSMS(name, wo.woNumber||'Work Order', wo.dateRequested||null);
+    });
   }
 }
 

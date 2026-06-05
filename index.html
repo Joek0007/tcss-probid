@@ -4479,6 +4479,31 @@ table{font-size:12.5px}
       <button class="btn btn-primary" onclick="openNewPO()">+ New PO</button>
     </div>
   </div>
+
+  <!-- ClickSend SMS Settings -->
+  <div class="card" id="sms-settings-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h3 style="margin:0">&#x1F4AC; SMS Notifications (ClickSend)</h3>
+      <span id="clicksend-status-badge" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;background:#fff3e0;color:#e65100">&#x23F3; Not configured</span>
+    </div>
+    <p style="font-size:13px;color:#546e7a;margin:0 0 14px">When techs are assigned to a project or work order they receive an SMS. Requires a ClickSend account at clicksend.com.</p>
+    <div class="form-row cols2">
+      <div><label>ClickSend Username (your login email)</label>
+        <input id="s-csuser" type="email" placeholder="you@yourcompany.com" autocomplete="off">
+      </div>
+      <div><label>ClickSend API Key</label>
+        <input id="s-cskey" type="password" placeholder="API key from ClickSend dashboard" autocomplete="off">
+        <p style="font-size:11px;color:#90a4ae;margin-top:4px">Dashboard &#x2192; API Credentials</p>
+      </div>
+    </div>
+    <div class="form-row" style="max-width:280px">
+      <div><label>From Name (appears on SMS, max 11 chars)</label>
+        <input id="s-csfrom" placeholder="TCSS" maxlength="11">
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveClickSendSettings()">Save SMS Settings</button>
+    <button class="btn btn-outline" style="margin-left:8px" onclick="testClickSendSMS()">&#x1F4F1; Send Test SMS</button>
+  </div>
   <!-- Stats -->
   <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap" id="po-stats-bar"></div>
   <!-- Filters -->
