@@ -1198,9 +1198,18 @@ function setT(id, val) {
 }
 
 function renderDash() {
-  // Field techs get their own dashboard
-  if (typeof wtIsFieldTech === 'function' && wtIsFieldTech()) {
-    setTimeout(wtRenderTechDashboard, 100);
+  // Field techs get their own dashboard — check role directly, no dependency on worktracking.js
+  var _role = typeof _currentUser !== 'undefined' && _currentUser ? _currentUser.role : null;
+  console.log('[renderDash] role:', _role);
+  if (_role === 'helper_tech') {
+    console.log('[renderDash] redirecting to tech dashboard');
+    setTimeout(function(){
+      if (typeof wtRenderTechDashboard === 'function') {
+        wtRenderTechDashboard();
+      } else {
+        console.error('[renderDash] wtRenderTechDashboard not defined!');
+      }
+    }, 100);
     return;
   }
   // Load journal data for dashboard blip

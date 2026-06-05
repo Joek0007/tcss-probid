@@ -126,11 +126,13 @@ async function signIn(email, password) {
       if (typeof startMorningDetection === 'function') startMorningDetection();
       // Restore clock session if tech was previously clocked in
       if (typeof restoreClockSession === 'function') restoreClockSession();
-      // Render dashboard — but re-enforce permissions immediately after
-      if (typeof renderDash === 'function') {
+      // Render correct dashboard based on role
+      if (_currentUser && _currentUser.role === 'helper_tech') {
+        if (typeof wtRenderTechDashboard === 'function') wtRenderTechDashboard();
+      } else if (typeof renderDash === 'function') {
         renderDash();
-        if (_currentUser) applyRolePermissions(_currentUser.role);
       }
+      if (_currentUser) applyRolePermissions(_currentUser.role);
       // Run self-test to catch permission issues early
       setTimeout(function(){
         if (_currentUser) runPermissionsSelfTest(_currentUser.role);
