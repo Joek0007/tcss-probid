@@ -1190,3 +1190,225 @@ async function wtRenderTechDashboard() {
 }
 
 
+
+// ── Main Dashboard Renderer ────────────────────────────────────────────────
+function setT(id, val) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function renderDash() {
+  // Field techs get their own dashboard
+  if (typeof wtIsFieldTech === 'function' && wtIsFieldTech()) {
+    setTimeout(wtRenderTechDashboard, 100);
+    return;
+  }
+  // Load journal data for dashboard blip
+  setTimeout(loadJournalForDash, 800);
+
+  const today = getTodayISO();
+
+  // ── Stats strip ────────────────────────────────────────────────────────────
+  var quotes    = DB.quotes || [];
+  var jobs      = DB.jobs   || [];
+  var workDays  = DB.workDays || [];
+  var tools     = DB.tools  || [];
+  var workOrders = DB.workOrders || [];
+
+  // Total quotes
+  setT('ds-tq', quotes.length);
+
+  // Revenue won
+  var wonRev = quotes.filter(function(q){ return q.status==='approved'||q.status==='won'; })
+    .reduce(function(s,q){ return s+(parseFloat(q.totalPrice)||0); }, 0);
+  setT('ds-won-rev', '$'+wonRev.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}));
+
+  // Active jobs
+  var activeJobs = jobs.filter(function(j){ return j.status==='in_progress'||j.status==='In Progress'||j.status==='scheduled'||j.status==='Scheduled'; });
+  setT('ds-active-jobs', activeJobs.length);
+
+  // Clocked in today
+  var clockedIn = workDays.filter(function(d){ return d.date===today && !d.totalPaidMins; }).length;
+  setT('ds-clocked-in', clockedIn+' / '+(DB.team||[]).filter(function(m){ return m.active!==false&&(m.role==='helper_tech'||m.role==='lead_tech'); }).length);
+
+  // Avg project % (Work Tracking)
+  var wtProjects = DB.wtProjects || [];
+  var wtPcts = wtProjects.map(function(p){
+    var d = (typeof WT!=='undefined'&&WT.data&&WT.data[p.id]) || {};
+    var items = d.items || [];
+    if (!items.length) return 0;
+    var done = items.filter(function(i){ return typeof wtItemPct==='function'&&wtItemPct(i)===100; }).length;
+    return Math.round(done/items.length*100);
+  });
+  var wtAvg = wtPcts.length ? Math.round(wtPcts.reduce(function(s,v){ return s+v; },0)/wtPcts.length) : null;
+  setT('ds-wt-pct', wtAvg!==null ? wtAvg+'%' : '—');
+
+  // Tools out
+  var toolsOut = tools.filter(function(t){ return t.status==='checked_out'||t.status==='out'; }).length;
+  setT('ds-tools-out', toolsOut);
+
+  // Follow-ups due
+  var fuDue = quotes.filter(function(q){
+    return q.followupDate && q.followupDate <= today &&
+           q.status!=='approved'&&q.status!=='won'&&q.status!=='declined';
+  }).length;
+  setT('ds-followups', fuDue);
+
+  // Open flags (WT)
+  var openFlags = 0;
+  wtProjects.forEach(function(p){
+    var d = (typeof WT!=='undefined'&&WT.data&&WT.data[p.id]) || {};
+    if (d.flags) openFlags += d.flags.filter(function(f){ return f.status!=='resolved'; }).length;
+  });
+  setT('ds-flags', openFlags);
+
+  // Open WOs
+  var openWOs  = workOrders.filter(function(w){ return !w.deleted&&w.status!=='closed'&&w.status!=='invoiced'; });
+  var urgentWO = workOrders.filter(function(w){ return !w.deleted&&w.status==='urgent'; }).length;
+  var woTile = document.getElementById('ds-wo-tile');
+  if (woTile) {
+    woTile.innerHTML =
+      '<div class="dash-stat-val">'+openWOs.length+'</div>'+
+      '<div class="dash-stat-lbl">OPEN WOs</div>'+
+      (urgentWO ? '<div style="font-size:10px;font-weight:700;color:#c62828;margin-top:2px">⚠ '+urgentWO+' URGENT</div>' : '');
+  }
+
+  // Last updated
+  var lu = document.getElementById('dash-last-updated');
+  if (lu) lu.textContent = 'Updated '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+
+  // ── Field Activity ─────────────────────────────────────────────────────────
+  var fieldEl = document.getElementById('dash-field-activity');
+  if (fieldEl) {
+    var team = (DB.team||[]).filter(function(m){ return m.active!==false; }).slice(0,8);
+    var todayDays = workDays.filter(function(d){ return d.date===today; });
+    fieldEl.innerHTML = team.map(function(m){
+      var wd = todayDays.find(function(d){ return d.techName===m.name; });
+      var status = wd ? (wd.totalPaidMins?'out':wd.currentStatus||'in') : 'out';
+      var statusLabels = {in:'Clocked In',out:'Not started',break:'On Break',lunch:'Lunch',traveling:'Traveling',onsite:'On Site'};
+      var statusClasses = {in:'in',out:'out',break:'break',lunch:'lunch',traveling:'in',onsite:'in'};
+      var initials = (m.name||'?').split(' ').map(function(w){ return w[0]||''; }).slice(0,2).join('').toUpperCase();
+      return '<div class="dash-field-row">'+
+        '<div class="dash-field-avatar" style="background:#1565c0;color:#fff">'+initials+'</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:13px;font-weight:700;color:#0d1b2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(m.name)+'</div>'+
+          (wd&&wd.jobName?'<div style="font-size:11px;color:#546e7a">'+escHtml(wd.jobName)+'</div>':'')+'</div>'+
+        '<span class="dash-field-status '+(statusClasses[status]||'out')+'">'+escHtml(statusLabels[status]||'Not started')+'</span>'+
+      '</div>';
+    }).join('');
+  }
+
+  // ── Active Jobs ────────────────────────────────────────────────────────────
+  var jobsEl = document.getElementById('dash-jobs-list');
+  if (jobsEl) {
+    var active = jobs.filter(function(j){ return j.status!=='completed'&&j.status!=='cancelled'; }).slice(0,6);
+    if (!active.length) {
+      jobsEl.innerHTML = '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No active jobs</div>';
+    } else {
+      jobsEl.innerHTML = active.map(function(j){
+        var statusColor = j.status==='In Progress'||j.status==='in_progress'?'#1565c0':'#546e7a';
+        return '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5;display:flex;justify-content:space-between;align-items:center">'+
+          '<div>'+
+            '<div style="font-size:13px;font-weight:700;color:#0d1b2a;cursor:pointer" onclick="goPage(\'jobs\')">'+escHtml(j.name||'Job')+'</div>'+
+            '<div style="font-size:11px;color:#546e7a">'+(j.customer||j.customerName||'')+(j.assignedTechs&&j.assignedTechs.length?' — '+j.assignedTechs.slice(0,2).join(', '):'')+'</div>'+
+          '</div>'+
+          '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#e3f2fd;color:'+statusColor+'">'+escHtml(j.status||'Scheduled')+'</span>'+
+        '</div>';
+      }).join('');
+    }
+  }
+
+  // ── Quote Pipeline ─────────────────────────────────────────────────────────
+  var pipelineBar = document.getElementById('pipeline-bar');
+  var pipelineLeg = document.getElementById('pipeline-legend');
+  var pipelineDet = document.getElementById('pipeline-detail');
+  var recentList  = document.getElementById('dash-recent-quotes-list');
+
+  if (pipelineBar) {
+    var statuses = ['draft','sent','followup','approved','declined'];
+    var colors   = {draft:'#607d8b',sent:'#1565c0',followup:'#7b1fa2',approved:'#2e7d32',declined:'#c62828'};
+    var labels   = {draft:'Draft',sent:'Sent',followup:'Follow-Up',approved:'Won',declined:'Lost'};
+    var counts   = {};
+    statuses.forEach(function(s){ counts[s]=0; });
+    quotes.forEach(function(q){ if (counts[q.status]!==undefined) counts[q.status]++; });
+    var total = quotes.length || 1;
+    pipelineBar.innerHTML = statuses.map(function(s){
+      var pct = Math.round(counts[s]/total*100);
+      return pct>0?'<div style="height:100%;width:'+pct+'%;background:'+colors[s]+';display:inline-block;transition:width .3s" title="'+labels[s]+': '+counts[s]+'"></div>':'';
+    }).join('');
+    if (pipelineLeg) pipelineLeg.innerHTML = statuses.filter(function(s){return counts[s]>0;}).map(function(s){
+      return '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px">'+
+        '<span style="width:10px;height:10px;border-radius:50%;background:'+colors[s]+';display:inline-block"></span>'+
+        '<span style="font-size:11px;color:#546e7a">'+labels[s]+': <strong>'+counts[s]+'</strong></span></span>';
+    }).join('');
+    var won = counts['approved']||0, total2 = quotes.length||1;
+    var wr = Math.round(won/total2*100);
+    if (pipelineDet) pipelineDet.textContent = 'Win rate: '+wr+'%  ·  '+quotes.length+' total quotes';
+  }
+
+  if (recentList) {
+    var recent = quotes.slice().sort(function(a,b){ return (b.num||0)-(a.num||0); }).slice(0,5);
+    recentList.innerHTML = recent.map(function(q){
+      var statusColors = {draft:'#546e7a',sent:'#1565c0',followup:'#7b1fa2',approved:'#2e7d32',declined:'#c62828'};
+      var sc = statusColors[q.status]||'#546e7a';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;cursor:pointer" onclick="editQuote(\''+q.id+'\')">'+
+        '<div>'+
+          '<div style="font-size:13px;font-weight:700;color:#1565c0">'+escHtml('Q-'+(q.num||q.id))+'</div>'+
+          '<div style="font-size:11px;color:#546e7a">'+escHtml(q.cn||'')+(q.projName?' — '+escHtml(q.projName):'')+'</div>'+
+        '</div>'+
+        '<div style="text-align:right">'+
+          '<div style="font-size:13px;font-weight:700">$'+((q.totalPrice||0).toLocaleString())+'</div>'+
+          '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:'+sc+'22;color:'+sc+'">'+escHtml((q.status||'').toUpperCase())+'</span>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  // ── Project Progress ───────────────────────────────────────────────────────
+  var wtEl = document.getElementById('dash-wt-projects');
+  if (wtEl) {
+    var activeWTP = wtProjects.filter(function(p){ return p.status==='active'; }).slice(0,4);
+    if (!activeWTP.length) {
+      wtEl.innerHTML = '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No active projects</div>';
+    } else {
+      wtEl.innerHTML = activeWTP.map(function(p){
+        var d = (typeof WT!=='undefined'&&WT.data&&WT.data[p.id]) || {};
+        var items = d.items||[];
+        var done  = items.filter(function(i){ return typeof wtItemPct==='function'&&wtItemPct(i)===100; }).length;
+        var pct   = items.length ? Math.round(done/items.length*100) : 0;
+        var phases = (d.checkoffs||[]);
+        var riDone = phases.filter(function(c){ return c.phase==='rough_in'&&c.status==='confirmed'; }).length;
+        var riTot  = items.length;
+        return '<div class="dash-wt-row" style="cursor:pointer" onclick="goPage(\'worktracking\')">'+
+          '<div style="display:flex;justify-content:space-between;margin-bottom:4px">'+
+            '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(p.name)+'</div>'+
+            '<div style="font-size:12px;font-weight:700;color:'+(pct===100?'#2e7d32':'#1565c0')+'">'+pct+'%</div>'+
+          '</div>'+
+          '<div style="background:#e0e0e0;border-radius:3px;height:5px">'+
+            '<div style="background:'+(pct===100?'#2e7d32':'#1565c0')+';height:5px;border-radius:3px;width:'+pct+'%;transition:width .4s"></div>'+
+          '</div>'+
+          '<div style="font-size:10px;color:#90a4ae;margin-top:3px">R: '+riDone+'/'+riTot+' &nbsp; D: 0/0 &nbsp; T: 0/0</div>'+
+        '</div>';
+      }).join('');
+    }
+  }
+
+  // ── Tools Overview ─────────────────────────────────────────────────────────
+  var toolsEl = document.getElementById('dash-tools-overview');
+  if (toolsEl) {
+    if (!tools.length) {
+      toolsEl.innerHTML = '<div style="color:#90a4ae;font-size:13px">All tools accounted for.</div>';
+    } else {
+      var outTools = tools.filter(function(t){ return t.status==='checked_out'||t.status==='out'; }).slice(0,5);
+      toolsEl.innerHTML = outTools.length ?
+        outTools.map(function(t){
+          return '<div style="font-size:13px;padding:4px 0;border-bottom:1px solid #f5f5f5">'+
+            escHtml(t.name||'Tool')+' — <strong>'+escHtml(t.checkedOutTo||'')+'</strong></div>';
+        }).join('') :
+        '<div style="color:#90a4ae;font-size:13px">All tools accounted for.</div>';
+    }
+  }
+
+  // Inventory reorder alert
+  if (typeof renderDashReorderAlert === 'function') renderDashReorderAlert();
+}

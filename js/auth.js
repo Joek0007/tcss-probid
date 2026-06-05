@@ -18,9 +18,7 @@ function init() {
   if (qqHasRecoverableDraft()) { try { if (confirm('Recover the last unsaved Quick Quote draft from this browser?')) restoreQQDraft(); else clearQQDraft(); } catch(e){} }
   updateQQStage3UI();
   renderTplLibrary();
-  // Only render dash if no Supabase auth — if there is a session it will render after profile loads
-  // Avoid rendering owner dashboard briefly before tech dashboard kicks in
-  if (!window._sb) renderDash();
+  renderDash();
   loadMarginFloors();
   loadLogoOnStartup();
   initLogoUpload();
