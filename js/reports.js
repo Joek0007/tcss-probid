@@ -1109,9 +1109,9 @@ async function wtRenderTechDashboard() {
     // Header
     '<div style="margin-bottom:20px">'+
       '<div style="font-size:22px;font-weight:800;color:#0d1b2a">Good '+
-        (typeof getGreeting==='function'?getGreeting():'day')+', '+escHtml(myName.split(' ')[0])+'</div>'+
+        (new Date().getHours()<12?'morning':new Date().getHours()<17?'afternoon':'evening')+', '+escHtml(myName.split(' ')[0])+'</div>'+
       '<div style="font-size:13px;color:#546e7a;margin-top:2px">'+
-        (typeof formatDateFriendly==='function'?formatDateFriendly(today):today)+'</div>'+
+        (function(){var _d=new Date(today+'T12:00:00');return _d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});})()+'</div>'+
     '</div>'+
 
     // Clock card
