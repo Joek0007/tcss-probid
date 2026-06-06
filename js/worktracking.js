@@ -4927,8 +4927,8 @@ function wtRenderProjectList() {
       '<h2 style="margin:0;font-size:22px;font-weight:800;color:#0d1b2a">✅ Work Tracking</h2>'+
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
         '<span id="wt-online-badge" style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;background:#f5f5f5"></span>'+
-        '<button class="btn btn-outline btn-sm" onclick="wtOpenCatalogManager()">🔌 Item Catalog</button>'+
-        '<button class="btn btn-outline btn-sm" onclick="wtOpenTemplateManager()">📋 Room Templates</button>'+
+        (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtOpenCatalogManager()">🔌 Item Catalog</button>' : '')+
+        (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtOpenTemplateManager()">📋 Room Templates</button>' : '')+
         '<button class="btn btn-primary" onclick="openNewProjectWizard()">+ New Project</button>'+
       '</div>'+
     '</div>'+

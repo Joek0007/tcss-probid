@@ -221,6 +221,12 @@ var _activeRole = null;
 
 function applyRolePermissions(role) {
   _activeRole = role || 'helper_tech';
+  // Hide + New Quote button for field techs
+  var newQuoteBtns = document.querySelectorAll('[data-action="newQuote"], #topbar-new-quote-btn');
+  newQuoteBtns.forEach(function(btn){
+    btn.style.display = (role === 'helper_tech') ? 'none' : '';
+  });
+
   // Mobile nav switching
   var isTech = (_activeRole === 'helper_tech');
   document.querySelectorAll('.mob-role-default').forEach(function(el){

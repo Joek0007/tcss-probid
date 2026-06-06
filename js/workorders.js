@@ -113,11 +113,16 @@ function renderWorkOrders() {
   // Stats bar
   var statsEl = document.getElementById('wo-stats-bar');
   if (statsEl) {
-    var allWOs = DB.workOrders;
+    // For helper_tech: only count WOs assigned to them
+    var myName  = _currentUser ? _currentUser.full_name : '';
+    var isTech  = _currentUser && _currentUser.role === 'helper_tech';
+    var allWOs  = isTech
+      ? (DB.workOrders||[]).filter(function(w){ return _isTechAssignedToWO(myName, w); })
+      : (DB.workOrders||[]);
     var urgent  = allWOs.filter(function(w){ return w.priority==='Urgent' && w.status!=='Billed'&&w.status!=='Void'; }).length;
     var open    = allWOs.filter(function(w){ return WO_STATUSES.find(function(s){return s.id===w.status&&s.open;}); }).length;
-    var review  = allWOs.filter(function(w){ return w.status==='Ready for Review'; }).length;
-    var pricing = allWOs.filter(function(w){ return w.status==='Ready for Pricing'; }).length;
+    var review  = isTech ? 0 : allWOs.filter(function(w){ return w.status==='Ready for Review'; }).length;
+    var pricing = isTech ? 0 : allWOs.filter(function(w){ return w.status==='Ready for Pricing'; }).length;
     statsEl.innerHTML =
       (urgent?'<div style="background:#c62828;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;animation:pulse 1s infinite">🚨 '+urgent+' URGENT</div>':'') +
       '<div style="background:#e3f2fd;color:#1565c0;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700">📋 '+open+' Open</div>' +
