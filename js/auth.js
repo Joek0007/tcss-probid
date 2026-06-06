@@ -433,14 +433,29 @@ async function syncAllFromCloud() {
     var { data: settingsRow, error: se } = await _sb.from('company_settings').select('*').eq('id', 1).single();
     if (settingsRow) {
       DB.settings = DB.settings || {};
-      DB.settings.cname = settingsRow.company_name || DB.settings.cname;
-      DB.settings.laborRate = settingsRow.default_labor_rate || DB.settings.laborRate;
-      DB.settings.targetMargin = settingsRow.default_target_margin || DB.settings.targetMargin;
-      if (!DB.settings.managerApproval) DB.settings.managerApproval = {};
-      DB.settings.managerApproval.enabled = settingsRow.ma_enabled;
-      DB.settings.managerApproval.belowFloorOnly = settingsRow.ma_below_floor_only;
-      DB.settings.managerApproval.pinHash = settingsRow.ma_pin_hash || '';
-      DB.settings.managerApproval.pinSalt = settingsRow.ma_pin_salt || '';
+      // Restore full settings from Supabase JSON backup if available
+      if (settingsRow.settings_json && typeof settingsRow.settings_json === 'object') {
+        // Merge Supabase backup over local — Supabase is source of truth
+        DB.settings = Object.assign({}, settingsRow.settings_json, {
+          // Always keep these specific Supabase-controlled fields
+          managerApproval: {
+            enabled: settingsRow.ma_enabled,
+            belowFloorOnly: settingsRow.ma_below_floor_only,
+            pinHash: settingsRow.ma_pin_hash || '',
+            pinSalt: settingsRow.ma_pin_salt || '',
+          }
+        });
+      } else {
+        // Fallback: individual field merge (old behavior)
+        DB.settings.cname = settingsRow.company_name || DB.settings.cname;
+        DB.settings.laborRate = settingsRow.default_labor_rate || DB.settings.laborRate;
+        DB.settings.targetMargin = settingsRow.default_target_margin || DB.settings.targetMargin;
+        if (!DB.settings.managerApproval) DB.settings.managerApproval = {};
+        DB.settings.managerApproval.enabled = settingsRow.ma_enabled;
+        DB.settings.managerApproval.belowFloorOnly = settingsRow.ma_below_floor_only;
+        DB.settings.managerApproval.pinHash = settingsRow.ma_pin_hash || '';
+        DB.settings.managerApproval.pinSalt = settingsRow.ma_pin_salt || '';
+      }
     }
   } catch(e) { errors.push('settings: '+e.message); }
 
@@ -912,7 +927,8 @@ async function pushAllToCloud() {
       ma_enabled: DB.settings.managerApproval ? !!DB.settings.managerApproval.enabled : false,
       ma_below_floor_only: DB.settings.managerApproval ? !!DB.settings.managerApproval.belowFloorOnly : true,
       ma_pin_hash: DB.settings.managerApproval ? (DB.settings.managerApproval.pinHash || '') : '',
-      ma_pin_salt: DB.settings.managerApproval ? (DB.settings.managerApproval.pinSalt || '') : ''
+      ma_pin_salt: DB.settings.managerApproval ? (DB.settings.managerApproval.pinSalt || '') : '',
+      settings_json: DB.settings
     });
 
     // Push margin floors — upsert each row

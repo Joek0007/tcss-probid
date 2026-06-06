@@ -949,10 +949,14 @@ function getPermMatrix() {
   return matrix;
 }
 
+// Restriction permissions — owner is NOT exempt, they follow the matrix
+var RESTRICTION_PERMS = ['wo.view_assigned_only'];
+
 function hasPermission(permKey) {
   if (!_currentUser) return false;
   var role = _currentUser.role || 'helper_tech';
-  if (role === 'owner') return true;
+  // Owner bypasses all permissions EXCEPT restriction permissions
+  if (role === 'owner' && RESTRICTION_PERMS.indexOf(permKey) < 0) return true;
   var matrix = getPermMatrix();
   if (!matrix[permKey]) return false;
   return matrix[permKey][role] === true;

@@ -1311,13 +1311,8 @@ function wtSetFloorFilter(floorId) {
 function wtSetPhaseFilter(phase) {
   WT.fieldPhase = phase;
   var inp = document.getElementById('wt-field-phase'); if (inp) inp.value = phase;
-  var pf = document.querySelector('#wt-main [style*="PHASE"]');
-  // Re-render just the phase pills
-  var allPills = document.querySelector('#wt-main [style*="PHASE"]');
-  if (allPills && allPills.nextElementSibling) {
-    allPills.nextElementSibling.innerHTML = wtPhaseFilterButtons(phase);
-  }
-  wtRenderFieldItems();
+  // Re-render full field view to update pill styles + items together
+  wtRenderFieldView();
 }
 
 function wtToggleMyItems() {
@@ -7212,6 +7207,14 @@ function saveSettings() {
   });
   saveDB();
   const cb=document.getElementById('company-badge');if(cb)cb.textContent=(DB.settings.cname||'TCSS').substring(0,12);
+  // Also push full settings to Supabase for persistence across devices/browsers
+  if (typeof _sb !== 'undefined' && _sb) {
+    _sb.from('company_settings').upsert({
+      id: 1,
+      settings_json: DB.settings,
+      company_name: DB.settings.cname || 'TCSS',
+    }).then(function(){});
+  }
   showToast('Settings saved','success');
 }
 
