@@ -619,6 +619,7 @@ function rescheduleJobFromDetail(jobId){
   var t=(document.getElementById('dsp-new-time')||{}).value||'';
   var dur=parseFloat((document.getElementById('dsp-new-dur')||{}).value||job.estLaborHours||4);
   if(d) job.scheduledDate=d;if(t) job.scheduledTime=t;if(dur){job.estLaborHours=dur;job.scheduledDuration=dur;}
+  _saveJobToWO(job);
   saveDB();closeDispatchDetail();renderDispatchBoard();showToast('Rescheduled','success');
 }
 
@@ -689,9 +690,11 @@ function saveScheduledJob(){
   if(!date){showToast('Please select a date','error');return;}
   var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   job.scheduledDate=date;job.scheduledTime=time;job.estLaborHours=dur;job.scheduledDuration=dur;
+  _saveJobToWO(job);
   if(notes) job.dispatchNotes=notes;
   if(!job.status||job.status==='') job.status='Scheduled';
   if(tech){if(!isCrewMember(job,tech)) addCrewMember(job,tech,'lead'); else setCrewLead(job,tech);}
+  _saveJobToWO(job);
   saveDB();closeModal('modal-schedule-job');
   var dateEl=document.getElementById('dispatch-date');
   if(dateEl) dateEl.value=date;
@@ -795,6 +798,7 @@ function _onTouchEnd(e) {
       job.scheduledDate = boardDate;
       job.scheduledTime = dropTime;
       if (!job.status) job.status = 'Scheduled';
+      _saveJobToWO(job);
       saveDB();
       renderDispatchBoard();
       showToast(already?'Rescheduled to '+dropTime:escHtml(techName)+' added to '+escHtml(job.name||''), 'success');
