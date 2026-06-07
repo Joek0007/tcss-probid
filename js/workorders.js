@@ -1315,12 +1315,15 @@ function openNewWOForCustomer(customerId, customerName) {
 // ---- PERMISSION HELPER ----
 
 function _isTechAssignedToWO(techName, wo) {
-  if (!wo) return false;
-  // Check assignedTechs array
-  if (wo.assignedTechs && wo.assignedTechs.length) {
-    return wo.assignedTechs.indexOf(techName) >= 0;
-  }
-  return false;
+  if (!wo || !techName) return false;
+  var techs = wo.assignedTechs || [];
+  if (!techs.length) return false;
+  var name = techName.toLowerCase().trim();
+  return techs.some(function(t) {
+    // Handle both plain strings and objects {name:'...', id:'...'}
+    var tName = (typeof t === 'string' ? t : (t.name || t.full_name || '')).toLowerCase().trim();
+    return tName === name;
+  });
 }
 
 function _canViewWO(wo) {
