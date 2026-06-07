@@ -486,7 +486,17 @@ function renderFieldPage(){
 
   var myJobsEl=document.getElementById('field-my-jobs');
   if(myJobsEl){
-    var active=DB.jobs.filter(function(j){return j.status==='Scheduled'||j.status==='In Progress';});
+    var _myTechName = _currentUser ? _currentUser.full_name : '';
+    var active=DB.jobs.filter(function(j){
+      if(j.status!=='Scheduled'&&j.status!=='In Progress') return false;
+      // Only show jobs assigned to this tech
+      var techs = j.assignedTechs||j.techs||[];
+      if(!techs.length) return false;
+      return techs.some(function(t){
+        var name = (typeof t==='string'?t:(t.name||t.full_name||'')).toLowerCase().trim();
+        return name === _myTechName.toLowerCase().trim();
+      });
+    });
     if(!active.length){myJobsEl.innerHTML='<div style="color:#90a4ae;font-size:13px">No active jobs assigned.</div>';}
     else{myJobsEl.innerHTML=active.map(function(j){var ha=!!j.gpsAnchor;return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5"><div><div style="font-weight:700;font-size:13px">'+escHtml(j.name||'')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(j.customer||'')+(j.address?' · '+escHtml(j.address):'')+' · '+(ha?'<span style="color:#2e7d32">📍 Anchor set</span>':'<span style="color:#90a4ae">No anchor yet</span>')+'</div></div><span class="status-badge '+(j.status==='In Progress'?'s-inprogress':'s-pending')+'" style="font-size:10px">'+escHtml(j.status)+'</span></div>';}).join('');}
   }
