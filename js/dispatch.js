@@ -932,8 +932,10 @@ function getPermMatrix() {
   var matrix = {};
   PERM_DEFS.forEach(function(p){
     matrix[p.key] = {};
+    var isRestriction = RESTRICTION_PERMS.indexOf(p.key) >= 0;
     roles.forEach(function(r){
-      if (r === 'owner') {
+      if (r === 'owner' && !isRestriction) {
+        // Owner gets all capability permissions automatically
         matrix[p.key][r] = true;
       } else if (p.fixed) {
         matrix[p.key][r] = p.defaults[r] ? true : false;
@@ -949,14 +951,12 @@ function getPermMatrix() {
   return matrix;
 }
 
-// Restriction permissions — owner is NOT exempt, they follow the matrix
+// Restriction permissions — owner follows the matrix for these (defaults to OFF)
 var RESTRICTION_PERMS = ['wo.view_assigned_only'];
 
 function hasPermission(permKey) {
   if (!_currentUser) return false;
   var role = _currentUser.role || 'helper_tech';
-  // Owner bypasses all permissions EXCEPT restriction permissions
-  if (role === 'owner' && RESTRICTION_PERMS.indexOf(permKey) < 0) return true;
   var matrix = getPermMatrix();
   if (!matrix[permKey]) return false;
   return matrix[permKey][role] === true;
