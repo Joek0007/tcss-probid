@@ -74,6 +74,35 @@ function initWorkOrdersPage() {
 // ---- RENDER LIST ----
 function renderWorkOrders() {
   if (!DB.workOrders) DB.workOrders = [];
+
+  // Build status dropdown from WO_STATUSES so values always match
+  var statusSel = document.getElementById('wo-filter-status');
+  if (statusSel && statusSel.options.length <= 1) {
+    var isTechView = _currentUser && _currentUser.role === 'helper_tech';
+    var statusList = (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length)
+      ? DB.woSettings.statuses : WO_STATUSES;
+    if (isTechView) statusList = statusList.filter(function(s){ return s.mobile !== false; });
+    statusList.forEach(function(s){
+      var opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.id;
+      statusSel.appendChild(opt);
+    });
+  }
+
+  // Build service type dropdown dynamically to pick up custom types
+  var typeSel = document.getElementById('wo-filter-type');
+  if (typeSel && typeSel.options.length <= 1) {
+    var typeList = (DB.woSettings&&DB.woSettings.serviceTypes&&DB.woSettings.serviceTypes.length)
+      ? DB.woSettings.serviceTypes : WO_SERVICE_TYPES;
+    typeList.forEach(function(t){
+      var opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      typeSel.appendChild(opt);
+    });
+  }
+
   var search   = ((document.getElementById('wo-search')||{}).value||'').toLowerCase();
   var fStatus  = (document.getElementById('wo-filter-status')||{}).value||'';
   var fPriority= (document.getElementById('wo-filter-priority')||{}).value||'';
