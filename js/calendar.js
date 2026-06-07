@@ -47,7 +47,7 @@ function renderCalendar() {
   if (showJobs) {
     var myName = (typeof wtCurrentUserName === 'function') ? wtCurrentUserName().toLowerCase() : '';
     var isTech = (typeof wtIsFieldTech === 'function') && wtIsFieldTech();
-    (DB.jobs||[]).forEach(function(j) {
+    ((typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]))).forEach(function(j) {
       if (!j.scheduledDate) return;
       // Field techs only see jobs they're assigned to
       if (isTech && myName) {
@@ -135,7 +135,7 @@ function calDrop(event, dateStr) {
   event.preventDefault();
   var jobId = _calDragJobId || event.dataTransfer.getData('text/plain');
   if (!jobId || !dateStr) return;
-  var job = (DB.jobs||[]).find(function(j){ return j.id === jobId; });
+  var job = ((typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]))).find(function(j){ return j.id === jobId; });
   if (!job) return;
   if (!confirm('Reschedule "' + (job.name||'this job') + '" to ' + dateStr + '?')) return;
   job.scheduledDate = dateStr;
@@ -430,7 +430,7 @@ function savePaymentRecord() {
   if (totalPaid >= (inv.total||0)) {
     inv.status   = 'paid';
     inv.paidDate = date;
-    var job = (DB.jobs||[]).find(function(j){ return j.id===inv.jobId; });
+    var job = ((typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]))).find(function(j){ return j.id===inv.jobId; });
     if (job) { job.status='Closed'; job.invoicePaid=true; }
     showToast('Invoice fully paid and closed ✓', 'success', 4000);
   } else {

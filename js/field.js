@@ -49,7 +49,7 @@ function getGPS(callback) {
 
 function checkGeofence(lat,lng,jobId) {
   if (!lat||!lng) return {ok:true,distanceFt:null,reason:'no_gps'};
-  var job=DB.jobs.find(function(j){return j.id==jobId;});
+  var job=typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id==jobId;});
   if (!job||!job.gpsAnchor) return {ok:true,distanceFt:null,reason:'no_anchor'};
   var dist=geoDistanceFt(lat,lng,job.gpsAnchor.lat,job.gpsAnchor.lng);
   return {ok:dist<=GEO_RADIUS_FT,distanceFt:dist,reason:dist<=GEO_RADIUS_FT?'in_range':'out_of_range'};
@@ -57,7 +57,7 @@ function checkGeofence(lat,lng,jobId) {
 
 function setJobAnchor(jobId,lat,lng) {
   if (!lat||!lng) return;
-  var job=DB.jobs.find(function(j){return j.id==jobId;});
+  var job=typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id==jobId;});
   if (!job||job.gpsAnchor) return;
   job.gpsAnchor={lat:lat,lng:lng,setBy:_currentUser?_currentUser.full_name:'Unknown',setAt:new Date().toISOString()};
   saveDB();
@@ -466,18 +466,9 @@ function renderPunchLog(){
 function _getMyAssignedJobs() {
   var myName = _currentUser ? _currentUser.full_name : '';
   if (!myName) return [];
-  var nameLower = myName.toLowerCase().trim();
-  return (DB.jobs||[]).filter(function(j){
-    if(j.status!=='Scheduled'&&j.status!=='In Progress') return false;
-    // Check crew[] array (dispatch-assigned jobs)
-    if (typeof isCrewMember === 'function' && isCrewMember(j, myName)) return true;
-    // Check assignedTechs[] array (WO-synced jobs use plain string array)
-    if (j.assignedTechs && j.assignedTechs.some(function(t){
-      return (typeof t==='string'?t:(t.name||'')).toLowerCase().trim()===nameLower;
-    })) return true;
-    // Check assignedTo directly
-    return (j.assignedTo||'').toLowerCase().trim()===nameLower;
-  });
+  // WOs are jobs — return assigned WOs as job objects
+  if (typeof _getMyWOsAsJobs === 'function') return _getMyWOsAsJobs(myName);
+  return [];
 }
 
 function renderFieldPage(){
@@ -485,6 +476,7 @@ function renderFieldPage(){
   if(sel){
     sel.innerHTML='<option value="">-- Choose your job --</option>';
     var myJobs=_getMyAssignedJobs();
+    // Use WO number + description as display
     myJobs.forEach(function(j){var opt=document.createElement('option');opt.value=j.id;opt.textContent=j.name+(j.customer?' — '+j.customer:'');sel.appendChild(opt);});
     if(_clockState.jobId) sel.value=_clockState.jobId;
   }
@@ -1001,7 +993,7 @@ function saveManualTimeEntry() {
   if (woVal && woVal !== 'office') {
     if (woVal.startsWith('job:')) {
       jobId = woVal.replace('job:','');
-      var j = (DB.jobs||[]).find(function(x){return x.id===jobId;});
+      var j = typeof _findJobOrWO==='function'?_findJobOrWO(jobId):(DB.jobs||[]).find(function(x){return x.id===jobId;});
       woLabel = j ? (j.num+' — '+j.name) : jobId;
     } else {
       woId = woVal;
@@ -1610,7 +1602,7 @@ function _checkJobArrival(lat, lng) {
   if (_locMonitor.arrivalShown) return;
   if (!_clockState.jobId) return;
 
-  var job = (DB.jobs||[]).find(function(j){ return j.id === _clockState.jobId; });
+  var job = typeof _findJobOrWO==='function'?_findJobOrWO(_clockState.jobId):(DB.jobs||[]).find(function(j){return j.id===_clockState.jobId;});
   if (!job) return;
 
   // Auto-set anchor if not set
@@ -1640,7 +1632,7 @@ function _checkJobDeparture(lat, lng) {
   if (_locMonitor.departureShown) return;
   if (!_clockState.jobId) return;
 
-  var job = (DB.jobs||[]).find(function(j){ return j.id === _clockState.jobId; });
+  var job = typeof _findJobOrWO==='function'?_findJobOrWO(_clockState.jobId):(DB.jobs||[]).find(function(j){return j.id===_clockState.jobId;});
   if (!job || !job.gpsAnchor) return;
 
   var dist = geoDistanceFt(lat, lng, job.gpsAnchor.lat, job.gpsAnchor.lng);

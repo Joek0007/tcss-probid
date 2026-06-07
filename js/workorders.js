@@ -31,6 +31,67 @@ var WO_STATUSES = [
   {id:'Void (Q-Books Invoice Voided)',               color:'#00ffff',open:false,mobile:false},
 ];
 
+
+// ── WO/Job Unification ────────────────────────────────────────────────────
+// Work Orders ARE jobs. These helpers let existing code work with WOs
+// wherever it previously used DB.jobs.
+
+function _woToJob(wo) {
+  if (!wo) return null;
+  var techs = (wo.assignedTechs||[]).map(function(t){
+    return typeof t==='string' ? t : (t.name||t.full_name||'');
+  }).filter(Boolean);
+  return {
+    id:            wo.id,
+    woId:          wo.id,
+    woNumber:      wo.woNumber || '',
+    name:          wo.description || wo.woNumber || 'Work Order',
+    customer:      wo.customerName || '',
+    customerName:  wo.customerName || '',
+    address:       [wo.siteAddr, wo.siteCity, wo.siteState].filter(Boolean).join(', '),
+    siteAddr:      wo.siteAddr || '',
+    siteCity:      wo.siteCity || '',
+    siteState:     wo.siteState || '',
+    status:        wo.status || 'Open',
+    scheduledDate: wo.scheduledDate || wo.dateRequested || '',
+    assignedTechs: techs,
+    assignedTo:    techs[0] || '',
+    crew:          techs.map(function(n,i){ return {techName:n, role:i===0?'lead':'helper'}; }),
+    gpsAnchor:     wo.gpsAnchor || null,
+    priority:      wo.priority || 'Normal',
+    _isWO:         true
+  };
+}
+
+// Returns all active (non-closed) WOs as job-compatible objects
+function _getActiveWOsAsJobs() {
+  return (DB.workOrders||[])
+    .filter(function(w){ return !w.deleted && w.status!=='Billed' && w.status!=='Void' && w.status!=='Closed'; })
+    .map(_woToJob);
+}
+
+// Returns WOs assigned to a specific tech as job-compatible objects
+function _getMyWOsAsJobs(techName) {
+  var name = (techName||'').toLowerCase().trim();
+  return (DB.workOrders||[])
+    .filter(function(w){
+      if (w.deleted || w.status==='Billed' || w.status==='Void') return false;
+      return (w.assignedTechs||[]).some(function(t){
+        var n=(typeof t==='string'?t:(t.name||t.full_name||'')).toLowerCase().trim();
+        return n===name;
+      });
+    })
+    .map(_woToJob);
+}
+
+// Find a job-compatible object by ID — checks both DB.jobs and DB.workOrders
+function _findJobOrWO(id) {
+  if (!id) return null;
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===id; });
+  if (wo) return _woToJob(wo);
+  return (DB.jobs||[]).find(function(j){ return j.id===id; }) || null;
+}
+
 var WO_SERVICE_TYPES = [
   'Onsite Service','Remote Support','Installation','Counter Sales',
   'New Contract','TCSS Account Change','Building Maintenance','Vehicle Maintenance'

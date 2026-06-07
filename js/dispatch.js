@@ -123,7 +123,8 @@ function renderDispatchBoard() {
   if (lrEl) lrEl.textContent = 'Updated '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
 
   var team    = DB.team||[];
-  var allJobs = DB.jobs||[];
+  // WOs are jobs — use WOs as the source of truth for dispatch
+  var allJobs = typeof _getActiveWOsAsJobs==='function' ? _getActiveWOsAsJobs() : (DB.jobs||[]);
 
   var dayJobs = allJobs.filter(function(j){
     var jDate=j.scheduledDate||j.startDate||'';
@@ -409,7 +410,7 @@ function onDispatchDrop(e, techName) {
   e.preventDefault();e.currentTarget.classList.remove('drag-over');
   var jobId=_dispatchDragJob||e.dataTransfer.getData('text/plain');
   if (!jobId) return;
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   var rect=e.currentTarget.getBoundingClientRect();
   var xPct=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
   var dropMins=Math.round(xPct*DISPATCH_MINS_TOTAL/30)*30;
@@ -430,7 +431,7 @@ function onDispatchDrop(e, techName) {
 }
 
 function openDispatchDetail(jobId) {
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   var panel=document.getElementById('dispatch-detail-panel');
   var nameEl=document.getElementById('dsp-job-name');
   var bodyEl=document.getElementById('dsp-body');
@@ -538,7 +539,7 @@ function dspInfoTile(label,val){
 function openAddCrewPanel(jobId){var p=document.getElementById('add-crew-panel-'+jobId);if(p)p.style.display=p.style.display==='none'||!p.style.display?'block':'none';}
 
 function dispatchAddCrewMember(jobId){
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   var sel=document.getElementById('add-crew-select-'+jobId);
   var techName=sel?sel.value:''; if(!techName){showToast('Select a team member','error');return;}
   addCrewMember(job,techName,'helper');
@@ -547,7 +548,7 @@ function dispatchAddCrewMember(jobId){
 }
 
 function dispatchRemoveCrew(jobId,techName){
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   if(!confirm('Remove '+techName+' from this job?')) return;
   removeCrewMember(job,techName);
   saveDB();renderDispatchBoard();openDispatchDetail(jobId);
@@ -555,14 +556,14 @@ function dispatchRemoveCrew(jobId,techName){
 }
 
 function dispatchSetLead(jobId,techName){
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   setCrewLead(job,techName);
   saveDB();renderDispatchBoard();openDispatchDetail(jobId);
   showToast(escHtml(techName)+' is now Lead ♛','success');
 }
 
 function dispatchSetStatus(jobId,status){
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   job.status=status;saveDB();renderDispatchBoard();openDispatchDetail(jobId);
   showToast('Status → '+status,'info');
 }
@@ -570,7 +571,7 @@ function dispatchSetStatus(jobId,status){
 function closeDispatchDetail(){var p=document.getElementById('dispatch-detail-panel');if(p)p.style.display='none';}
 
 function rescheduleJobFromDetail(jobId){
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   var d=(document.getElementById('dsp-new-date')||{}).value||'';
   var t=(document.getElementById('dsp-new-time')||{}).value||'';
   var dur=parseFloat((document.getElementById('dsp-new-dur')||{}).value||job.estLaborHours||4);
@@ -607,7 +608,7 @@ function attachDispatchResizeObserver() {
 
 function openScheduleJobModal(jobId){
   var sel=document.getElementById('sj-job-select');
-  if(sel){sel.innerHTML='<option value="">— Select a job —</option>'+(DB.jobs||[]).filter(function(j){return j.status!=='Complete'&&j.status!=='Closed';}).map(function(j){return '<option value="'+j.id+'"'+(j.id===jobId?' selected':'')+'>'+escHtml((j.num||'')+' '+j.name)+'</option>';}).join('');if(jobId){sel.value=jobId;onScheduleJobSelect(jobId);}}
+  if(sel){sel.innerHTML='<option value="">— Select a job —</option>'+(typeof _getActiveWOsAsJobs==='function'?_getActiveWOsAsJobs():(DB.jobs||[])).filter(function(j){return j.status!=='Complete'&&j.status!=='Closed';}).map(function(j){return '<option value="'+j.id+'"'+(j.id===jobId?' selected':'')+'>'+(j.woNumber?escHtml(j.woNumber)+' — ':'')+escHtml(j.name)+'</option>';}).join('');if(jobId){sel.value=jobId;onScheduleJobSelect(jobId);}}
   var techSel=document.getElementById('sj-tech');
   if(techSel) techSel.innerHTML='<option value="">— Unassigned —</option>'+(DB.team||[]).map(function(m){return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';}).join('');
   var dateEl=document.getElementById('dispatch-date');
@@ -617,7 +618,7 @@ function openScheduleJobModal(jobId){
 }
 
 function onScheduleJobSelect(jobId){
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;});
+  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;}));
   var prev=document.getElementById('sj-job-preview');
   if(!prev) return;
   if(!job){prev.style.display='none';return;}
@@ -643,7 +644,7 @@ function saveScheduledJob(){
   var notes=(document.getElementById('sj-notes')||{}).value||'';
   if(!jobId){showToast('Please select a job','error');return;}
   if(!date){showToast('Please select a date','error');return;}
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;}); if(!job) return;
+  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   job.scheduledDate=date;job.scheduledTime=time;job.estLaborHours=dur;job.scheduledDuration=dur;
   if(notes) job.dispatchNotes=notes;
   if(!job.status||job.status==='') job.status='Scheduled';
@@ -686,7 +687,7 @@ function _onTouchStart(e) {
   _touchDragSrc = el.classList.contains('dispatch-pool-card') ? 'pool' : 'board';
   if (!_touchDragJobId) return;
 
-  var job = (DB.jobs||[]).find(function(j){return j.id===_touchDragJobId;});
+  var job = (typeof _findJobOrWO==="function"?_findJobOrWO(_touchDragJobId):(DB.jobs||[]).find(function(j){return j.id===_touchDragJobId;}));
   if (!job) return;
 
   e.preventDefault();
@@ -741,7 +742,7 @@ function _onTouchEnd(e) {
     var dateEl   = document.getElementById('dispatch-date');
     var boardDate= dateEl ? dateEl.value : getTodayISO();
 
-    var job = (DB.jobs||[]).find(function(j){return j.id===_touchDragJobId;});
+    var job = (typeof _findJobOrWO==="function"?_findJobOrWO(_touchDragJobId):(DB.jobs||[]).find(function(j){return j.id===_touchDragJobId;}));
     if (job && techName) {
       var already = isCrewMember(job, techName);
       if (!already) {
@@ -775,7 +776,7 @@ function _cleanTouchDrag() {
 // ── DISPATCH SMS ──
 // Called when assigning a tech — optionally sends them a text via Twilio Edge Function
 function dispatchSendSMS(techName, jobId) {
-  var job = (DB.jobs||[]).find(function(j){return j.id===jobId;});
+  var job = (typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;}));
   var tech = (DB.team||[]).find(function(m){return m.name===techName;});
   if (!job||!tech||!tech.phone) {
     showToast('No phone number on file for '+techName,'warning');

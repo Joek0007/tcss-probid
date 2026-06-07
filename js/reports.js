@@ -1060,7 +1060,7 @@ async function wtRenderTechDashboard() {
     return (p.status==='active'||p.status==='paused') && (typeof wtIsAssigned==='function'?wtIsAssigned(p.id):true);
   });
 
-  var myJobs = (DB.jobs||[]).filter(function(j){
+  var myJobs = ((typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]))).filter(function(j){
     return j.scheduledDate === today &&
       (j.assignedTechs||j.techs||[]).some(function(t){
         return (typeof t==='string'?t:t.name||'').toLowerCase() === myName.toLowerCase();
