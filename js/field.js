@@ -413,7 +413,7 @@ function updateClockUI(){
   if(!btnGrid) return;
 
   // Build next-job options for multi-job day
-  var otherJobs=DB.jobs.filter(function(j){return (j.status==='Scheduled'||j.status==='In Progress')&&j.id!==_clockState.jobId;});
+  var otherJobs=_getMyAssignedJobs().filter(function(j){return j.id!==_clockState.jobId;});
   var nextJobOpts=otherJobs.map(function(j){return '<option value="'+escHtml(j.id)+'">'+escHtml(j.name+(j.customer?' — '+j.customer:''))+'</option>';}).join('');
   var nextJobSel=otherJobs.length
     ? '<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Next Job</div>'+
@@ -462,11 +462,25 @@ function renderPunchLog(){
   }).join('');
 }
 
+
+function _getMyAssignedJobs() {
+  var myName = _currentUser ? _currentUser.full_name.toLowerCase().trim() : '';
+  return (DB.jobs||[]).filter(function(j){
+    if(j.status!=='Scheduled'&&j.status!=='In Progress') return false;
+    var techs = j.assignedTechs||j.techs||[];
+    if(!techs.length) return false;
+    return techs.some(function(t){
+      var n=(typeof t==='string'?t:(t.name||t.full_name||'')).toLowerCase().trim();
+      return n===myName;
+    });
+  });
+}
+
 function renderFieldPage(){
   var sel=document.getElementById('clock-job-select');
   if(sel){
     sel.innerHTML='<option value="">-- Choose your job --</option>';
-    var myJobs=DB.jobs.filter(function(j){return j.status==='Scheduled'||j.status==='In Progress';});
+    var myJobs=_getMyAssignedJobs();
     myJobs.forEach(function(j){var opt=document.createElement('option');opt.value=j.id;opt.textContent=j.name+(j.customer?' — '+j.customer:'');sel.appendChild(opt);});
     if(_clockState.jobId) sel.value=_clockState.jobId;
   }
@@ -486,17 +500,7 @@ function renderFieldPage(){
 
   var myJobsEl=document.getElementById('field-my-jobs');
   if(myJobsEl){
-    var _myTechName = _currentUser ? _currentUser.full_name : '';
-    var active=DB.jobs.filter(function(j){
-      if(j.status!=='Scheduled'&&j.status!=='In Progress') return false;
-      // Only show jobs assigned to this tech
-      var techs = j.assignedTechs||j.techs||[];
-      if(!techs.length) return false;
-      return techs.some(function(t){
-        var name = (typeof t==='string'?t:(t.name||t.full_name||'')).toLowerCase().trim();
-        return name === _myTechName.toLowerCase().trim();
-      });
-    });
+    var active=_getMyAssignedJobs();
     if(!active.length){myJobsEl.innerHTML='<div style="color:#90a4ae;font-size:13px">No active jobs assigned.</div>';}
     else{myJobsEl.innerHTML=active.map(function(j){var ha=!!j.gpsAnchor;return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5"><div><div style="font-weight:700;font-size:13px">'+escHtml(j.name||'')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(j.customer||'')+(j.address?' · '+escHtml(j.address):'')+' · '+(ha?'<span style="color:#2e7d32">📍 Anchor set</span>':'<span style="color:#90a4ae">No anchor yet</span>')+'</div></div><span class="status-badge '+(j.status==='In Progress'?'s-inprogress':'s-pending')+'" style="font-size:10px">'+escHtml(j.status)+'</span></div>';}).join('');}
   }
