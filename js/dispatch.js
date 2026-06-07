@@ -83,6 +83,34 @@ function setCrewLead(job, techName) {
   job.assignedTo = techName;
 }
 
+// Write job changes back to the WO in DB.workOrders
+function _saveJobToWO(job) {
+  if (!job || !job._isWO) return; // not a WO-backed job
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===job.id; });
+  if (!wo) return;
+  // Sync crew → assignedTechs
+  var crew = job.crew || [];
+  wo.assignedTechs = crew.map(function(c){ return c.techName; });
+  // Sync schedule
+  if (job.scheduledDate) wo.scheduledDate = job.scheduledDate;
+  if (job.scheduledTime) wo.scheduledTime = job.scheduledTime;
+  if (job.status) wo.status = job.status;
+  saveDB();
+  // Push to Supabase
+  if (typeof _sb !== 'undefined' && _sb) {
+    _sb.from('work_orders').update({
+      assigned_techs: wo.assignedTechs,
+      scheduled_date: wo.scheduledDate || null,
+    }).eq('id', wo.id).then(function(){});
+  }
+  // Send SMS to newly added techs
+  if (typeof sendAssignmentSMS === 'function') {
+    crew.forEach(function(c){
+      sendAssignmentSMS(c.techName, wo.woNumber||wo.description||'Work Order', wo.scheduledDate||null);
+    });
+  }
+}
+
 function initDispatchBoard() {
   var dateEl = document.getElementById('dispatch-date');
   if (dateEl && !dateEl.value) dateEl.value = getTodayISO();
@@ -439,6 +467,7 @@ function onDispatchDrop(e, techName) {
   }
   job.scheduledDate=boardDate;job.scheduledTime=dropTime;
   if(!job.status||job.status==='') job.status='Scheduled';
+  _saveJobToWO(job);
   saveDB();renderDispatchBoard();
   showToast(already?escHtml(job.name||'')+' rescheduled to '+dropTime:escHtml(techName)+' added to '+escHtml(job.name||'')+(getJobCrew(job).length>1?' (crew)':''),'success');
 }
@@ -564,6 +593,7 @@ function dispatchRemoveCrew(jobId,techName){
   var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   if(!confirm('Remove '+techName+' from this job?')) return;
   removeCrewMember(job,techName);
+  _saveJobToWO(job);
   saveDB();renderDispatchBoard();openDispatchDetail(jobId);
   showToast(escHtml(techName)+' removed','info');
 }
