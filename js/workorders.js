@@ -87,18 +87,16 @@ function renderWorkOrders() {
     return (b.createdAt||'').localeCompare(a.createdAt||'');
   });
 
-  // ---- PERMISSION FILTER — uses permissions matrix ----
+  // ---- ASSIGNMENT FILTER — role-based, owner always sees all ----
   var myName  = _currentUser ? _currentUser.full_name : '';
-  var assignedOnly = typeof hasPermission==='function' && hasPermission('wo.view_assigned_only');
+  var myRole  = _currentUser ? _currentUser.role : '';
+  // Only helper_tech sees assigned WOs only — all other roles see everything
+  var assignedOnly = myRole === 'helper_tech';
 
   if (assignedOnly && myName) {
-    var myProfile = (DB.team||[]).find(function(m){ return m.name===myName; });
-    var seeAllWOs = myProfile && myProfile.woViewMode === 'all';
-    if (!seeAllWOs) {
-      list = list.filter(function(w){
-        return _isTechAssignedToWO(myName, w);
-      });
-    }
+    list = list.filter(function(w){
+      return _isTechAssignedToWO(myName, w);
+    });
   }
 
   if (search) list = list.filter(function(w){
