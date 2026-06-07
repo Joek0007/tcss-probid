@@ -464,15 +464,19 @@ function renderPunchLog(){
 
 
 function _getMyAssignedJobs() {
-  var myName = _currentUser ? _currentUser.full_name.toLowerCase().trim() : '';
+  var myName = _currentUser ? _currentUser.full_name : '';
+  if (!myName) return [];
+  var nameLower = myName.toLowerCase().trim();
   return (DB.jobs||[]).filter(function(j){
     if(j.status!=='Scheduled'&&j.status!=='In Progress') return false;
-    var techs = j.assignedTechs||j.techs||[];
-    if(!techs.length) return false;
-    return techs.some(function(t){
-      var n=(typeof t==='string'?t:(t.name||t.full_name||'')).toLowerCase().trim();
-      return n===myName;
-    });
+    // Check crew[] array (dispatch-assigned jobs)
+    if (typeof isCrewMember === 'function' && isCrewMember(j, myName)) return true;
+    // Check assignedTechs[] array (WO-synced jobs use plain string array)
+    if (j.assignedTechs && j.assignedTechs.some(function(t){
+      return (typeof t==='string'?t:(t.name||'')).toLowerCase().trim()===nameLower;
+    })) return true;
+    // Check assignedTo directly
+    return (j.assignedTo||'').toLowerCase().trim()===nameLower;
   });
 }
 

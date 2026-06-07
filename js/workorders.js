@@ -1542,16 +1542,21 @@ function wtSyncWOTechsToCalendar(wo, newTechs) {
   }
 
   if (linkedJob) {
-    // Add techs to job's assigned list for calendar visibility
+    // Update existing linked job — add techs to both crew and assignedTechs
     if (!linkedJob.assignedTechs) linkedJob.assignedTechs = [];
+    if (!linkedJob.crew) linkedJob.crew = [];
     var changed = false;
     newTechs.forEach(function(name){
       if (linkedJob.assignedTechs.indexOf(name)<0) {
         linkedJob.assignedTechs.push(name);
         changed = true;
       }
+      var inCrew = linkedJob.crew.some(function(c){ return c.techName===name; });
+      if (!inCrew) {
+        linkedJob.crew.push({techName:name, role: linkedJob.crew.length===0?'lead':'helper', addedDate:getTodayISO()});
+        changed = true;
+      }
     });
-    // Set scheduled date from WO date if not already set
     if (!linkedJob.scheduledDate && (wo.dateRequested||wo.scheduledDate)) {
       linkedJob.scheduledDate = wo.dateRequested || wo.scheduledDate;
       changed = true;
@@ -1562,6 +1567,46 @@ function wtSyncWOTechsToCalendar(wo, newTechs) {
         assigned_techs: linkedJob.assignedTechs,
         scheduled_date: linkedJob.scheduledDate,
       }).eq('id', linkedJob.id).then(function(){});
+    }
+  } else {
+    // No linked job exists — create one from this WO automatically
+    var newJob = {
+      id: 'j_wo_' + wo.id,
+      name: wo.description || wo.woNumber || 'Work Order',
+      customer: wo.customerName || '',
+      address: [wo.siteAddr, wo.siteCity, wo.siteState].filter(Boolean).join(', '),
+      status: 'In Progress',
+      scheduledDate: wo.dateRequested || getTodayISO(),
+      assignedTechs: newTechs.slice(),
+      assignedTo: newTechs[0] || '',
+      crew: newTechs.map(function(name, i){ return {techName:name, role:i===0?'lead':'helper', addedDate:getTodayISO()}; }),
+      woId: wo.id,
+      woNumber: wo.woNumber || '',
+      createdAt: getTodayISO(),
+      gpsAnchor: null
+    };
+    if (!DB.jobs) DB.jobs = [];
+    // Only add if not already there
+    if (!DB.jobs.find(function(j){ return j.id===newJob.id; })) {
+      DB.jobs.push(newJob);
+      saveDB();
+      // Sync to Supabase
+      if (_sb) {
+        _sb.from('jobs').upsert({
+          id: newJob.id,
+          name: newJob.name,
+          customer: newJob.customer,
+          address: newJob.address,
+          status: newJob.status,
+          scheduled_date: newJob.scheduledDate,
+          assigned_techs: newJob.assignedTechs,
+          wo_id: newJob.woId,
+          wo_number: newJob.woNumber,
+        }).then(function(){});
+      }
+      // Link WO back to job
+      wo.jobId = newJob.id;
+      saveDB();
     }
   }
 
