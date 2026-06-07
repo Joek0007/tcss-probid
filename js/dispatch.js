@@ -154,28 +154,35 @@ function renderDispatchBoard() {
   // WOs are jobs — use WOs as the source of truth for dispatch
   var allJobs = typeof _getActiveWOsAsJobs==='function' ? _getActiveWOsAsJobs() : (DB.jobs||[]);
 
-  // Show all active WOs on dispatch board
-  // WOs are ongoing work — don't require a specific scheduledDate to appear
-  var activeStatuses = ['Open','New','In Progress','OPEN','NEW','Scheduled',
-    'Open -- Action Needed','Open -- Waiting on Customer','Open -- Parts Needed',
-    'Open -- Parts Ordered','Ready for Review','Ready for Pricing','Urgent','urgent'];
+  // ── Three buckets ────────────────────────────────────────────────────────
+  // 1. dayJobs     — WOs scheduled for boardDate (appear in the timeline)
+  // 2. activeWOs   — ongoing WOs assigned to techs but no specific date
+  //                  (appear in each tech's Active Work sidebar)
+  // 3. unassigned  — WOs with no tech assigned (appear in pool on right)
+
+  function _isActive(j) {
+    return j.status!=='Complete'&&j.status!=='Closed'&&j.status!=='Billed'&&j.status!=='Void';
+  }
+  function _hasTech(j) {
+    return (j.crew&&j.crew.length>0) || (j.assignedTechs&&j.assignedTechs.length>0);
+  }
 
   var dayJobs = allJobs.filter(function(j){
-    if (j.status==='Complete'||j.status==='Closed'||j.status==='Billed'||j.status==='Void') return false;
-    // If WO has a scheduled date, only show on that date (and future dates)
-    var jDate = j.scheduledDate||j.startDate||'';
-    if (jDate && jDate > boardDate) return false; // not yet scheduled
-    return true;
+    if (!_isActive(j)) return false;
+    var jDate = j.scheduledDate||'';
+    return jDate === boardDate; // ONLY WOs specifically scheduled for today
+  });
+
+  var activeWOs = allJobs.filter(function(j){
+    if (!_isActive(j)) return false;
+    if (!_hasTech(j)) return false;
+    var jDate = j.scheduledDate||'';
+    return jDate !== boardDate; // Ongoing — not scheduled for a specific day
   });
 
   var unassigned = allJobs.filter(function(j){
-    if (j.status==='Complete'||j.status==='Closed'||j.status==='Billed'||j.status==='Void') return false;
-    var jDate = j.scheduledDate||j.startDate||'';
-    if (jDate && jDate > boardDate) return false;
-    // Unassigned = no crew and no assigned techs
-    var hasCrew = j.crew && j.crew.length > 0;
-    var hasTechs = j.assignedTechs && j.assignedTechs.length > 0;
-    return !hasCrew && !hasTechs;
+    if (!_isActive(j)) return false;
+    return !_hasTech(j); // No tech assigned at all
   });
 
   if (_dispatchStatusFilter) {
@@ -356,6 +363,27 @@ function renderDispatchTechRows(team, dayJobs, boardDate, isToday) {
         'ondrop="onDispatchDrop(event,\''+escHtml(name)+'\')">'+
         travelHtml+blocksHtml+segHtml+
       '</div>'+
+      // Active WOs sidebar for this tech (ongoing work, no specific date)
+      (function(){
+        var myActive = activeWOs.filter(function(j){
+          return isCrewMember(j, name) ||
+            (j.assignedTechs||[]).some(function(t){
+              return (typeof t==='string'?t:(t.name||'')).toLowerCase()===name.toLowerCase();
+            });
+        });
+        if (!myActive.length) return '';
+        return '<div class="dispatch-active-sidebar">'+
+          '<div style="font-size:9px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;padding:4px 6px;border-bottom:1px solid #e0e0e0">Active Work</div>'+
+          myActive.map(function(j){
+            return '<div class="dispatch-active-card" onclick="openDispatchDetail(\''+j.id+'\')" style="padding:5px 6px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:11px">'+
+              '<div style="font-weight:700;color:#0d1b2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(j.woNumber?j.woNumber+' — ':'')+escHtml(j.name||'')+'</div>'+
+              '<div style="color:#546e7a">'+escHtml(j.customer||j.customerName||'')+'</div>'+
+              '<div style="margin-top:2px"><span style="font-size:10px;padding:1px 5px;border-radius:6px;background:#e3f2fd;color:#1565c0">'+escHtml(j.status||'')+'</span>'+
+              ' <button onclick="event.stopPropagation();scheduleWO(\''+j.id+'\')" style="font-size:10px;padding:1px 6px;border:1px solid #1565c0;border-radius:4px;background:#fff;color:#1565c0;cursor:pointer;margin-left:4px">Schedule</button></div>'+
+            '</div>';
+          }).join('')+
+        '</div>';
+      })()+
     '</div>';
   }).join('');
 
@@ -612,6 +640,19 @@ function dispatchSetStatus(jobId,status){
 }
 
 function closeDispatchDetail(){var p=document.getElementById('dispatch-detail-panel');if(p)p.style.display='none';}
+
+function scheduleWO(woId) {
+  // Schedule an active WO to today's date at 8:00 AM
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (!wo) return;
+  var dateEl = document.getElementById('dispatch-date');
+  var boardDate = dateEl ? dateEl.value : getTodayISO();
+  wo.scheduledDate = boardDate;
+  wo.scheduledTime = wo.scheduledTime || '08:00';
+  saveDB();
+  renderDispatchBoard();
+  showToast('Scheduled for '+boardDate, 'success', 2000);
+}
 
 function rescheduleJobFromDetail(jobId){
   var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
