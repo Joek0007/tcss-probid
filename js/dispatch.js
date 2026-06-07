@@ -126,15 +126,28 @@ function renderDispatchBoard() {
   // WOs are jobs — use WOs as the source of truth for dispatch
   var allJobs = typeof _getActiveWOsAsJobs==='function' ? _getActiveWOsAsJobs() : (DB.jobs||[]);
 
+  // Show all active WOs on dispatch board
+  // WOs are ongoing work — don't require a specific scheduledDate to appear
+  var activeStatuses = ['Open','New','In Progress','OPEN','NEW','Scheduled',
+    'Open -- Action Needed','Open -- Waiting on Customer','Open -- Parts Needed',
+    'Open -- Parts Ordered','Ready for Review','Ready for Pricing','Urgent','urgent'];
+
   var dayJobs = allJobs.filter(function(j){
-    var jDate=j.scheduledDate||j.startDate||'';
-    return jDate===boardDate && j.status!=='Complete' && j.status!=='Closed';
+    if (j.status==='Complete'||j.status==='Closed'||j.status==='Billed'||j.status==='Void') return false;
+    // If WO has a scheduled date, only show on that date (and future dates)
+    var jDate = j.scheduledDate||j.startDate||'';
+    if (jDate && jDate > boardDate) return false; // not yet scheduled
+    return true;
   });
 
   var unassigned = allJobs.filter(function(j){
-    var jDate=j.scheduledDate||j.startDate||'';
-    return (!jDate||jDate===boardDate) && !getJobCrew(j).length &&
-           j.status!=='Complete' && j.status!=='Closed';
+    if (j.status==='Complete'||j.status==='Closed'||j.status==='Billed'||j.status==='Void') return false;
+    var jDate = j.scheduledDate||j.startDate||'';
+    if (jDate && jDate > boardDate) return false;
+    // Unassigned = no crew and no assigned techs
+    var hasCrew = j.crew && j.crew.length > 0;
+    var hasTechs = j.assignedTechs && j.assignedTechs.length > 0;
+    return !hasCrew && !hasTechs;
   });
 
   if (_dispatchStatusFilter) {
