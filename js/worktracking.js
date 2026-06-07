@@ -3445,7 +3445,7 @@ function wtShowWizard() {
 
 // ─── STEP 1: BASICS ───────────────────────────────────────────────────────────
 function wtWizStep1() {
-  var jobOpts=(DB.jobs||[]).map(function(j){
+  var jobOpts=(typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[])).map(function(j){
     return '<option value="'+j.id+'"'+(j.id===_wiz.proj.jobId?' selected':'')+'>'+
       escHtml(j.name||'')+(j.customerName?' — '+escHtml(j.customerName):'')+'</option>';
   }).join('');
@@ -3453,7 +3453,7 @@ function wtWizStep1() {
     '<div style="margin-bottom:14px"><label class="wiz-label">PROJECT NAME *</label>'+
       '<input id="wiz-name" class="form-control" placeholder="e.g. Smith Properties Phase 2" value="'+escHtml(_wiz.proj.name||'')+'"></div>'+
     '<div style="margin-bottom:14px"><label class="wiz-label">LINK TO JOB <span style="font-weight:400;text-transform:none">(optional — connects tracking to your quote)</span></label>'+
-      '<select id="wiz-job" class="form-control" onchange="var j=(DB.jobs||[]).find(function(x){return x.id===this.value});if(j&&j.customerName)document.getElementById(\'wiz-cust\').value=j.customerName||\'\'">'+
+      '<select id="wiz-job" class="form-control" onchange="var j=typeof _findJobOrWO==="function"?_findJobOrWO(this.value):(DB.jobs||[]).find(function(x){return x.id===this.value});if(j&&j.customerName)document.getElementById(\'wiz-cust\').value=j.customerName||\'\'">'+
         '<option value="">— None —</option>'+jobOpts+'</select></div>'+
     '<div style="margin-bottom:20px"><label class="wiz-label">CUSTOMER NAME</label>'+
       '<input id="wiz-cust" class="form-control" placeholder="Customer / Property name" value="'+escHtml(_wiz.proj.customerName||'')+'"></div>'+
@@ -7051,7 +7051,7 @@ function setDifficulty(n) {
 }
 
 function openCloseout(jobId) {
-  var job = DB.jobs.find(function(j){ return j.id==jobId; });
+  var job = (typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id==jobId;}));
   if (!job) return;
 
   document.getElementById('co-job-id').value = jobId;
@@ -7107,7 +7107,7 @@ function updateCloseoutVariance() {
 
 function saveCloseout() {
   var jobId  = document.getElementById('co-job-id').value;
-  var job    = DB.jobs.find(function(j){ return j.id==jobId; });
+  var job    = (typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id==jobId;}));
   if (!job) return;
 
   var actHrs = parseFloat(document.getElementById('co-act-hrs').value)||0;
@@ -7981,7 +7981,7 @@ document.addEventListener('input', function(e) {
   // V6: actual hours input on job card
   if (e.target.classList.contains('actual-hrs-input')) {
     const jid = e.target.getAttribute('data-jobid');
-    const job = DB.jobs.find(function(j){ return j.id == jid; });
+    const job = typeof _findJobOrWO==="function"?_findJobOrWO(jid):(DB.jobs||[]).find(function(j){return j.id==jid;});
     if (job) { job.actualLaborHours = parseFloat(e.target.value)||0; saveDB(); renderJobs(); }
     return;
   }
@@ -8034,7 +8034,7 @@ document.addEventListener('change', function(e) {
   // V6: job status change from job card
   if (e.target.classList.contains('job-status-select')) {
     const jid = e.target.getAttribute('data-jobid');
-    const job = DB.jobs.find(function(j){ return j.id == jid; });
+    const job = typeof _findJobOrWO==="function"?_findJobOrWO(jid):(DB.jobs||[]).find(function(j){return j.id==jid;});
     if (job) { job.status = e.target.value; saveDB(); renderJobs(); renderDash(); }
   }
   // V6: job filter
@@ -8093,15 +8093,16 @@ function renderJobs() {
   var filter = (document.getElementById('job-filter-status')||{}).value||'';
   var sort   = (document.getElementById('job-sort')||{}).value||'date-desc';
 
-  var list = DB.jobs.slice();
+  var list = typeof _getActiveWOsAsJobs==="function" ? _getActiveWOsAsJobs() : (DB.jobs||[]).slice();
 
   // Summary strip
   function setS(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
-  setS('js-total',     DB.jobs.length);
-  setS('js-scheduled', DB.jobs.filter(function(j){ return j.status==='Scheduled'; }).length);
-  setS('js-active',    DB.jobs.filter(function(j){ return j.status==='In Progress'; }).length);
-  setS('js-onhold',    DB.jobs.filter(function(j){ return j.status==='On Hold'; }).length);
-  var totalVal = DB.jobs.reduce(function(s,j){ return s+(j.estTotal||0); },0);
+  var _allJobs = typeof _getActiveWOsAsJobs==="function" ? _getActiveWOsAsJobs() : (DB.jobs||[]);
+  setS('js-total',     _allJobs.length);
+  setS('js-scheduled', _allJobs.filter(function(j){ return j.status==='Scheduled'; }).length);
+  setS('js-active',    _allJobs.filter(function(j){ return j.status==='In Progress'; }).length);
+  setS('js-onhold',    _allJobs.filter(function(j){ return j.status==='On Hold'; }).length);
+  var totalVal = _allJobs.reduce(function(s,j){ return s+(j.estTotal||0); },0);
   setS('js-value',    '$'+Math.round(totalVal).toLocaleString());
   setS('js-invoiced', (DB.invoices||[]).length);
 
@@ -8228,7 +8229,7 @@ function renderJobs() {
       '<div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">'+
         '<button class="btn btn-outline btn-sm" onclick="openDispatchDetail(\''+j.id+'\')" title="Dispatch Board">🗂</button>'+
         (wtProj?'<button class="btn btn-outline btn-sm" onclick="loadWTProject(\''+wtProj.id+'\');goPage(\'worktracking\')" title="Work Tracking">✅</button>':'')+
-        '<button class="btn btn-sm" onclick="var _j=(DB.jobs||[]).find(function(x){return x.id===\''+j.id+'\'});if(_j)openInvoiceModal(_j);" style="background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;font-weight:700" title="Generate Invoice">🧾 Invoice</button>'+
+        '<button class="btn btn-sm" onclick="var _j=typeof _findJobOrWO==="function"?_findJobOrWO(\''+j.id+'\'):(DB.jobs||[]).find(function(x){return x.id===\''+j.id+'\'});;if(_j)openInvoiceModal(_j);" style="background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;font-weight:700" title="Generate Invoice">🧾 Invoice</button>'+
         '<button class="btn btn-outline btn-sm" data-action="editJob" data-id="'+j.id+'" title="Edit">✏</button>'+
         '<button class="btn btn-danger btn-sm" data-action="delJob" data-id="'+j.id+'" title="Delete">✕</button>'+
         (j.status==='Complete'||j.status==='Closed'?
@@ -8263,7 +8264,7 @@ function buildAlerts() {
     }
   });
 
-  DB.jobs.forEach(function(j) {
+  _allJobs.forEach(function(j) {
     // Jobs in progress with no actual hours logged
     if (j.status === 'In Progress' && (!j.actualLaborHours || j.actualLaborHours === 0)) {
       alerts.push({ type: 'blue', msg: '🔧 Job in progress, no hours logged: ' + escHtml(j.name||''), action: 'editJob', id: j.id });

@@ -247,7 +247,7 @@ function openPO(id) {
 
   // Source chain
   var chain=[];
-  if(po.jobId){var j=(DB.jobs||[]).find(function(x){return x.id===po.jobId;});if(j)chain.push('Job '+escHtml(j.num||''));}
+  if(po.jobId){var j=(typeof _findJobOrWO==="function"?_findJobOrWO(po.jobId):(DB.jobs||[]).find(function(x){return x.id===po.jobId;}));if(j)chain.push('Job '+escHtml(j.num||''));}
   if(po.woId){var w=(DB.workOrders||[]).find(function(x){return x.id===po.woId;});if(w)chain.push('WO '+escHtml(w.woNumber||''));}
   var chainEl=document.getElementById('po-source-chain');
   if(chainEl) chainEl.innerHTML=chain.length?'📎 Linked: '+chain.join(' → '):'';
@@ -271,7 +271,7 @@ function _populatePOJobSelect(selectedJobId) {
   var sel=document.getElementById('po-job');
   if(!sel) return;
   sel.innerHTML='<option value="">— Not job specific —</option>'+
-    (DB.jobs||[]).filter(function(j){return j.status!=='Closed';}).map(function(j){
+    (typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[])).map(function(j){
       return '<option value="'+escHtml(j.id)+'"'+(j.id===selectedJobId?' selected':'')+'>'+
         escHtml(j.num||'')+' — '+escHtml(j.name||'')+' ('+escHtml(j.customer||'')+')</option>';
     }).join('');
@@ -287,7 +287,7 @@ function onPOVendorChange(vendorId) {
 
 function onPOJobChange(jobId) {
   var jIdEl=document.getElementById('po-job-id-hidden');if(jIdEl)jIdEl.value=jobId||'';
-  var job=(DB.jobs||[]).find(function(j){return j.id===jobId;});
+  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;}));
   if(!job) return;
   // Auto-fill ship-to with job site address
   function sv(id,val){var el=document.getElementById(id);if(el&&!el.value)el.value=val||'';}
@@ -434,7 +434,7 @@ function savePO() {
   if(isNew) DB.poSeq++;
   var subtotal=_poItems.reduce(function(s,li){return s+(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));},0);
   var jobId=gv('po-job-id-hidden');
-  var job=jobId?(DB.jobs||[]).find(function(j){return j.id===jobId;}):null;
+  var job=jobId?(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})):null;
 
   var po={
     id:          id,

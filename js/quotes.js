@@ -1548,14 +1548,14 @@ function reprintInvoice(invId) {
   if (chainEl2) {
     var chain2 = [];
     if (inv.quoteId) { var q2=(DB.quotes||[]).find(function(q){return q.id===inv.quoteId;}); if(q2) chain2.push('Quote '+escHtml(q2.num||'')); }
-    if (inv.jobId)   { var j2=(DB.jobs||[]).find(function(j){return j.id===inv.jobId;}); if(j2) chain2.push('Job '+escHtml(j2.num||'')); }
+    if (inv.jobId)   { var j2=(typeof _findJobOrWO==="function"?_findJobOrWO(inv.jobId):(DB.jobs||[]).find(function(j){return j.id===inv.jobId;})); if(j2) chain2.push('Job '+escHtml(j2.num||'')); }
     if (inv.woId)    { var w2=(DB.workOrders||[]).find(function(w){return w.id===inv.woId;}); if(w2) chain2.push('WO '+escHtml(w2.woNumber||'')); }
     chainEl2.innerHTML = chain2.length ? '📎 Source: '+chain2.join(' → ') : '';
   }
   // Resolve customer name — cascade through multiple sources
   var invCust = null;
   if (inv.jobId) {
-    var invJob2 = (DB.jobs||[]).find(function(j){ return j.id===inv.jobId; });
+    var invJob2 = (typeof _findJobOrWO==="function"?_findJobOrWO(inv.jobId):(DB.jobs||[]).find(function(j){return j.id===inv.jobId;}));
     if (invJob2 && invJob2.customerId) invCust = (DB.customers||[]).find(function(c){ return c.id===invJob2.customerId; });
     if (!invCust && invJob2 && invJob2.customer) invCust = { name:invJob2.customer, address:invJob2.address||'' };
   }
@@ -1588,7 +1588,7 @@ function printInvoiceDirect(invId) {
 
 function previewInvoice() {
   var jobId = (document.getElementById('inv-job-id')||{}).value||'';
-  var job = (DB.jobs||[]).find(function(j){ return j.id===jobId; }) || {};
+  var job = (typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;}))||{};
   var invData = buildInvoiceData(job);
   var html = buildInvoiceHTML(invData);
   var win = window.open('','_blank','width=900,height=700');
@@ -1597,7 +1597,7 @@ function previewInvoice() {
 
 function saveAndPrintInvoice() {
   var jobId = (document.getElementById('inv-job-id')||{}).value||'';
-  var job   = (DB.jobs||[]).find(function(j){ return j.id===jobId; }) || {};
+  var job   = (typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;}))||{};
   var invData = buildInvoiceData(job);
 
   if (!DB.invoices) DB.invoices = [];
@@ -1628,7 +1628,7 @@ function markInvoicePaid(invId) {
   inv.status = 'paid';
   inv.paidDate = getTodayISO();
   // Update linked job status
-  var job = (DB.jobs||[]).find(function(j){ return j.id===inv.jobId; });
+  var job = (typeof _findJobOrWO==="function"?_findJobOrWO(inv.jobId):(DB.jobs||[]).find(function(j){return j.id===inv.jobId;}));
   if (job) { job.status='Closed'; job.invoicePaid=true; }
   saveDB();
   renderInvoicesPage();
@@ -2133,7 +2133,7 @@ function renderCustomers() {
   // Build enriched customer list
   var customers = DB.customers.map(function(c){
     var qct    = DB.quotes.filter(function(q){ return q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase(); });
-    var jct    = DB.jobs.filter(function(j){ return (j.customerId===c.id||(j.customer||'').toLowerCase()===(c.name||'').toLowerCase())&&(j.status==='Scheduled'||j.status==='In Progress'); });
+    var jct    = (typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[])).filter(function(j){ return (j.customerId===c.id||(j.customer||j.customerName||'').toLowerCase()===(c.name||'').toLowerCase()); });
     var cct    = DB.contacts.filter(function(x){ return x.customerId===c.id; });
     var wonRev = qct.filter(function(q){ return q.status==='approved'; }).reduce(function(s,q){ return s+(q.total||0); }, 0);
     return Object.assign({}, c, {_qct:qct.length, _jct:jct.length, _cct:cct.length, _wonRev:wonRev});
@@ -3841,7 +3841,7 @@ function renderReports() {
 
   // ---- JOB PERFORMANCE TAB ----
   if (tab === 'jobs') {
-    const jobs   = DB.jobs;
+    const jobs   = typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]);
     const today  = getTodayISO();
     const total  = jobs.length;
     const done   = jobs.filter(function(j){ return j.status==='Complete'||j.status==='Closed'; }).length;
@@ -3929,7 +3929,7 @@ function renderReports() {
       techMap[r.origTech].reworks++;
     });
     // Fall back to job assignments if no time tracking data
-    DB.jobs.forEach(function(j){
+    jobs.forEach(function(j){
       if (!j.assignedTo) return;
       const name = j.assignedTo.trim();
       if (!techMap[name]) techMap[name]={regMins:0,otMins:0,jobs:new Set(),checkoffs:0,reworks:0};
@@ -3937,7 +3937,7 @@ function renderReports() {
     });
 
     const techEntries = Object.keys(techMap);
-    const totalDone = DB.jobs.filter(function(j){ return j.status==='Complete'||j.status==='Closed'; }).length;
+    const totalDone = jobs.filter(function(j){ return j.status==='Complete'||j.status==='Closed'; }).length;
     const avgHrsJ   = techEntries.length>0 ? (Object.values(techMap).reduce(function(s,t){ return s+(t.regMins+t.otMins)/60; },0)/Math.max(1,techEntries.length)).toFixed(1) : 0;
     setT('kt-jobs-done', totalDone); setT('kt-avg-hrs', avgHrsJ);
 
@@ -4456,7 +4456,7 @@ function checkoutItem(id) {
   if (toList) toList.innerHTML = DB.team.map(function(t){ return '<option value="'+escHtml(t.name)+'">'; }).join('');
   // Populate job datalist
   const jobList = document.getElementById('co-job-list');
-  if (jobList) jobList.innerHTML = DB.jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; }).map(function(j){ return '<option value="'+escHtml(j.name)+'">'; }).join('');
+  if (jobList) jobList.innerHTML = (typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[])).filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; }).map(function(j){ return '<option value="'+escHtml(j.name)+'">'; }).join('');
 
   openModal('modal-checkout');
 }

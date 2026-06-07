@@ -941,7 +941,7 @@ function onTeTypeChange() {
       availableWOs.map(function(w){
         return '<option value="'+escHtml(w.id)+'">'+escHtml(w.woNumber)+' — '+escHtml(w.customerName||'')+'</option>';
       }).join('') +
-      (DB.jobs||[])
+      (typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]))
         .filter(function(j){ return j.status!=='Closed'; })
         .map(function(j){ return '<option value="job:'+escHtml(j.id)+'">'+escHtml(j.num)+' — '+escHtml(j.name||'')+'</option>'; }).join('');
     if (currentVal) woSel.value = currentVal;

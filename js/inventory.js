@@ -103,7 +103,7 @@ function _populateScannerJobSelect() {
     (DB.workOrders||[]).filter(function(w){ return w.status!=='Billed'&&w.status!=='Void'; }).map(function(w){
       return '<option value="wo:'+escHtml(w.id)+'">'+escHtml(w.woNumber)+' — '+escHtml(w.customerName||'')+'</option>';
     }).join('') +
-    (DB.jobs||[]).filter(function(j){ return j.status!=='Closed'; }).map(function(j){
+    (typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[])).map(function(j){
       return '<option value="job:'+escHtml(j.id)+'">'+escHtml(j.num)+' — '+escHtml(j.name||'')+'</option>';
     }).join('');
 }
@@ -188,7 +188,7 @@ function processScan(item) {
     if (!DB.checkoutLog) DB.checkoutLog = [];
     var isWO   = jobVal.startsWith('wo:');
     var refId  = jobVal.replace(/^(wo|job):/,'');
-    var refObj = isWO ? (DB.workOrders||[]).find(function(w){return w.id===refId;}) : (DB.jobs||[]).find(function(j){return j.id===refId;});
+    var refObj = isWO ? (DB.workOrders||[]).find(function(w){return w.id===refId;}) : (typeof _findJobOrWO==="function"?_findJobOrWO(refId):(DB.jobs||[]).find(function(j){return j.id===refId;}));
     var entry  = {
       id:           'co-'+Date.now(),
       itemId:       item.id,
@@ -349,7 +349,7 @@ function renderReceivingModal(po) {
   var hasWO = !!(po.woId || po.jobId);
   var woLabel = '';
   if (po.woId) { var wo=(DB.workOrders||[]).find(function(w){return w.id===po.woId;}); if(wo) woLabel=wo.woNumber||''; }
-  else if (po.jobId) { var j=(DB.jobs||[]).find(function(x){return x.id===po.jobId;}); if(j) woLabel=j.num||''; }
+  else if (po.jobId) { var j=(typeof _findJobOrWO==="function"?_findJobOrWO(po.jobId):(DB.jobs||[]).find(function(x){return x.id===po.jobId;})); if(j) woLabel=j.num||''; }
 
   var rows = _receivingLines.map(function(rl,i){
     return '<tr>'+
@@ -438,7 +438,7 @@ function confirmReceiving() {
 
     // Add to WO
     if (rl.toWO > 0 && (po.woId || po.jobId)) {
-      var woId = po.woId || (po.jobId && (DB.jobs||[]).find(function(j){return j.id===po.jobId;})||{}).woId;
+      var woId = po.woId || (po.jobId && (typeof _findJobOrWO==="function"?_findJobOrWO(po.jobId):(DB.jobs||[]).find(function(j){return j.id===po.jobId;}))||{}).woId;
       if (woId) {
         if (!DB.woParts) DB.woParts = [];
         DB.woParts.push({

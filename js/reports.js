@@ -1214,7 +1214,7 @@ function renderDash() {
 
   // ── Stats strip ────────────────────────────────────────────────────────────
   var quotes    = DB.quotes || [];
-  var jobs      = DB.jobs   || [];
+  var jobs      = typeof _getActiveWOsAsJobs==="function" ? _getActiveWOsAsJobs() : (DB.jobs||[]);
   var workDays  = DB.workDays || [];
   var tools     = DB.tools  || [];
   var workOrders = DB.workOrders || [];

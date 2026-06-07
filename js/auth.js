@@ -1250,7 +1250,8 @@ async function pushAllToCloud() {
     }
 
     // Push jobs
-    for (var jb of (DB.jobs || [])) {
+    var _activeJobsForStats = typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]);
+  for (var jb of _activeJobsForStats) {
       if (!jb || !jb.name) continue;
       try {
         var jbId = ensureUUID(jb);

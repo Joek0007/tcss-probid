@@ -21,7 +21,7 @@ function openCustomerProfile(customerId) {
 
   // Stats
   var quotes   = DB.quotes.filter(function(q){ return (q.cn||'').toLowerCase()===(customer.name||'').toLowerCase(); });
-  var jobs     = DB.jobs.filter(function(j){ return (j.customer||'').toLowerCase()===(customer.name||'').toLowerCase(); });
+  var jobs     = (typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[])).filter(function(j){ return (j.customer||j.customerName||'').toLowerCase()===(customer.name||'').toLowerCase(); });
   var contacts = DB.contacts.filter(function(x){ return x.customerId===customerId; });
   var wonRev   = quotes.filter(function(q){ return q.status==='approved'; }).reduce(function(s,q){ return s+(q.total||0); }, 0);
 
@@ -63,7 +63,7 @@ function switchCPTab(tab) {
   if (!customer) return;
 
   var quotes   = DB.quotes.filter(function(q){ return q.customerId===_cpCustomerId || (q.cn||'').toLowerCase()===(customer.name||'').toLowerCase(); });
-  var jobs     = DB.jobs.filter(function(j){ return j.customerId===_cpCustomerId || (j.customer||'').toLowerCase()===(customer.name||'').toLowerCase(); });
+  var jobs     = (typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[])).filter(function(j){ return j.customerId===_cpCustomerId || (j.customer||j.customerName||'').toLowerCase()===(customer.name||'').toLowerCase(); });
   var contacts = DB.contacts.filter(function(x){ return x.customerId===_cpCustomerId; });
   var projects = (DB.wtProjects||[]).filter(function(p){ return p.customerId===_cpCustomerId || (p.customer||'').toLowerCase()===(customer.name||'').toLowerCase(); });
 
