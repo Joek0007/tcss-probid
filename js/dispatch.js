@@ -469,6 +469,7 @@ function onDispatchDrop(e, techName) {
   var dropHour=DISPATCH_START_HOUR+Math.floor(dropMins/60);
   var dropMin=dropMins%60;
   var dropTime=String(dropHour).padStart(2,'0')+':'+String(dropMin).padStart(2,'0');
+  console.log('[Drop] tech:',techName,'clientX:',e.clientX,'rect.left:',Math.round(rect.left),'rect.width:',Math.round(rect.width),'xPct:',xPct.toFixed(3),'dropTime:',dropTime);
   var dateEl=document.getElementById('dispatch-date');
   var boardDate=dateEl?dateEl.value:getTodayISO();
   var already=isCrewMember(job,techName);
