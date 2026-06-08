@@ -300,7 +300,7 @@ function renderDispatchPool(jobs, needsTech) {
       +'style="border-left-color:'+color.bg+'" '
       +'ondragstart="(function(e){onDispatchDragStart(e,e.currentTarget.dataset.jobId,\'pool\');}).call(null,event)" '
       +'ondragend="onDispatchDragEnd(event)" '
-      +'onclick="openDispatchDetail(this.dataset.jobId)">'
+      +'ondragover="dispatchPoolCardDragOver(event)" ondragleave="dispatchPoolCardDragLeave(event)" ondrop="dispatchPoolCardDrop(event,this.dataset.jobId)" onclick="openDispatchDetail(this.dataset.jobId)">'
       +'<div style="font-size:11px;font-weight:700;color:'+color.bg+'">'+escHtml(j.woNumber||'')+'</div>'
       +'<div class="dispatch-pool-card-name">'+escHtml((j.name||'').substring(0,35))+'</div>'
       +'<div class="dispatch-pool-card-sub">'+escHtml(j.customer||j.customerName||'')+'</div>'
@@ -501,8 +501,7 @@ function buildJobBlock(job, crewEntry, techName) {
     'ondragend="onDispatchDragEnd(event)" onclick="openDispatchDetail(\''+job.id+'\')" '+
     '>'+
     multiDayBadge+
-    '<div class="dispatch-job-block-wo-num">'+(job.woNumber?escHtml(job.woNumber):'')+'</div>'+
-    '<div class="dispatch-job-block-name">'+escHtml((job.name||'').substring(0,30))+'</div>'+
+    '<div class="dispatch-job-block-name">'+(job.woNumber?'<span class="dispatch-job-block-wo-num">'+escHtml(job.woNumber)+'</span> ':'')+escHtml((job.name||'').substring(0,28))+'</div>'+
     '<div class="dispatch-job-block-sub">'+escHtml(job.customer||job.customerName||'')+(job.scheduledTime?' · '+job.scheduledTime:'')+'</div>'+
     '<div class="dispatch-job-block-badges">'+roleBadge+crewBadge+'</div>'+
     pctBar+
@@ -731,6 +730,7 @@ function dispatchRemoveCrew(jobId,techName){
 function dispatchSetLead(jobId,techName){
   var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   setCrewLead(job,techName);
+  _saveJobToWO(job);
   saveDB();renderDispatchBoard();openDispatchDetail(jobId);
   showToast(escHtml(techName)+' is now Lead ♛','success');
 }

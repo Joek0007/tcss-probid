@@ -584,7 +584,7 @@ body.dark-mode .cust-summary-val{color:#e0e0e0!important}
 #page-dispatch .dispatch-pool-subtitle{font-size:10px;color:#90a4ae;padding:4px 12px 6px;background:#fff;border-bottom:1px solid #e0e0e0}
 .dispatch-pool-section-header{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px 4px;color:#546e7a;border-top:1px solid #e0e0e0;margin-top:4px}
 .dispatch-needs-tech-header{color:#c62828;background:#fff5f5}
-.dispatch-job-block-wo-num{font-size:9px;font-weight:800;opacity:.85;letter-spacing:.3px;margin-bottom:1px;text-transform:uppercase}
+.dispatch-job-block-wo-num{font-size:9px;font-weight:800;opacity:.9;letter-spacing:.3px;text-transform:uppercase;margin-right:3px}
 .dispatch-snap-guide{position:absolute;top:0;bottom:0;width:2px;background:#1565c0;pointer-events:none;z-index:50;box-shadow:0 0 4px rgba(21,101,192,.6)}
 .dispatch-snap-guide::after{content:attr(data-time);position:absolute;top:2px;left:4px;background:#1565c0;color:#fff;font-size:10px;font-weight:700;padding:2px 5px;border-radius:3px;white-space:nowrap}
 .dispatch-tech-label[draggable=true]{cursor:grab}
@@ -4757,10 +4757,10 @@ table{font-size:12.5px}
           <div style="margin-bottom:12px;background:#f0f4f8;border-radius:8px;padding:10px 12px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
               <label style="font-size:12px;font-weight:700;color:#1565c0">👷 Team</label>
-              <button onclick="openTeamModal()" class="btn btn-primary btn-sm">+ Team</button>
+              <button onclick="openTeamModal()" class="btn btn-primary btn-sm">👷 Assign Techs</button>
             </div>
             <div id="wo-assigned-techs">
-              <span style="font-size:12px;color:#90a4ae">No techs assigned — click + Team</span>
+              <span style="font-size:12px;color:#90a4ae;cursor:pointer" onclick="openTeamModal()">No techs assigned — tap to assign</span>
             </div>
           </div>
           <div style="margin-bottom:12px">

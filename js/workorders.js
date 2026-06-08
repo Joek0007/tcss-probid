@@ -1453,7 +1453,11 @@ function renderAssignedTechs(woId) {
     teEntries.filter(function(e){return e.techName===name&&e.entryType!=='lunch';}).forEach(function(e){hrs+=parseFloat(e.totalHours)||0;});
     grandHrs += hrs;
     return '<tr style="background:'+(i%2===0?'#e8edf4':'#f5f7fa')+';border-bottom:1px solid #d0d9e8">' +
-      '<td style="padding:5px 8px;font-size:12px;font-weight:700;color:#1a2840">'+escHtml(name)+'</td>' +
+      '<td style="padding:5px 8px;font-size:12px;font-weight:700;color:#1a2840">' +
+        escHtml(name) +
+        '<button onclick="woRemoveTech(\''+escHtml(name)+'\')" title="Remove" '+
+          'style="margin-left:8px;background:none;border:none;color:#c62828;cursor:pointer;font-size:11px;padding:0 2px">✕</button>' +
+      '</td>' +
       '<td style="padding:5px 8px;font-size:12px;font-weight:700;text-align:right;color:'+(hrs>0?'#0d47a1':'#78909c')+'">'+hrs.toFixed(1)+' hrs</td>' +
     '</tr>';
   }).join('');
@@ -1465,6 +1469,19 @@ function renderAssignedTechs(woId) {
       '<td style="padding:5px 8px;font-size:12px;font-weight:700;text-align:right;color:#1a237e">'+grandHrs.toFixed(1)+' hrs</td>' +
     '</tr>' +
   '</table>';
+}
+
+function woRemoveTech(techName) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===_woCurrentId; });
+  if (!wo) return;
+  wo.assignedTechs = (wo.assignedTechs||[]).filter(function(t){
+    return (typeof t==='string'?t:(t.name||'')).toLowerCase() !== techName.toLowerCase();
+  });
+  saveDB();
+  renderWOTechs(_woCurrentId);
+  wtSyncWOTechsToCalendar(wo, []);
+  if (typeof renderWorkOrders==='function') renderWorkOrders();
+  showToast(techName+' removed from WO','info',2000);
 }
 
 function openTeamModal() {
