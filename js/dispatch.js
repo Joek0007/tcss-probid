@@ -201,9 +201,10 @@ function renderDispatchBoard() {
       (unassigned.length?pill(unassigned.length,'Unassigned','#ffebee','#c62828'):'');
   }
 
+  console.log('[Dispatch] renderDispatchBoard — team:', team.length, 'allJobs:', allJobs.length, 'dayJobs:', dayJobs.length, 'unassigned:', unassigned.length);
   renderDispatchPool(unassigned);
   renderDispatchRuler();
-  renderDispatchTechRows(team, dayJobs, boardDate, isToday);
+  renderDispatchTechRows(team, dayJobs, activeWOs, boardDate, isToday);
   renderStatusBar(allJobs, boardDate);
   if (isToday) setTimeout(updateNowLine,100);
 }
@@ -260,9 +261,10 @@ function renderDispatchRuler() {
   ruler.innerHTML=html;
 }
 
-function renderDispatchTechRows(team, dayJobs, boardDate, isToday) {
+function renderDispatchTechRows(team, dayJobs, activeWOs, boardDate, isToday) {
   var container = document.getElementById('dispatch-tech-rows');
-  if (!container) return;
+  console.log('[Dispatch] renderDispatchTechRows called — team:', team.length, 'dayJobs:', dayJobs.length, 'activeWOs:', (activeWOs||[]).length, 'container:', !!container);
+  if (!container) { console.error('[Dispatch] dispatch-tech-rows container NOT FOUND'); return; }
   if (!team.length) { container.innerHTML='<div style="padding:60px;text-align:center;color:#90a4ae">No team members. Add your crew in Team.</div>'; return; }
 
   var clockMap={};
