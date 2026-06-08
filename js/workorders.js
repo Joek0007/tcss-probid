@@ -54,6 +54,8 @@ function _woToJob(wo) {
     siteState:     wo.siteState || '',
     status:        wo.status || 'Open',
     scheduledDate: wo.scheduledDate || wo.dateRequested || '',
+    scheduledTime: wo.scheduledTime || '',
+    estLaborHours: wo.estLaborHours || wo.scheduledDuration || 4,
     assignedTechs: techs,
     assignedTo:    techs[0] || '',
     crew:          techs.map(function(n,i){ return {techName:n, role:i===0?'lead':'helper'}; }),
