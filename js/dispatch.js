@@ -112,6 +112,19 @@ function _saveJobToWO(job) {
   }
 }
 
+
+// Helpers for active work strip
+function dispatchActiveStripDragStart(e) {
+  var card = e.currentTarget;
+  var jobId = card.getAttribute('data-job-id');
+  if (jobId) onDispatchDragStart(e, jobId, 'active');
+}
+function dispatchScheduleFromStrip(e) {
+  e.stopPropagation();
+  var card = e.currentTarget.closest('.dispatch-active-wo-card');
+  if (card) scheduleWO(card.getAttribute('data-job-id'));
+}
+
 function initDispatchBoard() {
   var dateEl = document.getElementById('dispatch-date');
   if (dateEl && !dateEl.value) dateEl.value = getTodayISO();
@@ -369,30 +382,38 @@ function renderDispatchTechRows(team, dayJobs, activeWOs, boardDate, isToday) {
 
     // Active Work strip — WOs assigned to this tech but not yet scheduled for a specific day
       (function(){
+        var nameLow = name.toLowerCase().trim();
         var myUnscheduled = activeWOs.filter(function(j){
-          return isCrewMember(j, name) ||
-            (j.assignedTechs||[]).some(function(t){
-              return (typeof t==='string'?t:(t.name||'')).toLowerCase()===name.toLowerCase();
-            });
+          // Check assignedTechs array (string or object)
+          var inTechs = (j.assignedTechs||[]).some(function(t){
+            return (typeof t==='string'?t:(t.name||t.full_name||'')).toLowerCase().trim()===nameLow;
+          });
+          if (inTechs) return true;
+          // Check crew array
+          var inCrew = (j.crew||[]).some(function(c){
+            return (c.techName||'').toLowerCase().trim()===nameLow;
+          });
+          return inCrew;
         });
         if (!myUnscheduled.length) return '';
-        return '<div class="dispatch-active-strip" data-tech="'+escHtml(name)+'">'+
-          '<div class="dispatch-active-strip-label">📋 Active Work — drag to schedule:</div>'+
-          myUnscheduled.map(function(j){
-            var color = getJobColor(j.id);
-            return '<div class="dispatch-active-wo-card" draggable="true" data-job-id="'+j.id+'" '+
-              'style="border-left-color:'+color.bg+'" '+
-              'ondragstart="(function(e){onDispatchDragStart(e,e.currentTarget.dataset.jobId,\'active\');}).call(null,event)" '+
-              'ondragend="onDispatchDragEnd(event)" '+
-              'ondblclick="scheduleWO(this.dataset.jobId)" '+
-              '<span class="dispatch-active-wo-num">'+(j.woNumber||'WO')+'</span>'+
-              '<span class="dispatch-active-wo-name">'+escHtml(j.name||'')+'</span>'+
-              '<span class="dispatch-active-wo-customer">'+escHtml(j.customer||j.customerName||'')+'</span>'+
-              'ondblclick="scheduleWO(this.dataset.jobId)" '+
-                'class="dispatch-schedule-btn" title="Pin to today at 8 AM">📅 Today</button>'+
-            '</div>';
-          }).join('')+
-        '</div>';
+        var cards = myUnscheduled.map(function(j){
+          var c = getJobColor(j.id);
+          var num  = escHtml(j.woNumber||'WO');
+          var nm   = escHtml((j.name||'').substring(0,40));
+          var cust = escHtml((j.customer||j.customerName||'').substring(0,25));
+          return '<div class="dispatch-active-wo-card" draggable="true" data-job-id="'+j.id+'"'
+            +' style="border-left-color:'+c.bg+'"'
+            +' ondragstart="dispatchActiveStripDragStart(event)"'
+            +' ondragend="onDispatchDragEnd(event)">'
+            +'<span class="dispatch-active-wo-num">'+num+'</span>'
+            +'<span class="dispatch-active-wo-name">'+nm+'</span>'
+            +'<span class="dispatch-active-wo-customer">'+cust+'</span>'
+            +'<button class="dispatch-schedule-btn" onclick="dispatchScheduleFromStrip(event)">Today</button>'
+            +'</div>';
+        }).join('');
+        return '<div class="dispatch-active-strip">'
+          +'<div class="dispatch-active-strip-label">Active Work — drag or click Today to schedule:</div>'
+          +cards+'</div>';
       })()+
     '</div>';
   }).join('');
