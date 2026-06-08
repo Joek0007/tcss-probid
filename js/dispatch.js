@@ -367,6 +367,33 @@ function renderDispatchTechRows(team, dayJobs, activeWOs, boardDate, isToday) {
         travelHtml+blocksHtml+segHtml+
       '</div>'+
 
+    // Active Work strip — WOs assigned to this tech but not yet scheduled for a specific day
+      (function(){
+        var myUnscheduled = activeWOs.filter(function(j){
+          return isCrewMember(j, name) ||
+            (j.assignedTechs||[]).some(function(t){
+              return (typeof t==='string'?t:(t.name||'')).toLowerCase()===name.toLowerCase();
+            });
+        });
+        if (!myUnscheduled.length) return '';
+        return '<div class="dispatch-active-strip" data-tech="'+escHtml(name)+'">'+
+          '<div class="dispatch-active-strip-label">📋 Active Work — drag to schedule:</div>'+
+          myUnscheduled.map(function(j){
+            var color = getJobColor(j.id);
+            return '<div class="dispatch-active-wo-card" draggable="true" data-job-id="'+j.id+'" '+
+              'style="border-left-color:'+color.bg+'" '+
+              'ondragstart="(function(e){onDispatchDragStart(e,e.currentTarget.dataset.jobId,\'active\');}).call(null,event)" '+
+              'ondragend="onDispatchDragEnd(event)" '+
+              'ondblclick="scheduleWO(this.dataset.jobId)" '+
+              '<span class="dispatch-active-wo-num">'+(j.woNumber||'WO')+'</span>'+
+              '<span class="dispatch-active-wo-name">'+escHtml(j.name||'')+'</span>'+
+              '<span class="dispatch-active-wo-customer">'+escHtml(j.customer||j.customerName||'')+'</span>'+
+              'ondblclick="scheduleWO(this.dataset.jobId)" '+
+                'class="dispatch-schedule-btn" title="Pin to today at 8 AM">📅 Today</button>'+
+            '</div>';
+          }).join('')+
+        '</div>';
+      })()+
     '</div>';
   }).join('');
 

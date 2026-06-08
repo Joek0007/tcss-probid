@@ -656,8 +656,16 @@ body.dark-mode .dispatch-status-pill.active{background:#1565c0!important;color:#
 .dispatch-capacity-fill{height:100%;border-radius:2px;transition:width .4s}
 .dispatch-multiday-badge{position:absolute;top:4px;right:5px;background:rgba(0,0,0,.25);border-radius:3px;padding:0 3px;font-size:8px;font-weight:700;letter-spacing:.3px}
 .dispatch-needs-sched .dispatch-pool-card-name{color:#e65100}
-.dispatch-active-sidebar{min-width:160px;max-width:180px;border-left:2px solid #e0e7ef;background:#fafbff;overflow-y:auto;max-height:100%}
-.dispatch-active-card:hover{background:#f0f4ff}
+.dispatch-active-strip{border-top:1px dashed #e0e7ef;background:#f8fbff;padding:6px 12px 6px 210px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-height:36px}
+.dispatch-active-strip-label{font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px;margin-right:4px;flex-shrink:0}
+.dispatch-active-wo-card{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e0e7ef;border-left:3px solid #1565c0;border-radius:6px;padding:4px 8px;cursor:grab;font-size:11px;transition:all .15s}
+.dispatch-active-wo-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.12);transform:translateY(-1px)}
+.dispatch-active-wo-card.dragging{opacity:.4;cursor:grabbing}
+.dispatch-active-wo-num{font-weight:700;color:#1565c0}
+.dispatch-active-wo-name{color:#0d1b2a;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dispatch-active-wo-customer{color:#90a4ae;font-size:10px}
+.dispatch-schedule-btn{font-size:10px;padding:2px 6px;border:1px solid #1565c0;border-radius:4px;background:#e3f2fd;color:#1565c0;cursor:pointer;flex-shrink:0}
+.dispatch-schedule-btn:hover{background:#1565c0;color:#fff}
 .dispatch-sms-btn{width:28px;height:28px;border-radius:6px;border:1px solid #e0e0e0;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;transition:all .12s;flex-shrink:0}
 .dispatch-sms-btn:hover{background:#e8f5e9;border-color:#a5d6a7}
 body.dark-mode .dispatch-capacity-bar{background:#333!important}
