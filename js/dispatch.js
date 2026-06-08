@@ -113,6 +113,64 @@ function _saveJobToWO(job) {
 }
 
 
+// ── Tech → WO Pool Card assignment ───────────────────────────────────────────
+function dispatchTechDragStart(e, techName) {
+  _dispatchDragTech = techName;
+  e.dataTransfer.setData('text/plain', 'TECH:' + techName);
+  e.dataTransfer.effectAllowed = 'copy';
+  e.currentTarget.classList.add('dragging');
+}
+function dispatchTechDragEnd(e) {
+  _dispatchDragTech = null;
+  e.currentTarget.classList.remove('dragging');
+}
+function dispatchPoolCardDragOver(e) {
+  // Only accept if a tech is being dragged
+  if (!_dispatchDragTech) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  e.currentTarget.classList.add('drag-over');
+}
+function dispatchPoolCardDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function dispatchPoolCardDrop(e, woId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  var techName = _dispatchDragTech;
+  if (!techName || !woId) return;
+  _dispatchDragTech = null;
+
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (!wo) return;
+
+  // Add tech to WO if not already assigned
+  if (!wo.assignedTechs) wo.assignedTechs = [];
+  var already = wo.assignedTechs.some(function(t){
+    return (typeof t==='string'?t:(t.name||'')).toLowerCase()===techName.toLowerCase();
+  });
+  if (already) { showToast(techName+' is already assigned', 'info', 2000); return; }
+
+  wo.assignedTechs.push(techName);
+  saveDB();
+
+  // Sync to Supabase
+  if (typeof _sb !== 'undefined' && _sb) {
+    _sb.from('work_orders').update({ assigned_techs: wo.assignedTechs })
+      .eq('id', wo.id).then(function(r){
+        if (r && r.error) console.warn('[Dispatch] assign error:', r.error.message);
+      });
+  }
+
+  // Send SMS
+  if (typeof sendAssignmentSMS === 'function') {
+    sendAssignmentSMS(techName, wo.woNumber||wo.description||'Work Order', wo.scheduledDate||null);
+  }
+
+  showToast(techName + ' assigned to ' + (wo.woNumber||'WO'), 'success', 3000);
+  renderDispatchBoard();
+}
+
 // Helpers for active work strip
 function dispatchActiveStripDragStart(e) {
   var card = e.currentTarget;
@@ -168,36 +226,37 @@ function renderDispatchBoard() {
   // WOs are jobs — use WOs as the source of truth for dispatch
   var allJobs = typeof _getActiveWOsAsJobs==='function' ? _getActiveWOsAsJobs() : (DB.jobs||[]);
 
-  // ── Three buckets ────────────────────────────────────────────────────────
-  // 1. dayJobs     — WOs scheduled for boardDate (appear in the timeline)
-  // 2. activeWOs   — ongoing WOs assigned to techs but no specific date
-  //                  (appear in each tech's Active Work sidebar)
-  // 3. unassigned  — WOs with no tech assigned (appear in pool on right)
+  // ── Three display buckets ─────────────────────────────────────────────────
+  // 1. dayJobs    — scheduled for boardDate + time + at least 1 tech → timeline
+  // 2. needsTech  — scheduled for boardDate but no tech assigned → holding panel
+  // 3. pool       — no scheduled date yet (backlog) OR unscheduled
 
   function _isActive(j) {
     return j.status!=='Complete'&&j.status!=='Closed'&&j.status!=='Billed'&&j.status!=='Void';
   }
   function _hasTech(j) {
-    return (j.crew&&j.crew.length>0) || (j.assignedTechs&&j.assignedTechs.length>0);
+    return (j.assignedTechs&&j.assignedTechs.length>0)||(j.crew&&j.crew.length>0);
   }
 
   var dayJobs = allJobs.filter(function(j){
     if (!_isActive(j)) return false;
-    var jDate = j.scheduledDate||'';
-    return jDate === boardDate; // ONLY WOs specifically scheduled for today
+    return (j.scheduledDate||'')=== boardDate && _hasTech(j);
   });
 
-  var activeWOs = allJobs.filter(function(j){
+  // Scheduled for this date but no tech yet — needs someone assigned
+  var needsTech = allJobs.filter(function(j){
     if (!_isActive(j)) return false;
-    if (!_hasTech(j)) return false;
-    var jDate = j.scheduledDate||'';
-    return jDate !== boardDate; // Ongoing — not scheduled for a specific day
+    return (j.scheduledDate||'')=== boardDate && !_hasTech(j);
   });
 
+  // Unscheduled backlog — no date set or not scheduled for this date
   var unassigned = allJobs.filter(function(j){
     if (!_isActive(j)) return false;
-    return !_hasTech(j); // No tech assigned at all
+    var jDate = j.scheduledDate||'';
+    return !jDate || jDate !== boardDate;
   });
+
+  var activeWOs = []; // No longer used — removed Active Work strip
 
   if (_dispatchStatusFilter) {
     dayJobs = dayJobs.filter(function(j){
@@ -216,7 +275,7 @@ function renderDispatchBoard() {
   }
 
   console.log('[Dispatch] renderDispatchBoard — team:', team.length, 'allJobs:', allJobs.length, 'dayJobs:', dayJobs.length, 'unassigned:', unassigned.length);
-  renderDispatchPool(unassigned);
+  renderDispatchPool(unassigned, needsTech);
   renderDispatchRuler();
   renderDispatchTechRows(team, dayJobs, activeWOs, boardDate, isToday);
   renderStatusBar(allJobs, boardDate);
@@ -227,38 +286,52 @@ function pill(count,label,bg,color) {
   return '<span style="background:'+bg+';color:'+color+';border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;margin-right:4px">'+count+' '+label+'</span>';
 }
 
-function renderDispatchPool(jobs) {
+function renderDispatchPool(jobs, needsTech) {
+  needsTech = needsTech || [];
   var countEl = document.getElementById('dispatch-unassigned-count');
-  if (countEl) countEl.textContent = jobs.length;
+  if (countEl) countEl.textContent = (jobs.length + needsTech.length) || '';
   var pool = document.getElementById('dispatch-pool-jobs');
   if (!pool) return;
-  if (!jobs.length) {
-    pool.innerHTML='<div style="text-align:center;padding:24px 12px;color:#90a4ae;font-size:12px"><div style="font-size:28px;margin-bottom:6px">✓</div>All jobs assigned</div>';
-    return;
+
+  function makeCard(j, urgent) {
+    var color = getJobColor(j.id);
+    var dur   = j.estLaborHours||j.scheduledDuration||4;
+    return '<div class="dispatch-pool-card'+(urgent?' dispatch-needs-sched':'')+'" draggable="true" data-job-id="'+j.id+'" '
+      +'style="border-left-color:'+color.bg+'" '
+      +'ondragstart="(function(e){onDispatchDragStart(e,e.currentTarget.dataset.jobId,\'pool\');}).call(null,event)" '
+      +'ondragend="onDispatchDragEnd(event)" '
+      +'onclick="openDispatchDetail(this.dataset.jobId)">'
+      +'<div style="font-size:11px;font-weight:700;color:'+color.bg+'">'+escHtml(j.woNumber||'')+'</div>'
+      +'<div class="dispatch-pool-card-name">'+escHtml((j.name||'').substring(0,35))+'</div>'
+      +'<div class="dispatch-pool-card-sub">'+escHtml(j.customer||j.customerName||'')+'</div>'
+      +(j.address?'<div class="dispatch-pool-card-sub">📍 '+escHtml(j.address.split(',')[0])+'</div>':'')
+      +(j.scheduledDate?'<div style="font-size:10px;color:#1565c0;margin-top:3px">📅 '+j.scheduledDate+(j.scheduledTime?' '+j.scheduledTime:'')+'</div>':'')
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:5px">'
+        +'<span style="font-size:10px;font-weight:700;color:'+color.bg+'">⏱ '+dur+'h</span>'
+        +(urgent?'<span style="font-size:10px;font-weight:700;color:#c62828">Needs tech</span>':'')
+      +'</div>'
+      +'</div>';
   }
-  pool.innerHTML = jobs.map(function(j){
-    var dur=j.estLaborHours||j.scheduledDuration||4;
-    var color=getJobColor(j.id);
-    // Needs scheduling = has crew but no date set
-    var crew=getJobCrew(j);
-    var hasCrew=crew.length>0;
-    var hasDate=!!(j.scheduledDate||j.startDate);
-    var needsSched=hasCrew&&!hasDate;
-    var cardClass='dispatch-pool-card'+(needsSched?' dispatch-needs-sched':'');
-    return '<div class="'+cardClass+'" draggable="true" data-job-id="'+j.id+'" '+
-      'style="border-left-color:'+color.bg+'" '+
-      'ondragstart="onDispatchDragStart(event,\''+j.id+'\',\'pool\')" '+
-      'ondragend="onDispatchDragEnd(event)" onclick="openDispatchDetail(\''+j.id+'\')">'+
-      '<div class="dispatch-pool-card-name">'+escHtml(j.name||'')+'</div>'+
-      '<div class="dispatch-pool-card-sub">'+escHtml(j.customer||'')+'</div>'+
-      (j.address?'<div class="dispatch-pool-card-sub">📍 '+escHtml(j.address.split(',')[0])+'</div>':'')+
-      (needsSched?'<div style="font-size:9px;color:#e65100;font-weight:700;margin-top:3px">⚠ Has crew — set a date</div>':'')+
-      (hasCrew&&hasDate?'<div style="font-size:9px;color:#2e7d32;font-weight:700;margin-top:3px">'+crew.length+' crew · '+j.scheduledDate+'</div>':'')+
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:5px">'+
-        '<span style="font-size:10px;font-weight:700;color:'+color.bg+'">⏱ '+dur+'h</span>'+
-        '<span style="font-size:10px;color:#90a4ae">'+(j.estTotal?'$'+Math.round(j.estTotal).toLocaleString():'')+'</span>'+
-      '</div></div>';
-  }).join('');
+
+  var html = '';
+
+  // Section 1: Scheduled but no tech — highest priority
+  if (needsTech.length) {
+    html += '<div class="dispatch-pool-section-header dispatch-needs-tech-header">⚠ Scheduled — Needs a Tech ('+needsTech.length+')</div>';
+    html += needsTech.map(function(j){ return makeCard(j, true); }).join('');
+  }
+
+  // Section 2: Unscheduled backlog
+  if (jobs.length) {
+    html += '<div class="dispatch-pool-section-header">📋 Unscheduled ('+jobs.length+')</div>';
+    html += jobs.map(function(j){ return makeCard(j, false); }).join('');
+  }
+
+  if (!needsTech.length && !jobs.length) {
+    html = '<div style="text-align:center;padding:24px 12px;color:#90a4ae;font-size:12px"><div style="font-size:28px;margin-bottom:6px">✓</div>All jobs assigned</div>';
+  }
+
+  pool.innerHTML = html;
 }
 
 function renderDispatchRuler() {
@@ -344,7 +417,9 @@ function renderDispatchTechRows(team, dayJobs, activeWOs, boardDate, isToday) {
     }
 
     return '<div class="dispatch-tech-row" id="drow-'+escHtml(name.replace(/\W/g,'-'))+'">'+
-      '<div class="dispatch-tech-label">'+
+      '<div class="dispatch-tech-label" draggable="true" '+
+        'ondragstart="dispatchTechDragStart(event,\''+escHtml(name)+'\')" '+
+        'ondragend="dispatchTechDragEnd(event)">'+
         '<div class="dispatch-tech-avatar" style="background:'+avatarBg+';color:#fff;border-color:rgba(0,0,0,.1)">'+
           (absent?'<span style="font-size:16px">🚫</span>':escHtml(initials))+
         '</div>'+
@@ -380,41 +455,6 @@ function renderDispatchTechRows(team, dayJobs, activeWOs, boardDate, isToday) {
         travelHtml+blocksHtml+segHtml+
       '</div>'+
 
-    // Active Work strip — WOs assigned to this tech but not yet scheduled for a specific day
-      (function(){
-        var nameLow = name.toLowerCase().trim();
-        var myUnscheduled = activeWOs.filter(function(j){
-          // Check assignedTechs array (string or object)
-          var inTechs = (j.assignedTechs||[]).some(function(t){
-            return (typeof t==='string'?t:(t.name||t.full_name||'')).toLowerCase().trim()===nameLow;
-          });
-          if (inTechs) return true;
-          // Check crew array
-          var inCrew = (j.crew||[]).some(function(c){
-            return (c.techName||'').toLowerCase().trim()===nameLow;
-          });
-          return inCrew;
-        });
-        if (!myUnscheduled.length) return '';
-        var cards = myUnscheduled.map(function(j){
-          var c = getJobColor(j.id);
-          var num  = escHtml(j.woNumber||'WO');
-          var nm   = escHtml((j.name||'').substring(0,40));
-          var cust = escHtml((j.customer||j.customerName||'').substring(0,25));
-          return '<div class="dispatch-active-wo-card" draggable="true" data-job-id="'+j.id+'"'
-            +' style="border-left-color:'+c.bg+'"'
-            +' ondragstart="dispatchActiveStripDragStart(event)"'
-            +' ondragend="onDispatchDragEnd(event)">'
-            +'<span class="dispatch-active-wo-num">'+num+'</span>'
-            +'<span class="dispatch-active-wo-name">'+nm+'</span>'
-            +'<span class="dispatch-active-wo-customer">'+cust+'</span>'
-            +'<button class="dispatch-schedule-btn" onclick="dispatchScheduleFromStrip(event)">Today</button>'
-            +'</div>';
-        }).join('');
-        return '<div class="dispatch-active-strip">'
-          +'<div class="dispatch-active-strip-label">Active Work — drag or click Today to schedule:</div>'
-          +cards+'</div>';
-      })()+
     '</div>';
   }).join('');
 
