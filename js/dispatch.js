@@ -100,8 +100,9 @@ function _saveJobToWO(job) {
   if (typeof _sb !== 'undefined' && _sb) {
     _sb.from('work_orders').update({
       assigned_techs: wo.assignedTechs,
-      scheduled_date: wo.scheduledDate || null,
-    }).eq('id', wo.id).then(function(){});
+    }).eq('id', wo.id).then(function(r){
+      if (r && r.error) console.warn('[Dispatch] WO update error:', r.error.message);
+    });
   }
   // Send SMS to newly added techs
   if (typeof sendAssignmentSMS === 'function') {
@@ -365,27 +366,7 @@ function renderDispatchTechRows(team, dayJobs, activeWOs, boardDate, isToday) {
         'ondrop="onDispatchDrop(event,\''+escHtml(name)+'\')">'+
         travelHtml+blocksHtml+segHtml+
       '</div>'+
-      // Active WOs sidebar for this tech (ongoing work, no specific date)
-      (function(){
-        var myActive = activeWOs.filter(function(j){
-          return isCrewMember(j, name) ||
-            (j.assignedTechs||[]).some(function(t){
-              return (typeof t==='string'?t:(t.name||'')).toLowerCase()===name.toLowerCase();
-            });
-        });
-        if (!myActive.length) return '';
-        return '<div class="dispatch-active-sidebar">'+
-          '<div style="font-size:9px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;padding:4px 6px;border-bottom:1px solid #e0e0e0">Active Work</div>'+
-          myActive.map(function(j){
-            return '<div class="dispatch-active-card" onclick="openDispatchDetail(\''+j.id+'\')" style="padding:5px 6px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:11px">'+
-              '<div style="font-weight:700;color:#0d1b2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(j.woNumber?j.woNumber+' — ':'')+escHtml(j.name||'')+'</div>'+
-              '<div style="color:#546e7a">'+escHtml(j.customer||j.customerName||'')+'</div>'+
-              '<div style="margin-top:2px"><span style="font-size:10px;padding:1px 5px;border-radius:6px;background:#e3f2fd;color:#1565c0">'+escHtml(j.status||'')+'</span>'+
-              ' <button onclick="event.stopPropagation();scheduleWO(\''+j.id+'\')" style="font-size:10px;padding:1px 6px;border:1px solid #1565c0;border-radius:4px;background:#fff;color:#1565c0;cursor:pointer;margin-left:4px">Schedule</button></div>'+
-            '</div>';
-          }).join('')+
-        '</div>';
-      })()+
+
     '</div>';
   }).join('');
 
