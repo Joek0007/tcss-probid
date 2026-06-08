@@ -501,8 +501,9 @@ function buildJobBlock(job, crewEntry, techName) {
     'ondragend="onDispatchDragEnd(event)" onclick="openDispatchDetail(\''+job.id+'\')" '+
     '>'+
     multiDayBadge+
-    '<div class="dispatch-job-block-name">'+escHtml(job.name||'')+'</div>'+
-    '<div class="dispatch-job-block-sub">'+escHtml(job.customer||'')+(job.scheduledTime?' · '+job.scheduledTime:'')+'</div>'+
+    '<div class="dispatch-job-block-wo-num">'+(job.woNumber?escHtml(job.woNumber):'')+'</div>'+
+    '<div class="dispatch-job-block-name">'+escHtml((job.name||'').substring(0,30))+'</div>'+
+    '<div class="dispatch-job-block-sub">'+escHtml(job.customer||job.customerName||'')+(job.scheduledTime?' · '+job.scheduledTime:'')+'</div>'+
     '<div class="dispatch-job-block-badges">'+roleBadge+crewBadge+'</div>'+
     pctBar+
   '</div>';
@@ -543,17 +544,46 @@ function onDispatchDragEnd(e){
   document.querySelectorAll('.dispatch-job-block,.dispatch-pool-card').forEach(function(el){el.style.opacity='1';el.classList.remove('dragging');});
   document.querySelectorAll('.dispatch-tech-timeline').forEach(function(el){el.classList.remove('drag-over');});
 }
-function onDispatchDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';e.currentTarget.classList.add('drag-over');}
-function onDispatchDragLeave(e){e.currentTarget.classList.remove('drag-over');}
+function onDispatchDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  e.currentTarget.classList.add('drag-over');
+  // Show snap guide line
+  var rect=e.currentTarget.getBoundingClientRect();
+  var xPct=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+  var snapMins=Math.round(xPct*DISPATCH_MINS_TOTAL/15)*15;
+  var snapPct=(snapMins/DISPATCH_MINS_TOTAL)*100;
+  var guide=e.currentTarget.querySelector('.dispatch-snap-guide');
+  if (!guide) {
+    guide=document.createElement('div');
+    guide.className='dispatch-snap-guide';
+    e.currentTarget.appendChild(guide);
+  }
+  guide.style.left=snapPct+'%';
+  // Show time label
+  var h=DISPATCH_START_HOUR+Math.floor(snapMins/60);
+  var m=snapMins%60;
+  var ampm=h>=12?'PM':'AM';
+  var h12=h>12?h-12:(h===0?12:h);
+  guide.setAttribute('data-time',h12+':'+(m===0?'00':m)+' '+ampm);
+}
+function onDispatchDragLeave(e){
+  e.currentTarget.classList.remove('drag-over');
+  var guide=e.currentTarget.querySelector('.dispatch-snap-guide');
+  if(guide) guide.remove();
+}
 
 function onDispatchDrop(e, techName) {
-  e.preventDefault();e.currentTarget.classList.remove('drag-over');
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  var guide=e.currentTarget.querySelector('.dispatch-snap-guide');
+  if(guide) guide.remove();
   var jobId=_dispatchDragJob||e.dataTransfer.getData('text/plain');
   if (!jobId) return;
   var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
   var rect=e.currentTarget.getBoundingClientRect();
   var xPct=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
-  var dropMins=Math.round(xPct*DISPATCH_MINS_TOTAL/30)*30;
+  var dropMins=Math.round(xPct*DISPATCH_MINS_TOTAL/15)*15; // Snap to 15-min increments
   var dropHour=DISPATCH_START_HOUR+Math.floor(dropMins/60);
   var dropMin=dropMins%60;
   var dropTime=String(dropHour).padStart(2,'0')+':'+String(dropMin).padStart(2,'0');
