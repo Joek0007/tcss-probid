@@ -283,8 +283,6 @@ function renderDispatchBoard() {
   }
 
   console.log('[Dispatch] renderDispatchBoard — team:', team.length, 'allJobs:', allJobs.length, 'dayJobs:', dayJobs.length, 'needsTech:', needsTech.length, 'unassigned:', unassigned.length);
-  needsTech.forEach(function(j){ console.log('[Dispatch] needsTech WO:', j.woNumber, 'date:', j.scheduledDate, 'techs:', (j.assignedTechs||[]).length); });
-  unassigned.forEach(function(j){ console.log('[Dispatch] unassigned WO:', j.woNumber, 'date:', j.scheduledDate, 'techs:', (j.assignedTechs||[]).length); });
   renderDispatchPool(unassigned, needsTech);
   renderDispatchRuler();
   renderDispatchTechRows(team, dayJobs, activeWOs, boardDate, isToday);
