@@ -252,17 +252,16 @@ function renderDispatchBoard() {
     return (j.scheduledDate||'')=== boardDate && _hasTech(j);
   });
 
-  // Scheduled for this date but no tech yet — needs someone assigned
+  // Has a scheduled date but no tech — show regardless of which date
   var needsTech = allJobs.filter(function(j){
     if (!_isActive(j)) return false;
-    return (j.scheduledDate||'')=== boardDate && !_hasTech(j);
+    return !!(j.scheduledDate) && !_hasTech(j);
   });
 
-  // Unscheduled backlog — no date set or not scheduled for this date
+  // True backlog — no date set at all
   var unassigned = allJobs.filter(function(j){
     if (!_isActive(j)) return false;
-    var jDate = j.scheduledDate||'';
-    return !jDate || jDate !== boardDate;
+    return !(j.scheduledDate);
   });
 
   var activeWOs = []; // No longer used — removed Active Work strip
@@ -283,7 +282,9 @@ function renderDispatchBoard() {
       (unassigned.length?pill(unassigned.length,'Unassigned','#ffebee','#c62828'):'');
   }
 
-  console.log('[Dispatch] renderDispatchBoard — team:', team.length, 'allJobs:', allJobs.length, 'dayJobs:', dayJobs.length, 'unassigned:', unassigned.length);
+  console.log('[Dispatch] renderDispatchBoard — team:', team.length, 'allJobs:', allJobs.length, 'dayJobs:', dayJobs.length, 'needsTech:', needsTech.length, 'unassigned:', unassigned.length);
+  needsTech.forEach(function(j){ console.log('[Dispatch] needsTech WO:', j.woNumber, 'date:', j.scheduledDate, 'techs:', (j.assignedTechs||[]).length); });
+  unassigned.forEach(function(j){ console.log('[Dispatch] unassigned WO:', j.woNumber, 'date:', j.scheduledDate, 'techs:', (j.assignedTechs||[]).length); });
   renderDispatchPool(unassigned, needsTech);
   renderDispatchRuler();
   renderDispatchTechRows(team, dayJobs, activeWOs, boardDate, isToday);
