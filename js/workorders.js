@@ -94,6 +94,19 @@ function _findJobOrWO(id) {
   return (DB.jobs||[]).find(function(j){ return j.id===id; }) || null;
 }
 
+// Always look up statuses from settings first, fall back to hardcoded
+function _getWOStatuses() {
+  return (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length)
+    ? DB.woSettings.statuses : WO_STATUSES;
+}
+function _getWOStatusDef(statusId) {
+  if (!statusId) return {color:'#e0e0e0',open:true};
+  var list = _getWOStatuses();
+  return list.find(function(s){
+    return s.id===statusId || s.id.toLowerCase()===statusId.toLowerCase();
+  }) || {color:'#e0e0e0',open:true};
+}
+
 var WO_SERVICE_TYPES = [
   'Onsite Service','Remote Support','Installation','Counter Sales',
   'New Contract','TCSS Account Change','Building Maintenance','Vehicle Maintenance'
@@ -210,7 +223,7 @@ function renderWorkOrders() {
       ? (DB.workOrders||[]).filter(function(w){ return _isTechAssignedToWO(myName, w); })
       : (DB.workOrders||[]);
     var urgent  = allWOs.filter(function(w){ return w.priority==='Urgent' && w.status!=='Billed'&&w.status!=='Void'; }).length;
-    var open    = allWOs.filter(function(w){ return WO_STATUSES.find(function(s){return s.id===w.status&&s.open;}); }).length;
+    var open    = allWOs.filter(function(w){ return _getWOStatusDef(w.status).open; }).length;
     var review  = isTech ? 0 : allWOs.filter(function(w){ return w.status==='Ready for Review'; }).length;
     var pricing = isTech ? 0 : allWOs.filter(function(w){ return w.status==='Ready for Pricing'; }).length;
     statsEl.innerHTML =
@@ -238,7 +251,7 @@ function renderWorkOrders() {
     '<div>WO #</div><div>Customer</div><div>Description</div><div>Type</div><div>Status</div><div>Priority</div><div>Actions</div></div>';
 
   var rows = list.map(function(wo) {
-    var st = WO_STATUSES.find(function(s){ return s.id===wo.status; }) || { color:'#e0e0e0' };
+    var st = _getWOStatusDef(wo.status);
     var prColor = wo.priority==='Urgent'?'#c62828':wo.priority==='High'?'#e65100':wo.priority==='Normal'?'#546e7a':'#90a4ae';
     var prBg    = wo.priority==='Urgent'?'#ffebee':wo.priority==='High'?'#fff3e0':'#f5f5f5';
     var isRole  = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='lead_tech');
@@ -447,8 +460,8 @@ function saveWorkOrder() {
   var status   = gv('wo-status') || 'New';
   // Auto-advance to Scheduled only if status is New and a scheduled date is set
   var _newSchedDate = gv('wo-scheduled-date');
-  if (_newSchedDate && status === 'New') {
-    var _hasSchedStatus = (DB.woSettings&&DB.woSettings.statuses||WO_STATUSES)
+  if (_newSchedDate && status.toLowerCase() === 'new') {
+    var _hasSchedStatus = _getWOStatuses()
       .find(function(s){ return s.id==='Scheduled'; });
     if (_hasSchedStatus) status = 'Scheduled';
   }
@@ -490,7 +503,7 @@ function saveWorkOrder() {
     scheduledDate:  gv('wo-scheduled-date'),
     scheduledTime:  gv('wo-scheduled-time'),
     dateOpened:   dateOpened,
-    dateClosed:   (!WO_STATUSES.find(function(s){return s.id===status&&s.open;}))?today:(isNew?null:(_existingWO.dateClosed||null)),
+    dateClosed:   (!_getWOStatusDef(status).open)?today:(isNew?null:(_existingWO.dateClosed||null)),
     laborRate:    parseFloat(gv('wo-labor-rate'))||125,
     taxRate:      parseFloat(gv('wo-tax-rate'))||0,
     internalNotes:(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?gv('wo-internal-notes'):'',
@@ -2121,7 +2134,7 @@ function renderWOChangeOrders(woId) {
   if (!children.length) return '';
 
   var rows = children.map(function(co){
-    var statusInfo = WO_STATUSES.find(function(s){ return s.id===co.status; }) || {};
+    var statusInfo = _getWOStatusDef(co.status);
     var labor = (DB.woLabor||[]).filter(function(l){ return l.woId===co.id; });
     var totalHours = labor.reduce(function(s,l){ return s+(l.hours||0); }, 0);
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0;flex-wrap:wrap;gap:8px">'+
@@ -2141,7 +2154,7 @@ function renderWOChangeOrders(woId) {
   }).join('');
 
   var totalCOs = children.length;
-  var openCOs  = children.filter(function(c){ return WO_STATUSES.find(function(s){ return s.id===c.status&&s.open; }); }).length;
+  var openCOs  = children.filter(function(c){ return _getWOStatusDef(c.status).open; }).length;
 
   return '<div style="margin:16px 0;border:1px solid #ffb300;border-radius:12px;overflow:hidden">'+
     '<div style="background:#fff3e0;padding:12px 16px;display:flex;align-items:center;justify-content:space-between">'+
