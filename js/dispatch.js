@@ -128,6 +128,7 @@ function dispatchPoolCardDragOver(e) {
   // Only accept if a tech is being dragged
   if (!_dispatchDragTech) return;
   e.preventDefault();
+  e.stopPropagation(); // Don't let timeline show snap guide for tech drags
   e.dataTransfer.dropEffect = 'copy';
   e.currentTarget.classList.add('drag-over');
 }
@@ -136,6 +137,7 @@ function dispatchPoolCardDragLeave(e) {
 }
 function dispatchPoolCardDrop(e, woId) {
   e.preventDefault();
+  e.stopPropagation(); // Prevent timeline ondrop from also firing
   e.currentTarget.classList.remove('drag-over');
   var techName = _dispatchDragTech;
   if (!techName || !woId) return;
@@ -498,7 +500,11 @@ function buildJobBlock(job, crewEntry, techName) {
     'style="left:'+leftPct+'%;width:'+widPct+'%;background:'+color.bg+';border-color:'+color.border+';color:'+color.text+';opacity:'+(isLead?1:0.88)+';" '+
     'draggable="true" data-job-id="'+job.id+'" '+
     'ondragstart="onDispatchDragStart(event,\''+job.id+'\',\'board\')" '+
-    'ondragend="onDispatchDragEnd(event)" onclick="openDispatchDetail(\''+job.id+'\')" '+
+    'ondragend="onDispatchDragEnd(event)" '+
+    'ondragover="dispatchPoolCardDragOver(event)" '+
+    'ondragleave="dispatchPoolCardDragLeave(event)" '+
+    'ondrop="dispatchPoolCardDrop(event,this.dataset.jobId)" '+
+    'onclick="openDispatchDetail(\''+job.id+'\')" '+
     '>'+
     multiDayBadge+
     '<div class="dispatch-job-block-name">'+(job.woNumber?'<span class="dispatch-job-block-wo-num">'+escHtml(job.woNumber)+'</span> ':'')+escHtml((job.name||'').substring(0,28))+'</div>'+
@@ -594,7 +600,15 @@ function onDispatchDrop(e, techName) {
     var crew=getJobCrew(job);
     addCrewMember(job,techName,crew.length===0?'lead':'helper');
   }
-  job.scheduledDate=boardDate;job.scheduledTime=dropTime;
+  // Only update time if WO had no time yet (from pool) or same tech is rescheduling
+  var hadTime = !!job.scheduledTime;
+  if (!hadTime || already) {
+    job.scheduledDate=boardDate;
+    job.scheduledTime=dropTime;
+  } else {
+    // Adding tech to existing WO — keep original time, just update date if needed
+    job.scheduledDate=boardDate;
+  }
   if(!job.status||job.status==='') job.status='Scheduled';
   _saveJobToWO(job);
   saveDB();renderDispatchBoard();
