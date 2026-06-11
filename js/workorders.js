@@ -362,6 +362,9 @@ function openWorkOrder(id) {
   sv('wo-date-followup',  wo.dateFollowup||'');
   sv('wo-scheduled-date', wo.scheduledDate||'');
   sv('wo-scheduled-time', wo.scheduledTime||'');
+  // Store WT project link
+  var woFormEl = document.getElementById('wo-form-wrap');
+  if (woFormEl) woFormEl.setAttribute('data-wt-project', wo.wtProjectId||'');
   // Created and closed — format for display
   var createdEl = document.getElementById('wo-created-date');
   if (createdEl) {
@@ -502,6 +505,7 @@ function saveWorkOrder() {
     dateFollowup:   gv('wo-date-followup'),
     scheduledDate:  gv('wo-scheduled-date'),
     scheduledTime:  gv('wo-scheduled-time'),
+    wtProjectId:    (function(){ var el=document.getElementById('wo-form-wrap'); return el?el.getAttribute('data-wt-project')||null:null; })(),
     dateOpened:   dateOpened,
     dateClosed:   (!_getWOStatusDef(status).open)?today:(isNew?null:(_existingWO.dateClosed||null)),
     laborRate:    parseFloat(gv('wo-labor-rate'))||125,
@@ -688,7 +692,179 @@ function switchWOTab(tab) {
   if (tab==='comments')  content.innerHTML = (typeof renderCommsLog==='function') ? '<div style="margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="openCommsModal(\'\',\''+id+'\')">+ Log Communication</button></div>' + renderCommsLog(null, id) : '';
   if (tab==='photos')    { content.innerHTML = renderWODocsTab(id); }
   if (tab==='fieldlog')  { renderWOFieldLogTab(id); }
+  if (tab==='tracking')  { content.innerHTML = renderWOTrackingTab(id); }
 }
+
+
+
+// ── WO Work Tracking Phase Tab ─────────────────────────────────────────────
+function wtGetProjData(projId) {
+  if (!projId) return {};
+  return (DB.wtData && DB.wtData[projId]) || {};
+}
+
+function renderWOTrackingTab(woId) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (!wo) return '<p>Work order not found.</p>';
+
+  var el = document.getElementById('wo-form-wrap');
+  var projId = wo.wtProjectId || (el && el.getAttribute('data-wt-project')) || '';
+  var proj = projId ? (DB.wtProjects||[]).find(function(p){ return p.id===projId; }) : null;
+
+  // No project linked
+  if (!proj) {
+    var opts = (DB.wtProjects||[])
+      .filter(function(p){ return !p.archived; })
+      .map(function(p){
+        var label = escHtml(p.name||'Unnamed') + (p.customerName?' — '+escHtml(p.customerName):'');
+        return '<option value="' + escHtml(p.id) + '">' + label + '</option>';
+      }).join('');
+
+    return '<div style="text-align:center;padding:24px 12px" data-wo-id="' + woId + '">' +
+      '<div style="font-size:32px;margin-bottom:8px">📊</div>' +
+      '<div style="font-size:14px;font-weight:700;color:#0d1b2a;margin-bottom:6px">No Work Tracking project linked</div>' +
+      '<div style="font-size:12px;color:#546e7a;margin-bottom:16px">' +
+        'Link an existing project or create a new one to track phase progress from this work order.' +
+      '</div>' +
+      (opts
+        ? '<div style="margin-bottom:12px">' +
+            '<select id="wo-wt-link-sel" style="width:100%;max-width:320px;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">' +
+              '<option value="">— Select project —</option>' + opts +
+            '</select>' +
+            '<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="woLinkWTProject()">Link Selected Project</button>' +
+          '</div>'
+        : '') +
+      '<div style="color:#90a4ae;font-size:11px;margin-bottom:8px">— or —</div>' +
+      '<button class="btn btn-outline btn-sm" onclick="woCreateWTProject()">+ Create New WT Project</button>' +
+    '</div>';
+  }
+
+  // Project linked — build phase progress
+  var d = wtGetProjData(projId);
+  var items = d.items || [];
+  var checkoffs = DB.wtCheckoffs || d.checkoffs || [];
+
+  function getItemCO(itemId, phaseId) {
+    return checkoffs.find(function(c){ return c.item_id===itemId && c.phase===phaseId; });
+  }
+
+  function phaseStats(phaseId) {
+    var phItems = items.filter(function(it){
+      var pr = it.phases_required;
+      return !pr || !pr.length || pr.indexOf(phaseId)>=0;
+    });
+    var total = phItems.length;
+    if (!total) return {total:0,done:0,pct:0,color:'#90a4ae'};
+    var done = phItems.filter(function(it){
+      var co = getItemCO(it.id, phaseId);
+      return co && (co.status==='confirmed'||co.status==='submitted');
+    }).length;
+    var pct = Math.round(done/total*100);
+    return {total:total, done:done, pct:pct, color: pct>=100?'#2e7d32':pct>=50?'#1565c0':'#90a4ae'};
+  }
+
+  var phases = typeof WT_PHASES!=='undefined' ? WT_PHASES : [
+    {id:'rough_in',        label:'Rough-In',        short:'RI',  color:'#e65100',bg:'#fff3e0'},
+    {id:'rough_in_verify', label:'RI Verify',        short:'RIV', color:'#f57c00',bg:'#fff8e1'},
+    {id:'devicing',        label:'Device & Term',    short:'D&T', color:'#1565c0',bg:'#e3f2fd'},
+    {id:'testing',         label:'Test & Label',     short:'T&L', color:'#2e7d32',bg:'#e8f5e9'},
+    {id:'final_verify',    label:'Final Verify',     short:'FV',  color:'#6a1b9a',bg:'#f3e5f5'},
+  ];
+
+  var phaseRows = phases.map(function(ph){
+    var st = phaseStats(ph.id);
+    return '<div style="margin-bottom:12px">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">' +
+        '<div style="display:flex;align-items:center;gap:6px">' +
+          '<span style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;background:'+ph.bg+';color:'+ph.color+'">' + ph.short + '</span>' +
+          '<span style="font-size:13px;font-weight:600;color:#0d1b2a">' + ph.label + '</span>' +
+        '</div>' +
+        '<div style="font-size:12px;color:#546e7a">' + st.done + ' / ' + st.total +
+          ' <span style="font-weight:700;color:'+st.color+'">' + st.pct + '%</span>' +
+        '</div>' +
+      '</div>' +
+      '<div style="height:8px;background:#e0e7ef;border-radius:4px;overflow:hidden">' +
+        '<div style="height:100%;width:'+st.pct+'%;background:'+st.color+';border-radius:4px;transition:width .4s"></div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  var overallDone = phases.reduce(function(s,ph){ return s+phaseStats(ph.id).done; },0);
+  var overallTotal = phases.length * (items.length||1);
+  var overallPct   = overallTotal>0 ? Math.round(overallDone/overallTotal*100) : 0;
+  var overallColor = overallPct>=100 ? '#2e7d32' : '#1565c0';
+
+  return '<div>' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
+      '<div>' +
+        '<div style="font-size:13px;font-weight:700;color:#0d1b2a">' + escHtml(proj.name||'') + '</div>' +
+        '<div style="font-size:11px;color:#546e7a">' + items.length + ' items</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:6px">' +
+        '<button class="btn btn-primary btn-sm" onclick="woOpenWTProject()">Open Project</button>' +
+        '<button class="btn btn-ghost btn-sm" style="color:#c62828" onclick="woUnlinkWTProject()">✕ Unlink</button>' +
+      '</div>' +
+    '</div>' +
+    '<div style="margin-bottom:16px;padding:10px 12px;background:#f5f7fa;border-radius:8px">' +
+      '<div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:#546e7a;margin-bottom:6px">' +
+        '<span>OVERALL PROGRESS</span><span>' + overallPct + '%</span>' +
+      '</div>' +
+      '<div style="height:10px;background:#e0e7ef;border-radius:5px;overflow:hidden">' +
+        '<div style="height:100%;width:'+overallPct+'%;background:'+overallColor+';border-radius:5px;transition:width .4s"></div>' +
+      '</div>' +
+    '</div>' +
+    phaseRows +
+  '</div>';
+}
+
+// Use _woCurrentId since that's always the open WO
+function woLinkWTProject() {
+  var sel = document.getElementById('wo-wt-link-sel');
+  if (!sel || !sel.value) { showToast('Select a project first','warning',2000); return; }
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===_woCurrentId; });
+  if (!wo) return;
+  wo.wtProjectId = sel.value;
+  var el = document.getElementById('wo-form-wrap');
+  if (el) el.setAttribute('data-wt-project', sel.value);
+  saveDB();
+  switchWOTab('tracking');
+  showToast('Work Tracking project linked','success',2000);
+}
+
+function woUnlinkWTProject() {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===_woCurrentId; });
+  if (!wo) return;
+  wo.wtProjectId = null;
+  var el = document.getElementById('wo-form-wrap');
+  if (el) el.setAttribute('data-wt-project','');
+  saveDB();
+  switchWOTab('tracking');
+  showToast('Project unlinked','info',2000);
+}
+
+function woOpenWTProject() {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===_woCurrentId; });
+  var projId = wo ? wo.wtProjectId : null;
+  if (!projId) return;
+  if (typeof goPage==='function') goPage('worktracking');
+  setTimeout(function(){
+    if (typeof wtOpenProject==='function') wtOpenProject(projId);
+  }, 300);
+}
+
+function woCreateWTProject() {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===_woCurrentId; });
+  if (typeof goPage==='function') goPage('worktracking');
+  setTimeout(function(){
+    if (typeof wtShowNewProjectWizard==='function') {
+      wtShowNewProjectWizard({
+        name: wo ? (wo.description||wo.woNumber||'Work Order') : '',
+        customerName: wo ? (wo.customerName||'') : ''
+      });
+    }
+  }, 300);
+}
+
 
 // ---- LABOR TAB ----
 function renderWOLaborTab(woId) {
