@@ -1525,6 +1525,7 @@ async function _pushWOToCloud(wo) {
       date_requested:   wo.dateRequested||null,
       scheduled_date:   wo.scheduledDate||null,
       scheduled_time:   wo.scheduledTime||null,
+      wt_project_id:    wo.wtProjectId||null,
       date_followup: wo.dateFollowup||null,
       date_opened:   wo.dateOpened||null,
       date_closed:   wo.dateClosed||null,

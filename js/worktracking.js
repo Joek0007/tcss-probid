@@ -7195,6 +7195,20 @@ function loadSettings() {
   loadProposalDefaultsUI();
   loadJtAddendumsUI();
 }
+
+// Push full DB.settings to Supabase for persistence across devices/reloads
+function _pushSettingsToSupabase() {
+  if (typeof _sb !== 'undefined' && _sb && DB.settings) {
+    _sb.from('company_settings').upsert({
+      id: 1,
+      settings_json: DB.settings,
+      company_name: DB.settings.cname || 'TCSS',
+    }).then(function(r){
+      if (r && r.error) console.warn('[Settings] Supabase push error:', r.error.message);
+    });
+  }
+}
+
 function saveSettings() {
   function gv(id){const el=document.getElementById(id);return el?el.value:'';}
   // Preserve fields not in the settings form (logo, favorites, usage tracking, etc.)
@@ -7207,14 +7221,7 @@ function saveSettings() {
   });
   saveDB();
   const cb=document.getElementById('company-badge');if(cb)cb.textContent=(DB.settings.cname||'TCSS').substring(0,12);
-  // Also push full settings to Supabase for persistence across devices/browsers
-  if (typeof _sb !== 'undefined' && _sb) {
-    _sb.from('company_settings').upsert({
-      id: 1,
-      settings_json: DB.settings,
-      company_name: DB.settings.cname || 'TCSS',
-    }).then(function(){});
-  }
+  _pushSettingsToSupabase();
   showToast('Settings saved','success');
 }
 
@@ -7304,6 +7311,7 @@ function saveClickSendSettings() {
   DB.settings.csUser = gv('s-csuser');
   DB.settings.csFrom = gv('s-csfrom') || 'TCSS';
   saveDB();
+  _pushSettingsToSupabase();
   loadSettings();
   showToast('SMS settings saved','success');
 }
