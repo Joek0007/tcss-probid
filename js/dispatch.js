@@ -171,6 +171,11 @@ function dispatchPoolCardDrop(e, woId) {
 
   showToast(techName + ' assigned to ' + (wo.woNumber||'WO'), 'success', 3000);
   renderDispatchBoard();
+  // If crew panel is open for this WO, refresh it in real time
+  var panel = document.getElementById('dispatch-detail-panel');
+  if (panel && panel.getAttribute('data-wo-id') === woId) {
+    openDispatchDetail(woId);
+  }
 }
 
 // Helpers for active work strip
@@ -622,6 +627,7 @@ function openDispatchDetail(jobId) {
   var bodyEl=document.getElementById('dsp-body');
   if(!panel||!bodyEl) return;
   if(nameEl) nameEl.textContent=job.name||'';
+  if(panel) panel.setAttribute('data-wo-id', jobId);
   var color=getJobColor(job.id);
   var crew=getJobCrew(job);
   var wtProj=(DB.wtProjects||[]).find(function(p){return p.jobId===job.id;});
