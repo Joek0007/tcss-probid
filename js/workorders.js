@@ -445,6 +445,13 @@ function saveWorkOrder() {
   function gv(eid){ var el=document.getElementById(eid); return el?el.value.trim():''; }
 
   var status   = gv('wo-status') || 'New';
+  // Auto-advance to Scheduled only if status is New and a scheduled date is set
+  var _newSchedDate = gv('wo-scheduled-date');
+  if (_newSchedDate && status === 'New') {
+    var _hasSchedStatus = (DB.woSettings&&DB.woSettings.statuses||WO_STATUSES)
+      .find(function(s){ return s.id==='Scheduled'; });
+    if (_hasSchedStatus) status = 'Scheduled';
+  }
   var priority = gv('wo-priority') || 'Normal';
 
   // Auto-generate WO number for new
