@@ -347,6 +347,16 @@ function openWorkOrder(id) {
   sv('wo-site-zip',       wo.siteZip||'');
   sv('wo-date-requested', wo.dateRequested||'');
   sv('wo-date-followup',  wo.dateFollowup||'');
+  sv('wo-scheduled-date', wo.scheduledDate||'');
+  sv('wo-scheduled-time', wo.scheduledTime||'');
+  // Created and closed — format for display
+  var createdEl = document.getElementById('wo-created-date');
+  if (createdEl) {
+    var cDate = wo.createdAt ? new Date(wo.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'New';
+    createdEl.value = cDate;
+  }
+  var closedEl = document.getElementById('wo-closed-date');
+  if (closedEl) closedEl.value = wo.dateClosed || '—';
   sv('wo-labor-rate',     wo.laborRate||'');
   sv('wo-tax-rate',       wo.taxRate||'');
   sv('wo-internal-notes', wo.internalNotes||'');
@@ -468,10 +478,12 @@ function saveWorkOrder() {
     siteCity:     gv('wo-site-city'),
     siteState:    gv('wo-site-state'),
     siteZip:      gv('wo-site-zip'),
-    dateRequested:gv('wo-date-requested'),
-    dateFollowup: gv('wo-date-followup'),
+    dateRequested:  gv('wo-date-requested'),
+    dateFollowup:   gv('wo-date-followup'),
+    scheduledDate:  gv('wo-scheduled-date'),
+    scheduledTime:  gv('wo-scheduled-time'),
     dateOpened:   dateOpened,
-    dateClosed:   (!WO_STATUSES.find(function(s){return s.id===status&&s.open;}))?today:null,
+    dateClosed:   (!WO_STATUSES.find(function(s){return s.id===status&&s.open;}))?today:(isNew?null:(_existingWO.dateClosed||null)),
     laborRate:    parseFloat(gv('wo-labor-rate'))||125,
     taxRate:      parseFloat(gv('wo-tax-rate'))||0,
     internalNotes:(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?gv('wo-internal-notes'):'',
@@ -1314,7 +1326,9 @@ async function _pushWOToCloud(wo) {
       site_zip:      wo.siteZip||null,
       labor_rate:    wo.laborRate||null,
       tax_rate:      wo.taxRate||null,
-      date_requested:wo.dateRequested||null,
+      date_requested:   wo.dateRequested||null,
+      scheduled_date:   wo.scheduledDate||null,
+      scheduled_time:   wo.scheduledTime||null,
       date_followup: wo.dateFollowup||null,
       date_opened:   wo.dateOpened||null,
       date_closed:   wo.dateClosed||null,

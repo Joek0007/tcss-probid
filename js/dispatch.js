@@ -100,6 +100,8 @@ function _saveJobToWO(job) {
   if (typeof _sb !== 'undefined' && _sb) {
     _sb.from('work_orders').update({
       assigned_techs: wo.assignedTechs,
+      scheduled_date: wo.scheduledDate||null,
+      scheduled_time: wo.scheduledTime||null,
     }).eq('id', wo.id).then(function(r){
       if (r && r.error) console.warn('[Dispatch] WO update error:', r.error.message);
     });
