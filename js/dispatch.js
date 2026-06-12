@@ -195,12 +195,27 @@ function dispatchScheduleFromStrip(e) {
 
 function _woHasHours(woId) {
   try {
+    // Check all sources of logged time
+    // 1. WO Labor tab entries
     var labor = (DB.woLabor||[]).filter(function(l){ return l.woId===woId||l.wo_id===woId; });
     if (labor.length) return true;
+    // 2. Field log entries with hours
     var logs = (DB.woFieldLogs||[]).filter(function(l){
       return (l.woId===woId||l.wo_id===woId) && ((l.hoursWorked||l.hours_worked||0)>0);
     });
-    return logs.length > 0;
+    if (logs.length) return true;
+    // 3. Time clock entries linked to this WO
+    var clock = (DB.timeEntries||[]).filter(function(t){
+      return (t.woId===woId||t.wo_id===woId||t.jobId===woId);
+    });
+    if (clock.length) return true;
+    // 4. If WO status is beyond Scheduled — work has been done
+    var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+    if (wo) {
+      var safeToReset = ['New','Scheduled'];
+      if (safeToReset.indexOf(wo.status)===-1) return true;
+    }
+    return false;
   } catch(e) { return false; }
 }
 

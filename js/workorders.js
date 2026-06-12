@@ -1040,11 +1040,20 @@ function addWOLaborEntry() {
   var hours = parseFloat(hoursStr)||0; if (!hours) { showToast('Invalid hours','error'); return; }
   var notes = prompt('Notes (optional):','') || '';
   if (!DB.woLabor) DB.woLabor=[];
-  DB.woLabor.push({ id:'wol-'+Date.now(), woId:woId, techName:techName.trim(), entryType:'work', hours:hours, notes:notes, clockIn:new Date().toISOString(), createdAt:new Date().toISOString() });
+  var newLabor = { id:'wol-'+Date.now(), woId:woId, techName:techName.trim(), entryType:'work', hours:hours, notes:notes, clockIn:new Date().toISOString(), createdAt:new Date().toISOString() };
+  DB.woLabor.push(newLabor);
   var woRec=(DB.workOrders||[]).find(function(w){return w.id===woId;});
   if (woRec&&woRec.status==='New'){woRec.status='Open';var sel=document.getElementById('wo-status');if(sel)sel.value='Open';}
   autoPromoteWOStatus(woId);
-  saveDB(); switchWOTab('labor');
+  saveDB();
+  // Push to Supabase so hours persist across reloads
+  if (typeof _sb!=='undefined' && _sb) {
+    _sb.from('wo_labor').insert({
+      id:newLabor.id, wo_id:woId, tech_name:newLabor.techName,
+      entry_type:'work', hours:hours, notes:notes, created_at:newLabor.createdAt
+    }).then(function(){});
+  }
+  switchWOTab('labor');
   setTimeout(function(){var cp=document.getElementById('wo-change-orders-panel');if(cp)cp.innerHTML=renderWOChangeOrders(_woCurrentId);},300);
   showToast('Labor entry added','success');
 }
