@@ -1467,7 +1467,7 @@ table{font-size:12.5px}
         <div class="form-row cols2">
           <div class="autocomplete-wrap">
             <label>Customer / Company *</label>
-            <input id="qq-cn" placeholder="Type company name..." autocomplete="off" oninput="onCustomerInput(this.value)" onblur="setTimeout(closeCustomerDropdown,200)">
+            <input id="qq-cn" placeholder="Type company name..." autocomplete="off" oninput="onCustomerInput(this.value)" onfocus="onCustomerInput(this.value)" onblur="setTimeout(closeCustomerDropdown,200)">
             <div id="customer-dropdown" class="autocomplete-dropdown" style="display:none"></div>
             <input type="hidden" id="qq-customer-id">
           </div>
@@ -2920,7 +2920,7 @@ table{font-size:12.5px}
 
   <div class="card">
     <div class="filter-bar" style="margin-bottom:12px">
-      <input class="search-input" id="cont-search" placeholder="🔍 Search contacts..." oninput="renderContacts()">
+      <input class="search-input" id="cont-search" placeholder="🔍 Search contacts..." oninput="renderContacts()" onfocus="this.value='';renderContacts()">
       <select id="cont-sort" style="width:auto" onchange="renderContacts()">
         <option value="name-asc">Name A–Z</option>
         <option value="name-desc">Name Z–A</option>

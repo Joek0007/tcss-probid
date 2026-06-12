@@ -6606,11 +6606,10 @@ function saveJtAddendums() {
 function onCustomerInput(val) {
   var dropdown = document.getElementById('customer-dropdown');
   if (!dropdown) return;
-  if (!val || val.length < 1) { dropdown.style.display='none'; return; }
-  var sl = val.toLowerCase();
-  var matches = DB.customers.filter(function(c){
-    return (c.name||'').toLowerCase().includes(sl);
-  }).slice(0,8);
+  var sl = (val||'').trim().toLowerCase();
+  var matches = sl
+    ? (DB.customers||[]).filter(function(c){ return (c.name||'').toLowerCase().includes(sl); }).slice(0,10)
+    : (DB.customers||[]).slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); }).slice(0,15);
 
   var html = matches.map(function(c){
     return '<div class="autocomplete-item" onmousedown="selectCustomer(\''+c.id+'\')">'+
