@@ -239,16 +239,111 @@ function dispatchResetWO(e) {
   renderDispatchBoard();
 }
 
+
+// ── Real-time Tech Activity Track ────────────────────────────────────────────
+var _todayTimeEvents = {}; // techName → sorted array of events
+
+async function loadTodayTimeEvents(boardDate) {
+  if (!_sb || !boardDate) return;
+  try {
+    var dayStart = boardDate + 'T00:00:00.000Z';
+    var dayEnd   = boardDate + 'T23:59:59.999Z';
+    var { data, error } = await _sb
+      .from('time_events')
+      .select('*')
+      .gte('timestamp', dayStart)
+      .lte('timestamp', dayEnd)
+      .order('timestamp', { ascending: true });
+    if (error || !data) return;
+
+    _todayTimeEvents = {};
+    data.forEach(function(e){
+      var name = e.user_name || '';
+      if (!name) return;
+      if (!_todayTimeEvents[name]) _todayTimeEvents[name] = [];
+      _todayTimeEvents[name].push(e);
+    });
+  } catch(err) {
+    console.warn('[Dispatch] time_events load error:', err);
+  }
+}
+
+function buildActivityTrack(techName, boardDate, isToday) {
+  var events = (_todayTimeEvents[techName] || []).slice().sort(function(a,b){
+    return (a.timestamp||'').localeCompare(b.timestamp||'');
+  });
+  if (!events.length) return '';
+
+  // Color map for event types
+  var segColors = {
+    'travel_start':  { bg:'#f57c00', label:'Traveling',  border:'#e65100' },
+    'traveling':     { bg:'#f57c00', label:'Traveling',  border:'#e65100' },
+    'onsite':        { bg:'#1565c0', label:'On Site',    border:'#0d47a1' },
+    'arrive':        { bg:'#1565c0', label:'On Site',    border:'#0d47a1' },
+    'work_start':    { bg:'#1565c0', label:'On Site',    border:'#0d47a1' },
+    'break_start':   { bg:'#f9a825', label:'Break',      border:'#f57f17' },
+    'lunch_start':   { bg:'#e65100', label:'Lunch',      border:'#bf360c' },
+    'travel_back':   { bg:'#ffb74d', label:'Returning',  border:'#f57c00' },
+    'returning':     { bg:'#ffb74d', label:'Returning',  border:'#f57c00' },
+    'day_start':     { bg:'#78909c', label:'At Base',    border:'#546e7a' },
+    'at_base':       { bg:'#78909c', label:'At Base',    border:'#546e7a' },
+    'day_end':       { bg:'#2e7d32', label:'Finished',   border:'#1b5e20' },
+    'complete':      { bg:'#2e7d32', label:'Finished',   border:'#1b5e20' },
+  };
+
+  function tToMins(isoStr) {
+    if (!isoStr) return null;
+    var d = new Date(isoStr);
+    return d.getHours()*60 + d.getMinutes();
+  }
+  function minsToLeft(m) {
+    return Math.max(0, Math.min(100, (m - DISPATCH_START_HOUR*60) / DISPATCH_MINS_TOTAL * 100));
+  }
+  function minsToWidth(start, end) {
+    return Math.max(0.3, Math.min(100 - minsToLeft(start), (end - start) / DISPATCH_MINS_TOTAL * 100));
+  }
+
+  var nowMins = new Date().getHours()*60 + new Date().getMinutes();
+  var segments = '';
+
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    var col = segColors[ev.event_type] || { bg:'#90a4ae', label:ev.event_type||'', border:'#78909c' };
+    var startMins = tToMins(ev.timestamp);
+    if (startMins === null) continue;
+    var endMins = (i < events.length-1) ? tToMins(events[i+1].timestamp) : (isToday ? nowMins : startMins + 30);
+    if (endMins <= startMins) endMins = startMins + 15;
+
+    var left  = minsToLeft(startMins);
+    var width = minsToWidth(startMins, endMins);
+    var isActive = (i === events.length-1) && isToday && ev.event_type !== 'day_end' && ev.event_type !== 'complete';
+    var pulse = isActive ? 'animation:dispatch-pulse 2s infinite;' : '';
+
+    segments += '<div title="'+escHtml(col.label)+' · '+escHtml((ev.job_name||''))+'" '
+      +'style="position:absolute;bottom:0;height:6px;border-radius:3px;'
+      +'left:'+left+'%;width:'+width+'%;'
+      +'background:'+col.bg+';'
+      +'border:1px solid '+col.border+';'
+      +pulse
+      +'z-index:2;transition:width .5s"></div>';
+  }
+
+  return segments ? '<div style="position:absolute;bottom:0;left:0;right:0;height:6px;background:#e0e7ef;border-radius:3px;overflow:visible">'+segments+'</div>' : '';
+}
+
 function initDispatchBoard() {
   var dateEl = document.getElementById('dispatch-date');
   if (dateEl && !dateEl.value) dateEl.value = getTodayISO();
   _dispatchStatusFilter = '';
-  renderDispatchBoard();
+  var bd = (dateEl && dateEl.value) || getTodayISO();
+  loadTodayTimeEvents(bd).then(function(){ renderDispatchBoard(); });
   clearInterval(_dispatchRefreshTimer);
   _dispatchRefreshTimer = setInterval(function(){
     var page = document.getElementById('page-dispatch');
-    if (page && page.classList.contains('active')) { renderDispatchBoard(); }
-    else clearInterval(_dispatchRefreshTimer);
+    if (page && page.classList.contains('active')) {
+      var bd2 = (document.getElementById('dispatch-date')||{}).value || getTodayISO();
+      loadTodayTimeEvents(bd2).then(function(){ renderDispatchBoard(); });
+    } else clearInterval(_dispatchRefreshTimer);
   }, 60000);
   // Wire resize observer for accurate NOW line positioning
   setTimeout(attachDispatchResizeObserver, 300);
@@ -531,6 +626,7 @@ function renderDispatchTechRows(team, dayJobs, activeWOs, boardDate, isToday) {
         'ondragover="onDispatchDragOver(event)" ondragleave="onDispatchDragLeave(event)" '+
         'ondrop="onDispatchDrop(event,\''+escHtml(name)+'\')">'+
         travelHtml+blocksHtml+segHtml+
+        buildActivityTrack(name, boardDate, isToday)+
       '</div>'+
 
     '</div>';
