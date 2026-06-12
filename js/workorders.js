@@ -247,29 +247,202 @@ function renderWorkOrders() {
     return;
   }
 
-  var header = '<div style="display:grid;grid-template-columns:100px 1fr 1fr 120px 130px 120px auto;gap:8px;padding:10px 16px;background:#f8f9fa;border-bottom:1px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">' +
-    '<div>WO #</div><div>Customer</div><div>Description</div><div>Type</div><div>Status</div><div>Priority</div><div>Actions</div></div>';
+  // Populate tech filter
+  var techSel = document.getElementById('wo-filter-tech');
+  var fTech = techSel ? techSel.value : '';
+  if (techSel && techSel.options.length <= 1) {
+    (DB.team||[]).forEach(function(m){
+      var o = document.createElement('option');
+      o.value = m.name; o.textContent = m.name;
+      techSel.appendChild(o);
+    });
+  }
+  if (fTech) list = list.filter(function(w){ return _isTechAssignedToWO(fTech, w); });
+
+  // Status quick-filter chips
+  var chipsEl = document.getElementById('wo-status-chips');
+  if (chipsEl) {
+    var allU = isTech ? (DB.workOrders||[]).filter(function(w){ return _isTechAssignedToWO(myName, w); }) : (DB.workOrders||[]);
+    var sCounts = {};
+    allU.forEach(function(w){ sCounts[w.status] = (sCounts[w.status]||0)+1; });
+    var chipFilter = (document.getElementById('wo-filter-status')||{}).value||'';
+    var chipEls = '<span class="wo-qchip" data-status="" style="background:#e3f2fd;color:#1565c0;border-color:'+(chipFilter===''?'#1565c0':'transparent')+'">All <b>'+allU.length+'</b></span>';
+    _getWOStatuses().forEach(function(s){
+      var cnt = sCounts[s.id]||0; if (!cnt) return;
+      var col = s.color||'#546e7a';
+      chipEls += '<span class="wo-qchip" data-status="'+escHtml(s.id)+'" style="background:'+col+'22;color:'+col+';border-color:'+(chipFilter===s.id?col:'transparent')+'">'+escHtml(s.id)+' <b>'+cnt+'</b></span>';
+    });
+    chipsEl.innerHTML = '<span style="font-size:11px;color:#546e7a;font-weight:700;margin-right:4px">QUICK FILTER:</span>'+chipEls;
+    chipsEl.querySelectorAll('.wo-qchip').forEach(function(el){
+      el.style.cssText += ';padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:2px solid';
+      el.addEventListener('click',function(){
+        var sf = document.getElementById('wo-filter-status');
+        if (sf) sf.value = el.getAttribute('data-status');
+        renderWorkOrders();
+      });
+    });
+  }
+
+  // Column layout
+  var cols = '90px 160px 1fr 120px 130px 90px 36px';
+  var isRole = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='lead_tech');
+
+  var header = '<div style="display:grid;grid-template-columns:'+cols+';padding:9px 16px;background:#f5f7fa;border-bottom:2px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'
+    +'<span class="wo-sort-hdr" data-field="woNumber" style="cursor:pointer">WO # ⇅</span>'
+    +'<span class="wo-sort-hdr" data-field="customerName" style="cursor:pointer">Customer ⇅</span>'
+    +'<span>Description · Scheduled</span>'
+    +'<span>Techs</span>'
+    +'<span class="wo-sort-hdr" data-field="status" style="cursor:pointer">Status ⇅</span>'
+    +'<span>Priority</span>'
+    +'<span></span>'
+    +'</div>';
+
+  var avColors = ['#1565c0','#2e7d32','#6a1b9a','#e65100','#546e7a'];
 
   var rows = list.map(function(wo) {
     var st = _getWOStatusDef(wo.status);
-    var prColor = wo.priority==='Urgent'?'#c62828':wo.priority==='High'?'#e65100':wo.priority==='Normal'?'#546e7a':'#90a4ae';
-    var prBg    = wo.priority==='Urgent'?'#ffebee':wo.priority==='High'?'#fff3e0':'#f5f5f5';
-    var isRole  = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='lead_tech');
-    return '<div style="display:grid;grid-template-columns:100px 1fr 1fr 120px 130px 120px auto;gap:8px;padding:12px 16px;border-bottom:1px solid #f5f7fa;align-items:center" onmouseover="this.style.background=\'#f8f9fa\'" onmouseout="this.style.background=\'\'">'+
-      '<div style="font-weight:700;color:#1565c0;font-size:13px">'+escHtml(wo.woNumber||'')+'</div>'+
-      '<div style="font-weight:600;font-size:13px">'+escHtml(wo.customerName||'—')+'</div>'+
-      '<div style="font-size:12px;color:#546e7a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">'+escHtml((wo.description||'').substring(0,60))+'</div>'+
-      '<div style="font-size:11px;color:#546e7a">'+escHtml(wo.serviceType||'—')+'</div>'+
-      '<div><span style="background:'+escHtml(st.color)+'33;border-left:3px solid '+escHtml(st.color)+';padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;color:#1a2332">'+escHtml(wo.status||'')+'</span></div>'+
-      '<div><span style="background:'+prBg+';color:'+prColor+';padding:3px 8px;border-radius:10px;font-size:11px;font-weight:700">'+(wo.priority==='Urgent'?'🚨 ':'')+(wo.priority==='High'?'🟠 ':'')+escHtml(wo.priority||'Normal')+'</span></div>'+
-      '<div style="display:flex;gap:4px">'+
-        '<button class="btn btn-outline btn-sm" onclick="openWorkOrder(\''+wo.id+'\')">Open</button>'+
-        (isRole?'<button class="btn btn-danger btn-sm" onclick="deleteWorkOrder(\''+wo.id+'\')">✕</button>':'')+
-      '</div>'+
-    '</div>';
+    var stColor = st.color||'#90a4ae';
+
+    var prDot = wo.priority==='Urgent'
+      ? '<span style="width:9px;height:9px;border-radius:50%;background:#c62828;display:inline-block;vertical-align:middle;margin-right:4px"></span><span style="font-size:11px;color:#c62828;font-weight:700">Urgent</span>'
+      : wo.priority==='High'
+      ? '<span style="width:9px;height:9px;border-radius:50%;background:#f57c00;display:inline-block;vertical-align:middle;margin-right:4px"></span><span style="font-size:11px;color:#f57c00;font-weight:700">High</span>'
+      : '<span style="width:9px;height:9px;border-radius:50%;background:#e0e0e0;display:inline-block;vertical-align:middle"></span>';
+
+    var schedHtml = wo.scheduledDate
+      ? '<div style="font-size:10px;color:#90a4ae;margin-top:2px">&#128197; '+escHtml(wo.scheduledDate)+(wo.scheduledTime?' &middot; '+escHtml(wo.scheduledTime):'')+'</div>'
+      : '<div style="font-size:10px;color:#c62828;margin-top:2px">&#9888; Not scheduled</div>';
+
+    var techNames = (wo.assignedTechs||[]).map(function(t){ return typeof t==='string'?t:(t.name||''); }).filter(Boolean);
+    var techHtml = techNames.length
+      ? techNames.slice(0,3).map(function(n,i){
+          var ini = n.split(' ').map(function(p){return p[0]||'';}).join('').substring(0,2).toUpperCase();
+          return '<span title="'+escHtml(n)+'" style="width:24px;height:24px;border-radius:50%;background:'+avColors[i%avColors.length]+';display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#fff;margin-right:2px">'+escHtml(ini)+'</span>';
+        }).join('')+(techNames.length>3?'<span style="width:24px;height:24px;border-radius:50%;background:#90a4ae;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff">+'+(techNames.length-3)+'</span>':'')
+      : '<span style="font-size:10px;color:#bdbdbd">Unassigned</span>';
+
+    var menuHtml = isRole
+      ? '<div class="wo-menu-wrap" style="position:relative">'
+          +'<div class="wo-menu-btn" data-woid="'+escHtml(wo.id)+'" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#90a4ae;border:1px solid #e0e7ef;background:#fff;cursor:pointer">&#8942;</div>'
+          +'<div id="womenu-'+escHtml(wo.id)+'" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:100;min-width:140px">'
+            +'<div class="wo-menu-item" data-action="edit" data-woid="'+escHtml(wo.id)+'" style="padding:9px 14px;font-size:12px;cursor:pointer">&#9999;&#65039; Edit WO</div>'
+            +'<div class="wo-menu-item" data-action="delete" data-woid="'+escHtml(wo.id)+'" style="padding:9px 14px;font-size:12px;cursor:pointer;color:#c62828">&#128465; Delete</div>'
+          +'</div>'
+        +'</div>'
+      : '';
+
+    return '<div class="wo-list-row" data-woid="'+escHtml(wo.id)+'" style="display:grid;grid-template-columns:'+cols+';padding:11px 16px;border-bottom:1px solid #f0f4f8;align-items:center;cursor:pointer">'
+      +'<div class="wo-num-link" data-woid="'+escHtml(wo.id)+'" style="font-weight:700;color:#1565c0;font-size:13px;text-decoration:underline">'+escHtml(wo.woNumber||'')+'</div>'
+      +'<div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(wo.customerName||'—')+'</div>'
+      +'<div style="overflow:hidden"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml((wo.description||'').substring(0,50))+'</div>'+schedHtml+'</div>'
+      +'<div>'+techHtml+'</div>'
+      +'<div><span class="wo-status-badge" data-woid="'+escHtml(wo.id)+'" style="background:'+stColor+'22;color:'+stColor+';border-left:3px solid '+stColor+';padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer">'+escHtml(wo.status||'')+'</span></div>'
+      +'<div style="display:flex;align-items:center;gap:4px">'+prDot+'</div>'
+      +'<div>'+menuHtml+'</div>'
+    +'</div>';
   }).join('');
 
+
   body.innerHTML = header + rows;
+  _wireWOListEvents();
+}
+
+
+// ── WO List event handlers ─────────────────────────────────────────────────
+var _woSortField = 'woNumber';
+var _woSortAsc = true;
+
+function woSort(field) {
+  if (_woSortField === field) { _woSortAsc = !_woSortAsc; }
+  else { _woSortField = field; _woSortAsc = true; }
+  renderWorkOrders();
+}
+
+function woQuickFilterStatus(status) {
+  var el = document.getElementById('wo-filter-status');
+  if (el) el.value = status;
+  renderWorkOrders();
+}
+
+function toggleWOMenu(woId) {
+  var m = document.getElementById('womenu-'+woId);
+  if (!m) return;
+  var isOpen = m.style.display !== 'none';
+  document.querySelectorAll('[id^="womenu-"]').forEach(function(el){ el.style.display='none'; });
+  if (!isOpen) m.style.display = 'block';
+}
+
+function cycleWOStatus(woId) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (!wo) return;
+  var statuses = _getWOStatuses();
+  var idx = statuses.findIndex(function(s){ return s.id===wo.status; });
+  var next = statuses[(idx+1) % statuses.length];
+  if (!next) return;
+  wo.status = next.id;
+  saveDB();
+  if (typeof _sb!=='undefined'&&_sb) _sb.from('work_orders').update({status:next.id}).eq('id',woId).then(function(){});
+  renderWorkOrders();
+  showToast('Status → '+next.id,'success',2000);
+}
+
+// Wire up event delegation for the WO list
+function _wireWOListEvents() {
+  var body = document.getElementById('wo-list-body');
+  if (!body) return;
+
+  // Row click → open WO
+  body.addEventListener('click', function(e) {
+    // WO number link
+    var numLink = e.target.closest('.wo-num-link');
+    if (numLink) { e.stopPropagation(); openWorkOrder(numLink.dataset.woid); return; }
+
+    // Status badge → cycle status
+    var badge = e.target.closest('.wo-status-badge');
+    if (badge) { e.stopPropagation(); cycleWOStatus(badge.dataset.woid); return; }
+
+    // Menu button
+    var menuBtn = e.target.closest('.wo-menu-btn');
+    if (menuBtn) { e.stopPropagation(); toggleWOMenu(menuBtn.dataset.woid); return; }
+
+    // Menu items
+    var menuItem = e.target.closest('.wo-menu-item');
+    if (menuItem) {
+      e.stopPropagation();
+      var action = menuItem.dataset.action;
+      var woid = menuItem.dataset.woid;
+      toggleWOMenu(woid);
+      if (action==='edit') openWorkOrder(woid);
+      if (action==='delete') deleteWorkOrder(woid);
+      return;
+    }
+
+    // Sort headers
+    var sortHdr = e.target.closest('.wo-sort-hdr');
+    if (sortHdr) { woSort(sortHdr.dataset.field); return; }
+
+    // Row click — but not if menu wrap
+    if (e.target.closest('.wo-menu-wrap')) return;
+    var row = e.target.closest('.wo-list-row');
+    if (row) openWorkOrder(row.dataset.woid);
+  });
+
+  // Row hover
+  body.addEventListener('mouseover', function(e) {
+    var row = e.target.closest('.wo-list-row');
+    if (row) row.style.background = '#f0f4ff';
+  });
+  body.addEventListener('mouseout', function(e) {
+    var row = e.target.closest('.wo-list-row');
+    if (row) row.style.background = '';
+  });
+
+  // Close menus on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.wo-menu-wrap')) {
+      document.querySelectorAll('[id^="womenu-"]').forEach(function(el){ el.style.display='none'; });
+    }
+  });
 }
 
 // ---- OPEN / NEW ----

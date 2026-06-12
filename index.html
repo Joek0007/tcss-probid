@@ -2091,22 +2091,30 @@ table{font-size:12.5px}
       <button class="btn btn-outline btn-sm" onclick="goPage('wo-settings')">⚙ WO Settings</button>
     </div>
   </div>
-  <!-- Filters -->
-  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
-    <input id="wo-search" placeholder="🔍 Search orders..." style="padding:8px 12px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px;width:220px" oninput="renderWorkOrders()" onfocus="this.value='';renderWorkOrders()">
-    <select id="wo-filter-status" onchange="renderWorkOrders()" style="padding:8px 12px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px">
+  <!-- Compact filter bar -->
+  <div style="display:flex;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:10px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:6px;background:#f5f7fa;border:1px solid #e0e7ef;border-radius:7px;padding:7px 12px;flex:1;min-width:200px">
+      <span style="color:#90a4ae">🔍</span>
+      <input id="wo-search" placeholder="Search orders, customers, address..." style="border:none;background:transparent;font-size:13px;outline:none;width:100%" oninput="renderWorkOrders()" onfocus="this.value='';renderWorkOrders()">
+    </div>
+    <select id="wo-filter-status" onchange="renderWorkOrders()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a">
       <option value="">All Statuses</option>
     </select>
-    <select id="wo-filter-priority" onchange="renderWorkOrders()" style="padding:8px 12px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px">
+    <select id="wo-filter-priority" onchange="renderWorkOrders()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a">
       <option value="">All Priorities</option>
       <option value="Urgent">🔴 Urgent</option>
       <option value="High">🟠 High</option>
       <option value="Normal">Normal</option>
-      <option value="Low">Low</option>
     </select>
-    <select id="wo-filter-type" onchange="renderWorkOrders()" style="padding:8px 12px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px">
+    <select id="wo-filter-type" onchange="renderWorkOrders()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a">
       <option value="">All Types</option>
     </select>
+    <select id="wo-filter-tech" onchange="renderWorkOrders()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a">
+      <option value="">All Techs</option>
+    </select>
+  </div>
+  <!-- Quick-filter status chips -->
+  <div id="wo-status-chips" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
   </div>
   <!-- Stats bar -->
   <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap" id="wo-stats-bar"></div>
