@@ -209,6 +209,14 @@ function renderWorkOrders() {
   if (fPriority) list = list.filter(function(w){ return w.priority === fPriority; });
   if (fType)     list = list.filter(function(w){ return w.serviceType === fType; });
 
+  // Sort by selected column
+  list.sort(function(a,b){
+    var av = (a[_woSortField]||'').toString();
+    var bv = (b[_woSortField]||'').toString();
+    var r = av.localeCompare(bv, undefined, {numeric:true, sensitivity:'base'});
+    return _woSortAsc ? r : -r;
+  });
+
   // Stats bar replaced by chips below
 
   // Hide/show action buttons based on permissions
