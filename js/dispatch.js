@@ -296,6 +296,21 @@ function pill(count,label,bg,color) {
 
 function renderDispatchPool(jobs, needsTech) {
   needsTech = needsTech || [];
+
+  // Sort: Needs Tech by scheduled date ascending (soonest first)
+  needsTech = needsTech.slice().sort(function(a,b){
+    return (a.scheduledDate||'').localeCompare(b.scheduledDate||'');
+  });
+
+  // Sort: Unscheduled by priority then creation date
+  var priorityOrder = {Urgent:0,High:1,Normal:2,'':3};
+  jobs = jobs.slice().sort(function(a,b){
+    var pa = priorityOrder[a.priority||'']||3;
+    var pb = priorityOrder[b.priority||'']||3;
+    if (pa!==pb) return pa-pb;
+    return (a.createdAt||'').localeCompare(b.createdAt||'');
+  });
+
   var countEl = document.getElementById('dispatch-unassigned-count');
   if (countEl) countEl.textContent = (jobs.length + needsTech.length) || '';
   var pool = document.getElementById('dispatch-pool-jobs');
@@ -313,10 +328,12 @@ function renderDispatchPool(jobs, needsTech) {
       +'<div class="dispatch-pool-card-name">'+escHtml((j.name||'').substring(0,35))+'</div>'
       +'<div class="dispatch-pool-card-sub">'+escHtml(j.customer||j.customerName||'')+'</div>'
       +(j.address?'<div class="dispatch-pool-card-sub">📍 '+escHtml(j.address.split(',')[0])+'</div>':'')
-      +(j.scheduledDate?'<div style="font-size:10px;color:#1565c0;margin-top:3px">📅 '+j.scheduledDate+(j.scheduledTime?' '+j.scheduledTime:'')+'</div>':'')
+      +(j.scheduledDate?'<div style="font-size:10px;color:#1565c0;margin-top:3px">📅 '+j.scheduledDate+(j.scheduledTime?' · '+j.scheduledTime:'')+'</div>':'')
       +'<div style="display:flex;align-items:center;justify-content:space-between;margin-top:5px">'
         +'<span style="font-size:10px;font-weight:700;color:'+color.bg+'">⏱ '+dur+'h</span>'
-        +(urgent?'<span style="font-size:10px;font-weight:700;color:#c62828">Needs tech</span>':'')
+        +(urgent && !_woHasHours(j.id)
+          ? '<button class="dispatch-reset-btn" onclick="dispatchResetWO(event)" data-wo-id="'+j.id+'">↺ Reset</button>'
+          : urgent ? '<span style="font-size:10px;font-weight:700;color:#c62828">Needs tech</span>' : '')
       +'</div>'
       +'</div>';
   }
