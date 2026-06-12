@@ -192,6 +192,38 @@ function dispatchScheduleFromStrip(e) {
   if (card) scheduleWO(card.getAttribute('data-job-id'));
 }
 
+
+function _woHasHours(woId) {
+  try {
+    var labor = (DB.woLabor||[]).filter(function(l){ return l.woId===woId||l.wo_id===woId; });
+    if (labor.length) return true;
+    var logs = (DB.woFieldLogs||[]).filter(function(l){
+      return (l.woId===woId||l.wo_id===woId) && ((l.hoursWorked||l.hours_worked||0)>0);
+    });
+    return logs.length > 0;
+  } catch(e) { return false; }
+}
+
+function dispatchResetWO(e) {
+  e.stopPropagation();
+  var card = e.currentTarget.closest ? e.currentTarget.closest('[data-job-id]') : null;
+  var woId = card ? card.getAttribute('data-job-id') : e.currentTarget.getAttribute('data-wo-id');
+  if (!woId) return;
+  if (_woHasHours(woId)) {
+    showToast('Cannot reset — labor hours are logged','warning',3000);
+    return;
+  }
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (!wo) return;
+  wo.status='New'; wo.scheduledDate=''; wo.scheduledTime=''; wo.assignedTechs=[];
+  saveDB();
+  if (typeof _sb!=='undefined' && _sb) {
+    _sb.from('work_orders').update({status:'New',scheduled_date:null,scheduled_time:null,assigned_techs:[]}).eq('id',wo.id).then(function(){});
+  }
+  showToast('WO reset to New — moved to Unscheduled','success',3000);
+  renderDispatchBoard();
+}
+
 function initDispatchBoard() {
   var dateEl = document.getElementById('dispatch-date');
   if (dateEl && !dateEl.value) dateEl.value = getTodayISO();
