@@ -549,7 +549,7 @@ async function syncAllFromCloud() {
 
     // 3. Customers
     try {
-      var { data: custs, error: ce } = await _sb.from('customers').select('*').eq('is_active', true).order('name');
+      var { data: custs, error: ce } = await _sb.from('customers').select('*').order('name');
       if (ce) { errors.push('customers: '+ce.message); }
       else if (custs) {
         custs = custs.filter(function(c){ return delC.indexOf(String(c.id)) < 0; });
