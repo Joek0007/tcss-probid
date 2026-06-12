@@ -179,7 +179,7 @@ function renderWorkOrders() {
     });
   }
 
-  var search   = ((document.getElementById('wo-search')||{}).value||'').toLowerCase();
+  var search   = ((document.getElementById('wo-search')||{}).value||'').trim().toLowerCase();
   var fStatus  = (document.getElementById('wo-filter-status')||{}).value||'';
   var fPriority= (document.getElementById('wo-filter-priority')||{}).value||'';
   var fType    = (document.getElementById('wo-filter-type')||{}).value||'';

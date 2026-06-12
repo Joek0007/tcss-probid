@@ -2125,7 +2125,7 @@ function buildInvoiceHTML(inv) {
 
 // ---- RENDER CUSTOMERS ----
 function renderCustomers() {
-  var search  = (document.getElementById('cust-search')||{}).value||'';
+  var search  = ((document.getElementById('cust-search')||{}).value||'').trim();
   var sort    = (document.getElementById('cust-sort')||{}).value||'name-asc';
   var filter  = (document.getElementById('cust-filter')||{}).value||'';
   var sl      = search.toLowerCase();
