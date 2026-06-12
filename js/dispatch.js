@@ -358,6 +358,12 @@ function renderDispatchPool(jobs, needsTech) {
     return (a.createdAt||'').localeCompare(b.createdAt||'');
   });
 
+  // Apply filter from dropdown
+  var filterEl = document.getElementById('dispatch-pool-filter');
+  var filter = filterEl ? filterEl.value : 'all';
+  if (filter === 'needs_tech') jobs = [];
+  if (filter === 'unscheduled') needsTech = [];
+
   var countEl = document.getElementById('dispatch-unassigned-count');
   if (countEl) countEl.textContent = (jobs.length + needsTech.length) || '';
   var pool = document.getElementById('dispatch-pool-jobs');

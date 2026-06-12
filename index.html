@@ -2636,10 +2636,17 @@ table{font-size:12.5px}
     <!-- Unassigned job pool (left sidebar) -->
     <div class="dispatch-pool" id="dispatch-pool">
       <div class="dispatch-pool-header">
-        <span>📋 Unassigned</span>
+        <span>📋 Work Queue</span>
         <span id="dispatch-unassigned-count" class="dispatch-pool-count">0</span>
       </div>
-      <div class="dispatch-pool-subtitle">Drop onto a tech to assign</div>
+      <div style="padding:6px 10px;background:#fff;border-bottom:1px solid #e0e0e0">
+        <select id="dispatch-pool-filter" onchange="renderDispatchBoard()"
+          style="width:100%;padding:5px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;font-weight:600;color:#0d1b2a;background:#f8f9fa">
+          <option value="all">All Work</option>
+          <option value="needs_tech">⚠ Needs a Tech</option>
+          <option value="unscheduled">📋 Unscheduled</option>
+        </select>
+      </div>
       <div id="dispatch-pool-jobs"></div>
     </div>
 
