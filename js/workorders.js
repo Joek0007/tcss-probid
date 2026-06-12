@@ -614,8 +614,10 @@ function onWOPriorityChange(val) {
 function onWOCustomerInput(val) {
   var drop=document.getElementById('wo-customer-dropdown');
   if (!drop) return;
-  if (!val||val.length<1) { drop.style.display='none'; return; }
-  var matches=(DB.customers||[]).filter(function(c){ return (c.name||'').toLowerCase().includes(val.toLowerCase()); }).slice(0,8);
+  var v = (val||'').trim().toLowerCase();
+  var matches = v
+    ? (DB.customers||[]).filter(function(c){ return (c.name||'').toLowerCase().includes(v); }).slice(0,10)
+    : (DB.customers||[]).slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); }).slice(0,15);
   if (!matches.length) { drop.style.display='none'; return; }
   drop.innerHTML=matches.map(function(c){
     return '<div onmousedown="selectWOCustomer(\''+c.id+'\',\''+escHtml(c.name)+'\')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f4f8;font-size:13px" onmouseover="this.style.background=\'#f0f4f8\'" onmouseout="this.style.background=\'\'">'+
