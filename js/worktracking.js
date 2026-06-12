@@ -7199,9 +7199,14 @@ function loadSettings() {
 // Push full DB.settings to Supabase for persistence across devices/reloads
 function _pushSettingsToSupabase() {
   if (typeof _sb !== 'undefined' && _sb && DB.settings) {
+    // Include woSettings so custom statuses/types survive across devices and reloads
+    var settingsPayload = Object.assign({}, DB.settings);
+    if (typeof DB.woSettings !== 'undefined' && DB.woSettings) {
+      settingsPayload._woSettings = DB.woSettings;
+    }
     _sb.from('company_settings').upsert({
       id: 1,
-      settings_json: DB.settings,
+      settings_json: settingsPayload,
       company_name: DB.settings.cname || 'TCSS',
     }).then(function(r){
       if (r && r.error) console.warn('[Settings] Supabase push error:', r.error.message);

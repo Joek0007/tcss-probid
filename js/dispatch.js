@@ -1577,30 +1577,30 @@ function _getMsStatuses() {
 
 function updateWOStatusName(idx, val) {
   var s = _getMsStatuses(); if (!s[idx]) return;
-  s[idx].id = val; saveDB();
+  s[idx].id = val; saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase();
 }
 function updateWOStatusColor(idx, val) {
   var s = _getMsStatuses(); if (!s[idx]) return;
-  s[idx].color = val; saveDB();
+  s[idx].color = val; saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase();
 }
 function updateWOStatusOpen(idx, val) {
   var s = _getMsStatuses(); if (!s[idx]) return;
-  s[idx].open = val; saveDB();
+  s[idx].open = val; saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase();
 }
 function updateWOStatusMobile(idx, val) {
   var s = _getMsStatuses(); if (!s[idx]) return;
-  s[idx].mobile = val; saveDB();
+  s[idx].mobile = val; saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase();
 }
 function addMsWOStatus() {
   var name = prompt('New status name:'); if (!name||!name.trim()) return;
   var s = _getMsStatuses();
   s.push({ id:name.trim(), color:'#ddd8d8', open:true, mobile:false });
-  saveDB(); renderMsWOStatuses();
+  saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase(); renderMsWOStatuses();
 }
 function deleteMsWOStatus(idx) {
   var s = _getMsStatuses();
   if (!confirm('Delete status "'+s[idx].id+'"?')) return;
-  s.splice(idx,1); saveDB(); renderMsWOStatuses();
+  s.splice(idx,1); saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase(); renderMsWOStatuses();
 }
 
 function renderMsWOTypes() {
@@ -1627,11 +1627,11 @@ function addMsWOType() {
   var v = prompt('New service type:'); if(!v||!v.trim()) return;
   if (!DB.woSettings) DB.woSettings={};
   if (!DB.woSettings.serviceTypes) DB.woSettings.serviceTypes = (WO_SERVICE_TYPES||[]).slice();
-  DB.woSettings.serviceTypes.push(v.trim()); saveDB(); renderMsWOTypes();
+  DB.woSettings.serviceTypes.push(v.trim()); saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase(); renderMsWOTypes();
 }
 function deleteMsWOType(idx) {
   if (!DB.woSettings||!DB.woSettings.serviceTypes) return;
-  DB.woSettings.serviceTypes.splice(idx,1); saveDB(); renderMsWOTypes();
+  DB.woSettings.serviceTypes.splice(idx,1); saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase(); renderMsWOTypes();
 }
 
 function renderMsWOExpenses() {
@@ -1658,11 +1658,11 @@ function addMsWOExpCat() {
   var v = prompt('New expense category:'); if(!v||!v.trim()) return;
   if (!DB.woSettings) DB.woSettings={};
   if (!DB.woSettings.expenseCategories) DB.woSettings.expenseCategories = (WO_EXPENSE_CATS||[]).slice();
-  DB.woSettings.expenseCategories.push(v.trim()); saveDB(); renderMsWOExpenses();
+  DB.woSettings.expenseCategories.push(v.trim()); saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase(); renderMsWOExpenses();
 }
 function deleteMsWOExpCat(idx) {
   if (!DB.woSettings||!DB.woSettings.expenseCategories) return;
-  DB.woSettings.expenseCategories.splice(idx,1); saveDB(); renderMsWOExpenses();
+  DB.woSettings.expenseCategories.splice(idx,1); saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase(); renderMsWOExpenses();
 }
 
 function renderMsWORates() {

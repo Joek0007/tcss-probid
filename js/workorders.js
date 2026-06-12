@@ -1383,8 +1383,13 @@ function addWOChecklistItem() {
   var item=(document.getElementById('wocl-new')||{}).value||'';
   if(!item.trim()){showToast('Enter item text','error');return;}
   if(!DB.woChecklist) DB.woChecklist=[];
-  DB.woChecklist.push({id:'wocl-'+Date.now(),woId:woId,item:item.trim(),completed:false,createdAt:new Date().toISOString()});
-  saveDB(); switchWOTab('checklist');
+  var newCl = {id:'wocl-'+Date.now(),woId:woId,item:item.trim(),completed:false,createdAt:new Date().toISOString()};
+  DB.woChecklist.push(newCl);
+  saveDB();
+  if (typeof _sb!=='undefined'&&_sb) {
+    _sb.from('wo_checklist').insert({id:newCl.id,wo_id:woId,item:newCl.item,completed:false,created_at:newCl.createdAt}).then(function(){});
+  }
+  switchWOTab('checklist');
 }
 
 function toggleWOChecklistItem(id,checked) {
@@ -1395,7 +1400,11 @@ function toggleWOChecklistItem(id,checked) {
 
 function deleteWOChecklistItem(id) {
   DB.woChecklist=(DB.woChecklist||[]).filter(function(c){return c.id!==id;});
-  saveDB(); switchWOTab('checklist');
+  saveDB();
+  if (typeof _sb!=='undefined'&&_sb) {
+    _sb.from('wo_checklist').delete().eq('id',id).then(function(){});
+  }
+  switchWOTab('checklist');
 }
 
 // ---- CREATE INVOICE FROM WO ----

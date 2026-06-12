@@ -791,6 +791,17 @@ async function syncAllFromCloud() {
       }
     } catch(e) { errors.push('wo_parts: '+e.message); }
 
+    // 17b. WO Checklist
+    try {
+      var { data: woClRows, error: wocle } = await _sb.from('wo_checklist').select('*').order('created_at', { ascending: true });
+      if (wocle) { errors.push('wo_checklist: '+wocle.message); }
+      else if (woClRows) {
+        DB.woChecklist = woClRows.map(function(c){
+          return { id:c.id, woId:c.wo_id, item:c.item, completed:!!c.completed, createdAt:c.created_at };
+        });
+      }
+    } catch(e) { errors.push('wo_checklist: '+e.message); }
+
     // 18. WO Expenses
     try {
       var { data: woExpRows, error: woee } = await _sb.from('wo_expenses').select('*').order('created_at', { ascending: false });
