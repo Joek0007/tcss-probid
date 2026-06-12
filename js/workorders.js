@@ -252,15 +252,16 @@ function renderWorkOrders() {
     var sCounts = {};
     allU.forEach(function(w){ sCounts[w.status] = (sCounts[w.status]||0)+1; });
     var chipFilter = (document.getElementById('wo-filter-status')||{}).value||'';
-    var chipEls = '<span class="wo-qchip" data-status="" style="background:#e3f2fd;color:#1565c0;border-color:'+(chipFilter===''?'#1565c0':'transparent')+'">All <b>'+allU.length+'</b></span>';
+    var chipEls = '<span class="wo-qchip" data-status="" style="background:'+(chipFilter===''?'#1565c0':'#f5f7fa')+';color:'+(chipFilter===''?'#fff':'#546e7a')+';border-color:'+(chipFilter===''?'#1565c0':'#e0e7ef')+'">All <b>'+allU.length+'</b></span>';
     _getWOStatuses().forEach(function(s){
       var cnt = sCounts[s.id]||0; if (!cnt) return;
       var col = s.color||'#546e7a';
-      chipEls += '<span class="wo-qchip" data-status="'+escHtml(s.id)+'" style="background:'+col+'22;color:'+col+';border-color:'+(chipFilter===s.id?col:'transparent')+'">'+escHtml(s.id)+' <b>'+cnt+'</b></span>';
+      var chipActive = chipFilter===s.id;
+      chipEls += '<span class="wo-qchip" data-status="'+escHtml(s.id)+'" style="background:'+(chipActive?col:'#f5f7fa')+';color:'+(chipActive?_smartTextColor(col):col)+';border-color:'+(chipActive?col:'#e0e7ef')+'">'+escHtml(s.id)+' <b>'+cnt+'</b></span>';
     });
     chipsEl.innerHTML = '<span style="font-size:11px;color:#546e7a;font-weight:700;margin-right:4px">QUICK FILTER:</span>'+chipEls;
     chipsEl.querySelectorAll('.wo-qchip').forEach(function(el){
-      el.style.cssText += ';padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:2px solid';
+      el.style.cssText += ';padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:2px solid transparent';
       el.addEventListener('click',function(){
         var sf = document.getElementById('wo-filter-status');
         if (sf) sf.value = el.getAttribute('data-status');
@@ -288,6 +289,7 @@ function renderWorkOrders() {
   var rows = list.map(function(wo) {
     var st = _getWOStatusDef(wo.status);
     var stColor = st.color||'#90a4ae';
+    var stText  = _smartTextColor(stColor);
 
     var prDot = wo.priority==='Urgent'
       ? '<span style="width:9px;height:9px;border-radius:50%;background:#c62828;display:inline-block;vertical-align:middle;margin-right:4px"></span><span style="font-size:11px;color:#c62828;font-weight:700">Urgent</span>'
@@ -322,7 +324,7 @@ function renderWorkOrders() {
       +'<div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(wo.customerName||'—')+'</div>'
       +'<div style="overflow:hidden"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml((wo.description||'').substring(0,50))+'</div>'+schedHtml+'</div>'
       +'<div>'+techHtml+'</div>'
-      +'<div><span class="wo-status-badge" data-woid="'+escHtml(wo.id)+'" style="background:'+stColor+'22;color:'+stColor+';border-left:3px solid '+stColor+';padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer">'+escHtml(wo.status||'')+'</span></div>'
+      +'<div><span class="wo-status-badge" data-woid="'+escHtml(wo.id)+'" style="background:'+stColor+';color:'+_smartTextColor(stColor)+';padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;display:inline-block">'+escHtml(wo.status||'')+'</span></div>'
       +'<div style="display:flex;align-items:center;gap:4px">'+prDot+'</div>'
       +'<div>'+menuHtml+'</div>'
     +'</div>';
@@ -333,6 +335,21 @@ function renderWorkOrders() {
   if (!body.dataset.eventsWired) { _wireWOListEvents(); body.dataset.eventsWired='1'; }
 }
 
+
+
+// Determine if text should be white or dark based on background color
+function _smartTextColor(hexColor) {
+  try {
+    var h = hexColor.replace('#','');
+    if (h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var r=parseInt(h.substr(0,2),16);
+    var g=parseInt(h.substr(2,2),16);
+    var b=parseInt(h.substr(4,2),16);
+    // Luminance formula
+    var lum = (0.299*r + 0.587*g + 0.114*b) / 255;
+    return lum > 0.55 ? '#0d1b2a' : '#ffffff';
+  } catch(e) { return '#ffffff'; }
+}
 
 // ── WO List event handlers ─────────────────────────────────────────────────
 var _woSortField = 'woNumber';
