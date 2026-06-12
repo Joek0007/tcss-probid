@@ -258,36 +258,23 @@ function renderWorkOrders() {
     var sCounts = {};
     allU.forEach(function(w){ sCounts[w.status] = (sCounts[w.status]||0)+1; });
     var chipFilter = (document.getElementById('wo-filter-status')||{}).value||'';
-    var chipEls = '<span class="wo-qchip" data-status="" style="background:'+(chipFilter===''?'#1565c0':'#e0e7ef')+';color:'+(chipFilter===''?'#fff':'#0d1b2a')+';border-color:'+(chipFilter===''?'#1565c0':'#c8d0db')+'">All <b>'+allU.length+'</b></span>';
+    var chipStyle = 'padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;display:inline-block;border:2px solid;margin-right:2px';
+    function makeChip(status, bg, color, border, label) {
+      return '<span onclick="woChipClick(\'' + status + '\')" style="'+chipStyle+';background:'+bg+';color:'+color+';border-color:'+border+'">'+label+'</span>';
+    }
+    var chipEls = makeChip('', chipFilter===''?'#1565c0':'#e0e7ef', chipFilter===''?'#fff':'#0d1b2a', chipFilter===''?'#1565c0':'#c8d0db', 'All <b>'+allU.length+'</b>');
     _getWOStatuses().forEach(function(s){
       var cnt = sCounts[s.id]||0; if (!cnt) return;
       var col = s.color||'#546e7a';
-      var chipActive = chipFilter===s.id;
-      chipEls += '<span class="wo-qchip" data-status="'+escHtml(s.id)+'" style="background:'+(chipActive?col:'#e0e7ef')+';color:'+(chipActive?_smartTextColor(col):'#0d1b2a')+';border-color:'+(chipActive?col:'#c8d0db')+'">'+escHtml(s.id)+' <b>'+cnt+'</b></span>';
+      var active = chipFilter===s.id;
+      chipEls += makeChip(s.id, active?col:'#e0e7ef', active?_smartTextColor(col):'#0d1b2a', active?col:'#c8d0db', escHtml(s.id)+' <b>'+cnt+'</b>');
     });
-    // Unscheduled pill
     var unschedCount = allU.filter(function(w){ return !w.scheduledDate; }).length;
     if (unschedCount) {
-      var unschedActive = _woUnscheduledFilter;
-      chipEls += '<span class="wo-qchip" data-status="__unscheduled__" style="background:'+(unschedActive?'#c62828':'#e0e7ef')+';color:'+(unschedActive?'#fff':'#0d1b2a')+';border-color:'+(unschedActive?'#c62828':'#c8d0db')+'">⚠ Unscheduled <b>'+unschedCount+'</b></span>';
+      var ua = _woUnscheduledFilter;
+      chipEls += makeChip('__unscheduled__', ua?'#c62828':'#e0e7ef', ua?'#fff':'#0d1b2a', ua?'#c62828':'#c8d0db', '&#9888; Unscheduled <b>'+unschedCount+'</b>');
     }
-    chipsEl.innerHTML = '<span style="font-size:11px;color:#546e7a;font-weight:700;margin-right:4px">QUICK FILTER:</span>'+chipEls;
-    chipsEl.querySelectorAll('.wo-qchip').forEach(function(el){
-      el.style.cssText += ';padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:2px solid transparent';
-      el.addEventListener('click',function(){
-        var status = el.getAttribute('data-status');
-        if (status === '__unscheduled__') {
-          _woUnscheduledFilter = !_woUnscheduledFilter;
-          var sf = document.getElementById('wo-filter-status');
-          if (sf) sf.value = '';
-        } else {
-          _woUnscheduledFilter = false;
-          var sf = document.getElementById('wo-filter-status');
-          if (sf) sf.value = status;
-        }
-        renderWorkOrders();
-      });
-    });
+    chipsEl.innerHTML = '<span style="font-size:11px;color:#546e7a;font-weight:700;margin-right:6px">QUICK FILTER:</span>'+chipEls;
   }
 
   // Column layout
@@ -379,6 +366,19 @@ var _woUnscheduledFilter = false;
 function woSort(field) {
   if (_woSortField === field) { _woSortAsc = !_woSortAsc; }
   else { _woSortField = field; _woSortAsc = true; }
+  renderWorkOrders();
+}
+
+function woChipClick(status) {
+  if (status === '__unscheduled__') {
+    _woUnscheduledFilter = !_woUnscheduledFilter;
+    var sf = document.getElementById('wo-filter-status');
+    if (sf) sf.value = '';
+  } else {
+    _woUnscheduledFilter = false;
+    var sf = document.getElementById('wo-filter-status');
+    if (sf) sf.value = status;
+  }
   renderWorkOrders();
 }
 
