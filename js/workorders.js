@@ -291,7 +291,14 @@ function openNewWorkOrder() {
   // Populate status dropdown
   _populateWOStatusSelect();
   // Set defaults
-  var statusEl=document.getElementById('wo-status'); if(statusEl) statusEl.value='New';
+  var statusEl=document.getElementById('wo-status');
+  if (statusEl) {
+    // Find 'New' case-insensitively, or use first available status
+    var newOpt = Array.from(statusEl.options).find(function(o){
+      return o.value.toLowerCase()==='new';
+    });
+    statusEl.value = newOpt ? newOpt.value : (statusEl.options[0] ? statusEl.options[0].value : 'New');
+  }
   var priorityEl=document.getElementById('wo-priority'); if(priorityEl) priorityEl.value='Normal';
   _populateWOServiceTypeSelect();
   _populateWORepSelect(null);
@@ -368,7 +375,7 @@ function openWorkOrder(id) {
   // Created and closed — format for display
   var createdEl = document.getElementById('wo-created-date');
   if (createdEl) {
-    var cDate = wo.createdAt ? new Date(wo.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'New';
+    var cDate = wo.createdAt ? new Date(wo.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
     createdEl.value = cDate;
   }
   var closedEl = document.getElementById('wo-closed-date');
@@ -470,11 +477,17 @@ function saveWorkOrder() {
   }
   var priority = gv('wo-priority') || 'Normal';
 
-  // Auto-generate WO number for new
+  // Auto-generate WO number for new — always derive from highest existing
   var woNum;
   if (isNew) {
-    DB.woSeq = (DB.woSeq||1000) + 1;
+    var _maxSeq = 1000;
+    (DB.workOrders||[]).forEach(function(w){
+      var m = (w.woNumber||'').match(/WO-(\d+)/i);
+      if (m) { var n=parseInt(m[1],10); if(n>_maxSeq) _maxSeq=n; }
+    });
+    DB.woSeq = _maxSeq + 1;
     woNum = 'WO-' + DB.woSeq;
+    saveDB();
   } else {
     var existing = DB.workOrders.find(function(w){ return w.id===id; });
     woNum = existing ? existing.woNumber : 'WO-?';
@@ -560,6 +573,9 @@ function saveWorkOrder() {
   showToast('Work Order '+woNum+' saved ✓','success');
   document.getElementById('wo-modal-num').textContent=woNum;
   document.getElementById('wo-modal-title').textContent='Work Order';
+  // Show created date immediately after first save
+  var creEl = document.getElementById('wo-created-date');
+  if (creEl && isNew) creEl.value = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   // Refresh assigned techs section now that WO is saved
   setTimeout(function(){ renderAssignedTechs(id); }, 100);
 }
