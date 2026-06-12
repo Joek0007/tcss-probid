@@ -279,7 +279,8 @@ function openNewWorkOrder() {
   // Clear fields
   ['wo-customer-name','wo-customer-id','wo-description','wo-work-performed',
    'wo-ref-num','wo-site-addr','wo-site-city','wo-site-state','wo-site-zip',
-   'wo-internal-notes','wo-date-followup'].forEach(function(id){
+   'wo-internal-notes','wo-date-followup','wo-scheduled-date','wo-scheduled-time',
+   'wo-created-date','wo-closed-date'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.value='';
   });
   var reqEl=document.getElementById('wo-date-requested'); if(reqEl) reqEl.value=today;
