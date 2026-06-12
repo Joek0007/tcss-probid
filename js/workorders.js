@@ -205,7 +205,11 @@ function renderWorkOrders() {
            (w.siteAddr||'').toLowerCase().includes(search) ||
            (w.siteCity||'').toLowerCase().includes(search);
   });
-  if (fStatus)   list = list.filter(function(w){ return w.status === fStatus; });
+  if (fStatus === '__unscheduled__') {
+    list = list.filter(function(w){ return !w.scheduledDate; });
+  } else if (fStatus) {
+    list = list.filter(function(w){ return w.status === fStatus; });
+  }
   if (fPriority) list = list.filter(function(w){ return w.priority === fPriority; });
   if (fType)     list = list.filter(function(w){ return w.serviceType === fType; });
 
@@ -252,13 +256,19 @@ function renderWorkOrders() {
     var sCounts = {};
     allU.forEach(function(w){ sCounts[w.status] = (sCounts[w.status]||0)+1; });
     var chipFilter = (document.getElementById('wo-filter-status')||{}).value||'';
-    var chipEls = '<span class="wo-qchip" data-status="" style="background:'+(chipFilter===''?'#1565c0':'#f5f7fa')+';color:'+(chipFilter===''?'#fff':'#546e7a')+';border-color:'+(chipFilter===''?'#1565c0':'#e0e7ef')+'">All <b>'+allU.length+'</b></span>';
+    var chipEls = '<span class="wo-qchip" data-status="" style="background:'+(chipFilter===''?'#1565c0':'#e0e7ef')+';color:'+(chipFilter===''?'#fff':'#0d1b2a')+';border-color:'+(chipFilter===''?'#1565c0':'#c8d0db')+'">All <b>'+allU.length+'</b></span>';
     _getWOStatuses().forEach(function(s){
       var cnt = sCounts[s.id]||0; if (!cnt) return;
       var col = s.color||'#546e7a';
       var chipActive = chipFilter===s.id;
-      chipEls += '<span class="wo-qchip" data-status="'+escHtml(s.id)+'" style="background:'+(chipActive?col:'#f5f7fa')+';color:'+(chipActive?_smartTextColor(col):col)+';border-color:'+(chipActive?col:'#e0e7ef')+'">'+escHtml(s.id)+' <b>'+cnt+'</b></span>';
+      chipEls += '<span class="wo-qchip" data-status="'+escHtml(s.id)+'" style="background:'+(chipActive?col:'#e0e7ef')+';color:'+(chipActive?_smartTextColor(col):'#0d1b2a')+';border-color:'+(chipActive?col:'#c8d0db')+'">'+escHtml(s.id)+' <b>'+cnt+'</b></span>';
     });
+    // Unscheduled pill
+    var unschedCount = allU.filter(function(w){ return !w.scheduledDate; }).length;
+    if (unschedCount) {
+      var unschedActive = chipFilter==='__unscheduled__';
+      chipEls += '<span class="wo-qchip" data-status="__unscheduled__" style="background:'+(unschedActive?'#c62828':'#e0e7ef')+';color:'+(unschedActive?'#fff':'#0d1b2a')+';border-color:'+(unschedActive?'#c62828':'#c8d0db')+'">⚠ Unscheduled <b>'+unschedCount+'</b></span>';
+    }
     chipsEl.innerHTML = '<span style="font-size:11px;color:#546e7a;font-weight:700;margin-right:4px">QUICK FILTER:</span>'+chipEls;
     chipsEl.querySelectorAll('.wo-qchip').forEach(function(el){
       el.style.cssText += ';padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:2px solid transparent';
