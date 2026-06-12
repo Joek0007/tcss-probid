@@ -2881,7 +2881,7 @@ table{font-size:12.5px}
   <div class="card">
     <!-- Filter / sort bar -->
     <div class="filter-bar" style="margin-bottom:12px">
-      <input class="search-input" id="cust-search" placeholder="🔍 Search customers..." oninput="renderCustomers()" onfocus="this.value='';renderCustomers()">
+      <input class="search-input" id="cust-search" placeholder="🔍 Search customers..." oninput="renderCustomers()" onfocus="this.value='';var cf=document.getElementById('cust-filter');if(cf)cf.value='';renderCustomers()">
       <select id="cust-sort" style="width:auto" onchange="renderCustomers()">
         <option value="name-asc">Name A–Z</option>
         <option value="name-desc">Name Z–A</option>
