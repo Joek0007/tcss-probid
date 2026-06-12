@@ -184,19 +184,13 @@ function renderWorkOrders() {
   var fPriority= (document.getElementById('wo-filter-priority')||{}).value||'';
   var fType    = (document.getElementById('wo-filter-type')||{}).value||'';
 
-  var list = DB.workOrders.slice().sort(function(a,b){
-    // Urgent first, then by date desc
-    var pa = a.priority==='Urgent'?0:a.priority==='High'?1:a.priority==='Normal'?2:3;
-    var pb = b.priority==='Urgent'?0:b.priority==='High'?1:b.priority==='Normal'?2:3;
-    if (pa!==pb) return pa-pb;
-    return (b.createdAt||'').localeCompare(a.createdAt||'');
-  });
+  var list = DB.workOrders.slice();
 
   // ---- ASSIGNMENT FILTER — role-based, owner always sees all ----
   var myName  = _currentUser ? _currentUser.full_name : '';
   var myRole  = _currentUser ? _currentUser.role : '';
-  // Only helper_tech sees assigned WOs only — all other roles see everything
-  var assignedOnly = myRole === 'helper_tech';
+  var isTech  = myRole === 'helper_tech';
+  var assignedOnly = isTech;
 
   if (assignedOnly && myName) {
     list = list.filter(function(w){
@@ -207,31 +201,15 @@ function renderWorkOrders() {
   if (search) list = list.filter(function(w){
     return (w.woNumber||'').toLowerCase().includes(search) ||
            (w.customerName||'').toLowerCase().includes(search) ||
-           (w.description||'').toLowerCase().includes(search);
+           (w.description||'').toLowerCase().includes(search) ||
+           (w.siteAddr||'').toLowerCase().includes(search) ||
+           (w.siteCity||'').toLowerCase().includes(search);
   });
   if (fStatus)   list = list.filter(function(w){ return w.status === fStatus; });
   if (fPriority) list = list.filter(function(w){ return w.priority === fPriority; });
   if (fType)     list = list.filter(function(w){ return w.serviceType === fType; });
 
-  // Stats bar
-  var statsEl = document.getElementById('wo-stats-bar');
-  if (statsEl) {
-    // For helper_tech: only count WOs assigned to them
-    var myName  = _currentUser ? _currentUser.full_name : '';
-    var isTech  = _currentUser && _currentUser.role === 'helper_tech';
-    var allWOs  = isTech
-      ? (DB.workOrders||[]).filter(function(w){ return _isTechAssignedToWO(myName, w); })
-      : (DB.workOrders||[]);
-    var urgent  = allWOs.filter(function(w){ return w.priority==='Urgent' && w.status!=='Billed'&&w.status!=='Void'; }).length;
-    var open    = allWOs.filter(function(w){ return _getWOStatusDef(w.status).open; }).length;
-    var review  = isTech ? 0 : allWOs.filter(function(w){ return w.status==='Ready for Review'; }).length;
-    var pricing = isTech ? 0 : allWOs.filter(function(w){ return w.status==='Ready for Pricing'; }).length;
-    statsEl.innerHTML =
-      (urgent?'<div style="background:#c62828;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;animation:pulse 1s infinite">🚨 '+urgent+' URGENT</div>':'') +
-      '<div style="background:#e3f2fd;color:#1565c0;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700">📋 '+open+' Open</div>' +
-      (review?'<div style="background:#ffebee;color:#c62828;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700">👁 '+review+' Ready for Review</div>':'') +
-      (pricing?'<div style="background:#fff3e0;color:#e65100;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700">💰 '+pricing+' Ready for Pricing</div>':'');
-  }
+  // Stats bar replaced by chips below
 
   // Hide/show action buttons based on permissions
   var newWoBtn = document.querySelector('#page-workorders .btn-primary');
@@ -344,7 +322,7 @@ function renderWorkOrders() {
 
 
   body.innerHTML = header + rows;
-  _wireWOListEvents();
+  if (!body.dataset.eventsWired) { _wireWOListEvents(); body.dataset.eventsWired='1'; }
 }
 
 
