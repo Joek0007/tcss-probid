@@ -181,6 +181,8 @@ function renderWorkOrders() {
 
   var search   = ((document.getElementById('wo-search')||{}).value||'').trim().toLowerCase();
   var fStatus  = (document.getElementById('wo-filter-status')||{}).value||'';
+  // Reset unscheduled filter if a status was explicitly chosen
+  if (fStatus && _woUnscheduledFilter) _woUnscheduledFilter = false;
   var fPriority= (document.getElementById('wo-filter-priority')||{}).value||'';
   var fType    = (document.getElementById('wo-filter-type')||{}).value||'';
 
@@ -205,7 +207,7 @@ function renderWorkOrders() {
            (w.siteAddr||'').toLowerCase().includes(search) ||
            (w.siteCity||'').toLowerCase().includes(search);
   });
-  if (fStatus === '__unscheduled__') {
+  if (_woUnscheduledFilter) {
     list = list.filter(function(w){ return !w.scheduledDate; });
   } else if (fStatus) {
     list = list.filter(function(w){ return w.status === fStatus; });
@@ -266,15 +268,23 @@ function renderWorkOrders() {
     // Unscheduled pill
     var unschedCount = allU.filter(function(w){ return !w.scheduledDate; }).length;
     if (unschedCount) {
-      var unschedActive = chipFilter==='__unscheduled__';
+      var unschedActive = _woUnscheduledFilter;
       chipEls += '<span class="wo-qchip" data-status="__unscheduled__" style="background:'+(unschedActive?'#c62828':'#e0e7ef')+';color:'+(unschedActive?'#fff':'#0d1b2a')+';border-color:'+(unschedActive?'#c62828':'#c8d0db')+'">⚠ Unscheduled <b>'+unschedCount+'</b></span>';
     }
     chipsEl.innerHTML = '<span style="font-size:11px;color:#546e7a;font-weight:700;margin-right:4px">QUICK FILTER:</span>'+chipEls;
     chipsEl.querySelectorAll('.wo-qchip').forEach(function(el){
       el.style.cssText += ';padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:2px solid transparent';
       el.addEventListener('click',function(){
-        var sf = document.getElementById('wo-filter-status');
-        if (sf) sf.value = el.getAttribute('data-status');
+        var status = el.getAttribute('data-status');
+        if (status === '__unscheduled__') {
+          _woUnscheduledFilter = !_woUnscheduledFilter;
+          var sf = document.getElementById('wo-filter-status');
+          if (sf) sf.value = '';
+        } else {
+          _woUnscheduledFilter = false;
+          var sf = document.getElementById('wo-filter-status');
+          if (sf) sf.value = status;
+        }
         renderWorkOrders();
       });
     });
@@ -364,6 +374,7 @@ function _smartTextColor(hexColor) {
 // ── WO List event handlers ─────────────────────────────────────────────────
 var _woSortField = 'woNumber';
 var _woSortAsc = true;
+var _woUnscheduledFilter = false;
 
 function woSort(field) {
   if (_woSortField === field) { _woSortAsc = !_woSortAsc; }
