@@ -1084,21 +1084,61 @@ function woCreateWTProject() {
 
 // ---- LABOR TAB ----
 function renderWOLaborTab(woId) {
-  var entries = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
+  var manualEntries = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+
+  // ---- Pull clocked time entries for this WO from DB.timeEntries ----
+  var clockedEntries = (DB.timeEntries||[]).filter(function(t){
+    return t.jobId===woId || t.job_id===woId;
+  }).map(function(t) {
+    // Look up tech name from team member ID
+    var member = (DB.team||[]).find(function(m){ return m.id===t.teamMemberId||m.id===t.team_member_id; });
+    var techName = member ? member.name : (t.userName||t.user_name||'Unknown');
+    // Calculate hours
+    var hrs = 0;
+    if (t.totalHours) {
+      hrs = parseFloat(t.totalHours)||0;
+    } else if (t.clockIn && t.clockOut) {
+      var ms = new Date(t.clockOut) - new Date(t.clockIn);
+      hrs = ms / 3600000;
+      if (t.breakMinutes) hrs -= (t.breakMinutes/60);
+      hrs = Math.max(0, hrs);
+    } else if (t.clockIn && !t.clockOut) {
+      // Still active — calculate to now
+      var ms = Date.now() - new Date(t.clockIn);
+      hrs = Math.max(0, ms / 3600000);
+    }
+    return {
+      id:         t.id,
+      woId:       woId,
+      techName:   techName,
+      hours:      Math.round(hrs*100)/100,
+      entryType:  'clocked',
+      clockIn:    t.clockIn || t.clock_in,
+      clockOut:   t.clockOut || t.clock_out,
+      isActive:   !t.clockOut && !t.clock_out,
+      source:     'clock',
+      createdAt:  t.clockIn || t.created_at
+    };
+  });
+
+  // Merge: all entries for the tab
+  var entries = manualEntries.concat(clockedEntries);
 
   // ---- SUMMARY: hours by tech ----
   var techMap = {};
   entries.forEach(function(e) {
     var t = e.techName||'Unknown';
     var type = (e.entryType||'work').toLowerCase();
-    if (!techMap[t]) techMap[t] = { work:0, travel:0 };
+    if (!techMap[t]) techMap[t] = { work:0, travel:0, clocked:0 };
     if (type==='travel') techMap[t].travel += parseFloat(e.hours)||0;
+    else if (type==='clocked') techMap[t].clocked += parseFloat(e.hours)||0;
     else techMap[t].work += parseFloat(e.hours)||0;
   });
-  var totalWork   = entries.filter(function(e){return (e.entryType||'work')!=='travel';}).reduce(function(s,e){return s+(parseFloat(e.hours)||0);},0);
-  var totalTravel = entries.filter(function(e){return (e.entryType||'work')==='travel';}).reduce(function(s,e){return s+(parseFloat(e.hours)||0);},0);
-  var totalAll    = totalWork + totalTravel;
+  var totalWork    = manualEntries.filter(function(e){return (e.entryType||'work')!=='travel';}).reduce(function(s,e){return s+(parseFloat(e.hours)||0);},0);
+  var totalTravel  = manualEntries.filter(function(e){return (e.entryType||'work')==='travel';}).reduce(function(s,e){return s+(parseFloat(e.hours)||0);},0);
+  var totalClocked = clockedEntries.reduce(function(s,e){return s+(parseFloat(e.hours)||0);},0);
+  var totalAll     = totalWork + totalTravel + totalClocked;
 
   var html = '<div style="margin-bottom:16px">';
 
@@ -1108,28 +1148,35 @@ function renderWOLaborTab(woId) {
     return html + '</div>';
   }
 
-  // Summary table
+  // Summary totals bar
   html +=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
-      '<div style="font-weight:700;font-size:14px">Total: '+totalAll.toFixed(1)+' hrs</div>'+
+      '<div style="display:flex;gap:16px;align-items:center">'+
+        '<span style="font-weight:700;font-size:14px">Total: '+totalAll.toFixed(1)+' hrs</span>'+
+        (totalClocked>0?'<span style="font-size:12px;color:#1565c0;font-weight:600">⏱ '+totalClocked.toFixed(1)+' clocked</span>':'')+
+        (totalWork>0?'<span style="font-size:12px;color:#546e7a">✏ '+totalWork.toFixed(1)+' manual</span>':'')+
+        (totalTravel>0?'<span style="font-size:12px;color:#f57c00">🚗 '+totalTravel.toFixed(1)+' travel</span>':'')+
+      '</div>'+
       '<button class="btn btn-outline btn-sm" onclick="addWOLaborEntry()">+ Add Manual Entry</button>'+
     '</div>'+
     '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px">'+
       '<thead><tr style="background:#f0f4f8">'+
         '<th style="padding:8px 10px;text-align:left;font-weight:700;color:#546e7a;font-size:11px;text-transform:uppercase">Technician</th>'+
-        '<th style="padding:8px 10px;text-align:center;font-weight:700;color:#546e7a;font-size:11px;text-transform:uppercase">Work Hrs</th>'+
-        '<th style="padding:8px 10px;text-align:center;font-weight:700;color:#546e7a;font-size:11px;text-transform:uppercase">Travel Hrs</th>'+
-        '<th style="padding:8px 10px;text-align:center;font-weight:700;color:#1565c0;font-size:11px;text-transform:uppercase">Total Hrs</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-weight:700;color:#1565c0;font-size:11px;text-transform:uppercase">⏱ Clocked</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-weight:700;color:#546e7a;font-size:11px;text-transform:uppercase">✏ Manual</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-weight:700;color:#f57c00;font-size:11px;text-transform:uppercase">🚗 Travel</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-weight:700;color:#1565c0;font-size:11px;text-transform:uppercase">Total</th>'+
       '</tr></thead><tbody>';
 
   Object.keys(techMap).sort().forEach(function(name) {
     var t = techMap[name];
-    var tot = t.work + t.travel;
+    var tot = (t.work||0) + (t.travel||0) + (t.clocked||0);
     html +=
       '<tr style="border-bottom:1px solid #f0f4f8">'+
         '<td style="padding:9px 10px;font-weight:600">'+escHtml(name)+'</td>'+
-        '<td style="padding:9px 10px;text-align:center">'+t.work.toFixed(1)+'</td>'+
-        '<td style="padding:9px 10px;text-align:center;color:#e65100">'+t.travel.toFixed(1)+'</td>'+
+        '<td style="padding:9px 10px;text-align:center;color:#1565c0;font-weight:600">'+((t.clocked||0)>0?(t.clocked||0).toFixed(1):'—')+'</td>'+
+        '<td style="padding:9px 10px;text-align:center">'+((t.work||0)>0?(t.work||0).toFixed(1):'\u2014')+'</td>'+
+        '<td style="padding:9px 10px;text-align:center;color:#f57c00">'+((t.travel||0)>0?(t.travel||0).toFixed(1):'\u2014')+'</td>'+
         '<td style="padding:9px 10px;text-align:center;font-weight:700;color:#1565c0">'+tot.toFixed(1)+'</td>'+
       '</tr>';
   });
@@ -1138,32 +1185,15 @@ function renderWOLaborTab(woId) {
   html +=
       '<tr style="background:#f8f9fa;border-top:2px solid #e0e7ef">'+
         '<td style="padding:9px 10px;font-weight:700">Total</td>'+
-        '<td style="padding:9px 10px;text-align:center;font-weight:700">'+totalWork.toFixed(1)+'</td>'+
-        '<td style="padding:9px 10px;text-align:center;font-weight:700;color:#e65100">'+totalTravel.toFixed(1)+'</td>'+
+        '<td style="padding:9px 10px;text-align:center;font-weight:700;color:#1565c0">'+(totalClocked>0?totalClocked.toFixed(1):'\u2014')+'</td>'+
+        '<td style="padding:9px 10px;text-align:center;font-weight:700">'+(totalWork>0?totalWork.toFixed(1):'\u2014')+'</td>'+
+        '<td style="padding:9px 10px;text-align:center;font-weight:700;color:#f57c00">'+(totalTravel>0?totalTravel.toFixed(1):'\u2014')+'</td>'+
         '<td style="padding:9px 10px;text-align:center;font-weight:700;color:#1565c0">'+totalAll.toFixed(1)+'</td>'+
       '</tr>'+
     '</tbody></table>';
 
-  // ---- DETAIL LOG — grouped by date chronologically ----
-  // Also pull from timeEntries linked to this WO
-  var teEntries = (DB.timeEntries||[]).filter(function(e){
-    return !e.deleted && (e.woId===woId || e.jobId===woId);
-  });
-
-  // Merge woLabor + timeEntries, deduplicate by id
+  // ---- DETAIL LOG — entries already merged (manual + clocked) ----
   var allEntries = entries.slice();
-  teEntries.forEach(function(te){
-    if (!allEntries.find(function(e){ return e.id===te.id; })) {
-      allEntries.push({
-        id:te.id, woId:te.woId, techName:te.techName,
-        entryType:te.entryType||'work', hours:te.totalHours||0,
-        clockIn:te.date+(te.startTime?'T'+te.startTime+':00':''),
-        clockOut:te.date+(te.endTime?'T'+te.endTime+':00':''),
-        notes:te.notes||'', isManual:te.isManual, addedBy:te.addedBy,
-        createdAt:te.createdAt||te.date
-      });
-    }
-  });
 
   var byDate = {};
   allEntries.forEach(function(e){
@@ -1197,12 +1227,14 @@ function renderWOLaborTab(woId) {
     dayEntries.forEach(function(e){
       var hrs      = parseFloat(e.hours)||0;
       var type     = (e.entryType||'work').toLowerCase();
+      var isClock  = (e.source==='clock'||type==='clocked');
+      var isActive = isClock && e.isActive;
       var isTravel = type==='travel';
       var isLunch  = type==='lunch';
-      var borderC  = isTravel?'#ff8f00':isLunch?'#9e9e9e':'#1565c0';
-      var badgeBg  = isTravel?'#fff3e0':isLunch?'#f5f5f5':'#e3f2fd';
-      var badgeC   = isTravel?'#e65100':isLunch?'#546e7a':'#1565c0';
-      var typeLabel= type.charAt(0).toUpperCase()+type.slice(1);
+      var borderC  = isClock?(isActive?'#1565c0':'#90caf9'):isTravel?'#ff8f00':isLunch?'#9e9e9e':'#1565c0';
+      var badgeBg  = isClock?'#e3f2fd':isTravel?'#fff3e0':isLunch?'#f5f5f5':'#e3f2fd';
+      var badgeC   = isClock?'#1565c0':isTravel?'#e65100':isLunch?'#546e7a':'#1565c0';
+      var typeLabel= isClock?(isActive?'⏱ Active':'⏱ Clocked'):type.charAt(0).toUpperCase()+type.slice(1);
       var timeIn   = e.clockIn  && e.clockIn.includes('T')  ? new Date(e.clockIn).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})  : '';
       var timeOut  = e.clockOut && e.clockOut.includes('T') ? new Date(e.clockOut).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '';
       var canEdit  = isAdmin || e.techName===myName;
