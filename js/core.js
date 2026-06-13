@@ -221,6 +221,7 @@ function goPage(id) {
     renderQuotes();
   }
   if (id==='customers')  renderCustomers();
+  if (id==='contracts')  renderContracts();
   if (id==='contacts')   renderContacts();
   if (id==='jobs')       renderJobs();
   if (id==='team')       renderTeam();
