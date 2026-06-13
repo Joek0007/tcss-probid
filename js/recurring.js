@@ -117,10 +117,11 @@ function renderRecurring() {
     return;
   }
 
-  var cols = '90px 1fr 140px 100px 130px 120px 100px 80px 36px';
-  var header = '<div style="display:grid;grid-template-columns:'+cols+';padding:9px 16px;background:#f5f7fa;border-bottom:2px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px;border-radius:10px 10px 0 0">'
-    +'<span>Number</span><span>Client</span><span>Type</span><span>Cycle</span>'
-    +'<span>Next Billing</span><span>Amount</span><span>Status</span><span>Delivery</span><span></span>'
+  var cols = '28px 90px 1fr 130px 90px 100px 110px 100px 100px 80px 80px 36px';
+  var header = '<div style="display:grid;grid-template-columns:'+cols+';padding:9px 16px;background:#f5f7fa;border-bottom:2px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px;border-radius:10px 10px 0 0;overflow-x:auto">'
+    +'<span></span><span>Number</span><span>Client</span><span>Type</span><span>Cycle</span>'
+    +'<span>Next Billing</span><span>Last Invoiced</span><span>Yearly</span><span>Expires</span>'
+    +'<span>Status</span><span>Delivery</span><span></span>'
     +'</div>';
 
   var rows = contracts.map(function(c){
@@ -129,28 +130,72 @@ function renderRecurring() {
     var isDue = _rcIsDue(c, today);
     var isOverdue = c.nextBillingDate && c.nextBillingDate < today && c.status==='active';
 
-    return '<div style="display:grid;grid-template-columns:'+cols+';padding:11px 16px;border-bottom:1px solid #f0f4f8;align-items:center;cursor:pointer;transition:background .1s" onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'\'" onclick="openRCModal(\''+escHtml(c.id)+'\')">'
-      +'<div style="font-weight:700;color:#1565c0;font-size:12px">'+escHtml(c.number||'')+'</div>'
+    var yearly = _rcYearlyPrice(c);
+    var doNotBill = !!c.doNotBill;
+    return '<div class="rc-list-row" data-rcid="'+escHtml(c.id)+'" draggable="true" '
+      +'style="display:grid;grid-template-columns:'+cols+';padding:10px 16px;border-bottom:1px solid #f0f4f8;align-items:center;background:'+(doNotBill?'#fffde7':'')+'" '
+      +'onmouseover="this.style.background=\'#f0f4ff\';" '
+      +'onmouseout="this.style.background=\''+(doNotBill?'#fffde7':'')+'\'" '
+      +'onclick="openRCDetail(\''+escHtml(c.id)+'\');" '
+      +'ondragstart="rcDragStart(event,\''+escHtml(c.id)+'\')" '
+      +'ondragover="rcDragOver(event)" '
+      +'ondrop="rcDrop(event,\''+escHtml(c.id)+'\')" '
+      +'ondragend="rcDragEnd(event)">'
+
+      +'<div style="cursor:grab;color:#c8d0db;font-size:14px;text-align:center;user-select:none" onclick="event.stopPropagation()" title="Drag to reorder">&#8661;</div>'
+
+      +'<div style="font-weight:700;color:#1565c0;font-size:12px">'+escHtml(c.number||'')+(doNotBill?' &#128683;':'')+'</div>'
+
       +'<div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(c.client||'')+'</div>'
-      +'<div style="font-size:11px;color:#546e7a">'+escHtml(c.type||'')+'</div>'
+
+      +'<div style="font-size:11px;color:#546e7a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(c.type||'')+'</div>'
+
       +'<div style="font-size:11px">'+escHtml(cycleLabels[c.billingCycle]||c.billingCycle||'')+'</div>'
-      +'<div style="font-size:12px;font-weight:600;color:'+(isOverdue?'#c62828':isDue?'#f57c00':'#0d1b2a')+'">'
-        +(isOverdue?'&#9888; ':isDue?'&#128310; ':'')+escHtml(c.nextBillingDate||'—')
-      +'</div>'
-      +'<div style="font-size:13px;font-weight:700;color:#0d1b2a">$'+amt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'
-      +'<div><span style="background:'+stColor+'22;color:'+stColor+';padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;text-transform:capitalize">'+escHtml(c.status||'')+'</span></div>'
-      +'<div style="font-size:13px">'+(c.deliveryMethod==='mail'?'&#128236; Mail':'&#128231; Email')+'</div>'
-      +'<div style="font-size:18px;color:#90a4ae" onclick="event.stopPropagation();rcMenu(\''+escHtml(c.id)+'\')">&#8942;</div>'
+
+      +'<div style="font-size:11px;font-weight:600;color:'+(doNotBill?'#f57c00':isOverdue?'#c62828':isDue?'#e65100':'#0d1b2a')+'">'+(doNotBill?'&#128683; Skip':(isOverdue?'&#9888; ':isDue?'&#9679; ':'')+escHtml(c.nextBillingDate||'&#8212;'))+'</div>'
+
+      +'<div style="font-size:11px;color:#546e7a">'+escHtml(c.lastBilledDate||'&#8212;')+'</div>'
+
+      +'<div style="font-size:12px;font-weight:700;color:#2e7d32">$'+yearly.toFixed(2)+'</div>'
+
+      +'<div style="font-size:11px;color:'+(c.contractEnd&&c.contractEnd<today?'#c62828':'#546e7a')+'">'+escHtml(c.contractEnd||'Open')+'</div>'
+
+      +'<div><span style="background:'+stColor+'22;color:'+stColor+';padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;text-transform:capitalize">'+escHtml(c.status||'')+'</span></div>'
+
+      +'<div style="font-size:11px">'+(c.deliveryMethod==='mail'?'&#128236; Mail':'&#128231; Email')+'</div>'
+
+      +'<div onclick="event.stopPropagation();rcMenu(\''+escHtml(c.id)+'\');" style="color:#90a4ae;font-size:18px;cursor:pointer">&#8942;</div>'
+
     +'</div>';
+
   }).join('');
 
-  list.innerHTML = summary + '<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden">'+header+rows+'</div>';
+
+
 }
 
 function _rcLineTotal2(c) {
   return (c.lineItems||[]).reduce(function(s,i){
     return s+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0));
   },0);
+}
+
+function _rcYearlyPrice(c) {
+  var cycles = _getMSCycles();
+  var months = (cycles[c.billingCycle]||{months:1}).months;
+  var perCycle = _rcLineTotal2(c);
+  return months > 0 ? perCycle * (12 / months) : perCycle * 12;
+}
+
+function _rcNextDates(c, count) {
+  var dates = [];
+  var d = c.nextBillingDate;
+  if (!d) return dates;
+  for (var i=0; i<(count||4); i++) {
+    dates.push(d);
+    d = _rcAdvanceDate(d, c.billingCycle);
+  }
+  return dates;
 }
 
 // ── Open new/edit modal ────────────────────────────────────────────────────────
@@ -168,6 +213,7 @@ function openNewRC() {
   document.getElementById('rc-billing-day').value = '1';
   document.getElementById('rc-status').value = 'active';
   document.getElementById('rc-auto-renew').checked = true;
+  var dnbEl2 = document.getElementById('rc-do-not-bill'); if(dnbEl2) dnbEl2.checked = false;
   document.getElementById('rc-delivery').value = 'email';
   document.getElementById('rc-client-email').value = '';
   document.getElementById('rc-contract-start').value = getTodayISO();
@@ -192,6 +238,7 @@ function openRCModal(id) {
   document.getElementById('rc-billing-day').value = c.billingDay||1;
   document.getElementById('rc-status').value = c.status||'active';
   document.getElementById('rc-auto-renew').checked = !!c.autoRenew;
+  var dnbEl = document.getElementById('rc-do-not-bill'); if(dnbEl) dnbEl.checked = !!c.doNotBill;
   document.getElementById('rc-delivery').value = c.deliveryMethod||'email';
   document.getElementById('rc-client-email').value = c.clientEmail||'';
   document.getElementById('rc-contract-start').value = c.contractStart||'';
@@ -315,7 +362,12 @@ function saveRC() {
     }),
     lastBilledDate: isNew ? null : ((DB.recurringContracts.find(function(c){return c.id===id;})||{}).lastBilledDate||null),
     createdAt:      isNew ? new Date().toISOString() : ((DB.recurringContracts.find(function(c){return c.id===id;})||{}).createdAt||new Date().toISOString()),
+    priceHistory:   isNew ? [] : ((DB.recurringContracts.find(function(c){return c.id===id;})||{}).priceHistory||[]),
+    doNotBill:      !!(document.getElementById('rc-do-not-bill')&&document.getElementById('rc-do-not-bill').checked),
+    sortOrder:      isNew ? (DB.recurringContracts||[]).length : ((DB.recurringContracts.find(function(c){return c.id===id;})||{}).sortOrder||0),
   };
+  // Check for price change and log it
+  if (!isNew) { var _oldC = (DB.recurringContracts||[]).find(function(c){return c.id===id;}); _rcCheckPriceChange(_oldC, data); }
 
   if (isNew) { DB.recurringContracts.push(data); }
   else {
@@ -799,6 +851,8 @@ function _pushRCToSupabase(c) {
     contract_start:c.contractStart||null, contract_end:c.contractEnd||null,
     next_billing_date:c.nextBillingDate||null, last_billed_date:c.lastBilledDate||null,
     line_items:c.lineItems||[], notes:c.notes||null,
+    do_not_bill:!!c.doNotBill, sort_order:c.sortOrder||0,
+    price_history:c.priceHistory||[],
     created_at:c.createdAt
   }).then(function(){});
 }
@@ -815,3 +869,199 @@ function _pushRCInvoiceToSupabase(inv) {
     created_at:inv.createdAt
   }).then(function(){});
 }
+
+// ── Drag to reorder ───────────────────────────────────────────────────────────
+var _rcDragId = null;
+
+function rcDragStart(e, id) {
+  _rcDragId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(function(){ var el=document.querySelector('.rc-list-row[data-rcid="'+id+'"]'); if(el) el.style.opacity='0.4'; },0);
+}
+
+function rcDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  var row = e.currentTarget;
+  row.style.borderTop = '3px solid #1565c0';
+}
+
+function rcDragEnd(e) {
+  _rcDragId = null;
+  document.querySelectorAll('.rc-list-row').forEach(function(r){
+    r.style.opacity = '1';
+    r.style.borderTop = '';
+  });
+}
+
+function rcDrop(e, targetId) {
+  e.preventDefault();
+  document.querySelectorAll('.rc-list-row').forEach(function(r){ r.style.borderTop=''; });
+  if (!_rcDragId || _rcDragId === targetId) return;
+  var list = DB.recurringContracts||[];
+  var fromIdx = list.findIndex(function(c){return c.id===_rcDragId;});
+  var toIdx   = list.findIndex(function(c){return c.id===targetId;});
+  if (fromIdx<0||toIdx<0) return;
+  var moved = list.splice(fromIdx,1)[0];
+  list.splice(toIdx,0,moved);
+  DB.recurringContracts = list;
+  saveDB();
+  // Persist order to Supabase by adding sortOrder field
+  list.forEach(function(c,i){ c.sortOrder=i; _pushRCToSupabase(c); });
+  renderRecurring();
+}
+
+// ── Do Not Bill toggle ────────────────────────────────────────────────────────
+function rcToggleDoNotBill(id) {
+  var c = (DB.recurringContracts||[]).find(function(x){return x.id===id;});
+  if (!c) return;
+  c.doNotBill = !c.doNotBill;
+  saveDB();
+  _pushRCToSupabase(c);
+  renderRecurring();
+  showToast(c.doNotBill?'Contract marked Do Not Bill':'Contract billing restored','info',2500);
+}
+
+// ── Price change log ──────────────────────────────────────────────────────────
+function _rcCheckPriceChange(oldContract, newData) {
+  if (!oldContract) return;
+  var oldTotal = _rcLineTotal2(oldContract);
+  var newTotal = newData.lineItems.reduce(function(s,i){return s+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0));},0);
+  if (Math.abs(oldTotal - newTotal) < 0.01) return; // no change
+  var reason = prompt('Price changed from $'+oldTotal.toFixed(2)+' to $'+newTotal.toFixed(2)+'.\nEnter reason for change (optional):','');
+  if (!newData.priceHistory) newData.priceHistory = (oldContract.priceHistory||[]).slice();
+  newData.priceHistory.unshift({
+    date:   getTodayISO(),
+    oldAmt: oldTotal,
+    newAmt: newTotal,
+    reason: reason||'',
+    changedBy: (_currentUser&&_currentUser.full_name)||'Joe'
+  });
+}
+
+// ── Contract detail view ──────────────────────────────────────────────────────
+function openRCDetail(id) {
+  var c = (DB.recurringContracts||[]).find(function(x){return x.id===id;});
+  if (!c) return;
+  var cycles = _getMSCycles();
+  var cycleLabel = (cycles[c.billingCycle]||{label:c.billingCycle||''}).label;
+  var yearly = _rcYearlyPrice(c);
+  var perCycle = _rcLineTotal2(c);
+
+  // Past invoices
+  var pastInvoices = (DB.invoices||[]).filter(function(i){return i.rcId===id;})
+    .sort(function(a,b){return (b.invoiceDate||b.runDate||'').localeCompare(a.invoiceDate||a.runDate||'');});
+
+  // Projected upcoming dates
+  var upcoming = _rcNextDates(c, 6);
+
+  var stColor = ({active:'#2e7d32',paused:'#f57c00',cancelled:'#9e9e9e'})[c.status]||'#546e7a';
+
+  function infoRow(label, value) {
+    return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5">'
+      +'<span style="font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase">'+label+'</span>'
+      +'<span style="font-size:13px;font-weight:600;color:#0d1b2a">'+value+'</span>'
+    +'</div>';
+  }
+
+  var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">'
+
+    // Left — contract info
+    +'<div>'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+      +'<span style="font-size:18px;font-weight:800;color:#1565c0">'+escHtml(c.number||'')+'</span>'
+      +'<span style="background:'+stColor+'22;color:'+stColor+';padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;text-transform:capitalize">'+escHtml(c.status||'')+'</span>'
+      +(c.doNotBill?'<span style="background:#fff3e0;color:#f57c00;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700">&#128683; Do Not Bill</span>':'')
+    +'</div>'
+    +infoRow('Client', escHtml(c.client||''))
+    +infoRow('Service Type', escHtml(c.type||''))
+    +infoRow('Billing Cycle', escHtml(cycleLabel))
+    +infoRow('Per-Cycle Amount', '$'+perCycle.toFixed(2))
+    +infoRow('Annual Value', '$'+yearly.toFixed(2))
+    +infoRow('Next Billing', escHtml(c.nextBillingDate||'—'))
+    +infoRow('Last Invoiced', escHtml(c.lastBilledDate||'—'))
+    +infoRow('Contract Start', escHtml(c.contractStart||'—'))
+    +infoRow('Contract End', escHtml(c.contractEnd||'Open'))
+    +infoRow('Auto-Renew', c.autoRenew?'Yes':'No')
+    +infoRow('Delivery', c.deliveryMethod==='mail'?'&#128236; Mail':'&#128231; Email')
+    +(c.clientEmail?infoRow('Email', escHtml(c.clientEmail)):'')
+    +'<div style="display:flex;gap:8px;margin-top:14px">'
+      +'<button class="btn btn-primary btn-sm" onclick="closeModal(\'modal-rc-detail\');openRCModal(\''+escHtml(c.id)+'\')">&#9998; Edit Contract</button>'
+      +'<button class="btn btn-outline btn-sm" onclick="rcToggleDoNotBill(\''+escHtml(c.id)+'\');closeModal(\'modal-rc-detail\')">'+(c.doNotBill?'&#9989; Resume Billing':'&#128683; Do Not Bill')+'</button>'
+    +'</div>'
+    +'</div>'
+
+    // Right — line items + upcoming + price history
+    +'<div>'
+
+    // Line items
+    +'<div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-bottom:8px">Line Items</div>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px">'
+    +'<thead><tr style="background:#f5f7fa"><th style="padding:6px 8px;text-align:left;font-size:10px;color:#90a4ae;text-transform:uppercase">Description</th><th style="padding:6px 8px;text-align:center;font-size:10px;color:#90a4ae">Qty</th><th style="padding:6px 8px;text-align:right;font-size:10px;color:#90a4ae;text-transform:uppercase">Unit</th><th style="padding:6px 8px;text-align:right;font-size:10px;color:#90a4ae;text-transform:uppercase">Total</th></tr></thead>'
+    +'<tbody>'
+    +(c.lineItems||[]).map(function(i){
+      return '<tr style="border-bottom:1px solid #f0f0f0">'
+        +'<td style="padding:6px 8px">'+escHtml(i.desc||'')+'</td>'
+        +'<td style="padding:6px 8px;text-align:center">'+parseFloat(i.qty||1)+'</td>'
+        +'<td style="padding:6px 8px;text-align:right">$'+parseFloat(i.unitPrice||0).toFixed(2)+'</td>'
+        +'<td style="padding:6px 8px;text-align:right;font-weight:700">$'+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0)).toFixed(2)+'</td>'
+      +'</tr>';
+    }).join('')
+    +'<tr style="background:#e3f2fd"><td colspan="3" style="padding:7px 8px;font-weight:700;text-align:right">'+cycleLabel+' Total</td>'
+    +'<td style="padding:7px 8px;text-align:right;font-weight:800;color:#1565c0">$'+perCycle.toFixed(2)+'</td></tr>'
+    +'</tbody></table>'
+
+    // Price history
+    +((c.priceHistory&&c.priceHistory.length)?
+      '<div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-bottom:8px">Price Change History</div>'
+      +'<div style="border:1px solid #e0e7ef;border-radius:8px;overflow:hidden;margin-bottom:16px">'
+      +c.priceHistory.slice(0,5).map(function(h,i){
+        var up = h.newAmt > h.oldAmt;
+        return '<div style="display:grid;grid-template-columns:90px 80px 80px 1fr;gap:8px;padding:7px 10px;border-bottom:1px solid #f5f5f5;align-items:center">'
+          +'<span style="font-size:11px;color:#90a4ae">'+escHtml(h.date||'')+'</span>'
+          +'<span style="font-size:11px;color:#c62828;text-decoration:line-through">$'+parseFloat(h.oldAmt||0).toFixed(2)+'</span>'
+          +'<span style="font-size:11px;font-weight:700;color:'+(up?'#c62828':'#2e7d32')+'">'+(up?'&#9650;':'&#9660;')+' $'+parseFloat(h.newAmt||0).toFixed(2)+'</span>'
+          +'<span style="font-size:10px;color:#546e7a">'+escHtml(h.reason||h.changedBy||'')+'</span>'
+        +'</div>';
+      }).join('')
+      +'</div>'
+    :'')
+
+    // Upcoming invoices
+    +(c.status==='active'&&!c.doNotBill?
+      '<div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-bottom:8px">Upcoming Invoices</div>'
+      +'<div style="border:1px solid #e0e7ef;border-radius:8px;overflow:hidden;margin-bottom:16px">'
+      +upcoming.map(function(d,i){
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid #f5f5f5">'
+          +'<span style="font-size:12px'+(i===0?';font-weight:700;color:#1565c0':'')+'">'+escHtml(d)+'</span>'
+          +'<span style="font-size:12px;font-weight:600">$'+perCycle.toFixed(2)+'</span>'
+        +'</div>';
+      }).join('')
+      +'</div>'
+    :'')
+
+    // Past invoices
+    +(pastInvoices.length?
+      '<div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-bottom:8px">Past Invoices</div>'
+      +'<div style="border:1px solid #e0e7ef;border-radius:8px;overflow:hidden;max-height:200px;overflow-y:auto">'
+      +pastInvoices.map(function(inv){
+        return '<div style="display:grid;grid-template-columns:100px 1fr 80px 80px;gap:8px;padding:7px 12px;border-bottom:1px solid #f5f5f5;align-items:center">'
+          +'<span style="font-size:11px;font-weight:700;color:#1565c0">'+escHtml(inv.num||'')+'</span>'
+          +'<span style="font-size:11px;color:#546e7a">'+escHtml(inv.invoiceDate||inv.runDate||'')+'</span>'
+          +'<span style="font-size:11px;font-weight:700">$'+parseFloat(inv.amount||0).toFixed(2)+'</span>'
+          +'<span onclick="printRCInvoice(\''+escHtml(inv.id)+'\')" style="font-size:11px;color:#1565c0;cursor:pointer;text-decoration:underline">Print</span>'
+        +'</div>';
+      }).join('')
+      +'</div>'
+    :'<div style="font-size:12px;color:#90a4ae;font-style:italic">No invoices run yet.</div>')
+
+    +'</div>'
+  +'</div>';
+
+  var modal = document.getElementById('modal-rc-detail');
+  if (!modal) return;
+  document.getElementById('rc-detail-title').textContent = (c.number||'') + ' — ' + (c.client||'');
+  document.getElementById('rc-detail-body').innerHTML = html;
+  openModal('modal-rc-detail');
+}
+
