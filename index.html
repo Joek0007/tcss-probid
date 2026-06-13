@@ -4564,6 +4564,126 @@ table{font-size:12.5px}
   </div>
 </div>
 
+<!-- CONTRACTS PAGE -->
+<div class="page" id="page-contracts">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <h2 style="font-size:20px;font-weight:700;color:#0d1b2a">&#128196; Contracts</h2>
+    <button class="btn btn-primary" onclick="openNewContract()">+ New Contract</button>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:6px;background:#f5f7fa;border:1px solid #e0e7ef;border-radius:7px;padding:7px 12px;flex:1">
+      <span style="color:#90a4ae">&#128269;</span>
+      <input id="contract-search" placeholder="Search by client, project, or contract number..." style="border:none;background:transparent;font-size:13px;outline:none;width:100%" oninput="renderContracts()" onfocus="this.value=&apos;&apos;;renderContracts()">
+    </div>
+    <select id="contract-filter-type" onchange="renderContracts()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a;width:170px;flex-shrink:0">
+      <option value="">All Types</option>
+      <option value="subcontractor">Subcontractor Agreement</option>
+      <option value="owner">Owner Service Agreement</option>
+      <option value="tm">T&amp;M Service Agreement</option>
+      <option value="msa">Master Service Agreement</option>
+      <option value="change_order">Change Order</option>
+    </select>
+    <select id="contract-filter-status" onchange="renderContracts()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a;width:130px;flex-shrink:0">
+      <option value="">All Statuses</option>
+      <option value="draft">Draft</option>
+      <option value="sent">Sent</option>
+      <option value="executed">Executed</option>
+      <option value="expired">Expired</option>
+      <option value="voided">Voided</option>
+    </select>
+  </div>
+  <div id="contract-list"></div>
+</div>
+
+<!-- CONTRACT MODAL -->
+<div class="modal-overlay" id="modal-contract" style="display:none">
+  <div class="modal" style="max-width:680px;width:95%">
+    <div class="modal-header">
+      <span id="contract-modal-title">New Contract</span>
+      <button class="modal-close" onclick="closeModal(&apos;modal-contract&apos;)">&#10005;</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+        <div>
+          <label class="form-label">Contract Type *</label>
+          <select id="contract-type" class="form-control" onchange="contractTypeChanged()">
+            <option value="">Select Type</option>
+            <option value="subcontractor">Subcontractor Agreement</option>
+            <option value="owner">Owner Service Agreement</option>
+            <option value="tm">T&amp;M Service Agreement</option>
+            <option value="msa">Master Service Agreement</option>
+            <option value="change_order">Change Order</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Contract Number</label>
+          <input id="contract-number" class="form-control" placeholder="Auto-assigned">
+        </div>
+        <div>
+          <label class="form-label">Client / GC Name *</label>
+          <input id="contract-client" class="form-control" placeholder="Customer or GC name">
+        </div>
+        <div>
+          <label class="form-label">Project Name</label>
+          <input id="contract-project" class="form-control" placeholder="Project or facility name">
+        </div>
+        <div>
+          <label class="form-label">Contract Value ($)</label>
+          <input id="contract-value" class="form-control" type="number" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div>
+          <label class="form-label">Status</label>
+          <select id="contract-status" class="form-control">
+            <option value="draft">Draft</option>
+            <option value="sent">Sent to Client</option>
+            <option value="executed">Executed</option>
+            <option value="expired">Expired</option>
+            <option value="voided">Voided</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Date Created</label>
+          <input id="contract-date-created" class="form-control" type="date">
+        </div>
+        <div>
+          <label class="form-label">Date Executed</label>
+          <input id="contract-date-executed" class="form-control" type="date">
+        </div>
+        <div>
+          <label class="form-label">Expiration Date</label>
+          <input id="contract-date-expires" class="form-control" type="date">
+        </div>
+        <div>
+          <label class="form-label">Linked Work Order</label>
+          <select id="contract-wo" class="form-control">
+            <option value="">Link to WO (optional)</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <label class="form-label">Scope Summary</label>
+        <textarea id="contract-scope" class="form-control" rows="3" placeholder="Brief description of work covered by this contract..."></textarea>
+      </div>
+      <div id="contract-co-section" style="display:none;margin-bottom:14px">
+        <label class="form-label">Parent Contract</label>
+        <select id="contract-parent" class="form-control">
+          <option value="">Link to Parent Agreement</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Internal Notes</label>
+        <textarea id="contract-notes" class="form-control" rows="2" placeholder="Internal notes, reminders, or follow-up actions..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal(&apos;modal-contract&apos;)">Cancel</button>
+      <button class="btn btn-outline" onclick="printContractTemplate()" id="contract-print-btn" style="display:none">&#128424; Print Template</button>
+      <button class="btn btn-primary" onclick="saveContract()">&#128190; Save Contract</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- PO DETAIL MODAL -->
 <div class="modal-overlay" id="modal-po" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
   <div class="modal-box" style="max-width:1000px;width:98%;margin:0 auto">
