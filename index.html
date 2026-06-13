@@ -1166,6 +1166,7 @@ table{font-size:12.5px}
     <div class="nav-item" data-page="workorders"><span class="nav-icon">🔨</span>Work Orders</div>
     <div class="nav-item" data-page="purchaseorders"><span class="nav-icon">📦</span>Purchase Orders</div>
     <div class="nav-item" data-page="contracts"><span class="nav-icon">📄</span>Contracts</div>
+    <div class="nav-item" data-page="recurring"><span class="nav-icon">🔄</span>Recurring Billing</div>
     <div class="nav-item" data-page="vendors"><span class="nav-icon">🏭</span>Vendors</div>
   </div>
   <div class="nav-group">
@@ -4595,6 +4596,168 @@ table{font-size:12.5px}
   <div id="contract-list"></div>
 </div>
 
+<!-- RECURRING BILLING PAGE -->
+<div class="page" id="page-recurring">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <h2 style="font-size:20px;font-weight:700;color:#0d1b2a">&#128260; Recurring Billing</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline" onclick="openBillingRun()">&#128184; Run Billing</button>
+      <button class="btn btn-primary" onclick="openNewRC()">+ New Contract</button>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div style="display:flex;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:6px;background:#f5f7fa;border:1px solid #e0e7ef;border-radius:7px;padding:7px 12px;flex:1">
+      <span style="color:#90a4ae">&#128269;</span>
+      <input id="rc-search" placeholder="Search by client, type, or contract number..." style="border:none;background:transparent;font-size:13px;outline:none;width:100%" oninput="renderRecurring()" onfocus="this.value=&apos;&apos;;renderRecurring()">
+    </div>
+    <select id="rc-filter-type" onchange="renderRecurring()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a;width:160px;flex-shrink:0">
+      <option value="">All Types</option>
+    </select>
+    <select id="rc-filter-status" onchange="renderRecurring()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a;width:120px;flex-shrink:0">
+      <option value="">All Statuses</option>
+      <option value="active">Active</option>
+      <option value="paused">Paused</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+  </div>
+
+  <!-- Email queue (shown after billing run) -->
+  <div id="rc-email-queue" style="display:none;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:16px;overflow:hidden;border-left:4px solid #1565c0"></div>
+
+  <div id="rc-list"></div>
+</div>
+
+<!-- RECURRING CONTRACT MODAL -->
+<div class="modal-overlay" id="modal-rc">
+  <div class="modal" style="max-width:740px;width:95%">
+    <div class="modal-header">
+      <span id="rc-modal-title">New Recurring Contract</span>
+      <button class="modal-close" onclick="closeModal(&apos;modal-rc&apos;)">&#10005;</button>
+    </div>
+    <div class="modal-body" style="padding:20px;max-height:75vh;overflow-y:auto">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+        <div>
+          <label class="form-label">Contract Number</label>
+          <input id="rc-number" class="form-control" placeholder="Auto-assigned">
+        </div>
+        <div>
+          <label class="form-label">Client Name *</label>
+          <input id="rc-client" class="form-control" placeholder="Client or business name">
+        </div>
+        <div>
+          <label class="form-label">Service Type *</label>
+          <select id="rc-type" class="form-control">
+            <option value="">Select Type</option>
+            <option>Phone Equipment</option>
+            <option>VoIP</option>
+            <option>Computer Services</option>
+            <option>IT Support</option>
+            <option>Security / Access Control</option>
+            <option>Camera System</option>
+            <option>Network Maintenance</option>
+            <option>Cabling Maintenance</option>
+            <option>Audio / Visual</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Billing Cycle *</label>
+          <select id="rc-cycle" class="form-control" onchange="_renderRCLineItems()">
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="biannual">Bi-Annual</option>
+            <option value="annual">Annual</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Billing Day of Month</label>
+          <input id="rc-billing-day" class="form-control" type="number" min="1" max="28" value="1">
+        </div>
+        <div>
+          <label class="form-label">Status</label>
+          <select id="rc-status" class="form-control">
+            <option value="active">Active</option>
+            <option value="paused">Paused</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Contract Start</label>
+          <input id="rc-contract-start" class="form-control" type="date">
+        </div>
+        <div>
+          <label class="form-label">Contract End (blank = open)</label>
+          <input id="rc-contract-end" class="form-control" type="date">
+        </div>
+        <div>
+          <label class="form-label">Next Billing Date</label>
+          <input id="rc-next-billing" class="form-control" type="date">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div>
+          <label class="form-label">Invoice Delivery</label>
+          <select id="rc-delivery" class="form-control">
+            <option value="email">&#128231; Email</option>
+            <option value="mail">&#128236; Mail (Paper)</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Client Email</label>
+          <input id="rc-client-email" class="form-control" type="email" placeholder="billing@client.com">
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <input id="rc-auto-renew" type="checkbox" checked style="width:16px;height:16px;cursor:pointer">
+        <label for="rc-auto-renew" style="font-size:13px;font-weight:600;cursor:pointer">Auto-renew contract annually</label>
+      </div>
+
+      <!-- Line Items -->
+      <div style="font-size:12px;font-weight:700;color:#0d1b2a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Line Items</div>
+      <div id="rc-line-items" style="margin-bottom:8px"></div>
+      <button class="btn btn-outline btn-sm" onclick="rcAddLine()" style="margin-bottom:16px">+ Add Line</button>
+
+      <div>
+        <label class="form-label">Internal Notes</label>
+        <textarea id="rc-notes" class="form-control" rows="2" placeholder="Equipment serial numbers, special billing notes, etc."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal(&apos;modal-rc&apos;)">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRC()">&#128190; Save Contract</button>
+    </div>
+  </div>
+</div>
+
+<!-- BILLING RUN MODAL -->
+<div class="modal-overlay" id="modal-billing-run">
+  <div class="modal" style="max-width:780px;width:95%">
+    <div class="modal-header">
+      <span>&#128184; Billing Run</span>
+      <button class="modal-close" onclick="closeModal(&apos;modal-billing-run&apos;)">&#10005;</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <div>
+          <label class="form-label">Run Date</label>
+          <input id="rc-run-date" type="date" class="form-control" style="width:180px" onchange="renderBillingRunPreview(this.value)">
+        </div>
+        <div style="font-size:12px;color:#546e7a;margin-top:18px">All contracts with a next billing date on or before this date will be included.</div>
+      </div>
+      <div id="rc-run-preview"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal(&apos;modal-billing-run&apos;)">Cancel</button>
+      <button class="btn btn-primary" id="rc-run-btn" onclick="executeBillingRun()">&#9654; Execute Billing Run</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- CONTRACT MODAL -->
 <div class="modal-overlay" id="modal-contract">
   <div class="modal" style="max-width:680px;width:95%">
@@ -5570,6 +5733,7 @@ table{font-size:12.5px}
 <script src="js/inventory.js"></script>
 <script src="js/reports.js"></script>
 <script src="js/contracts.js"></script>
+  <script src="js/recurring.js"></script>
   <script src="js/auth.js"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">

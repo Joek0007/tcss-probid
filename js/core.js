@@ -222,6 +222,7 @@ function goPage(id) {
   }
   if (id==='customers')  renderCustomers();
   if (id==='contracts')  renderContracts();
+  if (id==='recurring')  renderRecurring();
   if (id==='contacts')   renderContacts();
   if (id==='jobs')       renderJobs();
   if (id==='team')       renderTeam();
