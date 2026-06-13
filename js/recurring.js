@@ -341,6 +341,10 @@ function rcMenu(id) {
 function openBillingRun() {
   var today = getTodayISO();
   document.getElementById('rc-run-date').value = today;
+  // Default invoice date to 1st of current month
+  var d = new Date();
+  d.setDate(1);
+  document.getElementById('rc-invoice-date').value = d.toISOString().split('T')[0];
   renderBillingRunPreview(today);
   openModal('modal-billing-run');
 }
@@ -428,6 +432,7 @@ function executeBillingRun() {
     if (!DB.invoices) DB.invoices = [];
     var invNum = 'INV-RC-'+String(Date.now()).slice(-6);
     var amt = _rcLineTotal2(c);
+    var invoiceDate = document.getElementById('rc-invoice-date').value || runDate;
     var inv = {
       id:          'inv-rc-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
       num:         invNum,
@@ -442,7 +447,8 @@ function executeBillingRun() {
       deliveryMethod: c.deliveryMethod||'email',
       billingCycle: c.billingCycle,
       runDate:     runDate,
-      dueDate:     runDate,
+      invoiceDate: invoiceDate,
+      dueDate:     invoiceDate,
       notes:       c.notes||'',
       createdAt:   new Date().toISOString(),
     };
@@ -503,7 +509,7 @@ function openRCEmailQueue(invoices) {
       +'Please find your invoice details below.\n\n'
       +'Invoice Number: '+inv.num+'\n'
       +'Amount Due: $'+inv.amount.toFixed(2)+'\n'
-      +'Billing Period: '+inv.runDate+'\n\n'
+      +'Invoice Date: '+(inv.invoiceDate||inv.runDate)+'\n\n'
       +'Payment is due upon receipt. Please contact us with any questions.\n\n'
       +'Thank you for your business.\n\n'
       +(co.cname||'Total Communications Systems & Solutions, Inc.')+'\n'
@@ -550,7 +556,7 @@ function printRCInvoice(invId) {
         +'<div style="font-size:11px;color:#546e7a;margin-top:3px">'+esc(co.address||'')+(co.city?' · '+esc(co.city):'')+(co.phone?' · '+esc(co.phone):'')+'</div></div>'
       +'<div style="text-align:right"><div style="font-size:24px;font-weight:800;color:#1565c0">INVOICE</div>'
         +'<div style="font-size:14px;font-weight:700;margin-top:4px">'+esc(inv.num)+'</div>'
-        +'<div style="font-size:11px;color:#546e7a;margin-top:2px">Date: '+esc(inv.runDate||'')+'</div>'
+        +'<div style="font-size:11px;color:#546e7a;margin-top:2px">Invoice Date: '+esc(inv.invoiceDate||inv.runDate||'')+'</div>'
         +'<div style="font-size:11px;color:#546e7a">Due: Upon Receipt</div>'
       +'</div>'
     +'</div>'
