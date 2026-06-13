@@ -485,6 +485,7 @@ function openNewWorkOrder() {
   document.getElementById('wo-modal-num').textContent='';
   document.getElementById('wo-urgent-badge').style.display='none';
   document.getElementById('wo-btn-invoice').style.display='none';
+  var printBtn=document.getElementById('wo-btn-print'); if(printBtn) printBtn.style.display='none';
 
   // Populate status dropdown
   _populateWOStatusSelect();
@@ -774,6 +775,8 @@ function saveWorkOrder() {
   // Show created date immediately after first save
   var creEl = document.getElementById('wo-created-date');
   if (creEl && isNew) creEl.value = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  // Show print button as soon as WO is saved — even on first save
+  var pb = document.getElementById('wo-btn-print'); if (pb) pb.style.display='';
   // Refresh assigned techs section now that WO is saved
   setTimeout(function(){ renderAssignedTechs(id); }, 100);
 }
@@ -1079,6 +1082,231 @@ function woCreateWTProject() {
       });
     }
   }, 300);
+}
+
+
+
+// ── Work Order Print / Save as PDF ────────────────────────────────────────────
+function printWorkOrder(woId) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (!wo) { showToast('Work order not found','error',2000); return; }
+
+  var co = DB.settings || {};
+  var labor   = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
+  var parts   = (DB.woParts||[]).filter(function(p){ return p.woId===woId; });
+  var expenses= (DB.woExpenses||[]).filter(function(e){ return e.woId===woId; });
+  var checklist=(DB.woChecklist||[]).filter(function(c){ return c.woId===woId; });
+
+  // Clocked time entries
+  var clocked = (DB.timeEntries||[]).filter(function(t){ return t.jobId===woId||t.job_id===woId; });
+  var clockedHrs = clocked.reduce(function(s,t){ return s+(parseFloat(t.totalHours)||0); },0);
+
+  var techNames = (wo.assignedTechs||[]).map(function(t){ return typeof t==='string'?t:(t.name||''); }).filter(Boolean);
+
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmt(d){ if (!d) return '—'; try { return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch(e){ return d; } }
+  function fmtTime(t){ if (!t) return ''; var p=t.split(':'); var h=parseInt(p[0]); var m=p[1]; return (h>12?h-12:h||12)+':'+m+' '+(h>=12?'PM':'AM'); }
+
+  var st = typeof _getWOStatusDef==='function' ? _getWOStatusDef(wo.status) : {color:'#546e7a'};
+
+  var laborRows = labor.map(function(e){
+    return '<tr><td>'+esc(e.techName||'')+'</td><td>'+esc(e.entryType||'Work')+'</td><td>'+esc(e.notes||'')+'</td><td style="text-align:right">'+parseFloat(e.hours||0).toFixed(1)+'</td></tr>';
+  }).join('');
+  var clockedRows = clocked.map(function(t){
+    var member = (DB.team||[]).find(function(m){ return m.id===t.teamMemberId; });
+    var name = member ? member.name : (t.userName||'');
+    return '<tr><td>'+esc(name)+'</td><td>Clocked (Time Clock)</td><td>'+esc(t.notes||'')+'</td><td style="text-align:right">'+parseFloat(t.totalHours||0).toFixed(1)+'</td></tr>';
+  }).join('');
+  var totalLaborHrs = labor.reduce(function(s,e){return s+(parseFloat(e.hours)||0);},0) + clockedHrs;
+  var laborRate = parseFloat(wo.laborRate || co.laborRate || 65);
+  var laborCost = totalLaborHrs * laborRate;
+
+  var partsRows = parts.map(function(p){
+    return '<tr><td>'+esc(p.name||p.partNum||'')+'</td><td>'+esc(p.partNum||'')+'</td><td style="text-align:right">'+parseFloat(p.qty||1).toFixed(0)+'</td><td style="text-align:right">$'+parseFloat(p.unitCost||0).toFixed(2)+'</td><td style="text-align:right">$'+parseFloat((p.qty||1)*(p.unitCost||0)).toFixed(2)+'</td></tr>';
+  }).join('');
+  var partsCost = parts.reduce(function(s,p){ return s+(parseFloat(p.qty||1)*parseFloat(p.unitCost||0)); },0);
+
+  var expRows = expenses.map(function(e){
+    return '<tr><td>'+esc(e.category||'')+'</td><td>'+esc(e.description||'')+'</td><td>'+esc(e.paymentType||'')+'</td><td style="text-align:right">$'+parseFloat(e.amount||0).toFixed(2)+'</td></tr>';
+  }).join('');
+  var expCost = expenses.reduce(function(s,e){ return s+parseFloat(e.amount||0); },0);
+
+  var checklistHtml = checklist.length
+    ? '<h3>CHECKLIST</h3><table><tbody>'+
+        checklist.map(function(c){
+          return '<tr><td style="width:20px">'+(c.completed?'&#9745;':'&#9744;')+'</td><td>'+esc(c.item)+'</td></tr>';
+        }).join('')+
+      '</tbody></table>'
+    : '';
+
+  var totalCost = laborCost + partsCost + expCost;
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'+
+    '<title>Work Order '+esc(wo.woNumber||'')+'</title>'+
+    '<style>'+
+      '*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif;}'+
+      'body{padding:24px;font-size:12px;color:#0d1b2a;background:#fff;}'+
+      '@media print{body{padding:0;}@page{margin:20mm;}}'+
+      '.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1565c0;padding-bottom:14px;margin-bottom:18px;}'+
+      '.company-name{font-size:18px;font-weight:700;color:#0d1b2a;}'+
+      '.company-info{font-size:11px;color:#546e7a;margin-top:3px;}'+
+      '.wo-badge{text-align:right;}'+
+      '.wo-num{font-size:24px;font-weight:800;color:#1565c0;}'+
+      '.wo-status{display:inline-block;padding:3px 12px;border-radius:12px;font-size:11px;font-weight:700;margin-top:4px;background:'+st.color+';color:#fff;}'+
+      '.section{margin-bottom:18px;}'+
+      'h2{font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e0e7ef;padding-bottom:4px;margin-bottom:10px;}'+
+      'h3{font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}'+
+      '.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}'+
+      '.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}'+
+      '.field-label{font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;margin-bottom:2px;}'+
+      '.field-val{font-size:12px;color:#0d1b2a;}'+
+      'table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px;}'+
+      'th{background:#f5f7fa;padding:6px 8px;text-align:left;font-weight:700;font-size:10px;color:#546e7a;text-transform:uppercase;border-bottom:2px solid #e0e7ef;}'+
+      'td{padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top;}'+
+      '.total-row td{font-weight:700;background:#f5f7fa;border-top:2px solid #e0e7ef;}'+
+      '.sig-section{margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:32px;}'+
+      '.sig-line{border-top:1px solid #0d1b2a;padding-top:6px;font-size:11px;color:#546e7a;}'+
+      '.footer{margin-top:24px;border-top:1px solid #e0e7ef;padding-top:10px;font-size:10px;color:#90a4ae;text-align:center;}'+
+      '.desc-box{background:#f9f9f9;border:1px solid #e0e7ef;border-radius:6px;padding:10px 12px;font-size:12px;min-height:60px;white-space:pre-wrap;}'+
+      '.no-print-btn{position:fixed;top:16px;right:16px;background:#1565c0;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;z-index:1000;}'+
+      '@media print{.no-print-btn{display:none;}}'+
+    '</style>'+
+    '</head><body>'+
+
+    '<button class="no-print-btn" onclick="window.print()">🖨 Print / Save PDF</button>'+
+
+    // Header
+    '<div class="header">'+
+      '<div>'+
+        (co.logoUrl?'<img src="'+esc(co.logoUrl)+'" style="height:48px;margin-bottom:6px"><br>':'<div class="company-name">'+esc(co.cname||'TCSS')+'</div>')+
+        '<div class="company-info">'+
+          esc(co.address||'')+(co.address?'<br>':'')+
+          esc(co.city||'')+(co.city&&co.state?' '+esc(co.state):'')+(co.zip?' '+esc(co.zip):'')+
+          ((co.city||co.phone)?'<br>':'')+
+          (co.phone?esc(co.phone):'')+(co.phone&&co.email?' &nbsp;|&nbsp; ':'')+
+          (co.email?esc(co.email):'')+
+        '</div>'+
+      '</div>'+
+      '<div class="wo-badge">'+
+        '<div class="wo-num">'+esc(wo.woNumber||'WO')+'</div>'+
+        '<div><span class="wo-status">'+esc(wo.status||'')+'</span></div>'+
+        (wo.priority&&wo.priority!=='Normal'?'<div style="margin-top:4px;font-size:11px;font-weight:700;color:#c62828">'+esc(wo.priority)+'</div>':'')+
+      '</div>'+
+    '</div>'+
+
+    // Dates row
+    '<div class="section">'+
+      '<div class="grid-3">'+
+        '<div><div class="field-label">Scheduled</div><div class="field-val">'+(wo.scheduledDate?fmt(wo.scheduledDate)+(wo.scheduledTime?' at '+fmtTime(wo.scheduledTime):''):'Not scheduled')+'</div></div>'+
+        '<div><div class="field-label">Date Requested</div><div class="field-val">'+fmt(wo.dateRequested)+'</div></div>'+
+        '<div><div class="field-label">Created</div><div class="field-val">'+fmt(wo.createdAt)+'</div></div>'+
+      '</div>'+
+    '</div>'+
+
+    // Customer + Site
+    '<div class="section">'+
+      '<h2>Customer &amp; Site</h2>'+
+      '<div class="grid-2">'+
+        '<div>'+
+          '<div class="field-label">Customer</div><div class="field-val" style="font-weight:700">'+esc(wo.customerName||'—')+'</div>'+
+          (wo.serviceType?'<div class="field-val" style="margin-top:4px;color:#546e7a">'+esc(wo.serviceType)+'</div>':'')+
+        '</div>'+
+        '<div>'+
+          '<div class="field-label">Site Address</div>'+
+          '<div class="field-val">'+esc(wo.siteAddr||'')+'<br>'+esc(wo.siteCity||'')+(wo.siteCity&&wo.siteState?', ':'')+esc(wo.siteState||'')+(wo.siteZip?' '+esc(wo.siteZip):'')+'</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+
+    // Assigned Techs
+    (techNames.length?
+    '<div class="section">'+
+      '<h2>Assigned Technicians</h2>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        techNames.map(function(n){ return '<span style="background:#e3f2fd;color:#1565c0;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700">'+esc(n)+'</span>'; }).join('')+
+      '</div>'+
+    '</div>':'') +
+
+    // Description
+    '<div class="section">'+
+      '<h2>Description of Work</h2>'+
+      '<div class="desc-box">'+esc(wo.description||'')+'</div>'+
+    '</div>'+
+
+    // Work Performed (if filled)
+    (wo.workPerformed?
+    '<div class="section">'+
+      '<h2>Work Performed</h2>'+
+      '<div class="desc-box">'+esc(wo.workPerformed)+'</div>'+
+    '</div>':'') +
+
+    // Labor
+    ((laborRows||clockedRows)?
+    '<div class="section">'+
+      '<h2>Labor</h2>'+
+      '<table><thead><tr><th>Technician</th><th>Type</th><th>Notes</th><th style="text-align:right">Hrs</th></tr></thead>'+
+      '<tbody>'+laborRows+clockedRows+'</tbody>'+
+      '<tfoot><tr class="total-row"><td colspan="3">Total Labor</td><td style="text-align:right">'+totalLaborHrs.toFixed(1)+' hrs @ $'+laborRate.toFixed(0)+'/hr</td></tr></tfoot>'+
+      '</table>'+
+      '<div style="text-align:right;font-size:12px;color:#1565c0;font-weight:700">Labor Total: $'+laborCost.toFixed(2)+'</div>'+
+    '</div>':'') +
+
+    // Parts
+    (partsRows?
+    '<div class="section">'+
+      '<h2>Parts &amp; Materials</h2>'+
+      '<table><thead><tr><th>Description</th><th>Part #</th><th style="text-align:right">Qty</th><th style="text-align:right">Unit Cost</th><th style="text-align:right">Total</th></tr></thead>'+
+      '<tbody>'+partsRows+'</tbody>'+
+      '<tfoot><tr class="total-row"><td colspan="4">Parts Total</td><td style="text-align:right">$'+partsCost.toFixed(2)+'</td></tr></tfoot>'+
+      '</table>'+
+    '</div>':'') +
+
+    // Expenses
+    (expRows?
+    '<div class="section">'+
+      '<h2>Expenses</h2>'+
+      '<table><thead><tr><th>Category</th><th>Description</th><th>Payment</th><th style="text-align:right">Amount</th></tr></thead>'+
+      '<tbody>'+expRows+'</tbody>'+
+      '<tfoot><tr class="total-row"><td colspan="3">Expenses Total</td><td style="text-align:right">$'+expCost.toFixed(2)+'</td></tr></tfoot>'+
+      '</table>'+
+    '</div>':'') +
+
+    // Total
+    ((laborRows||clockedRows||partsRows||expRows)?
+    '<div style="text-align:right;font-size:14px;font-weight:800;color:#0d1b2a;border-top:2px solid #0d1b2a;padding-top:8px;margin-bottom:18px">'+
+      'TOTAL ESTIMATED COST: $'+totalCost.toFixed(2)+
+    '</div>':'') +
+
+    // Checklist
+    checklistHtml +
+
+    // Notes
+    (wo.internalNotes?
+    '<div class="section">'+
+      '<h2>Notes</h2>'+
+      '<div class="desc-box">'+esc(wo.internalNotes)+'</div>'+
+    '</div>':'') +
+
+    // Signature lines
+    '<div class="sig-section">'+
+      '<div><div class="sig-line">Customer Signature &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date</div></div>'+
+      '<div><div class="sig-line">Authorized By (TCSS) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date</div></div>'+
+    '</div>'+
+
+    // Footer
+    '<div class="footer">'+
+      esc(co.cname||'Total Communications Systems & Solutions, Inc.')+' &nbsp;|&nbsp; '+
+      esc(co.phone||'')+' &nbsp;|&nbsp; '+
+      esc(co.email||'')+' &nbsp;|&nbsp; '+
+      'tcssbuild.com'+
+    '</div>'+
+
+    '</body></html>';
+
+  var win = window.open('','_blank','width=900,height=1100');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
 }
 
 
