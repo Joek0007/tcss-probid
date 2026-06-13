@@ -1,4 +1,4 @@
-// ── TCSS ProBid V9 — Recurring Billing Module ─────────────────────────────────
+// ── TCSS ProBid V9 — Managed Services Module ─────────────────────────────────
 // DB.recurringContracts = [] — each contract:
 // { id, number, client, customerId, type, description, billingCycle,
 //   billingDay, status, autoRenew, contractStart, contractEnd,
@@ -111,7 +111,7 @@ function renderRecurring() {
   +'</div>';
 
   if (!contracts.length) {
-    list.innerHTML = summary + '<div style="background:#fff;border-radius:10px;padding:40px;text-align:center;color:#90a4ae;font-size:14px;box-shadow:0 1px 4px rgba(0,0,0,.06)">No recurring contracts yet. Click <strong>+ New Contract</strong> to create one.</div>';
+    list.innerHTML = summary + '<div style="background:#fff;border-radius:10px;padding:40px;text-align:center;color:#90a4ae;font-size:14px;box-shadow:0 1px 4px rgba(0,0,0,.06)">No managed service contracts yet. Click <strong>+ New Contract</strong> to create one.</div>';
     return;
   }
 
@@ -155,7 +155,7 @@ function _rcLineTotal2(c) {
 function openNewRC() {
   _rcCurrentId = null;
   _rcLineItems = [{id:'li-'+Date.now(),desc:'',qty:1,unitPrice:0}];
-  document.getElementById('rc-modal-title').textContent = 'New Recurring Contract';
+  document.getElementById('rc-modal-title').textContent = 'New Managed Service Contract';
   document.getElementById('rc-number').value = _rcNextNumber();
   document.getElementById('rc-client').value = '';
   document.getElementById('rc-type').value = '';
@@ -179,7 +179,7 @@ function openRCModal(id) {
   _rcCurrentId = id;
   _rcLineItems = (c.lineItems||[]).map(function(i){return Object.assign({},i);});
   if (!_rcLineItems.length) _rcLineItems = [{id:'li-'+Date.now(),desc:'',qty:1,unitPrice:0}];
-  document.getElementById('rc-modal-title').textContent = c.number||'Recurring Contract';
+  document.getElementById('rc-modal-title').textContent = c.number||'Managed Service Contract';
   document.getElementById('rc-number').value = c.number||'';
   document.getElementById('rc-client').value = c.client||'';
   document.getElementById('rc-type').value = c.type||'';
@@ -329,7 +329,7 @@ function saveRC() {
 function rcMenu(id) {
   var c = (DB.recurringContracts||[]).find(function(x){return x.id===id;});
   if (!c) return;
-  if (!confirm('Delete recurring contract '+c.number+' for '+c.client+'?\nThis cannot be undone.')) return;
+  if (!confirm('Delete managed service contract '+c.number+' for '+c.client+'?\nThis cannot be undone.')) return;
   DB.recurringContracts = (DB.recurringContracts||[]).filter(function(x){return x.id!==id;});
   saveDB();
   if (typeof _sb!=='undefined'&&_sb) _sb.from('recurring_contracts').delete().eq('id',id).then(function(){});
