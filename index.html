@@ -4624,6 +4624,12 @@ textarea.form-control{resize:vertical;min-height:60px}
     </div>
   </div>
 
+  <!-- Settings panel (collapsed by default) -->
+  <div id="ms-settings-panel" style="display:none;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:16px;padding:20px;border-left:4px solid #1565c0">
+    <div style="font-size:14px;font-weight:700;color:#0d1b2a;margin-bottom:14px">&#9881; Managed Services Settings</div>
+    <div id="ms-settings-wrap"></div>
+  </div>
+
   <!-- Filter bar -->
   <div style="display:flex;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:12px">
     <div style="display:flex;align-items:center;gap:6px;background:#f5f7fa;border:1px solid #e0e7ef;border-radius:7px;padding:7px 12px;flex:1">
@@ -4649,7 +4655,7 @@ textarea.form-control{resize:vertical;min-height:60px}
 
 <!-- RECURRING CONTRACT MODAL -->
 <div class="modal-overlay" id="modal-rc">
-  <div class="modal" style="max-width:740px;width:95%">
+  <div class="modal-box" style="max-width:740px;width:95%">
     <div class="modal-header">
       <span id="rc-modal-title">New Managed Service Contract</span>
       <button class="modal-close" onclick="closeModal(&apos;modal-rc&apos;)">&#10005;</button>
@@ -4668,16 +4674,6 @@ textarea.form-control{resize:vertical;min-height:60px}
           <label class="form-label">Service Type *</label>
           <select id="rc-type" class="form-control">
             <option value="">Select Type</option>
-            <option>Phone Equipment</option>
-            <option>VoIP</option>
-            <option>Computer Services</option>
-            <option>IT Support</option>
-            <option>Security / Access Control</option>
-            <option>Camera System</option>
-            <option>Network Maintenance</option>
-            <option>Cabling Maintenance</option>
-            <option>Audio / Visual</option>
-            <option>Other</option>
           </select>
         </div>
         <div>
@@ -4753,7 +4749,7 @@ textarea.form-control{resize:vertical;min-height:60px}
 
 <!-- BILLING RUN MODAL -->
 <div class="modal-overlay" id="modal-billing-run">
-  <div class="modal" style="max-width:780px;width:95%">
+  <div class="modal-box" style="max-width:780px;width:95%">
     <div class="modal-header">
       <span>&#128184; Billing Run</span>
       <button class="modal-close" onclick="closeModal(&apos;modal-billing-run&apos;)">&#10005;</button>
@@ -4784,7 +4780,7 @@ textarea.form-control{resize:vertical;min-height:60px}
 
 <!-- CONTRACT MODAL -->
 <div class="modal-overlay" id="modal-contract">
-  <div class="modal" style="max-width:680px;width:95%">
+  <div class="modal-box" style="max-width:680px;width:95%">
     <div class="modal-header">
       <span id="contract-modal-title">New Contract</span>
       <button class="modal-close" onclick="closeModal(&apos;modal-contract&apos;)">&#10005;</button>

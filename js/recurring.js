@@ -24,6 +24,8 @@ var RC_CYCLES = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function _rcNextNumber() {
+  RC_TYPES = _getMSTypes();
+  RC_CYCLES = _getMSCycles();
   var existing = (DB.recurringContracts||[]);
   var nums = existing.map(function(c){
     var m = (c.number||'').match(/RC-(\d+)/); return m?parseInt(m[1]):0;
@@ -154,6 +156,9 @@ function _rcLineTotal2(c) {
 // ── Open new/edit modal ────────────────────────────────────────────────────────
 function openNewRC() {
   _rcCurrentId = null;
+  // Populate type select
+  var rcTypeSel = document.getElementById('rc-type');
+  if (rcTypeSel) { rcTypeSel.innerHTML = '<option value="">Select Type</option>'; _getMSTypes().forEach(function(t){ var o=document.createElement('option'); o.value=t; o.textContent=t; rcTypeSel.appendChild(o); }); }
   _rcLineItems = [{id:'li-'+Date.now(),desc:'',qty:1,unitPrice:0}];
   document.getElementById('rc-modal-title').textContent = 'New Managed Service Contract';
   document.getElementById('rc-number').value = _rcNextNumber();
@@ -350,7 +355,9 @@ function openBillingRun() {
 }
 
 function renderBillingRunPreview(runDate) {
-  var due = (DB.recurringContracts||[]).filter(function(c){ return _rcIsDue(c, runDate); });
+  // Only run checked contracts
+  var checkedIds = Array.from(document.querySelectorAll('.rc-run-chk:checked')).map(function(c){ return c.getAttribute('data-rcid'); });
+  var due = (DB.recurringContracts||[]).filter(function(c){ return _rcIsDue(c, runDate) && checkedIds.indexOf(c.id)>=0; });
   var preview = document.getElementById('rc-run-preview');
   if (!preview) return;
 
@@ -359,62 +366,114 @@ function renderBillingRunPreview(runDate) {
     document.getElementById('rc-run-btn').disabled = true;
     return;
   }
-
   document.getElementById('rc-run-btn').disabled = false;
 
-  // Group by type
+  // Group by type for summary pills
   var byType = {};
-  due.forEach(function(c){
-    var t = c.type||'Other';
-    if (!byType[t]) byType[t] = [];
-    byType[t].push(c);
-  });
+  due.forEach(function(c){ var t=c.type||'Other'; if(!byType[t]) byType[t]=[]; byType[t].push(c); });
 
   var html = '';
 
-  // Summary pills
-  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">';
+  // Summary pills — clickable to check/uncheck all of that type
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">';
   Object.keys(byType).forEach(function(type){
-    var contracts = byType[type];
-    var total = contracts.reduce(function(s,c){return s+_rcLineTotal2(c);},0);
-    html += '<div style="background:#e3f2fd;border-radius:8px;padding:8px 14px">'
+    var cs = byType[type];
+    var total = cs.reduce(function(s,c){return s+_rcLineTotal2(c);},0);
+    html += '<div class="rc-type-pill" data-type="'+escHtml(type)+'" onclick="rcRunToggleType(this.dataset.type)" style="background:#e3f2fd;border-radius:8px;padding:8px 14px;cursor:pointer">'
       +'<div style="font-size:11px;font-weight:700;color:#1565c0">'+escHtml(type)+'</div>'
-      +'<div style="font-size:13px;font-weight:800;color:#0d1b2a">'+contracts.length+' contract'+(contracts.length>1?'s':'')+' · $'+total.toLocaleString('en-US',{minimumFractionDigits:2})+'</div>'
+      +'<div style="font-size:12px;font-weight:800;color:#0d1b2a">'+cs.length+' · $'+total.toFixed(2)+'</div>'
     +'</div>';
   });
   html += '</div>';
 
-  // Detail table
-  html += '<table style="width:100%;border-collapse:collapse;font-size:12px">'
-    +'<thead><tr style="background:#f5f7fa">'
-      +'<th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Contract</th>'
-      +'<th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Client</th>'
-      +'<th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Type</th>'
-      +'<th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Cycle</th>'
-      +'<th style="padding:8px;text-align:right;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Amount</th>'
-      +'<th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Delivery</th>'
+  // Select all / none controls
+  html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;padding:8px 10px;background:#f5f7fa;border-radius:8px">'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;cursor:pointer">'
+      +'<input type="checkbox" id="rc-select-all" onchange="rcRunSelectAll(this.checked)" checked style="width:15px;height:15px"> Select All</label>'
+    +'<span style="font-size:11px;color:#546e7a">— or click type pills / individual rows to choose which contracts to run</span>'
+  +'</div>';
+
+  // Detail table with checkboxes
+  html += '<div style="max-height:340px;overflow-y:auto;border:1px solid #e0e7ef;border-radius:8px">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead style="position:sticky;top:0;z-index:1"><tr style="background:#0d1b2a">'
+      +'<th style="padding:8px;width:32px"></th>'
+      +'<th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase">Contract</th>'
+      +'<th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase">Client</th>'
+      +'<th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase">Type</th>'
+      +'<th style="padding:8px;text-align:left;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase">Cycle</th>'
+      +'<th style="padding:8px;text-align:right;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase">Amount</th>'
+      +'<th style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase">Delivery</th>'
     +'</tr></thead><tbody>';
 
   due.forEach(function(c){
     var amt = _rcLineTotal2(c);
-    html += '<tr style="border-bottom:1px solid #f0f0f0">'
+    html += '<tr class="rc-run-row" data-rcid="'+escHtml(c.id)+'" data-type="'+escHtml(c.type||'')+'" '
+      +'style="border-bottom:1px solid #f0f0f0;cursor:pointer" '
+      +'onclick="rcRunToggleRow(this)">'
+      +'<td style="padding:8px;text-align:center" onclick="event.stopPropagation()">'
+        +'<input type="checkbox" class="rc-run-chk" data-rcid="'+escHtml(c.id)+'" checked onchange="rcRunUpdateTotal()" style="width:15px;height:15px;cursor:pointer">'
+      +'</td>'
       +'<td style="padding:8px;font-weight:700;color:#1565c0">'+escHtml(c.number||'')+'</td>'
       +'<td style="padding:8px;font-weight:600">'+escHtml(c.client||'')+'</td>'
-      +'<td style="padding:8px;color:#546e7a">'+escHtml(c.type||'')+'</td>'
-      +'<td style="padding:8px;color:#546e7a">'+escHtml((RC_CYCLES[c.billingCycle]||{label:c.billingCycle}).label)+'</td>'
+      +'<td style="padding:8px;color:#546e7a;font-size:11px">'+escHtml(c.type||'')+'</td>'
+      +'<td style="padding:8px;color:#546e7a;font-size:11px">'+escHtml((RC_CYCLES[c.billingCycle]||{label:c.billingCycle||''}).label)+'</td>'
       +'<td style="padding:8px;text-align:right;font-weight:700">$'+amt.toFixed(2)+'</td>'
       +'<td style="padding:8px;text-align:center">'+(c.deliveryMethod==='mail'?'&#128236; Mail':'&#128231; Email')+'</td>'
     +'</tr>';
   });
 
-  var grandTotal = due.reduce(function(s,c){return s+_rcLineTotal2(c);},0);
-  html += '<tr style="background:#e3f2fd;font-weight:800">'
-    +'<td colspan="4" style="padding:9px;text-align:right;font-size:13px">TOTAL THIS RUN:</td>'
-    +'<td style="padding:9px;text-align:right;font-size:14px;color:#1565c0">$'+grandTotal.toFixed(2)+'</td>'
-    +'<td></td></tr>';
+  html += '</tbody></table></div>';
 
-  html += '</tbody></table>';
+  // Running total bar
+  var grandTotal = due.reduce(function(s,c){return s+_rcLineTotal2(c);},0);
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;background:#e3f2fd;border-radius:8px;padding:12px 16px;margin-top:10px">'
+    +'<span style="font-size:12px;color:#546e7a" id="rc-run-count">'+due.length+' contracts selected</span>'
+    +'<span style="font-size:15px;font-weight:800;color:#1565c0">TOTAL THIS RUN: <span id="rc-run-total">$'+grandTotal.toFixed(2)+'</span></span>'
+  +'</div>';
+
   preview.innerHTML = html;
+}
+
+function rcRunToggleRow(tr) {
+  var chk = tr.querySelector('.rc-run-chk');
+  if (chk) { chk.checked = !chk.checked; rcRunUpdateTotal(); }
+}
+
+function rcRunSelectAll(checked) {
+  document.querySelectorAll('.rc-run-chk').forEach(function(c){ c.checked = checked; });
+  rcRunUpdateTotal();
+}
+
+function rcRunToggleType(type) {
+  var rows = document.querySelectorAll('.rc-run-row[data-type="'+type+'"]');
+  // If all checked → uncheck all; otherwise → check all
+  var allChecked = Array.from(rows).every(function(r){ return r.querySelector('.rc-run-chk').checked; });
+  rows.forEach(function(r){ r.querySelector('.rc-run-chk').checked = !allChecked; });
+  rcRunUpdateTotal();
+}
+
+function rcRunUpdateTotal() {
+  var chks = Array.from(document.querySelectorAll('.rc-run-chk'));
+  var checked = chks.filter(function(c){ return c.checked; });
+  var total = 0;
+  checked.forEach(function(chk){
+    var rcid = chk.getAttribute('data-rcid');
+    var c = (DB.recurringContracts||[]).find(function(x){ return x.id===rcid; });
+    if (c) total += _rcLineTotal2(c);
+  });
+  var countEl = document.getElementById('rc-run-count');
+  var totalEl = document.getElementById('rc-run-total');
+  if (countEl) countEl.textContent = checked.length+' contract'+(checked.length!==1?'s':'')+' selected';
+  if (totalEl) totalEl.textContent = '$'+total.toFixed(2);
+  // Update select-all checkbox state
+  var allChk = document.getElementById('rc-select-all');
+  if (allChk) {
+    allChk.checked = checked.length === chks.length;
+    allChk.indeterminate = checked.length > 0 && checked.length < chks.length;
+  }
+  var runBtn = document.getElementById('rc-run-btn');
+  if (runBtn) runBtn.disabled = checked.length === 0;
 }
 
 // ── Execute billing run ────────────────────────────────────────────────────────
@@ -588,6 +647,145 @@ function printRCInvoice(invId) {
   win.document.write(html);
   win.document.close();
   win.focus();
+}
+
+
+// ── Managed Services Settings ─────────────────────────────────────────────────
+// DB.msSettings = { types:[], statuses:[], cycles:{} }
+var MS_DEFAULT_TYPES    = ['Phone Equipment','VoIP','Computer Services','IT Support','Security / Access Control','Camera System','Network Maintenance','Cabling Maintenance','Audio / Visual','Other'];
+var MS_DEFAULT_STATUSES = ['active','paused','cancelled'];
+var MS_DEFAULT_CYCLES   = {monthly:{label:'Monthly',months:1},quarterly:{label:'Quarterly',months:3},biannual:{label:'Bi-Annual',months:6},annual:{label:'Annual',months:12}};
+
+function _getMSTypes()    { return (DB.msSettings&&DB.msSettings.types&&DB.msSettings.types.length)    ? DB.msSettings.types    : MS_DEFAULT_TYPES; }
+function _getMSStatuses() { return (DB.msSettings&&DB.msSettings.statuses&&DB.msSettings.statuses.length) ? DB.msSettings.statuses : MS_DEFAULT_STATUSES; }
+function _getMSCycles()   { return (DB.msSettings&&DB.msSettings.cycles&&Object.keys(DB.msSettings.cycles).length) ? DB.msSettings.cycles : MS_DEFAULT_CYCLES; }
+
+function renderMSSettings() {
+  var wrap = document.getElementById('ms-settings-wrap');
+  if (!wrap) return;
+  var types    = _getMSTypes();
+  var statuses = _getMSStatuses();
+  var cycles   = _getMSCycles();
+
+  wrap.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">'
+
+    // Types
+    +'<div><div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #1565c0">Service Types</div>'
+    +types.map(function(t,i){
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0">'
+        +'<span style="font-size:13px">'+escHtml(t)+'</span>'
+        +'<span onclick="msDeleteType('+i+')" style="cursor:pointer;color:#c62828;font-size:18px;font-weight:700;padding:0 4px" title="Delete">&#215;</span>'
+      +'</div>';
+    }).join('')
+    +'<div style="display:flex;gap:6px;margin-top:10px">'
+      +'<input id="ms-new-type" class="form-control" style="font-size:12px" placeholder="Add service type...">'
+      +'<button class="btn btn-primary btn-sm" onclick="msAddType()">Add</button>'
+    +'</div></div>'
+
+    // Statuses
+    +'<div><div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #1565c0">Contract Statuses</div>'
+    +statuses.map(function(s,i){
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0">'
+        +'<span style="font-size:13px;text-transform:capitalize">'+escHtml(s)+'</span>'
+        +(statuses.length>1?'<span onclick="msDeleteStatus('+i+')" style="cursor:pointer;color:#c62828;font-size:18px;font-weight:700;padding:0 4px" title="Delete">&#215;</span>':'<span style="font-size:10px;color:#90a4ae">required</span>')
+      +'</div>';
+    }).join('')
+    +'<div style="display:flex;gap:6px;margin-top:10px">'
+      +'<input id="ms-new-status" class="form-control" style="font-size:12px" placeholder="Add status...">'
+      +'<button class="btn btn-primary btn-sm" onclick="msAddStatus()">Add</button>'
+    +'</div></div>'
+
+    // Cycles
+    +'<div><div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #1565c0">Billing Cycles</div>'
+    +Object.keys(cycles).map(function(key){
+      var c = cycles[key];
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0">'
+        +'<span style="font-size:13px">'+escHtml(c.label)+' <span style="font-size:10px;color:#90a4ae">('+c.months+'mo)</span></span>'
+        +'<span class="ms-del-cycle" data-key="'+escHtml(key)+'" onclick="msDeleteCycle(this.dataset.key)" style="cursor:pointer;color:#c62828;font-size:18px;font-weight:700;padding:0 4px">&#215;</span>'
+      +'</div>';
+    }).join('')
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:6px;margin-top:10px">'
+      +'<input id="ms-new-cycle-label" class="form-control" style="font-size:12px" placeholder="Label (e.g. Weekly)">'
+      +'<input id="ms-new-cycle-months" class="form-control" style="font-size:12px" type="number" min="1" placeholder="Months">'
+      +'<button class="btn btn-primary btn-sm" onclick="msAddCycle()">Add</button>'
+    +'</div></div>'
+
+    +'</div>';
+}
+
+function _saveMSSettings() {
+  if (!DB.msSettings) DB.msSettings = {};
+  saveDB();
+  if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  renderMSSettings();
+  // Refresh type dropdown in modal if open
+  var sel = document.getElementById('rc-type');
+  if (sel) {
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">Select Type</option>';
+    _getMSTypes().forEach(function(t){ var o=document.createElement('option'); o.value=t; o.textContent=t; if(t===cur)o.selected=true; sel.appendChild(o); });
+  }
+  showToast('Managed Services settings saved','success',2000);
+}
+
+function msAddType() {
+  var v = (document.getElementById('ms-new-type').value||'').trim();
+  if (!v) return;
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.types) DB.msSettings.types = _getMSTypes().slice();
+  if (DB.msSettings.types.includes(v)) { showToast('Type already exists','warning',2000); return; }
+  DB.msSettings.types.push(v);
+  document.getElementById('ms-new-type').value = '';
+  _saveMSSettings();
+}
+
+function msDeleteType(idx) {
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.types) DB.msSettings.types = _getMSTypes().slice();
+  if (DB.msSettings.types.length <= 1) { showToast('Must keep at least one type','warning',2000); return; }
+  DB.msSettings.types.splice(idx,1);
+  _saveMSSettings();
+}
+
+function msAddStatus() {
+  var v = (document.getElementById('ms-new-status').value||'').trim().toLowerCase().replace(/\s+/g,'_');
+  if (!v) return;
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.statuses) DB.msSettings.statuses = _getMSStatuses().slice();
+  if (DB.msSettings.statuses.includes(v)) { showToast('Status already exists','warning',2000); return; }
+  DB.msSettings.statuses.push(v);
+  document.getElementById('ms-new-status').value = '';
+  _saveMSSettings();
+}
+
+function msDeleteStatus(idx) {
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.statuses) DB.msSettings.statuses = _getMSStatuses().slice();
+  if (DB.msSettings.statuses.length <= 1) { showToast('Must keep at least one status','warning',2000); return; }
+  DB.msSettings.statuses.splice(idx,1);
+  _saveMSSettings();
+}
+
+function msAddCycle() {
+  var label  = (document.getElementById('ms-new-cycle-label').value||'').trim();
+  var months = parseInt(document.getElementById('ms-new-cycle-months').value)||0;
+  if (!label || months < 1) { showToast('Enter label and months','warning',2000); return; }
+  var key = label.toLowerCase().replace(/\s+/g,'_');
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.cycles) DB.msSettings.cycles = Object.assign({},_getMSCycles());
+  DB.msSettings.cycles[key] = {label:label,months:months};
+  document.getElementById('ms-new-cycle-label').value = '';
+  document.getElementById('ms-new-cycle-months').value = '';
+  _saveMSSettings();
+}
+
+function msDeleteCycle(key) {
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.cycles) DB.msSettings.cycles = Object.assign({},_getMSCycles());
+  if (Object.keys(DB.msSettings.cycles).length <= 1) { showToast('Must keep at least one cycle','warning',2000); return; }
+  delete DB.msSettings.cycles[key];
+  _saveMSSettings();
 }
 
 // ── Supabase sync ──────────────────────────────────────────────────────────────
