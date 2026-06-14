@@ -649,84 +649,96 @@ function openRCEmailQueue(invoices) {
 }
 
 // ── Print invoice ──────────────────────────────────────────────────────────────
-function printRCInvoice(invId) {
-  var inv = (DB.invoices||[]).find(function(i){return i.id===invId;});
-  if (!inv) return;
-  var co = DB.settings||{};
-  function esc(s){return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function _closeRCInvoice() {
+  var ov = document.getElementById('rc-invoice-overlay');
+  if (ov) { ov.style.display = 'none'; ov.innerHTML = ''; }
+}
 
-  var lineRows = (inv.lineItems||[]).map(function(i){
-    return '<tr><td style="padding:8px;border-bottom:1px solid #f0f0f0">'+esc(i.desc||'')+'</td>'
-      +'<td style="padding:8px;border-bottom:1px solid #f0f0f0;text-align:center">'+parseFloat(i.qty||1)+'</td>'
-      +'<td style="padding:8px;border-bottom:1px solid #f0f0f0;text-align:right">$'+parseFloat(i.unitPrice||0).toFixed(2)+'</td>'
-      +'<td style="padding:8px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700">$'+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0)).toFixed(2)+'</td></tr>';
+function printRCInvoice(invId) {
+  var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
+  if (!inv) { showToast('Invoice not found','warning',2000); return; }
+  var co = DB.settings||{};
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var lineItems = inv.lineItems||[];
+  var total = lineItems.reduce(function(s,i){ return s+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0)); },0);
+  if (!total) total = parseFloat(inv.amount||0);
+  var cycles = _getMSCycles();
+  var cycleLabel = (cycles[inv.billingCycle]||{label:inv.billingCycle||'Recurring'}).label;
+  var lineRows = lineItems.map(function(i){
+    var lt = parseFloat(i.qty||1)*parseFloat(i.unitPrice||0);
+    return '<tr>'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;font-size:13px">'+esc(i.desc||'')+'</td>'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:center;font-size:13px">'+parseFloat(i.qty||1)+'</td>'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px">$'+parseFloat(i.unitPrice||0).toFixed(2)+'</td>'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px;font-weight:700">$'+lt.toFixed(2)+'</td>'
+    +'</tr>';
   }).join('');
 
-  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+esc(inv.num)+'</title>'
-    +'<style>*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif;}'
-    +'body{padding:30px;font-size:12px;color:#0d1b2a;}'
-    +'@media print{body{padding:0;}@page{margin:20mm;}.no-print{display:none;}}'
-    +'</style></head><body>'
-    +'<button class="no-print" onclick="window.print()" style="position:fixed;top:16px;right:16px;background:#1565c0;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
-    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1565c0;padding-bottom:16px;margin-bottom:20px">'
-      +'<div><div style="font-size:20px;font-weight:800">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>'
-        +'<div style="font-size:11px;color:#546e7a;margin-top:3px">'+esc(co.caddr||'')+(co.cphone?' · '+esc(co.cphone):'')+'</div></div>'
-      +'<div style="text-align:right"><div style="font-size:24px;font-weight:800;color:#1565c0">INVOICE</div>'
-        +'<div style="font-size:14px;font-weight:700;margin-top:4px">'+esc(inv.num)+'</div>'
-        +'<div style="font-size:11px;color:#546e7a;margin-top:2px">Invoice Date: '+esc(inv.invoiceDate||inv.runDate||'')+'</div>'
-        +'<div style="font-size:11px;color:#546e7a">Due: Upon Receipt</div>'
+  var html = '<div style="max-width:760px;margin:30px auto;font-family:Arial,sans-serif;color:#0d1b2a">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid #1565c0">'
+      +'<div>'
+        +'<div style="font-size:22px;font-weight:900;color:#0d1b2a;letter-spacing:-.3px">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>'
+        +'<div style="margin-top:8px;font-size:12px;color:#546e7a;line-height:1.8">'+esc(co.caddr||'')
+          +(co.cphone?'<br>'+esc(co.cphone):'')
+          +(co.cemail?'<br>'+esc(co.cemail):'')
+        +'</div>'
+      +'</div>'
+      +'<div style="text-align:right">'
+        +'<div style="font-size:38px;font-weight:900;color:#1565c0;letter-spacing:-1px">INVOICE</div>'
+        +'<div style="font-size:14px;font-weight:700;color:#0d1b2a;margin-top:6px">'+esc(inv.num||'')+'</div>'
+        +'<div style="font-size:12px;color:#546e7a;margin-top:4px">Date: <strong>'+esc(inv.invoiceDate||inv.runDate||'')+'</strong></div>'
+        +'<div style="font-size:12px;color:#546e7a">Due: <strong>Upon Receipt</strong></div>'
       +'</div>'
     +'</div>'
-    +'<div style="margin-bottom:20px"><div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;margin-bottom:4px">Bill To</div>'
-      +'<div style="font-size:14px;font-weight:700">'+esc(inv.clientName||'')+'</div>'
-      +(inv.clientEmail?'<div style="font-size:12px;color:#546e7a">'+esc(inv.clientEmail)+'</div>':'')
+    +'<div style="background:#1565c0;border-radius:8px;padding:14px 18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">'
+      +'<div>'
+        +'<div style="font-size:14px;font-weight:800;color:#fff">'+esc(inv.contractType||'Managed Service')+' &#8212; Managed Services Contract</div>'
+        +'<div style="font-size:11px;color:#bbdefb;margin-top:3px">'+esc(inv.rcNumber||'')+' &nbsp;&#183;&nbsp; '+esc(cycleLabel)+' Billing</div>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.15);padding:8px 16px;border-radius:6px;font-size:12px;font-weight:800;color:#fff">'+cycleLabel.toUpperCase()+'</div>'
     +'</div>'
-    +'<div style="background:#f5f7fa;border-radius:4px;padding:8px 12px;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin-bottom:4px">'+esc(inv.rcNumber||'')+' — '+(RC_CYCLES[inv.billingCycle]||{label:inv.billingCycle||''}).label+' Billing</div>'
-    +'<table style="width:100%;border-collapse:collapse;margin-bottom:16px">'
+    +'<div style="margin-bottom:24px;background:#f8f9fb;border-radius:8px;padding:14px 18px">'
+      +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">Bill To</div>'
+      +'<div style="font-size:16px;font-weight:700">'+esc(inv.clientName||'')+'</div>'
+      +(inv.clientEmail?'<div style="font-size:12px;color:#546e7a;margin-top:2px">'+esc(inv.clientEmail)+'</div>':'')
+    +'</div>'
+    +'<table style="width:100%;border-collapse:collapse">'
       +'<thead><tr style="background:#0d1b2a">'
-        +'<th style="padding:9px;text-align:left;color:#fff;font-size:11px;text-transform:uppercase">Description</th>'
-        +'<th style="padding:9px;text-align:center;color:#fff;font-size:11px;text-transform:uppercase;width:60px">Qty</th>'
-        +'<th style="padding:9px;text-align:right;color:#fff;font-size:11px;text-transform:uppercase;width:100px">Unit Price</th>'
-        +'<th style="padding:9px;text-align:right;color:#fff;font-size:11px;text-transform:uppercase;width:100px">Amount</th>'
+        +'<th style="padding:11px 14px;text-align:left;font-size:11px;color:#fff;text-transform:uppercase;letter-spacing:.4px">Description</th>'
+        +'<th style="padding:11px 14px;text-align:center;font-size:11px;color:#fff;text-transform:uppercase;width:60px">Qty</th>'
+        +'<th style="padding:11px 14px;text-align:right;font-size:11px;color:#fff;text-transform:uppercase;width:110px">Unit Price</th>'
+        +'<th style="padding:11px 14px;text-align:right;font-size:11px;color:#fff;text-transform:uppercase;width:110px">Amount</th>'
       +'</tr></thead><tbody>'+lineRows+'</tbody>'
       +'<tfoot><tr style="background:#e3f2fd">'
-        +'<td colspan="3" style="padding:10px;text-align:right;font-weight:800;font-size:13px">TOTAL DUE:</td>'
-        +'<td style="padding:10px;text-align:right;font-weight:800;font-size:16px;color:#1565c0">$'+parseFloat(inv.amount||0).toFixed(2)+'</td>'
+        +'<td colspan="3" style="padding:14px;text-align:right;font-size:14px;font-weight:700">Total Due:</td>'
+        +'<td style="padding:14px;text-align:right;font-size:22px;font-weight:900;color:#1565c0">$'+total.toFixed(2)+'</td>'
       +'</tr></tfoot>'
     +'</table>'
-    +(inv.notes?'<div style="font-size:11px;color:#546e7a;margin-bottom:20px"><strong>Notes:</strong> '+esc(inv.notes)+'</div>':'')
-    +'<div style="border-top:1px solid #e0e7ef;padding-top:12px;font-size:10px;color:#90a4ae;text-align:center">'
-      +esc(co.cname||'Total Communications Systems & Solutions, Inc.')+' · '+(co.cphone||'')+' · '+(co.cweb||'tcssbuild.com')
+    +(inv.notes?'<div style="margin-top:16px;padding:12px 14px;background:#fff8e1;border-radius:6px;font-size:12px;color:#546e7a"><strong>Notes:</strong> '+esc(inv.notes)+'</div>':'')
+    +'<div style="margin-top:30px;padding-top:14px;border-top:1px solid #e0e7ef;text-align:center;font-size:11px;color:#90a4ae">'
+      +esc(co.cname||'Total Communications Systems & Solutions, Inc.')
+      +(co.cphone?' &nbsp;&#183;&nbsp; '+esc(co.cphone):'')
+      +(co.cemail?' &nbsp;&#183;&nbsp; '+esc(co.cemail):'')
       +'<br>Thank you for your business.'
     +'</div>'
-    +'</body></html>';
+  +'</div>';
 
-  // Show invoice in-app (avoids popup blockers)
   var overlay = document.getElementById('rc-invoice-overlay');
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.id = 'rc-invoice-overlay';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;overflow-y:auto;display:none';
     document.body.appendChild(overlay);
   }
-  overlay.innerHTML = html
-    .replace('<!DOCTYPE html><html>','')
-    .replace('<html>','')
-    .replace('</html>','')
-    .replace(/<head>.*?<\/head>/s,'')
-    .replace('<body>','')
-    .replace('</body>','');
-  // Add close button
-  var closeBar = document.createElement('div');
-  closeBar.className = 'no-print';
-  closeBar.style.cssText = 'position:sticky;top:0;background:#0d1b2a;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;z-index:1';
-  closeBar.innerHTML = '<span style="color:#fff;font-size:13px;font-weight:700">Invoice Preview</span>'
-    +'<div style="display:flex;gap:10px">'
-      +'<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
-      +'<button onclick="_closeRCInvoice()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">&#10005; Close</button>'
-    +'</div>';
-  overlay.insertBefore(closeBar, overlay.firstChild);
-  overlay.style.display = 'block';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#e8edf2;z-index:9999;overflow-y:auto;display:block';
+  overlay.innerHTML =
+    '<div class="no-print" style="position:sticky;top:0;background:#0d1b2a;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,.3)">'
+      +'<span style="color:#90a4ae;font-size:13px">&#128196; '+esc(inv.num||'')+' &nbsp;&#183;&nbsp; '+esc(inv.clientName||'')+'</span>'
+      +'<div style="display:flex;gap:10px">'
+        +'<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
+        +'<button onclick="_closeRCInvoice()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer">&#10005; Close</button>'
+      +'</div>'
+    +'</div>'
+    +'<div style="padding:30px 20px">'+html+'</div>';
 }
 
 
