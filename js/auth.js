@@ -849,6 +849,45 @@ async function syncAllFromCloud() {
       }
     } catch(e) { errors.push('vendors: '+e.message); }
 
+    // 20. Recurring Contracts (Managed Services)
+    try {
+      var { data: rcRows, error: rce } = await _sb.from('recurring_contracts').select('*').order('sort_order',{ascending:true});
+      if (rce) { errors.push('recurring_contracts: '+rce.message); }
+      else if (rcRows && rcRows.length) {
+        DB.recurringContracts = rcRows.map(function(r){
+          return {
+            id:r.id, number:r.number, client:r.client, type:r.type,
+            billingCycle:r.billing_cycle, billingDay:r.billing_day,
+            status:r.status, autoRenew:!!r.auto_renew,
+            deliveryMethod:r.delivery_method||'email', clientEmail:r.client_email||'',
+            contractStart:r.contract_start||'', contractEnd:r.contract_end||'',
+            nextBillingDate:r.next_billing_date||'', lastBilledDate:r.last_billed_date||'',
+            lineItems:r.line_items||[], notes:r.notes||'',
+            doNotBill:!!r.do_not_bill, sortOrder:r.sort_order||0,
+            priceHistory:r.price_history||[], createdAt:r.created_at
+          };
+        });
+      }
+    } catch(e) { errors.push('recurring_contracts: '+e.message); }
+
+    // 21. Contracts
+    try {
+      var { data: ctrRows, error: ctre } = await _sb.from('contracts').select('*').order('created_at',{ascending:false});
+      if (ctre) { errors.push('contracts: '+ctre.message); }
+      else if (ctrRows && ctrRows.length) {
+        DB.contracts = ctrRows.map(function(r){
+          return {
+            id:r.id, number:r.number, type:r.type, client:r.client,
+            project:r.project||'', value:r.value||0, status:r.status||'draft',
+            scope:r.scope||'', notes:r.notes||'',
+            dateCreated:r.date_created||'', dateExecuted:r.date_executed||'',
+            dateExpires:r.date_expires||'', woId:r.wo_id||null,
+            parentContractId:r.parent_contract_id||null, createdAt:r.created_at
+          };
+        });
+      }
+    } catch(e) { errors.push('contracts: '+e.message); }
+
     // 17. Purchase Orders
     try {
       var { data: poRows, error: poe } = await _sb.from('purchase_orders').select('*, po_line_items(*)').order('created_at', { ascending: false });

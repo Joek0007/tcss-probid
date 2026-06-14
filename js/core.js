@@ -78,7 +78,7 @@ function loadDB() {
     const raw = localStorage.getItem(DB_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1,deletedIds:{quotes:[],team:[],customers:[],contacts:[],jobs:[]},workOrders:[],woLabor:[],woExpenses:[],woParts:[],woChecklist:[],woSettings:null,woSeq:1000,jobPhotos:[],commsLog:[],invoicePayments:[],purchaseOrders:[],vendors:[],poSeq:1000,invLocations:[],invTransfers:[],auditLog:[],woDocuments:[],timeEntries:[]}, parsed);
+      DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1,deletedIds:{quotes:[],team:[],customers:[],contacts:[],jobs:[]},workOrders:[],woLabor:[],woExpenses:[],woParts:[],woChecklist:[],woSettings:null,woSeq:1000,jobPhotos:[],commsLog:[],invoicePayments:[],purchaseOrders:[],vendors:[],poSeq:1000,invLocations:[],invTransfers:[],auditLog:[],woDocuments:[],timeEntries:[],contracts:[],recurringContracts:[],msSettings:{}}, parsed);
       // Ensure deletedIds sub-arrays exist even on old saved data
       if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
       if (!DB.deletedIds.quotes)    DB.deletedIds.quotes    = [];
