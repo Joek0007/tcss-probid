@@ -1268,6 +1268,143 @@ function rcCustomerSelected(customerId) {
   }
 }
 
+
+// ── Billing Run Control Sheet ─────────────────────────────────────────────────
+function printBillingControlSheet() {
+  var runDate     = (document.getElementById('rc-run-date')||{}).value || getTodayISO();
+  var invoiceDate = (document.getElementById('rc-invoice-date')||{}).value || getTodayISO();
+  var due = (DB.recurringContracts||[]).filter(function(c){ return _rcIsDue(c, runDate); });
+
+  if (!due.length) { showToast('No contracts due on this date', 'warning', 2000); return; }
+
+  // Generate control number: CTRL-YYYYMMDD-NNN
+  var ctrlSeq = (DB.billingCtrlSeq||0) + 1;
+  DB.billingCtrlSeq = ctrlSeq;
+  saveDB();
+  var ctrlNum = 'CTRL-' + runDate.replace(/-/g,'') + '-' + String(ctrlSeq).padStart(3,'0');
+
+  var co = DB.settings||{};
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var cycles = _getMSCycles();
+
+  // Group by type
+  var byType = {};
+  due.forEach(function(c){
+    var t = c.type||'Other';
+    if (!byType[t]) byType[t] = [];
+    byType[t].push(c);
+  });
+
+  var grandTotal = due.reduce(function(s,c){ return s+_rcLineTotal2(c); }, 0);
+  var rowNum = 0;
+
+  var rows = '';
+  Object.keys(byType).sort().forEach(function(type) {
+    var typeContracts = byType[type];
+    var typeTotal = typeContracts.reduce(function(s,c){ return s+_rcLineTotal2(c); }, 0);
+
+    // Type sub-header
+    rows += '<tr style="background:#e3f2fd">'
+      +'<td colspan="5" style="padding:7px 14px;font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.4px">'
+        +esc(type)+' &nbsp;&#183;&nbsp; '+typeContracts.length+' contract'+(typeContracts.length!==1?'s':'')+' &nbsp;&#183;&nbsp; $'+typeTotal.toFixed(2)
+      +'</td>'
+    +'</tr>';
+
+    typeContracts.forEach(function(c) {
+      rowNum++;
+      var amt = _rcLineTotal2(c);
+      var cycleLabel = (cycles[c.billingCycle]||{label:c.billingCycle||''}).label;
+      rows += '<tr style="background:'+(rowNum%2===0?'#fafafa':'#fff')+'">'
+        +'<td style="padding:8px 14px;font-size:12px;color:#90a4ae;text-align:center">'+rowNum+'</td>'
+        +'<td style="padding:8px 14px;font-size:12px;font-weight:700;color:#1565c0">'+esc(c.number||'')+'</td>'
+        +'<td style="padding:8px 14px;font-size:12px;font-weight:600">'+esc(c.client||'')+'</td>'
+        +'<td style="padding:8px 14px;font-size:11px;color:#546e7a">'+esc(cycleLabel)+'</td>'
+        +'<td style="padding:8px 14px;font-size:12px;font-weight:700;text-align:right">$'+amt.toFixed(2)+'</td>'
+      +'</tr>';
+    });
+  });
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    +'<title>'+ctrlNum+'</title>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif;}'
+    +'body{padding:28px;color:#0d1b2a;font-size:12px;}'
+    +'@media print{body{padding:0;}@page{margin:18mm;}.no-print{display:none;}}'
+    +'table{width:100%;border-collapse:collapse;}'
+    +'th{background:#0d1b2a;color:#fff;padding:9px 14px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.4px;}'
+    +'th:last-child{text-align:right;}'
+    +'</style></head><body>'
+    +'<button class="no-print" onclick="var t=document.title;window.print();document.title=t;" style="position:fixed;top:14px;right:14px;background:#1565c0;color:#fff;border:none;border-radius:7px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
+
+    // Header
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1565c0;padding-bottom:14px;margin-bottom:18px">'
+      +'<div>'
+        +'<div style="font-size:20px;font-weight:900">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>'
+        +'<div style="font-size:11px;color:#546e7a;margin-top:5px">'+esc(co.caddr||'')+(co.cphone?' &nbsp;&#183;&nbsp; '+esc(co.cphone):'')+'</div>'
+        +'<div style="font-size:16px;font-weight:800;color:#1565c0;margin-top:10px">MANAGED SERVICES BILLING CONTROL SHEET</div>'
+      +'</div>'
+      +'<div style="text-align:right">'
+        +'<div style="font-size:11px;color:#90a4ae;font-weight:700;text-transform:uppercase;margin-bottom:3px">Control Number</div>'
+        +'<div style="font-size:20px;font-weight:900;color:#1565c0;letter-spacing:-0.5px">'+ctrlNum+'</div>'
+      +'</div>'
+    +'</div>'
+
+    // Run info
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:20px">'
+      +['Run Date:'+runDate, 'Invoice Date:'+invoiceDate, 'Contracts:'+due.length, 'Total:$'+grandTotal.toFixed(2)].map(function(item){
+        var parts = item.split(':');
+        return '<div style="background:#f5f7fa;border-radius:8px;padding:10px 14px">'
+          +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;margin-bottom:3px">'+parts[0]+'</div>'
+          +'<div style="font-size:14px;font-weight:800;color:#0d1b2a">'+parts.slice(1).join(':')+'</div>'
+        +'</div>';
+      }).join('')
+    +'</div>'
+
+    // Contract table
+    +'<table>'
+      +'<thead><tr>'
+        +'<th style="width:40px;text-align:center">#</th>'
+        +'<th style="width:110px">Contract</th>'
+        +'<th>Client</th>'
+        +'<th style="width:100px">Cycle</th>'
+        +'<th style="width:110px;text-align:right">Amount</th>'
+      +'</tr></thead>'
+      +'<tbody>'+rows+'</tbody>'
+      +'<tfoot><tr style="background:#0d1b2a">'
+        +'<td colspan="4" style="padding:11px 14px;font-size:13px;font-weight:700;color:#fff;text-align:right">TOTAL — '+due.length+' CONTRACTS:</td>'
+        +'<td style="padding:11px 14px;font-size:16px;font-weight:900;color:#fff;text-align:right">$'+grandTotal.toFixed(2)+'</td>'
+      +'</tr></tfoot>'
+    +'</table>'
+
+    // Verification footer
+    +'<div style="margin-top:30px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">'
+      +['Prepared by', 'Verified by', 'Date Verified'].map(function(label){
+        return '<div>'
+          +'<div style="border-top:1px solid #0d1b2a;padding-top:6px;font-size:10px;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">'+label+'</div>'
+          +'<div style="height:24px"></div>'
+        +'</div>';
+      }).join('')
+    +'</div>'
+
+    +'<div style="margin-top:20px;padding-top:12px;border-top:1px solid #e0e7ef;font-size:10px;color:#90a4ae;text-align:center">'
+      +'Control Sheet '+ctrlNum+' &nbsp;&#183;&nbsp; Generated '+new Date().toLocaleString()+' &nbsp;&#183;&nbsp; RETAIN FOR RECORDS'
+    +'</div>'
+    +'</body></html>';
+
+  var overlay = document.getElementById('rc-invoice-overlay');
+  if (!overlay) { overlay = document.createElement('div'); overlay.id = 'rc-invoice-overlay'; document.body.appendChild(overlay); }
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#e8edf2;z-index:9999;overflow-y:auto;display:block';
+  overlay.setAttribute('data-ctrl', ctrlNum);
+  overlay.innerHTML = '<div style="position:sticky;top:0;background:#0d1b2a;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,.3)">'
+    +'<span style="color:#90a4ae;font-size:13px">&#128438; Control Sheet &nbsp;&#183;&nbsp; '+ctrlNum+'</span>'
+    +'<div style="display:flex;gap:10px">'
+      +'<button onclick="_printControlSheet()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
+      +'<button onclick="_closeRCInvoice()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer">&#10005; Close</button>'
+    +'</div>'
+  +'</div>'
+  +'<div style="padding:24px">'+html.replace(/<!DOCTYPE html>.*?<body>/s,'').replace('</body></html>','')+'</div>';
+}
+
 // ── Supabase sync ──────────────────────────────────────────────────────────────
 function _pushRCToSupabase(c) {
   if (typeof _sb==='undefined'||!_sb) return;
