@@ -1911,6 +1911,7 @@ function createWOInvoice() {
     jobId:job?job.id:null,
     woId:woId,
     job:{ name:wo.description||'', customer:wo.customerName||'' },
+    billEmail:(function(){ var c=(DB.customers||[]).find(function(x){return x.id===wo.customerId;}); return c?(c.invoicingEmail||c.email||''):''; })(),
     total:total,
     subtotal:subtotal,
     laborAmt:laborAmt,

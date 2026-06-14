@@ -1560,6 +1560,7 @@ function reprintInvoice(invId) {
     if (!invCust && invJob2 && invJob2.customer) invCust = { name:invJob2.customer, address:invJob2.address||'' };
   }
   sv('inv-bill-name',  inv.billName||invJob.customer||(invCust&&invCust.name)||'');
+  sv('inv-bill-email', inv.billEmail||(invCust&&(invCust.invoicingEmail||invCust.email))||'');
   sv('inv-bill-addr',  inv.billAddr||invJob.address||(invCust&&(invCust.street||invCust.address))||'');
   sv('inv-bill-city',  inv.billCity||(invCust&&invCust.city)||'');
   sv('inv-bill-state', inv.billState||(invCust&&invCust.state)||'');
@@ -1809,6 +1810,7 @@ function openInvoiceModal(job) {
   // Bill to — customer billing address
   var billName = job.customer || (cust&&cust.name) || '';
   sv('inv-bill-name',  billName);
+  sv('inv-bill-email', cust ? (cust.invoicingEmail||cust.email||'') : '');
   sv('inv-bill-addr',  cust ? (cust.street||cust.address||'') : (job.address||''));
   sv('inv-bill-city',  cust ? (cust.city||'') : '');
   sv('inv-bill-state', cust ? (cust.state||'') : '');
@@ -1914,6 +1916,7 @@ function buildInvoiceData(job) {
     notes:     gv('inv-notes'),
     status:    'sent',
     billName:  gv('inv-bill-name'),
+    billEmail: gv('inv-bill-email'),
     billAddr:  gv('inv-bill-addr'),
     billCity:  gv('inv-bill-city'),
     billState: gv('inv-bill-state'),
@@ -1939,6 +1942,7 @@ function buildInvoiceHTML(inv) {
   // Build billing address block
   var invJob = inv.job || {};
   var billLines = [inv.billName||invJob.customer||''];
+  if (inv.billEmail) billLines.push(inv.billEmail);
   if (inv.billAddr) billLines.push(inv.billAddr);
   var cityLine = [inv.billCity, inv.billState].filter(Boolean).join(', ');
   if (cityLine) { if (inv.billZip) cityLine += ' ' + inv.billZip; billLines.push(cityLine); }

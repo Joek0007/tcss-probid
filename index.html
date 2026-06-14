@@ -2222,6 +2222,10 @@ textarea.form-control{resize:vertical;min-height:60px}
         <div>
           <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Bill To — Customer Name</label>
           <input id="inv-bill-name" placeholder="Customer / Company Name" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
+          <div style="position:relative;margin-bottom:4px">
+            <input id="inv-bill-email" type="email" placeholder="&#128196; Invoicing email (auto-filled from customer)" style="width:100%;padding:8px 8px 8px 28px;border:1.5px solid #1565c0;border-radius:6px;font-size:12px;background:#f0f4ff;box-sizing:border-box">
+            <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:12px;pointer-events:none">&#128231;</span>
+          </div>
           <input id="inv-bill-addr" placeholder="Street Address" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
           <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px">
             <input id="inv-bill-city" placeholder="City" style="padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
