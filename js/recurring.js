@@ -132,40 +132,37 @@ function renderRecurring() {
 
     var yearly = _rcYearlyPrice(c);
     var doNotBill = !!c.doNotBill;
-    return '<div class="rc-list-row" data-rcid="'+escHtml(c.id)+'" draggable="true" '
-      +'style="display:grid;grid-template-columns:'+cols+';padding:10px 16px;border-bottom:1px solid #f0f4f8;align-items:center;background:'+(doNotBill?'#fffde7':'')+'" '
-      +'onmouseover="this.style.background=\'#f0f4ff\';" '
-      +'onmouseout="this.style.background=\''+(doNotBill?'#fffde7':'')+'\'" '
-      +'onclick="openRCDetail(\''+escHtml(c.id)+'\');" '
+    var yearly = _rcYearlyPrice(c);
+    var doNotBill = !!c.doNotBill;
+    var stColor = statusColors[c.status]||'#546e7a';
+    var isDue = _rcIsDue(c, today);
+    var isOverdue = c.nextBillingDate && c.nextBillingDate < today && c.status==='active';
+    var rowId = 'rcrow-'+c.id.replace(/[^a-z0-9]/gi,'');
+    var nextTxt = doNotBill ? '<span style="color:#f57c00;font-weight:700">\u{1F6AB} Skip</span>'
+      : (isOverdue ? '<span style="color:#c62828">\u26a0 '+escHtml(c.nextBillingDate||'')+'</span>'
+      : isDue      ? '<span style="color:#e65100">\u25cf '+escHtml(c.nextBillingDate||'')+'</span>'
+      : escHtml(c.nextBillingDate||'\u2014'));
+    return '<div class="rc-list-row" id="'+rowId+'" data-rcid="'+escHtml(c.id)+'" draggable="true" '
+      +'style="display:grid;grid-template-columns:'+cols+';padding:10px 16px;border-bottom:1px solid #f0f4f8;align-items:center;background:'+(doNotBill?'#fffde7':'')+';cursor:pointer" '
+      +'onmouseover="this.style.background=\'#f0f4ff\'" '
+      +'onmouseout="this.style.background=\''+(doNotBill?'#fffde7':'')+'\';" '
+      +'onclick="openRCDetail(\''+escHtml(c.id)+'\')" '
       +'ondragstart="rcDragStart(event,\''+escHtml(c.id)+'\')" '
       +'ondragover="rcDragOver(event)" '
       +'ondrop="rcDrop(event,\''+escHtml(c.id)+'\')" '
       +'ondragend="rcDragEnd(event)">'
-
-      +'<div style="cursor:grab;color:#c8d0db;font-size:14px;text-align:center;user-select:none" onclick="event.stopPropagation()" title="Drag to reorder">&#8661;</div>'
-
-      +'<div style="font-weight:700;color:#1565c0;font-size:12px">'+escHtml(c.number||'')+(doNotBill?' &#128683;':'')+'</div>'
-
+      +'<div style="cursor:grab;color:#c8d0db;font-size:16px;text-align:center;user-select:none" onclick="event.stopPropagation()">\u2195</div>'
+      +'<div style="font-weight:700;color:#1565c0;font-size:12px">'+escHtml(c.number||'')+(doNotBill?' \u{1F6AB}':'')+'</div>'
       +'<div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(c.client||'')+'</div>'
-
       +'<div style="font-size:11px;color:#546e7a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(c.type||'')+'</div>'
-
       +'<div style="font-size:11px">'+escHtml(cycleLabels[c.billingCycle]||c.billingCycle||'')+'</div>'
-
-      +'<div style="font-size:11px;font-weight:600;color:'+(doNotBill?'#f57c00':isOverdue?'#c62828':isDue?'#e65100':'#0d1b2a')+'">'+(doNotBill?'&#128683; Skip':(isOverdue?'&#9888; ':isDue?'&#9679; ':'')+escHtml(c.nextBillingDate||'&#8212;'))+'</div>'
-
-      +'<div style="font-size:11px;color:#546e7a">'+escHtml(c.lastBilledDate||'&#8212;')+'</div>'
-
+      +'<div style="font-size:11px;font-weight:600">'+nextTxt+'</div>'
+      +'<div style="font-size:11px;color:#546e7a">'+escHtml(c.lastBilledDate||'\u2014')+'</div>'
       +'<div style="font-size:12px;font-weight:700;color:#2e7d32">$'+yearly.toFixed(2)+'</div>'
-
       +'<div style="font-size:11px;color:'+(c.contractEnd&&c.contractEnd<today?'#c62828':'#546e7a')+'">'+escHtml(c.contractEnd||'Open')+'</div>'
-
       +'<div><span style="background:'+stColor+'22;color:'+stColor+';padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;text-transform:capitalize">'+escHtml(c.status||'')+'</span></div>'
-
-      +'<div style="font-size:11px">'+(c.deliveryMethod==='mail'?'&#128236; Mail':'&#128231; Email')+'</div>'
-
-      +'<div onclick="event.stopPropagation();rcMenu(\''+escHtml(c.id)+'\');" style="color:#90a4ae;font-size:18px;cursor:pointer">&#8942;</div>'
-
+      +'<div style="font-size:11px">'+(c.deliveryMethod==='mail'?'\u{1F4EC} Mail':'\u{1F4E7} Email')+'</div>'
+      +'<div onclick="event.stopPropagation();rcMenu(\''+escHtml(c.id)+'\')" style="color:#90a4ae;font-size:18px;cursor:pointer">\u22EE</div>'
     +'</div>';
 
   }).join('');
