@@ -2306,6 +2306,27 @@ function saveTeamModal() {
   var newlyAdded = _assigned.filter(function(n){ return prev.indexOf(n)<0; });
   if (newlyAdded.length) wtSyncWOTechsToCalendar(wo, newlyAdded);
 
+  // Send SMS to newly assigned techs
+  if (newlyAdded.length && typeof sendSMS === 'function') {
+    if (!wo.smsNotified) wo.smsNotified = [];
+    newlyAdded.forEach(function(techName) {
+      if (wo.smsNotified.indexOf(techName) >= 0) return;
+      var member = (DB.team||[]).find(function(m){ return m.name===techName; });
+      if (!member || !member.phone || member.smsEnabled === false) return;
+      var msg = 'TCSS Dispatch: '+(wo.woNumber||'WO')+' | '+(wo.customerName||'');
+      if (wo.description) msg += '\n'+wo.description.substring(0,80);
+      if (wo.scheduledDate) {
+        var d = new Date(wo.scheduledDate+'T12:00:00');
+        msg += '\nScheduled: '+d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      }
+      if (wo.street) msg += '\n'+wo.street+(wo.city?', '+wo.city:'');
+      msg += '\nReply STOP to opt out.';
+      sendSMS(member.phone, msg).then(function(ok){
+        if (ok) { wo.smsNotified.push(techName); saveDB(); }
+      });
+    });
+  }
+
   closeModal('modal-wo-team');
   renderAssignedTechs(_woCurrentId);
   showToast('Team updated ✓','success',2000);
