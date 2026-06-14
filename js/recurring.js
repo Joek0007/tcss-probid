@@ -228,7 +228,13 @@ function openRCModal(id) {
   document.getElementById('rc-modal-title').textContent = c.number||'Managed Service Contract';
   document.getElementById('rc-number').value = c.number||'';
   document.getElementById('rc-client').value = c.client||'';
-  document.getElementById('rc-type').value = c.type||'';
+  // Populate type dropdown before setting value
+  var rcTypeSel2 = document.getElementById('rc-type');
+  if (rcTypeSel2) {
+    rcTypeSel2.innerHTML = '<option value="">Select Type</option>';
+    _getMSTypes().forEach(function(t){ var o=document.createElement('option'); o.value=t; o.textContent=t; rcTypeSel2.appendChild(o); });
+    rcTypeSel2.value = c.type||'';
+  }
   document.getElementById('rc-cycle').value = c.billingCycle||'monthly';
   document.getElementById('rc-billing-day').value = c.billingDay||1;
   document.getElementById('rc-status').value = c.status||'active';
@@ -301,7 +307,7 @@ function _rcUpdateLine(idx, field, val) {
     var item = _rcLineItems[i];
     if (item) {
       var cells = row.querySelectorAll('td');
-      if (cells[3]) cells[3].textContent = '$'+(parseFloat(item.qty||1)*parseFloat(item.unitPrice||0)).toFixed(2);
+      if (cells[4]) cells[4].textContent = '$'+(parseFloat(item.qty||1)*parseFloat(item.unitPrice||0)).toFixed(2);
     }
   });
   // Update footer total
