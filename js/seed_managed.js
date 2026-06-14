@@ -287,18 +287,18 @@ function seedManagedServices() {
     },
   ];
 
-  // Merge — don't duplicate if already seeded
-  var existing = (DB.recurringContracts||[]).map(function(c){return c.id;});
-  var added = 0;
+  // Always replace — ensures clean 20 contract test set
   contracts.forEach(function(c){
     c.createdAt = c.createdAt || new Date().toISOString();
-    if (!existing.includes(c.id)) {
-      DB.recurringContracts.push(c);
-      added++;
-    }
   });
+
+  // Remove any existing seed contracts and replace with fresh set
+  DB.recurringContracts = (DB.recurringContracts||[]).filter(function(c){
+    return !c.id.startsWith('rc-seed-');
+  });
+  contracts.forEach(function(c){ DB.recurringContracts.push(c); });
 
   saveDB();
   renderRecurring();
-  showToast('Seeded '+added+' managed service contracts ✓','success',3000);
+  showToast('Loaded 20 managed service contracts ✓','success',3000);
 }
