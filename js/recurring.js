@@ -547,7 +547,8 @@ function executeBillingRun() {
   due.forEach(function(c) {
     // Generate invoice
     if (!DB.invoices) DB.invoices = [];
-    var invNum = 'INV-RC-'+String(Date.now()).slice(-6);
+    if (!DB.invSeq) DB.invSeq = 1000;
+    var invNum = 'INV-MSC-' + String(DB.invSeq++);
     var amt = _rcLineTotal2(c);
     var invoiceDate = document.getElementById('rc-invoice-date').value || runDate;
     var inv = {
@@ -714,7 +715,7 @@ function printRCInvoice(invId) {
         +'<td style="padding:14px;text-align:right;font-size:22px;font-weight:900;color:#1565c0">$'+total.toFixed(2)+'</td>'
       +'</tr></tfoot>'
     +'</table>'
-    +''  // internal notes excluded from client invoice
+    +''
     +'<div style="margin-top:30px;padding-top:14px;border-top:1px solid #e0e7ef;text-align:center;font-size:11px;color:#90a4ae">'
       +esc(co.cname||'Total Communications Systems & Solutions, Inc.')
       +(co.cphone?' &nbsp;&#183;&nbsp; '+esc(co.cphone):'')
@@ -734,7 +735,7 @@ function printRCInvoice(invId) {
     '<div class="no-print" style="position:sticky;top:0;background:#0d1b2a;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,.3)">'
       +'<span style="color:#90a4ae;font-size:13px">&#128196; '+esc(inv.num||'')+' &nbsp;&#183;&nbsp; '+esc(inv.clientName||'')+'</span>'
       +'<div style="display:flex;gap:10px">'
-        +'<button onclick="var t=document.title;document.title=\'TCSS-\'+\''+esc(inv.num||'INVOICE')+'\';window.print();document.title=t;" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
+        +'<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
         +'<button onclick="_closeRCInvoice()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer">&#10005; Close</button>'
       +'</div>'
     +'</div>'
@@ -1072,6 +1073,72 @@ function _rcCheckExpirations() {
     }
   });
   if (changed) { saveDB(); }
+}
+
+
+// ── MS Invoice History ────────────────────────────────────────────────────────
+function toggleMSInvoiceHistory() {
+  var panel = document.getElementById('ms-invoice-history');
+  if (!panel) return;
+  var opening = panel.style.display === 'none';
+  panel.style.display = opening ? '' : 'none';
+  if (opening) renderMSInvoiceHistory();
+}
+
+function renderMSInvoiceHistory() {
+  var body = document.getElementById('ms-invoice-history-body');
+  if (!body) return;
+
+  var rcInvoices = (DB.invoices||[]).filter(function(i){
+    return i.type==='recurring' || (i.num||'').includes('INV-RC') || (i.num||'').includes('INV-MSC');
+  }).sort(function(a,b){
+    return (b.invoiceDate||b.runDate||'').localeCompare(a.invoiceDate||a.runDate||'');
+  });
+
+  // Populate client filter
+  var clientSel = document.getElementById('ms-inv-filter-client');
+  if (clientSel && clientSel.options.length <= 1) {
+    var clients = [...new Set(rcInvoices.map(function(i){ return i.clientName||''; }).filter(Boolean))].sort();
+    clients.forEach(function(c){ var o=document.createElement('option'); o.value=c; o.textContent=c; clientSel.appendChild(o); });
+  }
+  var fClient = (clientSel||{}).value||'';
+  if (fClient) rcInvoices = rcInvoices.filter(function(i){ return i.clientName===fClient; });
+
+  if (!rcInvoices.length) {
+    body.innerHTML = '<div style="padding:24px;text-align:center;color:#90a4ae;font-size:13px">No invoices found.</div>';
+    return;
+  }
+
+  // Group by run date
+  var byDate = {};
+  rcInvoices.forEach(function(i){
+    var d = i.invoiceDate||i.runDate||'Unknown';
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(i);
+  });
+
+  var html = '';
+  Object.keys(byDate).sort().reverse().forEach(function(date){
+    var invs = byDate[date];
+    var runTotal = invs.reduce(function(s,i){ return s+parseFloat(i.amount||0); },0);
+    html += '<div style="padding:10px 18px;background:#f5f7fa;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #e0e7ef">'
+      + 'Run Date: ' + date + ' &nbsp;&#183;&nbsp; ' + invs.length + ' invoice' + (invs.length!==1?'s':'') + ' &nbsp;&#183;&nbsp; $' + runTotal.toFixed(2)
+    +'</div>';
+    invs.forEach(function(inv){
+      html += '<div style="display:grid;grid-template-columns:120px 1fr 130px 90px 80px 80px;padding:10px 18px;border-bottom:1px solid #f5f5f5;align-items:center;gap:8px">'
+        +'<div style="font-size:12px;font-weight:700;color:#1565c0">' + (inv.num||'') + '</div>'
+        +'<div style="font-size:12px;font-weight:600">' + (inv.clientName||'') + '</div>'
+        +'<div style="font-size:11px;color:#546e7a">' + (inv.contractType||inv.rcNumber||'') + '</div>'
+        +'<div style="font-size:12px;font-weight:700">$' + parseFloat(inv.amount||0).toFixed(2) + '</div>'
+        +'<div style="font-size:11px">' + (inv.deliveryMethod==='mail'?'&#128236; Mail':'&#128231; Email') + '</div>'
+        +'<div style="display:flex;gap:6px">'
+        +'<button onclick="printRCInvoice(\"'+inv.id+'\")" style="background:#f0f4ff;color:#1565c0;border:1px solid #d0dcff;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Print</button>'
+        +'</div>'
+      +'</div>';
+    });
+  });
+
+  body.innerHTML = html;
 }
 
 // ── Supabase sync ──────────────────────────────────────────────────────────────
