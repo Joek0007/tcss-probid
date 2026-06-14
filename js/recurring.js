@@ -412,9 +412,8 @@ function openBillingRun() {
 }
 
 function renderBillingRunPreview(runDate) {
-  // Only run checked contracts
-  var checkedIds = Array.from(document.querySelectorAll('.rc-run-chk:checked')).map(function(c){ return c.getAttribute('data-rcid'); });
-  var due = (DB.recurringContracts||[]).filter(function(c){ return _rcIsDue(c, runDate) && checkedIds.indexOf(c.id)>=0; });
+  // Show all due contracts — checkboxes let user select which to run
+  var due = (DB.recurringContracts||[]).filter(function(c){ return _rcIsDue(c, runDate); });
   var preview = document.getElementById('rc-run-preview');
   if (!preview) return;
 
@@ -538,8 +537,10 @@ function executeBillingRun() {
   var runDate = document.getElementById('rc-run-date').value;
   if (!runDate) { showToast('Select a run date','warning',2000); return; }
 
-  var due = (DB.recurringContracts||[]).filter(function(c){ return _rcIsDue(c, runDate); });
-  if (!due.length) { showToast('No contracts due on this date','info',2000); return; }
+  // Only run contracts the user has checked
+  var checkedIds = Array.from(document.querySelectorAll('.rc-run-chk:checked')).map(function(el){ return el.getAttribute('data-rcid'); });
+  var due = (DB.recurringContracts||[]).filter(function(c){ return _rcIsDue(c, runDate) && (checkedIds.length===0 || checkedIds.indexOf(c.id)>=0); });
+  if (!due.length) { showToast('No contracts selected to run','info',2000); return; }
 
   var generated = [];
 
