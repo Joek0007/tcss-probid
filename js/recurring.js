@@ -384,6 +384,8 @@ function saveRC() {
   closeModal('modal-rc');
   renderRecurring();
   showToast('Contract '+(data.number||'')+(isNew?' created':' updated')+' ✓','success',2500);
+  // Check for proration on new monthly contracts started mid-month
+  if (isNew) _rcCheckProration(id);
 }
 
 // ── Delete ─────────────────────────────────────────────────────────────────────
@@ -1012,6 +1014,87 @@ function msDeleteCycle(key) {
   if (Object.keys(DB.msSettings.cycles).length <= 1) { showToast('Must keep at least one', 'warning', 2000); return; }
   delete DB.msSettings.cycles[key];
   _saveMSSettings();
+}
+
+
+// ── Proration Logic ───────────────────────────────────────────────────────────
+function _rcCheckProration(contractId) {
+  var c = (DB.recurringContracts||[]).find(function(x){ return x.id===contractId; });
+  if (!c || c.billingCycle !== 'monthly') return; // only prorate monthly contracts
+
+  var today = new Date();
+  if (today.getDate() === 1) return; // exactly the 1st — no proration needed
+
+  var daysInMonth  = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
+  var daysRemaining = daysInMonth - today.getDate() + 1; // include today
+  var monthlyTotal = _rcLineTotal2(c);
+  var proratedAmt  = Math.round((monthlyTotal / daysInMonth) * daysRemaining * 100) / 100;
+
+  // Build the 1st of next month
+  var nextFirst = new Date(today.getFullYear(), today.getMonth()+1, 1);
+  var nextFirstISO = nextFirst.toISOString().split('T')[0];
+
+  // Populate the proration modal
+  var mthName = today.toLocaleString('en-US',{month:'long'});
+  var nextMthName = nextFirst.toLocaleString('en-US',{month:'long'});
+
+  document.getElementById('pror-contract').textContent = (c.number||'') + ' — ' + (c.client||'');
+  document.getElementById('pror-period').textContent   = mthName + ' ' + today.getDate() + '–' + daysInMonth;
+  document.getElementById('pror-days').textContent     = daysRemaining + ' of ' + daysInMonth + ' days';
+  document.getElementById('pror-monthly').textContent  = '$' + monthlyTotal.toFixed(2);
+  document.getElementById('pror-amount').textContent   = '$' + proratedAmt.toFixed(2);
+  document.getElementById('pror-next').textContent     = nextMthName + ' 1st';
+  var pn2 = document.getElementById('pror-next-2'); if(pn2) pn2.textContent = nextMthName + ' 1st';
+
+  // Wire buttons
+  document.getElementById('pror-skip-btn').onclick = function() {
+    closeModal('modal-proration');
+    // nextBillingDate already set to 1st of next month in saveRC
+    showToast('Contract starts ' + nextMthName + ' 1st — no charge for ' + mthName, 'info', 3500);
+  };
+
+  document.getElementById('pror-generate-btn').onclick = function() {
+    closeModal('modal-proration');
+    _rcGenerateProratedInvoice(c, proratedAmt, nextFirstISO);
+  };
+
+  openModal('modal-proration');
+}
+
+function _rcGenerateProratedInvoice(c, amount, nextFirstISO) {
+  if (!DB.invoices) DB.invoices = [];
+  var today = getTodayISO();
+  var inv = {
+    id:             'inv-pror-' + Date.now(),
+    num:            'PRO-' + Date.now().toString().slice(-6),
+    type:           'prorated',
+    clientName:     c.client,
+    clientEmail:    c.clientEmail||'',
+    rcId:           c.id,
+    rcNumber:       c.number,
+    lineItems:      [{
+      id:        'pli-1',
+      desc:      'Prorated ' + (c.type||'Service') + ' — ' + (c.billingCycle||'monthly') + ' contract (partial month)',
+      qty:       1,
+      unitPrice: amount
+    }],
+    amount:         amount,
+    status:         'pending',
+    deliveryMethod: c.deliveryMethod||'email',
+    billingCycle:   'prorated',
+    invoiceDate:    today,
+    runDate:        today,
+    dueDate:        today,
+    notes:          'Prorated charge for partial month. Recurring billing begins ' + nextFirstISO + '.',
+    createdAt:      new Date().toISOString()
+  };
+
+  DB.invoices.push(inv);
+  saveDB();
+  if (typeof _pushRCInvoiceToSupabase === 'function') _pushRCInvoiceToSupabase(inv);
+
+  showToast('Prorated invoice ' + inv.num + ' generated — $' + amount.toFixed(2), 'success', 4000);
+  printRCInvoice(inv.id);
 }
 
 // ── Supabase sync ──────────────────────────────────────────────────────────────
