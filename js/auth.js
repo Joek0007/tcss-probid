@@ -853,8 +853,8 @@ async function syncAllFromCloud() {
     try {
       var { data: rcRows, error: rce } = await _sb.from('recurring_contracts').select('*').order('sort_order',{ascending:true});
       if (rce) { errors.push('recurring_contracts: '+rce.message); }
-      else if (rcRows && rcRows.length) {
-        DB.recurringContracts = rcRows.map(function(r){
+      else if (rcRows) {
+        var mapped = rcRows.map(function(r){
           return {
             id:r.id, number:r.number, client:r.client, type:r.type,
             billingCycle:r.billing_cycle, billingDay:r.billing_day,
@@ -867,6 +867,10 @@ async function syncAllFromCloud() {
             priceHistory:r.price_history||[], createdAt:r.created_at
           };
         });
+        // Merge: Supabase is authoritative for records it has, keep local-only records
+        var sbIds = mapped.map(function(r){return r.id;});
+        var localOnly = (DB.recurringContracts||[]).filter(function(c){return !sbIds.includes(c.id);});
+        DB.recurringContracts = mapped.concat(localOnly);
       }
     } catch(e) { errors.push('recurring_contracts: '+e.message); }
 
@@ -1369,6 +1373,23 @@ async function pushAllToCloud() {
       } catch(jbErr) {
         console.warn('[Push] Job error for', jb.name, jbErr.message || jbErr);
       }
+    }
+
+    // Push recurring contracts (Managed Services)
+    for (var rc of (DB.recurringContracts||[])) {
+      try {
+        await _sb.from('recurring_contracts').upsert({
+          id:rc.id, number:rc.number, client:rc.client, type:rc.type,
+          billing_cycle:rc.billingCycle, billing_day:rc.billingDay||1,
+          status:rc.status||'active', auto_renew:!!rc.autoRenew,
+          delivery_method:rc.deliveryMethod||'email', client_email:rc.clientEmail||null,
+          contract_start:rc.contractStart||null, contract_end:rc.contractEnd||null,
+          next_billing_date:rc.nextBillingDate||null, last_billed_date:rc.lastBilledDate||null,
+          line_items:rc.lineItems||[], notes:rc.notes||null,
+          do_not_bill:!!rc.doNotBill, sort_order:rc.sortOrder||0,
+          price_history:rc.priceHistory||[], created_at:rc.createdAt||new Date().toISOString()
+        });
+      } catch(rcErr) { console.warn('[Push] RC:', rcErr.message||rcErr); }
     }
 
   } catch(e) {
