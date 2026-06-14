@@ -28,9 +28,9 @@ function _rcNextNumber() {
   RC_CYCLES = _getMSCycles();
   var existing = (DB.recurringContracts||[]);
   var nums = existing.map(function(c){
-    var m = (c.number||'').match(/(?:RC|MSC)-(\d+)/); return m?parseInt(m[1]):0;
+    var m = (c.number||'').match(/RC-(\d+)/); return m?parseInt(m[1]):0;
   });
-  return 'MSC-' + String((nums.length?Math.max.apply(null,nums):0)+1).padStart(3,'0');
+  return 'RC-' + String((nums.length?Math.max.apply(null,nums):0)+1).padStart(3,'0');
 }
 
 function _rcAdvanceDate(dateStr, cycle) {
@@ -547,7 +547,7 @@ function executeBillingRun() {
   due.forEach(function(c) {
     // Generate invoice
     if (!DB.invoices) DB.invoices = [];
-    var invNum = 'INV-MSC-'+String(Date.now()).slice(-6);
+    var invNum = 'INV-RC-'+String(Date.now()).slice(-6);
     var amt = _rcLineTotal2(c);
     var invoiceDate = document.getElementById('rc-invoice-date').value || runDate;
     var inv = {
@@ -558,7 +558,6 @@ function executeBillingRun() {
       clientEmail: c.clientEmail||'',
       rcId:        c.id,
       rcNumber:    c.number,
-      contractType: c.type||'',
       lineItems:   (c.lineItems||[]).map(function(i){ return Object.assign({},i); }),
       amount:      amt,
       status:      'pending',
@@ -656,18 +655,7 @@ function printRCInvoice(invId) {
   var co = DB.settings||{};
   function esc(s){return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-  // Fallback: if invoice lineItems empty, pull from contract directly
-  var lineItems = (inv.lineItems&&inv.lineItems.length)
-    ? inv.lineItems
-    : ((DB.recurringContracts||[]).find(function(c){return c.id===inv.rcId;})||{}).lineItems||[];
-
-  // Recalculate amount if needed
-  var totalAmt = parseFloat(inv.amount||0);
-  if (totalAmt===0 && lineItems.length) {
-    totalAmt = lineItems.reduce(function(s,i){return s+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0));},0);
-  }
-
-  var lineRows = lineItems.map(function(i){
+  var lineRows = (inv.lineItems||[]).map(function(i){
     return '<tr><td style="padding:8px;border-bottom:1px solid #f0f0f0">'+esc(i.desc||'')+'</td>'
       +'<td style="padding:8px;border-bottom:1px solid #f0f0f0;text-align:center">'+parseFloat(i.qty||1)+'</td>'
       +'<td style="padding:8px;border-bottom:1px solid #f0f0f0;text-align:right">$'+parseFloat(i.unitPrice||0).toFixed(2)+'</td>'
@@ -693,7 +681,7 @@ function printRCInvoice(invId) {
       +'<div style="font-size:14px;font-weight:700">'+esc(inv.clientName||'')+'</div>'
       +(inv.clientEmail?'<div style="font-size:12px;color:#546e7a">'+esc(inv.clientEmail)+'</div>':'')
     +'</div>'
-    +'<div style="background:#1565c0;border-radius:6px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">'  +'<div>'    +'<div style="font-size:13px;font-weight:800;color:#fff;">'+esc(inv.contractType||'')+' &#8212; Managed Services Contract</div>'    +'<div style="font-size:11px;color:#bbdefb;margin-top:2px">'+esc(inv.rcNumber||'')+' &nbsp;&#183;&nbsp; '+esc((RC_CYCLES[inv.billingCycle]||{label:inv.billingCycle||''}).label)+' Billing</div>'  +'</div>'  +'<div style="font-size:11px;color:#bbdefb;text-align:right">'    +'<div>Invoice Date: '+esc(inv.invoiceDate||inv.runDate||'')+'</div>'    +'<div>Due: Upon Receipt</div>'  +'</div>'+'</div>'
+    +'<div style="background:#f5f7fa;border-radius:4px;padding:8px 12px;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin-bottom:4px">'+esc(inv.rcNumber||'')+' — '+(RC_CYCLES[inv.billingCycle]||{label:inv.billingCycle||''}).label+' Billing</div>'
     +'<table style="width:100%;border-collapse:collapse;margin-bottom:16px">'
       +'<thead><tr style="background:#0d1b2a">'
         +'<th style="padding:9px;text-align:left;color:#fff;font-size:11px;text-transform:uppercase">Description</th>'
@@ -703,7 +691,7 @@ function printRCInvoice(invId) {
       +'</tr></thead><tbody>'+lineRows+'</tbody>'
       +'<tfoot><tr style="background:#e3f2fd">'
         +'<td colspan="3" style="padding:10px;text-align:right;font-weight:800;font-size:13px">TOTAL DUE:</td>'
-        +'<td style="padding:10px;text-align:right;font-weight:800;font-size:16px;color:#1565c0">$'+totalAmt.toFixed(2)+'</td>'
+        +'<td style="padding:10px;text-align:right;font-weight:800;font-size:16px;color:#1565c0">$'+parseFloat(inv.amount||0).toFixed(2)+'</td>'
       +'</tr></tfoot>'
     +'</table>'
     +(inv.notes?'<div style="font-size:11px;color:#546e7a;margin-bottom:20px"><strong>Notes:</strong> '+esc(inv.notes)+'</div>':'')
@@ -713,10 +701,32 @@ function printRCInvoice(invId) {
     +'</div>'
     +'</body></html>';
 
-  var win = window.open('','_blank','width=860,height=1100');
-  win.document.write(html);
-  win.document.close();
-  win.focus();
+  // Show invoice in-app (avoids popup blockers)
+  var overlay = document.getElementById('rc-invoice-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'rc-invoice-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;overflow-y:auto;display:none';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = html
+    .replace('<!DOCTYPE html><html>','')
+    .replace('<html>','')
+    .replace('</html>','')
+    .replace(/<head>.*?<\/head>/s,'')
+    .replace('<body>','')
+    .replace('</body>','');
+  // Add close button
+  var closeBar = document.createElement('div');
+  closeBar.className = 'no-print';
+  closeBar.style.cssText = 'position:sticky;top:0;background:#0d1b2a;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;z-index:1';
+  closeBar.innerHTML = '<span style="color:#fff;font-size:13px;font-weight:700">Invoice Preview</span>'
+    +'<div style="display:flex;gap:10px">'
+      +'<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
+      +'<button onclick="_closeRCInvoice()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">&#10005; Close</button>'
+    +'</div>';
+  overlay.insertBefore(closeBar, overlay.firstChild);
+  overlay.style.display = 'block';
 }
 
 

@@ -1123,6 +1123,13 @@ table{font-size:12.5px}
 .page-header h2{letter-spacing:-.2px}
 
 
+
+/* Print invoice overlay — hide everything except the invoice */
+@media print {
+  body > *:not(#rc-invoice-overlay) { display: none !important; }
+  #rc-invoice-overlay { display: block !important; position: static !important; overflow: visible !important; }
+  #rc-invoice-overlay .no-print { display: none !important; }
+}
 /* ── Form controls for Contracts & Managed Services modals ── */
 .form-label{display:block;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
 .form-control{width:100%;padding:8px 10px;border:1.5px solid #d0d8e4;border-radius:7px;font-size:13px;color:#0d1b2a;background:#fff;font-family:inherit;outline:none;transition:border-color .15s}
