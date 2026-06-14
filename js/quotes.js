@@ -1411,7 +1411,7 @@ function renderInvoicesPage() {
   var search = ((document.getElementById('invp-search')||{}).value||'').toLowerCase();
   var filter = (document.getElementById('invp-filter')||{}).value||'';
   var today  = getTodayISO();
-  var invs   = (DB.invoices||[]).slice();
+  var invs   = (DB.invoices||[]).filter(function(i){ return i.type!=='recurring' && !(i.num||'').match(/^INV-(RC|MSC)/); }).slice();
 
   // Enrich with overdue status
   invs = invs.map(function(inv){
@@ -1467,7 +1467,7 @@ function renderInvoicesPage() {
     var statusCol = isPaid?'#2e7d32':isPartial?'#1565c0':isOverdue?'#c62828':'#e65100';
     var statusLbl = isPaid?'✓ Paid':isPartial?('⬛ Partial ($'+balance.toLocaleString('en-US',{minimumFractionDigits:2})+' due)'):isOverdue?'⚠ Overdue':'Unpaid';
 
-    return '<div style="display:grid;grid-template-columns:1fr 1.5fr 0.8fr 0.8fr 0.8fr auto;gap:12px;padding:12px 14px;border-bottom:1px solid #f0f0f0;align-items:center" onmouseover="this.style.background=\'#f8f9fa\'" onmouseout="this.style.background=\'\'">'+
+    return '<div style="display:grid;grid-template-columns:1fr 1.5fr 0.8fr 0.8fr 0.8fr auto;gap:12px;padding:12px 14px;border-bottom:1px solid #f0f0f0;align-items:center;cursor:pointer" onclick="reprintInvoice(\''+inv.id+'\')" onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'\'">'+
       '<div>'+
         '<div style="font-weight:700;font-size:13px;color:#1565c0">'+escHtml(inv.num||'')+'</div>'+
         (inv.po?'<div style="font-size:11px;color:#90a4ae">PO: '+escHtml(inv.po)+'</div>':'')+
@@ -1482,7 +1482,7 @@ function renderInvoicesPage() {
         '<div style="font-weight:700;font-size:14px;color:#0d1b2a">'+fmt(inv.total||0)+'</div>'+
         '<span style="background:'+statusBg+';color:'+statusCol+';border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">'+statusLbl+'</span>'+
       '</div>'+
-      '<div style="display:flex;gap:4px">'+
+      '<div style="display:flex;gap:4px" onclick="event.stopPropagation()">'+
         '<button class="btn btn-outline btn-sm" onclick="reprintInvoice(\''+inv.id+'\')" title="Edit">✏ Edit</button>'+
         '<button class="btn btn-outline btn-sm" onclick="printInvoiceDirect(\''+inv.id+'\')" title="Print">🖨</button>'+
         (!isPaid?'<button class="btn btn-outline btn-sm" onclick="openRecordPayment(\''+inv.id+'\')" title="Record Payment">💵</button>':'')+
