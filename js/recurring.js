@@ -61,114 +61,112 @@ function _rcLineTotal() {
 
 // ── Render contract list ───────────────────────────────────────────────────────
 function renderRecurring() {
-  var list = document.getElementById('rc-list');
-  if (!list) return;
+  try {
+    var list = document.getElementById('rc-list');
+    if (!list) return;
 
-  var search = ((document.getElementById('rc-search')||{}).value||'').trim().toLowerCase();
-  var fType  = (document.getElementById('rc-filter-type')||{}).value||'';
-  var fStatus= (document.getElementById('rc-filter-status')||{}).value||'';
+    var search = ((document.getElementById('rc-search')||{}).value||'').trim().toLowerCase();
+    var fType  = (document.getElementById('rc-filter-type')||{}).value||'';
+    var fStatus= (document.getElementById('rc-filter-status')||{}).value||'';
+    var today  = getTodayISO();
 
-  // Populate type filter
-  var typeEl = document.getElementById('rc-filter-type');
-  if (typeEl && typeEl.options.length <= 1) {
-    RC_TYPES.forEach(function(t){
-      var o = document.createElement('option'); o.value=t; o.textContent=t;
-      typeEl.appendChild(o);
+    // Populate type filter
+    var typeEl = document.getElementById('rc-filter-type');
+    if (typeEl && typeEl.options.length <= 1) {
+      _getMSTypes().forEach(function(t){
+        var o=document.createElement('option'); o.value=t; o.textContent=t; typeEl.appendChild(o);
+      });
+    }
+
+    var all = (DB.recurringContracts||[]);
+    var contracts = all.slice();
+    if (search) contracts = contracts.filter(function(c){ return (c.client+c.type+c.number).toLowerCase().includes(search); });
+    if (fType)   contracts = contracts.filter(function(c){ return c.type===fType; });
+    if (fStatus) contracts = contracts.filter(function(c){ return c.status===fStatus; });
+
+    var dueCount    = all.filter(function(c){ return _rcIsDue(c,today); }).length;
+    var activeCount = all.filter(function(c){ return c.status==='active'; }).length;
+
+    // Summary cards
+    var summary = '<div style="display:flex;gap:12px;margin-bottom:16px;align-items:center">'
+      +'<div style="background:#fff;border-radius:10px;padding:12px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06)">'
+        +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Active Contracts</div>'
+        +'<div style="font-size:24px;font-weight:800;color:#1565c0">'+activeCount+'</div>'
+      +'</div>'
+      +'<div style="background:#fff;border-radius:10px;padding:12px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06)">'
+        +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Due This Run</div>'
+        +'<div style="font-size:24px;font-weight:800;color:'+(dueCount>0?'#c62828':'#2e7d32')+'">'+dueCount+'</div>'
+      +'</div>'
+      +(dueCount>0?'<button class="btn btn-primary" onclick="openBillingRun()">&#128184; Run Billing</button>':'')
+    +'</div>';
+
+    if (!contracts.length) {
+      list.innerHTML = summary+'<div style="background:#fff;border-radius:10px;padding:40px;text-align:center;color:#90a4ae;font-size:14px">No managed service contracts. Click <b>+ New Contract</b> or <b>Load Test Data</b>.</div>';
+      return;
+    }
+
+    // Build table using DOM to avoid all escaping issues
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:auto';
+
+    // Header
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'display:grid;grid-template-columns:24px 80px 1fr 120px 90px 110px 110px 110px 90px 80px 24px;padding:9px 16px;background:#f5f7fa;border-bottom:2px solid #e0e7ef;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px;border-radius:10px 10px 0 0;white-space:nowrap';
+    hdr.innerHTML = '<span></span><span>Number</span><span>Client</span><span>Type</span><span>Cycle</span><span>Next Billing</span><span>Last Invoiced</span><span>Yearly Value</span><span>Expires</span><span>Status</span><span></span>';
+    wrap.appendChild(hdr);
+
+    contracts.forEach(function(c) {
+      var row = document.createElement('div');
+      var stColors = {active:'#2e7d32',paused:'#f57c00',cancelled:'#9e9e9e'};
+      var stColor  = stColors[c.status]||'#546e7a';
+      var isDue    = _rcIsDue(c,today);
+      var isOver   = c.nextBillingDate&&c.nextBillingDate<today&&c.status==='active';
+      var dnb      = !!c.doNotBill;
+      var yearly   = _rcYearlyPrice(c);
+      var cycleMap = {monthly:'Monthly',quarterly:'Quarterly',biannual:'Bi-Annual',annual:'Annual'};
+
+      row.className = 'rc-list-row';
+      row.dataset.rcid = c.id;
+      row.draggable = true;
+      row.style.cssText = 'display:grid;grid-template-columns:24px 80px 1fr 120px 90px 110px 110px 110px 90px 80px 24px;padding:10px 16px;border-bottom:1px solid #f0f4f8;align-items:center;cursor:pointer;background:'+(dnb?'#fffde7':'');
+
+      row.onmouseover = function(){ this.style.background='#f0f4ff'; };
+      row.onmouseout  = function(){ this.style.background=dnb?'#fffde7':''; };
+      row.onclick     = function(){ openRCDetail(c.id); };
+      row.ondragstart = function(e){ rcDragStart(e,c.id); };
+      row.ondragover  = function(e){ rcDragOver(e); };
+      row.ondrop      = function(e){ rcDrop(e,c.id); };
+      row.ondragend   = function(e){ rcDragEnd(e); };
+
+      var nextHtml = dnb?'<span style="color:#f57c00;font-weight:700">\uD83D\uDEAB Skip</span>'
+        :isOver?'<span style="color:#c62828">\u26A0 '+(c.nextBillingDate||'')+'</span>'
+        :isDue ?'<span style="color:#e65100">\u25CF '+(c.nextBillingDate||'')+'</span>'
+        :(c.nextBillingDate||'\u2014');
+
+      row.innerHTML =
+        '<div style="cursor:grab;color:#c8d0db;text-align:center" onclick="event.stopPropagation()">\u2195</div>'
+        +'<div style="font-weight:700;color:#1565c0;font-size:12px">'+(c.number||'')+(dnb?' \uD83D\uDEAB':'')+'</div>'
+        +'<div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.client||'')+'</div>'
+        +'<div style="font-size:11px;color:#546e7a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.type||'')+'</div>'
+        +'<div style="font-size:11px">'+(cycleMap[c.billingCycle]||c.billingCycle||'')+'</div>'
+        +'<div style="font-size:11px;font-weight:600">'+nextHtml+'</div>'
+        +'<div style="font-size:11px;color:#546e7a">'+(c.lastBilledDate||'\u2014')+'</div>'
+        +'<div style="font-size:12px;font-weight:700;color:#2e7d32">$'+yearly.toFixed(2)+'</div>'
+        +'<div style="font-size:11px;color:'+(c.contractEnd&&c.contractEnd<today?'#c62828':'#546e7a')+'">'+(c.contractEnd||'Open')+'</div>'
+        +'<div><span style="background:'+stColor+'22;color:'+stColor+';padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;text-transform:capitalize">'+(c.status||'')+'</span></div>'
+        +'<div style="color:#90a4ae;font-size:16px;cursor:pointer" onclick="event.stopPropagation();rcMenu(\''+c.id+'\');">\u22EE</div>';
+
+      wrap.appendChild(row);
     });
+
+    list.innerHTML = summary;
+    list.appendChild(wrap);
+
+  } catch(err) {
+    console.error('[Managed Services] renderRecurring error:', err);
+    var list2 = document.getElementById('rc-list');
+    if (list2) list2.innerHTML = '<div style="padding:20px;color:#c62828;background:#fff;border-radius:10px">Error rendering contracts: '+err.message+'</div>';
   }
-
-  var contracts = (DB.recurringContracts||[]).slice().sort(function(a,b){
-    return (a.nextBillingDate||'').localeCompare(b.nextBillingDate||'');
-  });
-
-  if (search) contracts = contracts.filter(function(c){
-    return (c.client||'').toLowerCase().includes(search)||
-           (c.type||'').toLowerCase().includes(search)||
-           (c.number||'').toLowerCase().includes(search);
-  });
-  if (fType)   contracts = contracts.filter(function(c){ return c.type===fType; });
-  if (fStatus) contracts = contracts.filter(function(c){ return c.status===fStatus; });
-
-  // Summary counts
-  var today = getTodayISO();
-  var dueCount = (DB.recurringContracts||[]).filter(function(c){ return _rcIsDue(c,today); }).length;
-  var activeCount = (DB.recurringContracts||[]).filter(function(c){ return c.status==='active'; }).length;
-  var monthlyTotal = (DB.recurringContracts||[]).filter(function(c){ return c.status==='active'; })
-    .reduce(function(s,c){ return s+((RC_CYCLES[c.billingCycle]||{months:1}).months>0?_rcLineTotal2(c):0); },0);
-
-  var statusColors = {active:'#2e7d32',paused:'#f57c00',cancelled:'#9e9e9e'};
-  var cycleLabels = {monthly:'Monthly',quarterly:'Quarterly',biannual:'Bi-Annual',annual:'Annual'};
-
-  // Summary bar
-  var summary = '<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">'
-    +'<div style="background:#fff;border-radius:10px;padding:14px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06);display:flex;flex-direction:column;gap:2px">'
-      +'<div style="font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase">Active Contracts</div>'
-      +'<div style="font-size:24px;font-weight:800;color:#1565c0">'+activeCount+'</div>'
-    +'</div>'
-    +'<div style="background:#fff;border-radius:10px;padding:14px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06);display:flex;flex-direction:column;gap:2px">'
-      +'<div style="font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase">Due This Run</div>'
-      +'<div style="font-size:24px;font-weight:800;color:'+(dueCount>0?'#c62828':'#2e7d32')+'">'+dueCount+'</div>'
-    +'</div>'
-    +(dueCount>0?'<div style="display:flex;align-items:center"><button class="btn btn-primary" onclick="openBillingRun()" style="font-size:13px;padding:12px 20px">&#128184; Run Billing</button></div>':'')
-  +'</div>';
-
-  if (!contracts.length) {
-    list.innerHTML = summary + '<div style="background:#fff;border-radius:10px;padding:40px;text-align:center;color:#90a4ae;font-size:14px;box-shadow:0 1px 4px rgba(0,0,0,.06)">No managed service contracts yet. Click <strong>+ New Contract</strong> to create one.</div>';
-    return;
-  }
-
-  var cols = '28px 90px 1fr 130px 90px 100px 110px 100px 100px 80px 80px 36px';
-  var header = '<div style="display:grid;grid-template-columns:'+cols+';padding:9px 16px;background:#f5f7fa;border-bottom:2px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px;border-radius:10px 10px 0 0;overflow-x:auto">'
-    +'<span></span><span>Number</span><span>Client</span><span>Type</span><span>Cycle</span>'
-    +'<span>Next Billing</span><span>Last Invoiced</span><span>Yearly</span><span>Expires</span>'
-    +'<span>Status</span><span>Delivery</span><span></span>'
-    +'</div>';
-
-  var rows = contracts.map(function(c){
-    var amt = _rcLineTotal2(c);
-    var stColor = statusColors[c.status]||'#546e7a';
-    var isDue = _rcIsDue(c, today);
-    var isOverdue = c.nextBillingDate && c.nextBillingDate < today && c.status==='active';
-
-    var yearly = _rcYearlyPrice(c);
-    var doNotBill = !!c.doNotBill;
-    var yearly = _rcYearlyPrice(c);
-    var doNotBill = !!c.doNotBill;
-    var stColor = statusColors[c.status]||'#546e7a';
-    var isDue = _rcIsDue(c, today);
-    var isOverdue = c.nextBillingDate && c.nextBillingDate < today && c.status==='active';
-    var rowId = 'rcrow-'+c.id.replace(/[^a-z0-9]/gi,'');
-    var nextTxt = doNotBill ? '<span style="color:#f57c00;font-weight:700">\u{1F6AB} Skip</span>'
-      : (isOverdue ? '<span style="color:#c62828">\u26a0 '+escHtml(c.nextBillingDate||'')+'</span>'
-      : isDue      ? '<span style="color:#e65100">\u25cf '+escHtml(c.nextBillingDate||'')+'</span>'
-      : escHtml(c.nextBillingDate||'\u2014'));
-    return '<div class="rc-list-row" id="'+rowId+'" data-rcid="'+escHtml(c.id)+'" draggable="true" '
-      +'style="display:grid;grid-template-columns:'+cols+';padding:10px 16px;border-bottom:1px solid #f0f4f8;align-items:center;background:'+(doNotBill?'#fffde7':'')+';cursor:pointer" '
-      +'onmouseover="this.style.background=\'#f0f4ff\'" '
-      +'onmouseout="this.style.background=\''+(doNotBill?'#fffde7':'')+'\';" '
-      +'onclick="openRCDetail(\''+escHtml(c.id)+'\')" '
-      +'ondragstart="rcDragStart(event,\''+escHtml(c.id)+'\')" '
-      +'ondragover="rcDragOver(event)" '
-      +'ondrop="rcDrop(event,\''+escHtml(c.id)+'\')" '
-      +'ondragend="rcDragEnd(event)">'
-      +'<div style="cursor:grab;color:#c8d0db;font-size:16px;text-align:center;user-select:none" onclick="event.stopPropagation()">\u2195</div>'
-      +'<div style="font-weight:700;color:#1565c0;font-size:12px">'+escHtml(c.number||'')+(doNotBill?' \u{1F6AB}':'')+'</div>'
-      +'<div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(c.client||'')+'</div>'
-      +'<div style="font-size:11px;color:#546e7a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(c.type||'')+'</div>'
-      +'<div style="font-size:11px">'+escHtml(cycleLabels[c.billingCycle]||c.billingCycle||'')+'</div>'
-      +'<div style="font-size:11px;font-weight:600">'+nextTxt+'</div>'
-      +'<div style="font-size:11px;color:#546e7a">'+escHtml(c.lastBilledDate||'\u2014')+'</div>'
-      +'<div style="font-size:12px;font-weight:700;color:#2e7d32">$'+yearly.toFixed(2)+'</div>'
-      +'<div style="font-size:11px;color:'+(c.contractEnd&&c.contractEnd<today?'#c62828':'#546e7a')+'">'+escHtml(c.contractEnd||'Open')+'</div>'
-      +'<div><span style="background:'+stColor+'22;color:'+stColor+';padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;text-transform:capitalize">'+escHtml(c.status||'')+'</span></div>'
-      +'<div style="font-size:11px">'+(c.deliveryMethod==='mail'?'\u{1F4EC} Mail':'\u{1F4E7} Email')+'</div>'
-      +'<div onclick="event.stopPropagation();rcMenu(\''+escHtml(c.id)+'\')" style="color:#90a4ae;font-size:18px;cursor:pointer">\u22EE</div>'
-    +'</div>';
-
-  }).join('');
-
-
-
 }
 
 function _rcLineTotal2(c) {
