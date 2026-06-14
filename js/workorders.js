@@ -524,6 +524,7 @@ function openNewWorkOrder() {
       var lb=document.getElementById('wo-labor-rate');if(lb&&lb.closest&&lb.closest('div'))lb.closest('div').style.display=_canFin?'':'none';
       var tx=document.getElementById('wo-tax-rate');if(tx&&tx.closest&&tx.closest('div'))tx.closest('div').style.display=_canFin?'':'none';
       var ib=document.getElementById('wo-btn-invoice');if(ib)ib.style.display=_canInv?'':'none';
+      var ib2=document.getElementById('wo-btn-invoice-top');if(ib2)ib2.style.display=_canInv?'':'none';
       var cb=document.getElementById('wo-btn-co');if(cb)cb.style.display=_canCO?'':'none';
       if(!_canEdit){document.querySelectorAll('#wo-desc,#wo-site-addr,#wo-site-city,#wo-site-state,#wo-site-zip').forEach(function(el){if(el){el.readOnly=true;el.style.background='#f5f5f5';}});}
     },300);
