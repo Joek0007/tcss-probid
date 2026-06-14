@@ -630,7 +630,7 @@ function openRCEmailQueue(invoices) {
       +'Payment is due upon receipt. Please contact us with any questions.\n\n'
       +'Thank you for your business.\n\n'
       +(co.cname||'Total Communications Systems & Solutions, Inc.')+'\n'
-      +(co.phone||'')+'\n'+(co.email||'')
+      +(co.cphone||'')+'\n'+(co.cemail||'')
     );
     html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #f0f0f0">'
       +'<div><div style="font-weight:700;font-size:13px">'+escHtml(inv.clientName)+'</div>'
@@ -670,7 +670,7 @@ function printRCInvoice(invId) {
     +'<button class="no-print" onclick="window.print()" style="position:fixed;top:16px;right:16px;background:#1565c0;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1565c0;padding-bottom:16px;margin-bottom:20px">'
       +'<div><div style="font-size:20px;font-weight:800">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>'
-        +'<div style="font-size:11px;color:#546e7a;margin-top:3px">'+esc(co.address||'')+(co.city?' · '+esc(co.city):'')+(co.phone?' · '+esc(co.phone):'')+'</div></div>'
+        +'<div style="font-size:11px;color:#546e7a;margin-top:3px">'+esc(co.caddr||'')+(co.cphone?' · '+esc(co.cphone):'')+'</div></div>'
       +'<div style="text-align:right"><div style="font-size:24px;font-weight:800;color:#1565c0">INVOICE</div>'
         +'<div style="font-size:14px;font-weight:700;margin-top:4px">'+esc(inv.num)+'</div>'
         +'<div style="font-size:11px;color:#546e7a;margin-top:2px">Invoice Date: '+esc(inv.invoiceDate||inv.runDate||'')+'</div>'
@@ -696,7 +696,7 @@ function printRCInvoice(invId) {
     +'</table>'
     +(inv.notes?'<div style="font-size:11px;color:#546e7a;margin-bottom:20px"><strong>Notes:</strong> '+esc(inv.notes)+'</div>':'')
     +'<div style="border-top:1px solid #e0e7ef;padding-top:12px;font-size:10px;color:#90a4ae;text-align:center">'
-      +esc(co.cname||'Total Communications Systems & Solutions, Inc.')+' · '+(co.phone||'')+' · tcssbuild.com'
+      +esc(co.cname||'Total Communications Systems & Solutions, Inc.')+' · '+(co.cphone||'')+' · '+(co.cweb||'tcssbuild.com')
       +'<br>Thank you for your business.'
     +'</div>'
     +'</body></html>';
