@@ -106,10 +106,30 @@ function _saveJobToWO(job) {
       if (r && r.error) console.warn('[Dispatch] WO update error:', r.error.message);
     });
   }
-  // Send SMS to newly added techs
-  if (typeof sendAssignmentSMS === 'function') {
-    crew.forEach(function(c){
-      sendAssignmentSMS(c.techName, wo.woNumber||wo.description||'Work Order', wo.scheduledDate||null);
+  // Send SMS only to newly added techs who haven't been notified yet
+  if (typeof sendSMS === 'function') {
+    if (!wo.smsNotified) wo.smsNotified = [];
+    crew.forEach(function(c) {
+      // Skip if already notified for this WO
+      if (wo.smsNotified.indexOf(c.techName) >= 0) return;
+      // Check tech opt-in (default true if not set)
+      var member = (DB.team||[]).find(function(m){ return m.name === c.techName; });
+      if (member && member.smsEnabled === false) return;
+      // Build a rich message
+      var msg = 'TCSS Dispatch: ' + (wo.woNumber||'Work Order');
+      msg += ' | ' + (wo.customerName||'');
+      if (wo.description) msg += '\n' + wo.description.substring(0,80);
+      if (wo.scheduledDate) {
+        var d = new Date(wo.scheduledDate+'T12:00:00');
+        msg += '\nScheduled: ' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      }
+      msg += '\nReply STOP to opt out.';
+      sendSMS((member&&member.phone)||'', msg).then(function(ok){
+        if (ok) {
+          wo.smsNotified.push(c.techName);
+          saveDB();
+        }
+      });
     });
   }
 }

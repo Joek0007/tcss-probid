@@ -2658,6 +2658,7 @@ function newTeamMemberV2() {
   var ac=document.getElementById('m-tmaccess');      if(ac)  ac.value='field';
   var sv=document.getElementById('m-tm-show-vacation');if(sv)sv.checked=false;
   var sp=document.getElementById('m-tm-show-pto');   if(sp)  sp.checked=false;
+  var sms=document.getElementById('m-tm-sms-enabled'); if(sms) sms.checked=true;
   var st=document.getElementById('tm-invite-status');if(st){st.style.display='none';st.innerHTML='';}
   var rb=document.getElementById('tm-resend-btn');   if(rb)  rb.style.display='none';
   document.getElementById('team-modal-title').textContent='New Team Member';
@@ -2676,6 +2677,7 @@ function editTeamMemberV2(id) {
   var ac=document.getElementById('m-tmaccess'); if(ac) ac.value=t.access||t.systemRole||'field';
   var sv2=document.getElementById('m-tm-show-vacation'); if(sv2) sv2.checked=!!t.showVacation;
   var sp=document.getElementById('m-tm-show-pto');       if(sp)  sp.checked=!!t.showPTO;
+  var sms2=document.getElementById('m-tm-sms-enabled'); if(sms2) sms2.checked=(t.smsEnabled!==false);
 
   // Show invite status
   var stEl=document.getElementById('tm-invite-status');
@@ -2723,6 +2725,7 @@ function _buildTeamMemberData() {
     hireDate:    gv('m-tmhire'),
     showVacation:!!(document.getElementById('m-tm-show-vacation')||{}).checked,
     showPTO:     !!(document.getElementById('m-tm-show-pto')||{}).checked,
+    smsEnabled:  !!(document.getElementById('m-tm-sms-enabled')||{}).checked,
     invitedAt:   existing ? (existing.invitedAt||null) : null,
     authUserId:  existing ? (existing.authUserId||null) : null
   };
