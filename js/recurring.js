@@ -260,7 +260,8 @@ function _renderRCLineItems() {
 
   var html = '<table style="width:100%;border-collapse:collapse;font-size:12px">'
     +'<thead><tr style="background:#f5f7fa">'
-      +'<th style="padding:7px 8px;text-align:left;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;width:50%">Description</th>'
+      +'<th style="width:28px"></th>'
+      +'<th style="padding:7px 8px;text-align:left;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;width:46%">Description</th>'
       +'<th style="padding:7px 8px;text-align:center;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;width:10%">Qty</th>'
       +'<th style="padding:7px 8px;text-align:right;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;width:18%">Unit Price</th>'
       +'<th style="padding:7px 8px;text-align:right;font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;width:18%">Line Total</th>'
