@@ -4606,7 +4606,7 @@ textarea.form-control{resize:vertical;min-height:60px}
       <option value="draft">Draft</option>
       <option value="sent">Sent</option>
       <option value="executed">Executed</option>
-      <option value="expired">Expired</option>
+      <option value="expired">Expired (system)</option>
       <option value="voided">Voided</option>
     </select>
   </div>
@@ -4832,7 +4832,6 @@ textarea.form-control{resize:vertical;min-height:60px}
             <option value="draft">Draft</option>
             <option value="sent">Sent to Client</option>
             <option value="executed">Executed</option>
-            <option value="expired">Expired</option>
             <option value="voided">Voided</option>
           </select>
         </div>
@@ -6584,39 +6583,5 @@ textarea.form-control{resize:vertical;min-height:60px}
 })();
 </script>
 
-
-<!-- PRORATION MODAL -->
-<div class="modal-overlay" id="modal-proration">
-  <div class="modal-box" style="max-width:480px;width:95%">
-    <div class="modal-head">
-      <span>&#128200; Mid-Month Start &#8212; Proration</span>
-      <button class="close-btn" onclick="closeModal('modal-proration')">&#10005;</button>
-    </div>
-    <div style="padding:24px">
-      <p style="font-size:13px;color:#546e7a;margin-bottom:20px">This contract starts mid-month. How would you like to handle the partial month?</p>
-      <div style="background:#f5f7fa;border-radius:10px;padding:16px;margin-bottom:20px">
-        <div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:12px" id="pror-contract"></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
-          <div><div style="color:#90a4ae;font-weight:700;text-transform:uppercase;font-size:10px;margin-bottom:2px">Period</div><div id="pror-period" style="font-weight:600"></div></div>
-          <div><div style="color:#90a4ae;font-weight:700;text-transform:uppercase;font-size:10px;margin-bottom:2px">Days Remaining</div><div id="pror-days" style="font-weight:600"></div></div>
-          <div><div style="color:#90a4ae;font-weight:700;text-transform:uppercase;font-size:10px;margin-bottom:2px">Monthly Rate</div><div id="pror-monthly" style="font-weight:600"></div></div>
-          <div><div style="color:#90a4ae;font-weight:700;text-transform:uppercase;font-size:10px;margin-bottom:2px">Prorated Amount</div><div id="pror-amount" style="font-weight:800;color:#1565c0;font-size:18px"></div></div>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <button id="pror-skip-btn" class="btn btn-outline" style="padding:16px;text-align:center">
-          <div style="font-size:14px;font-weight:700">Skip</div>
-          <div style="font-size:11px;color:#90a4ae;margin-top:4px">Start billing <span id="pror-next"></span></div>
-          <div style="font-size:11px;color:#90a4ae">No charge this month</div>
-        </button>
-        <button id="pror-generate-btn" class="btn btn-primary" style="padding:16px;text-align:center">
-          <div style="font-size:14px;font-weight:700">Generate Invoice</div>
-          <div style="font-size:11px;opacity:.85;margin-top:4px">Bill now for partial month</div>
-          <div style="font-size:11px;opacity:.85">Recurring starts <span id="pror-next-2"></span></div>
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
 </body>
 </html>

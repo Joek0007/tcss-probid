@@ -62,6 +62,7 @@ function _rcLineTotal() {
 // ── Render contract list ───────────────────────────────────────────────────────
 function renderRecurring() {
   try {
+    _rcCheckExpirations();
     var list = document.getElementById('rc-list');
     if (!list) return;
 
@@ -117,7 +118,7 @@ function renderRecurring() {
 
     contracts.forEach(function(c) {
       var row = document.createElement('div');
-      var stColors = {active:'#2e7d32',paused:'#f57c00',cancelled:'#9e9e9e'};
+      var stColors = {active:'#2e7d32',paused:'#f57c00',cancelled:'#c62828',expired:'#c62828'};
       var stColor  = stColors[c.status]||'#546e7a';
       var isDue    = _rcIsDue(c,today);
       var isOver   = c.nextBillingDate&&c.nextBillingDate<today&&c.status==='active';
@@ -384,8 +385,6 @@ function saveRC() {
   closeModal('modal-rc');
   renderRecurring();
   showToast('Contract '+(data.number||'')+(isNew?' created':' updated')+' ✓','success',2500);
-  // Check for proration on new monthly contracts started mid-month
-  if (isNew) _rcCheckProration(id);
 }
 
 // ── Delete ─────────────────────────────────────────────────────────────────────
@@ -711,7 +710,7 @@ function printRCInvoice(invId) {
 // ── Managed Services Settings ─────────────────────────────────────────────────
 // DB.msSettings = { types:[], statuses:[], cycles:{} }
 var MS_DEFAULT_TYPES    = ['Phone Equipment','VoIP','Computer Services','IT Support','Security / Access Control','Camera System','Network Maintenance','Cabling Maintenance','Audio / Visual','Other'];
-var MS_DEFAULT_STATUSES = ['active','paused','cancelled'];
+var MS_DEFAULT_STATUSES = ['active','paused','cancelled']; // 'expired' is system-driven only
 var MS_DEFAULT_CYCLES   = {monthly:{label:'Monthly',months:1},quarterly:{label:'Quarterly',months:3},biannual:{label:'Bi-Annual',months:6},annual:{label:'Annual',months:12}};
 
 function _getMSTypes()    { return (DB.msSettings&&DB.msSettings.types&&DB.msSettings.types.length)    ? DB.msSettings.types    : MS_DEFAULT_TYPES; }
@@ -1017,84 +1016,27 @@ function msDeleteCycle(key) {
 }
 
 
-// ── Proration Logic ───────────────────────────────────────────────────────────
-function _rcCheckProration(contractId) {
-  var c = (DB.recurringContracts||[]).find(function(x){ return x.id===contractId; });
-  if (!c || c.billingCycle !== 'monthly') return; // only prorate monthly contracts
-
-  var today = new Date();
-  if (today.getDate() === 1) return; // exactly the 1st — no proration needed
-
-  var daysInMonth  = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
-  var daysRemaining = daysInMonth - today.getDate() + 1; // include today
-  var monthlyTotal = _rcLineTotal2(c);
-  var proratedAmt  = Math.round((monthlyTotal / daysInMonth) * daysRemaining * 100) / 100;
-
-  // Build the 1st of next month
-  var nextFirst = new Date(today.getFullYear(), today.getMonth()+1, 1);
-  var nextFirstISO = nextFirst.toISOString().split('T')[0];
-
-  // Populate the proration modal
-  var mthName = today.toLocaleString('en-US',{month:'long'});
-  var nextMthName = nextFirst.toLocaleString('en-US',{month:'long'});
-
-  document.getElementById('pror-contract').textContent = (c.number||'') + ' — ' + (c.client||'');
-  document.getElementById('pror-period').textContent   = mthName + ' ' + today.getDate() + '–' + daysInMonth;
-  document.getElementById('pror-days').textContent     = daysRemaining + ' of ' + daysInMonth + ' days';
-  document.getElementById('pror-monthly').textContent  = '$' + monthlyTotal.toFixed(2);
-  document.getElementById('pror-amount').textContent   = '$' + proratedAmt.toFixed(2);
-  document.getElementById('pror-next').textContent     = nextMthName + ' 1st';
-  var pn2 = document.getElementById('pror-next-2'); if(pn2) pn2.textContent = nextMthName + ' 1st';
-
-  // Wire buttons
-  document.getElementById('pror-skip-btn').onclick = function() {
-    closeModal('modal-proration');
-    // nextBillingDate already set to 1st of next month in saveRC
-    showToast('Contract starts ' + nextMthName + ' 1st — no charge for ' + mthName, 'info', 3500);
-  };
-
-  document.getElementById('pror-generate-btn').onclick = function() {
-    closeModal('modal-proration');
-    _rcGenerateProratedInvoice(c, proratedAmt, nextFirstISO);
-  };
-
-  openModal('modal-proration');
-}
-
-function _rcGenerateProratedInvoice(c, amount, nextFirstISO) {
-  if (!DB.invoices) DB.invoices = [];
+// ── System-driven contract expiration check ───────────────────────────────────
+function _rcCheckExpirations() {
   var today = getTodayISO();
-  var inv = {
-    id:             'inv-pror-' + Date.now(),
-    num:            'PRO-' + Date.now().toString().slice(-6),
-    type:           'prorated',
-    clientName:     c.client,
-    clientEmail:    c.clientEmail||'',
-    rcId:           c.id,
-    rcNumber:       c.number,
-    lineItems:      [{
-      id:        'pli-1',
-      desc:      'Prorated ' + (c.type||'Service') + ' — ' + (c.billingCycle||'monthly') + ' contract (partial month)',
-      qty:       1,
-      unitPrice: amount
-    }],
-    amount:         amount,
-    status:         'pending',
-    deliveryMethod: c.deliveryMethod||'email',
-    billingCycle:   'prorated',
-    invoiceDate:    today,
-    runDate:        today,
-    dueDate:        today,
-    notes:          'Prorated charge for partial month. Recurring billing begins ' + nextFirstISO + '.',
-    createdAt:      new Date().toISOString()
-  };
-
-  DB.invoices.push(inv);
-  saveDB();
-  if (typeof _pushRCInvoiceToSupabase === 'function') _pushRCInvoiceToSupabase(inv);
-
-  showToast('Prorated invoice ' + inv.num + ' generated — $' + amount.toFixed(2), 'success', 4000);
-  printRCInvoice(inv.id);
+  var changed = false;
+  (DB.recurringContracts||[]).forEach(function(c) {
+    if (c.status !== 'active' && c.status !== 'paused') return;
+    if (!c.contractEnd) return;
+    if (c.contractEnd > today) return;
+    if (c.autoRenew) {
+      var d = new Date(c.contractEnd);
+      d.setFullYear(d.getFullYear() + 1);
+      c.contractEnd = d.toISOString().split('T')[0];
+      changed = true;
+      _pushRCToSupabase(c);
+    } else {
+      c.status = 'expired';
+      changed = true;
+      _pushRCToSupabase(c);
+    }
+  });
+  if (changed) { saveDB(); }
 }
 
 // ── Supabase sync ──────────────────────────────────────────────────────────────
@@ -1212,7 +1154,7 @@ function openRCDetail(id) {
   // Projected upcoming dates
   var upcoming = _rcNextDates(c, 6);
 
-  var stColor = ({active:'#2e7d32',paused:'#f57c00',cancelled:'#9e9e9e'})[c.status]||'#546e7a';
+  var stColor = ({active:'#2e7d32',paused:'#f57c00',cancelled:'#c62828',expired:'#c62828'})[c.status]||'#546e7a';
 
   function infoRow(label, value) {
     return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5">'
