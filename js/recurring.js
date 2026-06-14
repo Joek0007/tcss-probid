@@ -714,7 +714,7 @@ function printRCInvoice(invId) {
         +'<td style="padding:14px;text-align:right;font-size:22px;font-weight:900;color:#1565c0">$'+total.toFixed(2)+'</td>'
       +'</tr></tfoot>'
     +'</table>'
-    +(inv.notes?'<div style="margin-top:16px;padding:12px 14px;background:#fff8e1;border-radius:6px;font-size:12px;color:#546e7a"><strong>Notes:</strong> '+esc(inv.notes)+'</div>':'')
+    +''  // internal notes excluded from client invoice
     +'<div style="margin-top:30px;padding-top:14px;border-top:1px solid #e0e7ef;text-align:center;font-size:11px;color:#90a4ae">'
       +esc(co.cname||'Total Communications Systems & Solutions, Inc.')
       +(co.cphone?' &nbsp;&#183;&nbsp; '+esc(co.cphone):'')
@@ -734,7 +734,7 @@ function printRCInvoice(invId) {
     '<div class="no-print" style="position:sticky;top:0;background:#0d1b2a;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,.3)">'
       +'<span style="color:#90a4ae;font-size:13px">&#128196; '+esc(inv.num||'')+' &nbsp;&#183;&nbsp; '+esc(inv.clientName||'')+'</span>'
       +'<div style="display:flex;gap:10px">'
-        +'<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
+        +'<button onclick="var t=document.title;document.title=\'TCSS-\'+\''+esc(inv.num||'INVOICE')+'\';window.print();document.title=t;" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
         +'<button onclick="_closeRCInvoice()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer">&#10005; Close</button>'
       +'</div>'
     +'</div>'
