@@ -2255,7 +2255,7 @@ function setCustSort(val) {
   if (sel) sel.value = val;
   renderCustomers();
 }
-function _custFieldIds() { return ['m-cname','m-cphone','m-cemail','m-cstreet','m-ccity','m-cstate','m-czip','m-cnotes','m-cid']; }
+function _custFieldIds() { return ['m-cname','m-cphone','m-cemail','m-cinvoicing-contact','m-cinvoicing-email','m-cstreet','m-ccity','m-cstate','m-czip','m-cnotes','m-cid']; }
 function _custAddress(c) {
   // Build combined address from split fields for backward compat (quotes display, Supabase, etc)
   var parts = [c.street, c.city && c.state ? c.city+', '+c.state : (c.city||c.state||''), c.zip].filter(Boolean);
@@ -2273,6 +2273,7 @@ function editCustomer(id) {
   document.getElementById('modal-cust-title').textContent='Edit Customer';
   function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v||'';}
   sv('m-cname',c.name); sv('m-cphone',c.phone); sv('m-cemail',c.email);
+  sv('m-cinvoicing-contact',c.invoicingContact); sv('m-cinvoicing-email',c.invoicingEmail);
   sv('m-cstreet',c.street||(c.address&&!c.city?c.address:'')); sv('m-ccity',c.city||''); sv('m-cstate',c.state||''); sv('m-czip',c.zip||'');
   sv('m-cnotes',c.notes); sv('m-cid',c.id);
   var sel=document.getElementById('m-cterms'); if(sel) sel.value=c.defaultTerms||'Due on Receipt';
@@ -2298,8 +2299,10 @@ function _buildCustomerData(id) {
     defaultTerms:  (document.getElementById('m-cterms')||{}).value||'Due on Receipt',
     taxExempt:     document.getElementById('m-ctax-exempt') ? !!document.getElementById('m-ctax-exempt').checked : false,
     notes:         gv('m-cnotes'),
-    hotNoteTech:   (document.getElementById('m-c-hotnote-tech')||{}).value||'',
-    hotNoteOffice: (document.getElementById('m-c-hotnote-office')||{}).value||''
+    hotNoteTech:      (document.getElementById('m-c-hotnote-tech')||{}).value||'',
+    hotNoteOffice:    (document.getElementById('m-c-hotnote-office')||{}).value||'',
+    invoicingContact: gv('m-cinvoicing-contact'),
+    invoicingEmail:   gv('m-cinvoicing-email')
   };
 }
 function saveCustomer() {

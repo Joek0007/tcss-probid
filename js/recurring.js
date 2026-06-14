@@ -538,6 +538,14 @@ function rcRunUpdateTotal() {
 function executeBillingRun() {
   var runDate = document.getElementById('rc-run-date').value;
   if (!runDate) { showToast('Select a run date','warning',2000); return; }
+  // Warn about contracts with no invoicing email
+  var noEmail = (DB.recurringContracts||[]).filter(function(c){
+    return _rcIsDue(c,runDate) && !c.clientEmail && c.deliveryMethod!=='mail';
+  });
+  if (noEmail.length) {
+    var msg = noEmail.length+' contract(s) have no invoicing email: '+noEmail.map(function(c){return c.client+' ('+c.number+')'}).join(', ')+'. Continue anyway?';
+    if (!confirm(msg)) return;
+  }
 
   // Only run contracts the user has checked
   var checkedIds = Array.from(document.querySelectorAll('.rc-run-chk:checked')).map(function(el){ return el.getAttribute('data-rcid'); });
@@ -1263,8 +1271,9 @@ function rcCustomerSelected(customerId) {
   var nameEl = document.getElementById('rc-client');
   if (nameEl) nameEl.value = c.company||c.name||'';
   var emailEl = document.getElementById('rc-client-email');
-  if (emailEl && (c.email||c.billingEmail) && !emailEl.value) {
-    emailEl.value = c.billingEmail||c.email||'';
+  if (emailEl) {
+    // Invoicing email takes priority, fall back to general email
+    emailEl.value = c.invoicingEmail||c.email||'';
   }
 }
 
