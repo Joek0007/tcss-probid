@@ -269,14 +269,16 @@ function _renderRCLineItems() {
 
   _rcLineItems.forEach(function(item,idx){
     var lineTotal = parseFloat(item.qty||1) * parseFloat(item.unitPrice||0);
-    html += '<tr class="rc-li-row" draggable="true" ondragstart="rcLiDragStart(event,'+idx+')" ondragover="rcLiDragOver(event)" ondrop="rcLiDrop(event,'+idx+')" ondragend="rcLiDragEnd(event)" style="border-bottom:1px solid #f0f0f0">';
-    html += '<td style="padding:6px 4px;text-align:center;cursor:grab;color:#c8d0db;font-size:18px" title="Drag to reorder">&#8661;</td>';
-      +'<td style="padding:6px 8px"><input class="form-control" style="font-size:12px" placeholder="Description (e.g. Cisco 7965 Phone Rental)" value="'+escHtml(item.desc||'')+'" oninput="_rcUpdateLine('+idx+',\'desc\',this.value)"></td>'
+    html += '<tr class="rc-li-row" draggable="true"'
+      +' ondragstart="rcLiDragStart(event,'+idx+')" ondragover="rcLiDragOver(event)" ondrop="rcLiDrop(event,'+idx+')" ondragend="rcLiDragEnd(event)"'
+      +' style="border-bottom:1px solid #f0f0f0">'
+      +'<td style="padding:6px 4px;text-align:center;cursor:grab;color:#c8d0db;font-size:18px" title="Drag to reorder">&#8661;</td>'
+      +'<td style="padding:6px 8px"><input class="form-control" style="font-size:12px" placeholder="Description" value="'+escHtml(item.desc||'')+ '" oninput="_rcUpdateLine('+idx+',\'desc\',this.value)"></td>'
       +'<td style="padding:6px 8px"><input class="form-control" style="font-size:12px;text-align:center" type="number" min="1" step="1" value="'+parseFloat(item.qty||1)+'" oninput="_rcUpdateLine('+idx+',\'qty\',this.value)"></td>'
       +'<td style="padding:6px 8px"><input class="form-control" style="font-size:12px;text-align:right" type="number" min="0" step="0.01" placeholder="0.00" value="'+parseFloat(item.unitPrice||0).toFixed(2)+'" oninput="_rcUpdateLine('+idx+',\'unitPrice\',this.value)"></td>'
       +'<td style="padding:6px 8px;text-align:right;font-weight:600">$'+lineTotal.toFixed(2)+'</td>'
       +'<td style="padding:6px 8px;text-align:center"><span onclick="_rcRemoveLine('+idx+')" style="cursor:pointer;color:#c62828;font-size:16px;font-weight:700">&#215;</span></td>'
-    +'</tr>';
+      +'</tr>';
   });
 
   html += '</tbody><tfoot><tr style="background:#e3f2fd">'
@@ -875,6 +877,135 @@ function rcLiDrop(e, toIdx) {
   _rcLineItems.splice(toIdx, 0, moved);
   _rcLiDragIdx = null;
   _renderRCLineItems();
+}
+
+
+// ── Managed Services Settings ─────────────────────────────────────────────────
+function toggleMSSettings() {
+  var panel = document.getElementById('ms-settings-panel');
+  if (!panel) return;
+  var opening = panel.style.display === 'none' || panel.style.display === '';
+  panel.style.display = opening ? 'block' : 'none';
+  if (opening) renderMSSettings();
+}
+
+function renderMSSettings() {
+  var wrap = document.getElementById('ms-settings-wrap');
+  if (!wrap) return;
+  var types    = _getMSTypes();
+  var statuses = _getMSStatuses();
+  var cycles   = _getMSCycles();
+
+  function makeList(items, deleteFn) {
+    return items.map(function(t, i) {
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0">'
+        + '<span style="font-size:13px">' + escHtml(t) + '</span>'
+        + '<span onclick="' + deleteFn + '(' + i + ')" style="cursor:pointer;color:#c62828;font-size:18px;font-weight:700;padding:0 6px">&#215;</span>'
+        + '</div>';
+    }).join('');
+  }
+
+  var cycleHtml = Object.keys(cycles).map(function(key) {
+    var c = cycles[key];
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0">'
+      + '<span style="font-size:13px">' + escHtml(c.label) + ' <span style="font-size:10px;color:#90a4ae">(' + c.months + ' mo)</span></span>'
+      + '<span class="ms-del-cycle" data-key="' + escHtml(key) + '" onclick="msDeleteCycle(this.dataset.key)" style="cursor:pointer;color:#c62828;font-size:18px;font-weight:700;padding:0 6px">&#215;</span>'
+      + '</div>';
+  }).join('');
+
+  wrap.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">'
+
+    + '<div><div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #1565c0">Service Types</div>'
+    + makeList(types, 'msDeleteType')
+    + '<div style="display:flex;gap:6px;margin-top:10px">'
+    + '<input id="ms-new-type" class="form-control" style="font-size:12px" placeholder="Add type...">'
+    + '<button class="btn btn-primary btn-sm" onclick="msAddType()">Add</button>'
+    + '</div></div>'
+
+    + '<div><div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #1565c0">Statuses</div>'
+    + makeList(statuses, 'msDeleteStatus')
+    + '<div style="display:flex;gap:6px;margin-top:10px">'
+    + '<input id="ms-new-status" class="form-control" style="font-size:12px" placeholder="Add status...">'
+    + '<button class="btn btn-primary btn-sm" onclick="msAddStatus()">Add</button>'
+    + '</div></div>'
+
+    + '<div><div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #1565c0">Billing Cycles</div>'
+    + cycleHtml
+    + '<div style="display:grid;grid-template-columns:1fr 60px 50px;gap:6px;margin-top:10px">'
+    + '<input id="ms-new-cycle-label" class="form-control" style="font-size:12px" placeholder="Label">'
+    + '<input id="ms-new-cycle-months" class="form-control" style="font-size:12px" type="number" min="1" placeholder="Mo">'
+    + '<button class="btn btn-primary btn-sm" onclick="msAddCycle()">Add</button>'
+    + '</div></div>'
+
+    + '</div>';
+}
+
+function _saveMSSettings() {
+  if (!DB.msSettings) DB.msSettings = {};
+  saveDB();
+  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
+  renderMSSettings();
+  showToast('Settings saved', 'success', 2000);
+}
+
+function msAddType() {
+  var v = (document.getElementById('ms-new-type').value || '').trim();
+  if (!v) return;
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.types) DB.msSettings.types = _getMSTypes().slice();
+  if (DB.msSettings.types.indexOf(v) >= 0) { showToast('Already exists', 'warning', 2000); return; }
+  DB.msSettings.types.push(v);
+  document.getElementById('ms-new-type').value = '';
+  _saveMSSettings();
+}
+
+function msDeleteType(idx) {
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.types) DB.msSettings.types = _getMSTypes().slice();
+  if (DB.msSettings.types.length <= 1) { showToast('Must keep at least one', 'warning', 2000); return; }
+  DB.msSettings.types.splice(idx, 1);
+  _saveMSSettings();
+}
+
+function msAddStatus() {
+  var v = (document.getElementById('ms-new-status').value || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (!v) return;
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.statuses) DB.msSettings.statuses = _getMSStatuses().slice();
+  if (DB.msSettings.statuses.indexOf(v) >= 0) { showToast('Already exists', 'warning', 2000); return; }
+  DB.msSettings.statuses.push(v);
+  document.getElementById('ms-new-status').value = '';
+  _saveMSSettings();
+}
+
+function msDeleteStatus(idx) {
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.statuses) DB.msSettings.statuses = _getMSStatuses().slice();
+  if (DB.msSettings.statuses.length <= 1) { showToast('Must keep at least one', 'warning', 2000); return; }
+  DB.msSettings.statuses.splice(idx, 1);
+  _saveMSSettings();
+}
+
+function msAddCycle() {
+  var label  = (document.getElementById('ms-new-cycle-label').value || '').trim();
+  var months = parseInt(document.getElementById('ms-new-cycle-months').value) || 0;
+  if (!label || months < 1) { showToast('Enter label and months', 'warning', 2000); return; }
+  var key = label.toLowerCase().replace(/\s+/g, '_');
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.cycles) DB.msSettings.cycles = Object.assign({}, _getMSCycles());
+  DB.msSettings.cycles[key] = { label: label, months: months };
+  document.getElementById('ms-new-cycle-label').value = '';
+  document.getElementById('ms-new-cycle-months').value = '';
+  _saveMSSettings();
+}
+
+function msDeleteCycle(key) {
+  if (!DB.msSettings) DB.msSettings = {};
+  if (!DB.msSettings.cycles) DB.msSettings.cycles = Object.assign({}, _getMSCycles());
+  if (Object.keys(DB.msSettings.cycles).length <= 1) { showToast('Must keep at least one', 'warning', 2000); return; }
+  delete DB.msSettings.cycles[key];
+  _saveMSSettings();
 }
 
 // ── Supabase sync ──────────────────────────────────────────────────────────────
