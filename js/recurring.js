@@ -228,7 +228,6 @@ function openRCModal(id) {
   document.getElementById('rc-modal-title').textContent = c.number||'Managed Service Contract';
   document.getElementById('rc-number').value = c.number||'';
   document.getElementById('rc-client').value = c.client||'';
-  // Populate type dropdown before setting value
   var rcTypeSel2 = document.getElementById('rc-type');
   if (rcTypeSel2) {
     rcTypeSel2.innerHTML = '<option value="">Select Type</option>';
@@ -281,8 +280,8 @@ function _renderRCLineItems() {
       +' style="border-bottom:1px solid #f0f0f0">'
       +'<td style="padding:6px 4px;text-align:center;cursor:grab;color:#c8d0db;font-size:18px" title="Drag to reorder">&#8661;</td>'
       +'<td style="padding:6px 8px"><input class="form-control" style="font-size:12px" placeholder="Description" value="'+escHtml(item.desc||'')+ '" oninput="_rcUpdateLine('+idx+',\'desc\',this.value)"></td>'
-      +'<td style="padding:6px 8px"><input class="form-control" style="font-size:12px;text-align:center" type="number" min="1" step="1" value="'+parseFloat(item.qty||1)+'" oninput="_rcUpdateLine('+idx+',\'qty\',this.value)"></td>'
-      +'<td style="padding:6px 8px"><input class="form-control" style="font-size:12px;text-align:right" type="number" min="0" step="0.01" placeholder="0.00" value="'+parseFloat(item.unitPrice||0).toFixed(2)+'" oninput="_rcUpdateLine('+idx+',\'unitPrice\',this.value)"></td>'
+      +'<td style="padding:6px 8px" ondragstart="event.stopPropagation()"><input class="form-control" style="font-size:12px;text-align:center" type="number" min="1" step="1" value="'+parseFloat(item.qty||1)+'" oninput="_rcUpdateLine('+idx+',\'qty\',this.value)"></td>'
+      +'<td style="padding:6px 4px" ondragstart="event.stopPropagation()"><input class="form-control" style="font-size:12px;text-align:right" type="number" min="0" step="0.01" placeholder="0.00" value="'+parseFloat(item.unitPrice||0).toFixed(2)+'" oninput="_rcUpdateLine('+idx+',\'unitPrice\',this.value)" onblur="this.value=parseFloat(this.value||0).toFixed(2)"></td>'
       +'<td style="padding:6px 8px;text-align:right;font-weight:600">$'+lineTotal.toFixed(2)+'</td>'
       +'<td style="padding:6px 8px;text-align:center"><span onclick="_rcRemoveLine('+idx+')" style="cursor:pointer;color:#c62828;font-size:16px;font-weight:700">&#215;</span></td>'
       +'</tr>';
