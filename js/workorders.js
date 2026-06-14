@@ -2304,9 +2304,8 @@ function saveTeamModal() {
 
   // Sync newly added techs to calendar + send notifications
   var newlyAdded = _assigned.filter(function(n){ return prev.indexOf(n)<0; });
-  if (newlyAdded.length) wtSyncWOTechsToCalendar(wo, newlyAdded);
 
-  // Send SMS to newly assigned techs
+  // Send SMS FIRST before any other calls that may throw errors
   if (newlyAdded.length && typeof sendSMS === 'function') {
     if (!wo.smsNotified) wo.smsNotified = [];
     newlyAdded.forEach(function(techName) {
@@ -2326,6 +2325,8 @@ function saveTeamModal() {
       });
     });
   }
+
+  try { if (newlyAdded.length) wtSyncWOTechsToCalendar(wo, newlyAdded); } catch(e) { console.warn('[WO] calendar sync error:', e.message); }
 
   closeModal('modal-wo-team');
   renderAssignedTechs(_woCurrentId);
