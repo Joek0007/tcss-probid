@@ -2183,8 +2183,8 @@ function woRemoveTech(techName) {
     return (typeof t==='string'?t:(t.name||'')).toLowerCase() !== techName.toLowerCase();
   });
   saveDB();
-  renderWOTechs(_woCurrentId);
-  wtSyncWOTechsToCalendar(wo, []);
+  renderAssignedTechs(_woCurrentId);
+  try { wtSyncWOTechsToCalendar(wo, []); } catch(e) {}
   if (typeof renderWorkOrders==='function') renderWorkOrders();
   showToast(techName+' removed from WO','info',2000);
 }
