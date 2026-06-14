@@ -269,7 +269,8 @@ function _renderRCLineItems() {
 
   _rcLineItems.forEach(function(item,idx){
     var lineTotal = parseFloat(item.qty||1) * parseFloat(item.unitPrice||0);
-    html += '<tr style="border-bottom:1px solid #f0f0f0">'
+    html += '<tr class="rc-li-row" draggable="true" ondragstart="rcLiDragStart(event,'+idx+')" ondragover="rcLiDragOver(event)" ondrop="rcLiDrop(event,'+idx+')" ondragend="rcLiDragEnd(event)" style="border-bottom:1px solid #f0f0f0">';
+    html += '<td style="padding:6px 4px;text-align:center;cursor:grab;color:#c8d0db;font-size:18px" title="Drag to reorder">&#8661;</td>';
       +'<td style="padding:6px 8px"><input class="form-control" style="font-size:12px" placeholder="Description (e.g. Cisco 7965 Phone Rental)" value="'+escHtml(item.desc||'')+'" oninput="_rcUpdateLine('+idx+',\'desc\',this.value)"></td>'
       +'<td style="padding:6px 8px"><input class="form-control" style="font-size:12px;text-align:center" type="number" min="1" step="1" value="'+parseFloat(item.qty||1)+'" oninput="_rcUpdateLine('+idx+',\'qty\',this.value)"></td>'
       +'<td style="padding:6px 8px"><input class="form-control" style="font-size:12px;text-align:right" type="number" min="0" step="0.01" placeholder="0.00" value="'+parseFloat(item.unitPrice||0).toFixed(2)+'" oninput="_rcUpdateLine('+idx+',\'unitPrice\',this.value)"></td>'
@@ -279,7 +280,7 @@ function _renderRCLineItems() {
   });
 
   html += '</tbody><tfoot><tr style="background:#e3f2fd">'
-    +'<td colspan="3" style="padding:8px;font-weight:700;text-align:right;font-size:12px">'+cycleLabel+' Total:</td>'
+    +'<td colspan="4" style="padding:8px;font-weight:700;text-align:right;font-size:12px">'+cycleLabel+' Total:</td>'
     +'<td style="padding:8px;text-align:right;font-weight:800;font-size:14px;color:#1565c0">$'+subtotal.toFixed(2)+'</td>'
     +'<td></td></tr></tfoot></table>';
 
@@ -833,6 +834,47 @@ function msDeleteCycle(key) {
   if (Object.keys(DB.msSettings.cycles).length <= 1) { showToast('Must keep at least one cycle','warning',2000); return; }
   delete DB.msSettings.cycles[key];
   _saveMSSettings();
+}
+
+
+// ── Line item drag to reorder ─────────────────────────────────────────────────
+var _rcLiDragIdx = null;
+
+function rcLiDragStart(e, idx) {
+  _rcLiDragIdx = idx;
+  e.stopPropagation();
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(function(){
+    var rows = document.querySelectorAll('.rc-li-row');
+    if (rows[idx]) rows[idx].style.opacity = '0.4';
+  }, 0);
+}
+
+function rcLiDragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  var tr = e.target.closest ? e.target.closest('.rc-li-row') : null;
+  if (tr) tr.style.borderTop = '3px solid #1565c0';
+}
+
+function rcLiDragEnd(e) {
+  e.stopPropagation();
+  document.querySelectorAll('.rc-li-row').forEach(function(r){
+    r.style.opacity = '1';
+    r.style.borderTop = '';
+  });
+  _rcLiDragIdx = null;
+}
+
+function rcLiDrop(e, toIdx) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.querySelectorAll('.rc-li-row').forEach(function(r){ r.style.borderTop = ''; });
+  if (_rcLiDragIdx === null || _rcLiDragIdx === toIdx) return;
+  var moved = _rcLineItems.splice(_rcLiDragIdx, 1)[0];
+  _rcLineItems.splice(toIdx, 0, moved);
+  _rcLiDragIdx = null;
+  _renderRCLineItems();
 }
 
 // ── Supabase sync ──────────────────────────────────────────────────────────────
