@@ -204,6 +204,7 @@ function openNewRC() {
   document.getElementById('rc-modal-title').textContent = 'New Managed Service Contract';
   document.getElementById('rc-number').value = _rcNextNumber();
   document.getElementById('rc-client').value = '';
+  rcPopulateCustomerSelect(null);
   document.getElementById('rc-type').value = '';
   document.getElementById('rc-cycle').value = 'monthly';
   document.getElementById('rc-billing-day').value = '1';
@@ -229,6 +230,7 @@ function openRCModal(id) {
   document.getElementById('rc-modal-title').textContent = c.number||'Managed Service Contract';
   document.getElementById('rc-number').value = c.number||'';
   document.getElementById('rc-client').value = c.client||'';
+  rcPopulateCustomerSelect(c.customerId||null);
   var rcTypeSel2 = document.getElementById('rc-type');
   if (rcTypeSel2) {
     rcTypeSel2.innerHTML = '<option value="">Select Type</option>';
@@ -1121,24 +1123,149 @@ function renderMSInvoiceHistory() {
   Object.keys(byDate).sort().reverse().forEach(function(date){
     var invs = byDate[date];
     var runTotal = invs.reduce(function(s,i){ return s+parseFloat(i.amount||0); },0);
-    html += '<div style="padding:10px 18px;background:#f5f7fa;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #e0e7ef">'
-      + 'Run Date: ' + date + ' &nbsp;&#183;&nbsp; ' + invs.length + ' invoice' + (invs.length!==1?'s':'') + ' &nbsp;&#183;&nbsp; $' + runTotal.toFixed(2)
+    var runGroupId = 'rungrp-'+date.replace(/-/g,'');
+    html += '<div style="padding:10px 18px;background:#f5f7fa;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #e0e7ef;display:flex;align-items:center;justify-content:space-between">'
+      + '<span>Run Date: ' + date + ' &nbsp;&#183;&nbsp; ' + invs.length + ' invoice' + (invs.length!==1?'s':'') + ' &nbsp;&#183;&nbsp; $' + runTotal.toFixed(2)+'</span>'
+      + '<button data-runid="'+runGroupId+'" onclick="batchPrintMSRun(this.getAttribute(\'data-runid\'))" style="background:#1565c0;color:#fff;border:none;border-radius:5px;padding:4px 12px;font-size:10px;font-weight:700;cursor:pointer">&#128424; Print All</button>'
     +'</div>';
     invs.forEach(function(inv){
-      html += '<div style="display:grid;grid-template-columns:120px 1fr 130px 90px 80px 80px;padding:10px 18px;border-bottom:1px solid #f5f5f5;align-items:center;gap:8px">'
+      html += '<div class="ms-inv-row" data-runid="'+runGroupId+'" data-invid="'+inv.id+'" style="display:grid;grid-template-columns:120px 1fr 130px 90px 80px 80px;padding:10px 18px;border-bottom:1px solid #f5f5f5;align-items:center;gap:8px">'
         +'<div style="font-size:12px;font-weight:700;color:#1565c0">' + (inv.num||'') + '</div>'
         +'<div style="font-size:12px;font-weight:600">' + (inv.clientName||'') + '</div>'
         +'<div style="font-size:11px;color:#546e7a">' + (inv.contractType||inv.rcNumber||'') + '</div>'
         +'<div style="font-size:12px;font-weight:700">$' + parseFloat(inv.amount||0).toFixed(2) + '</div>'
         +'<div style="font-size:11px">' + (inv.deliveryMethod==='mail'?'&#128236; Mail':'&#128231; Email') + '</div>'
         +'<div style="display:flex;gap:6px">'
-        +'<button onclick="printRCInvoice(\"'+inv.id+'\")" style="background:#f0f4ff;color:#1565c0;border:1px solid #d0dcff;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Print</button>'
+        +'<button data-invid="'+inv.id+'" onclick="var id=this.getAttribute(\'data-invid\');printRCInvoice(id)" style="background:#f0f4ff;color:#1565c0;border:1px solid #d0dcff;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Print</button>'
         +'</div>'
       +'</div>';
     });
   });
 
   body.innerHTML = html;
+}
+
+
+// ── Batch Print MS Run ────────────────────────────────────────────────────────
+function batchPrintMSRun(runGroupId) {
+  // Find all invoice rows for this run
+  var rows = Array.from(document.querySelectorAll('.ms-inv-row[data-runid="'+runGroupId+'"]'));
+  var invIds = rows.map(function(r){ return r.getAttribute('data-invid'); }).filter(Boolean);
+
+  if (!invIds.length) { showToast('No invoices found for this run','warning',2000); return; }
+
+  var co = DB.settings||{};
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  var allPages = invIds.map(function(invId) {
+    var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
+    if (!inv) return '';
+    var lineItems = inv.lineItems||[];
+    var total = lineItems.reduce(function(s,i){ return s+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0)); },0);
+    if (!total) total = parseFloat(inv.amount||0);
+    var cycles = _getMSCycles();
+    var cycleLabel = (cycles[inv.billingCycle]||{label:inv.billingCycle||'Recurring'}).label;
+    var lineRows = lineItems.map(function(i){
+      var lt = parseFloat(i.qty||1)*parseFloat(i.unitPrice||0);
+      return '<tr><td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;font-size:12px">'+esc(i.desc||'')+'</td>'
+        +'<td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:center;font-size:12px">'+parseFloat(i.qty||1)+'</td>'
+        +'<td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px">$'+parseFloat(i.unitPrice||0).toFixed(2)+'</td>'
+        +'<td style="padding:9px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px;font-weight:700">$'+lt.toFixed(2)+'</td>'
+      +'</tr>';
+    }).join('');
+
+    return '<div style="page-break-after:always;page-break-inside:avoid;font-family:Arial,sans-serif;color:#0d1b2a;padding:20px;max-width:760px;margin:0 auto">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:3px solid #1565c0">'
+        +'<div>'
+          +'<div style="font-size:20px;font-weight:900;color:#0d1b2a">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>'
+          +'<div style="margin-top:6px;font-size:11px;color:#546e7a;line-height:1.8">'+esc(co.caddr||'')+(co.cphone?'<br>'+esc(co.cphone):'')+(co.cemail?'<br>'+esc(co.cemail):'')+'</div>'
+        +'</div>'
+        +'<div style="text-align:right">'
+          +'<div style="font-size:32px;font-weight:900;color:#1565c0">INVOICE</div>'
+          +'<div style="font-size:13px;font-weight:700;margin-top:4px">'+esc(inv.num||'')+'</div>'
+          +'<div style="font-size:11px;color:#546e7a;margin-top:3px">Date: '+esc(inv.invoiceDate||inv.runDate||'')+'</div>'
+          +'<div style="font-size:11px;color:#546e7a">Due: Upon Receipt</div>'
+        +'</div>'
+      +'</div>'
+      +'<div style="background:#1565c0;border-radius:6px;padding:10px 14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">'
+        +'<div>'
+          +'<div style="font-size:13px;font-weight:800;color:#fff">'+esc(inv.contractType||'Managed Service')+' &#8212; Managed Services Contract</div>'
+          +'<div style="font-size:10px;color:#bbdefb;margin-top:2px">'+esc(inv.rcNumber||'')+' &nbsp;&#183;&nbsp; '+esc(cycleLabel)+' Billing</div>'
+        +'</div>'
+      +'</div>'
+      +'<div style="margin-bottom:16px;background:#f8f9fb;border-radius:6px;padding:12px 14px">'
+        +'<div style="font-size:9px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">Bill To</div>'
+        +'<div style="font-size:15px;font-weight:700">'+esc(inv.clientName||'')+'</div>'
+        +(inv.clientEmail?'<div style="font-size:11px;color:#546e7a;margin-top:1px">'+esc(inv.clientEmail)+'</div>':'')
+        +(inv.clientAddress?'<div style="font-size:11px;color:#546e7a;margin-top:1px">'+esc(inv.clientAddress)+'</div>':'')
+      +'</div>'
+      +'<table style="width:100%;border-collapse:collapse">'
+        +'<thead><tr style="background:#0d1b2a">'
+          +'<th style="padding:9px 12px;text-align:left;font-size:10px;color:#fff;text-transform:uppercase">Description</th>'
+          +'<th style="padding:9px 12px;text-align:center;font-size:10px;color:#fff;text-transform:uppercase;width:50px">Qty</th>'
+          +'<th style="padding:9px 12px;text-align:right;font-size:10px;color:#fff;text-transform:uppercase;width:100px">Unit Price</th>'
+          +'<th style="padding:9px 12px;text-align:right;font-size:10px;color:#fff;text-transform:uppercase;width:100px">Amount</th>'
+        +'</tr></thead>'
+        +'<tbody>'+lineRows+'</tbody>'
+        +'<tfoot><tr style="background:#e3f2fd">'
+          +'<td colspan="3" style="padding:12px;text-align:right;font-size:13px;font-weight:700">Total Due:</td>'
+          +'<td style="padding:12px;text-align:right;font-size:20px;font-weight:900;color:#1565c0">$'+total.toFixed(2)+'</td>'
+        +'</tr></tfoot>'
+      +'</table>'
+      +'<div style="margin-top:20px;padding-top:12px;border-top:1px solid #e0e7ef;text-align:center;font-size:10px;color:#90a4ae">'
+        +esc(co.cname||'Total Communications Systems & Solutions, Inc.')
+        +(co.cphone?' &nbsp;&#183;&nbsp; '+esc(co.cphone):'')
+        +(co.cemail?' &nbsp;&#183;&nbsp; '+esc(co.cemail):'')
+        +'<br>Thank you for your business.'
+      +'</div>'
+    +'</div>';
+  }).join('');
+
+  // Show all invoices in overlay with one print action
+  var overlay = document.getElementById('rc-invoice-overlay');
+  if (!overlay) { overlay = document.createElement('div'); overlay.id = 'rc-invoice-overlay'; document.body.appendChild(overlay); }
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#e8edf2;z-index:9999;overflow-y:auto;display:block';
+
+  var runDate = rows.length ? (DB.invoices||[]).find(function(i){ return i.id===invIds[0]; }) : null;
+  var dateLabel = runDate ? (runDate.invoiceDate||runDate.runDate||'') : '';
+
+  overlay.innerHTML = '<div style="position:sticky;top:0;background:#0d1b2a;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,.3)">'
+    +'<span style="color:#90a4ae;font-size:13px">&#128196; Batch Print &nbsp;&#183;&nbsp; '+invIds.length+' invoices &nbsp;&#183;&nbsp; Run: '+dateLabel+'</span>'
+    +'<div style="display:flex;gap:10px">'
+      +'<button onclick="_batchPrintNow()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print All / Save PDF</button>'
+      +'<button onclick="_closeRCInvoice()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer">&#10005; Close</button>'
+    +'</div>'
+  +'</div>'
+  +'<div style="padding:20px">'+allPages+'</div>';
+}
+
+
+// ── Customer linkage ──────────────────────────────────────────────────────────
+function rcPopulateCustomerSelect(selectedId) {
+  var sel = document.getElementById('rc-customer-id');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Select Customer...</option>';
+  (DB.customers||[]).slice().sort(function(a,b){
+    return (a.company||a.name||'').localeCompare(b.company||b.name||'');
+  }).forEach(function(c){
+    var o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = c.company||c.name||'';
+    if (selectedId && c.id===selectedId) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+function rcCustomerSelected(customerId) {
+  if (!customerId) return;
+  var c = (DB.customers||[]).find(function(x){ return x.id===customerId; });
+  if (!c) return;
+  var nameEl = document.getElementById('rc-client');
+  if (nameEl) nameEl.value = c.company||c.name||'';
+  var emailEl = document.getElementById('rc-client-email');
+  if (emailEl && (c.email||c.billingEmail) && !emailEl.value) {
+    emailEl.value = c.billingEmail||c.email||'';
+  }
 }
 
 // ── Supabase sync ──────────────────────────────────────────────────────────────
