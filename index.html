@@ -2191,6 +2191,7 @@ textarea.form-control{resize:vertical;min-height:60px}
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline btn-sm" onclick="previewInvoice()">👁 Preview</button>
+        <button class="btn btn-outline btn-sm" onclick="emailInvoiceDirect()" style="color:#1565c0;border-color:#1565c0;font-weight:700">📧 Email Invoice</button>
         <button class="btn btn-primary btn-sm" onclick="saveAndPrintInvoice()">🖨 Print</button>
         <button class="close-btn" data-action="closeModal" data-modal="modal-invoice">×</button>
       </div>
@@ -2275,6 +2276,7 @@ textarea.form-control{resize:vertical;min-height:60px}
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-invoice">Cancel</button>
       <button class="btn btn-outline" onclick="previewInvoice()">👁 Preview</button>
+      <button class="btn btn-outline" onclick="emailInvoiceDirect()" style="color:#1565c0;border-color:#1565c0;font-weight:700">📧 Email Invoice</button>
       <button class="btn btn-primary" onclick="saveAndPrintInvoice()">🖨 Generate & Print</button>
     </div>
   </div>
