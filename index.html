@@ -4530,6 +4530,10 @@ textarea.form-control{resize:vertical;min-height:60px}
         <input id="s-csfrom" placeholder="TCSS" maxlength="11">
       </div>
     </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">📧 Mailgun API Key <span style="font-weight:400;color:#90a4ae">(for sending invoices from invoicing@tcss.com)</span></label>
+      <input id="s-mg-key" class="form-control" type="password" placeholder="key-xxxxxxxxxxxx" style="max-width:380px">
+    </div>
     <button class="btn btn-primary" onclick="saveClickSendSettings()">Save SMS Settings</button>
     <button class="btn btn-outline" style="margin-left:8px" onclick="testClickSendSMS()">&#x1F4F1; Send Test SMS</button>
   </div>

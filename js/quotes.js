@@ -1,3 +1,107 @@
+// ── Email Invoice via Mailgun ─────────────────────────────────────────────────
+async function emailInvoiceDirect() {
+  var toEmail = (document.getElementById('inv-bill-email')||{}).value||'';
+  if (!toEmail) {
+    toEmail = prompt('Enter recipient invoicing email:');
+    if (!toEmail) return;
+  }
+
+  var s = DB.settings||{};
+  if (!s.mgKey) {
+    showToast('Mailgun API key not set — go to Settings','error',4000);
+    return;
+  }
+
+  var co = s;
+  function esc(x){ return (x||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  var lineItems = _invItems||[];
+  var taxRate = parseFloat((document.getElementById('inv-tax')||{}).value||0);
+  var subtotal = lineItems.reduce(function(s,i){ return s+(parseFloat(i.unitPrice||i.mc||0)*parseFloat(i.qty||1)); },0);
+  var taxAmt = subtotal*(taxRate/100);
+  var grandTotal = subtotal+taxAmt;
+  var billName = (document.getElementById('inv-bill-name')||{}).value||'';
+  var invNum   = (document.getElementById('inv-num')||{}).value||'';
+  var invDate  = (document.getElementById('inv-date')||{}).value||'';
+
+  var lineRows = lineItems.map(function(i){
+    var lt = parseFloat(i.unitPrice||i.mc||0)*parseFloat(i.qty||1);
+    return '<tr><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;font-size:13px">'+esc(i.desc||i.description||'')+'</td>'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:center;font-size:13px">'+parseFloat(i.qty||1)+'</td>'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px">$'+parseFloat(i.unitPrice||i.mc||0).toFixed(2)+'</td>'
+      +'<td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:13px;font-weight:700">$'+lt.toFixed(2)+'</td>'
+    +'</tr>';
+  }).join('');
+
+  var html = '<div style="max-width:680px;margin:0 auto;font-family:Arial,sans-serif;color:#0d1b2a">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;margin-bottom:20px;border-bottom:3px solid #1565c0">'
+      +'<div>'
+        +'<div style="font-size:20px;font-weight:900">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>'
+        +'<div style="font-size:11px;color:#546e7a;margin-top:6px;line-height:1.8">'+esc(co.caddr||'')+(co.cphone?'<br>'+esc(co.cphone):'')+'<br>invoicing@tcss.com</div>'
+      +'</div>'
+      +'<div style="text-align:right">'
+        +'<div style="font-size:32px;font-weight:900;color:#1565c0">INVOICE</div>'
+        +'<div style="font-size:13px;font-weight:700;margin-top:4px">'+esc(invNum)+'</div>'
+        +'<div style="font-size:11px;color:#546e7a;margin-top:3px">Date: '+esc(invDate)+'</div>'
+        +'<div style="font-size:11px;color:#546e7a">Due: Upon Receipt</div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="background:#f8f9fb;border-radius:8px;padding:14px 18px;margin-bottom:20px">'
+      +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">Bill To</div>'
+      +'<div style="font-size:16px;font-weight:700">'+esc(billName)+'</div>'
+    +'</div>'
+    +'<table style="width:100%;border-collapse:collapse">'
+      +'<thead><tr style="background:#0d1b2a">'
+        +'<th style="padding:10px 14px;text-align:left;font-size:11px;color:#fff;text-transform:uppercase">Description</th>'
+        +'<th style="padding:10px 14px;text-align:center;font-size:11px;color:#fff;width:60px">Qty</th>'
+        +'<th style="padding:10px 14px;text-align:right;font-size:11px;color:#fff;width:100px">Unit Price</th>'
+        +'<th style="padding:10px 14px;text-align:right;font-size:11px;color:#fff;width:100px">Amount</th>'
+      +'</tr></thead>'
+      +'<tbody>'+lineRows+'</tbody>'
+      +'<tfoot>'
+        +(taxAmt>0?'<tr><td colspan="3" style="padding:10px 14px;text-align:right;color:#546e7a">Subtotal:</td><td style="padding:10px 14px;text-align:right">$'+subtotal.toFixed(2)+'</td></tr>'
+          +'<tr><td colspan="3" style="padding:10px 14px;text-align:right;color:#546e7a">Tax ('+taxRate+'%):</td><td style="padding:10px 14px;text-align:right">$'+taxAmt.toFixed(2)+'</td></tr>':'')
+        +'<tr style="background:#e3f2fd">'
+          +'<td colspan="3" style="padding:14px;text-align:right;font-size:14px;font-weight:700">Total Due:</td>'
+          +'<td style="padding:14px;text-align:right;font-size:20px;font-weight:900;color:#1565c0">$'+grandTotal.toFixed(2)+'</td>'
+        +'</tr>'
+      +'</tfoot>'
+    +'</table>'
+    +'<div style="margin-top:24px;padding-top:14px;border-top:1px solid #e0e7ef;text-align:center;font-size:11px;color:#90a4ae">'
+      +esc(co.cname||'Total Communications Systems & Solutions, Inc.')+' &nbsp;|&nbsp; '+esc(co.cphone||'')+' &nbsp;|&nbsp; invoicing@tcss.com'
+      +'<br>Thank you for your business.'
+    +'</div>'
+  +'</div>';
+
+  showToast('Sending invoice to '+toEmail+'...','info',3000);
+
+  try {
+    var formData = new FormData();
+    formData.append('from', 'TCSS Invoicing <invoicing@tcss.com>');
+    formData.append('to', toEmail);
+    formData.append('subject', 'Invoice '+invNum+' from Total Communications Systems & Solutions, Inc.');
+    formData.append('html', html);
+
+    var res = await fetch('https://api.mailgun.net/v3/tcss.com/messages', {
+      method: 'POST',
+      headers: { 'Authorization': 'Basic '+btoa('api:'+s.mgKey) },
+      body: formData
+    });
+    var data = await res.json();
+    if (res.ok || data.id) {
+      showToast('✅ Invoice emailed to '+toEmail,'success',4000);
+      var inv2 = (DB.invoices||[]).find(function(i){ return i.num===invNum; });
+      if (inv2) { inv2.emailedTo = toEmail; inv2.emailedAt = new Date().toISOString(); saveDB(); }
+    } else {
+      showToast('Mailgun error: '+(data.message||'Unknown error'),'error',5000);
+      console.error('[Mailgun]', data);
+    }
+  } catch(e) {
+    showToast('Email failed: '+e.message,'error',5000);
+    console.error('[Mailgun]', e);
+  }
+}
+
 // =============================================
 // STAGE 1: calcTotals() — MARGIN-BASED ENGINE
 // =============================================
