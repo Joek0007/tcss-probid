@@ -695,7 +695,8 @@ async function syncAllFromCloud() {
             hireDate:     m.hire_date || '',
             showVacation: !!m.show_vacation,
             showPTO:      !!m.show_pto,
-            active:       m.is_active !== false
+            active:       m.is_active !== false,
+            smsEnabled:   m.sms_enabled !== false
           };
         });
       }
@@ -1227,6 +1228,7 @@ async function pushAllToCloud() {
           show_vacation: !!tm.showVacation,
           show_pto:     !!tm.showPTO,
           is_active:    tm.active !== false,
+          sms_enabled:  tm.smsEnabled !== false,
           created_by:   _currentUser.id
         });
         if (tmErr) console.warn('[Push] Team error for', tm.name, tmErr.message);
