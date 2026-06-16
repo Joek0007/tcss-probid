@@ -1140,35 +1140,48 @@ textarea.form-control{resize:vertical;min-height:60px}
 .btn-sm{padding:5px 12px;font-size:12px}
 
 /* ── Settings Drawer ─────────────────────────────────────────────────────── */
-#settings-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:3000;display:none;opacity:0;transition:opacity .22s}
+/* ── Settings Drawer ─────────────────────────────────────────────────────── */
+#settings-drawer-overlay{position:fixed;inset:0;background:rgba(13,27,42,.32);z-index:3000;display:none;opacity:0;transition:opacity .22s}
 #settings-drawer-overlay.open{display:block;opacity:1}
-#settings-drawer{position:fixed;top:0;right:0;width:400px;max-width:96vw;height:100vh;background:#fff;z-index:3001;box-shadow:-4px 0 32px rgba(0,0,0,.16);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+#settings-drawer{position:fixed;top:0;right:0;width:400px;max-width:96vw;height:100vh;background:#fff;z-index:3001;box-shadow:-6px 0 40px rgba(0,0,0,.18);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1)}
 #settings-drawer.open{transform:translateX(0)}
-#settings-drawer-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:linear-gradient(135deg,#0d1b2a,#1a2744);color:#fff;flex-shrink:0}
-#settings-drawer-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
-#settings-drawer-close{background:none;border:none;color:rgba(255,255,255,.7);font-size:22px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1}
-#settings-drawer-close:hover{color:#fff;background:rgba(255,255,255,.1)}
-#settings-drawer-body{flex:1;overflow-y:auto;padding:0}
-#settings-drawer-footer{padding:14px 20px;border-top:1.5px solid #e0e7ef;display:flex;justify-content:flex-end;gap:10px;flex-shrink:0;background:#f9fafb}
-.sdrawer-section{padding:16px 20px;border-bottom:1px solid #f0f2f5}
+/* Header */
+#sd-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;background:linear-gradient(135deg,#0d1b2a 0%,#1565c0 100%);flex-shrink:0}
+#sd-header-left{display:flex;align-items:center;gap:10px}
+#sd-header-icon{width:34px;height:34px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0}
+#sd-header-title{font-size:14px;font-weight:700;color:#fff}
+#sd-header-sub{font-size:11px;color:rgba(255,255,255,.5);margin-top:2px}
+#sd-close{background:rgba(255,255,255,.12);border:none;color:rgba(255,255,255,.75);font-size:15px;cursor:pointer;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
+#sd-close:hover{background:rgba(255,255,255,.22);color:#fff}
+/* Body */
+#settings-drawer-body{flex:1;overflow-y:auto;padding:4px 0}
+.sdrawer-section{padding:14px 18px;border-bottom:0.5px solid #f0f2f5}
 .sdrawer-section:last-child{border-bottom:none}
-.sdrawer-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#90a4ae;margin-bottom:12px}
-.sdrawer-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.sdrawer-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:#90a4ae;margin-bottom:11px;display:flex;align-items:center;gap:6px}
+.sdrawer-row{margin-bottom:10px}
 .sdrawer-row:last-child{margin-bottom:0}
-.sdrawer-row label{font-size:12px;font-weight:600;color:#546e7a}
-.sdrawer-row input,.sdrawer-row select,.sdrawer-row textarea{padding:8px 10px;border:1.5px solid #e0e7ef;border-radius:7px;font-size:13px;color:#1a1a2e;background:#fff;width:100%;outline:none;transition:border-color .15s}
+.sdrawer-row label{font-size:11px;font-weight:600;color:#546e7a;display:block;margin-bottom:5px}
+.sdrawer-row input,.sdrawer-row select,.sdrawer-row textarea{padding:8px 10px;border:1.5px solid #e0e7ef;border-radius:7px;font-size:12px;color:#1a1a2e;background:#fff;width:100%;outline:none;transition:border-color .15s}
 .sdrawer-row input:focus,.sdrawer-row select:focus,.sdrawer-row textarea:focus{border-color:#1565c0}
 .sdrawer-row textarea{resize:vertical;min-height:70px}
-.sdrawer-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
-.sdrawer-toggle-row label{font-size:13px;color:#1a1a2e;font-weight:500}
-.sdrawer-link{font-size:12px;color:#1565c0;cursor:pointer;text-decoration:underline;margin-top:4px;display:inline-block}
-.sdrawer-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
-.sdrawer-badge.green{background:#e8f5e9;color:#2e7d32}
-.sdrawer-badge.orange{background:#fff3e0;color:#e65100}
-/* Gear button — consistent across all module page headers */
-.page-settings-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border:1.5px solid #e0e7ef;border-radius:8px;background:#fff;color:#546e7a;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none}
-.page-settings-btn:hover{background:#e3f2fd;border-color:#1565c0;color:#1565c0}
-/* Hide gear from field techs */
+.sdrawer-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:0.5px solid #f0f2f5}
+.sdrawer-toggle-row:last-child{border-bottom:none}
+.sdrawer-toggle-row label{font-size:12px;color:#1a1a2e;font-weight:500;line-height:1.4}
+.sdrawer-toggle-row input[type=checkbox]{width:16px;height:16px;accent-color:#1565c0;cursor:pointer;flex-shrink:0}
+/* Master settings banner — pinned above footer */
+#sd-master-banner{padding:12px 18px;border-top:0.5px solid #e0e7ef;flex-shrink:0}
+#sd-master-banner-inner{background:linear-gradient(135deg,#e8f4ff,#ede7f6);border:1.5px solid #90caf9;border-radius:10px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:all .18s}
+#sd-master-banner-inner:hover{background:linear-gradient(135deg,#bbdefb,#d1c4e9);border-color:#1565c0;transform:translateY(-1px)}
+#sd-master-banner-left{display:flex;align-items:center;gap:10px}
+#sd-master-banner-icon{width:36px;height:36px;background:linear-gradient(135deg,#1565c0,#7b1fa2);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;flex-shrink:0}
+#sd-master-banner-label{font-size:12px;font-weight:700;color:#0d1b2a}
+#sd-master-banner-sub{font-size:11px;color:#546e7a;margin-top:2px}
+#sd-master-banner-arrow{color:#1565c0;font-size:20px;flex-shrink:0}
+/* Footer */
+#settings-drawer-footer{padding:12px 18px;border-top:1px solid #e0e7ef;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;background:#f9fafb}
+/* Gear button */
+.page-settings-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1.5px solid #1565c0;border-radius:8px;background:#fff;color:#1565c0;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.page-settings-btn:hover{background:#1565c0;color:#fff}
 body.role-helper-tech .page-settings-btn{display:none!important}
 body.role-lead-tech .page-settings-btn{display:none!important}
 </style>
@@ -1196,16 +1209,32 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- ── SETTINGS DRAWER ──────────────────────────────────────────────────── -->
 <div id="settings-drawer-overlay" onclick="closeSettingsDrawer()"></div>
 <div id="settings-drawer">
-  <div id="settings-drawer-header">
-    <div id="settings-drawer-title">⚙️ Settings</div>
-    <button id="settings-drawer-close" onclick="closeSettingsDrawer()" title="Close">✕</button>
+  <div id="sd-header">
+    <div id="sd-header-left">
+      <div id="sd-header-icon">⚙️</div>
+      <div>
+        <div id="sd-header-title">Settings</div>
+        <div id="sd-header-sub">Module settings</div>
+      </div>
+    </div>
+    <button id="sd-close" onclick="closeSettingsDrawer()" title="Close">✕</button>
   </div>
-  <div id="settings-drawer-body">
-    <!-- Populated dynamically by openSettingsDrawer(module) -->
+  <div id="settings-drawer-body"></div>
+  <div id="sd-master-banner">
+    <div id="sd-master-banner-inner" onclick="_sdGoMaster()">
+      <div id="sd-master-banner-left">
+        <div id="sd-master-banner-icon">⚙️</div>
+        <div>
+          <div id="sd-master-banner-label">Master settings</div>
+          <div id="sd-master-banner-sub">View all settings in one place</div>
+        </div>
+      </div>
+      <span id="sd-master-banner-arrow">›</span>
+    </div>
   </div>
   <div id="settings-drawer-footer">
     <button class="btn btn-outline btn-sm" onclick="closeSettingsDrawer()">Cancel</button>
-    <button class="btn btn-primary btn-sm" id="settings-drawer-save-btn" onclick="saveSettingsDrawer()">💾 Save</button>
+    <button class="btn btn-primary btn-sm" onclick="saveSettingsDrawer()">💾 Save settings</button>
   </div>
 </div>
 

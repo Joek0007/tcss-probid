@@ -1310,57 +1310,67 @@ if (document.readyState === 'loading') {
   probidInstallBackGuard();
 }
 
-// ============================================================
-// SETTINGS DRAWER ENGINE
-// ============================================================
-// Single entry point: openSettingsDrawer(moduleKey)
-// moduleKey: 'quotes' | 'workorders' | 'dispatch' | 'team' |
-//            'field' | 'inventory' | 'recurring' | 'customers'
 
+// ============================================================
+// SETTINGS DRAWER ENGINE — Final Design
+// ============================================================
 var _settingsDrawerModule = null;
+
+// Module config: icon emoji, header subtitle, master settings tab + banner text
+var _sdConfig = {
+  quotes:     { icon:'📋', sub:'Quotes module',              masterTab:'quoting',      masterLabel:'Quoting & pricing settings',      masterSub:'Margin floors, terms, proposal defaults' },
+  workorders: { icon:'🔨', sub:'Work orders module',         masterTab:'workorders',   masterLabel:'Work order statuses & types',      masterSub:'Custom statuses, service types, categories' },
+  dispatch:   { icon:'🗂', sub:'Dispatch board',             masterTab:'integrations', masterLabel:'Company & integration settings',   masterSub:'ClickSend SMS credentials and config' },
+  team:       { icon:'👷', sub:'Team module',                masterTab:'roles',        masterLabel:'Roles & permissions',              masterSub:'Access control for all modules and pages' },
+  field:      { icon:'⏱', sub:'Field / time clock module',  masterTab:'company',      masterLabel:'Full geofence & payroll settings', masterSub:'Pay periods, overtime rules, holidays' },
+  inventory:  { icon:'📦', sub:'Inventory module',           masterTab:'inventory',    masterLabel:'Inventory locations & alerts',     masterSub:'Locations, low-stock rules, categories' },
+  recurring:  { icon:'🔄', sub:'Managed services module',   masterTab:'company',      masterLabel:'Company settings',                 masterSub:'Billing cycles, delivery defaults' },
+  customers:  { icon:'👥', sub:'Customers module',           masterTab:'company',      masterLabel:'Company & defaults',               masterSub:'Payment terms, follow-up rules' }
+};
 
 function openSettingsDrawer(moduleKey) {
   _settingsDrawerModule = moduleKey;
 
-  // Permission check — only owner, manager, back_office can access settings
-  var role = _currentUser ? _currentUser.role : null;
+  // Permission gate
+  var role = typeof _currentUser !== 'undefined' && _currentUser ? _currentUser.role : null;
   if (role === 'helper_tech' || role === 'lead_tech') return;
 
-  var title  = document.getElementById('settings-drawer-title');
-  var body   = document.getElementById('settings-drawer-body');
-  var overlay = document.getElementById('settings-drawer-overlay');
-  var drawer  = document.getElementById('settings-drawer');
+  var cfg     = _sdConfig[moduleKey] || {};
+  var titles  = { quotes:'Quotes settings', workorders:'Work orders settings', dispatch:'Dispatch settings', team:'Team settings', field:'Time clock settings', inventory:'Inventory settings', recurring:'Managed services settings', customers:'Customer settings' };
 
-  if (!drawer) return;
+  // Update header
+  var elIcon  = document.getElementById('sd-header-icon');
+  var elTitle = document.getElementById('sd-header-title');
+  var elSub   = document.getElementById('sd-header-sub');
+  if (elIcon)  elIcon.textContent  = cfg.icon  || '⚙️';
+  if (elTitle) elTitle.textContent = titles[moduleKey] || 'Settings';
+  if (elSub)   elSub.textContent   = cfg.sub   || '';
 
-  // Set title
-  var titles = {
-    quotes:     '📋 Quotes Settings',
-    workorders: '🔨 Work Orders Settings',
-    dispatch:   '🗂 Dispatch Settings',
-    team:       '👷 Team Settings',
-    field:      '⏱ Time Clock Settings',
-    inventory:  '📦 Inventory Settings',
-    recurring:  '🔄 Managed Services Settings',
-    customers:  '👥 Customer Settings'
-  };
-  if (title) title.textContent = titles[moduleKey] || '⚙️ Settings';
+  // Update master banner
+  var elML = document.getElementById('sd-master-banner-label');
+  var elMS = document.getElementById('sd-master-banner-sub');
+  var elMI = document.getElementById('sd-master-banner-icon');
+  if (elML) elML.textContent = cfg.masterLabel || 'Master settings';
+  if (elMS) elMS.textContent = cfg.masterSub   || 'View all settings';
+  if (elMI) elMI.textContent = cfg.icon || '⚙️';
 
-  // Render content
-  if (body) body.innerHTML = _renderDrawerContent(moduleKey);
+  // Render body
+  var body = document.getElementById('settings-drawer-body');
+  if (body) body.innerHTML = _sdBuildBody(moduleKey);
 
   // Open
+  var overlay = document.getElementById('settings-drawer-overlay');
+  var drawer  = document.getElementById('settings-drawer');
+  if (!drawer) return;
   overlay.style.display = 'block';
   requestAnimationFrame(function() {
     overlay.classList.add('open');
     drawer.classList.add('open');
   });
 
-  // Escape key to close
-  document._settingsDrawerKeyHandler = function(e) {
-    if (e.key === 'Escape') closeSettingsDrawer();
-  };
-  document.addEventListener('keydown', document._settingsDrawerKeyHandler);
+  // Escape to close
+  document._sdKeyHandler = function(e) { if (e.key === 'Escape') closeSettingsDrawer(); };
+  document.addEventListener('keydown', document._sdKeyHandler);
 }
 
 function closeSettingsDrawer() {
@@ -1369,217 +1379,209 @@ function closeSettingsDrawer() {
   if (!drawer) return;
   overlay.classList.remove('open');
   drawer.classList.remove('open');
-  setTimeout(function() { overlay.style.display = 'none'; }, 250);
-  if (document._settingsDrawerKeyHandler) {
-    document.removeEventListener('keydown', document._settingsDrawerKeyHandler);
-    document._settingsDrawerKeyHandler = null;
+  setTimeout(function() { overlay.style.display = 'none'; }, 260);
+  if (document._sdKeyHandler) {
+    document.removeEventListener('keydown', document._sdKeyHandler);
+    document._sdKeyHandler = null;
   }
+}
+
+function _sdGoMaster() {
+  var cfg = _sdConfig[_settingsDrawerModule] || {};
+  var tab = cfg.masterTab || 'company';
+  closeSettingsDrawer();
+  goPage('settings');
+  setTimeout(function() { if (typeof switchMsTab === 'function') switchMsTab(tab); }, 200);
 }
 
 function saveSettingsDrawer() {
   if (!_settingsDrawerModule) return;
-  switch (_settingsDrawerModule) {
-    case 'quotes':     _saveDrawerQuotes();     break;
-    case 'workorders': _saveDrawerWorkOrders(); break;
-    case 'dispatch':   _saveDrawerDispatch();   break;
-    case 'team':       _saveDrawerTeam();        break;
-    case 'field':      _saveDrawerField();       break;
-    case 'inventory':  _saveDrawerInventory();   break;
-    case 'recurring':  _saveDrawerRecurring();   break;
-    case 'customers':  _saveDrawerCustomers();   break;
-  }
+  var handlers = {
+    quotes:     _saveDrawerQuotes,
+    workorders: _saveDrawerWorkOrders,
+    dispatch:   _saveDrawerDispatch,
+    team:       _saveDrawerTeam,
+    field:      _saveDrawerField,
+    inventory:  _saveDrawerInventory,
+    recurring:  _saveDrawerRecurring,
+    customers:  _saveDrawerCustomers
+  };
+  if (handlers[_settingsDrawerModule]) handlers[_settingsDrawerModule]();
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-function _sdGv(id) { var el=document.getElementById(id); return el ? el.value : ''; }
-function _sdCv(id) { var el=document.getElementById(id); return el ? el.checked : false; }
-function _sdSv(id, v) { var el=document.getElementById(id); if(el) el.value = v !== undefined && v !== null ? v : ''; }
-function _sdCk(id, v) { var el=document.getElementById(id); if(el) el.checked = !!v; }
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function _sdGv(id)    { var el=document.getElementById(id); return el ? el.value : ''; }
+function _sdCv(id)    { var el=document.getElementById(id); return el ? el.checked : false; }
 
+function _sdSection(iconEmoji, title, rows) {
+  return '<div class="sdrawer-section">' +
+    '<div class="sdrawer-section-title">' + iconEmoji + ' ' + title + '</div>' +
+    rows.join('') +
+    '</div>';
+}
 function _sdRow(label, inputHtml) {
   return '<div class="sdrawer-row"><label>' + label + '</label>' + inputHtml + '</div>';
 }
-function _sdSection(title, content) {
-  return '<div class="sdrawer-section"><div class="sdrawer-section-title">' + title + '</div>' + content + '</div>';
-}
-function _sdToggleRow(label, id, checked) {
+function _sdToggle(label, id, checked) {
   return '<div class="sdrawer-toggle-row"><label>' + label + '</label>' +
-    '<input type="checkbox" id="' + id + '"' + (checked ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:#1565c0"></div>';
+    '<input type="checkbox" id="' + id + '"' + (checked ? ' checked' : '') + '></div>';
 }
 function _sdInput(id, val, type, placeholder) {
   type = type || 'text';
-  return '<input type="' + type + '" id="' + id + '" value="' + (val !== undefined && val !== null ? String(val).replace(/"/g,'&quot;') : '') + '"' + (placeholder ? ' placeholder="' + placeholder + '"' : '') + '>';
+  var v = (val !== undefined && val !== null) ? String(val).replace(/"/g,'&quot;') : '';
+  var ph = placeholder ? ' placeholder="' + placeholder + '"' : '';
+  return '<input type="' + type + '" id="' + id + '" value="' + v + '"' + ph + '>';
 }
 function _sdSelect(id, options, selected) {
-  var html = '<select id="' + id + '">';
-  options.forEach(function(o) {
-    html += '<option value="' + o.v + '"' + (o.v == selected ? ' selected' : '') + '>' + o.l + '</option>';
-  });
-  html += '</select>';
-  return html;
-}
-function _sdMasterLink(tab) {
-  return '<div style="margin-top:8px"><span class="sdrawer-link" onclick="closeSettingsDrawer();goPage(\'settings\');setTimeout(function(){switchMsTab(\'' + tab + '\')},200)">→ Full settings on Master Settings page</span></div>';
+  return '<select id="' + id + '">' +
+    options.map(function(o) {
+      return '<option value="' + o.v + '"' + (String(o.v) === String(selected) ? ' selected' : '') + '>' + o.l + '</option>';
+    }).join('') +
+    '</select>';
 }
 
-// ── QUOTES DRAWER ────────────────────────────────────────────────────────────
-function _renderDrawerContent(moduleKey) {
-  var s = DB.settings || {};
+// ── Body builder ─────────────────────────────────────────────────────────────
+function _sdBuildBody(moduleKey) {
+  var s  = DB.settings  || {};
   var ws = DB.woSettings || {};
 
   switch (moduleKey) {
 
     case 'quotes':
-      return _sdSection('Defaults', [
-        _sdRow('Default Labor Rate ($/hr)', _sdInput('sd-q-labor', s.laborRate || 100, 'number')),
-        _sdRow('Target Margin (%)', _sdInput('sd-q-margin', s.targetMargin || 35, 'number')),
-        _sdRow('Default Tax Rate (%)', _sdInput('sd-q-tax', s.taxRate || 0, 'number')),
-        _sdRow('Quote Valid for (days)', _sdInput('sd-q-valid', s.validDays || 30, 'number')),
-        _sdRow('Default Payment Terms', _sdInput('sd-q-terms', s.payTerms || 'Net 30')),
-        _sdRow('Follow-Up Reminder (days)', _sdInput('sd-q-followup', s.followupDays || 7, 'number')),
-        _sdRow('Per Diem Markup (%)', _sdInput('sd-q-perdiem', s.perDiemMarkup !== undefined ? s.perDiemMarkup : 15, 'number')),
-      ].join('')) +
-      _sdSection('Display', [
-        _sdRow('Default Sort Order', _sdSelect('sd-q-sort', [
-          {v:'num-desc',l:'Quote # — Newest First'},
-          {v:'num-asc', l:'Quote # — Oldest First'},
-          {v:'dt-desc', l:'Date — Newest First'},
-          {v:'dt-asc',  l:'Date — Oldest First'},
+      return _sdSection('📐', 'Defaults', [
+        _sdRow('Default labor rate ($/hr)', _sdInput('sd-q-labor',   s.laborRate     || 100, 'number')),
+        _sdRow('Target margin (%)',          _sdInput('sd-q-margin',  s.targetMargin  || 35,  'number')),
+        _sdRow('Default tax rate (%)',       _sdInput('sd-q-tax',     s.taxRate       || 0,   'number')),
+        _sdRow('Quote valid for (days)',     _sdInput('sd-q-valid',   s.validDays     || 30,  'number')),
+        _sdRow('Default payment terms',      _sdInput('sd-q-terms',   s.payTerms      || 'Net 30')),
+        _sdRow('Follow-up reminder (days)',  _sdInput('sd-q-followup',s.followupDays  || 7,   'number')),
+        _sdRow('Per diem markup (%)',        _sdInput('sd-q-perdiem', s.perDiemMarkup !== undefined ? s.perDiemMarkup : 15, 'number')),
+      ]) +
+      _sdSection('🖥', 'Display', [
+        _sdRow('Default sort order', _sdSelect('sd-q-sort', [
+          {v:'num-desc', l:'Quote # — newest first'},
+          {v:'num-asc',  l:'Quote # — oldest first'},
+          {v:'dt-desc',  l:'Date — newest first'},
+          {v:'dt-asc',   l:'Date — oldest first'},
         ], s.quoteDefaultSort || 'num-desc')),
-      ].join('')) +
-      _sdMasterLink('quoting');
+      ]);
 
     case 'workorders':
-      return _sdSection('Default Rates', [
-        _sdRow('Default Labor Rate ($/hr)', _sdInput('sd-wo-labor', ws.defaultLaborRate || 125, 'number')),
-        _sdRow('Default Tax Rate (%)', _sdInput('sd-wo-tax', ws.defaultTaxRate || 0, 'number')),
-      ].join('')) +
-      _sdSection('Notifications', [
-        _sdToggleRow('Send SMS when tech is assigned', 'sd-wo-sms', s.woSmsOnAssign !== false),
-      ].join('')) +
-      _sdMasterLink('workorders');
+      return _sdSection('💵', 'Default rates', [
+        _sdRow('Default labor rate ($/hr)', _sdInput('sd-wo-labor', ws.defaultLaborRate || 125, 'number')),
+        _sdRow('Default tax rate (%)',       _sdInput('sd-wo-tax',   ws.defaultTaxRate   || 0,   'number')),
+      ]) +
+      _sdSection('🔔', 'Notifications', [
+        _sdToggle('Send SMS when tech is assigned', 'sd-wo-sms', s.woSmsOnAssign !== false),
+      ]);
 
     case 'dispatch':
-      return _sdSection('Notifications', [
-        _sdToggleRow('Send SMS when job is dispatched', 'sd-dp-sms', s.dispatchSmsEnabled !== false),
-        _sdToggleRow('Require confirmation before SMS', 'sd-dp-sms-confirm', s.dispatchSmsConfirm !== false),
-      ].join('')) +
-      _sdSection('Board Defaults', [
-        _sdRow('Default Pool Filter', _sdSelect('sd-dp-filter', [
-          {v:'all',        l:'All Work'},
-          {v:'needs_tech', l:'⚠ Needs a Tech'},
+      return _sdSection('💬', 'SMS notifications', [
+        _sdToggle('Send SMS when job is dispatched',    'sd-dp-sms',         s.dispatchSmsEnabled !== false),
+        _sdToggle('Require confirmation before sending','sd-dp-sms-confirm', s.dispatchSmsConfirm !== false),
+      ]) +
+      _sdSection('🗂', 'Board defaults', [
+        _sdRow('Default pool filter', _sdSelect('sd-dp-filter', [
+          {v:'all',        l:'All work'},
+          {v:'needs_tech', l:'⚠ Needs a tech'},
           {v:'scheduled',  l:'Scheduled'},
         ], s.dispatchDefaultFilter || 'all')),
-      ].join('')) +
-      _sdMasterLink('company');
+      ]);
 
     case 'team':
-      return _sdSection('SMS Notifications', [
-        _sdToggleRow('SMS enabled for new team members by default', 'sd-tm-sms-default', s.teamSmsDefault !== false),
-      ].join('')) +
-      _sdSection('Defaults', [
-        _sdRow('Default Hourly Rate ($/hr)', _sdInput('sd-tm-rate', s.teamDefaultRate || 65, 'number')),
-        _sdRow('Default Role', _sdSelect('sd-tm-role', [
-          {v:'field',    l:'Field Technician'},
-          {v:'lead_tech',l:'Lead Technician'},
-          {v:'helper_tech',l:'Helper'},
+      return _sdSection('💬', 'SMS notifications', [
+        _sdToggle('SMS enabled for new members by default', 'sd-tm-sms-default', s.teamSmsDefault !== false),
+      ]) +
+      _sdSection('👤', 'New member defaults', [
+        _sdRow('Default hourly rate ($/hr)', _sdInput('sd-tm-rate', s.teamDefaultRate || 65, 'number')),
+        _sdRow('Default role', _sdSelect('sd-tm-role', [
+          {v:'field',       l:'Field technician'},
+          {v:'lead_tech',   l:'Lead technician'},
+          {v:'helper_tech', l:'Helper'},
         ], s.teamDefaultRole || 'field')),
-      ].join('')) +
-      _sdMasterLink('roles');
+      ]);
 
     case 'field':
-      return _sdSection('Clock-In', [
-        _sdToggleRow('Enforce geofence (block clock-in if off-site)', 'sd-fi-geofence', s.geofenceEnforce),
-        _sdToggleRow('Auto-detect job site arrivals', 'sd-fi-autodetect', s.autoDetectArrivals),
-        _sdRow('Clock-In Reminder Time', _sdInput('sd-fi-reminder', s.clockInReminderTime || '', 'time')),
-      ].join('')) +
-      _sdSection('Office Location', [
-        _sdRow('Office Address', _sdInput('sd-fi-addr', s.officeAddr || '', 'text', '123 Main St, City, NC')),
-      ].join('')) +
-      _sdMasterLink('company');
+      return _sdSection('📍', 'Clock-in rules', [
+        _sdToggle('Enforce geofence (block if off-site)', 'sd-fi-geofence',   s.geofenceEnforce),
+        _sdToggle('Auto-detect job site arrivals',         'sd-fi-autodetect', s.autoDetectArrivals),
+        _sdRow('Clock-in reminder time', _sdInput('sd-fi-reminder', s.clockInReminderTime || '', 'time')),
+      ]) +
+      _sdSection('🏢', 'Office location', [
+        _sdRow('Office address', _sdInput('sd-fi-addr', s.officeAddr || '', 'text', '123 Main St, Asheboro, NC')),
+      ]);
 
     case 'inventory':
-      return _sdSection('Low Stock Alerts', [
-        _sdToggleRow('Warn when item falls below minimum quantity', 'sd-inv-warn', s.invLowStockWarn !== false),
-      ].join('')) +
-      _sdSection('Notes', [
-        _sdRow('Inventory Notes (shown on checkout screen)',
-          '<textarea id="sd-inv-notes" rows="3">' + (s.invNotes || '') + '</textarea>'),
-      ].join('')) +
-      _sdMasterLink('inventory');
+      return _sdSection('⚠️', 'Low stock alerts', [
+        _sdToggle('Warn when item falls below minimum quantity', 'sd-inv-warn', s.invLowStockWarn !== false),
+      ]) +
+      _sdSection('📝', 'Notes', [
+        _sdRow('Inventory notes (shown on checkout screen)',
+          '<textarea id="sd-inv-notes" rows="3">' + (s.invNotes || '').replace(/</g,'&lt;') + '</textarea>'),
+      ]);
 
     case 'recurring':
-      return _sdSection('Billing Defaults', [
-        _sdRow('Default Billing Cycle', _sdSelect('sd-rc-cycle', [
+      return _sdSection('📆', 'Billing defaults', [
+        _sdRow('Default billing cycle', _sdSelect('sd-rc-cycle', [
           {v:'monthly',   l:'Monthly'},
           {v:'quarterly', l:'Quarterly'},
           {v:'annually',  l:'Annually'},
         ], s.rcDefaultCycle || 'monthly')),
-        _sdRow('Default Delivery Method', _sdSelect('sd-rc-delivery', [
+        _sdRow('Default delivery method', _sdSelect('sd-rc-delivery', [
           {v:'email',  l:'Email'},
           {v:'print',  l:'Print'},
           {v:'manual', l:'Manual'},
         ], s.rcDefaultDelivery || 'email')),
-        _sdRow('Default Billing Day of Month', _sdInput('sd-rc-day', s.rcDefaultBillingDay || 1, 'number')),
-      ].join('')) +
-      _sdSection('Auto-Renew', [
-        _sdToggleRow('Auto-renew contracts by default', 'sd-rc-autorenew', s.rcAutoRenewDefault !== false),
-      ].join('')) +
-      _sdMasterLink('company');
+        _sdRow('Default billing day of month', _sdInput('sd-rc-day', s.rcDefaultBillingDay || 1, 'number')),
+      ]) +
+      _sdSection('🔄', 'Auto-renew', [
+        _sdToggle('Auto-renew contracts by default', 'sd-rc-autorenew', s.rcAutoRenewDefault !== false),
+      ]);
 
     case 'customers':
-      return _sdSection('Defaults', [
-        _sdRow('Default Payment Terms', _sdInput('sd-cu-terms', s.payTerms || 'Net 30')),
-        _sdRow('Follow-Up Reminder (days)', _sdInput('sd-cu-followup', s.followupDays || 7, 'number')),
-      ].join('')) +
-      _sdMasterLink('company');
+      return _sdSection('📋', 'Defaults', [
+        _sdRow('Default payment terms',     _sdInput('sd-cu-terms',    s.payTerms     || 'Net 30')),
+        _sdRow('Follow-up reminder (days)', _sdInput('sd-cu-followup', s.followupDays || 7, 'number')),
+      ]);
 
     default:
-      return '<div class="sdrawer-section" style="color:#90a4ae;font-size:13px">No settings available for this module.</div>';
+      return '<div class="sdrawer-section" style="color:#90a4ae;font-size:13px">No settings available.</div>';
   }
 }
 
-// ── SAVE HANDLERS ────────────────────────────────────────────────────────────
+// ── Save handlers ─────────────────────────────────────────────────────────────
 function _saveDrawerQuotes() {
   DB.settings = Object.assign({}, DB.settings, {
-    laborRate:        parseFloat(_sdGv('sd-q-labor'))  || 100,
-    targetMargin:     parseFloat(_sdGv('sd-q-margin')) || 35,
-    taxRate:          parseFloat(_sdGv('sd-q-tax'))    || 0,
-    validDays:        parseInt(_sdGv('sd-q-valid'))    || 30,
-    payTerms:         _sdGv('sd-q-terms')              || 'Net 30',
-    followupDays:     parseInt(_sdGv('sd-q-followup')) || 7,
-    perDiemMarkup:    parseFloat(_sdGv('sd-q-perdiem'))|| 0,
-    quoteDefaultSort: _sdGv('sd-q-sort')               || 'num-desc',
+    laborRate:        parseFloat(_sdGv('sd-q-labor'))   || 100,
+    targetMargin:     parseFloat(_sdGv('sd-q-margin'))  || 35,
+    taxRate:          parseFloat(_sdGv('sd-q-tax'))     || 0,
+    validDays:        parseInt(_sdGv('sd-q-valid'))     || 30,
+    payTerms:         _sdGv('sd-q-terms')               || 'Net 30',
+    followupDays:     parseInt(_sdGv('sd-q-followup'))  || 7,
+    perDiemMarkup:    parseFloat(_sdGv('sd-q-perdiem')) || 0,
+    quoteDefaultSort: _sdGv('sd-q-sort')                || 'num-desc',
   });
-  saveDB();
-  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
-  showToast('Quotes settings saved ✓', 'success');
-  closeSettingsDrawer();
+  saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  showToast('Quotes settings saved ✓','success'); closeSettingsDrawer();
 }
 
 function _saveDrawerWorkOrders() {
   if (!DB.woSettings) DB.woSettings = {};
   DB.woSettings.defaultLaborRate = parseFloat(_sdGv('sd-wo-labor')) || 125;
   DB.woSettings.defaultTaxRate   = parseFloat(_sdGv('sd-wo-tax'))   || 0;
-  DB.settings = Object.assign({}, DB.settings, {
-    woSmsOnAssign: _sdCv('sd-wo-sms'),
-  });
-  saveDB();
-  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
-  showToast('Work Orders settings saved ✓', 'success');
-  closeSettingsDrawer();
+  DB.settings = Object.assign({}, DB.settings, { woSmsOnAssign: _sdCv('sd-wo-sms') });
+  saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  showToast('Work orders settings saved ✓','success'); closeSettingsDrawer();
 }
 
 function _saveDrawerDispatch() {
   DB.settings = Object.assign({}, DB.settings, {
-    dispatchSmsEnabled:     _sdCv('sd-dp-sms'),
-    dispatchSmsConfirm:     _sdCv('sd-dp-sms-confirm'),
-    dispatchDefaultFilter:  _sdGv('sd-dp-filter') || 'all',
+    dispatchSmsEnabled:    _sdCv('sd-dp-sms'),
+    dispatchSmsConfirm:    _sdCv('sd-dp-sms-confirm'),
+    dispatchDefaultFilter: _sdGv('sd-dp-filter') || 'all',
   });
-  saveDB();
-  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
-  showToast('Dispatch settings saved ✓', 'success');
-  closeSettingsDrawer();
+  saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  showToast('Dispatch settings saved ✓','success'); closeSettingsDrawer();
 }
 
 function _saveDrawerTeam() {
@@ -1588,10 +1590,8 @@ function _saveDrawerTeam() {
     teamDefaultRate: parseFloat(_sdGv('sd-tm-rate')) || 65,
     teamDefaultRole: _sdGv('sd-tm-role') || 'field',
   });
-  saveDB();
-  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
-  showToast('Team settings saved ✓', 'success');
-  closeSettingsDrawer();
+  saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  showToast('Team settings saved ✓','success'); closeSettingsDrawer();
 }
 
 function _saveDrawerField() {
@@ -1601,10 +1601,8 @@ function _saveDrawerField() {
     clockInReminderTime: _sdGv('sd-fi-reminder') || '',
     officeAddr:          _sdGv('sd-fi-addr')     || '',
   });
-  saveDB();
-  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
-  showToast('Time Clock settings saved ✓', 'success');
-  closeSettingsDrawer();
+  saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  showToast('Time clock settings saved ✓','success'); closeSettingsDrawer();
 }
 
 function _saveDrawerInventory() {
@@ -1612,10 +1610,8 @@ function _saveDrawerInventory() {
     invLowStockWarn: _sdCv('sd-inv-warn'),
     invNotes:        _sdGv('sd-inv-notes') || '',
   });
-  saveDB();
-  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
-  showToast('Inventory settings saved ✓', 'success');
-  closeSettingsDrawer();
+  saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  showToast('Inventory settings saved ✓','success'); closeSettingsDrawer();
 }
 
 function _saveDrawerRecurring() {
@@ -1625,10 +1621,8 @@ function _saveDrawerRecurring() {
     rcDefaultBillingDay: parseInt(_sdGv('sd-rc-day')) || 1,
     rcAutoRenewDefault:  _sdCv('sd-rc-autorenew'),
   });
-  saveDB();
-  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
-  showToast('Managed Services settings saved ✓', 'success');
-  closeSettingsDrawer();
+  saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  showToast('Managed services settings saved ✓','success'); closeSettingsDrawer();
 }
 
 function _saveDrawerCustomers() {
@@ -1636,8 +1630,6 @@ function _saveDrawerCustomers() {
     payTerms:     _sdGv('sd-cu-terms')              || 'Net 30',
     followupDays: parseInt(_sdGv('sd-cu-followup')) || 7,
   });
-  saveDB();
-  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
-  showToast('Customer settings saved ✓', 'success');
-  closeSettingsDrawer();
+  saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  showToast('Customer settings saved ✓','success'); closeSettingsDrawer();
 }
