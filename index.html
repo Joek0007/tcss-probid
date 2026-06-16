@@ -542,23 +542,46 @@ body.dark-mode .dash-stat-val{color:#e0e0e0!important}
 .cust-summary-tile.orange{border-color:#ffb74d;background:#fff8f0}
 .cust-summary-val{font-size:20px;font-weight:900;color:#0d1b2a}
 .cust-summary-lbl{font-size:10px;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;font-weight:700}
-.cust-card{display:grid;grid-template-columns:2fr 1.1fr 1.4fr 0.8fr 0.8fr auto;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #f0f0f0;transition:background .1s}
+.cust-card{display:grid;grid-template-columns:2fr 1.3fr 1.6fr 0.9fr auto;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid #f0f0f0;transition:background .1s}
 .cust-card:last-child{border-bottom:none}
 .cust-card:hover{background:#f8f9fa}
 .cust-card-name{font-weight:700;font-size:14px;color:#1565c0;cursor:pointer}
 .cust-card-name:hover{text-decoration:underline}
 .cust-card-sub{font-size:11px;color:#90a4ae;margin-top:2px}
-.cust-phone-link{color:#0d1b2a;text-decoration:none;font-size:13px}
+.cust-alert-pill{display:inline-flex;align-items:center;gap:4px;background:#fff3e0;border:1px solid #ffcc80;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;color:#e65100;margin-top:5px;cursor:pointer}
+.cust-alert-pill:hover{background:#ffe0b2}
+.cust-phone-link{color:#0d1b2a;text-decoration:none;font-size:12px}
 .cust-phone-link:hover{color:#1565c0;text-decoration:underline}
-.cust-activity-badges{display:flex;flex-wrap:wrap;gap:4px}
-.cust-badge{display:inline-flex;align-items:center;gap:3px;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700}
-.cust-badge.quotes{background:#e3f2fd;color:#1565c0}
-.cust-badge.jobs{background:#e8f5e9;color:#2e7d32}
-.cust-badge.contacts{background:#f3e5f5;color:#6a1b9a}
-.cust-won{font-weight:800;font-size:13px;color:#2e7d32}
+.cust-inv-email-present{display:flex;align-items:center;gap:6px;margin-top:6px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:7px;padding:5px 8px}
+.cust-inv-email-present-inner{display:flex;flex-direction:column}
+.cust-inv-email-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#2e7d32}
+.cust-inv-email-addr{font-size:11px;color:#1b5e20;font-weight:600}
+.cust-inv-email-missing{display:flex;align-items:center;gap:6px;margin-top:6px;background:#fff8e1;border:1.5px dashed #ffb300;border-radius:7px;padding:5px 8px;cursor:pointer;transition:background .15s}
+.cust-inv-email-missing:hover{background:#fff3cd}
+.cust-inv-email-missing-inner{display:flex;flex-direction:column}
+.cust-inv-email-missing-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#e65100}
+.cust-inv-email-missing-cta{font-size:11px;color:#e65100;font-weight:600}
+/* Activity column */
+.cust-act-col{display:flex;flex-direction:column;gap:3px}
+.cust-act-header{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-bottom:2px}
+.cust-act-col-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#90a4ae;min-width:22px;text-align:center}
+.cust-act-row{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.cust-act-label{font-size:11px;color:#546e7a;white-space:nowrap}
+.cust-act-bubbles{display:flex;align-items:center;gap:3px}
+.cust-bubble{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:18px;padding:0 6px;border-radius:9px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid transparent;transition:all .15s;line-height:1}
+.cust-bubble:hover{filter:brightness(.88);transform:scale(1.1)}
+.cust-bubble.open.q{background:#e3f2fd;color:#0c447c;border-color:#b5d4f4}
+.cust-bubble.open.j{background:#e8f5e9;color:#27500a;border-color:#c0dd97}
+.cust-bubble.open.wo{background:#f3e5f5;color:#3c3489;border-color:#afa9ec}
+.cust-bubble.open.inv{background:#fff3e0;color:#633806;border-color:#fac775}
+.cust-bubble.open.ct{background:#fce4ec;color:#880e4f;border-color:#f48fb1}
+.cust-bubble.tot{background:#f5f5f5;color:#90a4ae;border-color:#e0e0e0}
+.cust-bubble.tot:hover{background:#eeeeee;color:#546e7a}
+.cust-act-sep{font-size:10px;color:#c0c0c0}
+.cust-won{font-weight:800;font-size:14px;color:#2e7d32}
 .cust-won.zero{color:#90a4ae;font-weight:400;font-size:13px}
 .cust-actions{display:flex;gap:4px;flex-shrink:0}
-.cust-col-header{display:grid;grid-template-columns:2fr 1.1fr 1.4fr 0.8fr 0.8fr auto;gap:12px;padding:8px 14px;border-bottom:2px solid #e8e8e8;background:#f8f9fa;border-radius:8px 8px 0 0}
+.cust-col-header{display:grid;grid-template-columns:2fr 1.3fr 1.6fr 0.9fr auto;gap:12px;padding:8px 16px;border-bottom:2px solid #e8e8e8;background:#f8f9fa;border-radius:8px 8px 0 0}
 .cust-col-header span{font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none}
 .cust-col-header span:hover{color:#1565c0}
 @media(max-width:768px){
@@ -5692,7 +5715,20 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       </div></div>
       <div class="form-row"><div><label>Notes</label><textarea id="m-cnotes" rows="2"></textarea></div></div>
       <div class="form-row"><div><label>⚡ Tech Hot Note <span style="font-size:11px;color:#e65100">(Pops up for field techs on every work order)</span></label><textarea id="m-c-hotnote-tech" rows="2" placeholder="e.g. Always call site manager before arriving. Access code: 4521"></textarea></div></div>
-      <div class="form-row"><div><label>🏢 Office Hot Note <span style="font-size:11px;color:#1565c0">(Pops up for office only when creating a new work order)</span></label><textarea id="m-c-hotnote-office" rows="2" placeholder="e.g. Net 30 terms. Always get PO number before dispatching."></textarea></div></div>
+      <div class="form-row"><div>
+        <label>🏢 Office Alert <span style="font-size:11px;color:#1565c0">(Pops up for office staff — choose which modules below)</span></label>
+        <textarea id="m-c-hotnote-office" rows="2" placeholder="e.g. Net 30 terms. Always get PO number before dispatching. Credit hold — 50% deposit required."></textarea>
+        <div style="margin-top:8px;padding:10px 12px;background:#e3f2fd;border-radius:8px;border-left:3px solid #1565c0">
+          <div style="font-size:10px;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Show alert when opening:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:10px">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="m-calert-quotes" style="accent-color:#1565c0"> 📋 Quotes</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="m-calert-workorders" style="accent-color:#1565c0"> 🔨 Work Orders</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="m-calert-invoices" style="accent-color:#1565c0"> 🧾 Invoices</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="m-calert-customers" style="accent-color:#1565c0"> 👥 Customer Profile</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="m-calert-dispatch" style="accent-color:#1565c0"> 🗂 Dispatch</label>
+          </div>
+        </div>
+      </div></div>
       <input type="hidden" id="m-cid">
     </div>
     <div class="modal-foot">

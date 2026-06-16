@@ -6644,6 +6644,16 @@ function selectCustomer(id) {
   var zipEl=document.getElementById('qq-zip');     if(zipEl&&!zipEl.value) zipEl.value=cust.zip||'';
   var ptEl=document.getElementById('qq-pt');       if(ptEl&&cust.defaultTerms) ptEl.value=cust.defaultTerms;
   closeCustomerDropdown();
+  // Fire office alert if scoped to quotes
+  var isOffice = typeof _currentUser!=='undefined'&&_currentUser&&['owner','manager','back_office','estimator'].includes(_currentUser.role);
+  if (isOffice && cust.hotNoteOffice) {
+    var scope = cust.officeAlertScope || {quotes:true,workorders:true};
+    if (scope.quotes !== false) {
+      if (typeof _showHotNotesQueue === 'function') {
+        _showHotNotesQueue([{ title:'🏢 Office Alert — '+escHtml(cust.name), body:cust.hotNoteOffice, icon:'🏢', ackKey:null }]);
+      }
+    }
+  }
   // Clear old contact selection
   var ctEl=document.getElementById('qq-contact-name');
   var ctIdEl=document.getElementById('qq-contact-id');

@@ -2264,20 +2264,32 @@ function renderCustomers() {
   var filter  = (document.getElementById('cust-filter')||{}).value||'';
   var sl      = search.toLowerCase();
 
-  // Build enriched customer list
-  var customers = DB.customers.map(function(c){
-    var qct    = DB.quotes.filter(function(q){ return q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase(); });
-    var jct    = (typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[])).filter(function(j){ return (j.customerId===c.id||(j.customer||j.customerName||'').toLowerCase()===(c.name||'').toLowerCase()); });
-    var cct    = DB.contacts.filter(function(x){ return x.customerId===c.id; });
+  var allWOs   = DB.workOrders || [];
+  var invoices = (DB.commsLog||[]).filter(function(x){ return x.type==='invoice'; });
+
+  var customers = DB.customers.map(function(c) {
+    var qct  = DB.quotes.filter(function(q){ return q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase(); });
+    var jct  = (typeof _getActiveWOsAsJobs==='function'?_getActiveWOsAsJobs():(DB.jobs||[])).filter(function(j){ return (j.customerId===c.id||(j.customer||j.customerName||'').toLowerCase()===(c.name||'').toLowerCase()); });
+    var woct = allWOs.filter(function(w){ return w.customerId===c.id||(w.customerName||'').toLowerCase()===(c.name||'').toLowerCase(); });
+    var invct= invoices.filter(function(i){ return i.customerId===c.id||(i.customerName||'').toLowerCase()===(c.name||'').toLowerCase(); });
+    var cct  = DB.contacts.filter(function(x){ return x.customerId===c.id; });
     var wonRev = qct.filter(function(q){ return q.status==='approved'; }).reduce(function(s,q){ return s+(q.total||0); }, 0);
-    return Object.assign({}, c, {_qct:qct.length, _jct:jct.length, _cct:cct.length, _wonRev:wonRev});
+
+    var closedQ = ['approved','rejected','archived','won','lost'];
+    var qOpen   = qct.filter(function(q){ return !closedQ.includes(q.status); }).length;
+    var jOpen   = jct.filter(function(j){ return j.status!=='complete'&&j.status!=='closed'; }).length;
+    var woDefs  = (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length)?DB.woSettings.statuses:(typeof WO_STATUSES!=='undefined'?WO_STATUSES:[]);
+    var woOpen  = woct.filter(function(w){ var d=woDefs.find(function(s){ return s.id===w.status; }); return d?d.open:true; }).length;
+    var invOpen = invct.filter(function(i){ return !i.paidAt&&!i.paid; }).length;
+
+    return Object.assign({},c,{_qct:qct.length,_qOpen:qOpen,_jct:jct.length,_jOpen:jOpen,_woct:woct.length,_woOpen:woOpen,_invct:invct.length,_invOpen:invOpen,_cct:cct.length,_wonRev:wonRev});
   });
 
   // Summary strip
-  var totalWon   = customers.reduce(function(s,c){ return s+c._wonRev; }, 0);
-  var totalQ     = customers.reduce(function(s,c){ return s+c._qct; }, 0);
-  var totalJ     = customers.reduce(function(s,c){ return s+c._jct; }, 0);
-  var totalCont  = customers.reduce(function(s,c){ return s+c._cct; }, 0);
+  var totalWon  = customers.reduce(function(s,c){ return s+c._wonRev; },0);
+  var totalQ    = customers.reduce(function(s,c){ return s+c._qct; },0);
+  var totalJ    = customers.reduce(function(s,c){ return s+c._jct; },0);
+  var totalCont = customers.reduce(function(s,c){ return s+c._cct; },0);
   function setS(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
   setS('cs-total',    customers.length);
   setS('cs-won',      '$'+Math.round(totalWon).toLocaleString());
@@ -2285,21 +2297,17 @@ function renderCustomers() {
   setS('cs-jobs',     totalJ);
   setS('cs-contacts', totalCont);
 
-  // Search
   if (sl) customers = customers.filter(function(c){
     return (c.name||'').toLowerCase().includes(sl)||
            (c.phone||'').toLowerCase().includes(sl)||
            (c.email||'').toLowerCase().includes(sl)||
            (c.address||'').toLowerCase().includes(sl);
   });
-
-  // Filter
   if (filter==='active')     customers = customers.filter(function(c){ return c._qct>0; });
   if (filter==='won')        customers = customers.filter(function(c){ return c._wonRev>0; });
   if (filter==='jobs')       customers = customers.filter(function(c){ return c._jct>0; });
   if (filter==='no-contact') customers = customers.filter(function(c){ return c._cct===0; });
 
-  // Sort
   customers.sort(function(a,b){
     if (sort==='name-asc')    return (a.name||'').localeCompare(b.name||'');
     if (sort==='name-desc')   return (b.name||'').localeCompare(a.name||'');
@@ -2313,66 +2321,65 @@ function renderCustomers() {
   if (!el) return;
 
   if (!customers.length) {
-    el.innerHTML = '<div style="padding:40px;text-align:center;color:#90a4ae">'+
-      (search||filter?'No customers match your search.':'No customers yet. Click + New Customer to add one.')+
-    '</div>';
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#90a4ae">'+(search||filter?'No customers match your search.':'No customers yet. Click + New Customer to add one.')+'</div>';
     return;
   }
 
-  // Column headers
   var header = '<div class="cust-col-header">'+
     '<span onclick="setCustSort(\'name-asc\')">Customer '+(sort==='name-asc'?'▲':sort==='name-desc'?'▼':'')+'</span>'+
-    '<span onclick="setCustSort(\'name-asc\')">Phone / Email</span>'+
-    '<span>Address</span>'+
-    '<span onclick="setCustSort(\'quotes-desc\')">Activity</span>'+
+    '<span>Contact Info</span>'+
+    '<span>Activity <span style="font-weight:400;opacity:.6;font-size:9px">(open / total)</span></span>'+
     '<span onclick="setCustSort(\'won-desc\')">Won Rev '+(sort==='won-desc'?'▼':'')+'</span>'+
     '<span>Actions</span>'+
   '</div>';
 
-  var rows = customers.map(function(c){
-    var phone = c.phone||'';
-    var email = c.email||'';
-    var phoneHtml = phone
-      ? '<a href="tel:'+escHtml(phone)+'" class="cust-phone-link">'+escHtml(phone)+'</a>'
+  function mkBubbles(open, total, cls, page, custName) {
+    var nav = 'goPage(\''+page+'\');setTimeout(function(){var s=document.getElementById(\'cust-search\');if(s){s.value=\''+custName.replace(/'/g,'')+'\';if(typeof renderCustomers===\'function\')renderCustomers();}},300)';
+    return '<span class="cust-bubble open '+cls+'" onclick="'+nav+'" title="Open '+page+'">'+open+'</span>'+
+           '<span class="cust-act-sep">/</span>'+
+           '<span class="cust-bubble tot" onclick="'+nav+'" title="All '+page+'">'+total+'</span>';
+  }
+
+  var rows = customers.map(function(c) {
+    var phoneHtml = c.phone
+      ? '<a href="tel:'+escHtml(c.phone)+'" class="cust-phone-link">'+escHtml(c.phone)+'</a>'
       : '<span style="color:#d0d0d0;font-size:12px">—</span>';
-    var emailHtml = email
-      ? '<a href="mailto:'+escHtml(email)+'" class="cust-phone-link" style="font-size:11px;color:#546e7a">'+escHtml(email)+'</a>'
+    var emailHtml = c.email
+      ? '<div style="margin-top:1px"><a href="mailto:'+escHtml(c.email)+'" class="cust-phone-link" style="font-size:11px;color:#546e7a">'+escHtml(c.email)+'</a></div>'
       : '';
 
-    var activityHtml = '<div class="cust-activity-badges">'+
-      (c._qct>0?'<span class="cust-badge quotes">📋 '+c._qct+'</span>':'')+
-      (c._jct>0?'<span class="cust-badge jobs">🔧 '+c._jct+'</span>':'')+
-      (c._cct>0?'<span class="cust-badge contacts">👤 '+c._cct+'</span>':'')+
-      (!c._qct&&!c._jct&&!c._cct?'<span style="color:#d0d0d0;font-size:12px">No activity</span>':'')+
-    '</div>';
+    var invEmailHtml = c.invoicingEmail
+      ? '<div class="cust-inv-email-present"><span style="color:#2e7d32;font-size:13px;flex-shrink:0">📄</span><div class="cust-inv-email-present-inner"><span class="cust-inv-email-label">Invoicing email</span><span class="cust-inv-email-addr">'+escHtml(c.invoicingEmail)+'</span></div></div>'
+      : '<div class="cust-inv-email-missing" onclick="var btn=document.querySelector(\'[data-action=editCustomer][data-id=\\\"'+c.id+'\\\"]\');if(btn)btn.click()"><span style="color:#f57f17;font-size:13px;flex-shrink:0">⚠️</span><div class="cust-inv-email-missing-inner"><span class="cust-inv-email-missing-label">Invoicing email</span><span class="cust-inv-email-missing-cta">Not set — click to add</span></div></div>';
+
+    var alertPill = (c.hotNoteOffice||c.hotNoteTech)
+      ? '<div class="cust-alert-pill" onclick="openCustomerProfile(\''+c.id+'\')">⚠ Alert</div>'
+      : '';
+
+    var lastQ = DB.quotes.filter(function(q){ return q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase(); })
+      .sort(function(a,b){ return (b.dt||'').localeCompare(a.dt||''); })[0];
+    var lastActivity = lastQ ? 'Last quote: '+escHtml(lastQ.dt||'') : '';
+
+    var n = escHtml(c.name||'');
+    var actCol =
+      '<div class="cust-act-col">'+
+        '<div class="cust-act-header"><div style="flex:1"></div><div class="cust-act-col-lbl" style="color:#1565c0">Open</div><div style="width:10px"></div><div class="cust-act-col-lbl">Total</div></div>'+
+        '<div class="cust-act-row"><span class="cust-act-label">📋 Quotes</span><div class="cust-act-bubbles">'+mkBubbles(c._qOpen,c._qct,'q','quotes',c.name||'')+'</div></div>'+
+        '<div class="cust-act-row"><span class="cust-act-label">🔧 Jobs</span><div class="cust-act-bubbles">'+mkBubbles(c._jOpen,c._jct,'j','jobs',c.name||'')+'</div></div>'+
+        '<div class="cust-act-row"><span class="cust-act-label">🔨 Work Orders</span><div class="cust-act-bubbles">'+mkBubbles(c._woOpen,c._woct,'wo','workorders',c.name||'')+'</div></div>'+
+        '<div class="cust-act-row"><span class="cust-act-label">🧾 Invoices</span><div class="cust-act-bubbles">'+mkBubbles(c._invOpen,c._invct,'inv','invoices',c.name||'')+'</div></div>'+
+        '<div class="cust-act-row"><span class="cust-act-label">👤 Contacts</span><div class="cust-act-bubbles">'+mkBubbles(c._cct,c._cct,'ct','contacts',c.name||'')+'</div></div>'+
+      '</div>';
 
     var wonHtml = c._wonRev>0
       ? '<span class="cust-won">$'+Math.round(c._wonRev).toLocaleString()+'</span>'
       : '<span class="cust-won zero">$0</span>';
 
-    var lastActivity = '';
-    var lastQ = DB.quotes.filter(function(q){ return q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase(); })
-      .sort(function(a,b){ return (b.dt||'').localeCompare(a.dt||''); })[0];
-    if (lastQ) lastActivity = 'Last quote: '+escHtml(lastQ.dt||'');
-
     return '<div class="cust-card">'+
-      // Name + last activity
-      '<div>'+
-        '<div class="cust-card-name" onclick="openCustomerProfile(\''+c.id+'\')">'+escHtml(c.name||'')+'</div>'+
-        (lastActivity?'<div class="cust-card-sub">'+lastActivity+'</div>':'')+
-      '</div>'+
-      // Phone + email
-      '<div>'+
-        '<div>'+phoneHtml+'</div>'+
-        '<div class="cust-card-email">'+emailHtml+'</div>'+
-      '</div>'+
-      // Address
-      '<div style="font-size:12px;color:#546e7a;line-height:1.4">'+escHtml(c.address||'')+'</div>'+
-      // Activity badges
-      '<div>'+activityHtml+'</div>'+
-      // Won revenue
+      '<div><div class="cust-card-name" onclick="openCustomerProfile(\''+c.id+'\')">'+n+'</div>'+(lastActivity?'<div class="cust-card-sub">'+lastActivity+'</div>':'')+alertPill+'</div>'+
+      '<div><div>'+phoneHtml+'</div>'+emailHtml+invEmailHtml+'</div>'+
+      actCol+
       '<div>'+wonHtml+'</div>'+
-      // Actions
       '<div class="cust-actions">'+
         '<button class="btn btn-primary btn-sm" onclick="openCustomerProfile(\''+c.id+'\')" title="View profile">Profile</button>'+
         '<button class="btn btn-outline btn-sm" data-action="editCustomer" data-id="'+c.id+'" title="Edit">✏</button>'+
@@ -2383,7 +2390,6 @@ function renderCustomers() {
 
   el.innerHTML = header + rows;
 }
-
 function setCustSort(val) {
   var sel = document.getElementById('cust-sort');
   if (sel) sel.value = val;
@@ -2414,6 +2420,11 @@ function editCustomer(id) {
   var taxEl=document.getElementById(c.taxExempt?'m-ctax-exempt':'m-ctax-taxable'); if(taxEl) taxEl.checked=true;
   var htEl=document.getElementById('m-c-hotnote-tech');   if(htEl) htEl.value=c.hotNoteTech||'';
   var hoEl=document.getElementById('m-c-hotnote-office'); if(hoEl) hoEl.value=c.hotNoteOffice||'';
+  // Load alert scope checkboxes
+  var scopes = c.officeAlertScope || {quotes:true,workorders:true,invoices:false,customers:false,dispatch:false};
+  ['quotes','workorders','invoices','customers','dispatch'].forEach(function(k){
+    var cb=document.getElementById('m-calert-'+k); if(cb) cb.checked=!!scopes[k];
+  });
   openModal('modal-customer');
 }
 function _buildCustomerData(id) {
@@ -2436,7 +2447,14 @@ function _buildCustomerData(id) {
     hotNoteTech:      (document.getElementById('m-c-hotnote-tech')||{}).value||'',
     hotNoteOffice:    (document.getElementById('m-c-hotnote-office')||{}).value||'',
     invoicingContact: gv('m-cinvoicing-contact'),
-    invoicingEmail:   gv('m-cinvoicing-email')
+    invoicingEmail:   gv('m-cinvoicing-email'),
+    officeAlertScope: {
+      quotes:      !!((document.getElementById('m-calert-quotes')||{}).checked),
+      workorders:  !!((document.getElementById('m-calert-workorders')||{}).checked),
+      invoices:    !!((document.getElementById('m-calert-invoices')||{}).checked),
+      customers:   !!((document.getElementById('m-calert-customers')||{}).checked),
+      dispatch:    !!((document.getElementById('m-calert-dispatch')||{}).checked),
+    }
   };
 }
 function saveCustomer() {
