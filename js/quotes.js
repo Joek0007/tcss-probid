@@ -2258,6 +2258,10 @@ function buildInvoiceHTML(inv) {
 }
 
 // ---- RENDER CUSTOMERS ----
+function _openEditForInvEmail(custId) {
+  editCustomer(custId);
+}
+
 function renderCustomers() {
   var search  = ((document.getElementById('cust-search')||{}).value||'').trim();
   var sort    = (document.getElementById('cust-sort')||{}).value||'name-asc';
@@ -2350,7 +2354,7 @@ function renderCustomers() {
 
     var invEmailHtml = c.invoicingEmail
       ? '<div class="cust-inv-email-present"><span style="color:#2e7d32;font-size:13px;flex-shrink:0">📄</span><div class="cust-inv-email-present-inner"><span class="cust-inv-email-label">Invoicing email</span><span class="cust-inv-email-addr">'+escHtml(c.invoicingEmail)+'</span></div></div>'
-      : '<div class="cust-inv-email-missing" onclick="var btn=document.querySelector(\'[data-action=editCustomer][data-id=\\\"'+c.id+'\\\"]\');if(btn)btn.click()"><span style="color:#f57f17;font-size:13px;flex-shrink:0">⚠️</span><div class="cust-inv-email-missing-inner"><span class="cust-inv-email-missing-label">Invoicing email</span><span class="cust-inv-email-missing-cta">Not set — click to add</span></div></div>';
+      : '<div class="cust-inv-email-missing" onclick="_openEditForInvEmail(\'' + c.id + '\')"><span style="color:#f57f17;font-size:13px;flex-shrink:0">⚠️</span><div class="cust-inv-email-missing-inner"><span class="cust-inv-email-missing-label">Invoicing email</span><span class="cust-inv-email-missing-cta">Not set — click to add</span></div></div>';
 
     var alertPill = (c.hotNoteOffice||c.hotNoteTech)
       ? '<div class="cust-alert-pill" onclick="openCustomerProfile(\''+c.id+'\')">⚠ Alert</div>'
