@@ -1138,6 +1138,39 @@ textarea.form-control{resize:vertical;min-height:60px}
 .modal-close:hover{color:#c62828;background:#ffebee}
 /* btn-sm utility */
 .btn-sm{padding:5px 12px;font-size:12px}
+
+/* ── Settings Drawer ─────────────────────────────────────────────────────── */
+#settings-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:3000;display:none;opacity:0;transition:opacity .22s}
+#settings-drawer-overlay.open{display:block;opacity:1}
+#settings-drawer{position:fixed;top:0;right:0;width:400px;max-width:96vw;height:100vh;background:#fff;z-index:3001;box-shadow:-4px 0 32px rgba(0,0,0,.16);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+#settings-drawer.open{transform:translateX(0)}
+#settings-drawer-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:linear-gradient(135deg,#0d1b2a,#1a2744);color:#fff;flex-shrink:0}
+#settings-drawer-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+#settings-drawer-close{background:none;border:none;color:rgba(255,255,255,.7);font-size:22px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1}
+#settings-drawer-close:hover{color:#fff;background:rgba(255,255,255,.1)}
+#settings-drawer-body{flex:1;overflow-y:auto;padding:0}
+#settings-drawer-footer{padding:14px 20px;border-top:1.5px solid #e0e7ef;display:flex;justify-content:flex-end;gap:10px;flex-shrink:0;background:#f9fafb}
+.sdrawer-section{padding:16px 20px;border-bottom:1px solid #f0f2f5}
+.sdrawer-section:last-child{border-bottom:none}
+.sdrawer-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#90a4ae;margin-bottom:12px}
+.sdrawer-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.sdrawer-row:last-child{margin-bottom:0}
+.sdrawer-row label{font-size:12px;font-weight:600;color:#546e7a}
+.sdrawer-row input,.sdrawer-row select,.sdrawer-row textarea{padding:8px 10px;border:1.5px solid #e0e7ef;border-radius:7px;font-size:13px;color:#1a1a2e;background:#fff;width:100%;outline:none;transition:border-color .15s}
+.sdrawer-row input:focus,.sdrawer-row select:focus,.sdrawer-row textarea:focus{border-color:#1565c0}
+.sdrawer-row textarea{resize:vertical;min-height:70px}
+.sdrawer-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
+.sdrawer-toggle-row label{font-size:13px;color:#1a1a2e;font-weight:500}
+.sdrawer-link{font-size:12px;color:#1565c0;cursor:pointer;text-decoration:underline;margin-top:4px;display:inline-block}
+.sdrawer-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+.sdrawer-badge.green{background:#e8f5e9;color:#2e7d32}
+.sdrawer-badge.orange{background:#fff3e0;color:#e65100}
+/* Gear button — consistent across all module page headers */
+.page-settings-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border:1.5px solid #e0e7ef;border-radius:8px;background:#fff;color:#546e7a;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none}
+.page-settings-btn:hover{background:#e3f2fd;border-color:#1565c0;color:#1565c0}
+/* Hide gear from field techs */
+body.role-helper-tech .page-settings-btn{display:none!important}
+body.role-lead-tech .page-settings-btn{display:none!important}
 </style>
 </head>
 <body>
@@ -1159,6 +1192,22 @@ textarea.form-control{resize:vertical;min-height:60px}
 <style>
 @keyframes tc-ring-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
+
+<!-- ── SETTINGS DRAWER ──────────────────────────────────────────────────── -->
+<div id="settings-drawer-overlay" onclick="closeSettingsDrawer()"></div>
+<div id="settings-drawer">
+  <div id="settings-drawer-header">
+    <div id="settings-drawer-title">⚙️ Settings</div>
+    <button id="settings-drawer-close" onclick="closeSettingsDrawer()" title="Close">✕</button>
+  </div>
+  <div id="settings-drawer-body">
+    <!-- Populated dynamically by openSettingsDrawer(module) -->
+  </div>
+  <div id="settings-drawer-footer">
+    <button class="btn btn-outline btn-sm" onclick="closeSettingsDrawer()">Cancel</button>
+    <button class="btn btn-primary btn-sm" id="settings-drawer-save-btn" onclick="saveSettingsDrawer()">💾 Save</button>
+  </div>
+</div>
 
 <!-- VIEW AS BANNER -->
 <div id="view-as-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99990;background:#e65100;color:#fff;padding:8px 20px;font-size:13px;font-weight:700;align-items:center;justify-content:space-between">
@@ -1990,7 +2039,7 @@ textarea.form-control{resize:vertical;min-height:60px}
 
 <!-- QUOTES LIST -->
 <div class="page" id="page-quotes">
-  <div class="page-header"><h2>📋 Quotes</h2>
+  <div class="page-header"><h2>📋 Quotes</h2><button class="page-settings-btn" onclick="openSettingsDrawer('quotes')">⚙️ Settings</button>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline btn-sm" data-action="exportCSV">📥 Export CSV</button>
       <button class="btn btn-primary" data-action="newQuote">+ New Quote</button>
@@ -2110,8 +2159,8 @@ textarea.form-control{resize:vertical;min-height:60px}
   <div class="page-header">
     <h2>🔨 Work Orders</h2>
     <div style="display:flex;gap:8px">
+      <button class="page-settings-btn" onclick="openSettingsDrawer('workorders')">⚙️ Settings</button>
       <button class="btn btn-primary" onclick="openNewWorkOrder()">+ New Work Order</button>
-      <button class="btn btn-outline btn-sm" onclick="goPage('wo-settings')">⚙ WO Settings</button>
     </div>
   </div>
   <!-- Compact filter bar -->
@@ -2284,6 +2333,10 @@ textarea.form-control{resize:vertical;min-height:60px}
 
 <!-- FIELD TIME CLOCK -->
 <div class="page" id="page-field">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 0 16px">
+    <h2 style="font-size:22px;font-weight:700;color:#0d1b2a">⏱ Time Clock</h2>
+    <button class="page-settings-btn" onclick="openSettingsDrawer('field')">⚙️ Settings</button>
+  </div>
   <div class="field-page">
 
     <!-- Clock Card -->
@@ -2660,6 +2713,7 @@ textarea.form-control{resize:vertical;min-height:60px}
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <span id="dispatch-last-refresh" style="font-size:11px;color:#90a4ae"></span>
+      <button class="page-settings-btn" onclick="openSettingsDrawer('dispatch')">⚙️ Settings</button>
       <button class="btn btn-outline btn-sm" onclick="renderDispatchBoard()">↻ Refresh</button>
       <button class="btn btn-primary btn-sm" onclick="openScheduleJobModal()">+ Schedule Job</button>
     </div>
@@ -2980,6 +3034,7 @@ textarea.form-control{resize:vertical;min-height:60px}
 <div class="page" id="page-team">
   <div class="page-header"><h2>👷 Team</h2>
     <div style="display:flex;gap:8px">
+      <button class="page-settings-btn" onclick="openSettingsDrawer('team')">⚙️ Settings</button>
       <button class="btn btn-outline btn-sm" onclick="newTeamMemberV2()">+ Add Member</button>
       <button class="btn btn-primary" onclick="newTeamMemberV2()">✉️ Invite Member</button>
     </div>
@@ -3353,6 +3408,7 @@ textarea.form-control{resize:vertical;min-height:60px}
 <div class="page" id="page-inventory">
   <div class="page-header"><h2>📦 Inventory</h2>
     <div style="display:flex;gap:8px">
+      <button class="page-settings-btn" onclick="openSettingsDrawer('inventory')">⚙️ Settings</button>
       <button class="btn btn-outline btn-sm" onclick="openPriceBookImport()">📥 Import Price Book</button>
       <button class="btn btn-outline btn-sm" onclick="goPage('scanner')">📷 Scanner</button>
       <button class="btn btn-outline btn-sm" data-action="newInventoryItem">+ Add Item</button>
@@ -4628,8 +4684,8 @@ textarea.form-control{resize:vertical;min-height:60px}
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
     <h2 style="font-size:20px;font-weight:700;color:#0d1b2a">&#128260; Managed Services</h2>
     <div style="display:flex;gap:8px">
+      <button class="page-settings-btn" onclick="openSettingsDrawer('recurring')">⚙️ Settings</button>
       <button class="btn btn-outline" onclick="toggleMSInvoiceHistory()">&#128196; Invoice History</button>
-      <button class="btn btn-outline" onclick="toggleMSSettings()">&#9881; Settings</button>
       <button class="btn btn-outline" onclick="openBillingRun()">&#128184; Run Billing</button>
       <button class="btn btn-primary" onclick="openNewRC()">+ New Contract</button>
     </div>
@@ -6640,4 +6696,4 @@ textarea.form-control{resize:vertical;min-height:60px}
 </script>
 
 </body>
-</html>
+</html><!-- PLACEHOLDER - will be replaced -->
