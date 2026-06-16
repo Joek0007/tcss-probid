@@ -36,6 +36,16 @@ function openCustomerProfile(customerId) {
   var overlay = document.getElementById('customer-profile-overlay');
   if (overlay) { overlay.style.display='block'; document.body.style.overflow='hidden'; }
 
+  // Fire customer module alert for office roles — every time
+  var isOffice = typeof _currentUser !== 'undefined' && _currentUser &&
+    ['owner','manager','back_office','estimator'].includes(_currentUser.role);
+  var custAlert = customer.moduleAlerts && customer.moduleAlerts.customer;
+  if (isOffice && custAlert) {
+    if (typeof _showHotNotesQueue === 'function') {
+      _showHotNotesQueue([{ title:'👥 Customer Alert — '+escHtml(customer.name), body:custAlert, icon:'👥' }]);
+    }
+  }
+
   switchCPTab('overview');
 }
 

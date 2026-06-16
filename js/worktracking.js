@@ -6649,7 +6649,7 @@ function selectCustomer(id) {
   var quoteAlert = (cust.moduleAlerts && cust.moduleAlerts.quote) || '';
   if (isOffice && quoteAlert) {
     if (typeof _showHotNotesQueue === 'function') {
-      _showHotNotesQueue([{ title:'📋 Quote Alert — '+escHtml(cust.name), body:quoteAlert, icon:'📋', ackKey:null }]);
+      _showHotNotesQueue([{ title:'📋 Quote Alert — '+escHtml(cust.name), body:quoteAlert, icon:'📋' }]);
     }
   }
   // Clear old contact selection

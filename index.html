@@ -5164,12 +5164,12 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     </div>
   </div>
 </div>
-<div id="hot-notes-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99990;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;max-width:480px;width:90%;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+<div id="hot-notes-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99990;align-items:center;justify-content:center;cursor:pointer" onclick="dismissHotNotes()">
+  <div style="background:#fff;border-radius:16px;max-width:480px;width:90%;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.2);cursor:default" onclick="event.stopPropagation()">
     <div id="hot-notes-icon" style="font-size:32px;margin-bottom:8px;text-align:center">⚡</div>
     <h3 id="hot-notes-title" style="text-align:center;margin-bottom:12px;color:#e65100;font-size:16px;font-weight:800"></h3>
-    <div id="hot-notes-body" style="font-size:14px;line-height:1.7;color:#37474f;white-space:pre-wrap;background:#fff8e1;border-radius:10px;padding:16px;margin-bottom:20px"></div>
-    <button onclick="dismissHotNotes()" style="width:100%;padding:14px;background:#1565c0;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">Got it — Acknowledged ✓</button>
+    <div id="hot-notes-body" style="font-size:14px;line-height:1.7;color:#37474f;white-space:pre-wrap;background:#fff8e1;border-radius:10px;padding:16px;margin-bottom:16px"></div>
+    <div style="text-align:center;font-size:12px;color:#90a4ae">Click anywhere to close</div>
   </div>
 </div>
 

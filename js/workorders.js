@@ -607,25 +607,21 @@ function _checkHotNotes(customerId, woId, isNew) {
   var cust = (DB.customers||[]).find(function(c){ return c.id===customerId; });
   if (!cust) return;
   var isOffice = _currentUser && ['owner','manager','back_office','estimator'].includes(_currentUser.role);
-  var isTech   = _currentUser && (_currentUser.role==='field'||_currentUser.role==='lead_tech');
   var queue = [];
 
-  // Tech hot note — anyone assigned to this WO, role irrelevant
+  // Tech hot note — anyone assigned to this WO sees it, every single time
   var wo = woId && woId !== 'new' ? (DB.workOrders||[]).find(function(w){ return w.id===woId; }) : null;
   var assignedNames = wo ? (wo.assignedTechs||[]).map(function(t){ return typeof t==='string'?t:(t.name||''); }) : [];
   var currentName = _currentUser ? (_currentUser.name||_currentUser.email||'') : '';
   var isAssigned = assignedNames.some(function(n){ return n && currentName && n.toLowerCase()===currentName.toLowerCase(); });
   if (isAssigned && cust.hotNoteTech) {
-    var ackKey = 'hotnote_ack_'+woId;
-    var acked  = isNew ? false : (sessionStorage.getItem(ackKey) === '1');
-    if (!acked) {
-      queue.push({ title:'⚡ Tech Notice — '+escHtml(cust.name), body:cust.hotNoteTech, icon:'⚡', ackKey:ackKey });
-    }
+    queue.push({ title:'⚡ Tech Notice — '+escHtml(cust.name), body:cust.hotNoteTech, icon:'⚡' });
   }
-  // Office alert — moduleAlerts.workorder takes priority, falls back to legacy hotNoteOffice
+
+  // Office alert — fires every time for office roles
   var officeMsg = (cust.moduleAlerts && cust.moduleAlerts.workorder) || (isNew ? cust.hotNoteOffice : null);
   if (isOffice && officeMsg) {
-    queue.push({ title:'🏢 Office Alert — '+escHtml(cust.name), body:officeMsg, icon:'🏢', ackKey:null });
+    queue.push({ title:'🏢 Office Alert — '+escHtml(cust.name), body:officeMsg, icon:'🏢' });
   }
 
   if (queue.length) _showHotNotesQueue(queue);
@@ -646,13 +642,12 @@ function _showNextHotNote() {
   if(popup) popup.style.display='flex';
 }
 function dismissHotNotes() {
-  var item = _hotNotesQueueItems.shift();
-  if (item && item.ackKey) sessionStorage.setItem(item.ackKey, '1');
+  _hotNotesQueueItems.shift();
   var popup = document.getElementById('hot-notes-popup');
   if (_hotNotesQueueItems.length) {
     _showNextHotNote();
   } else {
-    if(popup) popup.style.display='none';
+    if (popup) popup.style.display = 'none';
   }
 }
 
