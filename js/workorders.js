@@ -2505,9 +2505,10 @@ function refreshWOQuickStats(woId) {
 // DOCUMENTS / FILE ATTACHMENTS
 // ============================================================
 
-async function uploadWODocument(file, woId, label) {
+async function uploadWODocument(file, woId, label, docType) {
   if (!file || !woId) return null;
   if (!_sb || !_currentUser) { showToast('Not logged in','error'); return null; }
+  docType = docType || 'office';
 
   var ext  = file.name.split('.').pop().toLowerCase();
   var safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
@@ -2528,6 +2529,7 @@ async function uploadWODocument(file, woId, label) {
       fileSize:  file.size,
       path:      path,
       url:       url,
+      docType:   docType,
       uploadedBy:_currentUser.full_name,
       uploadedAt:new Date().toISOString(),
       deleted:   false
@@ -2535,15 +2537,14 @@ async function uploadWODocument(file, woId, label) {
     if (!DB.woDocuments) DB.woDocuments = [];
     DB.woDocuments.push(doc);
 
-    // Push to Supabase
     await _sb.from('wo_documents').insert({
       id: doc.id, wo_id: woId, name: doc.name, file_name: doc.fileName,
       file_type: doc.fileType, file_size: doc.fileSize, file_path: path,
-      url: url, uploaded_by: _currentUser.full_name, uploaded_at: doc.uploadedAt
+      url: url, doc_type: docType, uploaded_by: _currentUser.full_name, uploaded_at: doc.uploadedAt
     });
 
     saveDB();
-    auditLog('doc_uploaded','work_order',woId,{note:doc.name+' uploaded by '+_currentUser.full_name});
+    auditLog('doc_uploaded','work_order',woId,{note:doc.name+' ('+docType+') uploaded by '+_currentUser.full_name});
     return doc;
   } catch(e) {
     console.error('[Doc upload]', e.message);
@@ -2553,87 +2554,132 @@ async function uploadWODocument(file, woId, label) {
 }
 
 function renderWODocsTab(woId) {
-  var docs = (DB.woDocuments||[]).filter(function(d){ return d.woId===woId && !d.deleted; });
-  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
+  var allDocs   = (DB.woDocuments||[]).filter(function(d){ return d.woId===woId && !d.deleted; });
+  var fieldDocs = allDocs.filter(function(d){ return d.docType==='field'; });
+  var officeDocs= allDocs.filter(function(d){ return d.docType!=='field'; });
 
-  var html =
-    '<div style="margin-bottom:16px">'+
-    '<div style="background:#f0f4f8;border-radius:8px;padding:14px;margin-bottom:12px">'+
-      '<div style="font-weight:700;font-size:13px;margin-bottom:10px">📎 Upload Document or Photo</div>'+
+  var canUploadField  = typeof hasPermission==='function' && hasPermission('docs.field.upload');
+  var canDeleteField  = typeof hasPermission==='function' && hasPermission('docs.field.delete');
+  var canUploadOffice = typeof hasPermission==='function' && hasPermission('docs.upload');
+  var canDeleteOffice = typeof hasPermission==='function' && hasPermission('docs.upload'); // same as upload for office
+  var canViewOffice   = canUploadOffice; // only office roles see office docs section
+
+  function docCard(d, canDelete, deleteFn) {
+    var isImg = (d.fileType||'').startsWith('image/');
+    var icon  = isImg ? '🖼' : (d.fileType==='application/pdf' ? '📄' : '📎');
+    var kb    = d.fileSize ? (d.fileSize/1024).toFixed(0)+'KB' : '';
+    return '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">'+
+      (isImg && d.url
+        ? '<img src="'+escHtml(d.url)+'" style="width:100%;height:110px;object-fit:cover;display:block">'
+        : '<div style="height:80px;background:#f0f4f8;display:flex;align-items:center;justify-content:center;font-size:30px">'+icon+'</div>'
+      )+
+      '<div style="padding:8px 10px">'+
+        '<div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(d.name)+'">'+escHtml(d.name)+'</div>'+
+        '<div style="font-size:10px;color:#90a4ae;margin-bottom:6px">'+escHtml(d.uploadedBy||'')+' · '+escHtml(kb)+'</div>'+
+        '<div style="display:flex;gap:5px">'+
+          '<a href="'+escHtml(d.url)+'" target="_blank" download style="flex:1;text-align:center;padding:4px;background:#1565c0;color:#fff;border-radius:4px;font-size:11px;font-weight:700;text-decoration:none">⬇ Open</a>'+
+          (canDelete ? '<button onclick="'+deleteFn+'(\''+d.id+'\')" style="padding:4px 8px;background:#ffebee;color:#c62828;border:none;border-radius:4px;font-size:11px;cursor:pointer">✕</button>' : '')+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }
+
+  function uploadBar(tabType, inputIdCam, inputIdFile, inputIdLabel, inputIdName, submitFn) {
+    return '<div style="background:#f0f4f8;border-radius:8px;padding:12px 14px;margin-bottom:14px">'+
+      '<div style="font-weight:700;font-size:13px;margin-bottom:8px">'+(tabType==='field'?'📐 Upload Drawing or Doc':'📎 Upload Office Document')+'</div>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">'+
-        '<div style="flex:1;min-width:180px">'+
+        '<div style="flex:1;min-width:160px">'+
           '<label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Label (optional)</label>'+
-          '<input id="wdoc-label" placeholder="e.g. Site Survey, Receipt, Manual..." style="width:100%;padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box">'+
+          '<input id="'+inputIdLabel+'" placeholder="e.g. Floor Plan, Spec Sheet, Manual..." style="width:100%;padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box">'+
         '</div>'+
         '<div style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap">'+
           '<label style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;color:#1565c0">'+
             '📷 Camera'+
-            '<input type="file" id="wdoc-cam" accept="image/*" capture="environment" style="display:none" onchange="wdocFileSelected(this)">'+
+            '<input type="file" id="'+inputIdCam+'" accept="image/*" capture="environment" style="display:none" onchange="wdocFileSelected(this,\''+inputIdName+'\',\''+inputIdFile+'\')">'+
           '</label>'+
           '<label style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;color:#6a1b9a">'+
-            '📁 Browse Files'+
-            '<input type="file" id="wdoc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt" style="display:none" onchange="wdocFileSelected(this)">'+
+            '📁 Browse'+
+            '<input type="file" id="'+inputIdFile+'" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.dwg,.dxf" style="display:none" onchange="wdocFileSelected(this,\''+inputIdName+'\',\''+inputIdCam+'\')">'+
           '</label>'+
-          '<span id="wdoc-selected-name" style="font-size:11px;color:#2e7d32;font-style:italic;align-self:center"></span>'+
+          '<span id="'+inputIdName+'" style="font-size:11px;color:#2e7d32;font-style:italic;align-self:center"></span>'+
         '</div>'+
-        '<button class="btn btn-primary btn-sm" onclick="submitWODoc()" style="padding:7px 14px">⬆ Upload</button>'+
+        '<button class="btn btn-primary btn-sm" onclick="'+submitFn+'()" style="padding:7px 14px">⬆ Upload</button>'+
       '</div>'+
-      '<div style="font-size:11px;color:#90a4ae;margin-top:6px">On mobile — tap File to take a photo or choose from your gallery. Accepts photos, PDF, Word, Excel.</div>'+
-    '</div>'+
-    (docs.length ? '' : '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No documents attached yet.</div>');
-
-  if (docs.length) {
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">' +
-      docs.sort(function(a,b){ return (b.uploadedAt||'').localeCompare(a.uploadedAt||''); }).map(function(d) {
-        var isImg = (d.fileType||'').startsWith('image/');
-        var icon  = isImg ? '🖼' : (d.fileType==='application/pdf'?'📄':'📎');
-        var kb    = d.fileSize ? (d.fileSize/1024).toFixed(0)+'KB' : '';
-        return '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">'+
-          (isImg && d.url ?
-            '<img src="'+escHtml(d.url)+'" style="width:100%;height:120px;object-fit:cover;display:block">' :
-            '<div style="height:80px;background:#f0f4f8;display:flex;align-items:center;justify-content:center;font-size:32px">'+icon+'</div>'
-          )+
-          '<div style="padding:8px 10px">'+
-            '<div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(d.name)+'">'+escHtml(d.name)+'</div>'+
-            '<div style="font-size:10px;color:#90a4ae;margin-bottom:6px">'+escHtml(d.uploadedBy||'')+' · '+escHtml(kb)+'</div>'+
-            '<div style="display:flex;gap:6px">'+
-              '<a href="'+escHtml(d.url)+'" target="_blank" download style="flex:1;text-align:center;padding:4px;background:#1565c0;color:#fff;border-radius:4px;font-size:11px;font-weight:700;text-decoration:none">⬇ Download</a>'+
-              (isAdmin?'<button onclick="deleteWODoc(\''+d.id+'\')" style="padding:4px 8px;background:#ffebee;color:#c62828;border:none;border-radius:4px;font-size:11px;cursor:pointer">✕</button>':'')+
-            '</div>'+
-          '</div>'+
-        '</div>';
-      }).join('') +
+      '<div style="font-size:11px;color:#90a4ae;margin-top:6px">Accepts photos, PDF, Word, Excel, DWG. Tap Camera on mobile.</div>'+
     '</div>';
+  }
+
+  var html = '<div style="margin-bottom:16px">';
+
+  // ── FIELD DOCS SECTION ──────────────────────────────────────────────────────
+  html += '<div style="font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">📐 Field Documents — Drawings & Specs</div>';
+  html += '<div style="font-size:12px;color:#546e7a;margin-bottom:10px;padding:8px 10px;background:#e3f2fd;border-radius:7px;border-left:3px solid #1565c0">Drawings, specs and manuals for this job. Visible to all assigned team.</div>';
+
+  if (canUploadField) {
+    html += uploadBar('field','wdoc-f-cam','wdoc-f-file','wdoc-f-label','wdoc-f-name','submitFieldDoc');
+  }
+
+  if (fieldDocs.length) {
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:16px">' +
+      fieldDocs.sort(function(a,b){ return (b.uploadedAt||'').localeCompare(a.uploadedAt||''); })
+        .map(function(d){ return docCard(d, canDeleteField, 'deleteWODoc'); }).join('') +
+    '</div>';
+  } else {
+    html += '<div style="color:#90a4ae;font-size:13px;padding:8px 0 16px">No field documents attached yet.'+(canUploadField?' Use the upload above.':' Ask your office to upload drawings for this job.')+'</div>';
+  }
+
+  // ── OFFICE DOCS SECTION (office roles only) ─────────────────────────────────
+  if (canViewOffice) {
+    html += '<div style="border-top:1.5px solid #e0e7ef;margin-bottom:14px"></div>';
+    html += '<div style="font-size:11px;font-weight:700;color:#6a1b9a;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">📎 Office Documents — Receipts & Internal Files</div>';
+
+    if (canUploadOffice) {
+      html += uploadBar('office','wdoc-o-cam','wdoc-o-file','wdoc-o-label','wdoc-o-name','submitOfficeDoc');
+    }
+
+    if (officeDocs.length) {
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">' +
+        officeDocs.sort(function(a,b){ return (b.uploadedAt||'').localeCompare(a.uploadedAt||''); })
+          .map(function(d){ return docCard(d, canDeleteOffice, 'deleteWODoc'); }).join('') +
+      '</div>';
+    } else {
+      html += '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No office documents attached yet.</div>';
+    }
   }
 
   html += '</div>';
   return html;
 }
 
-async function submitWODoc() {
-  var woId  = _woCurrentId;
+async function _submitWODocByType(camId, fileId, labelId, nameId, docType) {
+  var woId = _woCurrentId;
   if (!woId) { showToast('Save the work order first','error'); return; }
-  var fileCam  = document.getElementById('wdoc-cam');
-  var fileEl   = document.getElementById('wdoc-file');
-  var fileEl2  = (fileCam&&fileCam.files&&fileCam.files[0]) ? fileCam :
-                 (fileEl&&fileEl.files&&fileEl.files[0]) ? fileEl : null;
-  var label  = ((document.getElementById('wdoc-label')||{}).value||'').trim();
+  var fileCam = document.getElementById(camId);
+  var fileEl  = document.getElementById(fileId);
+  var fileEl2 = (fileCam&&fileCam.files&&fileCam.files[0]) ? fileCam :
+                (fileEl&&fileEl.files&&fileEl.files[0])   ? fileEl : null;
+  var label   = ((document.getElementById(labelId)||{}).value||'').trim();
   if (!fileEl2 || !fileEl2.files || !fileEl2.files[0]) { showToast('Select a file first','error'); return; }
   var file = fileEl2.files[0];
   showToast('Uploading...','info',10000);
-  var doc = await uploadWODocument(file, woId, label||file.name);
+  var doc = await uploadWODocument(file, woId, label||file.name, docType);
   if (doc) {
     showToast('Uploaded ✓','success');
-    if (fileCam)  fileCam.value  = '';
-    if (fileEl)   fileEl.value   = '';
-    var labelEl  = document.getElementById('wdoc-label');
-    var nameEl   = document.getElementById('wdoc-selected-name');
+    if (fileCam) fileCam.value = '';
+    if (fileEl)  fileEl.value  = '';
+    var labelEl = document.getElementById(labelId);
+    var nameEl  = document.getElementById(nameId);
     if (labelEl) labelEl.value = '';
     if (nameEl)  nameEl.textContent = '';
     switchWOTab('photos');
     refreshWOQuickStats(woId);
   }
 }
+
+function submitFieldDoc()  { _submitWODocByType('wdoc-f-cam','wdoc-f-file','wdoc-f-label','wdoc-f-name','field'); }
+function submitOfficeDoc() { _submitWODocByType('wdoc-o-cam','wdoc-o-file','wdoc-o-label','wdoc-o-name','office'); }
+// Legacy alias - keep working for any calls from expenses receipt upload
+function submitWODoc()     { _submitWODocByType('wdoc-cam','wdoc-file','wdoc-label','wdoc-selected-name','office'); }
 
 function deleteWODoc(docId) {
   if (!confirm('Remove this document?')) return;
@@ -2656,7 +2702,7 @@ async function _pullWODocuments() {
     if (e) { console.warn('[WO Docs pull]', e.message); return; }
     if (rows) {
       DB.woDocuments = rows.map(function(d){
-        return { id:d.id, woId:d.wo_id, name:d.name, fileName:d.file_name, fileType:d.file_type, fileSize:d.file_size, path:d.file_path, url:d.url, uploadedBy:d.uploaded_by, uploadedAt:d.uploaded_at, deleted:false };
+        return { id:d.id, woId:d.wo_id, name:d.name, fileName:d.file_name, fileType:d.file_type, fileSize:d.file_size, path:d.file_path, url:d.url, docType:d.doc_type||'office', uploadedBy:d.uploaded_by, uploadedAt:d.uploaded_at, deleted:false };
       });
       saveDB();
     }
@@ -2675,13 +2721,12 @@ function woeReceiptSelected(input) {
   }
 }
 
-function wdocFileSelected(input) {
-  var nameEl = document.getElementById('wdoc-selected-name');
+function wdocFileSelected(input, nameId, otherId) {
+  var nameEl = document.getElementById(nameId || 'wdoc-selected-name');
   if (!nameEl) return;
   if (input.files && input.files[0]) {
     nameEl.textContent = '✓ ' + input.files[0].name;
-    // Clear the other input
-    var other = input.id==='wdoc-cam' ? document.getElementById('wdoc-file') : document.getElementById('wdoc-cam');
+    var other = document.getElementById(otherId || (input.id==='wdoc-cam' ? 'wdoc-file' : 'wdoc-cam'));
     if (other) other.value = '';
   }
 }
