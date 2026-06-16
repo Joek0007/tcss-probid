@@ -41,9 +41,11 @@ function openCustomerProfile(customerId) {
     ['owner','manager','back_office','estimator'].includes(_currentUser.role);
   var custAlert = customer.moduleAlerts && customer.moduleAlerts.customer;
   if (isOffice && custAlert) {
-    if (typeof _showHotNotesQueue === 'function') {
-      _showHotNotesQueue([{ title:'👥 Customer Alert — '+escHtml(customer.name), body:custAlert, icon:'👥' }]);
-    }
+    setTimeout(function() {
+      if (typeof _showHotNotesQueue === 'function') {
+        _showHotNotesQueue([{ title:'👥 Customer Alert — '+escHtml(customer.name), body:custAlert, icon:'👥' }]);
+      }
+    }, 150);
   }
 
   switchCPTab('overview');
