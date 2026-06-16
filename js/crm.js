@@ -331,11 +331,20 @@ function newContactForCustomer(customerId, customerName) {
 }
 
 function openQuoteForCustomer(customerName) {
+  var cust = (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(customerName||'').toLowerCase(); });
   closeCustomerProfile();
   goPage('qq');
   setTimeout(function(){
     var cnEl = document.getElementById('qq-cn');
-    if (cnEl) { cnEl.value=customerName; cnEl.dispatchEvent(new Event('input')); }
+    if (cnEl) {
+      cnEl.value = customerName;
+      // Use selectCustomer if we have the ID — fires alert + fills all fields
+      if (cust && typeof selectCustomer === 'function') {
+        selectCustomer(cust.id);
+      } else {
+        cnEl.dispatchEvent(new Event('input'));
+      }
+    }
   }, 200);
 }
 

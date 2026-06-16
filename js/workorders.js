@@ -606,7 +606,7 @@ function openWorkOrder(id) {
 function _checkHotNotes(customerId, woId, isNew) {
   var cust = (DB.customers||[]).find(function(c){ return c.id===customerId; });
   if (!cust) return;
-  var isOffice = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office');
+  var isOffice = _currentUser && ['owner','manager','back_office','estimator'].includes(_currentUser.role);
   var isTech   = _currentUser && (_currentUser.role==='field'||_currentUser.role==='lead_tech');
   var queue = [];
 
