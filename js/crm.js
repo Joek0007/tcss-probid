@@ -78,44 +78,62 @@ function switchCPTab(tab) {
 
 function renderCPAlerts(customer) {
   var alerts = customer.moduleAlerts || {};
+  var techNote = customer.hotNoteTech || '';
+
   var modules = [
-    { key:'customer',      icon:'👥', label:'Customer Alert',      desc:'Fires when this customer\'s profile is opened' },
-    { key:'quote',         icon:'📋', label:'Quote Alert',         desc:'Fires when a new quote is started for this customer' },
-    { key:'workorder',     icon:'🔨', label:'Work Order Alert',    desc:'Fires when a work order is opened for this customer' },
-    { key:'invoice',       icon:'🧾', label:'Invoice Alert',       desc:'Fires when an invoice is opened for this customer' },
-    { key:'purchaseorder', icon:'📦', label:'Purchase Order Alert',desc:'Fires when a PO is created for this customer' },
+    { key:'tech',        icon:'⚡', label:'Tech Hot Note',        desc:'Pops up for field techs on every work order for this customer' },
+    { key:'customer',    icon:'👥', label:'Customer Alert',        desc:'Fires when this customer\'s profile is opened' },
+    { key:'quote',       icon:'📋', label:'Quote Alert',           desc:'Fires when a new quote is started for this customer' },
+    { key:'workorder',   icon:'🔨', label:'Work Order Alert',      desc:'Fires when a work order is opened for this customer' },
+    { key:'invoice',     icon:'🧾', label:'Invoice Alert',         desc:'Fires when an invoice is opened for this customer' },
+    { key:'purchaseorder',icon:'📦',label:'Purchase Order Alert',  desc:'Fires when a PO is created for this customer' },
   ];
 
   var canEdit = typeof _currentUser !== 'undefined' && _currentUser &&
     ['owner','manager'].includes(_currentUser.role);
 
   var html = '<div style="max-width:680px">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
   html += '<div class="cp-section-title" style="margin:0">Module Alerts</div>';
   if (canEdit) {
     html += '<button class="btn btn-primary btn-sm" onclick="saveCPAlerts()">💾 Save Alerts</button>';
   }
   html += '</div>';
-  html += '<p style="font-size:12px;color:#90a4ae;margin-bottom:18px">Each alert fires automatically when that module is accessed for this customer. Leave blank to disable.</p>';
+  html += '<p style="font-size:12px;color:#90a4ae;margin-bottom:16px">Each alert fires automatically when that module is accessed for this customer. Leave blank to disable.</p>';
 
   modules.forEach(function(m) {
-    var val = alerts[m.key] || '';
+    var val = m.key === 'tech' ? techNote : (alerts[m.key] || '');
     var hasAlert = val.trim().length > 0;
+    var borderColor = hasAlert ? '#ffb300' : '#e0e7ef';
+    var headerBg    = hasAlert ? '#fff8e1' : '#f8f9fa';
+    var headerBorder= hasAlert ? '#ffe082' : '#f0f0f0';
+    var badge = hasAlert
+      ? '<span style="background:#e65100;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">ACTIVE</span>'
+      : '<span style="background:#e0e7ef;color:#90a4ae;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">INACTIVE</span>';
+
+    var inputHtml;
+    if (canEdit) {
+      inputHtml = '<textarea id="cp-alert-' + m.key + '" rows="2"' +
+        ' placeholder="Type alert message... (leave blank to disable)"' +
+        ' style="width:100%;padding:8px 10px;border:1.5px solid #e0e7ef;border-radius:7px;font-size:13px;color:#1a1a2e;resize:vertical;outline:none">' +
+        escHtml(val) + '</textarea>';
+    } else {
+      inputHtml = val
+        ? '<div style="font-size:13px;color:#37474f;background:#fff8e1;border-radius:7px;padding:10px 12px;border-left:3px solid #e65100">' + escHtml(val) + '</div>'
+        : '<div style="font-size:12px;color:#c0c0c0;font-style:italic">No alert set</div>';
+    }
+
     html +=
-      '<div style="margin-bottom:14px;background:#fff;border-radius:10px;border:1.5px solid '+(hasAlert?'#ffb300':'#e0e7ef')+';overflow:hidden">'+
-        '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:'+(hasAlert?'#fff8e1':'#f8f9fa')+';border-bottom:1px solid '+(hasAlert?'#ffe082':'#f0f0f0')+'">'+
-          '<span style="font-size:18px">'+m.icon+'</span>'+
-          '<div style="flex:1">'+
-            '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+m.label+'</div>'+
-            '<div style="font-size:11px;color:#90a4ae">'+m.desc+'</div>'+
-          '</div>'+
-          (hasAlert ? '<span style="background:#e65100;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">ACTIVE</span>' : '<span style="background:#e0e7ef;color:#90a4ae;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">INACTIVE</span>')+
-        '</div>'+
-        '<div style="padding:10px 14px">'+
-          (canEdit
-            ? '<textarea id="cp-alert-'+m.key+'" rows="2" placeholder="Type alert message... (leave blank to disable)" style="width:100%;padding:8px 10px;border:1.5px solid #e0e7ef;border-radius:7px;font-size:13px;color:#1a1a2e;resize:vertical;outline:none" oninput="this.closest(\'div[style*=border]\').style.borderColor=this.value.trim()?\'#ffb300\':\'#e0e7ef\'">'+escHtml(val)+'</textarea>'
-            : (val ? '<div style="font-size:13px;color:#37474f;background:#fff8e1;border-radius:7px;padding:10px 12px;border-left:3px solid #e65100">'+escHtml(val)+'</div>' : '<div style="font-size:12px;color:#c0c0c0;font-style:italic">No alert set</div>')+
-          '</div>'+
+      '<div style="margin-bottom:12px;background:#fff;border-radius:10px;border:1.5px solid ' + borderColor + ';overflow:hidden">' +
+        '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:' + headerBg + ';border-bottom:1px solid ' + headerBorder + '">' +
+          '<span style="font-size:18px">' + m.icon + '</span>' +
+          '<div style="flex:1">' +
+            '<div style="font-size:13px;font-weight:700;color:#0d1b2a">' + m.label + '</div>' +
+            '<div style="font-size:11px;color:#90a4ae">' + m.desc + '</div>' +
+          '</div>' +
+          badge +
+        '</div>' +
+        '<div style="padding:10px 14px">' + inputHtml + '</div>' +
       '</div>';
   });
 
@@ -126,8 +144,12 @@ function renderCPAlerts(customer) {
 function saveCPAlerts() {
   var customer = (DB.customers||[]).find(function(c){ return c.id===_cpCustomerId; });
   if (!customer) return;
+  // Tech hot note saves to hotNoteTech (existing field, synced to Supabase)
+  var techEl = document.getElementById('cp-alert-tech');
+  if (techEl) customer.hotNoteTech = techEl.value.trim();
+  // Module alerts
   var keys = ['customer','quote','workorder','invoice','purchaseorder'];
-  customer.moduleAlerts = {};
+  customer.moduleAlerts = customer.moduleAlerts || {};
   keys.forEach(function(k) {
     var el = document.getElementById('cp-alert-'+k);
     customer.moduleAlerts[k] = el ? el.value.trim() : '';
@@ -137,6 +159,8 @@ function saveCPAlerts() {
   showToast('Alerts saved ✓','success');
   switchCPTab('alerts');
 }
+
+function renderCPOverview(customer, quotes, jobs, contacts, projects) {
   var wonQuotes   = quotes.filter(function(q){ return q.status==='approved'; });
   var openQuotes  = quotes.filter(function(q){ return q.status!=='approved'&&q.status!=='declined'; });
   var activeJobs  = jobs.filter(function(j){ return j.status==='Scheduled'||j.status==='In Progress'; });
