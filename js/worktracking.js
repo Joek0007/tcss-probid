@@ -6646,12 +6646,10 @@ function selectCustomer(id) {
   closeCustomerDropdown();
   // Fire office alert if scoped to quotes
   var isOffice = typeof _currentUser!=='undefined'&&_currentUser&&['owner','manager','back_office','estimator'].includes(_currentUser.role);
-  if (isOffice && cust.hotNoteOffice) {
-    var scope = cust.officeAlertScope || {quotes:true,workorders:true};
-    if (scope.quotes !== false) {
-      if (typeof _showHotNotesQueue === 'function') {
-        _showHotNotesQueue([{ title:'🏢 Office Alert — '+escHtml(cust.name), body:cust.hotNoteOffice, icon:'🏢', ackKey:null }]);
-      }
+  var quoteAlert = (cust.moduleAlerts && cust.moduleAlerts.quote) || '';
+  if (isOffice && quoteAlert) {
+    if (typeof _showHotNotesQueue === 'function') {
+      _showHotNotesQueue([{ title:'📋 Quote Alert — '+escHtml(cust.name), body:quoteAlert, icon:'📋', ackKey:null }]);
     }
   }
   // Clear old contact selection

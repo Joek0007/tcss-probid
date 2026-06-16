@@ -618,9 +618,10 @@ function _checkHotNotes(customerId, woId, isNew) {
       queue.push({ title:'⚡ Tech Notice — '+escHtml(cust.name), body:cust.hotNoteTech, icon:'⚡', ackKey:ackKey });
     }
   }
-  // Office hot note — show only for office/owner on NEW orders
-  if (isOffice && isNew && cust.hotNoteOffice) {
-    queue.push({ title:'🏢 Office Notice — '+escHtml(cust.name), body:cust.hotNoteOffice, icon:'🏢', ackKey:null });
+  // Office alert — moduleAlerts.workorder takes priority, falls back to legacy hotNoteOffice
+  var officeMsg = (cust.moduleAlerts && cust.moduleAlerts.workorder) || (isNew ? cust.hotNoteOffice : null);
+  if (isOffice && officeMsg) {
+    queue.push({ title:'🏢 Office Alert — '+escHtml(cust.name), body:officeMsg, icon:'🏢', ackKey:null });
   }
 
   if (queue.length) _showHotNotesQueue(queue);

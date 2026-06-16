@@ -5678,6 +5678,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <button class="cp-tab" onclick="switchCPTab('jobs')" id="cpt-jobs">🔧 Jobs</button>
       <button class="cp-tab" onclick="switchCPTab('contacts')" id="cpt-contacts">👤 Contacts</button>
       <button class="cp-tab" onclick="switchCPTab('projects')" id="cpt-projects">✅ Projects</button>
+      <button class="cp-tab" onclick="switchCPTab('alerts')" id="cpt-alerts">⚠️ Alerts</button>
       <button class="cp-tab" onclick="switchCPTab('comms')" id="cpt-comms">📞 Comms</button>
     </div>
     <!-- Tab content -->
@@ -5715,20 +5716,6 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       </div></div>
       <div class="form-row"><div><label>Notes</label><textarea id="m-cnotes" rows="2"></textarea></div></div>
       <div class="form-row"><div><label>⚡ Tech Hot Note <span style="font-size:11px;color:#e65100">(Pops up for field techs on every work order)</span></label><textarea id="m-c-hotnote-tech" rows="2" placeholder="e.g. Always call site manager before arriving. Access code: 4521"></textarea></div></div>
-      <div class="form-row"><div>
-        <label>🏢 Office Alert <span style="font-size:11px;color:#1565c0">(Pops up for office staff — choose which modules below)</span></label>
-        <textarea id="m-c-hotnote-office" rows="2" placeholder="e.g. Net 30 terms. Always get PO number before dispatching. Credit hold — 50% deposit required."></textarea>
-        <div style="margin-top:8px;padding:10px 12px;background:#e3f2fd;border-radius:8px;border-left:3px solid #1565c0">
-          <div style="font-size:10px;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Show alert when opening:</div>
-          <div style="display:flex;flex-wrap:wrap;gap:10px">
-            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="m-calert-quotes" style="accent-color:#1565c0"> 📋 Quotes</label>
-            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="m-calert-workorders" style="accent-color:#1565c0"> 🔨 Work Orders</label>
-            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="m-calert-invoices" style="accent-color:#1565c0"> 🧾 Invoices</label>
-            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="m-calert-customers" style="accent-color:#1565c0"> 👥 Customer Profile</label>
-            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="m-calert-dispatch" style="accent-color:#1565c0"> 🗂 Dispatch</label>
-          </div>
-        </div>
-      </div></div>
       <input type="hidden" id="m-cid">
     </div>
     <div class="modal-foot">

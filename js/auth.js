@@ -556,7 +556,7 @@ async function syncAllFromCloud() {
         var cloudCustIds = new Set(custs.map(function(c){ return String(c.id); }));
         var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)) && delC.indexOf(String(c.id)) < 0; });
         var cloudCusts = custs.map(function(c) {
-          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, notes:c.notes, active:c.is_active };
+          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, moduleAlerts:c.module_alerts||null, notes:c.notes, active:c.is_active };
         });
         DB.customers = cloudCusts.concat(localOnlyCusts);
       }
@@ -1132,6 +1132,7 @@ async function pushAllToCloud() {
           office_alert_scope: c.officeAlertScope || null,
           invoicing_contact: c.invoicingContact || null,
           invoicing_email:   c.invoicingEmail || null,
+          module_alerts:     c.moduleAlerts || null,
           notes: c.notes || null,
           is_active: c.active !== false,
           created_by: _currentUser.id
