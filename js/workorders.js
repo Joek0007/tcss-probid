@@ -610,8 +610,12 @@ function _checkHotNotes(customerId, woId, isNew) {
   var isTech   = _currentUser && (_currentUser.role==='field'||_currentUser.role==='lead_tech');
   var queue = [];
 
-  // Tech hot note — show every open unless acknowledged for this WO
-  if ((isTech||isOffice) && cust.hotNoteTech) {
+  // Tech hot note — anyone assigned to this WO, role irrelevant
+  var wo = woId && woId !== 'new' ? (DB.workOrders||[]).find(function(w){ return w.id===woId; }) : null;
+  var assignedNames = wo ? (wo.assignedTechs||[]).map(function(t){ return typeof t==='string'?t:(t.name||''); }) : [];
+  var currentName = _currentUser ? (_currentUser.name||_currentUser.email||'') : '';
+  var isAssigned = assignedNames.some(function(n){ return n && currentName && n.toLowerCase()===currentName.toLowerCase(); });
+  if (isAssigned && cust.hotNoteTech) {
     var ackKey = 'hotnote_ack_'+woId;
     var acked  = isNew ? false : (sessionStorage.getItem(ackKey) === '1');
     if (!acked) {
