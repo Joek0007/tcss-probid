@@ -4114,6 +4114,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <button class="ms-tab"        onclick="switchMsTab('time')"            data-tab="time">⏱ Time & Payroll</button>
     <button class="ms-tab"        onclick="switchMsTab('inventory')"       data-tab="inventory">📦 Inventory</button>
     <button class="ms-tab"        onclick="switchMsTab('integrations')"    data-tab="integrations">🔗 Integrations</button>
+    <button class="ms-tab"        onclick="switchMsTab('notifications')"   data-tab="notifications">🔔 Notifications</button>
   </div>
 
   <style>
@@ -4650,6 +4651,54 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
     </div><!-- end ms-grid integrations -->
   </div><!-- end ms-section integrations -->
+
+  <div class="ms-section" id="ms-notifications">
+    <div class="ms-grid">
+      <div>
+        <div class="card-title">🔔 Clock-In Anomaly Alerts</div>
+        <div class="card-body">
+          <p style="font-size:12px;color:#546e7a;margin-bottom:12px">Notifies office staff when a tech has a work order scheduled for today but hasn't clocked in by the threshold time.</p>
+          <div class="form-row"><label>Enable Clock-In Alerts</label>
+            <select id="ms-notif-clockin-enabled">
+              <option value="1">Enabled</option>
+              <option value="0">Disabled</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Alert Threshold Time</label>
+            <input type="time" id="ms-notif-clockin-time" value="07:00">
+            <div style="font-size:11px;color:#90a4ae;margin-top:4px">Fire alert if tech hasn't clocked in by this time</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card-title">💰 Expense Alerts</div>
+        <div class="card-body">
+          <p style="font-size:12px;color:#546e7a;margin-bottom:12px">Notifies office staff when a tech logs an expense on a work order.</p>
+          <div class="form-row"><label>Enable Expense Alerts</label>
+            <select id="ms-notif-expense-enabled">
+              <option value="1">Enabled</option>
+              <option value="0">Disabled</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card-title">📦 Low Inventory Alerts</div>
+        <div class="card-body">
+          <p style="font-size:12px;color:#546e7a;margin-bottom:12px">Notifies office staff when inventory drops below minimum quantity — immediately on checkout and once daily if still low.</p>
+          <div class="form-row"><label>Enable Low Inventory Alerts</label>
+            <select id="ms-notif-inv-enabled">
+              <option value="1">Enabled</option>
+              <option value="0">Disabled</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-start;align-items:flex-end;grid-column:span 2">
+        <button class="btn btn-primary" onclick="saveNotificationSettings()">💾 Save Notification Settings</button>
+      </div>
+    </div>
+  </div><!-- end ms-section notifications -->
 
 </div><!-- end page-settings -->
 

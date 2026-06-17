@@ -4636,6 +4636,21 @@ function confirmCheckout() {
   // Reduce qty
   item.qty -= qty;
 
+  // Low stock alert — fire immediately if below minimum
+  if (DB.settings.invLowStockWarn !== false) {
+    var minQty = item.minQty || 0;
+    if (minQty > 0 && item.qty < minQty) {
+      if (typeof addNotification === 'function') {
+        addNotification(
+          'low_stock',
+          '📦 Low Stock — '+item.name,
+          'Qty now '+item.qty+' (minimum: '+minQty+'). Checked out by: '+to,
+          'inventory'
+        );
+      }
+    }
+  }
+
   // Log checkout
   const log = {
     id:             Date.now().toString(),

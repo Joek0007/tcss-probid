@@ -196,6 +196,7 @@ async function loadCurrentUserProfile() {
     setTimeout(function(){ applyRolePermissions(_currentUser.role); }, 1000);
     // Load WT notifications for this user
     setTimeout(function(){ if(typeof wtLoadNotifications==='function') wtLoadNotifications(); }, 1500);
+    setTimeout(function(){ if(typeof _startNotificationChecks==='function') _startNotificationChecks(); }, 4000);
   } else {
     console.warn('[Profile] No profile row found. Error:', res.error);
     // Fallback: create a minimal currentUser from the auth session

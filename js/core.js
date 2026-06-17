@@ -1473,6 +1473,7 @@ function _sdBuildBody(moduleKey) {
       ]) +
       _sdSection('🔔', 'Notifications', [
         _sdToggle('Send SMS when tech is assigned', 'sd-wo-sms', s.woSmsOnAssign !== false),
+        _sdToggle('Alert office when tech logs an expense', 'sd-wo-notif-expense', s.notifExpenseEnabled !== false),
       ]);
 
     case 'dispatch':
@@ -1509,11 +1510,16 @@ function _sdBuildBody(moduleKey) {
       ]) +
       _sdSection('🏢', 'Office location', [
         _sdRow('Office address', _sdInput('sd-fi-addr', s.officeAddr || '', 'text', '123 Main St, Asheboro, NC')),
+      ]) +
+      _sdSection('🔔', 'Clock-in anomaly alerts', [
+        _sdToggle('Alert when tech hasn\'t clocked in by threshold time', 'sd-fi-notif-enabled', s.notifClockInEnabled !== false),
+        _sdRow('Alert threshold time', _sdInput('sd-fi-notif-time', s.notifClockInTime || '07:00', 'time')),
       ]);
 
     case 'inventory':
       return _sdSection('⚠️', 'Low stock alerts', [
-        _sdToggle('Warn when item falls below minimum quantity', 'sd-inv-warn', s.invLowStockWarn !== false),
+        _sdToggle('Alert when item drops below minimum at checkout', 'sd-inv-warn', s.invLowStockWarn !== false),
+        _sdToggle('Daily reminder if items are still below minimum',  'sd-inv-daily', s.invLowStockDaily !== false),
       ]) +
       _sdSection('📝', 'Notes', [
         _sdRow('Inventory notes (shown on checkout screen)',
@@ -1569,7 +1575,10 @@ function _saveDrawerWorkOrders() {
   if (!DB.woSettings) DB.woSettings = {};
   DB.woSettings.defaultLaborRate = parseFloat(_sdGv('sd-wo-labor')) || 125;
   DB.woSettings.defaultTaxRate   = parseFloat(_sdGv('sd-wo-tax'))   || 0;
-  DB.settings = Object.assign({}, DB.settings, { woSmsOnAssign: _sdCv('sd-wo-sms') });
+  DB.settings = Object.assign({}, DB.settings, {
+    woSmsOnAssign:       _sdCv('sd-wo-sms'),
+    notifExpenseEnabled: _sdCv('sd-wo-notif-expense'),
+  });
   saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
   showToast('Work orders settings saved ✓','success'); closeSettingsDrawer();
 }
@@ -1596,10 +1605,12 @@ function _saveDrawerTeam() {
 
 function _saveDrawerField() {
   DB.settings = Object.assign({}, DB.settings, {
-    geofenceEnforce:     _sdCv('sd-fi-geofence'),
-    autoDetectArrivals:  _sdCv('sd-fi-autodetect'),
-    clockInReminderTime: _sdGv('sd-fi-reminder') || '',
-    officeAddr:          _sdGv('sd-fi-addr')     || '',
+    geofenceEnforce:      _sdCv('sd-fi-geofence'),
+    autoDetectArrivals:   _sdCv('sd-fi-autodetect'),
+    clockInReminderTime:  _sdGv('sd-fi-reminder') || '',
+    officeAddr:           _sdGv('sd-fi-addr')     || '',
+    notifClockInEnabled:  _sdCv('sd-fi-notif-enabled'),
+    notifClockInTime:     _sdGv('sd-fi-notif-time') || '07:00',
   });
   saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
   showToast('Time clock settings saved ✓','success'); closeSettingsDrawer();
@@ -1607,8 +1618,9 @@ function _saveDrawerField() {
 
 function _saveDrawerInventory() {
   DB.settings = Object.assign({}, DB.settings, {
-    invLowStockWarn: _sdCv('sd-inv-warn'),
-    invNotes:        _sdGv('sd-inv-notes') || '',
+    invLowStockWarn:  _sdCv('sd-inv-warn'),
+    invLowStockDaily: _sdCv('sd-inv-daily'),
+    invNotes:         _sdGv('sd-inv-notes') || '',
   });
   saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
   showToast('Inventory settings saved ✓','success'); closeSettingsDrawer();
@@ -1652,4 +1664,146 @@ function formatTimeAgo(timestamp) {
   if (diff < 604800)       return Math.floor(diff / 86400) + ' days ago';
   // Older than a week — show actual date
   return new Date(then).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+
+// ============================================================
+// NOTIFICATION SETTINGS — Master Settings page save
+// ============================================================
+function saveNotificationSettings() {
+  var clockInEnabled = (document.getElementById('ms-notif-clockin-enabled')||{}).value;
+  var clockInTime    = (document.getElementById('ms-notif-clockin-time')||{}).value || '07:00';
+  var expenseEnabled = (document.getElementById('ms-notif-expense-enabled')||{}).value;
+  var invEnabled     = (document.getElementById('ms-notif-inv-enabled')||{}).value;
+
+  DB.settings = Object.assign({}, DB.settings, {
+    notifClockInEnabled:  clockInEnabled !== '0',
+    notifClockInTime:     clockInTime,
+    notifExpenseEnabled:  expenseEnabled !== '0',
+    invLowStockWarn:      invEnabled !== '0',
+    invLowStockDaily:     invEnabled !== '0',
+  });
+  saveDB();
+  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
+  showToast('Notification settings saved ✓', 'success');
+}
+
+// Load notification settings into Master Settings page
+function loadNotificationSettings() {
+  var s = DB.settings || {};
+  var clockInEl  = document.getElementById('ms-notif-clockin-enabled');
+  var clockTime  = document.getElementById('ms-notif-clockin-time');
+  var expenseEl  = document.getElementById('ms-notif-expense-enabled');
+  var invEl      = document.getElementById('ms-notif-inv-enabled');
+  if (clockInEl)  clockInEl.value  = s.notifClockInEnabled  !== false ? '1' : '0';
+  if (clockTime)  clockTime.value  = s.notifClockInTime || '07:00';
+  if (expenseEl)  expenseEl.value  = s.notifExpenseEnabled  !== false ? '1' : '0';
+  if (invEl)      invEl.value      = (s.invLowStockWarn !== false)    ? '1' : '0';
+}
+
+// ============================================================
+// DAILY LOW STOCK CHECK
+// Runs once per day on app load — fires notification if any
+// items are still below minimum and invLowStockDaily is ON
+// ============================================================
+function _checkLowStockDaily() {
+  if (DB.settings.invLowStockWarn === false) return;
+  if (DB.settings.invLowStockDaily === false) return;
+
+  // Only run once per calendar day
+  var today = new Date().toISOString().split('T')[0];
+  var lastCheck = localStorage.getItem('tcss_inv_daily_check');
+  if (lastCheck === today) return;
+  localStorage.setItem('tcss_inv_daily_check', today);
+
+  var lowItems = (DB.inventory||[]).filter(function(item) {
+    return (item.minQty||0) > 0 && (item.qty||0) < item.minQty;
+  });
+  if (!lowItems.length) return;
+
+  var isOffice = typeof _currentUser !== 'undefined' && _currentUser &&
+    ['owner','manager','back_office'].includes(_currentUser.role);
+  if (!isOffice) return;
+
+  if (typeof addNotification === 'function') {
+    var names = lowItems.slice(0,3).map(function(i){
+      return i.name+' ('+i.qty+'/'+i.minQty+')';
+    }).join(', ');
+    var extra = lowItems.length > 3 ? ' +' + (lowItems.length-3) + ' more' : '';
+    addNotification(
+      'low_stock',
+      '📦 Daily Stock Alert — '+lowItems.length+' item'+(lowItems.length>1?'s':'')+' below minimum',
+      names + extra,
+      'inventory'
+    );
+  }
+}
+
+// ============================================================
+// CLOCK-IN ANOMALY CHECK
+// Runs every 5 minutes — fires once at threshold time if a
+// tech has a WO scheduled today but hasn't clocked in
+// ============================================================
+function _checkClockInAnomalies() {
+  if (DB.settings.notifClockInEnabled === false) return;
+
+  var isOffice = typeof _currentUser !== 'undefined' && _currentUser &&
+    ['owner','manager','back_office'].includes(_currentUser.role);
+  if (!isOffice) return;
+
+  var now       = new Date();
+  var today     = now.toISOString().split('T')[0];
+  var threshold = DB.settings.notifClockInTime || '07:00';
+  var parts     = threshold.split(':');
+  var threshH   = parseInt(parts[0])||7;
+  var threshM   = parseInt(parts[1])||0;
+
+  // Only fire after threshold time
+  if (now.getHours() < threshH || (now.getHours() === threshH && now.getMinutes() < threshM)) return;
+
+  // Only fire once per day per threshold time
+  var checkKey = 'tcss_clockin_check_' + today + '_' + threshold.replace(':','');
+  if (localStorage.getItem(checkKey)) return;
+  localStorage.setItem(checkKey, '1');
+
+  // Find techs scheduled today
+  var todayWOs = (DB.workOrders||[]).filter(function(wo) {
+    return (wo.scheduledDate||'') === today && wo.assignedTechs && wo.assignedTechs.length;
+  });
+  if (!todayWOs.length) return;
+
+  // Find who hasn't clocked in
+  var clockedIn = (DB.clockLogs||[])
+    .filter(function(l){ return (l.clockIn||'').startsWith(today); })
+    .map(function(l){ return (l.techName||'').toLowerCase(); });
+
+  var missing = [];
+  todayWOs.forEach(function(wo) {
+    (wo.assignedTechs||[]).forEach(function(t) {
+      var name = typeof t === 'string' ? t : (t.name||'');
+      if (!name) return;
+      if (missing.indexOf(name) >= 0) return;
+      if (clockedIn.indexOf(name.toLowerCase()) < 0) missing.push(name);
+    });
+  });
+
+  if (!missing.length) return;
+
+  if (typeof addNotification === 'function') {
+    addNotification(
+      'clockin_anomaly',
+      '⏰ Not Clocked In — ' + missing.length + ' tech' + (missing.length > 1 ? 's' : ''),
+      missing.slice(0,3).join(', ') + (missing.length > 3 ? ' +' + (missing.length-3) + ' more' : '') + ' scheduled today but not clocked in as of ' + threshold,
+      'timeclock'
+    );
+  }
+}
+
+// Start the clock-in anomaly check interval — runs every 5 min
+function _startNotificationChecks() {
+  // Run daily low stock check on load
+  setTimeout(_checkLowStockDaily, 3000);
+  // Run clock-in anomaly check every 5 minutes
+  setInterval(_checkClockInAnomalies, 300000);
+  // Also check immediately on load (in case threshold already passed today)
+  setTimeout(_checkClockInAnomalies, 5000);
 }

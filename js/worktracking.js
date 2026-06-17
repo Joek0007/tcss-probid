@@ -40,7 +40,7 @@ function addNotification(type, title, body, action) {
   updateNotifBadge();
   renderNotifPanel();
   // Also show as toast for urgent types
-  if (type==='item_reopened'||type==='absence'||type==='message') {
+  if (type==='item_reopened'||type==='absence'||type==='message'||type==='expense_logged'||type==='low_stock'||type==='clockin_anomaly') {
     showToast('🔔 '+title, 'info', 5000);
   }
 }

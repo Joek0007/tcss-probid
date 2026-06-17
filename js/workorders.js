@@ -1688,6 +1688,25 @@ function addWOExpense() {
   switchWOTab('expenses');
   refreshWOQuickStats(woId);
   showToast('Expense added','success');
+
+  // Expense alert — notify office if enabled
+  if (DB.settings.notifExpenseEnabled !== false) {
+    var isOffice = _currentUser && ['owner','manager','back_office'].includes(_currentUser.role);
+    if (!isOffice) {
+      // Field tech logged it — notify office
+      var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+      var woNum = wo ? (wo.woNumber||'WO') : 'WO';
+      var custName = wo ? (wo.customer||'') : '';
+      if (typeof addNotification === 'function') {
+        addNotification(
+          'expense_logged',
+          '💰 Expense Logged — '+woNum,
+          expEntry.loggedBy+' logged $'+amt.toFixed(2)+' ('+expEntry.category+')' + (custName ? ' · '+custName : ''),
+          'wo'
+        );
+      }
+    }
+  }
 }
 
 function deleteWOExpense(id) {
