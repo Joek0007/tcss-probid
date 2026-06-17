@@ -114,7 +114,7 @@ function renderNotifPanel() {
 
   list.innerHTML = all.slice(0,30).map(function(n){
     var icon = WT_NOTIF_ICONS[n.type] || '🔔';
-    var timeStr = formatTimeAgo ? formatTimeAgo(n.time) : (new Date(n.time)).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+    var timeStr = formatTimeAgo(n.time);
     return '<div class="notif-item'+(n.read?'':' unread')+'" '+
       'data-nid="'+n.id+'" data-src="'+n.source+'" '+
       (n.raw_id?'data-rid="'+n.raw_id+'" ':'')+

@@ -1633,3 +1633,23 @@ function _saveDrawerCustomers() {
   saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
   showToast('Customer settings saved ✓','success'); closeSettingsDrawer();
 }
+
+// ── formatTimeAgo ─────────────────────────────────────────────────────────────
+// Returns a human-readable relative time string for a given timestamp.
+// Used by the notification panel in worktracking.js.
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return '';
+  var now  = Date.now();
+  var then = typeof timestamp === 'number' ? timestamp : new Date(timestamp).getTime();
+  if (isNaN(then)) return '';
+  var diff = Math.floor((now - then) / 1000); // seconds ago
+
+  if (diff < 60)           return 'Just now';
+  if (diff < 3600)         return Math.floor(diff / 60) + ' min ago';
+  if (diff < 7200)         return '1 hr ago';
+  if (diff < 86400)        return Math.floor(diff / 3600) + ' hrs ago';
+  if (diff < 172800)       return 'Yesterday';
+  if (diff < 604800)       return Math.floor(diff / 86400) + ' days ago';
+  // Older than a week — show actual date
+  return new Date(then).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
