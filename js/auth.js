@@ -1105,9 +1105,26 @@ async function pushAllToCloud() {
       });
     }
     function ensureUUID(obj) {
-      if (!obj.id || !isUUID(obj.id)) obj.id = makeUUID();
+      if (!obj.id || !isUUID(obj.id)) {
+        // Generate a new UUID and UPDATE the object in DB so it persists
+        // This ensures next sync uses the same UUID — no duplicates
+        var newId = makeUUID();
+        obj.id = newId;
+        // saveDB() will be called at end of push cycle
+      }
       return obj.id;
     }
+
+    // Assign UUIDs to any customers/quotes with non-UUID IDs BEFORE pushing
+    // Do this in one pass so saveDB() captures stable IDs
+    var needsSave = false;
+    (DB.customers||[]).forEach(function(c){
+      if (c && c.id && !isUUID(c.id)) { c.id = makeUUID(); needsSave = true; }
+    });
+    (DB.quotes||[]).forEach(function(q){
+      if (q && q.id && !isUUID(q.id)) { q.id = makeUUID(); needsSave = true; }
+    });
+    if (needsSave) { try { saveDB(); } catch(e) {} }
 
     // Push customers
     for (var c of (DB.customers || [])) {

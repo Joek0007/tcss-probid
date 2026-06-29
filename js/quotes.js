@@ -532,6 +532,143 @@ function wrapQQStage3Mutations(){
   wrap('toggleCQQ');
 }
 
+// ============================================================
+// saveQQ — Save the current Quick Quote form to DB.quotes
+// This was missing and is why Save Quote was silently broken.
+// ============================================================
+function saveQQ() {
+  var cn = (document.getElementById('qq-cn')||{}).value || '';
+  var jn = (document.getElementById('qq-jn')||{}).value || '';
+  if (!cn.trim()) { showToast('Customer name is required before saving.','error'); return; }
+  if (!jn.trim()) { showToast('Job name is required before saving.','error'); return; }
+
+  var q = getQData();
+
+  // Assign or reuse quote number
+  var numEl = document.getElementById('qq-num');
+  var idEl  = document.getElementById('qq-id');
+  var existingId  = (idEl  && idEl.value)  || q.id  || '';
+  var existingNum = (numEl && numEl.value)  || q.num || '';
+
+  if (!existingNum || existingNum === 'PREVIEW' || existingNum === 'DRAFT') {
+    existingNum = nextQNum();
+    if (numEl) numEl.value = existingNum;
+  }
+  q.num = existingNum;
+
+  // Assign or reuse ID
+  if (!existingId) {
+    existingId = typeof makeUUID === 'function' ? makeUUID() : 'q-' + Date.now();
+    if (idEl) idEl.value = existingId;
+  }
+  q.id = existingId;
+  q.createdAt = q.createdAt || new Date().toISOString();
+  q.updatedAt = new Date().toISOString();
+
+  // Upsert customer
+  if (typeof upsertCustomer === 'function') {
+    var cust = upsertCustomer(q);
+    if (cust && !q.customerId) {
+      q.customerId = cust.id;
+      var custIdEl = document.getElementById('qq-customer-id');
+      if (custIdEl) custIdEl.value = cust.id;
+    }
+  }
+
+  // Upsert into DB.quotes — update if exists, insert if new
+  if (!DB.quotes) DB.quotes = [];
+  var idx = DB.quotes.findIndex(function(x){ return x.id === q.id; });
+  if (idx >= 0) {
+    DB.quotes[idx] = q;
+  } else {
+    DB.quotes.unshift(q);
+  }
+
+  saveDB();
+  clearQQDraft();
+  setQQDirty(false, 'Saved');
+  renderQuotes && renderQuotes();
+  renderDash && renderDash();
+  showToast('Quote ' + q.num + ' saved ✓', 'success');
+  if (typeof updateQQStage3UI === 'function') updateQQStage3UI();
+}
+
+// ============================================================
+// editQuote — Load a saved quote back into the QQ form
+// ============================================================
+function editQuote(id) {
+  var q = (DB.quotes||[]).find(function(x){ return x.id === id; });
+  if (!q) { showToast('Quote not found','error'); return; }
+
+  goPage('qq');
+  setTimeout(function() {
+    // Set hidden fields
+    var idEl  = document.getElementById('qq-id');
+    var numEl = document.getElementById('qq-num');
+    if (idEl)  idEl.value  = q.id  || '';
+    if (numEl) numEl.value = q.num || '';
+
+    // Set all standard form fields
+    var fields = {
+      'qq-cn':        q.cn        || '',
+      'qq-jn':        q.jn        || '',
+      'qq-em':        q.em        || '',
+      'qq-ph':        q.ph        || '',
+      'qq-dt':        q.dt        || '',
+      'qq-vu':        q.vu        || '',
+      'qq-jt':        q.jt        || '',
+      'qq-env':       q.env       || 'office',
+      'qq-status':    q.status    || 'draft',
+      'qq-rep':       q.rep       || '',
+      'qq-pt':        q.pt        || '',
+      'qq-tc':        q.tc        || '',
+      'qq-notes':     q.notes     || '',
+      'qq-int-notes': q.intNotes  || '',
+      'qq-followup':  q.followupDate || '',
+      'qq-labor-rate':q.laborRate || '',
+      'qq-tax-rate':  q.taxRate   || '',
+      'qq-discount':  q.discount  || '',
+      'qq-margin':    q.targetMargin || '',
+    };
+    Object.keys(fields).forEach(function(fid) {
+      var el = document.getElementById(fid);
+      if (el) el.value = fields[fid];
+    });
+
+    // Address fields
+    var adFields = {
+      'qq-ad-street': q.adStreet || q.ad || '',
+      'qq-ad-city':   q.adCity   || '',
+      'qq-ad-state':  q.adState  || '',
+      'qq-ad-zip':    q.adZip    || '',
+    };
+    Object.keys(adFields).forEach(function(fid) {
+      var el = document.getElementById(fid);
+      if (el) el.value = adFields[fid];
+    });
+
+    // Restore line items
+    if (typeof lineItems !== 'undefined') {
+      lineItems = JSON.parse(JSON.stringify(q.items || []));
+      lineItems.forEach(function(item){ if (!item._id) item._id = nextLiId(); });
+    }
+
+    // Restore equipment rows
+    if (typeof equipmentRows !== 'undefined') {
+      equipmentRows = JSON.parse(JSON.stringify(q.equipmentRows || []));
+    }
+
+    // Re-render
+    if (typeof renderLI          === 'function') renderLI();
+    if (typeof renderEquipRows   === 'function') renderEquipRows();
+    if (typeof calcTotals        === 'function') calcTotals();
+    if (typeof updateQQStage3UI  === 'function') updateQQStage3UI();
+
+    setQQDirty(false, 'Editing saved quote ' + q.num);
+    showToast('Editing ' + q.num + ' — ' + (q.cn||''), 'info', 2000);
+  }, 150);
+}
+
 function upsertCustomer(q) {
   if (!q.cn) return null;
   // Look for existing customer by ID first, then name
@@ -2486,6 +2623,17 @@ function saveCustomerAndAnother() {
   const id = document.getElementById('m-cid').value;
   const name = (document.getElementById('m-cname')||{}).value||'';
   if (!name.trim()) { showToast('Customer name required','error'); return; }
+  // Duplicate detection — same as saveCustomer — block on NEW customers only
+  if (!id) {
+    var normalizedNew = name.trim().toLowerCase();
+    var duplicate = (DB.customers||[]).find(function(c){
+      return c.name && c.name.trim().toLowerCase() === normalizedNew;
+    });
+    if (duplicate) {
+      showToast('A customer named "'+duplicate.name+'" already exists. Edit the existing record instead.','error',5000);
+      return;
+    }
+  }
   const data = _buildCustomerData(id);
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
   else DB.customers.push(data);
