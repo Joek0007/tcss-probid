@@ -684,7 +684,7 @@ function upsertCustomer(q) {
   }
   // Create new customer record
   var newCust = {
-    id: 'cust-' + Date.now(),
+    id: typeof makeUUID==='function' ? makeUUID() : 'cust-'+Date.now(),
     name: q.cn,
     phone: q.ph || '',
     email: q.em || '',
@@ -2776,7 +2776,7 @@ function _buildCustomerData(id) {
   var street=gv('m-cstreet'), city=gv('m-ccity'), state=gv('m-cstate').toUpperCase(), zip=gv('m-czip');
   var addrParts=[street, city&&state?city+', '+state:(city||state), zip].filter(Boolean);
   return {
-    id:           id || Date.now().toString(),
+    id:           id || (typeof makeUUID==='function' ? makeUUID() : 'cust-'+Date.now()),
     name:         gv('m-cname'),
     phone:        gv('m-cphone'),
     email:        gv('m-cemail'),
