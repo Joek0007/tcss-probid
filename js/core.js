@@ -169,6 +169,14 @@ function fmt(n) { return '$ ' + (isFinite(n) ? Math.abs(n).toFixed(2) : '0.00').
 function fmtSigned(n) { return (n < 0 ? '-' : '') + fmt(n); }
 function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
 
+// ---- UUID ----
+function makeUUID() {
+  if (crypto && crypto.randomUUID) return crypto.randomUUID();
+  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, function(c) {
+    return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);
+  });
+}
+
 // ---- NAVIGATION ----
 const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log',contracts:'Contracts',recurring:'Managed Services'};
 
