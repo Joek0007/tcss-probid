@@ -2543,29 +2543,218 @@ function _custAddress(c) {
   return parts.join(' ');
 }
 function _clearPrimaryContact() {
-  ['m-pc-name','m-pc-phone','m-pc-email'].forEach(function(id){
-    var el = document.getElementById(id); if (el) el.value = '';
-  });
-  ['m-pc-role','m-pc-type'].forEach(function(id){
-    var el = document.getElementById(id); if (el) el.value = '';
-  });
+  var section = document.getElementById('m-c-primary-contact-section');
+  if (section) section.innerHTML = '';
 }
+
+function _contactRoleOptions(selected) {
+  var roles = ['Owner','Facilities Manager','Property Manager','General Contractor','IT Director',
+    'Office Manager','Project Manager','Superintendent','Purchasing Agent','Operations Manager',
+    'Director of Facilities','Financial Manager','CEO','Other'];
+  return '<option value="">-- Select Title --</option>' +
+    roles.map(function(r){ return '<option'+(r===selected?' selected':'')+'>'+r+'</option>'; }).join('');
+}
+function _contactTypeOptions(selected) {
+  var types = [['','-- Select Type --'],['decision','⭐ Decision Maker'],['billing','💳 Billing Contact'],
+    ['site','📍 Site Contact'],['technical','🔧 Technical Contact'],['other','Other']];
+  return types.map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===selected?' selected':'')+'>'+t[1]+'</option>'; }).join('');
+}
+
+function _contactAddForm(customerId) {
+  return '<div id="m-pc-add-form" style="background:#f8f9fb;border-radius:10px;border:1px solid #e0e7ef;padding:16px;margin-top:12px">'+
+    '<div style="font-size:12px;font-weight:700;color:#1565c0;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">New Contact</div>'+
+    '<div class="form-row cols2" style="margin-bottom:12px">'+
+      '<div><label>Contact Name</label><input id="m-pc-name" placeholder="Full name" autocomplete="off"></div>'+
+      '<div><label>Title / Role</label><select id="m-pc-role">'+_contactRoleOptions('')+'</select></div>'+
+    '</div>'+
+    '<div class="form-row cols2" style="margin-bottom:12px">'+
+      '<div><label>Phone</label><input id="m-pc-phone" type="tel" placeholder="Direct phone" autocomplete="off"></div>'+
+      '<div><label>Email</label><input id="m-pc-email" type="email" placeholder="Direct email" autocomplete="off"></div>'+
+    '</div>'+
+    '<div class="form-row" style="margin-bottom:12px">'+
+      '<div><label>Contact Type</label><select id="m-pc-type">'+_contactTypeOptions('')+'</select></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px">'+
+      '<button class="btn btn-primary btn-sm" onclick="_saveInlineContact(\''+customerId+'\')">💾 Save Contact</button>'+
+      '<button class="btn btn-ghost btn-sm" onclick="_hideInlineContactForm()">Cancel</button>'+
+    '</div>'+
+  '</div>';
+}
+
+function _renderContactSection(mode, customerId, customerName) {
+  var section = document.getElementById('m-c-primary-contact-section');
+  if (!section) return;
+
+  if (mode === 'new') {
+    // New customer — simple single-add form
+    section.innerHTML =
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'+
+        '<div style="width:32px;height:32px;border-radius:50%;background:#e3f2fd;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">👤</div>'+
+        '<div>'+
+          '<div style="font-size:13px;font-weight:700;color:#0d1b2a">Primary Contact</div>'+
+          '<div style="font-size:11px;color:#90a4ae;margin-top:1px">Optional — leave blank to skip. Linked automatically when saved.</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="background:#f8f9fb;border-radius:10px;border:1px solid #e0e7ef;padding:16px">'+
+        '<div class="form-row cols2" style="margin-bottom:12px">'+
+          '<div><label>Contact Name</label><input id="m-pc-name" placeholder="Full name" autocomplete="off"></div>'+
+          '<div><label>Title / Role</label><select id="m-pc-role">'+_contactRoleOptions('')+'</select></div>'+
+        '</div>'+
+        '<div class="form-row cols2" style="margin-bottom:12px">'+
+          '<div><label>Phone</label><input id="m-pc-phone" type="tel" placeholder="Direct phone number" autocomplete="off"></div>'+
+          '<div><label>Email</label><input id="m-pc-email" type="email" placeholder="Direct email address" autocomplete="off"></div>'+
+        '</div>'+
+        '<div class="form-row" style="margin-bottom:0">'+
+          '<div><label>Contact Type</label><select id="m-pc-type">'+_contactTypeOptions('')+'</select></div>'+
+        '</div>'+
+      '</div>';
+    return;
+  }
+
+  // Edit mode — show existing contacts + add form
+  var contacts = (DB.contacts||[]).filter(function(ct){ return ct.customerId === customerId; });
+
+  var typeLabels = { decision:'⭐ Decision Maker', billing:'💳 Billing', site:'📍 Site', technical:'🔧 Technical', other:'Other' };
+
+  var listHtml = contacts.length
+    ? contacts.map(function(ct) {
+        return '<div id="m-pc-contact-'+ct.id+'" style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:#fff;border-radius:9px;border:1px solid #e0e7ef;margin-bottom:8px">'+
+          '<div style="width:34px;height:34px;border-radius:50%;background:#e3f2fd;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#1565c0;flex-shrink:0">'+
+            escHtml((ct.name||'?').charAt(0).toUpperCase())+
+          '</div>'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-size:13px;font-weight:700;color:#0d1b2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(ct.name||'')+'</div>'+
+            '<div style="font-size:11px;color:#546e7a;margin-top:2px">'+
+              (ct.role||ct.title ? '<span>'+escHtml(ct.role||ct.title||'')+'</span>' : '')+
+              (ct.contactType && typeLabels[ct.contactType] ? '<span style="margin-left:6px;color:#1565c0">'+typeLabels[ct.contactType]+'</span>' : '')+
+            '</div>'+
+            '<div style="font-size:11px;color:#90a4ae;margin-top:2px">'+
+              (ct.phone ? escHtml(ct.phone) : '')+(ct.phone && ct.email ? ' · ' : '')+(ct.email ? escHtml(ct.email) : '')+
+            '</div>'+
+          '</div>'+
+          '<div style="display:flex;gap:6px;flex-shrink:0">'+
+            '<button onclick="_editInlineContact(\''+ct.id+'\',\''+customerId+'\')" style="padding:5px 10px;background:#e3f2fd;color:#1565c0;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">✏ Edit</button>'+
+            '<button onclick="_deleteInlineContact(\''+ct.id+'\')" style="padding:5px 10px;background:#ffebee;color:#c62828;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">✕</button>'+
+          '</div>'+
+        '</div>';
+      }).join('')
+    : '<div style="color:#90a4ae;font-size:13px;padding:8px 0 12px">No contacts yet for this customer.</div>';
+
+  section.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div style="width:32px;height:32px;border-radius:50%;background:#e3f2fd;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">👥</div>'+
+        '<div>'+
+          '<div style="font-size:13px;font-weight:700;color:#0d1b2a">Contacts</div>'+
+          '<div style="font-size:11px;color:#90a4ae;margin-top:1px">'+contacts.length+' contact'+(contacts.length!==1?'s':'')+' linked to this customer</div>'+
+        '</div>'+
+      '</div>'+
+      '<button onclick="_showInlineContactForm(\''+customerId+'\')" style="display:flex;align-items:center;gap:5px;padding:6px 12px;background:#1565c0;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">+ Add Contact</button>'+
+    '</div>'+
+    '<div id="m-pc-contact-list">'+listHtml+'</div>'+
+    '<div id="m-pc-add-form-container"></div>';
+
+  // Store customerId for the add form
+  section.dataset.custId = customerId;
+  section.dataset.custName = customerName || '';
+}
+
+function _showInlineContactForm(customerId) {
+  var container = document.getElementById('m-pc-add-form-container');
+  if (!container) return;
+  container.innerHTML = _contactAddForm(customerId);
+  var nameEl = document.getElementById('m-pc-name');
+  if (nameEl) nameEl.focus();
+}
+
+function _hideInlineContactForm() {
+  var container = document.getElementById('m-pc-add-form-container');
+  if (container) container.innerHTML = '';
+}
+
+function _saveInlineContact(customerId) {
+  var name = ((document.getElementById('m-pc-name')||{}).value||'').trim();
+  if (!name) { showToast('Contact name is required','error'); return; }
+  var section = document.getElementById('m-c-primary-contact-section');
+  var custName = section ? (section.dataset.custName||'') : '';
+  var editId = section ? (section.dataset.editContactId||'') : '';
+
+  var contact = {
+    id:          editId || (typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now()),
+    name:        name,
+    company:     custName,
+    phone:       ((document.getElementById('m-pc-phone')||{}).value||'').trim(),
+    email:       ((document.getElementById('m-pc-email')||{}).value||'').trim(),
+    role:        ((document.getElementById('m-pc-role')||{}).value||'').trim(),
+    title:       ((document.getElementById('m-pc-role')||{}).value||'').trim(),
+    contactType: ((document.getElementById('m-pc-type')||{}).value||'').trim(),
+    contactPref: '',
+    notes:       '',
+    customerId:  customerId
+  };
+
+  if (!DB.contacts) DB.contacts = [];
+  if (editId) {
+    var idx = DB.contacts.findIndex(function(c){ return c.id === editId; });
+    if (idx >= 0) DB.contacts[idx] = contact; else DB.contacts.push(contact);
+    delete section.dataset.editContactId;
+  } else {
+    DB.contacts.push(contact);
+  }
+  saveDB();
+  showToast((editId ? 'Contact updated' : '"'+name+'" added') + ' ✓','success');
+  // Re-render the contacts section
+  _renderContactSection('edit', customerId, custName);
+}
+
+function _editInlineContact(contactId, customerId) {
+  var ct = (DB.contacts||[]).find(function(c){ return c.id === contactId; });
+  if (!ct) return;
+  var section = document.getElementById('m-c-primary-contact-section');
+  var custName = section ? (section.dataset.custName||'') : '';
+  // Show add form with prefilled values
+  var container = document.getElementById('m-pc-add-form-container');
+  if (!container) return;
+  container.innerHTML = _contactAddForm(customerId);
+  // Prefill
+  var set = function(id, val){ var el=document.getElementById(id); if(el) el.value=val||''; };
+  set('m-pc-name', ct.name);
+  set('m-pc-role', ct.role||ct.title||'');
+  set('m-pc-phone', ct.phone);
+  set('m-pc-email', ct.email);
+  set('m-pc-type', ct.contactType);
+  // Update button label
+  var btn = container.querySelector('.btn-primary');
+  if (btn) btn.textContent = '💾 Update Contact';
+  // Store edit ID
+  if (section) section.dataset.editContactId = contactId;
+  var nameEl = document.getElementById('m-pc-name');
+  if (nameEl) nameEl.focus();
+}
+
+function _deleteInlineContact(contactId) {
+  if (!confirm('Remove this contact?')) return;
+  DB.contacts = (DB.contacts||[]).filter(function(c){ return c.id !== contactId; });
+  saveDB();
+  var section = document.getElementById('m-c-primary-contact-section');
+  var custId  = section ? (section.dataset.custId||'') : '';
+  var custName= section ? (section.dataset.custName||'') : '';
+  showToast('Contact removed','success');
+  _renderContactSection('edit', custId, custName);
+}
+
 function newCustomer() {
   document.getElementById('modal-cust-title').textContent='New Customer';
   _custFieldIds().forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-  var sel=document.getElementById('m-cterms'); if(sel) sel.value='Due on Receipt'; var _taxEl=document.getElementById('m-ctax-taxable'); if(_taxEl) _taxEl.checked=true;
-  _clearPrimaryContact();
-  var pcSection = document.getElementById('m-c-primary-contact-section');
-  if (pcSection) pcSection.style.display = 'block';
+  var sel=document.getElementById('m-cterms'); if(sel) sel.value='Due on Receipt';
+  var _taxEl=document.getElementById('m-ctax-taxable'); if(_taxEl) _taxEl.checked=true;
+  _renderContactSection('new', '', '');
   openModal('modal-customer');
 }
 function editCustomer(id) {
   const c = DB.customers.find(function(x){return x.id==id});
   if(!c) return;
   document.getElementById('modal-cust-title').textContent='Edit Customer';
-  // Hide primary contact section on edit — contacts managed via profile
-  var pcSection = document.getElementById('m-c-primary-contact-section');
-  if (pcSection) pcSection.style.display = 'none';
   function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v||'';}
   sv('m-cname',c.name); sv('m-cphone',c.phone); sv('m-cemail',c.email);
   sv('m-cinvoicing-contact',c.invoicingContact); sv('m-cinvoicing-email',c.invoicingEmail);
@@ -2575,11 +2764,11 @@ function editCustomer(id) {
   var taxEl=document.getElementById(c.taxExempt?'m-ctax-exempt':'m-ctax-taxable'); if(taxEl) taxEl.checked=true;
   var htEl=document.getElementById('m-c-hotnote-tech');   if(htEl) htEl.value=c.hotNoteTech||'';
   var hoEl=document.getElementById('m-c-hotnote-office'); if(hoEl) hoEl.value=c.hotNoteOffice||'';
-  // Load alert scope checkboxes
   var scopes = c.officeAlertScope || {quotes:true,workorders:true,invoices:false,customers:false,dispatch:false};
   ['quotes','workorders','invoices','customers','dispatch'].forEach(function(k){
     var cb=document.getElementById('m-calert-'+k); if(cb) cb.checked=!!scopes[k];
   });
+  _renderContactSection('edit', c.id, c.name);
   openModal('modal-customer');
 }
 function _buildCustomerData(id) {
@@ -2672,7 +2861,7 @@ function saveCustomerAndAnother() {
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
   else { DB.customers.push(data); _savePrimaryContact(data.id, data.name); }
   saveDB(); renderCustomers();
-  _clearPrimaryContact();
+  _renderContactSection('new', '', '');
   _custFieldIds().forEach(function(fid){var el=document.getElementById(fid);if(el)el.value='';});
   var sel=document.getElementById('m-cterms'); if(sel) sel.value='Due on Receipt'; var _taxEl=document.getElementById('m-ctax-taxable'); if(_taxEl) _taxEl.checked=true;
   const titleEl=document.getElementById('modal-cust-title'); if(titleEl) titleEl.textContent='New Customer';
