@@ -5775,6 +5775,58 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <div style="background:#fff3e0;border-radius:8px;padding:10px 14px;margin:4px 0;border-left:3px solid #e65100">
         <div style="font-size:11px;font-weight:700;color:#e65100">⚠️ Alerts are managed from the customer profile → Alerts tab</div>
       </div>
+
+      <!-- PRIMARY CONTACT — new customers only -->
+      <div id="m-c-primary-contact-section" style="margin-top:18px;border-top:1.5px solid #e0e7ef;padding-top:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div style="width:32px;height:32px;border-radius:50%;background:#e3f2fd;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">👤</div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#0d1b2a;letter-spacing:.1px">Primary Contact</div>
+            <div style="font-size:11px;color:#90a4ae;margin-top:1px">Optional — leave blank to skip. Linked automatically when the customer is saved.</div>
+          </div>
+        </div>
+        <div style="background:#f8f9fb;border-radius:10px;border:1px solid #e0e7ef;padding:16px">
+          <div class="form-row cols2" style="margin-bottom:12px">
+            <div><label>Contact Name</label><input id="m-pc-name" placeholder="Full name" autocomplete="off"></div>
+            <div><label>Title / Role</label>
+              <select id="m-pc-role">
+                <option value="">-- Select Title --</option>
+                <option>Owner</option>
+                <option>Facilities Manager</option>
+                <option>Property Manager</option>
+                <option>General Contractor</option>
+                <option>IT Director</option>
+                <option>Office Manager</option>
+                <option>Project Manager</option>
+                <option>Superintendent</option>
+                <option>Purchasing Agent</option>
+                <option>Operations Manager</option>
+                <option>Director of Facilities</option>
+                <option>Financial Manager</option>
+                <option>CEO</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row cols2" style="margin-bottom:12px">
+            <div><label>Phone</label><input id="m-pc-phone" type="tel" placeholder="Direct phone number" autocomplete="off"></div>
+            <div><label>Email</label><input id="m-pc-email" type="email" placeholder="Direct email address" autocomplete="off"></div>
+          </div>
+          <div class="form-row" style="margin-bottom:0">
+            <div><label>Contact Type</label>
+              <select id="m-pc-type">
+                <option value="">-- Select Type --</option>
+                <option value="decision">⭐ Decision Maker</option>
+                <option value="billing">💳 Billing Contact</option>
+                <option value="site">📍 Site Contact</option>
+                <option value="technical">🔧 Technical Contact</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <input type="hidden" id="m-cid">
     </div>
     <div class="modal-foot">

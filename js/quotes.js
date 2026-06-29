@@ -2542,16 +2542,30 @@ function _custAddress(c) {
   var parts = [c.street, c.city && c.state ? c.city+', '+c.state : (c.city||c.state||''), c.zip].filter(Boolean);
   return parts.join(' ');
 }
+function _clearPrimaryContact() {
+  ['m-pc-name','m-pc-phone','m-pc-email'].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+  ['m-pc-role','m-pc-type'].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+}
 function newCustomer() {
   document.getElementById('modal-cust-title').textContent='New Customer';
   _custFieldIds().forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   var sel=document.getElementById('m-cterms'); if(sel) sel.value='Due on Receipt'; var _taxEl=document.getElementById('m-ctax-taxable'); if(_taxEl) _taxEl.checked=true;
+  _clearPrimaryContact();
+  var pcSection = document.getElementById('m-c-primary-contact-section');
+  if (pcSection) pcSection.style.display = 'block';
   openModal('modal-customer');
 }
 function editCustomer(id) {
   const c = DB.customers.find(function(x){return x.id==id});
   if(!c) return;
   document.getElementById('modal-cust-title').textContent='Edit Customer';
+  // Hide primary contact section on edit — contacts managed via profile
+  var pcSection = document.getElementById('m-c-primary-contact-section');
+  if (pcSection) pcSection.style.display = 'none';
   function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v||'';}
   sv('m-cname',c.name); sv('m-cphone',c.phone); sv('m-cemail',c.email);
   sv('m-cinvoicing-contact',c.invoicingContact); sv('m-cinvoicing-email',c.invoicingEmail);
@@ -2598,6 +2612,26 @@ function _buildCustomerData(id) {
     }
   };
 }
+function _savePrimaryContact(customerId, customerName) {
+  var name = (document.getElementById('m-pc-name')||{}).value.trim();
+  if (!name) return; // blank = skip
+  var contact = {
+    id:          typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now(),
+    name:        name,
+    company:     customerName || '',
+    phone:       ((document.getElementById('m-pc-phone')||{}).value||'').trim(),
+    email:       ((document.getElementById('m-pc-email')||{}).value||'').trim(),
+    role:        ((document.getElementById('m-pc-role')||{}).value||'').trim(),
+    title:       ((document.getElementById('m-pc-role')||{}).value||'').trim(),
+    contactType: ((document.getElementById('m-pc-type')||{}).value||'').trim(),
+    contactPref: '',
+    notes:       '',
+    customerId:  customerId
+  };
+  if (!DB.contacts) DB.contacts = [];
+  DB.contacts.push(contact);
+}
+
 function saveCustomer() {
   const id = document.getElementById('m-cid').value;
   const name = (document.getElementById('m-cname')||{}).value||'';
@@ -2615,7 +2649,7 @@ function saveCustomer() {
   }
   const data = _buildCustomerData(id);
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
-  else DB.customers.push(data);
+  else { DB.customers.push(data); _savePrimaryContact(data.id, data.name); }
   saveDB(); closeModal('modal-customer'); renderCustomers();
   showToast('"'+name+'" saved','success');
 }
@@ -2636,8 +2670,9 @@ function saveCustomerAndAnother() {
   }
   const data = _buildCustomerData(id);
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
-  else DB.customers.push(data);
+  else { DB.customers.push(data); _savePrimaryContact(data.id, data.name); }
   saveDB(); renderCustomers();
+  _clearPrimaryContact();
   _custFieldIds().forEach(function(fid){var el=document.getElementById(fid);if(el)el.value='';});
   var sel=document.getElementById('m-cterms'); if(sel) sel.value='Due on Receipt'; var _taxEl=document.getElementById('m-ctax-taxable'); if(_taxEl) _taxEl.checked=true;
   const titleEl=document.getElementById('modal-cust-title'); if(titleEl) titleEl.textContent='New Customer';
