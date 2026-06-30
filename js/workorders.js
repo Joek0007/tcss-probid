@@ -1913,8 +1913,15 @@ function createWOInvoice() {
   var rate=parseFloat(wo.laborRate)||125;
   var totalHrs=labor.reduce(function(s,l){return s+parseFloat(l.hours||0);},0);
   var laborAmt=totalHrs*rate;
+
   var expAmt=expenses.reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
   var subtotal=laborAmt+expAmt;
+  if (subtotal <= 0) {
+    var partsNote = parts.length ? ' There are '+parts.length+' part(s) listed, but parts are not auto-priced into invoices yet.' : '';
+    if (!confirm('No labor hours or expenses are logged on this work order yet, so this invoice will total $0.00.'+partsNote+'\n\nCreate the $0 draft anyway?')) {
+      return;
+    }
+  }
   var taxRate=parseFloat(wo.taxRate)||0;
   var taxAmt=subtotal*(taxRate/100);
   var total=subtotal+taxAmt;
