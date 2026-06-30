@@ -118,6 +118,10 @@ function _saveJobToWO(job) {
       var member = (DB.team||[]).find(function(m){ return m.name === c.techName; });
       // Skip cleanly if the tech can't be found, has no phone on file, or opted out
       if (!member || !member.phone || member.smsEnabled === false) return;
+      // Claim this tech as notified IMMEDIATELY (synchronously), before the async
+      // sendSMS() call, to close the race window against the workorders.js path.
+      wo.smsNotified.push(c.techName);
+      saveDB();
       // Build a rich message
       var msg = 'TCSS Dispatch: ' + (wo.woNumber||'Work Order');
       msg += ' | ' + (wo.customerName||'');
@@ -129,8 +133,10 @@ function _saveJobToWO(job) {
       if (wo.siteAddr) msg += '\n' + wo.siteAddr + (wo.siteCity ? ', ' + wo.siteCity : '');
       msg += '\nReply STOP to opt out.';
       sendSMS(member.phone, msg).then(function(ok){
-        if (ok) {
-          wo.smsNotified.push(c.techName);
+        if (!ok) {
+          // Send actually failed — un-claim so a future re-trigger can retry.
+          var idx = wo.smsNotified.indexOf(c.techName);
+          if (idx >= 0) wo.smsNotified.splice(idx, 1);
           saveDB();
         }
       });

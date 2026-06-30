@@ -2340,6 +2340,12 @@ function saveTeamModal() {
       if (wo.smsNotified.indexOf(techName) >= 0) return;
       var member = (DB.team||[]).find(function(m){ return m.name===techName; });
       if (!member || !member.phone || member.smsEnabled === false) return;
+      // Claim this tech as notified IMMEDIATELY (synchronously), before the async
+      // sendSMS() call. This closes the race window where a second trigger path
+      // (e.g. the Dispatch Board's _saveJobToWO) could fire its own duplicate
+      // text for the same tech while this send is still in flight.
+      wo.smsNotified.push(techName);
+      saveDB();
       var msg = 'TCSS Dispatch: '+(wo.woNumber||'WO')+' | '+(wo.customerName||'');
       if (wo.description) msg += '\n'+wo.description.substring(0,80);
       if (wo.scheduledDate) {
@@ -2349,7 +2355,13 @@ function saveTeamModal() {
       if (wo.siteAddr) msg += '\n'+wo.siteAddr+(wo.siteCity?', '+wo.siteCity:'');
       msg += '\nReply STOP to opt out.';
       sendSMS(member.phone, msg).then(function(ok){
-        if (ok) { wo.smsNotified.push(techName); saveDB(); }
+        if (!ok) {
+          // Send actually failed (e.g. insufficient credit) — un-claim so a
+          // future re-trigger can retry instead of silently staying "notified".
+          var idx = wo.smsNotified.indexOf(techName);
+          if (idx >= 0) wo.smsNotified.splice(idx, 1);
+          saveDB();
+        }
       });
     });
   }
