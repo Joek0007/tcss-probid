@@ -1116,11 +1116,42 @@ async function pushAllToCloud() {
     }
 
     // Assign UUIDs to any customers/quotes with non-UUID IDs BEFORE pushing
-    // Do this in one pass so saveDB() captures stable IDs
+    // Do this in one pass so saveDB() captures stable IDs.
+    // IMPORTANT: before minting a brand-new UUID for a customer, check whether a
+    // matching customer already exists in the cloud (same name + same phone/email).
+    // Without this check, the same customer entered independently on two devices/
+    // sessions before either had synced would each get their own fresh UUID and
+    // become permanent duplicate rows once pushed. This was the root cause of the
+    // "Blue Ridge Medical Ctr" duplicate records.
     var needsSave = false;
-    (DB.customers||[]).forEach(function(c){
-      if (c && c.id && !isUUID(c.id)) { c.id = makeUUID(); needsSave = true; }
-    });
+    var _localNonUuidCustomers = (DB.customers||[]).filter(function(c){ return c && c.id && !isUUID(c.id); });
+    if (_localNonUuidCustomers.length) {
+      try {
+        var { data: _existingCusts } = await _sb.from('customers').select('id,name,phone,email');
+        _existingCusts = _existingCusts || [];
+        _localNonUuidCustomers.forEach(function(c){
+          var norm = function(s){ return (s||'').toString().trim().toLowerCase().replace(/[^a-z0-9]/g,''); };
+          var cName = norm(c.name), cPhone = norm(c.phone), cEmail = norm(c.email);
+          var match = _existingCusts.find(function(e){
+            var eName = norm(e.name), ePhone = norm(e.phone), eEmail = norm(e.email);
+            if (!eName || eName !== cName) return false;
+            if (cPhone && ePhone && cPhone === ePhone) return true;
+            if (cEmail && eEmail && cEmail === eEmail) return true;
+            return false;
+          });
+          if (match) {
+            c.id = match.id; // adopt existing cloud record instead of creating a duplicate
+          } else {
+            c.id = makeUUID();
+          }
+          needsSave = true;
+        });
+      } catch(e) {
+        // If the existing-customer lookup fails for any reason, fall back to the
+        // old behavior (mint a new UUID) rather than blocking the sync entirely.
+        _localNonUuidCustomers.forEach(function(c){ c.id = makeUUID(); needsSave = true; });
+      }
+    }
     (DB.quotes||[]).forEach(function(q){
       if (q && q.id && !isUUID(q.id)) { q.id = makeUUID(); needsSave = true; }
     });
