@@ -106,15 +106,18 @@ function _saveJobToWO(job) {
       if (r && r.error) console.warn('[Dispatch] WO update error:', r.error.message);
     });
   }
-  // Send SMS only to newly added techs who haven't been notified yet
+  // Send SMS only to newly added techs who haven't been notified yet.
+  // wo.smsNotified is shared with the workorders.js assignment path — checking
+  // it here too prevents the same tech getting a duplicate text when both the
+  // Dispatch Board and the Work Order modal trigger off the same assignment.
   if (typeof sendSMS === 'function') {
     if (!wo.smsNotified) wo.smsNotified = [];
     crew.forEach(function(c) {
-      // Skip if already notified for this WO
+      // Skip if already notified for this WO (by either send path)
       if (wo.smsNotified.indexOf(c.techName) >= 0) return;
-      // Check tech opt-in (default true if not set)
       var member = (DB.team||[]).find(function(m){ return m.name === c.techName; });
-      if (member && member.smsEnabled === false) return;
+      // Skip cleanly if the tech can't be found, has no phone on file, or opted out
+      if (!member || !member.phone || member.smsEnabled === false) return;
       // Build a rich message
       var msg = 'TCSS Dispatch: ' + (wo.woNumber||'Work Order');
       msg += ' | ' + (wo.customerName||'');
@@ -123,8 +126,9 @@ function _saveJobToWO(job) {
         var d = new Date(wo.scheduledDate+'T12:00:00');
         msg += '\nScheduled: ' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
       }
+      if (wo.siteAddr) msg += '\n' + wo.siteAddr + (wo.siteCity ? ', ' + wo.siteCity : '');
       msg += '\nReply STOP to opt out.';
-      sendSMS((member&&member.phone)||'', msg).then(function(ok){
+      sendSMS(member.phone, msg).then(function(ok){
         if (ok) {
           wo.smsNotified.push(c.techName);
           saveDB();

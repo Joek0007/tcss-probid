@@ -2346,7 +2346,7 @@ function saveTeamModal() {
         var d = new Date(wo.scheduledDate+'T12:00:00');
         msg += '\nScheduled: '+d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
       }
-      if (wo.street) msg += '\n'+wo.street+(wo.city?', '+wo.city:'');
+      if (wo.siteAddr) msg += '\n'+wo.siteAddr+(wo.siteCity?', '+wo.siteCity:'');
       msg += '\nReply STOP to opt out.';
       sendSMS(member.phone, msg).then(function(ok){
         if (ok) { wo.smsNotified.push(techName); saveDB(); }
