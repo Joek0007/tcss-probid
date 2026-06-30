@@ -2418,16 +2418,18 @@ function wtSyncWOTechsToCalendar(wo, newTechs) {
   }
   // WOs are jobs — no separate job record needed
 
-  // Send in-app notifications + SMS to newly assigned techs
+  // In-app bell notifications still belong here.
   if (typeof addWOAssignmentNotifications === 'function') {
     addWOAssignmentNotifications(wo, newTechs);
   }
-  // SMS notification
-  if (typeof sendAssignmentSMS === 'function') {
-    newTechs.forEach(function(name){
-      sendAssignmentSMS(name, wo.woNumber||'Work Order', wo.scheduledDate||wo.dateRequested||null);
-    });
-  }
+
+  // NOTE: SMS notification is intentionally NOT sent from here. It's already
+  // handled by the assignment-saving functions (saveTeamModal in this file,
+  // and _saveJobToWO in dispatch.js), both of which check wo.smsNotified to
+  // avoid duplicates. This function previously also called sendAssignmentSMS()
+  // directly with no dedup check at all, which meant every tech assignment
+  // could trigger three separate texts. Calendar sync should not also be a
+  // notification trigger point.
 }
 
 function toggleAssignedTech(techName) {

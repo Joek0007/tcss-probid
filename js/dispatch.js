@@ -196,9 +196,28 @@ function dispatchPoolCardDrop(e, woId) {
       });
   }
 
-  // Send SMS
-  if (typeof sendAssignmentSMS === 'function') {
-    sendAssignmentSMS(techName, wo.woNumber||wo.description||'Work Order', wo.scheduledDate||null);
+  // Send SMS — guarded by the same wo.smsNotified array used elsewhere so a
+  // tech doesn't get a duplicate text if this assignment also triggers the
+  // Work Order modal's or calendar sync's notification logic.
+  if (typeof sendSMS === 'function') {
+    if (!wo.smsNotified) wo.smsNotified = [];
+    if (wo.smsNotified.indexOf(techName) < 0) {
+      var member = (DB.team||[]).find(function(m){ return m.name === techName; });
+      if (member && member.phone && member.smsEnabled !== false) {
+        wo.smsNotified.push(techName);
+        saveDB();
+        var assignMsg = 'TCSS: You have been assigned to ' + (wo.woNumber||wo.description||'Work Order');
+        if (wo.scheduledDate) assignMsg += ' — starting ' + wo.scheduledDate;
+        assignMsg += '. Open the ProBid app for details.';
+        sendSMS(member.phone, assignMsg).then(function(ok){
+          if (!ok) {
+            var idx = wo.smsNotified.indexOf(techName);
+            if (idx >= 0) wo.smsNotified.splice(idx, 1);
+            saveDB();
+          }
+        });
+      }
+    }
   }
 
   showToast(techName + ' assigned to ' + (wo.woNumber||'WO'), 'success', 3000);
