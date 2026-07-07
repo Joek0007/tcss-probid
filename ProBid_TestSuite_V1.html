@@ -357,7 +357,7 @@ async function T_quote_num_new(id){
   var saveFn=saveStart>-1?src.substring(saveStart,saveStart+3000):'';
   var saveUpdates=saveFn.includes('qq-stage4-num');
   var uiStart=src.indexOf('function updateQQStage3UI(');
-  var uiFn=uiStart>-1?src.substring(uiStart,uiStart+2000):'';
+  var uiFn=uiStart>-1?src.substring(uiStart,uiStart+3500):'';
   var uiSyncs=uiFn.includes('qq-stage4-num')||uiFn.includes('stageNumEl');
   log(id,"qq-stage4-num in source: "+hasRef,hasRef?'ok':'err');
   log(id,'saveQQ() updates header: '+saveUpdates,saveUpdates?'ok':'err');
