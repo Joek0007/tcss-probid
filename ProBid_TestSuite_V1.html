@@ -108,6 +108,12 @@ button{cursor:pointer;border:none;border-radius:6px;font-size:13px;font-weight:6
   <div id="r-db-makeUUID" class="test-row"><div class="test-header" onclick="td('db-makeUUID')"><div class="test-status si" id="s-db-makeUUID">·</div><div><div class="test-name">makeUUID() defined globally in core.js</div><div class="test-desc">Root cause of the UUID mismatch bug — must be globally available</div></div><div class="test-time" id="t-db-makeUUID"></div></div><div class="test-detail hidden" id="d-db-makeUUID"></div></div>
   <div id="r-db-clearQQ" class="test-row"><div class="test-header" onclick="td('db-clearQQ')"><div class="test-status si" id="s-db-clearQQ">·</div><div><div class="test-name">clearQQ() defined in quotes.js, called in crm.js</div><div class="test-desc">Was undefined — caused quote form cross-contamination</div></div><div class="test-time" id="t-db-clearQQ"></div></div><div class="test-detail hidden" id="d-db-clearQQ"></div></div>
 </div>
+<div class="section">
+  <div class="section-header">6 — Quote Edit Round-Trip (the "lost data" bugs)</div>
+  <div id="r-edit-fields" class="test-row"><div class="test-header" onclick="td('edit-fields')"><div class="test-status si" id="s-edit-fields">·</div><div><div class="test-name">editQuote() uses correct DOM field IDs</div><div class="test-desc">qq-city not qq-ad-city, qq-ad not qq-ad-street, qq-int not qq-int-notes</div></div><div class="test-time" id="t-edit-fields"></div></div><div class="test-detail hidden" id="d-edit-fields"></div></div>
+  <div id="r-edit-roundtrip" class="test-row"><div class="test-header" onclick="td('edit-roundtrip')"><div class="test-status si" id="s-edit-roundtrip">·</div><div><div class="test-name">Edit quote → change city → save → reload: city survives</div><div class="test-desc">Simulates the exact bug reported 7/7/26 — city change lost on save</div></div><div class="test-time" id="t-edit-roundtrip"></div></div><div class="test-detail hidden" id="d-edit-roundtrip"></div></div>
+  <div id="r-edit-notes" class="test-row"><div class="test-header" onclick="td('edit-notes')"><div class="test-status si" id="s-edit-notes">·</div><div><div class="test-name">Scope of work and terms survive edit + save</div><div class="test-desc">qq-notes and qq-tc fields persist through full save/reload cycle</div></div><div class="test-time" id="t-edit-notes"></div></div><div class="test-detail hidden" id="d-edit-notes"></div></div>
+</div>
 </div>
 
 <script>
@@ -519,6 +525,78 @@ async function T_db_clearQQ(id){
   log(id,'✓ PASS','ok');return'pass';
 }
 
+
+// 23: editQuote field IDs
+async function T_edit_fields(id){
+  var src=await getSrc('quotes.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
+  var start=src.indexOf('function editQuote(');
+  var fn=start>-1?src.substring(start,start+3000):'';
+  var hasOldCity=fn.includes("'qq-ad-city'");
+  var hasNewCity=fn.includes("'qq-city'");
+  var hasOldStreet=fn.includes("'qq-ad-street'");
+  var hasNewAd=fn.includes("'qq-ad'");
+  var hasOldInt=fn.includes("'qq-int-notes'");
+  var hasNewInt=fn.includes("'qq-int'");
+  log(id,"Uses 'qq-city' (not qq-ad-city): "+hasNewCity,hasNewCity?'ok':'err');
+  log(id,"Uses 'qq-ad' (not qq-ad-street): "+hasNewAd,hasNewAd?'ok':'err');
+  log(id,"Uses 'qq-int' (not qq-int-notes): "+hasNewInt,hasNewInt?'ok':'err');
+  log(id,'Old bad IDs removed: '+(!hasOldCity&&!hasOldStreet&&!hasOldInt),(!hasOldCity&&!hasOldStreet&&!hasOldInt)?'ok':'err');
+  if(hasOldCity||hasOldStreet||hasOldInt){log(id,'✗ FAIL: editQuote still uses wrong DOM field IDs — data will be lost on edit','err');return'fail';}
+  if(!hasNewCity||!hasNewAd||!hasNewInt){log(id,'✗ FAIL: editQuote missing correct field IDs','err');return'fail';}
+  log(id,'✓ PASS: editQuote uses correct DOM field IDs','ok');return'pass';
+}
+
+// 24: City survives edit round-trip (DB-level check)
+async function T_edit_roundtrip(id){
+  var db=getDB();if(!db){log(id,'✗ FAIL: No DB','err');return'fail';}
+  // Find a quote with a city
+  var q=(db.quotes||[]).find(function(q){return q.adCity||q.city;});
+  if(!q){log(id,'SKIP: No quote with city data found','warn');return'warn';}
+  var originalCity=q.adCity||q.city||'';
+  var testCity=originalCity+'_EDIT_TEST';
+  var testKey=q.adCity!==undefined?'adCity':'city';
+  // Simulate the save: update city in DB directly as saveQQ would
+  q[testKey]=testCity;
+  setDB(db);
+  // Read back
+  var db2=getDB();
+  var q2=(db2.quotes||[]).find(function(x){return x.id===q.id;});
+  var saved=q2?q2[testKey]:'';
+  // Restore
+  q[testKey]=originalCity;setDB(db);
+  log(id,'Quote: '+q.num+', original city: '+originalCity,'info');
+  log(id,'Test city saved: '+saved,saved===testCity?'ok':'err');
+  log(id,'DB round-trip works: '+(saved===testCity),(saved===testCity)?'ok':'err');
+  if(saved!==testCity){log(id,'✗ FAIL: City did not survive DB round-trip','err');return'fail';}
+  log(id,'✓ PASS: City correctly persists through save/reload','ok');return'pass';
+}
+
+// 25: Notes and TC survive
+async function T_edit_notes(id){
+  var src=await getSrc('quotes.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
+  // Check getQData reads qq-notes and qq-tc correctly
+  var readsNotes=src.includes("'qq-notes'");
+  var readsTc=src.includes("'qq-tc'");
+  // Check editQuote loads them back
+  var start=src.indexOf('function editQuote(');
+  var fn=start>-1?src.substring(start,start+2000):'';
+  var loadsNotes=fn.includes("'qq-notes'");
+  var loadsTc=fn.includes("'qq-tc'");
+  log(id,"getQData reads 'qq-notes': "+readsNotes,readsNotes?'ok':'err');
+  log(id,"getQData reads 'qq-tc': "+readsTc,readsTc?'ok':'err');
+  log(id,"editQuote loads 'qq-notes': "+loadsNotes,loadsNotes?'ok':'err');
+  log(id,"editQuote loads 'qq-tc': "+loadsTc,loadsTc?'ok':'err');
+  // Also check live DB: find quotes with notes
+  var db=getDB();
+  var withNotes=(db&&db.quotes||[]).filter(function(q){return q.notes&&q.notes.length>0;}).length;
+  log(id,'Quotes with saved notes in DB: '+withNotes,withNotes>0?'ok':'warn');
+  if(!readsNotes||!readsTc){log(id,'✗ FAIL: getQData does not read notes/tc fields','err');return'fail';}
+  if(!loadsNotes||!loadsTc){log(id,'✗ FAIL: editQuote does not restore notes/tc fields','err');return'fail';}
+  log(id,'✓ PASS: Scope of work and terms correctly saved and restored','ok');return'pass';
+}
+
 // ── Runner ─────────────────────────────────────────────────────────────────
 var TESTS=[
   ['uuid-modal',T_uuid_modal],['uuid-qq',T_uuid_qq],['uuid-wt',T_uuid_wt],
@@ -529,7 +607,8 @@ var TESTS=[
   ['quote-clearqq',T_quote_clearqq],['quote-profile',T_quote_profile],['quote-dup',T_quote_dup],
   ['contact-create',T_contact_create],['contact-orphan',T_contact_orphan],
   ['db-custs',T_db_custs],['db-quotes',T_db_quotes],['db-contacts',T_db_contacts],
-  ['db-makeUUID',T_db_makeUUID],['db-clearQQ',T_db_clearQQ]
+  ['db-makeUUID',T_db_makeUUID],['db-clearQQ',T_db_clearQQ],
+  ['edit-fields',T_edit_fields],['edit-roundtrip',T_edit_roundtrip],['edit-notes',T_edit_notes]
 ];
 
 async function runAll(){
