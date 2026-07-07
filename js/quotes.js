@@ -479,6 +479,12 @@ function updateQQStage3UI(){
   }
   var totalEl=document.getElementById('qq-sticky-total'); if(totalEl) totalEl.textContent='Total ' + fmt(v.totals.totalSell||0);
   var readyEl=document.getElementById('qq-sticky-ready'); if(readyEl) readyEl.textContent=v.totals.readiness || 'Not Ready';
+  // Keep the "Quote #---" header in sync with the actual assigned number
+  var stageNumEl = document.getElementById('qq-stage4-num');
+  if (stageNumEl) {
+    var assignedNum = (document.getElementById('qq-num')||{}).value || '';
+    stageNumEl.textContent = assignedNum ? 'Quote #' + assignedNum : 'Quote #---';
+  }
   var pill=document.getElementById('qq-stage3-pill');
   if (pill) pill.textContent = _qqDirty ? 'Draft In Progress' : ((v.cn||v.jn||v.itemsOk) ? 'Quote Stable' : 'New Draft');
   var sub=document.getElementById('qq-stage3-sub');
@@ -591,6 +597,9 @@ function saveQQ() {
   if (!existingNum || existingNum === 'PREVIEW' || existingNum === 'DRAFT') {
     existingNum = nextQNum();
     if (numEl) numEl.value = existingNum;
+    // Also update the visible Quote #--- header immediately
+    var displayEl = document.getElementById('qq-stage4-num');
+    if (displayEl) displayEl.textContent = 'Quote #' + existingNum;
   }
   q.num = existingNum;
 
