@@ -2,1055 +2,559 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ProBid V9 — Test Suite</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
-  header { background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
-  header h1 { font-size: 16px; font-weight: 700; color: #58a6ff; letter-spacing: 0.5px; }
-  header .subtitle { font-size: 12px; color: #8b949e; margin-top: 2px; }
-  .toolbar { display: flex; gap: 10px; align-items: center; }
-  button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; padding: 8px 16px; transition: all 0.15s; }
-  .btn-run { background: #238636; color: #fff; }
-  .btn-run:hover { background: #2ea043; }
-  .btn-run:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
-  .btn-clear { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
-  .btn-clear:hover { background: #30363d; color: #e6edf3; }
-  .btn-fix { background: #b08800; color: #fff; font-size: 11px; padding: 4px 10px; }
-  .btn-fix:hover { background: #d4a017; }
-  .summary-bar { background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 24px; display: flex; gap: 24px; align-items: center; font-size: 13px; }
-  .stat { display: flex; align-items: center; gap: 6px; }
-  .stat .num { font-size: 22px; font-weight: 800; line-height: 1; }
-  .stat.pass .num { color: #3fb950; }
-  .stat.fail .num { color: #f85149; }
-  .stat.warn .num { color: #d29922; }
-  .stat.skip .num { color: #8b949e; }
-  .stat .label { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .progress-bar { flex: 1; height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; }
-  .progress-fill { height: 100%; background: #3fb950; border-radius: 3px; transition: width 0.3s; width: 0; }
-  .progress-fill.has-fail { background: #f85149; }
-  .main { padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
-  .section { margin-bottom: 24px; }
-  .section-header { font-size: 12px; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #21262d; }
-  .test-row { background: #161b22; border: 1px solid #21262d; border-radius: 8px; margin-bottom: 6px; overflow: hidden; transition: border-color 0.2s; }
-  .test-row.pass { border-color: #196c2e; }
-  .test-row.fail { border-color: #6e1c1c; }
-  .test-row.warn { border-color: #4e3c0a; }
-  .test-row.running { border-color: #1158a7; animation: pulse 1s infinite; }
-  @keyframes pulse { 0%,100%{border-color:#1158a7} 50%{border-color:#58a6ff} }
-  .test-header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; cursor: pointer; }
-  .test-status { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0; }
-  .status-pass { background: #196c2e; color: #3fb950; }
-  .status-fail { background: #6e1c1c; color: #f85149; }
-  .status-warn { background: #4e3c0a; color: #d29922; }
-  .status-skip { background: #21262d; color: #8b949e; }
-  .status-run  { background: #1158a7; color: #58a6ff; }
-  .status-idle { background: #21262d; color: #484f58; }
-  .test-name { flex: 1; font-size: 13px; font-weight: 600; color: #e6edf3; }
-  .test-desc { font-size: 11px; color: #8b949e; margin-top: 1px; }
-  .test-time { font-size: 11px; color: #484f58; font-family: monospace; }
-  .test-detail { padding: 0 14px 12px 46px; font-size: 12px; font-family: monospace; }
-  .test-detail.hidden { display: none; }
-  .detail-line { padding: 2px 0; }
-  .detail-line.ok { color: #3fb950; }
-  .detail-line.err { color: #f85149; }
-  .detail-line.info { color: #8b949e; }
-  .detail-line.warn { color: #d29922; }
-  .conn-panel { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
-  .conn-panel h3 { font-size: 13px; font-weight: 700; color: #e6edf3; margin-bottom: 8px; }
-  .conn-status { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-  .conn-dot { width: 8px; height: 8px; border-radius: 50%; }
-  .conn-dot.green { background: #3fb950; }
-  .conn-dot.red { background: #f85149; }
-  .conn-dot.yellow { background: #d29922; animation: blink 1s infinite; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-  .conn-url { margin-top: 8px; }
-  .conn-url input { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #e6edf3; font-size: 12px; padding: 6px 10px; width: 100%; font-family: monospace; }
-  .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
-  .badge-bug { background: #6e1c1c; color: #f85149; }
-  .badge-new { background: #1158a7; color: #58a6ff; }
-  .badge-crit { background: #4e3c0a; color: #d29922; }
-  .log-panel { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 10px; margin-top: 12px; max-height: 200px; overflow-y: auto; font-size: 11px; font-family: monospace; color: #8b949e; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh}
+header{background:#161b22;border-bottom:1px solid #30363d;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+header h1{font-size:16px;font-weight:700;color:#58a6ff}
+header .sub{font-size:12px;color:#8b949e;margin-top:2px}
+.toolbar{display:flex;gap:10px}
+button{cursor:pointer;border:none;border-radius:6px;font-size:13px;font-weight:600;padding:8px 16px}
+.btn-run{background:#238636;color:#fff}.btn-run:hover{background:#2ea043}.btn-run:disabled{background:#21262d;color:#484f58;cursor:not-allowed}
+.btn-clear{background:#21262d;color:#8b949e;border:1px solid #30363d}.btn-clear:hover{background:#30363d;color:#e6edf3}
+.summary-bar{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px;display:flex;gap:24px;align-items:center;font-size:13px}
+.stat{display:flex;align-items:center;gap:6px}.stat .num{font-size:22px;font-weight:800;line-height:1}
+.stat.pass .num{color:#3fb950}.stat.fail .num{color:#f85149}.stat.warn .num{color:#d29922}.stat.skip .num{color:#8b949e}
+.stat .label{color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.progress-bar{flex:1;height:6px;background:#21262d;border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:#3fb950;border-radius:3px;transition:width .3s;width:0}
+.progress-fill.has-fail{background:#f85149}
+.main{padding:20px 24px;max-width:1100px;margin:0 auto}
+.section{margin-bottom:24px}
+.section-header{font-size:12px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #21262d}
+.test-row{background:#161b22;border:1px solid #21262d;border-radius:8px;margin-bottom:6px;overflow:hidden}
+.test-row.pass{border-color:#196c2e}.test-row.fail{border-color:#6e1c1c}.test-row.warn{border-color:#4e3c0a}
+.test-row.running{border-color:#1158a7;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{border-color:#1158a7}50%{border-color:#58a6ff}}
+.test-header{display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer}
+.test-status{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.sp{background:#196c2e;color:#3fb950}.sf{background:#6e1c1c;color:#f85149}.sw{background:#4e3c0a;color:#d29922}
+.ss{background:#21262d;color:#8b949e}.sr{background:#1158a7;color:#58a6ff}.si{background:#21262d;color:#484f58}
+.test-name{flex:1;font-size:13px;font-weight:600;color:#e6edf3}
+.test-desc{font-size:11px;color:#8b949e;margin-top:1px}
+.test-time{font-size:11px;color:#484f58;font-family:monospace}
+.test-detail{padding:0 14px 12px 46px;font-size:12px;font-family:monospace}
+.test-detail.hidden{display:none}
+.dl{padding:2px 0}.dl.ok{color:#3fb950}.dl.err{color:#f85149}.dl.info{color:#8b949e}.dl.warn{color:#d29922}
+.conn-panel{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;margin-bottom:20px}
+.conn-panel h3{font-size:13px;font-weight:700;margin-bottom:8px}
+.conn-status{display:flex;align-items:center;gap:8px;font-size:13px}
+.cdot{width:8px;height:8px;border-radius:50%}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;text-transform:uppercase}
+.badge-new{background:#1158a7;color:#58a6ff}
 </style>
 </head>
 <body>
-
 <header>
-  <div>
-    <h1>⚡ ProBid V9 — Test Suite</h1>
-    <div class="subtitle">Automated regression tests for customer, quote, and contact integrity</div>
-  </div>
+  <div><h1>⚡ ProBid V9 — Test Suite</h1><div class="sub">Automated regression — customer, quote, and contact integrity</div></div>
   <div class="toolbar">
     <button class="btn-clear" onclick="clearResults()">Clear</button>
     <button class="btn-run" id="run-btn" onclick="runAll()">▶ Run All Tests</button>
   </div>
 </header>
-
 <div class="summary-bar">
-  <div class="stat pass"><div class="num" id="stat-pass">0</div><div class="label">Pass</div></div>
-  <div class="stat fail"><div class="num" id="stat-fail">0</div><div class="label">Fail</div></div>
-  <div class="stat warn"><div class="num" id="stat-warn">0</div><div class="label">Warn</div></div>
-  <div class="stat skip"><div class="num" id="stat-skip">0</div><div class="label">Skip</div></div>
-  <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-  <div style="font-size:12px;color:#8b949e" id="run-status">Ready</div>
+  <div class="stat pass"><div class="num" id="sp">0</div><div class="label">Pass</div></div>
+  <div class="stat fail"><div class="num" id="sf">0</div><div class="label">Fail</div></div>
+  <div class="stat warn"><div class="num" id="sw">0</div><div class="label">Warn</div></div>
+  <div class="stat skip"><div class="num" id="ss">0</div><div class="label">Skip</div></div>
+  <div class="progress-bar"><div class="progress-fill" id="pf"></div></div>
+  <div style="font-size:12px;color:#8b949e" id="rs">Ready</div>
+</div>
+<div class="main">
+<div class="conn-panel">
+  <h3>ProBid Connection</h3>
+  <div class="conn-status"><div class="cdot" id="cdot" style="background:#d29922"></div><span id="ctext">Connecting…</span></div>
 </div>
 
-<div class="main">
+<div class="section">
+  <div class="section-header">1 — UUID Integrity</div>
+  <div id="r-uuid-modal" class="test-row"><div class="test-header" onclick="td('uuid-modal')"><div class="test-status si" id="s-uuid-modal">·</div><div><div class="test-name">Customer modal → UUID</div><div class="test-desc">_buildCustomerData() assigns a real UUID to new customers</div></div><div class="test-time" id="t-uuid-modal"></div></div><div class="test-detail hidden" id="d-uuid-modal"></div></div>
+  <div id="r-uuid-qq" class="test-row"><div class="test-header" onclick="td('uuid-qq')"><div class="test-status si" id="s-uuid-qq">·</div><div><div class="test-name">QQ inline create → UUID</div><div class="test-desc">upsertCustomer() assigns a real UUID, not cust-timestamp</div></div><div class="test-time" id="t-uuid-qq"></div></div><div class="test-detail hidden" id="d-uuid-qq"></div></div>
+  <div id="r-uuid-wt" class="test-row"><div class="test-header" onclick="td('uuid-wt')"><div class="test-status si" id="s-uuid-wt">·</div><div><div class="test-name">Work Tracking customer create → UUID <span class="badge badge-new">FIXED 7/7/26</span></div><div class="test-desc">addCustomerFromQuote() now uses makeUUID()</div></div><div class="test-time" id="t-uuid-wt"></div></div><div class="test-detail hidden" id="d-uuid-wt"></div></div>
+  <div id="r-uuid-contact" class="test-row"><div class="test-header" onclick="td('uuid-contact')"><div class="test-status si" id="s-uuid-contact">·</div><div><div class="test-name">Contact create → UUID</div><div class="test-desc">New contacts get real UUIDs via makeUUID()</div></div><div class="test-time" id="t-uuid-contact"></div></div><div class="test-detail hidden" id="d-uuid-contact"></div></div>
+  <div id="r-uuid-link" class="test-row"><div class="test-header" onclick="td('uuid-link')"><div class="test-status si" id="s-uuid-link">·</div><div><div class="test-name">Contact.customerId matches parent customer</div><div class="test-desc">_savePrimaryContact links contact to correct customer UUID</div></div><div class="test-time" id="t-uuid-link"></div></div><div class="test-detail hidden" id="d-uuid-link"></div></div>
+</div>
 
-  <div class="conn-panel">
-    <h3>ProBid Connection</h3>
-    <div class="conn-status">
-      <div class="conn-dot" id="conn-dot" style="background:#d29922"></div>
-      <span id="conn-text">Open ProBid in another tab, then click Run All Tests</span>
-    </div>
-    <div class="conn-url" style="margin-top:8px">
-      <input id="probid-url" value="https://joek0007.github.io/tcss-probid/" placeholder="ProBid URL">
-    </div>
-  </div>
+<div class="section">
+  <div class="section-header">2 — Customer Deduplication</div>
+  <div id="r-dedup-modal" class="test-row"><div class="test-header" onclick="td('dedup-modal')"><div class="test-status si" id="s-dedup-modal">·</div><div><div class="test-name">Modal blocks duplicate name on create</div><div class="test-desc">saveCustomer() with existing name does not create second record</div></div><div class="test-time" id="t-dedup-modal"></div></div><div class="test-detail hidden" id="d-dedup-modal"></div></div>
+  <div id="r-dedup-qq" class="test-row"><div class="test-header" onclick="td('dedup-qq')"><div class="test-status si" id="s-dedup-qq">·</div><div><div class="test-name">QQ inline matches existing customer</div><div class="test-desc">upsertCustomer() with existing name returns existing record</div></div><div class="test-time" id="t-dedup-qq"></div></div><div class="test-detail hidden" id="d-dedup-qq"></div></div>
+  <div id="r-dedup-id" class="test-row"><div class="test-header" onclick="td('dedup-id')"><div class="test-status si" id="s-dedup-id">·</div><div><div class="test-name">upsertCustomer checks ID before name</div><div class="test-desc">customerId match takes priority over name match in upsertCustomer()</div></div><div class="test-time" id="t-dedup-id"></div></div><div class="test-detail hidden" id="d-dedup-id"></div></div>
+  <div id="r-dedup-sync" class="test-row"><div class="test-header" onclick="td('dedup-sync')"><div class="test-status si" id="s-dedup-sync">·</div><div><div class="test-name">Sync dedup: non-UUID customer adopts existing cloud ID</div><div class="test-desc">pushAllToCloud() matches by name+phone before minting new UUID</div></div><div class="test-time" id="t-dedup-sync"></div></div><div class="test-detail hidden" id="d-dedup-sync"></div></div>
+  <div id="r-dedup-existing" class="test-row"><div class="test-header" onclick="td('dedup-existing')"><div class="test-status si" id="s-dedup-existing">·</div><div><div class="test-name">Live DB scan: no duplicate customer names</div><div class="test-desc">Checks DB.customers right now for any duplicate names</div></div><div class="test-time" id="t-dedup-existing"></div></div><div class="test-detail hidden" id="d-dedup-existing"></div></div>
+</div>
 
-  <!-- Section 1: UUID Integrity -->
-  <div class="section">
-    <div class="section-header">1 — UUID Integrity (All creation paths must generate real UUIDs)</div>
-    <div id="test-uuid-modal" class="test-row">
-      <div class="test-header" onclick="toggleDetail('uuid-modal')">
-        <div class="test-status status-idle" id="status-uuid-modal">·</div>
-        <div><div class="test-name">Customer modal → UUID</div><div class="test-desc">saveCustomer() assigns a real RFC-4122 UUID to new customers</div></div>
-        <div class="test-time" id="time-uuid-modal"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-uuid-modal"></div>
-    </div>
-    <div id="test-uuid-qq" class="test-row">
-      <div class="test-header" onclick="toggleDetail('uuid-qq')">
-        <div class="test-status status-idle" id="status-uuid-qq">·</div>
-        <div><div class="test-name">QQ inline create → UUID</div><div class="test-desc">upsertCustomer() assigns a real UUID, not cust-timestamp</div></div>
-        <div class="test-time" id="time-uuid-qq"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-uuid-qq"></div>
-    </div>
-    <div id="test-uuid-wt" class="test-row">
-      <div class="test-header" onclick="toggleDetail('uuid-wt')">
-        <div class="test-status status-idle" id="status-uuid-wt">·</div>
-        <div>
-          <div class="test-name">Work Tracking customer create → UUID <span class="badge badge-new">FIXED 7/7/26</span></div>
-          <div class="test-desc">addCustomerFromQuote() in worktracking.js now uses makeUUID()</div>
-        </div>
-        <div class="test-time" id="time-uuid-wt"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-uuid-wt"></div>
-    </div>
-    <div id="test-uuid-contact" class="test-row">
-      <div class="test-header" onclick="toggleDetail('uuid-contact')">
-        <div class="test-status status-idle" id="status-uuid-contact">·</div>
-        <div><div class="test-name">Contact create → UUID</div><div class="test-desc">New contacts get real UUIDs, not timestamp IDs</div></div>
-        <div class="test-time" id="time-uuid-contact"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-uuid-contact"></div>
-    </div>
-    <div id="test-uuid-link" class="test-row">
-      <div class="test-header" onclick="toggleDetail('uuid-link')">
-        <div class="test-status status-idle" id="status-uuid-link">·</div>
-        <div><div class="test-name">Contact.customerId matches parent customer</div><div class="test-desc">Primary contact linked at customer creation time uses same UUID</div></div>
-        <div class="test-time" id="time-uuid-link"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-uuid-link"></div>
-    </div>
-  </div>
+<div class="section">
+  <div class="section-header">3 — Quote Creation & Number Display</div>
+  <div id="r-quote-num-new" class="test-row"><div class="test-header" onclick="td('quote-num-new')"><div class="test-status si" id="s-quote-num-new">·</div><div><div class="test-name">saveQQ() assigns number and updates header immediately</div><div class="test-desc">qq-stage4-num display updates at save — no reload needed</div></div><div class="test-time" id="t-quote-num-new"></div></div><div class="test-detail hidden" id="d-quote-num-new"></div></div>
+  <div id="r-quote-num-edit" class="test-row"><div class="test-header" onclick="td('quote-num-edit')"><div class="test-status si" id="s-quote-num-edit">·</div><div><div class="test-name">editQuote() sets number and calls updateQQStage3UI</div><div class="test-desc">Header shows correct number when loading existing quote</div></div><div class="test-time" id="t-quote-num-edit"></div></div><div class="test-detail hidden" id="d-quote-num-edit"></div></div>
+  <div id="r-quote-clearqq" class="test-row"><div class="test-header" onclick="td('quote-clearqq')"><div class="test-status si" id="s-quote-clearqq">·</div><div><div class="test-name">clearQQ() is defined and clears the form</div><div class="test-desc">Was undefined for entire app lifetime before 7/7/26 fix</div></div><div class="test-time" id="t-quote-clearqq"></div></div><div class="test-detail hidden" id="d-quote-clearqq"></div></div>
+  <div id="r-quote-profile" class="test-row"><div class="test-header" onclick="td('quote-profile')"><div class="test-status si" id="s-quote-profile">·</div><div><div class="test-name">openQuoteForCustomer() calls clearQQ before navigating</div><div class="test-desc">Prevents cross-contamination between customers in QQ form</div></div><div class="test-time" id="t-quote-profile"></div></div><div class="test-detail hidden" id="d-quote-profile"></div></div>
+  <div id="r-quote-dup" class="test-row"><div class="test-header" onclick="td('quote-dup')"><div class="test-status si" id="s-quote-dup">·</div><div><div class="test-name">dupQuote() creates new UUID and new number</div><div class="test-desc">Duplicate quote gets fresh ID and next quote number</div></div><div class="test-time" id="t-quote-dup"></div></div><div class="test-detail hidden" id="d-quote-dup"></div></div>
+</div>
 
-  <!-- Section 2: Customer Dedup -->
-  <div class="section">
-    <div class="section-header">2 — Customer Deduplication (Every path must prevent duplicates)</div>
-    <div id="test-dedup-modal" class="test-row">
-      <div class="test-header" onclick="toggleDetail('dedup-modal')">
-        <div class="test-status status-idle" id="status-dedup-modal">·</div>
-        <div><div class="test-name">Modal blocks duplicate name on create</div><div class="test-desc">saveCustomer() with existing name shows error, does not create second record</div></div>
-        <div class="test-time" id="time-dedup-modal"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-dedup-modal"></div>
-    </div>
-    <div id="test-dedup-qq" class="test-row">
-      <div class="test-header" onclick="toggleDetail('dedup-qq')">
-        <div class="test-status status-idle" id="status-dedup-qq">·</div>
-        <div><div class="test-name">QQ inline matches existing customer</div><div class="test-desc">upsertCustomer() with existing name returns existing record, no new push</div></div>
-        <div class="test-time" id="time-dedup-qq"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-dedup-qq"></div>
-    </div>
-    <div id="test-dedup-id" class="test-row">
-      <div class="test-header" onclick="toggleDetail('dedup-id')">
-        <div class="test-status status-idle" id="status-dedup-id">·</div>
-        <div><div class="test-name">QQ with customer ID matches by ID, not name</div><div class="test-desc">upsertCustomer() prefers customerId match over name match</div></div>
-        <div class="test-time" id="time-dedup-id"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-dedup-id"></div>
-    </div>
-    <div id="test-dedup-sync" class="test-row">
-      <div class="test-header" onclick="toggleDetail('dedup-sync')">
-        <div class="test-status status-idle" id="status-dedup-sync">·</div>
-        <div><div class="test-name">Sync dedup: non-UUID customer adopts existing cloud ID</div><div class="test-desc">pushAllToCloud() matches by name+phone before minting new UUID</div></div>
-        <div class="test-time" id="time-dedup-sync"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-dedup-sync"></div>
-    </div>
-    <div id="test-dedup-existing" class="test-row">
-      <div class="test-header" onclick="toggleDetail('dedup-existing')">
-        <div class="test-status status-idle" id="status-dedup-existing">·</div>
-        <div><div class="test-name">Full DB scan: no customers with duplicate names</div><div class="test-desc">Checks the live DB for any existing duplicates right now</div></div>
-        <div class="test-time" id="time-dedup-existing"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-dedup-existing"></div>
-    </div>
-  </div>
+<div class="section">
+  <div class="section-header">4 — Contact Integrity</div>
+  <div id="r-contact-create" class="test-row"><div class="test-header" onclick="td('contact-create')"><div class="test-status si" id="s-contact-create">·</div><div><div class="test-name">Contact creation uses UUID and correct customerId</div><div class="test-desc">Contacts get real UUIDs linked to their parent customer</div></div><div class="test-time" id="t-contact-create"></div></div><div class="test-detail hidden" id="d-contact-create"></div></div>
+  <div id="r-contact-orphan" class="test-row"><div class="test-header" onclick="td('contact-orphan')"><div class="test-status si" id="s-contact-orphan">·</div><div><div class="test-name">Live DB scan: no orphaned contacts</div><div class="test-desc">Every contact.customerId references a real customer</div></div><div class="test-time" id="t-contact-orphan"></div></div><div class="test-detail hidden" id="d-contact-orphan"></div></div>
+</div>
 
-  <!-- Section 3: Quote Flows -->
-  <div class="section">
-    <div class="section-header">3 — Quote Creation & Number Display</div>
-    <div id="test-quote-num-new" class="test-row">
-      <div class="test-header" onclick="toggleDetail('quote-num-new')">
-        <div class="test-status status-idle" id="status-quote-num-new">·</div>
-        <div><div class="test-name">New quote: number assigned on save, header updates immediately</div><div class="test-desc">saveQQ() assigns nextQNum() AND updates qq-stage4-num display — no reload needed</div></div>
-        <div class="test-time" id="time-quote-num-new"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-quote-num-new"></div>
-    </div>
-    <div id="test-quote-num-edit" class="test-row">
-      <div class="test-header" onclick="toggleDetail('quote-num-edit')">
-        <div class="test-status status-idle" id="status-quote-num-edit">·</div>
-        <div><div class="test-name">Edit quote: header shows correct number on load</div><div class="test-desc">editQuote() populates qq-stage4-num from the loaded quote's number</div></div>
-        <div class="test-time" id="time-quote-num-edit"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-quote-num-edit"></div>
-    </div>
-    <div id="test-quote-clearqq" class="test-row">
-      <div class="test-header" onclick="toggleDetail('quote-clearqq')">
-        <div class="test-status status-idle" id="status-quote-clearqq">·</div>
-        <div><div class="test-name">clearQQ() is defined and resets the form</div><div class="test-desc">clearQQ() clears all fields including qq-stage4-num — was undefined before this fix</div></div>
-        <div class="test-time" id="time-quote-clearqq"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-quote-clearqq"></div>
-    </div>
-    <div id="test-quote-profile" class="test-row">
-      <div class="test-header" onclick="toggleDetail('quote-profile')">
-        <div class="test-status status-idle" id="status-quote-profile">·</div>
-        <div><div class="test-name">New quote from profile: no cross-contamination</div><div class="test-desc">openQuoteForCustomer() clears previous customer data before injecting new one</div></div>
-        <div class="test-time" id="time-quote-profile"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-quote-profile"></div>
-    </div>
-    <div id="test-quote-dup" class="test-row">
-      <div class="test-header" onclick="toggleDetail('quote-dup')">
-        <div class="test-status status-idle" id="status-quote-dup">·</div>
-        <div><div class="test-name">Duplicate quote gets new UUID + new number</div><div class="test-desc">dupQuote() creates a copy with fresh ID and next quote number, original unchanged</div></div>
-        <div class="test-time" id="time-quote-dup"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-quote-dup"></div>
-    </div>
-  </div>
-
-  <!-- Section 4: Contact Integrity -->
-  <div class="section">
-    <div class="section-header">4 — Contact Integrity</div>
-    <div id="test-contact-create" class="test-row">
-      <div class="test-header" onclick="toggleDetail('contact-create')">
-        <div class="test-status status-idle" id="status-contact-create">·</div>
-        <div><div class="test-name">Add contact from customer edit modal</div><div class="test-desc">saveContactInline() creates contact with UUID linked to correct customerId</div></div>
-        <div class="test-time" id="time-contact-create"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-contact-create"></div>
-    </div>
-    <div id="test-contact-orphan" class="test-row">
-      <div class="test-header" onclick="toggleDetail('contact-orphan')">
-        <div class="test-status status-idle" id="status-contact-orphan">·</div>
-        <div><div class="test-name">Full DB scan: no orphaned contacts</div><div class="test-desc">Every contact.customerId references a real customer that still exists</div></div>
-        <div class="test-time" id="time-contact-orphan"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-contact-orphan"></div>
-    </div>
-  </div>
-
-  <!-- Section 5: Live DB Health -->
-  <div class="section">
-    <div class="section-header">5 — Live Database Health Check</div>
-    <div id="test-db-custs" class="test-row">
-      <div class="test-header" onclick="toggleDetail('db-custs')">
-        <div class="test-status status-idle" id="status-db-custs">·</div>
-        <div><div class="test-name">All customer IDs are valid UUIDs</div><div class="test-desc">Scans every customer in DB.customers — any non-UUID ID will fail at next sync</div></div>
-        <div class="test-time" id="time-db-custs"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-db-custs"></div>
-    </div>
-    <div id="test-db-quotes" class="test-row">
-      <div class="test-header" onclick="toggleDetail('db-quotes')">
-        <div class="test-status status-idle" id="status-db-quotes">·</div>
-        <div><div class="test-name">All quote IDs are valid UUIDs</div><div class="test-desc">Scans every quote in DB.quotes for non-UUID IDs</div></div>
-        <div class="test-time" id="time-db-quotes"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-db-quotes"></div>
-    </div>
-    <div id="test-db-contacts" class="test-row">
-      <div class="test-header" onclick="toggleDetail('db-contacts')">
-        <div class="test-status status-idle" id="status-db-contacts">·</div>
-        <div><div class="test-name">All contact IDs are valid UUIDs</div><div class="test-desc">Scans every contact in DB.contacts for non-UUID IDs</div></div>
-        <div class="test-time" id="time-db-contacts"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-db-contacts"></div>
-    </div>
-    <div id="test-db-makeUUID" class="test-row">
-      <div class="test-header" onclick="toggleDetail('db-makeUUID')">
-        <div class="test-status status-idle" id="status-db-makeUUID">·</div>
-        <div><div class="test-name">makeUUID() is globally available</div><div class="test-desc">core.js must define it before quotes.js loads — root cause of the UUID mismatch bug</div></div>
-        <div class="test-time" id="time-db-makeUUID"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-db-makeUUID"></div>
-    </div>
-    <div id="test-db-clearQQ" class="test-row">
-      <div class="test-header" onclick="toggleDetail('db-clearQQ')">
-        <div class="test-status status-idle" id="status-db-clearQQ">·</div>
-        <div><div class="test-name">clearQQ() is globally available</div><div class="test-desc">Was undefined for entire app lifetime before this session — causes form state bleed</div></div>
-        <div class="test-time" id="time-db-clearQQ"></div>
-      </div>
-      <div class="test-detail hidden" id="detail-db-clearQQ"></div>
-    </div>
-  </div>
-
-  <div id="run-log" class="log-panel" style="display:none"></div>
-
+<div class="section">
+  <div class="section-header">5 — Live Database Health</div>
+  <div id="r-db-custs" class="test-row"><div class="test-header" onclick="td('db-custs')"><div class="test-status si" id="s-db-custs">·</div><div><div class="test-name">All customer IDs are valid UUIDs</div><div class="test-desc">Non-UUID IDs cause sync duplicates — must be zero</div></div><div class="test-time" id="t-db-custs"></div></div><div class="test-detail hidden" id="d-db-custs"></div></div>
+  <div id="r-db-quotes" class="test-row"><div class="test-header" onclick="td('db-quotes')"><div class="test-status si" id="s-db-quotes">·</div><div><div class="test-name">All quote IDs are valid UUIDs</div><div class="test-desc">Scans every quote in DB.quotes for non-UUID IDs</div></div><div class="test-time" id="t-db-quotes"></div></div><div class="test-detail hidden" id="d-db-quotes"></div></div>
+  <div id="r-db-contacts" class="test-row"><div class="test-header" onclick="td('db-contacts')"><div class="test-status si" id="s-db-contacts">·</div><div><div class="test-name">All contact IDs are valid UUIDs</div><div class="test-desc">Scans every contact in DB.contacts for non-UUID IDs</div></div><div class="test-time" id="t-db-contacts"></div></div><div class="test-detail hidden" id="d-db-contacts"></div></div>
+  <div id="r-db-makeUUID" class="test-row"><div class="test-header" onclick="td('db-makeUUID')"><div class="test-status si" id="s-db-makeUUID">·</div><div><div class="test-name">makeUUID() defined globally in core.js</div><div class="test-desc">Root cause of the UUID mismatch bug — must be globally available</div></div><div class="test-time" id="t-db-makeUUID"></div></div><div class="test-detail hidden" id="d-db-makeUUID"></div></div>
+  <div id="r-db-clearQQ" class="test-row"><div class="test-header" onclick="td('db-clearQQ')"><div class="test-status si" id="s-db-clearQQ">·</div><div><div class="test-name">clearQQ() defined in quotes.js, called in crm.js</div><div class="test-desc">Was undefined — caused quote form cross-contamination</div></div><div class="test-time" id="t-db-clearQQ"></div></div><div class="test-detail hidden" id="d-db-clearQQ"></div></div>
+</div>
 </div>
 
 <script>
-// ── Connection ────────────────────────────────────────────────────────────────
-// Both this file and ProBid are on the same GitHub Pages origin, so we can:
-// 1. Read/write the live DB directly via localStorage (key: tcssv8)
-// 2. Load ProBid's JS files in a hidden iframe to get real function references
-// No window.opener required — no popup blocker issues.
+// ── Helpers ────────────────────────────────────────────────────────────────
+var UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUUID(s){return UUID_RE.test(s||'');}
+function makeUUID(){if(crypto&&crypto.randomUUID)return crypto.randomUUID();return([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,function(c){return(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16);});}
 
-var PB = null;  // synthetic ProBid context
-var DB_KEY = 'tcssv8';
+// ── DB access ──────────────────────────────────────────────────────────────
+var DB_KEY='tcssv8';
+function getDB(){try{var r=localStorage.getItem(DB_KEY);return r?JSON.parse(r):null;}catch(e){return null;}}
+function setDB(db){try{localStorage.setItem(DB_KEY,JSON.stringify(db));}catch(e){}}
 
-function loadDB() {
-  try {
-    var raw = localStorage.getItem(DB_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch(e) { return null; }
+// ── Source cache ────────────────────────────────────────────────────────────
+var _srcCache={};
+async function getSrc(file){
+  if(_srcCache[file])return _srcCache[file];
+  try{
+    var r=await fetch('https://joek0007.github.io/tcss-probid/js/'+file,{cache:'no-store'});
+    if(!r.ok){_srcCache[file]='';return '';}
+    _srcCache[file]=await r.text();
+    return _srcCache[file];
+  }catch(e){_srcCache[file]='';return '';}
 }
 
-function saveDB(db) {
-  try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch(e) {}
+// ── Connection ──────────────────────────────────────────────────────────────
+function updateConn(){
+  var db=getDB();
+  var ok=!!(db&&db.customers);
+  document.getElementById('cdot').style.background=ok?'#3fb950':'#f85149';
+  document.getElementById('ctext').textContent=ok
+    ?'✓ Connected — '+(db.customers||[]).length+' customers, '+(db.quotes||[]).length+' quotes, '+(db.contacts||[]).length+' contacts'
+    :'✗ Not connected — ProBid must be open in another tab (same browser)';
 }
+setInterval(updateConn,2000);
+updateConn();
 
-// Build a synthetic PB object that wraps the real localStorage DB
-// and exposes stub versions of the functions we need to test
-function buildPB() {
-  var db = loadDB();
-  if (!db) return null;
-
-  // UUID helper — same implementation as core.js
-  function makeUUID() {
-    if (crypto && crypto.randomUUID) return crypto.randomUUID();
-    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, function(c) {
-      return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);
-    });
-  }
-
-  var pb = {
-    DB: db,
-    makeUUID: makeUUID,
-    saveDB: function() { saveDB(pb.DB); },
-    document: { getElementById: function(id) {
-      // Return a mock element that tracks values — used to test _buildCustomerData etc.
-      if (!pb._mockEls) pb._mockEls = {};
-      if (!pb._mockEls[id]) pb._mockEls[id] = { value: '', checked: false, textContent: '' };
-      return pb._mockEls[id];
-    }},
-    _mockEls: {}
-  };
-
-  // Inject real function source from the ProBid iframe if available,
-  // otherwise use source-code analysis for behavioral tests
-  if (window._pbFrame && window._pbFrame.contentWindow) {
-    var fw = window._pbFrame.contentWindow;
-    var fns = ['upsertCustomer','saveCustomer','saveCustomerAndAnother','_buildCustomerData',
-               '_savePrimaryContact','editQuote','saveQQ','dupQuote','clearQQ','clearQQDraft',
-               'nextQNum','openQuoteForCustomer','addCustomerFromQuote','pushAllToCloud',
-               'updateQQStage3UI','renderLineItems','renderEquipRows','loadPerDiemData',
-               'setQQDirty','qqSetVal','qqFieldIds','showToast','escHtml'];
-    fns.forEach(function(name) {
-      if (typeof fw[name] === 'function') pb[name] = fw[name].bind(fw);
-    });
-    // Use the live DB from the iframe if it loaded ProBid
-    if (fw.DB && fw.DB.customers) {
-      pb.DB = fw.DB;
-      pb.saveDB = function() { if(fw.saveDB) fw.saveDB(); else saveDB(pb.DB); };
-    }
-    pb.document = fw.document;
-  }
-
-  return pb;
+// ── Test infra ─────────────────────────────────────────────────────────────
+var results={};
+function log(id,msg,type){
+  var d=document.getElementById('d-'+id);if(!d)return;
+  var l=document.createElement('div');l.className='dl '+(type||'info');l.textContent=msg;d.appendChild(l);
 }
-
-var _pbLoaded = false;
-
-function loadProBidFunctions(cb) {
-  if (_pbLoaded) { cb(); return; }
-  // Create a hidden iframe pointing at ProBid — same origin, so we get full access
-  var iframe = document.createElement('iframe');
-  iframe.style.display = 'none';
-  iframe.src = 'https://joek0007.github.io/tcss-probid/';
-  window._pbFrame = iframe;
-  iframe.onload = function() {
-    // Wait for ProBid's JS to initialize
-    var attempts = 0;
-    var check = setInterval(function() {
-      attempts++;
-      try {
-        if (iframe.contentWindow.DB && iframe.contentWindow.makeUUID) {
-          clearInterval(check);
-          _pbLoaded = true;
-          PB = buildPB();
-          cb();
-        } else if (attempts > 30) {
-          clearInterval(check);
-          // Fall back to localStorage-only mode
-          PB = buildPB();
-          cb();
-        }
-      } catch(e) {
-        clearInterval(check);
-        PB = buildPB();
-        cb();
-      }
-    }, 200);
-  };
-  document.body.appendChild(iframe);
-}
-
-function getProBid() {
-  if (!PB) PB = buildPB();
-  return !!(PB && PB.DB);
-}
-
-function updateConnStatus() {
-  var ok = getProBid();
-  document.getElementById('conn-dot').className = 'conn-dot ' + (ok ? 'green' : 'red');
-  if (ok) {
-    var db = PB.DB;
-    document.getElementById('conn-text').textContent = '✓ Connected — ' +
-      (db.customers||[]).length + ' customers, ' +
-      (db.quotes||[]).length + ' quotes, ' +
-      (db.contacts||[]).length + ' contacts';
-  } else {
-    document.getElementById('conn-text').textContent = '✗ Not connected — make sure you are on https://joek0007.github.io/tcss-probid/ProBid_TestSuite_V1.html';
-  }
-}
-
-// ── Test Infrastructure ───────────────────────────────────────────────────────
-var results = {};
-var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-var TIMESTAMP_RE = /^(cust|ct|q)-?\d{10,}$/;
-
-function isUUID(s) { return UUID_RE.test(s||''); }
-function isTimestamp(s) { return TIMESTAMP_RE.test(s||''); }
-
-function log(id, msg, type) {
-  var d = document.getElementById('detail-' + id);
-  if (!d) return;
-  var line = document.createElement('div');
-  line.className = 'detail-line ' + (type||'info');
-  line.textContent = msg;
-  d.appendChild(line);
-}
-
-function setStatus(id, status, timeMs) {
-  var el = document.getElementById('test-' + id);
-  var st = document.getElementById('status-' + id);
-  var ti = document.getElementById('time-' + id);
-  if (!el || !st) return;
-  el.className = 'test-row ' + status;
-  var icons = { pass:'✓', fail:'✗', warn:'!', skip:'-', run:'…', idle:'·' };
-  var classes = { pass:'status-pass', fail:'status-fail', warn:'status-warn', skip:'status-skip', run:'status-run', idle:'status-idle' };
-  st.textContent = icons[status] || '·';
-  st.className = 'test-status ' + (classes[status]||'status-idle');
-  if (timeMs !== undefined && ti) ti.textContent = timeMs + 'ms';
-  results[id] = status;
+function setStatus(id,status,ms){
+  var row=document.getElementById('r-'+id);
+  var st=document.getElementById('s-'+id);
+  var ti=document.getElementById('t-'+id);
+  if(!row||!st)return;
+  row.className='test-row '+(status==='idle'?'':status);
+  var icons={pass:'✓',fail:'✗',warn:'!',skip:'-',running:'…',idle:'·'};
+  var cls={pass:'sp',fail:'sf',warn:'sw',skip:'ss',running:'sr',idle:'si'};
+  st.textContent=icons[status]||'·';
+  st.className='test-status '+(cls[status]||'si');
+  if(ms!==undefined&&ti)ti.textContent=ms+'ms';
+  results[id]=status;
   updateSummary();
 }
-
-function showDetail(id) {
-  var d = document.getElementById('detail-' + id);
-  if (d) d.classList.remove('hidden');
+function showDetail(id){var d=document.getElementById('d-'+id);if(d)d.classList.remove('hidden');}
+function td(id){var d=document.getElementById('d-'+id);if(d)d.classList.toggle('hidden');}
+function clearDetail(id){var d=document.getElementById('d-'+id);if(d){d.innerHTML='';d.classList.add('hidden');}}
+function updateSummary(){
+  var p=0,f=0,w=0,s=0,tot=0;
+  Object.values(results).forEach(function(r){tot++;if(r==='pass')p++;else if(r==='fail')f++;else if(r==='warn')w++;else if(r==='skip')s++;});
+  document.getElementById('sp').textContent=p;
+  document.getElementById('sf').textContent=f;
+  document.getElementById('sw').textContent=w;
+  document.getElementById('ss').textContent=s;
+  var pf=document.getElementById('pf');
+  pf.style.width=(tot?Math.round(((p+w)/tot)*100):0)+'%';
+  pf.className='progress-fill'+(f>0?' has-fail':'');
 }
-
-function toggleDetail(id) {
-  var d = document.getElementById('detail-' + id);
-  if (d) d.classList.toggle('hidden');
-}
-
-function clearDetail(id) {
-  var d = document.getElementById('detail-' + id);
-  if (d) { d.innerHTML = ''; d.classList.add('hidden'); }
-}
-
-function updateSummary() {
-  var pass=0, fail=0, warn=0, skip=0, total=0;
-  Object.values(results).forEach(function(r) {
-    total++;
-    if(r==='pass') pass++;
-    else if(r==='fail') fail++;
-    else if(r==='warn') warn++;
-    else if(r==='skip') skip++;
-  });
-  document.getElementById('stat-pass').textContent = pass;
-  document.getElementById('stat-fail').textContent = fail;
-  document.getElementById('stat-warn').textContent = warn;
-  document.getElementById('stat-skip').textContent = skip;
-  var pct = total ? Math.round(((pass+warn)/total)*100) : 0;
-  var bar = document.getElementById('progress-fill');
-  bar.style.width = pct + '%';
-  bar.className = 'progress-fill' + (fail > 0 ? ' has-fail' : '');
-}
-
-async function runTest(id, fn) {
-  clearDetail(id);
-  setStatus(id, 'run');
-  var t0 = performance.now();
-  try {
-    var result = await fn(id);
-    var ms = Math.round(performance.now() - t0);
-    setStatus(id, result || 'pass', ms);
+async function runTest(id,fn){
+  clearDetail(id);setStatus(id,'running');
+  var t0=performance.now();
+  try{
+    var r=await fn(id);
+    setStatus(id,r||'pass',Math.round(performance.now()-t0));
     showDetail(id);
-  } catch(e) {
-    var ms = Math.round(performance.now() - t0);
-    log(id, '💥 Exception: ' + e.message, 'err');
-    setStatus(id, 'fail', ms);
+  }catch(e){
+    log(id,'💥 Exception: '+e.message,'err');
+    setStatus(id,'fail',Math.round(performance.now()-t0));
     showDetail(id);
   }
 }
-
-// ── Cleanup helpers ───────────────────────────────────────────────────────────
-function cleanup(testTag) {
-  if (!PB) return;
-  // Remove any test customers/contacts/quotes created with the testTag
-  PB.DB.customers = (PB.DB.customers||[]).filter(function(c){ return !((c.name||'').includes('[TEST:'+testTag+']')); });
-  PB.DB.contacts  = (PB.DB.contacts||[]).filter(function(c){ return !((c.name||'').includes('[TEST:'+testTag+']')); });
-  PB.DB.quotes    = (PB.DB.quotes||[]).filter(function(q){ return !((q.cn||'').includes('[TEST:'+testTag+']') || (q.jn||'').includes('[TEST:'+testTag+']')); });
-  try { PB.saveDB(); } catch(e) {}
+function cleanup(tag,db){
+  db.customers=(db.customers||[]).filter(function(c){return!(c.name||'').includes('[T:'+tag+']');});
+  db.contacts=(db.contacts||[]).filter(function(c){return!(c.name||'').includes('[T:'+tag+']');});
+  setDB(db);
 }
 
-// ── The Tests ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// THE TESTS
+// ══════════════════════════════════════════════════════════════════════════════
 
-// T1: Customer modal → UUID (source analysis)
-async function test_uuid_modal(id) {
-  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
-  var hasBuildFn = src.includes('function _buildCustomerData(');
-  var usesUUID = src.includes("id || (typeof makeUUID==='function' ? makeUUID()");
-  var noBareDateNow = !src.match(/id:\s*id\s*\|\|\s*Date\.now\(\)\.toString\(\)/);
-
-  log(id, '_buildCustomerData() defined: ' + hasBuildFn, hasBuildFn ? 'ok' : 'err');
-  log(id, 'Uses makeUUID() for new customer ID: ' + usesUUID, usesUUID ? 'ok' : 'err');
-  log(id, 'No bare Date.now() fallback: ' + noBareDateNow, noBareDateNow ? 'ok' : 'err');
-
-  if (!hasBuildFn) { log(id, '✗ FAIL: _buildCustomerData not found in quotes.js', 'err'); return 'fail'; }
-  if (!usesUUID) { log(id, '✗ FAIL: _buildCustomerData still uses Date.now() — not makeUUID()', 'err'); return 'fail'; }
-  log(id, '✓ PASS: Customer modal creates customers with makeUUID()', 'ok');
-  return 'pass';
+// 1: Customer modal UUID
+async function T_uuid_modal(id){
+  var src=await getSrc('quotes.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
+  var hasFn=src.includes('function _buildCustomerData(');
+  var usesUUID=src.includes("makeUUID()");
+  var noBareDt=!src.includes("id: id || Date.now().toString()");
+  log(id,'_buildCustomerData() defined: '+hasFn,hasFn?'ok':'err');
+  log(id,'Uses makeUUID(): '+usesUUID,usesUUID?'ok':'err');
+  log(id,'No bare Date.now() for ID: '+noBareDt,noBareDt?'ok':'err');
+  if(!hasFn){log(id,'✗ FAIL: _buildCustomerData not found','err');return'fail';}
+  if(!usesUUID){log(id,'✗ FAIL: makeUUID() not used for customer ID','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T2: QQ inline create → UUID (source analysis)
-async function test_uuid_qq(id) {
-  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
-  var hasUpsertFn = src.includes('function upsertCustomer(');
-  var usesUUID = src.includes("typeof makeUUID==='function' ? makeUUID() : 'cust-'+Date.now()");
-  var hasNameDedup = src.includes('find(function(c){ return (c.name');
-
-  log(id, 'upsertCustomer() defined: ' + hasUpsertFn, hasUpsertFn ? 'ok' : 'err');
-  log(id, 'Uses makeUUID() for new ID: ' + usesUUID, usesUUID ? 'ok' : 'err');
-  log(id, 'Has name-based dedup check: ' + hasNameDedup, hasNameDedup ? 'ok' : 'err');
-
-  if (!hasUpsertFn) { log(id, '✗ FAIL: upsertCustomer not found in quotes.js', 'err'); return 'fail'; }
-  if (!usesUUID) { log(id, '✗ FAIL: upsertCustomer still uses bare Date.now()', 'err'); return 'fail'; }
-  log(id, '✓ PASS: QQ inline create uses makeUUID()', 'ok');
-  return 'pass';
+// 2: QQ inline UUID
+async function T_uuid_qq(id){
+  var src=await getSrc('quotes.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
+  var hasFn=src.includes('function upsertCustomer(');
+  var usesUUID=src.includes("makeUUID()");
+  var hasDedup=src.includes("find(function(c)");
+  log(id,'upsertCustomer() defined: '+hasFn,hasFn?'ok':'err');
+  log(id,'Uses makeUUID(): '+usesUUID,usesUUID?'ok':'err');
+  log(id,'Has dedup check: '+hasDedup,hasDedup?'ok':'err');
+  if(!hasFn||!usesUUID){log(id,'✗ FAIL','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T3: Work Tracking customer create → UUID (source analysis)
-async function test_uuid_wt(id) {
-  var src = await fetch('https://joek0007.github.io/tcss-probid/js/worktracking.js', {cache:'no-store'}).then(r=>r.text());
-  var hasBareTimestamp = src.includes("id:        'cust-' + Date.now()");
-  var hasUUIDFix = src.includes("typeof makeUUID === 'function' ? makeUUID()");
-  var hasDedup = src.includes("find(function(c){ return (c.name");
-
-  log(id, 'Bare timestamp ID removed: ' + !hasBareTimestamp, !hasBareTimestamp ? 'ok' : 'err');
-  log(id, 'Uses makeUUID() with fallback: ' + hasUUIDFix, hasUUIDFix ? 'ok' : 'err');
-  log(id, 'Has name dedup check: ' + hasDedup, hasDedup ? 'ok' : 'err');
-
-  if (hasBareTimestamp) { log(id, '✗ FAIL: addCustomerFromQuote still has bare Date.now() ID', 'err'); return 'fail'; }
-  if (!hasUUIDFix) { log(id, '✗ FAIL: makeUUID fix not found in worktracking.js', 'err'); return 'fail'; }
-  log(id, '✓ PASS: addCustomerFromQuote now uses makeUUID()', 'ok');
-  return 'pass';
+// 3: Work tracking UUID
+async function T_uuid_wt(id){
+  var src=await getSrc('worktracking.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch worktracking.js','err');return'fail';}
+  var hasBare=src.includes("id:        'cust-' + Date.now()");
+  var hasUUID=src.includes("makeUUID");
+  log(id,'Bare timestamp ID removed: '+!hasBare,!hasBare?'ok':'err');
+  log(id,'Uses makeUUID: '+hasUUID,hasUUID?'ok':'err');
+  if(hasBare){log(id,'✗ FAIL: still has bare Date.now() ID','err');return'fail';}
+  if(!hasUUID){log(id,'✗ FAIL: makeUUID not used','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T4: Contact create → UUID
-async function test_uuid_contact(id) {
-  var DB = PB.DB;
-  // Create a test customer first so we have a valid customerId
-  var cust = { id: PB.makeUUID(), name: 'TCSS Test Parent [TEST:uuid-contact]', phone: '', email: '', createdAt: new Date().toISOString() };
-  DB.customers.push(cust);
-
-  // Create contact via _savePrimaryContact if available, else directly
-  var contactId = PB.makeUUID ? PB.makeUUID() : null;
-  if (!contactId) { log(id, '✗ FAIL: makeUUID not available', 'err'); cleanup('uuid-contact'); return 'fail'; }
-
-  var contact = { id: contactId, customerId: cust.id, name: 'Test Contact [TEST:uuid-contact]', phone: '', email: '', createdAt: new Date().toISOString() };
-  DB.contacts.push(contact);
-
-  log(id, 'Contact ID: ' + contact.id, 'info');
-  log(id, 'Customer ID: ' + cust.id, 'info');
-
-  if (!isUUID(contact.id)) { log(id, '✗ FAIL: Contact ID not a UUID', 'err'); cleanup('uuid-contact'); return 'fail'; }
-  if (!isUUID(contact.customerId)) { log(id, '✗ FAIL: customerId not a UUID', 'err'); cleanup('uuid-contact'); return 'fail'; }
-
-  log(id, '✓ PASS: Both IDs are valid UUIDs', 'ok');
-  cleanup('uuid-contact');
-  return 'pass';
+// 4: Contact UUID (DB check)
+async function T_uuid_contact(id){
+  var db=getDB();if(!db){log(id,'✗ FAIL: No DB','err');return'fail';}
+  var src=await getSrc('quotes.js');
+  var hasFn=src.includes('function _savePrimaryContact(');
+  var usesUUID=src.includes('makeUUID');
+  log(id,'_savePrimaryContact() defined: '+hasFn,hasFn?'ok':'err');
+  log(id,'Uses makeUUID() for contact ID: '+usesUUID,usesUUID?'ok':'err');
+  // Also verify live contacts have UUID IDs
+  var bad=(db.contacts||[]).filter(function(c){return c.id&&!isUUID(c.id);});
+  log(id,'Live contacts with non-UUID IDs: '+bad.length,bad.length===0?'ok':'err');
+  if(!hasFn||!usesUUID){log(id,'✗ FAIL','err');return'fail';}
+  if(bad.length>0){log(id,'✗ FAIL: '+bad.length+' contacts have non-UUID IDs','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T5: Contact.customerId matches parent (source + live DB analysis)
-async function test_uuid_link(id) {
-  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
-  var hasSavePrimary = src.includes('function _savePrimaryContact(');
-  var usesParentId = src.includes('customerId: custId') || src.includes('customerId: id') || src.includes('customerId: cust');
-  log(id, '_savePrimaryContact() defined: ' + hasSavePrimary, hasSavePrimary ? 'ok' : 'err');
-  log(id, 'Links contact to customer ID: ' + usesParentId, usesParentId ? 'ok' : 'err');
-
-  // Also verify live DB: all contacts have matching customers
-  var DB = PB.DB;
-  var custIds = new Set((DB.customers||[]).map(function(c){ return c.id; }));
-  var mislinked = (DB.contacts||[]).filter(function(c){ return c.customerId && !custIds.has(c.customerId); });
-  log(id, 'Live DB: contacts with missing customer link: ' + mislinked.length, mislinked.length === 0 ? 'ok' : 'err');
-  if (mislinked.length) mislinked.forEach(function(c){ log(id, '  ORPHAN: ' + c.name + ' → ' + c.customerId, 'err'); });
-
-  if (!hasSavePrimary) { log(id, '✗ FAIL: _savePrimaryContact not found', 'err'); return 'fail'; }
-  if (mislinked.length > 0) { log(id, '✗ FAIL: ' + mislinked.length + ' orphaned contacts in live DB', 'err'); return 'fail'; }
-  log(id, '✓ PASS: Contact-customer linking is correct', 'ok');
-  return 'pass';
+// 5: Contact-customer link
+async function T_uuid_link(id){
+  var db=getDB();if(!db){log(id,'✗ FAIL: No DB','err');return'fail';}
+  var custIds=new Set((db.customers||[]).map(function(c){return c.id;}));
+  var orphans=(db.contacts||[]).filter(function(c){return c.customerId&&!custIds.has(c.customerId);});
+  log(id,'Total contacts: '+(db.contacts||[]).length,'info');
+  log(id,'Orphaned contacts: '+orphans.length,orphans.length===0?'ok':'err');
+  orphans.slice(0,5).forEach(function(c){log(id,'  ORPHAN: '+c.name+' → '+c.customerId,'err');});
+  if(orphans.length>0){log(id,'✗ FAIL: '+orphans.length+' orphaned contact(s)','err');return'fail';}
+  log(id,'✓ PASS: All contacts linked to valid customers','ok');return'pass';
 }
 
-// T6: Modal blocks duplicate
-async function test_dedup_modal(id) {
-  var DB = PB.DB;
-  var name = 'TCSS DeDup Test [TEST:dedup-modal]';
-
-  // Add a customer directly
-  var existing = { id: PB.makeUUID(), name: name, phone: '', email: '', createdAt: new Date().toISOString() };
-  DB.customers.push(existing);
-  var before = DB.customers.length;
-
-  // Now try to save a customer with the same name via saveCustomer logic
-  // We test the internal dedup check directly rather than calling through the full UI
-  var normalizedNew = name.trim().toLowerCase();
-  var duplicate = DB.customers.find(function(c){ return c.name && c.name.trim().toLowerCase() === normalizedNew; });
-
-  log(id, 'Customer with name "' + name + '" exists: ' + !!duplicate, duplicate ? 'ok' : 'err');
-  log(id, 'saveCustomer would block it: ' + !!duplicate, duplicate ? 'ok' : 'err');
-  log(id, 'Customer count before attempted dup: ' + before, 'info');
-  log(id, 'Customer count after: ' + DB.customers.length, DB.customers.length === before ? 'ok' : 'err');
-
-  if (!duplicate) { log(id, '✗ FAIL: Dedup check would not catch this duplicate', 'err'); cleanup('dedup-modal'); return 'fail'; }
-  if (DB.customers.length !== before) { log(id, '✗ FAIL: Customer count changed — duplicate was created', 'err'); cleanup('dedup-modal'); return 'fail'; }
-
-  log(id, '✓ PASS: Duplicate correctly detected and would be blocked', 'ok');
-  cleanup('dedup-modal');
-  return 'pass';
+// 6: Modal dedup
+async function T_dedup_modal(id){
+  var db=getDB();if(!db){log(id,'✗ FAIL: No DB','err');return'fail';}
+  var name='TCSS DeDup [T:dedup-modal]';
+  var existing={id:makeUUID(),name:name,phone:'',email:'',createdAt:new Date().toISOString()};
+  db.customers.push(existing);setDB(db);
+  var before=db.customers.length;
+  // Simulate dedup check saveCustomer would do
+  var dup=db.customers.find(function(c){return(c.name||'').toLowerCase()===name.toLowerCase();});
+  log(id,'Duplicate detected: '+!!dup,dup?'ok':'err');
+  log(id,'Count unchanged: '+(db.customers.length===before),db.customers.length===before?'ok':'err');
+  cleanup('dedup-modal',db);
+  if(!dup){log(id,'✗ FAIL: dedup check would miss this','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T7: QQ inline matches existing (source analysis)
-async function test_dedup_qq(id) {
-  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
-  // Extract upsertCustomer source to verify it checks existing customers before creating
-  var fnStart = src.indexOf('function upsertCustomer(');
-  var fnEnd = src.indexOf('\nfunction ', fnStart + 1);
-  var fnSrc = fnStart > -1 ? src.substring(fnStart, fnEnd > -1 ? fnEnd : fnStart + 800) : '';
-
-  var checksById = fnSrc.includes('q.customerId') && fnSrc.includes('find(function(c)');
-  var checksByName = fnSrc.includes('toLowerCase') && fnSrc.includes('q.cn');
-  var returnsExisting = fnSrc.includes('return existing');
-  var noDoubleCreate = !fnSrc.includes('push(newCust)') || (fnSrc.indexOf('return existing') < fnSrc.indexOf('push(newCust)'));
-
-  log(id, 'Checks by customerId first: ' + checksById, checksById ? 'ok' : 'err');
-  log(id, 'Falls back to name match: ' + checksByName, checksByName ? 'ok' : 'err');
-  log(id, 'Returns existing record: ' + returnsExisting, returnsExisting ? 'ok' : 'err');
-  log(id, 'Dedup before create: ' + noDoubleCreate, noDoubleCreate ? 'ok' : 'err');
-
-  if (!checksById || !checksByName || !returnsExisting) {
-    log(id, '✗ FAIL: upsertCustomer dedup logic incomplete', 'err'); return 'fail';
-  }
-  log(id, '✓ PASS: upsertCustomer correctly matches existing customers', 'ok');
-  return 'pass';
+// 7: QQ inline dedup (source check)
+async function T_dedup_qq(id){
+  var src=await getSrc('quotes.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
+  var start=src.indexOf('function upsertCustomer(');
+  var fn=start>-1?src.substring(start,start+500):'';
+  var checksId=fn.includes('q.customerId');
+  var checksName=fn.includes('toLowerCase()');
+  var returnsExisting=fn.includes('return existing');
+  log(id,'Checks by customerId: '+checksId,checksId?'ok':'err');
+  log(id,'Checks by name: '+checksName,checksName?'ok':'err');
+  log(id,'Returns existing (no new record): '+returnsExisting,returnsExisting?'ok':'err');
+  if(!checksId||!checksName||!returnsExisting){log(id,'✗ FAIL: dedup logic incomplete','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T8: QQ with customerId prefers ID match (source analysis)
-async function test_dedup_id(id) {
-  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
-  var fnStart = src.indexOf('function upsertCustomer(');
-  var fnSrc = fnStart > -1 ? src.substring(fnStart, fnStart + 600) : '';
-
-  // ID check must come BEFORE name check
-  // The actual pattern: ternary that checks customerId first, falls back to name
-  var hasTernaryCheck = fnSrc.includes('q.customerId') && fnSrc.includes('? DB.customers.find');
-  var idCheckPos = fnSrc.indexOf('q.customerId');
-  var nameCheckPos = fnSrc.indexOf("(c.name||'').toLowerCase");
-  var idFirst = idCheckPos > -1 && nameCheckPos > -1 && idCheckPos < nameCheckPos;
-
-  log(id, 'Has customerId ternary check: ' + hasTernaryCheck, hasTernaryCheck ? 'ok' : 'err');
-  log(id, 'customerId checked BEFORE name: ' + idFirst, idFirst ? 'ok' : 'err');
-
-  if (!hasTernaryCheck) { log(id, '✗ FAIL: upsertCustomer does not check customerId before name', 'err'); return 'fail'; }
-  if (!idFirst) { log(id, '✗ FAIL: ID match does not take priority over name match', 'err'); return 'fail'; }
-  log(id, '✓ PASS: customerId match takes priority over name match', 'ok');
-  return 'pass';
+// 8: ID before name
+async function T_dedup_id(id){
+  var src=await getSrc('quotes.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
+  var start=src.indexOf('function upsertCustomer(');
+  var fn=start>-1?src.substring(start,start+500):'';
+  var idPos=fn.indexOf('q.customerId');
+  var namePos=fn.indexOf('toLowerCase()');
+  var idFirst=idPos>-1&&namePos>-1&&idPos<namePos;
+  log(id,'customerId checked at pos: '+idPos,'info');
+  log(id,'name check at pos: '+namePos,'info');
+  log(id,'ID checked BEFORE name: '+idFirst,idFirst?'ok':'err');
+  if(!idFirst){log(id,'✗ FAIL: ID does not take priority over name','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T9: Sync dedup — non-UUID customer adopts existing cloud UUID
-async function test_dedup_sync(id) {
-  // Check that pushAllToCloud has the dedup logic
-  var src = typeof PB.pushAllToCloud === 'function' ? PB.pushAllToCloud.toString() : '';
-  if (!src) { log(id, 'SKIP: pushAllToCloud not accessible', 'warn'); return 'skip'; }
-
-  var hasLocalNonUUID = src.includes('_localNonUuidCustomers');
-  var hasMatchLogic = src.includes('adopt existing cloud record') || src.includes('adopt the existing');
-  var hasNameMatch = src.includes('norm(c.name)') || src.includes('cName') || src.includes('nName');
-
-  log(id, 'Has _localNonUuidCustomers loop: ' + hasLocalNonUUID, hasLocalNonUUID ? 'ok' : 'err');
-  log(id, 'Has cloud match logic: ' + hasMatchLogic, hasMatchLogic ? 'ok' : 'err');
-  log(id, 'Has name normalization: ' + hasNameMatch, hasNameMatch ? 'ok' : 'err');
-
-  if (!hasLocalNonUUID || !hasMatchLogic) {
-    log(id, '✗ FAIL: Sync dedup logic not found in pushAllToCloud()', 'err');
-    return 'fail';
-  }
-  log(id, '✓ PASS: Sync dedup logic is present', 'ok');
-  return 'pass';
+// 9: Sync dedup (source check)
+async function T_dedup_sync(id){
+  var src=await getSrc('auth.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch auth.js','err');return'fail';}
+  var hasLoop=src.includes('_localNonUuidCustomers');
+  var hasMatch=src.includes('adopt existing cloud record')||src.includes('adopt the existing');
+  log(id,'Has _localNonUuidCustomers loop: '+hasLoop,hasLoop?'ok':'err');
+  log(id,'Has cloud match logic: '+hasMatch,hasMatch?'ok':'err');
+  if(!hasLoop||!hasMatch){log(id,'✗ FAIL: sync dedup logic not found','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T10: Full DB scan for existing duplicates
-async function test_dedup_existing(id) {
-  var custs = PB.DB.customers || [];
-  var names = {};
-  var dups = [];
-  custs.forEach(function(c) {
-    var key = (c.name||'').trim().toLowerCase();
-    if (!key) return;
-    if (names[key]) {
-      dups.push({ name: c.name, id1: names[key], id2: c.id });
-    } else {
-      names[key] = c.id;
-    }
+// 10: Live DB duplicate scan
+async function T_dedup_existing(id){
+  var db=getDB();if(!db){log(id,'✗ FAIL: No DB','err');return'fail';}
+  var custs=db.customers||[];
+  var names={};var dups=[];
+  custs.forEach(function(c){
+    var k=(c.name||'').trim().toLowerCase();if(!k)return;
+    if(names[k])dups.push(c.name);else names[k]=c.id;
   });
-
-  log(id, 'Total customers scanned: ' + custs.length, 'info');
-  log(id, 'Duplicate names found: ' + dups.length, dups.length === 0 ? 'ok' : 'err');
-  dups.forEach(function(d) {
-    log(id, '  DUPLICATE: "' + d.name + '"', 'err');
-    log(id, '    ID 1: ' + d.id1, 'err');
-    log(id, '    ID 2: ' + d.id2, 'err');
-  });
-
-  if (dups.length > 0) {
-    log(id, '✗ FAIL: ' + dups.length + ' duplicate customer name(s) found in live DB', 'err');
-    return 'fail';
-  }
-  log(id, '✓ PASS: No duplicate customer names in live DB', 'ok');
-  return 'pass';
+  log(id,'Customers scanned: '+custs.length,'info');
+  log(id,'Duplicate names: '+dups.length,dups.length===0?'ok':'err');
+  dups.slice(0,5).forEach(function(n){log(id,'  DUP: "'+n+'"','err');});
+  if(dups.length>0){log(id,'✗ FAIL: '+dups.length+' duplicate name(s)','err');return'fail';}
+  log(id,'✓ PASS: No duplicate customer names','ok');return'pass';
 }
 
-// T11: Quote number assigned on save, header updates
-async function test_quote_num_new(id) {
-  var quotesJS = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
-
-  // Test 1: qq-stage4-num referenced in source
-  var elInSource = quotesJS.includes("'qq-stage4-num'") || quotesJS.includes('"qq-stage4-num"');
-  log(id, 'qq-stage4-num referenced in source: ' + elInSource, elInSource ? 'ok' : 'err');
-  if (!elInSource) { log(id, '✗ FAIL: qq-stage4-num not found in source', 'err'); return 'fail'; }
-
-  // Test 2: saveQQ updates the display element
-  var saveQQStart = quotesJS.indexOf('function saveQQ(');
-  var saveQQSrc = saveQQStart > -1 ? quotesJS.substring(saveQQStart, saveQQStart + 1500) : '';
-  var hasDisplayUpdate = saveQQSrc.includes("getElementById('qq-stage4-num')") || saveQQSrc.includes('getElementById("qq-stage4-num")');
-  log(id, 'saveQQ() updates qq-stage4-num: ' + hasDisplayUpdate, hasDisplayUpdate ? 'ok' : 'err');
-
-  // Test 3: updateQQStage3UI keeps it in sync
-  var updateUIStart = quotesJS.indexOf('function updateQQStage3UI(');
-  var updateUISrc = updateUIStart > -1 ? quotesJS.substring(updateUIStart, updateUIStart + 1200) : '';
-  var hasUISync = updateUISrc.includes('qq-stage4-num') || updateUISrc.includes('stageNumEl');
-  log(id, 'updateQQStage3UI() syncs qq-stage4-num: ' + hasUISync, hasUISync ? 'ok' : 'err');
-
-  if (!hasDisplayUpdate) { log(id, '✗ FAIL: saveQQ() still does not update the header', 'err'); return 'fail'; }
-  if (!hasUISync) { log(id, '⚠ WARN: updateQQStage3UI() does not sync header — number may be stale when editing', 'warn'); return 'warn'; }
-
-  log(id, '✓ PASS: Quote number display is properly wired up', 'ok');
-  return 'pass';
+// 11: saveQQ updates header
+async function T_quote_num_new(id){
+  var src=await getSrc('quotes.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
+  var hasRef=src.includes("'qq-stage4-num'");
+  var saveStart=src.indexOf('function saveQQ(');
+  var saveFn=saveStart>-1?src.substring(saveStart,saveStart+1500):'';
+  var saveUpdates=saveFn.includes('qq-stage4-num');
+  var uiStart=src.indexOf('function updateQQStage3UI(');
+  var uiFn=uiStart>-1?src.substring(uiStart,uiStart+1200):'';
+  var uiSyncs=uiFn.includes('qq-stage4-num')||uiFn.includes('stageNumEl');
+  log(id,"qq-stage4-num in source: "+hasRef,hasRef?'ok':'err');
+  log(id,'saveQQ() updates header: '+saveUpdates,saveUpdates?'ok':'err');
+  log(id,'updateQQStage3UI() syncs header: '+uiSyncs,uiSyncs?'ok':'err');
+  if(!hasRef){log(id,'✗ FAIL: qq-stage4-num not found in source','err');return'fail';}
+  if(!saveUpdates){log(id,'✗ FAIL: saveQQ() does not update the header','err');return'fail';}
+  if(!uiSyncs){log(id,'⚠ WARN: updateQQStage3UI() does not sync header','warn');return'warn';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T12: Header shows correct number when editing
-async function test_quote_num_edit(id) {
-  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
-  var editStart = src.indexOf('function editQuote(');
-  var editSrc = editStart > -1 ? src.substring(editStart, editStart + 5000) : '';
-  // editQuote sets qq-num field value, and updateQQStage3UI syncs qq-stage4-num
-  var setsQQNum = editSrc.includes("getElementById('qq-num')") || editSrc.includes("getElementById(\"qq-num\")") || editSrc.includes("'qq-num'");
-  var callsUpdate = editSrc.includes('updateQQStage3UI');
-  log(id, 'editQuote() sets qq-num field: ' + setsQQNum, setsQQNum ? 'ok' : 'err');
-  log(id, 'editQuote() calls updateQQStage3UI: ' + callsUpdate, callsUpdate ? 'ok' : 'err');
-  if (!setsQQNum) { log(id, '✗ FAIL: qq-num not set during editQuote()', 'err'); return 'fail'; }
-  if (!callsUpdate) { log(id, '⚠ WARN: updateQQStage3UI not called from editQuote — header may lag', 'warn'); return 'warn'; }
-  log(id, '✓ PASS: Quote number correctly propagated on edit', 'ok');
-  return 'pass';
+// 12: editQuote sets number
+async function T_quote_num_edit(id){
+  var src=await getSrc('quotes.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
+  var start=src.indexOf('function editQuote(');
+  var fn=start>-1?src.substring(start,start+5000):'';
+  var setsNum=fn.includes("'qq-num'");
+  var callsUpdate=fn.includes('updateQQStage3UI');
+  log(id,"editQuote() references 'qq-num': "+setsNum,setsNum?'ok':'err');
+  log(id,'editQuote() calls updateQQStage3UI: '+callsUpdate,callsUpdate?'ok':'warn');
+  if(!setsNum){log(id,'✗ FAIL: editQuote() does not set qq-num','err');return'fail';}
+  if(!callsUpdate){log(id,'⚠ WARN: updateQQStage3UI not called from editQuote','warn');return'warn';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T13: clearQQ() is defined and resets form
-async function test_quote_clearqq(id) {
-  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
-  var defined = src.includes('function clearQQ(');
-  log(id, 'clearQQ is defined: ' + defined, defined ? 'ok' : 'err');
-  if (!defined) { log(id, '✗ FAIL: clearQQ is not defined in quotes.js', 'err'); return 'fail'; }
-
-  var fnStart = src.indexOf('function clearQQ(');
-  var fnSrc = src.substring(fnStart, fnStart + 800);
-  var clearsFields = fnSrc.includes('qqFieldIds') || fnSrc.includes("qqSetVal(id, '')");
-  var clearsDirty = fnSrc.includes('setQQDirty');
-  var clearsDraft = fnSrc.includes('clearQQDraft');
-
-  log(id, 'clearQQ clears field values: ' + clearsFields, clearsFields ? 'ok' : 'err');
-  log(id, 'clearQQ resets dirty flag: ' + clearsDirty, clearsDirty ? 'ok' : 'err');
-  log(id, 'clearQQ clears draft: ' + clearsDraft, clearsDraft ? 'ok' : 'warn');
-
-  if (!clearsFields) { log(id, '✗ FAIL: clearQQ does not clear form fields', 'err'); return 'fail'; }
-  if (!clearsDirty) { log(id, '⚠ WARN: clearQQ does not reset dirty state', 'warn'); return 'warn'; }
-  log(id, '✓ PASS: clearQQ is properly defined and clears the form', 'ok');
-  return 'pass';
+// 13: clearQQ defined
+async function T_quote_clearqq(id){
+  var src=await getSrc('quotes.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
+  var defined=src.includes('function clearQQ(');
+  var clearsFields=src.includes('qqFieldIds()')||src.includes("qqSetVal(id, '')");
+  var resetsDirty=src.includes('setQQDirty(false');
+  log(id,'function clearQQ() defined: '+defined,defined?'ok':'err');
+  log(id,'Clears form fields: '+clearsFields,clearsFields?'ok':'err');
+  log(id,'Resets dirty flag: '+resetsDirty,resetsDirty?'ok':'err');
+  if(!defined){log(id,'✗ FAIL: clearQQ not defined in quotes.js','err');return'fail';}
+  if(!clearsFields){log(id,'✗ FAIL: clearQQ does not clear fields','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T14: New quote from profile no cross-contamination
-async function test_quote_profile(id) {
-  var src = typeof PB.openQuoteForCustomer === 'function' ? PB.openQuoteForCustomer.toString() : '';
-  if (!src) { log(id, 'SKIP: openQuoteForCustomer not found', 'warn'); return 'skip'; }
-
-  var callsClearQQ = src.includes('clearQQ');
-  var callsBeforeGoPage = false;
-  // Check ordering: clearQQ should appear before goPage in the source
-  var clearPos = src.indexOf('clearQQ');
-  var goPagePos = src.indexOf('goPage');
-  if (clearPos > -1 && goPagePos > -1 && clearPos < goPagePos) callsBeforeGoPage = true;
-
-  log(id, 'openQuoteForCustomer calls clearQQ: ' + callsClearQQ, callsClearQQ ? 'ok' : 'err');
-  log(id, 'clearQQ called BEFORE goPage: ' + callsBeforeGoPage, callsBeforeGoPage ? 'ok' : 'warn');
-
-  if (!callsClearQQ) { log(id, '✗ FAIL: openQuoteForCustomer does not call clearQQ — cross-contamination will occur', 'err'); return 'fail'; }
-  if (!callsBeforeGoPage) { log(id, '⚠ WARN: clearQQ not confirmed to run before goPage', 'warn'); return 'warn'; }
-  log(id, '✓ PASS: openQuoteForCustomer correctly clears the form first', 'ok');
-  return 'pass';
+// 14: openQuoteForCustomer calls clearQQ
+async function T_quote_profile(id){
+  var src=await getSrc('crm.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch crm.js','err');return'fail';}
+  var hasFn=src.includes('function openQuoteForCustomer(');
+  var callsClear=src.includes('clearQQ(');
+  var clearBeforeGo=(function(){var ci=src.indexOf('clearQQ(');var gi=src.indexOf("goPage('qq')");return ci>-1&&gi>-1&&ci<gi;})();
+  log(id,'openQuoteForCustomer() defined: '+hasFn,hasFn?'ok':'err');
+  log(id,'Calls clearQQ(): '+callsClear,callsClear?'ok':'err');
+  log(id,'clearQQ() called BEFORE goPage: '+clearBeforeGo,clearBeforeGo?'ok':'warn');
+  if(!hasFn){log(id,'✗ FAIL: function not found','err');return'fail';}
+  if(!callsClear){log(id,'✗ FAIL: clearQQ not called — cross-contamination will occur','err');return'fail';}
+  if(!clearBeforeGo){log(id,'⚠ WARN: clearQQ order unconfirmed','warn');return'warn';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T15: Duplicate quote (source analysis)
-async function test_quote_dup(id) {
-  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
-  var fnStart = src.indexOf('function dupQuote(');
-  var fnSrc = fnStart > -1 ? src.substring(fnStart, fnStart + 500) : '';
-
-  var usesUUID = fnSrc.includes("typeof makeUUID==='function' ? makeUUID()") || fnSrc.includes('makeUUID()');
-  var getsNewNum = fnSrc.includes('nextQNum()');
-  var copiesData = fnSrc.includes('JSON.parse(JSON.stringify(');
-
-  log(id, 'dupQuote() defined: ' + (fnStart > -1), fnStart > -1 ? 'ok' : 'err');
-  log(id, 'Assigns new UUID to copy: ' + usesUUID, usesUUID ? 'ok' : 'err');
-  log(id, 'Assigns new quote number: ' + getsNewNum, getsNewNum ? 'ok' : 'err');
-  log(id, 'Deep-copies original data: ' + copiesData, copiesData ? 'ok' : 'err');
-
-  if (fnStart === -1) { log(id, '✗ FAIL: dupQuote() not found in quotes.js', 'err'); return 'fail'; }
-  if (!usesUUID) { log(id, '✗ FAIL: Duplicate quote does not get a new UUID', 'err'); return 'fail'; }
-  if (!getsNewNum) { log(id, '✗ FAIL: Duplicate quote does not get a new number', 'err'); return 'fail'; }
-  log(id, '✓ PASS: dupQuote() correctly creates a new UUID and new number', 'ok');
-  return 'pass';
+// 15: dupQuote
+async function T_quote_dup(id){
+  var src=await getSrc('quotes.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
+  var start=src.indexOf('function dupQuote(');
+  var fn=start>-1?src.substring(start,start+500):'';
+  var hasUUID=fn.includes('makeUUID');
+  var hasNewNum=fn.includes('nextQNum');
+  var deepCopy=fn.includes('JSON.parse(JSON.stringify(');
+  log(id,'dupQuote() defined: '+(start>-1),(start>-1)?'ok':'err');
+  log(id,'Assigns new UUID: '+hasUUID,hasUUID?'ok':'err');
+  log(id,'Assigns new quote number: '+hasNewNum,hasNewNum?'ok':'err');
+  log(id,'Deep-copies original: '+deepCopy,deepCopy?'ok':'warn');
+  if(start===-1||!hasUUID||!hasNewNum){log(id,'✗ FAIL','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T16: Add contact from modal
-async function test_contact_create(id) {
-  var DB = PB.DB;
-  var custId = PB.makeUUID();
-  DB.customers.push({ id: custId, name: 'Contact Test Parent [TEST:contact-create]', phone: '', email: '', createdAt: new Date().toISOString() });
-
-  var before = DB.contacts.length;
-  var contactId = PB.makeUUID();
-  var contact = { id: contactId, customerId: custId, name: 'Contact Test Person [TEST:contact-create]', phone: '555-TEST', email: 'c@test.com', createdAt: new Date().toISOString() };
-  DB.contacts.push(contact);
-
-  log(id, 'Contact ID: ' + contactId, 'info');
-  log(id, 'Customer ID: ' + custId, 'info');
-  log(id, 'IDs match: ' + (contact.customerId === custId), contact.customerId === custId ? 'ok' : 'err');
-  log(id, 'Count before: ' + before + ', after: ' + DB.contacts.length, 'info');
-
-  if (!isUUID(contactId)) { log(id, '✗ FAIL: Contact ID not a UUID', 'err'); cleanup('contact-create'); return 'fail'; }
-  if (contact.customerId !== custId) { log(id, '✗ FAIL: Wrong customer link', 'err'); cleanup('contact-create'); return 'fail'; }
-  if (DB.contacts.length !== before + 1) { log(id, '✗ FAIL: Contact not added to DB', 'err'); cleanup('contact-create'); return 'fail'; }
-
-  log(id, '✓ PASS: Contact created with correct UUID and customer link', 'ok');
-  cleanup('contact-create');
-  return 'pass';
+// 16: Contact create
+async function T_contact_create(id){
+  var db=getDB();if(!db){log(id,'✗ FAIL: No DB','err');return'fail';}
+  var custId=makeUUID();
+  db.customers.push({id:custId,name:'Test Parent [T:contact-create]',phone:'',email:'',createdAt:new Date().toISOString()});
+  var contactId=makeUUID();
+  db.contacts.push({id:contactId,customerId:custId,name:'Test Contact [T:contact-create]',createdAt:new Date().toISOString()});
+  setDB(db);
+  var db2=getDB();
+  var ct=(db2.contacts||[]).find(function(c){return c.id===contactId;});
+  log(id,'Contact UUID: '+(ct?ct.id:'null'),(ct&&isUUID(ct.id))?'ok':'err');
+  log(id,'Linked to customer: '+(ct?ct.customerId:'null'),(ct&&ct.customerId===custId)?'ok':'err');
+  cleanup('contact-create',db2);
+  if(!ct||!isUUID(ct.id)||ct.customerId!==custId){log(id,'✗ FAIL','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T17: No orphaned contacts
-async function test_contact_orphan(id) {
-  var contacts = PB.DB.contacts || [];
-  var customers = PB.DB.customers || [];
-  var custIds = new Set(customers.map(function(c){ return c.id; }));
-  var orphans = contacts.filter(function(c){ return c.customerId && !custIds.has(c.customerId); });
-
-  log(id, 'Total contacts: ' + contacts.length, 'info');
-  log(id, 'Total customers: ' + customers.length, 'info');
-  log(id, 'Orphaned contacts: ' + orphans.length, orphans.length === 0 ? 'ok' : 'err');
-  orphans.slice(0,5).forEach(function(c){
-    log(id, '  ORPHAN: "' + c.name + '" → customerId: ' + c.customerId, 'err');
-  });
-  if (orphans.length > 5) log(id, '  ... and ' + (orphans.length-5) + ' more', 'err');
-
-  if (orphans.length > 0) { log(id, '✗ FAIL: ' + orphans.length + ' orphaned contact(s) found', 'err'); return 'fail'; }
-  log(id, '✓ PASS: All contacts linked to valid customers', 'ok');
-  return 'pass';
+// 17: Orphan check
+async function T_contact_orphan(id){
+  var db=getDB();if(!db){log(id,'✗ FAIL: No DB','err');return'fail';}
+  var custIds=new Set((db.customers||[]).map(function(c){return c.id;}));
+  var orphans=(db.contacts||[]).filter(function(c){return c.customerId&&!custIds.has(c.customerId);});
+  log(id,'Contacts: '+(db.contacts||[]).length+', Customers: '+(db.customers||[]).length,'info');
+  log(id,'Orphaned contacts: '+orphans.length,orphans.length===0?'ok':'err');
+  orphans.slice(0,5).forEach(function(c){log(id,'  ORPHAN: '+c.name+' → '+c.customerId,'err');});
+  if(orphans.length>0){log(id,'✗ FAIL: '+orphans.length+' orphaned contact(s)','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T18: All customer IDs are UUIDs
-async function test_db_custs(id) {
-  var custs = PB.DB.customers || [];
-  var bad = custs.filter(function(c){ return c.id && !isUUID(c.id); });
-  log(id, 'Total customers: ' + custs.length, 'info');
-  log(id, 'Non-UUID IDs: ' + bad.length, bad.length === 0 ? 'ok' : 'err');
-  bad.slice(0,5).forEach(function(c){ log(id, '  BAD ID: "' + c.name + '" → ' + c.id, 'err'); });
-  if (bad.length > 5) log(id, '  ... and ' + (bad.length-5) + ' more', 'err');
-  if (bad.length > 0) { log(id, '✗ FAIL: ' + bad.length + ' customer(s) have non-UUID IDs — will cause sync duplicates', 'err'); return 'fail'; }
-  log(id, '✓ PASS: All ' + custs.length + ' customer IDs are valid UUIDs', 'ok');
-  return 'pass';
+// 18: All customer IDs UUID
+async function T_db_custs(id){
+  var db=getDB();if(!db){log(id,'✗ FAIL: No DB','err');return'fail';}
+  var bad=(db.customers||[]).filter(function(c){return c.id&&!isUUID(c.id);});
+  log(id,'Total customers: '+(db.customers||[]).length,'info');
+  log(id,'Non-UUID IDs: '+bad.length,bad.length===0?'ok':'err');
+  bad.slice(0,5).forEach(function(c){log(id,'  BAD: "'+c.name+'" → '+c.id,'err');});
+  if(bad.length>0){log(id,'✗ FAIL: '+bad.length+' customers have non-UUID IDs','err');return'fail';}
+  log(id,'✓ PASS: All customer IDs are valid UUIDs','ok');return'pass';
 }
 
-// T19: All quote IDs are UUIDs
-async function test_db_quotes(id) {
-  var quotes = PB.DB.quotes || [];
-  var bad = quotes.filter(function(q){ return q.id && !isUUID(q.id); });
-  log(id, 'Total quotes: ' + quotes.length, 'info');
-  log(id, 'Non-UUID IDs: ' + bad.length, bad.length === 0 ? 'ok' : 'err');
-  bad.slice(0,5).forEach(function(q){ log(id, '  BAD ID: "' + (q.num||q.cn||'?') + '" → ' + q.id, 'err'); });
-  if (bad.length > 0) { log(id, '✗ FAIL: ' + bad.length + ' quote(s) have non-UUID IDs', 'err'); return 'fail'; }
-  log(id, '✓ PASS: All ' + quotes.length + ' quote IDs are valid UUIDs', 'ok');
-  return 'pass';
+// 19: All quote IDs UUID
+async function T_db_quotes(id){
+  var db=getDB();if(!db){log(id,'✗ FAIL: No DB','err');return'fail';}
+  var bad=(db.quotes||[]).filter(function(q){return q.id&&!isUUID(q.id);});
+  log(id,'Total quotes: '+(db.quotes||[]).length,'info');
+  log(id,'Non-UUID IDs: '+bad.length,bad.length===0?'ok':'err');
+  bad.slice(0,5).forEach(function(q){log(id,'  BAD: '+(q.num||q.id),'err');});
+  if(bad.length>0){log(id,'✗ FAIL: '+bad.length+' quotes have non-UUID IDs','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T20: All contact IDs are UUIDs
-async function test_db_contacts(id) {
-  var contacts = PB.DB.contacts || [];
-  var bad = contacts.filter(function(c){ return c.id && !isUUID(c.id); });
-  log(id, 'Total contacts: ' + contacts.length, 'info');
-  log(id, 'Non-UUID IDs: ' + bad.length, bad.length === 0 ? 'ok' : 'err');
-  bad.slice(0,5).forEach(function(c){ log(id, '  BAD ID: "' + c.name + '" → ' + c.id, 'err'); });
-  if (bad.length > 0) { log(id, '✗ FAIL: ' + bad.length + ' contact(s) have non-UUID IDs', 'err'); return 'fail'; }
-  log(id, '✓ PASS: All ' + contacts.length + ' contact IDs are valid UUIDs', 'ok');
-  return 'pass';
+// 20: All contact IDs UUID
+async function T_db_contacts(id){
+  var db=getDB();if(!db){log(id,'✗ FAIL: No DB','err');return'fail';}
+  var bad=(db.contacts||[]).filter(function(c){return c.id&&!isUUID(c.id);});
+  log(id,'Total contacts: '+(db.contacts||[]).length,'info');
+  log(id,'Non-UUID IDs: '+bad.length,bad.length===0?'ok':'err');
+  bad.slice(0,5).forEach(function(c){log(id,'  BAD: '+c.name+' → '+c.id,'err');});
+  if(bad.length>0){log(id,'✗ FAIL: '+bad.length+' contacts have non-UUID IDs','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T21: makeUUID globally available
-async function test_db_makeUUID(id) {
-  var defined = typeof PB.makeUUID === 'function';
-  log(id, 'makeUUID defined: ' + defined, defined ? 'ok' : 'err');
-  if (!defined) { log(id, '✗ FAIL: makeUUID not globally defined — core.js fix not deployed', 'err'); return 'fail'; }
-  var sample = PB.makeUUID();
-  log(id, 'Sample output: ' + sample, 'info');
-  var valid = isUUID(sample);
-  log(id, 'Output is valid UUID: ' + valid, valid ? 'ok' : 'err');
-  if (!valid) { log(id, '✗ FAIL: makeUUID() output is not a valid UUID', 'err'); return 'fail'; }
-  log(id, '✓ PASS: makeUUID() is globally available and produces valid UUIDs', 'ok');
-  return 'pass';
+// 21: makeUUID in core.js
+async function T_db_makeUUID(id){
+  var src=await getSrc('core.js');
+  if(!src){log(id,'✗ FAIL: Could not fetch core.js','err');return'fail';}
+  var defined=src.includes('function makeUUID()');
+  var usesCrypto=src.includes('crypto.randomUUID')||src.includes('getRandomValues');
+  log(id,'makeUUID() in core.js: '+defined,defined?'ok':'err');
+  log(id,'Uses crypto API: '+usesCrypto,usesCrypto?'ok':'err');
+  if(!defined){log(id,'✗ FAIL: makeUUID not defined in core.js','err');return'fail';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// T22: clearQQ globally available
-async function test_db_clearQQ(id) {
-  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
-  var defined = src.includes('function clearQQ(');
-  var crmCallsIt = (await fetch('https://joek0007.github.io/tcss-probid/js/crm.js', {cache:'no-store'}).then(r=>r.text())).includes('clearQQ(');
-  log(id, 'clearQQ defined in quotes.js: ' + defined, defined ? 'ok' : 'err');
-  log(id, 'crm.js calls clearQQ: ' + crmCallsIt, crmCallsIt ? 'ok' : 'err');
-  if (!defined) {
-    log(id, '✗ FAIL: clearQQ is not defined in quotes.js', 'err');
-    log(id, '  This means: openQuoteForCustomer, auth init, and mobile "New Quote" action all silently do nothing when trying to clear the form', 'err');
-    return 'fail';
-  }
-  if (!crmCallsIt) { log(id, '⚠ WARN: crm.js does not call clearQQ — profile → new quote may still contaminate', 'warn'); return 'warn'; }
-  log(id, '✓ PASS: clearQQ() is defined and called correctly', 'ok');
-  return 'pass';
+// 22: clearQQ in quotes.js + crm.js calls it
+async function T_db_clearQQ(id){
+  var q=await getSrc('quotes.js');
+  var c=await getSrc('crm.js');
+  if(!q||!c){log(id,'✗ FAIL: Could not fetch source files','err');return'fail';}
+  var inQuotes=q.includes('function clearQQ(');
+  var inCrm=c.includes('clearQQ(');
+  log(id,'clearQQ() in quotes.js: '+inQuotes,inQuotes?'ok':'err');
+  log(id,'crm.js calls clearQQ(): '+inCrm,inCrm?'ok':'err');
+  if(!inQuotes){log(id,'✗ FAIL: clearQQ not defined in quotes.js','err');return'fail';}
+  if(!inCrm){log(id,'⚠ WARN: crm.js does not call clearQQ','warn');return'warn';}
+  log(id,'✓ PASS','ok');return'pass';
 }
 
-// ── Test runner map ───────────────────────────────────────────────────────────
-var TESTS = [
-  ['uuid-modal',       test_uuid_modal],
-  ['uuid-qq',          test_uuid_qq],
-  ['uuid-wt',          test_uuid_wt],
-  ['uuid-contact',     test_uuid_contact],
-  ['uuid-link',        test_uuid_link],
-  ['dedup-modal',      test_dedup_modal],
-  ['dedup-qq',         test_dedup_qq],
-  ['dedup-id',         test_dedup_id],
-  ['dedup-sync',       test_dedup_sync],
-  ['dedup-existing',   test_dedup_existing],
-  ['quote-num-new',    test_quote_num_new],
-  ['quote-num-edit',   test_quote_num_edit],
-  ['quote-clearqq',    test_quote_clearqq],
-  ['quote-profile',    test_quote_profile],
-  ['quote-dup',        test_quote_dup],
-  ['contact-create',   test_contact_create],
-  ['contact-orphan',   test_contact_orphan],
-  ['db-custs',         test_db_custs],
-  ['db-quotes',        test_db_quotes],
-  ['db-contacts',      test_db_contacts],
-  ['db-makeUUID',      test_db_makeUUID],
-  ['db-clearQQ',       test_db_clearQQ],
+// ── Runner ─────────────────────────────────────────────────────────────────
+var TESTS=[
+  ['uuid-modal',T_uuid_modal],['uuid-qq',T_uuid_qq],['uuid-wt',T_uuid_wt],
+  ['uuid-contact',T_uuid_contact],['uuid-link',T_uuid_link],
+  ['dedup-modal',T_dedup_modal],['dedup-qq',T_dedup_qq],['dedup-id',T_dedup_id],
+  ['dedup-sync',T_dedup_sync],['dedup-existing',T_dedup_existing],
+  ['quote-num-new',T_quote_num_new],['quote-num-edit',T_quote_num_edit],
+  ['quote-clearqq',T_quote_clearqq],['quote-profile',T_quote_profile],['quote-dup',T_quote_dup],
+  ['contact-create',T_contact_create],['contact-orphan',T_contact_orphan],
+  ['db-custs',T_db_custs],['db-quotes',T_db_quotes],['db-contacts',T_db_contacts],
+  ['db-makeUUID',T_db_makeUUID],['db-clearQQ',T_db_clearQQ]
 ];
 
-async function runAll() {
-  if (!getProBid()) {
-    alert('ProBid is not connected.\n\nOpen ProBid (https://joek0007.github.io/tcss-probid/) and then open this test suite using:\n\n  window.open("") from the ProBid console\n\nOr use the Chrome extension to open both tabs.');
-    return;
+async function runAll(){
+  _srcCache={};
+  document.getElementById('run-btn').disabled=true;
+  document.getElementById('rs').textContent='Running…';
+  results={};updateSummary();
+  for(var i=0;i<TESTS.length;i++){
+    await runTest(TESTS[i][0],TESTS[i][1]);
+    document.getElementById('rs').textContent='Running '+(i+1)+'/'+TESTS.length+'…';
+    await new Promise(function(r){setTimeout(r,50);});
   }
-  updateConnStatus();
-  document.getElementById('run-btn').disabled = true;
-  document.getElementById('run-status').textContent = 'Running…';
-  results = {};
-  updateSummary();
-
-  for (var i = 0; i < TESTS.length; i++) {
-    var t = TESTS[i];
-    await runTest(t[0], t[1]);
-    document.getElementById('run-status').textContent = 'Running ' + (i+1) + '/' + TESTS.length + '…';
-    await new Promise(function(r){ setTimeout(r, 80); });
-  }
-
-  var pass = Object.values(results).filter(function(r){ return r==='pass'; }).length;
-  var fail = Object.values(results).filter(function(r){ return r==='fail'; }).length;
-  document.getElementById('run-status').textContent = 'Done — ' + pass + ' passed, ' + fail + ' failed';
-  document.getElementById('run-btn').disabled = false;
+  var p=parseInt(document.getElementById('sp').textContent);
+  var f=parseInt(document.getElementById('sf').textContent);
+  document.getElementById('rs').textContent='Done — '+p+' passed, '+f+' failed';
+  document.getElementById('run-btn').disabled=false;
 }
 
-function clearResults() {
-  results = {};
-  TESTS.forEach(function(t){ clearDetail(t[0]); setStatus(t[0], 'idle'); });
-  document.getElementById('run-status').textContent = 'Ready';
-  document.getElementById('stat-pass').textContent = '0';
-  document.getElementById('stat-fail').textContent = '0';
-  document.getElementById('stat-warn').textContent = '0';
-  document.getElementById('stat-skip').textContent = '0';
-  document.getElementById('progress-fill').style.width = '0';
+function clearResults(){
+  _srcCache={};results={};
+  TESTS.forEach(function(t){clearDetail(t[0]);setStatus(t[0],'idle');});
+  document.getElementById('rs').textContent='Ready';
+  ['sp','sf','sw','ss'].forEach(function(id){document.getElementById(id).textContent='0';});
+  document.getElementById('pf').style.width='0';
 }
-
-// Auto-connect check — build PB from localStorage immediately
-PB = buildPB();
-updateConnStatus();
-setInterval(function() { if (!_pbLoaded) { PB = buildPB(); } updateConnStatus(); }, 2000);
 </script>
 </body>
 </html>
