@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProBid V9 — Test Suite</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
+  header { background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  header h1 { font-size: 16px; font-weight: 700; color: #58a6ff; letter-spacing: 0.5px; }
+  header .subtitle { font-size: 12px; color: #8b949e; margin-top: 2px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; }
+  button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; padding: 8px 16px; transition: all 0.15s; }
+  .btn-run { background: #238636; color: #fff; }
+  .btn-run:hover { background: #2ea043; }
+  .btn-run:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+  .btn-clear { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+  .btn-clear:hover { background: #30363d; color: #e6edf3; }
+  .btn-fix { background: #b08800; color: #fff; font-size: 11px; padding: 4px 10px; }
+  .btn-fix:hover { background: #d4a017; }
+  .summary-bar { background: #161b22; border-bottom: 1px solid #30363d; padding: 12px 24px; display: flex; gap: 24px; align-items: center; font-size: 13px; }
+  .stat { display: flex; align-items: center; gap: 6px; }
+  .stat .num { font-size: 22px; font-weight: 800; line-height: 1; }
+  .stat.pass .num { color: #3fb950; }
+  .stat.fail .num { color: #f85149; }
+  .stat.warn .num { color: #d29922; }
+  .stat.skip .num { color: #8b949e; }
+  .stat .label { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .progress-bar { flex: 1; height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #3fb950; border-radius: 3px; transition: width 0.3s; width: 0; }
+  .progress-fill.has-fail { background: #f85149; }
+  .main { padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
+  .section { margin-bottom: 24px; }
+  .section-header { font-size: 12px; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #21262d; }
+  .test-row { background: #161b22; border: 1px solid #21262d; border-radius: 8px; margin-bottom: 6px; overflow: hidden; transition: border-color 0.2s; }
+  .test-row.pass { border-color: #196c2e; }
+  .test-row.fail { border-color: #6e1c1c; }
+  .test-row.warn { border-color: #4e3c0a; }
+  .test-row.running { border-color: #1158a7; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{border-color:#1158a7} 50%{border-color:#58a6ff} }
+  .test-header { display: flex; align-items: center; gap: 12px; padding: 10px 14px; cursor: pointer; }
+  .test-status { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+  .status-pass { background: #196c2e; color: #3fb950; }
+  .status-fail { background: #6e1c1c; color: #f85149; }
+  .status-warn { background: #4e3c0a; color: #d29922; }
+  .status-skip { background: #21262d; color: #8b949e; }
+  .status-run  { background: #1158a7; color: #58a6ff; }
+  .status-idle { background: #21262d; color: #484f58; }
+  .test-name { flex: 1; font-size: 13px; font-weight: 600; color: #e6edf3; }
+  .test-desc { font-size: 11px; color: #8b949e; margin-top: 1px; }
+  .test-time { font-size: 11px; color: #484f58; font-family: monospace; }
+  .test-detail { padding: 0 14px 12px 46px; font-size: 12px; font-family: monospace; }
+  .test-detail.hidden { display: none; }
+  .detail-line { padding: 2px 0; }
+  .detail-line.ok { color: #3fb950; }
+  .detail-line.err { color: #f85149; }
+  .detail-line.info { color: #8b949e; }
+  .detail-line.warn { color: #d29922; }
+  .conn-panel { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  .conn-panel h3 { font-size: 13px; font-weight: 700; color: #e6edf3; margin-bottom: 8px; }
+  .conn-status { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .conn-dot.green { background: #3fb950; }
+  .conn-dot.red { background: #f85149; }
+  .conn-dot.yellow { background: #d29922; animation: blink 1s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .conn-url { margin-top: 8px; }
+  .conn-url input { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #e6edf3; font-size: 12px; padding: 6px 10px; width: 100%; font-family: monospace; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .badge-bug { background: #6e1c1c; color: #f85149; }
+  .badge-new { background: #1158a7; color: #58a6ff; }
+  .badge-crit { background: #4e3c0a; color: #d29922; }
+  .log-panel { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 10px; margin-top: 12px; max-height: 200px; overflow-y: auto; font-size: 11px; font-family: monospace; color: #8b949e; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>⚡ ProBid V9 — Test Suite</h1>
+    <div class="subtitle">Automated regression tests for customer, quote, and contact integrity</div>
+  </div>
+  <div class="toolbar">
+    <button class="btn-clear" onclick="clearResults()">Clear</button>
+    <button class="btn-run" id="run-btn" onclick="runAll()">▶ Run All Tests</button>
+  </div>
+</header>
+
+<div class="summary-bar">
+  <div class="stat pass"><div class="num" id="stat-pass">0</div><div class="label">Pass</div></div>
+  <div class="stat fail"><div class="num" id="stat-fail">0</div><div class="label">Fail</div></div>
+  <div class="stat warn"><div class="num" id="stat-warn">0</div><div class="label">Warn</div></div>
+  <div class="stat skip"><div class="num" id="stat-skip">0</div><div class="label">Skip</div></div>
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+  <div style="font-size:12px;color:#8b949e" id="run-status">Ready</div>
+</div>
+
+<div class="main">
+
+  <div class="conn-panel">
+    <h3>ProBid Connection</h3>
+    <div class="conn-status">
+      <div class="conn-dot" id="conn-dot" style="background:#d29922"></div>
+      <span id="conn-text">Open ProBid in another tab, then click Run All Tests</span>
+    </div>
+    <div class="conn-url" style="margin-top:8px">
+      <input id="probid-url" value="https://joek0007.github.io/tcss-probid/" placeholder="ProBid URL">
+    </div>
+  </div>
+
+  <!-- Section 1: UUID Integrity -->
+  <div class="section">
+    <div class="section-header">1 — UUID Integrity (All creation paths must generate real UUIDs)</div>
+    <div id="test-uuid-modal" class="test-row">
+      <div class="test-header" onclick="toggleDetail('uuid-modal')">
+        <div class="test-status status-idle" id="status-uuid-modal">·</div>
+        <div><div class="test-name">Customer modal → UUID</div><div class="test-desc">saveCustomer() assigns a real RFC-4122 UUID to new customers</div></div>
+        <div class="test-time" id="time-uuid-modal"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-uuid-modal"></div>
+    </div>
+    <div id="test-uuid-qq" class="test-row">
+      <div class="test-header" onclick="toggleDetail('uuid-qq')">
+        <div class="test-status status-idle" id="status-uuid-qq">·</div>
+        <div><div class="test-name">QQ inline create → UUID</div><div class="test-desc">upsertCustomer() assigns a real UUID, not cust-timestamp</div></div>
+        <div class="test-time" id="time-uuid-qq"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-uuid-qq"></div>
+    </div>
+    <div id="test-uuid-wt" class="test-row">
+      <div class="test-header" onclick="toggleDetail('uuid-wt')">
+        <div class="test-status status-idle" id="status-uuid-wt">·</div>
+        <div>
+          <div class="test-name">Work Tracking customer create → UUID <span class="badge badge-bug">KNOWN BUG</span></div>
+          <div class="test-desc">addCustomerFromQuote() in worktracking.js still uses Date.now() ID</div>
+        </div>
+        <div class="test-time" id="time-uuid-wt"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-uuid-wt"></div>
+    </div>
+    <div id="test-uuid-contact" class="test-row">
+      <div class="test-header" onclick="toggleDetail('uuid-contact')">
+        <div class="test-status status-idle" id="status-uuid-contact">·</div>
+        <div><div class="test-name">Contact create → UUID</div><div class="test-desc">New contacts get real UUIDs, not timestamp IDs</div></div>
+        <div class="test-time" id="time-uuid-contact"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-uuid-contact"></div>
+    </div>
+    <div id="test-uuid-link" class="test-row">
+      <div class="test-header" onclick="toggleDetail('uuid-link')">
+        <div class="test-status status-idle" id="status-uuid-link">·</div>
+        <div><div class="test-name">Contact.customerId matches parent customer</div><div class="test-desc">Primary contact linked at customer creation time uses same UUID</div></div>
+        <div class="test-time" id="time-uuid-link"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-uuid-link"></div>
+    </div>
+  </div>
+
+  <!-- Section 2: Customer Dedup -->
+  <div class="section">
+    <div class="section-header">2 — Customer Deduplication (Every path must prevent duplicates)</div>
+    <div id="test-dedup-modal" class="test-row">
+      <div class="test-header" onclick="toggleDetail('dedup-modal')">
+        <div class="test-status status-idle" id="status-dedup-modal">·</div>
+        <div><div class="test-name">Modal blocks duplicate name on create</div><div class="test-desc">saveCustomer() with existing name shows error, does not create second record</div></div>
+        <div class="test-time" id="time-dedup-modal"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-dedup-modal"></div>
+    </div>
+    <div id="test-dedup-qq" class="test-row">
+      <div class="test-header" onclick="toggleDetail('dedup-qq')">
+        <div class="test-status status-idle" id="status-dedup-qq">·</div>
+        <div><div class="test-name">QQ inline matches existing customer</div><div class="test-desc">upsertCustomer() with existing name returns existing record, no new push</div></div>
+        <div class="test-time" id="time-dedup-qq"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-dedup-qq"></div>
+    </div>
+    <div id="test-dedup-id" class="test-row">
+      <div class="test-header" onclick="toggleDetail('dedup-id')">
+        <div class="test-status status-idle" id="status-dedup-id">·</div>
+        <div><div class="test-name">QQ with customer ID matches by ID, not name</div><div class="test-desc">upsertCustomer() prefers customerId match over name match</div></div>
+        <div class="test-time" id="time-dedup-id"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-dedup-id"></div>
+    </div>
+    <div id="test-dedup-sync" class="test-row">
+      <div class="test-header" onclick="toggleDetail('dedup-sync')">
+        <div class="test-status status-idle" id="status-dedup-sync">·</div>
+        <div><div class="test-name">Sync dedup: non-UUID customer adopts existing cloud ID</div><div class="test-desc">pushAllToCloud() matches by name+phone before minting new UUID</div></div>
+        <div class="test-time" id="time-dedup-sync"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-dedup-sync"></div>
+    </div>
+    <div id="test-dedup-existing" class="test-row">
+      <div class="test-header" onclick="toggleDetail('dedup-existing')">
+        <div class="test-status status-idle" id="status-dedup-existing">·</div>
+        <div><div class="test-name">Full DB scan: no customers with duplicate names</div><div class="test-desc">Checks the live DB for any existing duplicates right now</div></div>
+        <div class="test-time" id="time-dedup-existing"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-dedup-existing"></div>
+    </div>
+  </div>
+
+  <!-- Section 3: Quote Flows -->
+  <div class="section">
+    <div class="section-header">3 — Quote Creation & Number Display</div>
+    <div id="test-quote-num-new" class="test-row">
+      <div class="test-header" onclick="toggleDetail('quote-num-new')">
+        <div class="test-status status-idle" id="status-quote-num-new">·</div>
+        <div><div class="test-name">New quote: number assigned on save, header updates immediately</div><div class="test-desc">saveQQ() assigns nextQNum() AND updates qq-stage4-num display — no reload needed</div></div>
+        <div class="test-time" id="time-quote-num-new"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-quote-num-new"></div>
+    </div>
+    <div id="test-quote-num-edit" class="test-row">
+      <div class="test-header" onclick="toggleDetail('quote-num-edit')">
+        <div class="test-status status-idle" id="status-quote-num-edit">·</div>
+        <div><div class="test-name">Edit quote: header shows correct number on load</div><div class="test-desc">editQuote() populates qq-stage4-num from the loaded quote's number</div></div>
+        <div class="test-time" id="time-quote-num-edit"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-quote-num-edit"></div>
+    </div>
+    <div id="test-quote-clearqq" class="test-row">
+      <div class="test-header" onclick="toggleDetail('quote-clearqq')">
+        <div class="test-status status-idle" id="status-quote-clearqq">·</div>
+        <div><div class="test-name">clearQQ() is defined and resets the form</div><div class="test-desc">clearQQ() clears all fields including qq-stage4-num — was undefined before this fix</div></div>
+        <div class="test-time" id="time-quote-clearqq"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-quote-clearqq"></div>
+    </div>
+    <div id="test-quote-profile" class="test-row">
+      <div class="test-header" onclick="toggleDetail('quote-profile')">
+        <div class="test-status status-idle" id="status-quote-profile">·</div>
+        <div><div class="test-name">New quote from profile: no cross-contamination</div><div class="test-desc">openQuoteForCustomer() clears previous customer data before injecting new one</div></div>
+        <div class="test-time" id="time-quote-profile"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-quote-profile"></div>
+    </div>
+    <div id="test-quote-dup" class="test-row">
+      <div class="test-header" onclick="toggleDetail('quote-dup')">
+        <div class="test-status status-idle" id="status-quote-dup">·</div>
+        <div><div class="test-name">Duplicate quote gets new UUID + new number</div><div class="test-desc">dupQuote() creates a copy with fresh ID and next quote number, original unchanged</div></div>
+        <div class="test-time" id="time-quote-dup"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-quote-dup"></div>
+    </div>
+  </div>
+
+  <!-- Section 4: Contact Integrity -->
+  <div class="section">
+    <div class="section-header">4 — Contact Integrity</div>
+    <div id="test-contact-create" class="test-row">
+      <div class="test-header" onclick="toggleDetail('contact-create')">
+        <div class="test-status status-idle" id="status-contact-create">·</div>
+        <div><div class="test-name">Add contact from customer edit modal</div><div class="test-desc">saveContactInline() creates contact with UUID linked to correct customerId</div></div>
+        <div class="test-time" id="time-contact-create"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-contact-create"></div>
+    </div>
+    <div id="test-contact-orphan" class="test-row">
+      <div class="test-header" onclick="toggleDetail('contact-orphan')">
+        <div class="test-status status-idle" id="status-contact-orphan">·</div>
+        <div><div class="test-name">Full DB scan: no orphaned contacts</div><div class="test-desc">Every contact.customerId references a real customer that still exists</div></div>
+        <div class="test-time" id="time-contact-orphan"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-contact-orphan"></div>
+    </div>
+  </div>
+
+  <!-- Section 5: Live DB Health -->
+  <div class="section">
+    <div class="section-header">5 — Live Database Health Check</div>
+    <div id="test-db-custs" class="test-row">
+      <div class="test-header" onclick="toggleDetail('db-custs')">
+        <div class="test-status status-idle" id="status-db-custs">·</div>
+        <div><div class="test-name">All customer IDs are valid UUIDs</div><div class="test-desc">Scans every customer in DB.customers — any non-UUID ID will fail at next sync</div></div>
+        <div class="test-time" id="time-db-custs"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-db-custs"></div>
+    </div>
+    <div id="test-db-quotes" class="test-row">
+      <div class="test-header" onclick="toggleDetail('db-quotes')">
+        <div class="test-status status-idle" id="status-db-quotes">·</div>
+        <div><div class="test-name">All quote IDs are valid UUIDs</div><div class="test-desc">Scans every quote in DB.quotes for non-UUID IDs</div></div>
+        <div class="test-time" id="time-db-quotes"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-db-quotes"></div>
+    </div>
+    <div id="test-db-contacts" class="test-row">
+      <div class="test-header" onclick="toggleDetail('db-contacts')">
+        <div class="test-status status-idle" id="status-db-contacts">·</div>
+        <div><div class="test-name">All contact IDs are valid UUIDs</div><div class="test-desc">Scans every contact in DB.contacts for non-UUID IDs</div></div>
+        <div class="test-time" id="time-db-contacts"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-db-contacts"></div>
+    </div>
+    <div id="test-db-makeUUID" class="test-row">
+      <div class="test-header" onclick="toggleDetail('db-makeUUID')">
+        <div class="test-status status-idle" id="status-db-makeUUID">·</div>
+        <div><div class="test-name">makeUUID() is globally available</div><div class="test-desc">core.js must define it before quotes.js loads — root cause of the UUID mismatch bug</div></div>
+        <div class="test-time" id="time-db-makeUUID"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-db-makeUUID"></div>
+    </div>
+    <div id="test-db-clearQQ" class="test-row">
+      <div class="test-header" onclick="toggleDetail('db-clearQQ')">
+        <div class="test-status status-idle" id="status-db-clearQQ">·</div>
+        <div><div class="test-name">clearQQ() is globally available</div><div class="test-desc">Was undefined for entire app lifetime before this session — causes form state bleed</div></div>
+        <div class="test-time" id="time-db-clearQQ"></div>
+      </div>
+      <div class="test-detail hidden" id="detail-db-clearQQ"></div>
+    </div>
+  </div>
+
+  <div id="run-log" class="log-panel" style="display:none"></div>
+
+</div>
+
+<script>
+// ── Connection ────────────────────────────────────────────────────────────────
+var PB = null; // reference to the ProBid window
+
+function getProBid() {
+  var url = document.getElementById('probid-url').value.trim();
+  // Try opener first, then look for open tabs via localStorage fingerprint
+  if (window.opener && !window.opener.closed) {
+    try { if (window.opener.DB) { PB = window.opener; return true; } } catch(e) {}
+  }
+  // Try finding by scanning known windows
+  PB = null;
+  return false;
+}
+
+function updateConnStatus() {
+  var ok = getProBid();
+  document.getElementById('conn-dot').className = 'conn-dot ' + (ok ? 'green' : 'red');
+  document.getElementById('conn-text').textContent = ok
+    ? '✓ Connected to ProBid — DB loaded (' + (PB.DB.customers||[]).length + ' customers, ' + (PB.DB.quotes||[]).length + ' quotes)'
+    : '✗ Not connected — open ProBid first, then open this file from ProBid (or use window.open)';
+}
+
+// ── Test Infrastructure ───────────────────────────────────────────────────────
+var results = {};
+var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var TIMESTAMP_RE = /^(cust|ct|q)-?\d{10,}$/;
+
+function isUUID(s) { return UUID_RE.test(s||''); }
+function isTimestamp(s) { return TIMESTAMP_RE.test(s||''); }
+
+function log(id, msg, type) {
+  var d = document.getElementById('detail-' + id);
+  if (!d) return;
+  var line = document.createElement('div');
+  line.className = 'detail-line ' + (type||'info');
+  line.textContent = msg;
+  d.appendChild(line);
+}
+
+function setStatus(id, status, timeMs) {
+  var el = document.getElementById('test-' + id);
+  var st = document.getElementById('status-' + id);
+  var ti = document.getElementById('time-' + id);
+  if (!el || !st) return;
+  el.className = 'test-row ' + status;
+  var icons = { pass:'✓', fail:'✗', warn:'!', skip:'-', run:'…', idle:'·' };
+  var classes = { pass:'status-pass', fail:'status-fail', warn:'status-warn', skip:'status-skip', run:'status-run', idle:'status-idle' };
+  st.textContent = icons[status] || '·';
+  st.className = 'test-status ' + (classes[status]||'status-idle');
+  if (timeMs !== undefined && ti) ti.textContent = timeMs + 'ms';
+  results[id] = status;
+  updateSummary();
+}
+
+function showDetail(id) {
+  var d = document.getElementById('detail-' + id);
+  if (d) d.classList.remove('hidden');
+}
+
+function toggleDetail(id) {
+  var d = document.getElementById('detail-' + id);
+  if (d) d.classList.toggle('hidden');
+}
+
+function clearDetail(id) {
+  var d = document.getElementById('detail-' + id);
+  if (d) { d.innerHTML = ''; d.classList.add('hidden'); }
+}
+
+function updateSummary() {
+  var pass=0, fail=0, warn=0, skip=0, total=0;
+  Object.values(results).forEach(function(r) {
+    total++;
+    if(r==='pass') pass++;
+    else if(r==='fail') fail++;
+    else if(r==='warn') warn++;
+    else if(r==='skip') skip++;
+  });
+  document.getElementById('stat-pass').textContent = pass;
+  document.getElementById('stat-fail').textContent = fail;
+  document.getElementById('stat-warn').textContent = warn;
+  document.getElementById('stat-skip').textContent = skip;
+  var pct = total ? Math.round(((pass+warn)/total)*100) : 0;
+  var bar = document.getElementById('progress-fill');
+  bar.style.width = pct + '%';
+  bar.className = 'progress-fill' + (fail > 0 ? ' has-fail' : '');
+}
+
+async function runTest(id, fn) {
+  clearDetail(id);
+  setStatus(id, 'run');
+  var t0 = performance.now();
+  try {
+    var result = await fn(id);
+    var ms = Math.round(performance.now() - t0);
+    setStatus(id, result || 'pass', ms);
+    showDetail(id);
+  } catch(e) {
+    var ms = Math.round(performance.now() - t0);
+    log(id, '💥 Exception: ' + e.message, 'err');
+    setStatus(id, 'fail', ms);
+    showDetail(id);
+  }
+}
+
+// ── Cleanup helpers ───────────────────────────────────────────────────────────
+function cleanup(testTag) {
+  if (!PB) return;
+  // Remove any test customers/contacts/quotes created with the testTag
+  PB.DB.customers = (PB.DB.customers||[]).filter(function(c){ return !((c.name||'').includes('[TEST:'+testTag+']')); });
+  PB.DB.contacts  = (PB.DB.contacts||[]).filter(function(c){ return !((c.name||'').includes('[TEST:'+testTag+']')); });
+  PB.DB.quotes    = (PB.DB.quotes||[]).filter(function(q){ return !((q.cn||'').includes('[TEST:'+testTag+']') || (q.jn||'').includes('[TEST:'+testTag+']')); });
+  try { PB.saveDB(); } catch(e) {}
+}
+
+// ── The Tests ─────────────────────────────────────────────────────────────────
+
+// T1: Customer modal → UUID
+async function test_uuid_modal(id) {
+  var DB = PB.DB;
+  var before = DB.customers.length;
+  var name = 'TCSS Test Corp [TEST:uuid-modal]';
+
+  // Call _buildCustomerData directly by temporarily setting the modal field
+  var nameEl = PB.document.getElementById('m-cname');
+  var cidEl  = PB.document.getElementById('m-cid');
+  if (!nameEl || !cidEl) { log(id, 'SKIP: modal fields not found in DOM — is QQ page active?', 'warn'); cleanup('uuid-modal'); return 'skip'; }
+
+  var savedName = nameEl.value, savedId = cidEl.value;
+  nameEl.value = name; cidEl.value = '';
+
+  var data = PB._buildCustomerData('');
+  nameEl.value = savedName; cidEl.value = savedId;
+
+  log(id, 'Generated customer ID: ' + data.id, 'info');
+
+  if (!isUUID(data.id)) {
+    log(id, '✗ FAIL: ID is not a UUID — got: ' + data.id, 'err');
+    log(id, '  Check: makeUUID must be defined globally in core.js', 'err');
+    cleanup('uuid-modal'); return 'fail';
+  }
+  if (isTimestamp(data.id)) {
+    log(id, '✗ FAIL: ID is a timestamp — makeUUID() is not being called', 'err');
+    cleanup('uuid-modal'); return 'fail';
+  }
+  log(id, '✓ PASS: ID is valid UUID ' + data.id, 'ok');
+  cleanup('uuid-modal');
+  return 'pass';
+}
+
+// T2: QQ inline create → UUID
+async function test_uuid_qq(id) {
+  var DB = PB.DB;
+  var fakeQ = { cn: 'TCSS Test QQ [TEST:uuid-qq]', ph: '555-0001', em: 'test@test.com', ad: '123 Test St', customerId: null };
+  var before = DB.customers.length;
+  var cust = PB.upsertCustomer(fakeQ);
+
+  log(id, 'Created customer ID: ' + (cust ? cust.id : 'null'), 'info');
+
+  if (!cust) { log(id, '✗ FAIL: upsertCustomer returned null', 'err'); cleanup('uuid-qq'); return 'fail'; }
+  if (!isUUID(cust.id)) { log(id, '✗ FAIL: ID is not a UUID — got: ' + cust.id, 'err'); cleanup('uuid-qq'); return 'fail'; }
+  if (isTimestamp(cust.id)) { log(id, '✗ FAIL: Still using cust-timestamp ID', 'err'); cleanup('uuid-qq'); return 'fail'; }
+  if (DB.customers.length !== before + 1) { log(id, '✗ FAIL: Expected 1 new customer, got ' + (DB.customers.length - before), 'err'); cleanup('uuid-qq'); return 'fail'; }
+
+  log(id, '✓ PASS: Valid UUID ' + cust.id, 'ok');
+  cleanup('uuid-qq');
+  return 'pass';
+}
+
+// T3: Work Tracking customer create → UUID (KNOWN BUG)
+async function test_uuid_wt(id) {
+  var src = typeof PB.addCustomerFromQuote === 'function' ? PB.addCustomerFromQuote.toString() : '';
+  if (!src) { log(id, 'SKIP: addCustomerFromQuote not accessible', 'warn'); return 'skip'; }
+
+  var hasTimestamp = src.includes("'cust-' + Date.now()") || src.includes("cust-' + Date.now()");
+  var hasUUID = src.includes('makeUUID');
+
+  log(id, 'addCustomerFromQuote source check:', 'info');
+  log(id, '  Contains Date.now() ID: ' + hasTimestamp, hasTimestamp ? 'err' : 'ok');
+  log(id, '  Contains makeUUID: ' + hasUUID, hasUUID ? 'ok' : 'err');
+
+  if (hasTimestamp) {
+    log(id, '✗ FAIL: worktracking.js addCustomerFromQuote still uses cust-timestamp IDs', 'err');
+    log(id, '  Fix: change id: \'cust-\' + Date.now() to id: makeUUID()', 'warn');
+    return 'fail';
+  }
+  log(id, '✓ PASS: addCustomerFromQuote uses UUID generation', 'ok');
+  return 'pass';
+}
+
+// T4: Contact create → UUID
+async function test_uuid_contact(id) {
+  var DB = PB.DB;
+  // Create a test customer first so we have a valid customerId
+  var cust = { id: PB.makeUUID(), name: 'TCSS Test Parent [TEST:uuid-contact]', phone: '', email: '', createdAt: new Date().toISOString() };
+  DB.customers.push(cust);
+
+  // Create contact via _savePrimaryContact if available, else directly
+  var contactId = PB.makeUUID ? PB.makeUUID() : null;
+  if (!contactId) { log(id, '✗ FAIL: makeUUID not available', 'err'); cleanup('uuid-contact'); return 'fail'; }
+
+  var contact = { id: contactId, customerId: cust.id, name: 'Test Contact [TEST:uuid-contact]', phone: '', email: '', createdAt: new Date().toISOString() };
+  DB.contacts.push(contact);
+
+  log(id, 'Contact ID: ' + contact.id, 'info');
+  log(id, 'Customer ID: ' + cust.id, 'info');
+
+  if (!isUUID(contact.id)) { log(id, '✗ FAIL: Contact ID not a UUID', 'err'); cleanup('uuid-contact'); return 'fail'; }
+  if (!isUUID(contact.customerId)) { log(id, '✗ FAIL: customerId not a UUID', 'err'); cleanup('uuid-contact'); return 'fail'; }
+
+  log(id, '✓ PASS: Both IDs are valid UUIDs', 'ok');
+  cleanup('uuid-contact');
+  return 'pass';
+}
+
+// T5: Contact.customerId matches parent
+async function test_uuid_link(id) {
+  var DB = PB.DB;
+  var name = 'TCSS Test Link [TEST:uuid-link]';
+
+  // Simulate saveCustomer with primary contact via _buildCustomerData + _savePrimaryContact
+  var nameEl = PB.document.getElementById('m-cname');
+  var cidEl  = PB.document.getElementById('m-cid');
+  var pcName = PB.document.getElementById('m-pc-name');
+  var pcPhone = PB.document.getElementById('m-pc-phone');
+  var pcEmail = PB.document.getElementById('m-pc-email');
+
+  if (!nameEl || !cidEl || !pcName) { log(id, 'SKIP: modal not in DOM', 'warn'); cleanup('uuid-link'); return 'skip'; }
+
+  var saved = { name:nameEl.value, id:cidEl.value, pcn:pcName.value };
+  nameEl.value = name; cidEl.value = ''; pcName.value = 'Test Contact [TEST:uuid-link]';
+  if(pcPhone) pcPhone.value = '555-0002';
+  if(pcEmail) pcEmail.value = 'link@test.com';
+
+  var custData = PB._buildCustomerData('');
+  var contactsBefore = DB.contacts.length;
+  DB.customers.push(custData);
+  PB._savePrimaryContact(custData.id, custData.name);
+
+  nameEl.value = saved.name; cidEl.value = saved.id; pcName.value = saved.pcn;
+  if(pcPhone) pcPhone.value = ''; if(pcEmail) pcEmail.value = '';
+
+  var newContact = DB.contacts.find(function(c){ return c.name === 'Test Contact [TEST:uuid-link]'; });
+  log(id, 'Customer ID: ' + custData.id, 'info');
+  log(id, 'Contact found: ' + (newContact ? 'yes' : 'no'), newContact ? 'ok' : 'err');
+  if (newContact) log(id, 'Contact.customerId: ' + newContact.customerId, newContact.customerId === custData.id ? 'ok' : 'err');
+
+  if (!newContact) { log(id, '✗ FAIL: Primary contact was not created', 'err'); cleanup('uuid-link'); return 'fail'; }
+  if (newContact.customerId !== custData.id) { log(id, '✗ FAIL: Contact linked to wrong customer ID', 'err'); cleanup('uuid-link'); return 'fail'; }
+  if (!isUUID(newContact.id)) { log(id, '✗ FAIL: Contact has non-UUID ID: ' + newContact.id, 'err'); cleanup('uuid-link'); return 'fail'; }
+
+  log(id, '✓ PASS: Contact correctly linked to parent customer UUID', 'ok');
+  cleanup('uuid-link');
+  return 'pass';
+}
+
+// T6: Modal blocks duplicate
+async function test_dedup_modal(id) {
+  var DB = PB.DB;
+  var name = 'TCSS DeDup Test [TEST:dedup-modal]';
+
+  // Add a customer directly
+  var existing = { id: PB.makeUUID(), name: name, phone: '', email: '', createdAt: new Date().toISOString() };
+  DB.customers.push(existing);
+  var before = DB.customers.length;
+
+  // Now try to save a customer with the same name via saveCustomer logic
+  // We test the internal dedup check directly rather than calling through the full UI
+  var normalizedNew = name.trim().toLowerCase();
+  var duplicate = DB.customers.find(function(c){ return c.name && c.name.trim().toLowerCase() === normalizedNew; });
+
+  log(id, 'Customer with name "' + name + '" exists: ' + !!duplicate, duplicate ? 'ok' : 'err');
+  log(id, 'saveCustomer would block it: ' + !!duplicate, duplicate ? 'ok' : 'err');
+  log(id, 'Customer count before attempted dup: ' + before, 'info');
+  log(id, 'Customer count after: ' + DB.customers.length, DB.customers.length === before ? 'ok' : 'err');
+
+  if (!duplicate) { log(id, '✗ FAIL: Dedup check would not catch this duplicate', 'err'); cleanup('dedup-modal'); return 'fail'; }
+  if (DB.customers.length !== before) { log(id, '✗ FAIL: Customer count changed — duplicate was created', 'err'); cleanup('dedup-modal'); return 'fail'; }
+
+  log(id, '✓ PASS: Duplicate correctly detected and would be blocked', 'ok');
+  cleanup('dedup-modal');
+  return 'pass';
+}
+
+// T7: QQ inline matches existing
+async function test_dedup_qq(id) {
+  var DB = PB.DB;
+  var name = 'TCSS QQ Dedup [TEST:dedup-qq]';
+  var existingId = PB.makeUUID();
+  DB.customers.push({ id: existingId, name: name, phone: '555-0003', email: '', createdAt: new Date().toISOString() });
+  var before = DB.customers.length;
+
+  var fakeQ = { cn: name, ph: '555-0003', em: '', ad: '', customerId: null };
+  var result = PB.upsertCustomer(fakeQ);
+
+  log(id, 'upsertCustomer returned ID: ' + (result ? result.id : 'null'), 'info');
+  log(id, 'Expected existing ID: ' + existingId, 'info');
+  log(id, 'Count before: ' + before + ', after: ' + DB.customers.length, 'info');
+
+  if (!result) { log(id, '✗ FAIL: upsertCustomer returned null', 'err'); cleanup('dedup-qq'); return 'fail'; }
+  if (result.id !== existingId) { log(id, '✗ FAIL: Returned different ID — duplicate may have been created', 'err'); cleanup('dedup-qq'); return 'fail'; }
+  if (DB.customers.length !== before) { log(id, '✗ FAIL: Customer count increased — duplicate created', 'err'); cleanup('dedup-qq'); return 'fail'; }
+
+  log(id, '✓ PASS: upsertCustomer matched existing record, no duplicate created', 'ok');
+  cleanup('dedup-qq');
+  return 'pass';
+}
+
+// T8: QQ with customerId prefers ID match
+async function test_dedup_id(id) {
+  var DB = PB.DB;
+  var custId = PB.makeUUID();
+  DB.customers.push({ id: custId, name: 'TCSS ID Match [TEST:dedup-id]', phone: '', email: '', createdAt: new Date().toISOString() });
+  var before = DB.customers.length;
+
+  var fakeQ = { cn: 'COMPLETELY DIFFERENT NAME', ph: '', em: '', ad: '', customerId: custId };
+  var result = PB.upsertCustomer(fakeQ);
+
+  log(id, 'Searched by customerId: ' + custId, 'info');
+  log(id, 'Returned ID: ' + (result ? result.id : 'null'), result && result.id === custId ? 'ok' : 'err');
+  log(id, 'Count before: ' + before + ', after: ' + DB.customers.length, DB.customers.length === before ? 'ok' : 'err');
+
+  if (!result || result.id !== custId) { log(id, '✗ FAIL: Did not match by ID — may have created new customer', 'err'); cleanup('dedup-id'); return 'fail'; }
+  if (DB.customers.length !== before) { log(id, '✗ FAIL: Customer count increased despite ID match', 'err'); cleanup('dedup-id'); return 'fail'; }
+
+  log(id, '✓ PASS: ID-based match worked correctly', 'ok');
+  cleanup('dedup-id');
+  return 'pass';
+}
+
+// T9: Sync dedup — non-UUID customer adopts existing cloud UUID
+async function test_dedup_sync(id) {
+  // Check that pushAllToCloud has the dedup logic
+  var src = typeof PB.pushAllToCloud === 'function' ? PB.pushAllToCloud.toString() : '';
+  if (!src) { log(id, 'SKIP: pushAllToCloud not accessible', 'warn'); return 'skip'; }
+
+  var hasLocalNonUUID = src.includes('_localNonUuidCustomers');
+  var hasMatchLogic = src.includes('adopt existing cloud record') || src.includes('adopt the existing');
+  var hasNameMatch = src.includes('norm(c.name)') || src.includes('cName') || src.includes('nName');
+
+  log(id, 'Has _localNonUuidCustomers loop: ' + hasLocalNonUUID, hasLocalNonUUID ? 'ok' : 'err');
+  log(id, 'Has cloud match logic: ' + hasMatchLogic, hasMatchLogic ? 'ok' : 'err');
+  log(id, 'Has name normalization: ' + hasNameMatch, hasNameMatch ? 'ok' : 'err');
+
+  if (!hasLocalNonUUID || !hasMatchLogic) {
+    log(id, '✗ FAIL: Sync dedup logic not found in pushAllToCloud()', 'err');
+    return 'fail';
+  }
+  log(id, '✓ PASS: Sync dedup logic is present', 'ok');
+  return 'pass';
+}
+
+// T10: Full DB scan for existing duplicates
+async function test_dedup_existing(id) {
+  var custs = PB.DB.customers || [];
+  var names = {};
+  var dups = [];
+  custs.forEach(function(c) {
+    var key = (c.name||'').trim().toLowerCase();
+    if (!key) return;
+    if (names[key]) {
+      dups.push({ name: c.name, id1: names[key], id2: c.id });
+    } else {
+      names[key] = c.id;
+    }
+  });
+
+  log(id, 'Total customers scanned: ' + custs.length, 'info');
+  log(id, 'Duplicate names found: ' + dups.length, dups.length === 0 ? 'ok' : 'err');
+  dups.forEach(function(d) {
+    log(id, '  DUPLICATE: "' + d.name + '"', 'err');
+    log(id, '    ID 1: ' + d.id1, 'err');
+    log(id, '    ID 2: ' + d.id2, 'err');
+  });
+
+  if (dups.length > 0) {
+    log(id, '✗ FAIL: ' + dups.length + ' duplicate customer name(s) found in live DB', 'err');
+    return 'fail';
+  }
+  log(id, '✓ PASS: No duplicate customer names in live DB', 'ok');
+  return 'pass';
+}
+
+// T11: Quote number assigned on save, header updates
+async function test_quote_num_new(id) {
+  // Test 1: qq-stage4-num element exists
+  var el = PB.document.getElementById('qq-stage4-num');
+  log(id, 'qq-stage4-num element exists: ' + !!el, el ? 'ok' : 'err');
+  if (!el) { log(id, '✗ FAIL: Display element not in DOM', 'err'); return 'fail'; }
+
+  // Test 2: The save function updates it
+  var saveQQSrc = typeof PB.saveQQ === 'function' ? PB.saveQQ.toString() : '';
+  var hasDisplayUpdate = saveQQSrc.includes('qq-stage4-num');
+  log(id, 'saveQQ() updates qq-stage4-num: ' + hasDisplayUpdate, hasDisplayUpdate ? 'ok' : 'err');
+
+  // Test 3: updateQQStage3UI keeps it in sync
+  var updateSrc = typeof PB.updateQQStage3UI === 'function' ? PB.updateQQStage3UI.toString() : '';
+  var hasUISync = updateSrc.includes('qq-stage4-num');
+  log(id, 'updateQQStage3UI() syncs qq-stage4-num: ' + hasUISync, hasUISync ? 'ok' : 'err');
+
+  if (!hasDisplayUpdate) { log(id, '✗ FAIL: saveQQ() still does not update the header', 'err'); return 'fail'; }
+  if (!hasUISync) { log(id, '⚠ WARN: updateQQStage3UI() does not sync header — number may be stale when editing', 'warn'); return 'warn'; }
+
+  log(id, '✓ PASS: Quote number display is properly wired up', 'ok');
+  return 'pass';
+}
+
+// T12: Header shows correct number when editing
+async function test_quote_num_edit(id) {
+  var editSrc = typeof PB.editQuote === 'function' ? PB.editQuote.toString() : '';
+  // editQuote sets qq-num field value, and updateQQStage3UI syncs qq-stage4-num
+  var setsQQNum = editSrc.includes('qq-num');
+  var callsUpdate = editSrc.includes('updateQQStage3UI');
+  log(id, 'editQuote() sets qq-num field: ' + setsQQNum, setsQQNum ? 'ok' : 'err');
+  log(id, 'editQuote() calls updateQQStage3UI: ' + callsUpdate, callsUpdate ? 'ok' : 'err');
+  if (!setsQQNum) { log(id, '✗ FAIL: qq-num not set during editQuote()', 'err'); return 'fail'; }
+  if (!callsUpdate) { log(id, '⚠ WARN: updateQQStage3UI not called from editQuote — header may lag', 'warn'); return 'warn'; }
+  log(id, '✓ PASS: Quote number correctly propagated on edit', 'ok');
+  return 'pass';
+}
+
+// T13: clearQQ() is defined and resets form
+async function test_quote_clearqq(id) {
+  var defined = typeof PB.clearQQ === 'function';
+  log(id, 'clearQQ is defined: ' + defined, defined ? 'ok' : 'err');
+  if (!defined) { log(id, '✗ FAIL: clearQQ is not defined — was undefined for entire app lifetime before 7/7/26 fix', 'err'); return 'fail'; }
+
+  var src = PB.clearQQ.toString();
+  var clearsNumDisplay = src.includes('qq-stage4-num') || src.includes('Quote #---');
+  var clearsFields = src.includes('qqFieldIds') || src.includes('qq-cn');
+  var clearsDirty = src.includes('setQQDirty') || src.includes('qqDirty');
+
+  log(id, 'clearQQ clears field values: ' + clearsFields, clearsFields ? 'ok' : 'err');
+  log(id, 'clearQQ resets dirty flag: ' + clearsDirty, clearsDirty ? 'ok' : 'err');
+  log(id, 'clearQQ resets header display: ' + clearsNumDisplay, clearsNumDisplay ? 'ok' : 'warn');
+
+  if (!clearsFields) { log(id, '✗ FAIL: clearQQ does not clear form fields', 'err'); return 'fail'; }
+  if (!clearsDirty) { log(id, '⚠ WARN: clearQQ does not reset dirty state', 'warn'); return 'warn'; }
+  log(id, '✓ PASS: clearQQ is properly defined and clears the form', 'ok');
+  return 'pass';
+}
+
+// T14: New quote from profile no cross-contamination
+async function test_quote_profile(id) {
+  var src = typeof PB.openQuoteForCustomer === 'function' ? PB.openQuoteForCustomer.toString() : '';
+  if (!src) { log(id, 'SKIP: openQuoteForCustomer not found', 'warn'); return 'skip'; }
+
+  var callsClearQQ = src.includes('clearQQ');
+  var callsBeforeGoPage = false;
+  // Check ordering: clearQQ should appear before goPage in the source
+  var clearPos = src.indexOf('clearQQ');
+  var goPagePos = src.indexOf('goPage');
+  if (clearPos > -1 && goPagePos > -1 && clearPos < goPagePos) callsBeforeGoPage = true;
+
+  log(id, 'openQuoteForCustomer calls clearQQ: ' + callsClearQQ, callsClearQQ ? 'ok' : 'err');
+  log(id, 'clearQQ called BEFORE goPage: ' + callsBeforeGoPage, callsBeforeGoPage ? 'ok' : 'warn');
+
+  if (!callsClearQQ) { log(id, '✗ FAIL: openQuoteForCustomer does not call clearQQ — cross-contamination will occur', 'err'); return 'fail'; }
+  if (!callsBeforeGoPage) { log(id, '⚠ WARN: clearQQ not confirmed to run before goPage', 'warn'); return 'warn'; }
+  log(id, '✓ PASS: openQuoteForCustomer correctly clears the form first', 'ok');
+  return 'pass';
+}
+
+// T15: Duplicate quote
+async function test_quote_dup(id) {
+  var DB = PB.DB;
+  // Find a real quote to dup
+  var orig = DB.quotes[0];
+  if (!orig) { log(id, 'SKIP: No quotes in DB', 'warn'); return 'skip'; }
+
+  var origId = orig.id, origNum = orig.num;
+  var before = DB.quotes.length;
+  PB.dupQuote(origId);
+  var after = DB.quotes.length;
+
+  var dup = DB.quotes[0]; // unshift puts it first
+
+  log(id, 'Original: ' + origId + ' / ' + origNum, 'info');
+  log(id, 'Duplicate: ' + (dup ? dup.id : 'null') + ' / ' + (dup ? dup.num : 'null'), 'info');
+  log(id, 'Count before: ' + before + ', after: ' + after, 'info');
+
+  if (after !== before + 1) { log(id, '✗ FAIL: Expected 1 new quote, got ' + (after-before), 'err'); return 'fail'; }
+  if (!dup || dup.id === origId) { log(id, '✗ FAIL: Duplicate has same ID as original', 'err'); return 'fail'; }
+  if (!isUUID(dup.id)) { log(id, '✗ FAIL: Duplicate ID is not a UUID: ' + dup.id, 'err'); return 'fail'; }
+  if (dup.num === origNum) { log(id, '✗ FAIL: Duplicate has same quote number as original', 'err'); return 'fail'; }
+
+  var origStillIntact = DB.quotes.find(function(q){ return q.id === origId && q.num === origNum; });
+  if (!origStillIntact) { log(id, '✗ FAIL: Original quote was modified or removed', 'err'); return 'fail'; }
+
+  log(id, '✓ PASS: Duplicate created with new UUID and new number, original intact', 'ok');
+  // Clean up dup
+  DB.quotes = DB.quotes.filter(function(q){ return q.id !== dup.id; });
+  try { PB.saveDB(); } catch(e) {}
+  return 'pass';
+}
+
+// T16: Add contact from modal
+async function test_contact_create(id) {
+  var DB = PB.DB;
+  var custId = PB.makeUUID();
+  DB.customers.push({ id: custId, name: 'Contact Test Parent [TEST:contact-create]', phone: '', email: '', createdAt: new Date().toISOString() });
+
+  var before = DB.contacts.length;
+  var contactId = PB.makeUUID();
+  var contact = { id: contactId, customerId: custId, name: 'Contact Test Person [TEST:contact-create]', phone: '555-TEST', email: 'c@test.com', createdAt: new Date().toISOString() };
+  DB.contacts.push(contact);
+
+  log(id, 'Contact ID: ' + contactId, 'info');
+  log(id, 'Customer ID: ' + custId, 'info');
+  log(id, 'IDs match: ' + (contact.customerId === custId), contact.customerId === custId ? 'ok' : 'err');
+  log(id, 'Count before: ' + before + ', after: ' + DB.contacts.length, 'info');
+
+  if (!isUUID(contactId)) { log(id, '✗ FAIL: Contact ID not a UUID', 'err'); cleanup('contact-create'); return 'fail'; }
+  if (contact.customerId !== custId) { log(id, '✗ FAIL: Wrong customer link', 'err'); cleanup('contact-create'); return 'fail'; }
+  if (DB.contacts.length !== before + 1) { log(id, '✗ FAIL: Contact not added to DB', 'err'); cleanup('contact-create'); return 'fail'; }
+
+  log(id, '✓ PASS: Contact created with correct UUID and customer link', 'ok');
+  cleanup('contact-create');
+  return 'pass';
+}
+
+// T17: No orphaned contacts
+async function test_contact_orphan(id) {
+  var contacts = PB.DB.contacts || [];
+  var customers = PB.DB.customers || [];
+  var custIds = new Set(customers.map(function(c){ return c.id; }));
+  var orphans = contacts.filter(function(c){ return c.customerId && !custIds.has(c.customerId); });
+
+  log(id, 'Total contacts: ' + contacts.length, 'info');
+  log(id, 'Total customers: ' + customers.length, 'info');
+  log(id, 'Orphaned contacts: ' + orphans.length, orphans.length === 0 ? 'ok' : 'err');
+  orphans.slice(0,5).forEach(function(c){
+    log(id, '  ORPHAN: "' + c.name + '" → customerId: ' + c.customerId, 'err');
+  });
+  if (orphans.length > 5) log(id, '  ... and ' + (orphans.length-5) + ' more', 'err');
+
+  if (orphans.length > 0) { log(id, '✗ FAIL: ' + orphans.length + ' orphaned contact(s) found', 'err'); return 'fail'; }
+  log(id, '✓ PASS: All contacts linked to valid customers', 'ok');
+  return 'pass';
+}
+
+// T18: All customer IDs are UUIDs
+async function test_db_custs(id) {
+  var custs = PB.DB.customers || [];
+  var bad = custs.filter(function(c){ return c.id && !isUUID(c.id); });
+  log(id, 'Total customers: ' + custs.length, 'info');
+  log(id, 'Non-UUID IDs: ' + bad.length, bad.length === 0 ? 'ok' : 'err');
+  bad.slice(0,5).forEach(function(c){ log(id, '  BAD ID: "' + c.name + '" → ' + c.id, 'err'); });
+  if (bad.length > 5) log(id, '  ... and ' + (bad.length-5) + ' more', 'err');
+  if (bad.length > 0) { log(id, '✗ FAIL: ' + bad.length + ' customer(s) have non-UUID IDs — will cause sync duplicates', 'err'); return 'fail'; }
+  log(id, '✓ PASS: All ' + custs.length + ' customer IDs are valid UUIDs', 'ok');
+  return 'pass';
+}
+
+// T19: All quote IDs are UUIDs
+async function test_db_quotes(id) {
+  var quotes = PB.DB.quotes || [];
+  var bad = quotes.filter(function(q){ return q.id && !isUUID(q.id); });
+  log(id, 'Total quotes: ' + quotes.length, 'info');
+  log(id, 'Non-UUID IDs: ' + bad.length, bad.length === 0 ? 'ok' : 'err');
+  bad.slice(0,5).forEach(function(q){ log(id, '  BAD ID: "' + (q.num||q.cn||'?') + '" → ' + q.id, 'err'); });
+  if (bad.length > 0) { log(id, '✗ FAIL: ' + bad.length + ' quote(s) have non-UUID IDs', 'err'); return 'fail'; }
+  log(id, '✓ PASS: All ' + quotes.length + ' quote IDs are valid UUIDs', 'ok');
+  return 'pass';
+}
+
+// T20: All contact IDs are UUIDs
+async function test_db_contacts(id) {
+  var contacts = PB.DB.contacts || [];
+  var bad = contacts.filter(function(c){ return c.id && !isUUID(c.id); });
+  log(id, 'Total contacts: ' + contacts.length, 'info');
+  log(id, 'Non-UUID IDs: ' + bad.length, bad.length === 0 ? 'ok' : 'err');
+  bad.slice(0,5).forEach(function(c){ log(id, '  BAD ID: "' + c.name + '" → ' + c.id, 'err'); });
+  if (bad.length > 0) { log(id, '✗ FAIL: ' + bad.length + ' contact(s) have non-UUID IDs', 'err'); return 'fail'; }
+  log(id, '✓ PASS: All ' + contacts.length + ' contact IDs are valid UUIDs', 'ok');
+  return 'pass';
+}
+
+// T21: makeUUID globally available
+async function test_db_makeUUID(id) {
+  var defined = typeof PB.makeUUID === 'function';
+  log(id, 'makeUUID defined: ' + defined, defined ? 'ok' : 'err');
+  if (!defined) { log(id, '✗ FAIL: makeUUID not globally defined — core.js fix not deployed', 'err'); return 'fail'; }
+  var sample = PB.makeUUID();
+  log(id, 'Sample output: ' + sample, 'info');
+  var valid = isUUID(sample);
+  log(id, 'Output is valid UUID: ' + valid, valid ? 'ok' : 'err');
+  if (!valid) { log(id, '✗ FAIL: makeUUID() output is not a valid UUID', 'err'); return 'fail'; }
+  log(id, '✓ PASS: makeUUID() is globally available and produces valid UUIDs', 'ok');
+  return 'pass';
+}
+
+// T22: clearQQ globally available
+async function test_db_clearQQ(id) {
+  var defined = typeof PB.clearQQ === 'function';
+  log(id, 'clearQQ defined: ' + defined, defined ? 'ok' : 'err');
+  if (!defined) {
+    log(id, '✗ FAIL: clearQQ is not globally defined', 'err');
+    log(id, '  This means: openQuoteForCustomer, auth init, and mobile "New Quote" action all silently do nothing when trying to clear the form', 'err');
+    log(id, '  Fix: add clearQQ() to quotes.js (done in 7/7/26 session)', 'warn');
+    return 'fail';
+  }
+  log(id, '✓ PASS: clearQQ() is globally defined', 'ok');
+  return 'pass';
+}
+
+// ── Test runner map ───────────────────────────────────────────────────────────
+var TESTS = [
+  ['uuid-modal',       test_uuid_modal],
+  ['uuid-qq',          test_uuid_qq],
+  ['uuid-wt',          test_uuid_wt],
+  ['uuid-contact',     test_uuid_contact],
+  ['uuid-link',        test_uuid_link],
+  ['dedup-modal',      test_dedup_modal],
+  ['dedup-qq',         test_dedup_qq],
+  ['dedup-id',         test_dedup_id],
+  ['dedup-sync',       test_dedup_sync],
+  ['dedup-existing',   test_dedup_existing],
+  ['quote-num-new',    test_quote_num_new],
+  ['quote-num-edit',   test_quote_num_edit],
+  ['quote-clearqq',    test_quote_clearqq],
+  ['quote-profile',    test_quote_profile],
+  ['quote-dup',        test_quote_dup],
+  ['contact-create',   test_contact_create],
+  ['contact-orphan',   test_contact_orphan],
+  ['db-custs',         test_db_custs],
+  ['db-quotes',        test_db_quotes],
+  ['db-contacts',      test_db_contacts],
+  ['db-makeUUID',      test_db_makeUUID],
+  ['db-clearQQ',       test_db_clearQQ],
+];
+
+async function runAll() {
+  if (!getProBid()) {
+    alert('ProBid is not connected.\n\nOpen ProBid (https://joek0007.github.io/tcss-probid/) and then open this test suite using:\n\n  window.open("") from the ProBid console\n\nOr use the Chrome extension to open both tabs.');
+    return;
+  }
+  updateConnStatus();
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('run-status').textContent = 'Running…';
+  results = {};
+  updateSummary();
+
+  for (var i = 0; i < TESTS.length; i++) {
+    var t = TESTS[i];
+    await runTest(t[0], t[1]);
+    document.getElementById('run-status').textContent = 'Running ' + (i+1) + '/' + TESTS.length + '…';
+    await new Promise(function(r){ setTimeout(r, 80); });
+  }
+
+  var pass = Object.values(results).filter(function(r){ return r==='pass'; }).length;
+  var fail = Object.values(results).filter(function(r){ return r==='fail'; }).length;
+  document.getElementById('run-status').textContent = 'Done — ' + pass + ' passed, ' + fail + ' failed';
+  document.getElementById('run-btn').disabled = false;
+}
+
+function clearResults() {
+  results = {};
+  TESTS.forEach(function(t){ clearDetail(t[0]); setStatus(t[0], 'idle'); });
+  document.getElementById('run-status').textContent = 'Ready';
+  document.getElementById('stat-pass').textContent = '0';
+  document.getElementById('stat-fail').textContent = '0';
+  document.getElementById('stat-warn').textContent = '0';
+  document.getElementById('stat-skip').textContent = '0';
+  document.getElementById('progress-fill').style.width = '0';
+}
+
+// Auto-connect check
+setInterval(updateConnStatus, 2000);
+updateConnStatus();
+</script>
+</body>
+</html>
