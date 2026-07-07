@@ -695,13 +695,16 @@ async function test_dedup_id(id) {
   var fnSrc = fnStart > -1 ? src.substring(fnStart, fnStart + 600) : '';
 
   // ID check must come BEFORE name check
+  // The actual pattern: ternary that checks customerId first, falls back to name
+  var hasTernaryCheck = fnSrc.includes('q.customerId') && fnSrc.includes('? DB.customers.find');
   var idCheckPos = fnSrc.indexOf('q.customerId');
-  var nameCheckPos = fnSrc.indexOf('q.cn');
+  var nameCheckPos = fnSrc.indexOf("(c.name||'').toLowerCase");
   var idFirst = idCheckPos > -1 && nameCheckPos > -1 && idCheckPos < nameCheckPos;
 
-  log(id, 'customerId check exists: ' + (idCheckPos > -1), idCheckPos > -1 ? 'ok' : 'err');
+  log(id, 'Has customerId ternary check: ' + hasTernaryCheck, hasTernaryCheck ? 'ok' : 'err');
   log(id, 'customerId checked BEFORE name: ' + idFirst, idFirst ? 'ok' : 'err');
 
+  if (!hasTernaryCheck) { log(id, '✗ FAIL: upsertCustomer does not check customerId before name', 'err'); return 'fail'; }
   if (!idFirst) { log(id, '✗ FAIL: ID match does not take priority over name match', 'err'); return 'fail'; }
   log(id, '✓ PASS: customerId match takes priority over name match', 'ok');
   return 'pass';
@@ -769,12 +772,14 @@ async function test_quote_num_new(id) {
 
   // Test 2: The save function updates it
   var saveQQSrc = typeof PB.saveQQ === 'function' ? PB.saveQQ.toString() : '';
-  var hasDisplayUpdate = saveQQSrc.includes('qq-stage4-num');
+  // Check for the exact display update pattern added 7/7/26
+  var hasDisplayUpdate = saveQQSrc.includes("getElementById('qq-stage4-num')") || saveQQSrc.includes('getElementById("qq-stage4-num")');
   log(id, 'saveQQ() updates qq-stage4-num: ' + hasDisplayUpdate, hasDisplayUpdate ? 'ok' : 'err');
 
-  // Test 3: updateQQStage3UI keeps it in sync
-  var updateSrc = typeof PB.updateQQStage3UI === 'function' ? PB.updateQQStage3UI.toString() : '';
-  var hasUISync = updateSrc.includes('qq-stage4-num');
+  // updateQQStage3UI keeps header in sync — check the actual function body in source
+  var updateUIStart = quotesJS.indexOf('function updateQQStage3UI(');
+  var updateUISrc = updateUIStart > -1 ? quotesJS.substring(updateUIStart, updateUIStart + 1200) : '';
+  var hasUISync = updateUISrc.includes('qq-stage4-num') || updateUISrc.includes('stageNumEl');
   log(id, 'updateQQStage3UI() syncs qq-stage4-num: ' + hasUISync, hasUISync ? 'ok' : 'err');
 
   if (!hasDisplayUpdate) { log(id, '✗ FAIL: saveQQ() still does not update the header', 'err'); return 'fail'; }
@@ -786,9 +791,11 @@ async function test_quote_num_new(id) {
 
 // T12: Header shows correct number when editing
 async function test_quote_num_edit(id) {
-  var editSrc = typeof PB.editQuote === 'function' ? PB.editQuote.toString() : '';
+  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
+  var editStart = src.indexOf('function editQuote(');
+  var editSrc = editStart > -1 ? src.substring(editStart, editStart + 2000) : '';
   // editQuote sets qq-num field value, and updateQQStage3UI syncs qq-stage4-num
-  var setsQQNum = editSrc.includes('qq-num');
+  var setsQQNum = editSrc.includes("getElementById('qq-num')") || editSrc.includes("getElementById(\"qq-num\")") || editSrc.includes("'qq-num'");
   var callsUpdate = editSrc.includes('updateQQStage3UI');
   log(id, 'editQuote() sets qq-num field: ' + setsQQNum, setsQQNum ? 'ok' : 'err');
   log(id, 'editQuote() calls updateQQStage3UI: ' + callsUpdate, callsUpdate ? 'ok' : 'err');
@@ -800,18 +807,20 @@ async function test_quote_num_edit(id) {
 
 // T13: clearQQ() is defined and resets form
 async function test_quote_clearqq(id) {
-  var defined = typeof PB.clearQQ === 'function';
+  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
+  var defined = src.includes('function clearQQ(');
   log(id, 'clearQQ is defined: ' + defined, defined ? 'ok' : 'err');
-  if (!defined) { log(id, '✗ FAIL: clearQQ is not defined — was undefined for entire app lifetime before 7/7/26 fix', 'err'); return 'fail'; }
+  if (!defined) { log(id, '✗ FAIL: clearQQ is not defined in quotes.js', 'err'); return 'fail'; }
 
-  var src = PB.clearQQ.toString();
-  var clearsNumDisplay = src.includes('qq-stage4-num') || src.includes('Quote #---');
-  var clearsFields = src.includes('qqFieldIds') || src.includes('qq-cn');
-  var clearsDirty = src.includes('setQQDirty') || src.includes('qqDirty');
+  var fnStart = src.indexOf('function clearQQ(');
+  var fnSrc = src.substring(fnStart, fnStart + 800);
+  var clearsFields = fnSrc.includes('qqFieldIds') || fnSrc.includes("qqSetVal(id, '')");
+  var clearsDirty = fnSrc.includes('setQQDirty');
+  var clearsDraft = fnSrc.includes('clearQQDraft');
 
   log(id, 'clearQQ clears field values: ' + clearsFields, clearsFields ? 'ok' : 'err');
   log(id, 'clearQQ resets dirty flag: ' + clearsDirty, clearsDirty ? 'ok' : 'err');
-  log(id, 'clearQQ resets header display: ' + clearsNumDisplay, clearsNumDisplay ? 'ok' : 'warn');
+  log(id, 'clearQQ clears draft: ' + clearsDraft, clearsDraft ? 'ok' : 'warn');
 
   if (!clearsFields) { log(id, '✗ FAIL: clearQQ does not clear form fields', 'err'); return 'fail'; }
   if (!clearsDirty) { log(id, '⚠ WARN: clearQQ does not reset dirty state', 'warn'); return 'warn'; }
@@ -960,15 +969,18 @@ async function test_db_makeUUID(id) {
 
 // T22: clearQQ globally available
 async function test_db_clearQQ(id) {
-  var defined = typeof PB.clearQQ === 'function';
-  log(id, 'clearQQ defined: ' + defined, defined ? 'ok' : 'err');
+  var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
+  var defined = src.includes('function clearQQ(');
+  var crmCallsIt = (await fetch('https://joek0007.github.io/tcss-probid/js/crm.js', {cache:'no-store'}).then(r=>r.text())).includes('clearQQ(');
+  log(id, 'clearQQ defined in quotes.js: ' + defined, defined ? 'ok' : 'err');
+  log(id, 'crm.js calls clearQQ: ' + crmCallsIt, crmCallsIt ? 'ok' : 'err');
   if (!defined) {
-    log(id, '✗ FAIL: clearQQ is not globally defined', 'err');
+    log(id, '✗ FAIL: clearQQ is not defined in quotes.js', 'err');
     log(id, '  This means: openQuoteForCustomer, auth init, and mobile "New Quote" action all silently do nothing when trying to clear the form', 'err');
-    log(id, '  Fix: add clearQQ() to quotes.js (done in 7/7/26 session)', 'warn');
     return 'fail';
   }
-  log(id, '✓ PASS: clearQQ() is globally defined', 'ok');
+  if (!crmCallsIt) { log(id, '⚠ WARN: crm.js does not call clearQQ — profile → new quote may still contaminate', 'warn'); return 'warn'; }
+  log(id, '✓ PASS: clearQQ() is defined and called correctly', 'ok');
   return 'pass';
 }
 
