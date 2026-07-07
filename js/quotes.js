@@ -303,9 +303,9 @@ function qqFieldIds() {
   return [
     'qq-id','qq-num','qq-cn','qq-jn','qq-em','qq-ph','qq-dt','qq-vu',
     'qq-jt','qq-env','qq-status','qq-rep','qq-pt','qq-tc','qq-notes',
-    'qq-int-notes','qq-followup','qq-labor-rate','qq-tax-rate',
+    'qq-int','qq-followup','qq-labor-rate','qq-tax-rate',
     'qq-discount','qq-margin','qq-customer-id','qq-contact-id',
-    'qq-contact-name','qq-ad-street','qq-ad-city','qq-ad-state','qq-ad-zip',
+    'qq-contact-name','qq-ad','qq-city','qq-state','qq-zip',
     'qq-ad' // legacy address field
   ];
 }
@@ -670,7 +670,7 @@ function editQuote(id) {
       'qq-pt':        q.pt        || '',
       'qq-tc':        q.tc        || '',
       'qq-notes':     q.notes     || '',
-      'qq-int-notes': q.intNotes  || '',
+      'qq-int':       q.intNotes  || '',
       'qq-followup':  q.followupDate || '',
       'qq-labor-rate':q.laborRate || '',
       'qq-tax-rate':  q.taxRate   || '',
@@ -684,10 +684,10 @@ function editQuote(id) {
 
     // Address fields
     var adFields = {
-      'qq-ad-street': q.adStreet || q.ad || '',
-      'qq-ad-city':   q.adCity   || '',
-      'qq-ad-state':  q.adState  || '',
-      'qq-ad-zip':    q.adZip    || '',
+      'qq-ad':    q.adStreet || q.ad || '',
+      'qq-city':  q.adCity   || q.city  || '',
+      'qq-state': q.adState  || q.state || '',
+      'qq-zip':   q.adZip    || q.zip   || '',
     };
     Object.keys(adFields).forEach(function(fid) {
       var el = document.getElementById(fid);
