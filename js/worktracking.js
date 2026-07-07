@@ -6707,7 +6707,7 @@ function saveNewCustomerFromQuote() {
   }
 
   var newCust = {
-    id:        'cust-' + Date.now(),
+    id:        typeof makeUUID === 'function' ? makeUUID() : 'cust-' + Date.now(),
     name:      name,
     phone:     phone,
     email:     email,
@@ -7284,11 +7284,13 @@ async function sendSMS(toPhone, message) {
       })
     });
     var data = await res.json();
-    if (data.response_code === 'SUCCESS') {
+    var msgStatus = data && data.data && data.data.messages && data.data.messages[0]
+      ? data.data.messages[0].status : null;
+    if (data.response_code === 'SUCCESS' && msgStatus === 'SUCCESS') {
       console.log('[SMS] Sent to', e164);
       return true;
     } else {
-      console.warn('[SMS] Failed:', data);
+      console.warn('[SMS] Failed:', msgStatus || data.response_msg || data, data);
       return false;
     }
   } catch(e) {
