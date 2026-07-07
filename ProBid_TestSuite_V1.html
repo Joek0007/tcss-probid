@@ -293,10 +293,10 @@ async function T_dedup_qq(id){
   var src=await getSrc('quotes.js');
   if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
   var start=src.indexOf('function upsertCustomer(');
-  var fn=start>-1?src.substring(start,start+500):'';
+  var fn=start>-1?src.substring(start,start+800):'';
   var checksId=fn.includes('q.customerId');
-  var checksName=fn.includes('toLowerCase()');
-  var returnsExisting=fn.includes('return existing');
+  var checksName=fn.includes("toLowerCase()");
+  var returnsExisting=fn.includes('return existing;');
   log(id,'Checks by customerId: '+checksId,checksId?'ok':'err');
   log(id,'Checks by name: '+checksName,checksName?'ok':'err');
   log(id,'Returns existing (no new record): '+returnsExisting,returnsExisting?'ok':'err');
@@ -354,10 +354,10 @@ async function T_quote_num_new(id){
   if(!src){log(id,'✗ FAIL: Could not fetch quotes.js','err');return'fail';}
   var hasRef=src.includes("'qq-stage4-num'");
   var saveStart=src.indexOf('function saveQQ(');
-  var saveFn=saveStart>-1?src.substring(saveStart,saveStart+1500):'';
+  var saveFn=saveStart>-1?src.substring(saveStart,saveStart+3000):'';
   var saveUpdates=saveFn.includes('qq-stage4-num');
   var uiStart=src.indexOf('function updateQQStage3UI(');
-  var uiFn=uiStart>-1?src.substring(uiStart,uiStart+1200):'';
+  var uiFn=uiStart>-1?src.substring(uiStart,uiStart+2000):'';
   var uiSyncs=uiFn.includes('qq-stage4-num')||uiFn.includes('stageNumEl');
   log(id,"qq-stage4-num in source: "+hasRef,hasRef?'ok':'err');
   log(id,'saveQQ() updates header: '+saveUpdates,saveUpdates?'ok':'err');
