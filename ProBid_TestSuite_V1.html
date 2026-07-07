@@ -319,25 +319,128 @@
 
 <script>
 // ── Connection ────────────────────────────────────────────────────────────────
-var PB = null; // reference to the ProBid window
+// Both this file and ProBid are on the same GitHub Pages origin, so we can:
+// 1. Read/write the live DB directly via localStorage (key: tcssv8)
+// 2. Load ProBid's JS files in a hidden iframe to get real function references
+// No window.opener required — no popup blocker issues.
+
+var PB = null;  // synthetic ProBid context
+var DB_KEY = 'tcssv8';
+
+function loadDB() {
+  try {
+    var raw = localStorage.getItem(DB_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+function saveDB(db) {
+  try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch(e) {}
+}
+
+// Build a synthetic PB object that wraps the real localStorage DB
+// and exposes stub versions of the functions we need to test
+function buildPB() {
+  var db = loadDB();
+  if (!db) return null;
+
+  // UUID helper — same implementation as core.js
+  function makeUUID() {
+    if (crypto && crypto.randomUUID) return crypto.randomUUID();
+    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, function(c) {
+      return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);
+    });
+  }
+
+  var pb = {
+    DB: db,
+    makeUUID: makeUUID,
+    saveDB: function() { saveDB(pb.DB); },
+    document: { getElementById: function(id) {
+      // Return a mock element that tracks values — used to test _buildCustomerData etc.
+      if (!pb._mockEls) pb._mockEls = {};
+      if (!pb._mockEls[id]) pb._mockEls[id] = { value: '', checked: false, textContent: '' };
+      return pb._mockEls[id];
+    }},
+    _mockEls: {}
+  };
+
+  // Inject real function source from the ProBid iframe if available,
+  // otherwise use source-code analysis for behavioral tests
+  if (window._pbFrame && window._pbFrame.contentWindow) {
+    var fw = window._pbFrame.contentWindow;
+    var fns = ['upsertCustomer','saveCustomer','saveCustomerAndAnother','_buildCustomerData',
+               '_savePrimaryContact','editQuote','saveQQ','dupQuote','clearQQ','clearQQDraft',
+               'nextQNum','openQuoteForCustomer','addCustomerFromQuote','pushAllToCloud',
+               'updateQQStage3UI','renderLineItems','renderEquipRows','loadPerDiemData',
+               'setQQDirty','qqSetVal','qqFieldIds','showToast','escHtml'];
+    fns.forEach(function(name) {
+      if (typeof fw[name] === 'function') pb[name] = fw[name].bind(fw);
+    });
+    // Use the live DB from the iframe if it loaded ProBid
+    if (fw.DB && fw.DB.customers) {
+      pb.DB = fw.DB;
+      pb.saveDB = function() { if(fw.saveDB) fw.saveDB(); else saveDB(pb.DB); };
+    }
+    pb.document = fw.document;
+  }
+
+  return pb;
+}
+
+var _pbLoaded = false;
+
+function loadProBidFunctions(cb) {
+  if (_pbLoaded) { cb(); return; }
+  // Create a hidden iframe pointing at ProBid — same origin, so we get full access
+  var iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = 'https://joek0007.github.io/tcss-probid/';
+  window._pbFrame = iframe;
+  iframe.onload = function() {
+    // Wait for ProBid's JS to initialize
+    var attempts = 0;
+    var check = setInterval(function() {
+      attempts++;
+      try {
+        if (iframe.contentWindow.DB && iframe.contentWindow.makeUUID) {
+          clearInterval(check);
+          _pbLoaded = true;
+          PB = buildPB();
+          cb();
+        } else if (attempts > 30) {
+          clearInterval(check);
+          // Fall back to localStorage-only mode
+          PB = buildPB();
+          cb();
+        }
+      } catch(e) {
+        clearInterval(check);
+        PB = buildPB();
+        cb();
+      }
+    }, 200);
+  };
+  document.body.appendChild(iframe);
+}
 
 function getProBid() {
-  var url = document.getElementById('probid-url').value.trim();
-  // Try opener first, then look for open tabs via localStorage fingerprint
-  if (window.opener && !window.opener.closed) {
-    try { if (window.opener.DB) { PB = window.opener; return true; } } catch(e) {}
-  }
-  // Try finding by scanning known windows
-  PB = null;
-  return false;
+  if (!PB) PB = buildPB();
+  return !!(PB && PB.DB);
 }
 
 function updateConnStatus() {
   var ok = getProBid();
   document.getElementById('conn-dot').className = 'conn-dot ' + (ok ? 'green' : 'red');
-  document.getElementById('conn-text').textContent = ok
-    ? '✓ Connected to ProBid — DB loaded (' + (PB.DB.customers||[]).length + ' customers, ' + (PB.DB.quotes||[]).length + ' quotes)'
-    : '✗ Not connected — open ProBid first, then open this file from ProBid (or use window.open)';
+  if (ok) {
+    var db = PB.DB;
+    document.getElementById('conn-text').textContent = '✓ Connected — ' +
+      (db.customers||[]).length + ' customers, ' +
+      (db.quotes||[]).length + ' quotes, ' +
+      (db.contacts||[]).length + ' contacts';
+  } else {
+    document.getElementById('conn-text').textContent = '✗ Not connected — make sure you are on https://joek0007.github.io/tcss-probid/ProBid_TestSuite_V1.html';
+  }
 }
 
 // ── Test Infrastructure ───────────────────────────────────────────────────────
@@ -985,9 +1088,10 @@ function clearResults() {
   document.getElementById('progress-fill').style.width = '0';
 }
 
-// Auto-connect check
-setInterval(updateConnStatus, 2000);
+// Auto-connect check — build PB from localStorage immediately
+PB = buildPB();
 updateConnStatus();
+setInterval(function() { if (!_pbLoaded) { PB = buildPB(); } updateConnStatus(); }, 2000);
 </script>
 </body>
 </html>
