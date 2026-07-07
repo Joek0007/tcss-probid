@@ -297,6 +297,44 @@ let _qqDraftTimer = null;
 let _qqWrapped = false;
 function qqGetVal(id){ var el=document.getElementById(id); return el ? el.value : ''; }
 function qqSetVal(id,val){ var el=document.getElementById(id); if(el) el.value = val==null ? '' : val; }
+
+// Return the full list of QQ form field IDs — used by draft save/restore and clearQQ
+function qqFieldIds() {
+  return [
+    'qq-id','qq-num','qq-cn','qq-jn','qq-em','qq-ph','qq-dt','qq-vu',
+    'qq-jt','qq-env','qq-status','qq-rep','qq-pt','qq-tc','qq-notes',
+    'qq-int-notes','qq-followup','qq-labor-rate','qq-tax-rate',
+    'qq-discount','qq-margin','qq-customer-id','qq-contact-id',
+    'qq-contact-name','qq-ad-street','qq-ad-city','qq-ad-state','qq-ad-zip',
+    'qq-ad' // legacy address field
+  ];
+}
+
+// Reset the Quick Quote form to a completely blank state.
+// This was called in multiple places (auth.js, worktracking.js, quotes.js) but
+// was never defined, meaning every programmatic "new quote" attempt left the
+// previous quote's data in the form — causing customer/contact cross-contamination
+// when navigating from a customer profile to a new quote.
+function clearQQ(clearDraft) {
+  try {
+    // Clear all standard fields
+    qqFieldIds().forEach(function(id) { qqSetVal(id, ''); });
+    // Clear line items, equipment, per diem
+    if (typeof lineItems !== 'undefined') { lineItems = []; }
+    if (typeof equipmentRows !== 'undefined') { equipmentRows = []; }
+    if (typeof perDiemData !== 'undefined') { loadPerDiemData(null); }
+    if (typeof renderLineItems === 'function') renderLineItems();
+    if (typeof renderEquipRows === 'function') renderEquipRows();
+    // Clear contact name display
+    var ctEl = document.getElementById('qq-contact-name');
+    if (ctEl) { ctEl.value = ''; ctEl.placeholder = 'Contact name'; }
+    // Reset dirty state
+    if (typeof setQQDirty === 'function') setQQDirty(false, 'New quote');
+    // Clear draft if requested
+    if (clearDraft && typeof clearQQDraft === 'function') clearQQDraft();
+  } catch(e) { console.warn('[clearQQ] error:', e); }
+}
+
 function setQQDirty(flag, note){
   if (_qqRestoreLock) return;
   _qqDirty = !!flag;

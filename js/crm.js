@@ -345,8 +345,15 @@ function newContactForCustomer(customerId, customerName) {
 function openQuoteForCustomer(customerName) {
   var cust = (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(customerName||'').toLowerCase(); });
   closeCustomerProfile();
+  // Clear the QQ form to a blank state BEFORE navigating.
+  // Without this, any previously-loaded quote's data (customer, contact, line
+  // items) stays in the form and the new customer/contact gets injected on top
+  // of it — causing cross-contamination between unrelated customers.
+  if (typeof clearQQ === 'function') clearQQ(true);
   goPage('qq');
   setTimeout(function(){
+    // Clear again after navigation (in case goPage re-renders with stale data)
+    if (typeof clearQQ === 'function') clearQQ(false);
     var cnEl = document.getElementById('qq-cn');
     if (cnEl) {
       cnEl.value = customerName;
