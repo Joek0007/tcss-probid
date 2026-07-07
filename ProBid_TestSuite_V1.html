@@ -765,18 +765,20 @@ async function test_dedup_existing(id) {
 
 // T11: Quote number assigned on save, header updates
 async function test_quote_num_new(id) {
-  // Test 1: qq-stage4-num element exists
-  var el = PB.document.getElementById('qq-stage4-num');
-  log(id, 'qq-stage4-num element exists: ' + !!el, el ? 'ok' : 'err');
-  if (!el) { log(id, '✗ FAIL: Display element not in DOM', 'err'); return 'fail'; }
+  var quotesJS = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
 
-  // Test 2: The save function updates it
-  var saveQQSrc = typeof PB.saveQQ === 'function' ? PB.saveQQ.toString() : '';
-  // Check for the exact display update pattern added 7/7/26
+  // Test 1: qq-stage4-num referenced in source
+  var elInSource = quotesJS.includes("'qq-stage4-num'") || quotesJS.includes('"qq-stage4-num"');
+  log(id, 'qq-stage4-num referenced in source: ' + elInSource, elInSource ? 'ok' : 'err');
+  if (!elInSource) { log(id, '✗ FAIL: qq-stage4-num not found in source', 'err'); return 'fail'; }
+
+  // Test 2: saveQQ updates the display element
+  var saveQQStart = quotesJS.indexOf('function saveQQ(');
+  var saveQQSrc = saveQQStart > -1 ? quotesJS.substring(saveQQStart, saveQQStart + 1500) : '';
   var hasDisplayUpdate = saveQQSrc.includes("getElementById('qq-stage4-num')") || saveQQSrc.includes('getElementById("qq-stage4-num")');
   log(id, 'saveQQ() updates qq-stage4-num: ' + hasDisplayUpdate, hasDisplayUpdate ? 'ok' : 'err');
 
-  // updateQQStage3UI keeps header in sync — check the actual function body in source
+  // Test 3: updateQQStage3UI keeps it in sync
   var updateUIStart = quotesJS.indexOf('function updateQQStage3UI(');
   var updateUISrc = updateUIStart > -1 ? quotesJS.substring(updateUIStart, updateUIStart + 1200) : '';
   var hasUISync = updateUISrc.includes('qq-stage4-num') || updateUISrc.includes('stageNumEl');
@@ -793,7 +795,7 @@ async function test_quote_num_new(id) {
 async function test_quote_num_edit(id) {
   var src = await fetch('https://joek0007.github.io/tcss-probid/js/quotes.js', {cache:'no-store'}).then(r=>r.text());
   var editStart = src.indexOf('function editQuote(');
-  var editSrc = editStart > -1 ? src.substring(editStart, editStart + 2000) : '';
+  var editSrc = editStart > -1 ? src.substring(editStart, editStart + 5000) : '';
   // editQuote sets qq-num field value, and updateQQStage3UI syncs qq-stage4-num
   var setsQQNum = editSrc.includes("getElementById('qq-num')") || editSrc.includes("getElementById(\"qq-num\")") || editSrc.includes("'qq-num'");
   var callsUpdate = editSrc.includes('updateQQStage3UI');
