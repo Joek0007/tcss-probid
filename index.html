@@ -6886,11 +6886,15 @@ var _origGetQData = typeof getQData === 'function' ? getQData : null;
 window.getQData = function() {
   var q = _origGetQData ? _origGetQData() : {};
   var notesEl = document.getElementById('qq-notes');
-  if (notesEl) {
+  if (notesEl && notesEl.contentEditable === 'true') {
     var html = notesEl.innerHTML || '';
-    // Store as HTML — blank check
-    q.notes = (html === '' || html === '<br>') ? '' : html;
-    q.notesIsHtml = true;
+    if (html === '' || html === '<br>') {
+      q.notes = '';
+      q.notesIsHtml = false;
+    } else {
+      q.notes = html;
+      q.notesIsHtml = true;
+    }
   }
   return q;
 };

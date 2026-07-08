@@ -688,7 +688,15 @@ function editQuote(id) {
     var notesEl = document.getElementById('qq-notes');
     if (notesEl) {
       if (notesEl.contentEditable === 'true') {
-        notesEl.innerHTML = q.notes || '';
+        var notesContent = q.notes || '';
+        // If not already HTML, convert plain text newlines to <br> so they display correctly
+        if (!q.notesIsHtml && notesContent) {
+          notesContent = notesContent
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
+          notesContent = '<p>' + notesContent + '</p>';
+        }
+        notesEl.innerHTML = notesContent;
         if (typeof qqNotesUpdatePlaceholder === 'function') qqNotesUpdatePlaceholder();
       } else {
         notesEl.value = q.notes || '';
