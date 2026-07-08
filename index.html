@@ -6877,7 +6877,58 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 </script>
 
 <script>
-// ── Work Order rich text editor (Work Requested + Work Performed) ─────────
+// ── Quote number click-to-edit in Quotes list ────────────────────────────────
+// Uses MutationObserver to detect when renderQuotes() populates quotes-tbl,
+// then upgrades the first cell (quote number) of each row to a clickable link.
+// Matches the UX of the Work Orders list without needing to modify renderQuotes().
+(function() {
+  function upgradeQuoteRows() {
+    var tbl = document.getElementById('quotes-tbl');
+    if (!tbl) return;
+    // Find the quote ID from each row — look for the Edit button's data-id
+    Array.from(tbl.rows).forEach(function(row) {
+      var firstCell = row.cells[0];
+      if (!firstCell || firstCell.querySelector('.q-num-link')) return; // already upgraded
+      // Find quote ID from the Edit or View button in this row
+      var btn = row.querySelector('[data-action="editQuote"]') || row.querySelector('[onclick*="editQuote"]');
+      var qid = btn ? (btn.dataset.id || (btn.getAttribute('onclick')||'').match(/'([^']+)'/)?.[1]) : null;
+      if (!qid) {
+        // Try to find it from a viewQuote or dupQuote button
+        var anyBtn = row.querySelector('[data-id]');
+        if (anyBtn) qid = anyBtn.dataset.id;
+      }
+      if (!qid || !firstCell.textContent.match(/Q-\d+/)) return;
+      // Wrap the number in a clickable span
+      var num = firstCell.textContent.trim();
+      firstCell.innerHTML = '<span class="q-num-link" data-qid="'+qid+'" style="color:#1565c0;font-weight:700;font-size:12px;cursor:pointer;text-decoration:underline" title="Click to edit this quote">'+num+'</span>';
+    });
+  }
+
+  // Watch for changes to quotes-tbl
+  function startObserver() {
+    var tbl = document.getElementById('quotes-tbl');
+    if (!tbl) return;
+    var obs = new MutationObserver(function() { upgradeQuoteRows(); });
+    obs.observe(tbl, { childList: true, subtree: false });
+    // Click handler
+    tbl.addEventListener('click', function(e) {
+      var link = e.target.closest('.q-num-link');
+      if (link && link.dataset.qid) {
+        e.stopPropagation();
+        if (typeof editQuote === 'function') editQuote(link.dataset.qid);
+      }
+    });
+    upgradeQuoteRows(); // run once immediately in case table is already populated
+  }
+
+  // Start after DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(startObserver, 500); });
+  } else {
+    setTimeout(startObserver, 500);
+  }
+})();
+
 function woRtfShowBar(fieldId) {
   var tb = document.getElementById(fieldId+'-toolbar');
   var wrap = document.getElementById(fieldId+'-wrap');
