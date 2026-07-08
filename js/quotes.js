@@ -302,7 +302,7 @@ function qqSetVal(id,val){ var el=document.getElementById(id); if(el) el.value =
 function qqFieldIds() {
   return [
     'qq-id','qq-num','qq-cn','qq-jn','qq-em','qq-ph','qq-dt','qq-vu',
-    'qq-jt','qq-env','qq-status','qq-rep','qq-pt','qq-tc','qq-notes',
+    'qq-jt','qq-env','qq-status','qq-rep','qq-pt','qq-tc','qq-notes-hidden',
     'qq-int','qq-followup','qq-labor-rate','qq-tax-rate',
     'qq-discount','qq-margin','qq-customer-id','qq-contact-id',
     'qq-contact-name','qq-ad','qq-city','qq-state','qq-zip',
@@ -318,6 +318,9 @@ function qqFieldIds() {
 function clearQQ(clearDraft) {
   try {
     // Clear all standard fields
+    // Clear rich text notes editor
+    var notesEl = document.getElementById('qq-notes');
+    if (notesEl && notesEl.contentEditable === 'true') { notesEl.innerHTML = ''; if(typeof qqNotesUpdatePlaceholder==='function') qqNotesUpdatePlaceholder(); }
     qqFieldIds().forEach(function(id) { qqSetVal(id, ''); });
     // Clear line items, equipment, per diem
     if (typeof lineItems !== 'undefined') { lineItems = []; }
@@ -669,7 +672,6 @@ function editQuote(id) {
       'qq-rep':       q.rep       || '',
       'qq-pt':        q.pt        || '',
       'qq-tc':        q.tc        || '',
-      'qq-notes':     q.notes     || '',
       'qq-int':       q.intNotes  || '',
       'qq-followup':  q.followupDate || '',
       'qq-labor-rate':q.laborRate || '',
@@ -681,6 +683,17 @@ function editQuote(id) {
       var el = document.getElementById(fid);
       if (el) el.value = fields[fid];
     });
+
+    // Load notes into rich text editor (contenteditable) or textarea fallback
+    var notesEl = document.getElementById('qq-notes');
+    if (notesEl) {
+      if (notesEl.contentEditable === 'true') {
+        notesEl.innerHTML = q.notes || '';
+        if (typeof qqNotesUpdatePlaceholder === 'function') qqNotesUpdatePlaceholder();
+      } else {
+        notesEl.value = q.notes || '';
+      }
+    }
 
     // Address fields
     var adFields = {
@@ -1046,6 +1059,11 @@ function buildPrintHTML(q, mode) {
   '.exec-box p{margin:0 0 10px 0}' +
   '.exec-box p:last-child{margin-bottom:0}' +
   '.scope-box{background:#f8f9fa;border-radius:8px;padding:14px 18px;font-size:13px;line-height:1.7;color:#37474f}' +
+  '.scope-box h3{font-size:13px;font-weight:700;color:#1f3b57;margin:10px 0 4px}' +
+  '.scope-box ul,.scope-box ol{padding-left:20px;margin:4px 0}' +
+  '.scope-box li{margin:2px 0}' +
+  '.scope-box strong{font-weight:700}' +
+  '.scope-box em{font-style:italic}' +
   'table.items-table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}' +
   'table.items-table th{background:#1565c0;color:#fff;padding:10px 12px;text-align:left;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}' +
   'table.items-table th:last-child,table.items-table th:nth-last-child(2){text-align:right}' +
@@ -1154,7 +1172,7 @@ table{font-size:12.5px}
   })() +
 
   // SCOPE
-  (q.notes ? '<div class="prop-section"><div class="prop-section-title">Scope of Work</div><div class="scope-box">' + escHtml(q.notes).replace(/\n/g,'<br>') + '</div></div>' : '') +
+  (q.notes ? '<div class="prop-section"><div class="prop-section-title">Scope of Work</div><div class="scope-box">' + (q.notesIsHtml ? q.notes : escHtml(q.notes).replace(/\n/g,'<br>')) + '</div></div>' : '') +
 
   // EQUIPMENT & MATERIALS + LABOR
   '<div class="prop-section"><div class="prop-section-title">Equipment, Materials &amp; Installation</div>' +

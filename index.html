@@ -1674,7 +1674,33 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           <div><label>Valid Until</label><input id="qq-vu" type="date"></div>
           <div><label>Payment Terms</label><select id="qq-pt" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"><option value="Due on Receipt">Due on Receipt</option><option value="Net 15">Net 15</option><option value="Net 30">Net 30</option><option value="Net 45">Net 45</option><option value="Net 60">Net 60</option><option value="50% Down, Balance on Completion">50% Down, Balance on Completion</option><option value="25% Down, Balance on Completion">25% Down, Balance on Completion</option></select></div>
         </div>
-        <div class="form-row"><div><label>Scope / Notes (used in proposal)</label><textarea id="qq-notes" rows="3" placeholder="Describe the scope of work..."></textarea></div></div>
+        <div class="form-row"><div>
+          <label>Scope / Notes (used in proposal)</label>
+          <div id="qq-notes-wrap" style="border:1px solid #e0e7ef;border-radius:6px;overflow:hidden;transition:border-color .15s">
+            <div id="qq-notes-toolbar" style="display:none;padding:5px 8px;background:#f8fafc;border-bottom:1px solid #e0e7ef;gap:2px;flex-wrap:wrap;align-items:center">
+              <button type="button" onclick="qqNotesFmt('bold')" title="Bold" style="padding:3px 8px;font-size:12px;font-weight:700;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">B</button>
+              <button type="button" onclick="qqNotesFmt('italic')" title="Italic" style="padding:3px 8px;font-size:12px;font-style:italic;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">I</button>
+              <button type="button" onclick="qqNotesFmt('underline')" title="Underline" style="padding:3px 8px;font-size:12px;text-decoration:underline;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">U</button>
+              <span style="width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block"></span>
+              <button type="button" onclick="qqNotesFmt('insertUnorderedList')" title="Bullet list" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">• List</button>
+              <button type="button" onclick="qqNotesFmt('insertOrderedList')" title="Numbered list" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">1. List</button>
+              <span style="width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block"></span>
+              <button type="button" onclick="qqNotesHeader()" title="Section header" style="padding:3px 8px;font-size:12px;font-weight:600;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">Header</button>
+              <button type="button" onclick="qqNotesNormal()" title="Normal text" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">Normal</button>
+              <span style="width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block"></span>
+              <button type="button" onclick="qqNotesFmt('indent')" title="Indent" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">→</button>
+              <button type="button" onclick="qqNotesFmt('outdent')" title="Outdent" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">←</button>
+            </div>
+            <div id="qq-notes"
+              contenteditable="true"
+              style="min-height:90px;padding:8px 10px;font-size:13px;line-height:1.6;color:#1f3b57;outline:none;font-family:inherit"
+              data-placeholder="Describe the scope of work..."
+              onfocus="qqNotesShowToolbar()"
+              onblur="qqNotesHideToolbar(event)"
+              oninput="setQQDirty&&setQQDirty(true,'notes edit');qqNotesUpdatePlaceholder()"
+            ></div>
+          </div>
+        </div></div>
         <div class="form-row"><div><label>Terms &amp; Conditions</label><textarea id="qq-tc" rows="2" placeholder="Payment terms, warranty info..."></textarea></div></div>
         <div class="form-row cols2">
           <div><label>Internal Notes</label><textarea id="qq-int" rows="2" placeholder="For internal use only..."></textarea></div>
@@ -6812,5 +6838,62 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 })();
 </script>
 
+<script>
+// ── Scope of Work rich text editor ──────────────────────────────────────────
+function qqNotesShowToolbar() {
+  var tb = document.getElementById('qq-notes-toolbar');
+  var wrap = document.getElementById('qq-notes-wrap');
+  if (tb) { tb.style.display = 'flex'; }
+  if (wrap) wrap.style.borderColor = '#3b82f6';
+}
+function qqNotesHideToolbar(e) {
+  // Don't hide if clicking a toolbar button
+  var tb = document.getElementById('qq-notes-toolbar');
+  var wrap = document.getElementById('qq-notes-wrap');
+  if (e && tb && tb.contains(e.relatedTarget)) return;
+  if (tb) tb.style.display = 'none';
+  if (wrap) wrap.style.borderColor = '#e0e7ef';
+}
+function qqNotesFmt(cmd) {
+  document.getElementById('qq-notes').focus();
+  document.execCommand(cmd, false, null);
+}
+function qqNotesHeader() {
+  document.getElementById('qq-notes').focus();
+  document.execCommand('formatBlock', false, 'h3');
+}
+function qqNotesNormal() {
+  document.getElementById('qq-notes').focus();
+  document.execCommand('formatBlock', false, 'p');
+}
+function qqNotesUpdatePlaceholder() {
+  var el = document.getElementById('qq-notes');
+  if (!el) return;
+  if (el.innerHTML === '' || el.innerHTML === '<br>') {
+    el.setAttribute('data-empty', 'true');
+  } else {
+    el.removeAttribute('data-empty');
+  }
+}
+// Apply placeholder style via CSS
+(function() {
+  var style = document.createElement('style');
+  style.textContent = '#qq-notes[data-empty="true"]:before{content:attr(data-placeholder);color:#9ca3af;pointer-events:none;position:absolute} #qq-notes{position:relative}';
+  document.head.appendChild(style);
+})();
+// ── getQData patch: read innerHTML from the rich editor ──────────────────────
+var _origGetQData = typeof getQData === 'function' ? getQData : null;
+window.getQData = function() {
+  var q = _origGetQData ? _origGetQData() : {};
+  var notesEl = document.getElementById('qq-notes');
+  if (notesEl) {
+    var html = notesEl.innerHTML || '';
+    // Store as HTML — blank check
+    q.notes = (html === '' || html === '<br>') ? '' : html;
+    q.notesIsHtml = true;
+  }
+  return q;
+};
+</script>
 </body>
 </html><!-- PLACEHOLDER - will be replaced -->
