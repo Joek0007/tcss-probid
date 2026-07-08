@@ -5299,11 +5299,43 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           </div>
           <div style="margin-bottom:12px">
             <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Work Requested *</label>
-            <textarea id="wo-description" rows="5" placeholder="Describe the work to be performed..." style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;resize:vertical"></textarea>
+            <div id="wo-description-wrap" style="border:1px solid #e0e7ef;border-radius:6px;overflow:hidden;transition:border-color .15s">
+              <div id="wo-description-toolbar" style="display:none;padding:5px 8px;background:#f8fafc;border-bottom:1px solid #e0e7ef;gap:2px;flex-wrap:wrap;align-items:center">
+                <button type="button" onclick="woRtfFmt('wo-description','bold')" style="padding:3px 8px;font-size:12px;font-weight:700;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">B</button>
+                <button type="button" onclick="woRtfFmt('wo-description','italic')" style="padding:3px 8px;font-size:12px;font-style:italic;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">I</button>
+                <button type="button" onclick="woRtfFmt('wo-description','underline')" style="padding:3px 8px;font-size:12px;text-decoration:underline;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">U</button>
+                <span style="width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block"></span>
+                <button type="button" onclick="woRtfFmt('wo-description','insertUnorderedList')" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">• List</button>
+                <button type="button" onclick="woRtfFmt('wo-description','insertOrderedList')" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">1. List</button>
+                <span style="width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block"></span>
+                <button type="button" onclick="woRtfBlock('wo-description','h3')" style="padding:3px 8px;font-size:12px;font-weight:600;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">Header</button>
+                <button type="button" onclick="woRtfBlock('wo-description','p')" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">Normal</button>
+              </div>
+              <div id="wo-description" contenteditable="true"
+                style="min-height:100px;padding:8px 10px;font-size:13px;line-height:1.6;color:#1f3b57;outline:none;font-family:inherit"
+                onfocus="woRtfShowBar('wo-description')"
+                onblur="woRtfHideBar('wo-description',event)"></div>
+            </div>
           </div>
           <div style="margin-bottom:12px">
             <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Work Performed</label>
-            <textarea id="wo-work-performed" rows="5" placeholder="What was actually done on site..." style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;resize:vertical"></textarea>
+            <div id="wo-work-performed-wrap" style="border:1px solid #e0e7ef;border-radius:6px;overflow:hidden;transition:border-color .15s">
+              <div id="wo-work-performed-toolbar" style="display:none;padding:5px 8px;background:#f8fafc;border-bottom:1px solid #e0e7ef;gap:2px;flex-wrap:wrap;align-items:center">
+                <button type="button" onclick="woRtfFmt('wo-work-performed','bold')" style="padding:3px 8px;font-size:12px;font-weight:700;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">B</button>
+                <button type="button" onclick="woRtfFmt('wo-work-performed','italic')" style="padding:3px 8px;font-size:12px;font-style:italic;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">I</button>
+                <button type="button" onclick="woRtfFmt('wo-work-performed','underline')" style="padding:3px 8px;font-size:12px;text-decoration:underline;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">U</button>
+                <span style="width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block"></span>
+                <button type="button" onclick="woRtfFmt('wo-work-performed','insertUnorderedList')" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">• List</button>
+                <button type="button" onclick="woRtfFmt('wo-work-performed','insertOrderedList')" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">1. List</button>
+                <span style="width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block"></span>
+                <button type="button" onclick="woRtfBlock('wo-work-performed','h3')" style="padding:3px 8px;font-size:12px;font-weight:600;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">Header</button>
+                <button type="button" onclick="woRtfBlock('wo-work-performed','p')" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">Normal</button>
+              </div>
+              <div id="wo-work-performed" contenteditable="true"
+                style="min-height:100px;padding:8px 10px;font-size:13px;line-height:1.6;color:#1f3b57;outline:none;font-family:inherit"
+                onfocus="woRtfShowBar('wo-work-performed')"
+                onblur="woRtfHideBar('wo-work-performed',event)"></div>
+            </div>
           </div>
         </div>
         <div>
@@ -6839,7 +6871,51 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 </script>
 
 <script>
-// ── Scope of Work rich text editor ──────────────────────────────────────────
+// ── Work Order rich text editor (Work Requested + Work Performed) ─────────
+function woRtfShowBar(fieldId) {
+  var tb = document.getElementById(fieldId+'-toolbar');
+  var wrap = document.getElementById(fieldId+'-wrap');
+  if (tb) tb.style.display = 'flex';
+  if (wrap) wrap.style.borderColor = '#3b82f6';
+}
+function woRtfHideBar(fieldId, e) {
+  var tb = document.getElementById(fieldId+'-toolbar');
+  var wrap = document.getElementById(fieldId+'-wrap');
+  if (e && tb && tb.contains(e.relatedTarget)) return;
+  if (tb) tb.style.display = 'none';
+  if (wrap) wrap.style.borderColor = '#e0e7ef';
+}
+function woRtfFmt(fieldId, cmd) {
+  document.getElementById(fieldId).focus();
+  document.execCommand(cmd, false, null);
+}
+function woRtfBlock(fieldId, tag) {
+  document.getElementById(fieldId).focus();
+  document.execCommand('formatBlock', false, tag);
+}
+// Helper: load plain text or HTML into a WO rich editor
+function woRtfLoad(fieldId, content, isHtml) {
+  var el = document.getElementById(fieldId);
+  if (!el) return;
+  if (!content) { el.innerHTML = ''; return; }
+  if (isHtml) {
+    el.innerHTML = content;
+  } else {
+    // Plain text — convert newlines to HTML
+    var html = content
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
+    el.innerHTML = '<p>' + html + '</p>';
+  }
+}
+// Helper: read HTML from a WO rich editor
+function woRtfRead(fieldId) {
+  var el = document.getElementById(fieldId);
+  if (!el) return '';
+  var html = el.innerHTML || '';
+  return (html === '' || html === '<br>') ? '' : html;
+}
+
 function qqNotesShowToolbar() {
   var tb = document.getElementById('qq-notes-toolbar');
   var wrap = document.getElementById('qq-notes-wrap');

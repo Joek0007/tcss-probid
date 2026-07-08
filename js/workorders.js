@@ -547,7 +547,17 @@ function openWorkOrder(id) {
   _populateWOStatusSelect();
   _populateWOServiceTypeSelect();
 
-  function sv(id,val){ var el=document.getElementById(id); if(el) el.value=val||''; }
+  function sv(id,val){ 
+    var el=document.getElementById(id); 
+    if(!el) return;
+    if(el.contentEditable==='true') {
+      // Rich text field — detect HTML vs plain text
+      var isHtml = val && (/<[a-z][\s\S]*>/i.test(val));
+      if(typeof woRtfLoad==='function') woRtfLoad(id, val||'', isHtml);
+    } else { 
+      el.value=val||''; 
+    }
+  }
   // Set status — fall back to NEW if stored value not in current list
   var statusSel = document.getElementById('wo-status');
   if (statusSel) {
@@ -654,7 +664,8 @@ function dismissHotNotes() {
 // ---- SAVE ----
 function saveWorkOrder() {
   var custName = (document.getElementById('wo-customer-name')||{}).value||'';
-  var desc     = (document.getElementById('wo-description')||{}).value||'';
+  var descEl   = document.getElementById('wo-description');
+  var desc     = descEl ? (descEl.contentEditable==='true' ? (typeof woRtfRead==='function' ? woRtfRead('wo-description') : descEl.innerText) : descEl.value) : '';
   if (!custName.trim()) { showToast('Customer is required','error'); return; }
   if (!desc.trim())     { showToast('Work description is required','error'); return; }
 
@@ -665,7 +676,12 @@ function saveWorkOrder() {
   // Capture existing record BEFORE building data — preserves fields not on the form
   var _existingWO = DB.workOrders.find(function(w){ return w.id===id; }) || {};
 
-  function gv(eid){ var el=document.getElementById(eid); return el?el.value.trim():''; }
+  function gv(eid){ 
+    var el=document.getElementById(eid); 
+    if(!el) return '';
+    if(el.contentEditable==='true') return typeof woRtfRead==='function' ? woRtfRead(eid) : (el.innerHTML||'').trim();
+    return el.value.trim(); 
+  }
 
   var status   = gv('wo-status') || 'New';
   // Auto-advance to Scheduled only if status is New and a scheduled date is set
@@ -705,7 +721,9 @@ function saveWorkOrder() {
     customerName: custName,
     contactId:    gv('wo-contact'),
     description:  desc,
+    descriptionIsHtml: (function(){ var el=document.getElementById('wo-description'); return !!(el&&el.contentEditable==='true'); })(),
     workPerformed:gv('wo-work-performed'),
+    workPerformedIsHtml: (function(){ var el=document.getElementById('wo-work-performed'); return !!(el&&el.contentEditable==='true'&&gv('wo-work-performed')); })(),
     status:       status,
     priority:     priority,
     serviceType:  gv('wo-service-type'),
@@ -1168,7 +1186,12 @@ function printWorkOrder(woId) {
       '.sig-section{margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:32px;}'+
       '.sig-line{border-top:1px solid #0d1b2a;padding-top:6px;font-size:11px;color:#546e7a;}'+
       '.footer{margin-top:24px;border-top:1px solid #e0e7ef;padding-top:10px;font-size:10px;color:#90a4ae;text-align:center;}'+
-      '.desc-box{background:#f9f9f9;border:1px solid #e0e7ef;border-radius:6px;padding:10px 12px;font-size:12px;min-height:60px;white-space:pre-wrap;}'+
+      '.desc-box{background:#f9f9f9;border:1px solid #e0e7ef;border-radius:6px;padding:10px 12px;font-size:12px;min-height:60px;line-height:1.6}'+
+      '.desc-box h3{font-size:12px;font-weight:700;color:#1f3b57;margin:8px 0 3px}'+
+      '.desc-box ul,.desc-box ol{padding-left:18px;margin:3px 0}'+
+      '.desc-box li{margin:1px 0}'+
+      '.desc-box strong{font-weight:700}'+
+      '.desc-box em{font-style:italic}'+
       '.no-print-btn{position:fixed;top:16px;right:16px;background:#1565c0;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;z-index:1000;}'+
       '@media print{.no-print-btn{display:none;}}'+
     '</style>'+
@@ -1231,14 +1254,14 @@ function printWorkOrder(woId) {
     // Description
     '<div class="section">'+
       '<h2>Description of Work</h2>'+
-      '<div class="desc-box">'+esc(wo.description||'')+'</div>'+
+      '<div class="desc-box">'+(wo.descriptionIsHtml ? wo.description : esc(wo.description||'').replace(/\n/g,'<br>'))+'</div>'+
     '</div>'+
 
     // Work Performed (if filled)
     (wo.workPerformed?
     '<div class="section">'+
       '<h2>Work Performed</h2>'+
-      '<div class="desc-box">'+esc(wo.workPerformed)+'</div>'+
+      '<div class="desc-box">'+(wo.workPerformedIsHtml ? wo.workPerformed : esc(wo.workPerformed).replace(/\n/g,'<br>'))+'</div>'+
     '</div>':'') +
 
     // Labor
