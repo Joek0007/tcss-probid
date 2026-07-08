@@ -689,12 +689,15 @@ function editQuote(id) {
     if (notesEl) {
       if (notesEl.contentEditable === 'true') {
         var notesContent = q.notes || '';
-        // If not already HTML, convert plain text newlines to <br> so they display correctly
-        if (!q.notesIsHtml && notesContent) {
-          notesContent = notesContent
+        // Detect HTML by flag OR by content starting with < — handles quotes saved
+        // before notesIsHtml flag was introduced
+        var contentIsHtml = q.notesIsHtml || (notesContent.trimLeft().charAt(0) === '<');
+        if (!contentIsHtml && notesContent) {
+          // Plain text — convert newlines to HTML
+          var html = notesContent
             .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
             .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
-          notesContent = '<p>' + notesContent + '</p>';
+          notesContent = '<p>' + html + '</p>';
         }
         notesEl.innerHTML = notesContent;
         if (typeof qqNotesUpdatePlaceholder === 'function') qqNotesUpdatePlaceholder();
