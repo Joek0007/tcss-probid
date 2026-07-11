@@ -546,6 +546,8 @@ function openWorkOrder(id) {
   document.getElementById('wo-modal-num').textContent=wo.woNumber||'';
   var urgBadge=document.getElementById('wo-urgent-badge');
   if(urgBadge) urgBadge.style.display=wo.priority==='Urgent'?'inline-block':'none';
+  var pb=document.getElementById('wo-btn-print'); if(pb) pb.style.display='';
+  var pbt=document.getElementById('wo-btn-print-top'); if(pbt) pbt.style.display='';
 
   _populateWOStatusSelect();
   _populateWOServiceTypeSelect();
@@ -1047,9 +1049,6 @@ function switchWOTab(tab) {
   var btn=document.getElementById('wotab-'+tab); if(btn) btn.classList.add('active');
   var content=document.getElementById('wo-tab-content');
   if (!content) return;
-  // Lock scroll position so tab switch doesn't jump
-  var modalBody = document.querySelector('#modal-work-order .modal-body');
-  var scrollTop = modalBody ? modalBody.scrollTop : 0;
   var id = _woCurrentId;
   if (tab==='labor')     content.innerHTML = renderWOLaborTab(id);
   if (tab==='expenses')  content.innerHTML = renderWOExpensesTab(id);
@@ -1059,8 +1058,6 @@ function switchWOTab(tab) {
   if (tab==='photos')    { content.innerHTML = renderWODocsTab(id); }
   if (tab==='fieldlog')  { renderWOFieldLogTab(id); }
   if (tab==='tracking')  { content.innerHTML = renderWOTrackingTab(id); }
-  // Restore scroll position
-  if (modalBody) modalBody.scrollTop = scrollTop;
 }
 
 
