@@ -1657,13 +1657,77 @@ function renderListItems(key) {
   var container = document.getElementById('list-items-' + key);
   if (!container) return;
   var items = getList(key);
+  var lists = (DB.settings && DB.settings.lists) || {};
+  var defaultVal = lists[key + '_default'] || '';
+
   container.innerHTML = items.map(function(item, idx) {
-    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8fafc;border:1px solid #e0e7ef;border-radius:6px">' +
+    var isDefault = item === defaultVal;
+    return '<div class="dfl-row" draggable="true" data-key="'+key+'" data-idx="'+idx+'" '+
+      'ondragstart="dflDragStart(event)" ondragover="dflDragOver(event)" ondrop="dflDrop(event,\''+key+'\')" ondragend="dflDragEnd()" '+
+      'style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:'+(isDefault?'#e8f4fd':'#f8fafc')+';border:1px solid '+(isDefault?'#1565c0':'#e0e7ef')+';border-radius:6px;cursor:grab;user-select:none">' +
+      '<span style="color:#b0bec5;font-size:14px;cursor:grab" title="Drag to reorder">⠿</span>' +
       '<span style="flex:1;font-size:13px;color:#1f3b57">' + escHtml(item) + '</span>' +
-      '<button onclick="deleteListItem(\'' + key + '\',' + idx + ')" ' +
-        'style="background:none;border:none;color:#f44336;cursor:pointer;font-size:16px;line-height:1;padding:0 4px" title="Remove">×</button>' +
+      (isDefault
+        ? '<span style="font-size:10px;font-weight:700;color:#1565c0;background:#dbeafe;padding:2px 7px;border-radius:10px">DEFAULT</span>'
+        : '<button onclick="setListDefault(\''+key+'\',\''+escHtml(item).replace(/'/g,"\\'")+'\')" title="Set as default" '+
+          'style="font-size:11px;color:#90a4ae;background:none;border:1px solid #e0e7ef;border-radius:4px;padding:2px 7px;cursor:pointer">Set default</button>'
+      ) +
+      '<button onclick="deleteListItem(\''+key+'\','+idx+')" title="Remove" '+
+        'style="background:none;border:none;color:#f44336;cursor:pointer;font-size:16px;line-height:1;padding:0 4px">×</button>' +
     '</div>';
   }).join('');
+}
+
+// ── Drag-to-reorder ────────────────────────────────────────────────────────
+var _dflDragIdx = null;
+var _dflDragKey = null;
+
+function dflDragStart(e) {
+  _dflDragIdx = parseInt(e.currentTarget.dataset.idx);
+  _dflDragKey = e.currentTarget.dataset.key;
+  e.currentTarget.style.opacity = '0.4';
+}
+function dflDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.style.borderColor = '#1565c0';
+}
+function dflDrop(e, key) {
+  e.preventDefault();
+  var targetIdx = parseInt(e.currentTarget.dataset.idx);
+  e.currentTarget.style.borderColor = '';
+  if (_dflDragKey !== key || _dflDragIdx === null || _dflDragIdx === targetIdx) return;
+  var items = getList(key).slice();
+  var moved = items.splice(_dflDragIdx, 1)[0];
+  items.splice(targetIdx, 0, moved);
+  saveList(key, items);
+  renderListItems(key);
+}
+function dflDragEnd() {
+  _dflDragIdx = null; _dflDragKey = null;
+  document.querySelectorAll('.dfl-row').forEach(function(r){ r.style.opacity=''; r.style.borderColor=''; });
+}
+
+// ── Default item ───────────────────────────────────────────────────────────
+function setListDefault(key, val) {
+  if (!DB.settings) DB.settings = {};
+  if (!DB.settings.lists) DB.settings.lists = {};
+  // Toggle — clicking current default clears it
+  if (DB.settings.lists[key + '_default'] === val) {
+    delete DB.settings.lists[key + '_default'];
+    showToast('Default cleared', 'info', 2000);
+  } else {
+    DB.settings.lists[key + '_default'] = val;
+    showToast('"' + val + '" set as default', 'success', 2000);
+  }
+  saveDB();
+  _pushSettingsToSupabase();
+  renderListItems(key);
+}
+
+// Expose getListDefault for other parts of the app
+function getListDefault(key) {
+  var lists = (DB.settings && DB.settings.lists) || {};
+  return lists[key + '_default'] || '';
 }
 
 function addListItem(key) {
