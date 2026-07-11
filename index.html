@@ -1613,7 +1613,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           </div>
           <div class="autocomplete-wrap">
             <label>Contact Person</label>
-            <input id="qq-contact-name" placeholder="Select customer first..." autocomplete="off" oninput="onContactInput(this.value)" onblur="setTimeout(closeContactDropdown,300)">
+            <input id="qq-contact-name" placeholder="Select customer first..." autocomplete="off" oninput="onContactInput(this.value)" onfocus="onContactFocus()" onblur="setTimeout(closeContactDropdown,300)">
             <div id="contact-dropdown" class="autocomplete-dropdown" style="display:none"></div>
             <input type="hidden" id="qq-contact-id">
           </div>

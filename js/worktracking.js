@@ -6742,6 +6742,22 @@ function closeCustomerDropdown() {
   var d=document.getElementById('customer-dropdown'); if(d) d.style.display='none';
 }
 
+function onContactFocus() {
+  var custId   = (document.getElementById('qq-customer-id')||{}).value||'';
+  var custName = (document.getElementById('qq-cn')||{}).value||'';
+  if (!custId && !custName) return; // no customer selected yet
+  var cust = custId ? (DB.customers||[]).find(function(c){ return c.id===custId; }) : null;
+  var contacts = DB.contacts.filter(function(c){
+    return c.customerId===custId ||
+      (!c.customerId && (c.company||'').toLowerCase()===(custName||'').toLowerCase());
+  });
+  if (!contacts.length) return; // no contacts on file — let them type
+  showContactsForCustomer(contacts);
+  // Select all text so they can type to filter immediately if they want
+  var el = document.getElementById('qq-contact-name');
+  if (el) el.select();
+}
+
 function onContactInput(val) {
   var dropdown=document.getElementById('contact-dropdown');
   if (!dropdown) return;
