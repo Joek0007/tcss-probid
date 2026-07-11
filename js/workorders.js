@@ -956,19 +956,16 @@ function woContactInput(val) {
 }
 
 function _updateWOContactBar(contactId) {
-  var bar = document.getElementById('wo-contact-bar');
   var barInfo = document.getElementById('wo-contact-bar-info');
-  if (!bar || !barInfo) return;
+  if (!barInfo) return;
   var c = contactId ? (DB.contacts||[]).find(function(x){ return x.id===contactId; }) : null;
   if (c && (c.phone || c.email)) {
-    var html = '<strong style="color:#1f3b57">'+escHtml(c.name||'')+'</strong>';
-    if (c.phone) html += '&nbsp;&nbsp;<a href="tel:'+escHtml(c.phone)+'" style="color:#1565c0;text-decoration:none" onclick="event.stopPropagation()">📞 '+escHtml(c.phone)+(c.phoneType?' <span style="font-size:10px;color:#90a4ae">('+escHtml(c.phoneType)+')</span>':'')+'</a>';
-    if (c.phone2) html += '&nbsp;&nbsp;<a href="tel:'+escHtml(c.phone2)+'" style="color:#1565c0;text-decoration:none" onclick="event.stopPropagation()">📞 '+escHtml(c.phone2)+(c.phone2Type?' <span style="font-size:10px;color:#90a4ae">('+escHtml(c.phone2Type)+')</span>':'')+'</a>';
-    if (c.email) html += '&nbsp;&nbsp;<a href="mailto:'+escHtml(c.email)+'" style="color:#1565c0;text-decoration:none" onclick="event.stopPropagation()">✉️ '+escHtml(c.email)+'</a>';
+    var html = '';
+    if (c.phone) html += '<a href="tel:'+escHtml(c.phone)+'" style="color:#1565c0;text-decoration:none;margin-right:12px" onclick="event.stopPropagation()">📞 '+escHtml(c.phone)+(c.phoneType?' <span style="font-size:10px;color:#90a4ae">('+escHtml(c.phoneType)+')</span>':'')+'</a>';
+    if (c.phone2) html += '<a href="tel:'+escHtml(c.phone2)+'" style="color:#1565c0;text-decoration:none;margin-right:12px" onclick="event.stopPropagation()">📞 '+escHtml(c.phone2)+(c.phone2Type?' <span style="font-size:10px;color:#90a4ae">('+escHtml(c.phone2Type)+')</span>':'')+'</a>';
+    if (c.email) html += '<a href="mailto:'+escHtml(c.email)+'" style="color:#1565c0;text-decoration:none" onclick="event.stopPropagation()">✉️ '+escHtml(c.email)+'</a>';
     barInfo.innerHTML = html;
-    bar.style.display = 'flex';
   } else {
-    bar.style.display = 'none';
     barInfo.innerHTML = '';
   }
 }
