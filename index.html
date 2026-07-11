@@ -5271,7 +5271,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div class="modal-body" style="padding:0;overflow-y:auto;max-height:85vh">
 
       <!-- Status bar: Customer + Contact LEFT | Status + Service Type + Priority RIGHT -->
-      <div style="background:#f8f9fa;padding:10px 20px;border-bottom:1px solid #e0e7ef;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      <div style="background:#f8f9fa;padding:10px 20px;border-bottom:1px solid #e0e7ef;display:flex;gap:16px;align-items:flex-start;flex-wrap:nowrap">
 
         <!-- Customer -->
         <div style="display:flex;flex-direction:column;gap:2px;min-width:180px">
@@ -5292,15 +5292,15 @@ body.role-lead-tech .page-settings-btn{display:none!important}
               onblur="setTimeout(woContactClose,300)">
             <div id="wo-contact-dropdown" style="display:none;position:absolute;left:0;top:100%;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:300;max-height:220px;overflow-y:auto;margin-top:2px;min-width:320px"></div>
             <input type="hidden" id="wo-contact">
+            <div id="wo-contact-bar-info" style="font-size:12px;color:#1565c0;line-height:1.6;white-space:nowrap"></div>
           </div>
-          <div id="wo-contact-bar-info" style="font-size:12px;color:#1565c0;line-height:1.6"></div>
         </div>
 
         <!-- Spacer pushes Status group to the right -->
         <div style="flex:1"></div>
 
         <!-- Status on top, Service Type + Priority below — all right-justified as one column -->
-        <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0">
           <div style="display:flex;flex-direction:column;gap:2px">
             <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Status</span>
             <select id="wo-status" onchange="onWOStatusChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:700;min-width:260px"></select>
@@ -5310,7 +5310,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
               <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Service Type</span>
               <select id="wo-service-type" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;width:100%"></select>
             </div>
-            <div style="display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
               <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Priority</span>
               <select id="wo-priority" onchange="onWOPriorityChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;min-width:110px">
                 <option value="Normal">Normal</option>
