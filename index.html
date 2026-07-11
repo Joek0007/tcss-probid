@@ -5299,18 +5299,16 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <!-- Spacer pushes Status to the right -->
         <div style="flex:1"></div>
 
-        <!-- Status -->
-        <div style="display:flex;flex-direction:column;gap:2px">
-          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Status</span>
-          <select id="wo-status" onchange="onWOStatusChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:700;min-width:160px"></select>
-        </div>
-
-        <!-- Service Type + Priority stacked below Status left edge via a sub-column -->
+        <!-- Status on top, Service Type + Priority below it — all right-justified -->
         <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Status</span>
+            <select id="wo-status" onchange="onWOStatusChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:700;width:100%"></select>
+          </div>
           <div style="display:flex;gap:10px">
-            <div style="display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;flex-direction:column;gap:2px;flex:1">
               <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Service Type</span>
-              <select id="wo-service-type" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;min-width:140px"></select>
+              <select id="wo-service-type" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;width:100%"></select>
             </div>
             <div style="display:flex;flex-direction:column;gap:2px">
               <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Priority</span>
