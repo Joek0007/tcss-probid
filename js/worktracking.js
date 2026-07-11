@@ -7827,7 +7827,18 @@ document.addEventListener('click', function(e) {
   const modal = el.getAttribute('data-modal');
 
   switch(action) {
-    case 'newQuote': clearQQ(true); goPage('qq'); break;
+    case 'newQuote': 
+      clearQQ(true); 
+      goPage('qq'); 
+      // Clear notes div again after page settles — contenteditable div persists across goPage calls
+      setTimeout(function(){
+        var notesEl = document.getElementById('qq-notes');
+        if (notesEl && notesEl.contentEditable === 'true') { 
+          notesEl.innerHTML = ''; 
+          if(typeof qqNotesUpdatePlaceholder==='function') qqNotesUpdatePlaceholder(); 
+        }
+      }, 100);
+      break;
     case 'saveQQ': saveQQ(); break;
     case 'clearQQ': clearQQ(); break;
     case 'previewQQ': previewQQ(); break;

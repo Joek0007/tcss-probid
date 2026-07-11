@@ -349,8 +349,11 @@ function setQQDirty(flag, note){
   if (sub && note) sub.textContent = note;
 }
 function qqCollectDraft(){
+  var notesEl = document.getElementById('qq-notes');
+  var notesHtml = notesEl && notesEl.contentEditable === 'true' ? (notesEl.innerHTML || '') : '';
   return {
     fields: qqFieldIds().reduce(function(acc,id){ acc[id]=qqGetVal(id); return acc; },{}),
+    notesHtml: notesHtml,
     lineItems: JSON.parse(JSON.stringify(lineItems||[])),
     equipmentRows: JSON.parse(JSON.stringify(equipmentRows||[])),
     perDiemData: JSON.parse(JSON.stringify(perDiemData||{})),
@@ -392,6 +395,12 @@ function restoreQQDraft(){
     if (!parsed || !parsed.fields) return false;
     _qqRestoreLock = true;
     qqFieldIds().forEach(function(id){ if (Object.prototype.hasOwnProperty.call(parsed.fields,id)) qqSetVal(id, parsed.fields[id]); });
+    // Restore rich text notes
+    var notesEl = document.getElementById('qq-notes');
+    if (notesEl && notesEl.contentEditable === 'true') {
+      notesEl.innerHTML = parsed.notesHtml || '';
+      if (typeof qqNotesUpdatePlaceholder === 'function') qqNotesUpdatePlaceholder();
+    }
     lineItems = JSON.parse(JSON.stringify(parsed.lineItems||[]));
     lineItems.forEach(function(item){ if(!item._id) item._id = nextLiId(); });
     equipmentRows = JSON.parse(JSON.stringify(parsed.equipmentRows||[]));
