@@ -6829,28 +6829,27 @@ function selectContact(id) {
   var ctEl=document.getElementById('qq-contact-name');   if(ctEl)   ctEl.value=contact.name||'';
   var ctIdEl=document.getElementById('qq-contact-id');   if(ctIdEl) ctIdEl.value=contact.id||'';
   var tiEl=document.getElementById('qq-contact-title');  if(tiEl)   tiEl.value=contact.title||contact.role||'';
-  var phEl=document.getElementById('qq-ph');             if(phEl&&contact.phone&&!phEl.value) phEl.value=contact.phone;
-  var emEl=document.getElementById('qq-em');             if(emEl&&contact.email&&!emEl.value) emEl.value=contact.email;
+  // Contact phone/email always take priority over customer-level values
+  var phEl=document.getElementById('qq-ph');  if(phEl&&contact.phone) phEl.value=contact.phone;
+  var emEl=document.getElementById('qq-em');  if(emEl&&contact.email) emEl.value=contact.email;
   // Address: use contact's own address if set, otherwise fall back to customer address
   var adEl=document.getElementById('qq-ad');
   var cyEl=document.getElementById('qq-city');
   var stEl=document.getElementById('qq-state');
   var zpEl=document.getElementById('qq-zip');
   if (contact.street || contact.city) {
-    // Contact has their own address — use it
     if(adEl) adEl.value = contact.street||'';
     if(cyEl) cyEl.value = contact.city||'';
     if(stEl) stEl.value = contact.state||'';
     if(zpEl) zpEl.value = contact.zip||'';
   } else {
-    // Fall back to customer address if fields are empty
     var custId = (document.getElementById('qq-customer-id')||{}).value;
     var cust = custId ? (DB.customers||[]).find(function(c){ return c.id===custId; }) : null;
     if (cust) {
-      if(adEl&&!adEl.value) adEl.value = cust.street||cust.address||'';
-      if(cyEl&&!cyEl.value) cyEl.value = cust.city||'';
-      if(stEl&&!stEl.value) stEl.value = cust.state||'';
-      if(zpEl&&!zpEl.value) zpEl.value = cust.zip||'';
+      if(adEl) adEl.value = cust.street||cust.address||'';
+      if(cyEl) cyEl.value = cust.city||'';
+      if(stEl) stEl.value = cust.state||'';
+      if(zpEl) zpEl.value = cust.zip||'';
     }
   }
   closeContactDropdown();
