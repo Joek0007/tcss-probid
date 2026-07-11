@@ -1578,9 +1578,124 @@ function switchMsTab(tab) {
   if (tab==='workorders')      renderMsWOSettings();
   if (tab==='roles')           renderMsRolesTab();
   if (tab==='quoting')         { setTimeout(function(){ renderMarginFloorsEditor(); renderMsPaymentTerms(); }, 50); }
+  if (tab==='defaults')        renderMsDefaults();
   if (tab==='inventory')       typeof renderLocationSettings === 'function' && renderLocationSettings();
   if (tab==='time')            typeof renderMsTimeSettings   === 'function' && renderMsTimeSettings();
   if (tab==='notifications')   typeof loadNotificationSettings === 'function' && loadNotificationSettings();
+}
+
+// ── Defaults & Lists ─────────────────────────────────────────────────────────
+// Default values for all customizable lists — used when DB.settings.lists is empty
+var DEFAULT_LISTS = {
+  contactRoles:    ['Owner','Facilities Manager','Property Manager','General Contractor','IT Director','Office Manager','Project Manager','Superintendent','Purchasing Agent','Operations Manager','Director of Facilities','Financial Manager','CEO','Other'],
+  contactTypes:    ['Decision Maker','Billing Contact','Site Contact','Technical Contact','Other'],
+  contactMethods:  ['Phone Call','Text Message','Email'],
+  jobTypes:        ['New Construction','Remodel','Service Call','Upgrade','Addition','Change Order','Maintenance'],
+  projectEnvs:     ['Office','Warehouse','Exterior Heavy','Mixed','High Complexity','Retail','Industrial','Healthcare','Education'],
+  serviceTypes:    ['Onsite Service','Remote Support','Preventive Maintenance','Emergency Call','Inspection','Installation'],
+  woPriorities:    ['Normal','Low','Urgent','Emergency'],
+  paymentTerms:    ['Due on Receipt','Net 15','Net 30','Net 45','Net 60','50% Down, Balance on Completion','25% Down, Balance on Completion','COD','Progress Billing']
+};
+
+function getList(key) {
+  var lists = (DB.settings && DB.settings.lists) || {};
+  return (lists[key] && lists[key].length) ? lists[key] : DEFAULT_LISTS[key] || [];
+}
+
+function saveList(key, arr) {
+  if (!DB.settings) DB.settings = {};
+  if (!DB.settings.lists) DB.settings.lists = {};
+  DB.settings.lists[key] = arr.filter(function(v){ return v && v.trim(); });
+  saveDB();
+  _pushSettingsToSupabase();
+}
+
+function renderMsDefaults() {
+  var body = document.getElementById('ms-defaults-body');
+  if (!body) return;
+
+  var SECTIONS = [
+    { key:'contactRoles',   label:'Contact Title / Role',       desc:'Titles shown in the Title/Role dropdown when creating or editing contacts.' },
+    { key:'contactTypes',   label:'Contact Type',               desc:'Contact categories — Decision Maker, Billing, Site, etc.' },
+    { key:'contactMethods', label:'Best Contact Method',        desc:'Preferred contact method options for each contact.' },
+    { key:'jobTypes',       label:'Quote — Job Type',           desc:'Job type dropdown on the Quick Quote form.' },
+    { key:'projectEnvs',    label:'Quote — Project Environment',desc:'Project environment dropdown on the Quick Quote form.' },
+    { key:'paymentTerms',   label:'Payment Terms',              desc:'Payment terms options shown on quotes and customer profiles.' },
+    { key:'serviceTypes',   label:'Work Order — Service Type',  desc:'Service type dropdown on Work Order forms.' },
+    { key:'woPriorities',   label:'Work Order — Priority',      desc:'Priority levels for Work Orders.' }
+  ];
+
+  var html = '<div style="padding:4px 0 20px">' +
+    '<div style="font-size:13px;color:#546e7a;margin-bottom:20px">Manage the options available in dropdowns throughout the app. Changes take effect immediately for all users.</div>';
+
+  SECTIONS.forEach(function(s) {
+    html += '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:10px;padding:18px 20px;margin-bottom:16px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">' +
+        '<div style="font-size:14px;font-weight:700;color:#1f3b57">' + s.label + '</div>' +
+        '<button onclick="resetList(\'' + s.key + '\')" style="font-size:11px;color:#90a4ae;background:none;border:none;cursor:pointer;padding:0" title="Reset to defaults">Reset defaults</button>' +
+      '</div>' +
+      '<div style="font-size:12px;color:#90a4ae;margin-bottom:12px">' + s.desc + '</div>' +
+      '<div id="list-items-' + s.key + '" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>' +
+      '<div style="display:flex;gap:8px;align-items:center">' +
+        '<input id="list-new-' + s.key + '" placeholder="Add new option..." ' +
+          'style="flex:1;padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px" ' +
+          'onkeydown="if(event.key===\'Enter\'){addListItem(\'' + s.key + '\');}">' +
+        '<button onclick="addListItem(\'' + s.key + '\')" ' +
+          'style="padding:7px 14px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600">+ Add</button>' +
+      '</div>' +
+    '</div>';
+  });
+
+  html += '</div>';
+  body.innerHTML = html;
+
+  // Render current items for each list
+  SECTIONS.forEach(function(s) { renderListItems(s.key); });
+}
+
+function renderListItems(key) {
+  var container = document.getElementById('list-items-' + key);
+  if (!container) return;
+  var items = getList(key);
+  container.innerHTML = items.map(function(item, idx) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8fafc;border:1px solid #e0e7ef;border-radius:6px">' +
+      '<span style="flex:1;font-size:13px;color:#1f3b57">' + escHtml(item) + '</span>' +
+      '<button onclick="deleteListItem(\'' + key + '\',' + idx + ')" ' +
+        'style="background:none;border:none;color:#f44336;cursor:pointer;font-size:16px;line-height:1;padding:0 4px" title="Remove">×</button>' +
+    '</div>';
+  }).join('');
+}
+
+function addListItem(key) {
+  var input = document.getElementById('list-new-' + key);
+  if (!input) return;
+  var val = input.value.trim();
+  if (!val) { showToast('Please enter a value', 'error', 2000); return; }
+  var current = getList(key);
+  if (current.indexOf(val) >= 0) { showToast('That option already exists', 'error', 2000); return; }
+  current.push(val);
+  saveList(key, current);
+  input.value = '';
+  renderListItems(key);
+  showToast('"' + val + '" added', 'success', 2000);
+}
+
+function deleteListItem(key, idx) {
+  var current = getList(key).slice();
+  var removed = current.splice(idx, 1)[0];
+  saveList(key, current);
+  renderListItems(key);
+  showToast('"' + removed + '" removed', 'info', 2000);
+}
+
+function resetList(key) {
+  if (!confirm('Reset "' + key + '" to default values? Your custom options will be lost.')) return;
+  if (!DB.settings.lists) DB.settings.lists = {};
+  delete DB.settings.lists[key];
+  saveDB();
+  _pushSettingsToSupabase();
+  renderListItems(key);
+  showToast('Reset to defaults', 'success', 2000);
 }
 
 // ---- ROLES TAB ----

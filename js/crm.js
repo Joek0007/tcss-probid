@@ -381,6 +381,7 @@ function newContact() {
   populateContactCustomerDropdown('');
   var dl = document.getElementById('m-ctco-list');
   if (dl) dl.innerHTML=(DB.customers||[]).map(function(c){ return '<option value="'+escHtml(c.name)+'">'; }).join('');
+  if (typeof populateDynamicSelects === 'function') populateDynamicSelects();
   openModal('modal-contact');
 }
 
@@ -402,6 +403,11 @@ function editContact(id) {
   populateContactCustomerDropdown(c.customerId||'');
   var dl = document.getElementById('m-ctco-list');
   if (dl) dl.innerHTML=(DB.customers||[]).map(function(cx){ return '<option value="'+escHtml(cx.name)+'">'; }).join('');
+  if (typeof populateDynamicSelects === 'function') populateDynamicSelects();
+  // Re-apply values after selects are populated
+  sv('m-ctrole', c.role||c.title);
+  sv('m-ct-type',c.contactType);
+  sv('m-ct-pref',c.contactPref);
   openModal('modal-contact');
 }
 

@@ -4137,6 +4137,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <button class="ms-tab"        onclick="switchMsTab('workorders')"      data-tab="workorders">🔨 Work Orders</button>
     <button class="ms-tab"        onclick="switchMsTab('roles')"           data-tab="roles">🔐 Roles & Permissions</button>
     <button class="ms-tab"        onclick="switchMsTab('quoting')"         data-tab="quoting">💰 Quoting</button>
+    <button class="ms-tab"        onclick="switchMsTab('defaults')"        data-tab="defaults">📋 Defaults & Lists</button>
     <button class="ms-tab"        onclick="switchMsTab('time')"            data-tab="time">⏱ Time & Payroll</button>
     <button class="ms-tab"        onclick="switchMsTab('inventory')"       data-tab="inventory">📦 Inventory</button>
     <button class="ms-tab"        onclick="switchMsTab('integrations')"    data-tab="integrations">🔗 Integrations</button>
@@ -4570,6 +4571,10 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   </div><!-- end ms-section quoting -->
 
   <!-- ===== TIME & PAYROLL ===== -->
+  <div class="ms-section" id="ms-defaults">
+    <div id="ms-defaults-body"><!-- rendered by renderMsDefaults() --></div>
+  </div>
+
   <div class="ms-section" id="ms-time">
     <div class="ms-grid">
       <div class="card ms-full">
@@ -5871,30 +5876,11 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div><label>Title / Role</label>
           <select id="m-ctrole">
             <option value="">-- Select Title --</option>
-            <option>Owner</option>
-            <option>Facilities Manager</option>
-            <option>Property Manager</option>
-            <option>General Contractor</option>
-            <option>IT Director</option>
-            <option>Office Manager</option>
-            <option>Project Manager</option>
-            <option>Superintendent</option>
-            <option>Purchasing Agent</option>
-            <option>Operations Manager</option>
-            <option>Director of Facilities</option>
-            <option>Financial Manager</option>
-            <option>CEO</option>
-            <option>Other</option>
           </select>
         </div>
         <div><label>Contact Type</label>
           <select id="m-ct-type">
             <option value="">-- Select Type --</option>
-            <option value="decision">⭐ Decision Maker</option>
-            <option value="billing">💳 Billing Contact</option>
-            <option value="site">📍 Site Contact</option>
-            <option value="technical">🔧 Technical Contact</option>
-            <option value="other">Other</option>
           </select>
         </div>
       </div>
@@ -5907,9 +5893,6 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div><label>Best Contact Method</label>
           <select id="m-ct-pref">
             <option value="">-- Preference --</option>
-            <option value="phone">📞 Phone Call</option>
-            <option value="text">💬 Text Message</option>
-            <option value="email">✉️ Email</option>
           </select>
         </div>
       </div>
@@ -6928,6 +6911,37 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     setTimeout(startObserver, 500);
   }
 })();
+
+// ── Populate dynamic dropdowns from DB.settings.lists ───────────────────────
+function populateDynamicSelects() {
+  function fillSelect(id, items) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var current = el.value;
+    while (el.options.length > 1) el.remove(1);
+    items.forEach(function(item) {
+      var opt = document.createElement('option');
+      opt.value = item; opt.textContent = item;
+      if (item === current) opt.selected = true;
+      el.appendChild(opt);
+    });
+    if (current) el.value = current;
+  }
+  function getL(key, defaults) {
+    var L = (DB && DB.settings && DB.settings.lists) || {};
+    return (L[key] && L[key].length) ? L[key] : defaults;
+  }
+  fillSelect('m-ctrole',  getL('contactRoles',   ['Owner','Facilities Manager','Property Manager','General Contractor','IT Director','Office Manager','Project Manager','Superintendent','Purchasing Agent','Operations Manager','Director of Facilities','Financial Manager','CEO','Other']));
+  fillSelect('m-ct-type', getL('contactTypes',   ['Decision Maker','Billing Contact','Site Contact','Technical Contact','Other']));
+  fillSelect('m-ct-pref', getL('contactMethods', ['Phone Call','Text Message','Email']));
+}
+// Hook into openNewContact and openEditContact to populate before modal shows
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('[data-action="newContact"],[data-action="editContact"],[onclick*="openContactModal"]');
+  if (btn) setTimeout(populateDynamicSelects, 80);
+});
+// Also populate on settings save (lists may have changed)
+document.addEventListener('DOMContentLoaded', function(){ setTimeout(populateDynamicSelects, 1500); });
 
 function woRtfShowBar(fieldId) {
   var tb = document.getElementById(fieldId+'-toolbar');

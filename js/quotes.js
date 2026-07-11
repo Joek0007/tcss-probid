@@ -2633,16 +2633,18 @@ function _clearPrimaryContact() {
 }
 
 function _contactRoleOptions(selected) {
-  var roles = ['Owner','Facilities Manager','Property Manager','General Contractor','IT Director',
-    'Office Manager','Project Manager','Superintendent','Purchasing Agent','Operations Manager',
-    'Director of Facilities','Financial Manager','CEO','Other'];
+  var roles = (DB.settings && DB.settings.lists && DB.settings.lists.contactRoles && DB.settings.lists.contactRoles.length)
+    ? DB.settings.lists.contactRoles
+    : ['Owner','Facilities Manager','Property Manager','General Contractor','IT Director','Office Manager','Project Manager','Superintendent','Purchasing Agent','Operations Manager','Director of Facilities','Financial Manager','CEO','Other'];
   return '<option value="">-- Select Title --</option>' +
-    roles.map(function(r){ return '<option'+(r===selected?' selected':'')+'>'+r+'</option>'; }).join('');
+    roles.map(function(r){ return '<option'+(r===selected?' selected':'')+'>'+escHtml(r)+'</option>'; }).join('');
 }
 function _contactTypeOptions(selected) {
-  var types = [['','-- Select Type --'],['decision','⭐ Decision Maker'],['billing','💳 Billing Contact'],
-    ['site','📍 Site Contact'],['technical','🔧 Technical Contact'],['other','Other']];
-  return types.map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===selected?' selected':'')+'>'+t[1]+'</option>'; }).join('');
+  var types = (DB.settings && DB.settings.lists && DB.settings.lists.contactTypes && DB.settings.lists.contactTypes.length)
+    ? DB.settings.lists.contactTypes.map(function(t){ return [t, t]; })
+    : [['Decision Maker','⭐ Decision Maker'],['Billing Contact','💳 Billing Contact'],['Site Contact','📍 Site Contact'],['Technical Contact','🔧 Technical Contact'],['Other','Other']];
+  return '<option value="">-- Select Type --</option>' +
+    types.map(function(t){ return '<option value="'+escHtml(t[0])+'"'+(t[0]===selected?' selected':'')+'>'+escHtml(t[1])+'</option>'; }).join('');
 }
 
 function _contactAddForm(customerId) {
