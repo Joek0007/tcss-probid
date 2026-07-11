@@ -544,10 +544,10 @@ function openWorkOrder(id) {
 
   document.getElementById('wo-modal-title').textContent='Work Order';
   document.getElementById('wo-modal-num').textContent=wo.woNumber||'';
+  var _pb=document.getElementById('wo-btn-print'); if(_pb) _pb.style.display='';
+  var _pbt=document.getElementById('wo-btn-print-top'); if(_pbt) _pbt.style.display='';
   var urgBadge=document.getElementById('wo-urgent-badge');
   if(urgBadge) urgBadge.style.display=wo.priority==='Urgent'?'inline-block':'none';
-  var pb=document.getElementById('wo-btn-print'); if(pb) pb.style.display='';
-  var pbt=document.getElementById('wo-btn-print-top'); if(pbt) pbt.style.display='';
 
   _populateWOStatusSelect();
   _populateWOServiceTypeSelect();
