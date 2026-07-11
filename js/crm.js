@@ -394,6 +394,7 @@ function editContact(id) {
   sv('m-ctname', c.name);
   sv('m-ctco',   c.company);
   sv('m-ctph',   c.phone);
+  sv('m-ctphtype', c.phoneType);
   sv('m-ctph2',  c.phone2);
   sv('m-ctph2type', c.phone2Type);
   sv('m-ctem',   c.email);
@@ -443,6 +444,7 @@ function saveContact() {
     name:        name.trim(),
     company:     (document.getElementById('m-ctco')||{}).value||'',
     phone:       (document.getElementById('m-ctph')||{}).value||'',
+    phoneType:   (document.getElementById('m-ctphtype')||{}).value||'',
     phone2:      (document.getElementById('m-ctph2')||{}).value||'',
     phone2Type:  (document.getElementById('m-ctph2type')||{}).value||'',
     email:       (document.getElementById('m-ctem')||{}).value||'',
@@ -466,6 +468,12 @@ function saveContact() {
   }
   saveDB(); closeModal('modal-contact'); renderContacts();
   if (_cpCustomerId) switchCPTab(_cpTab);
+  // If we were editing from the QQ contact dropdown, re-select to refresh the form fields
+  if (window._qqEditingContactId && typeof selectContact === 'function') {
+    var wasEditing = window._qqEditingContactId;
+    window._qqEditingContactId = null;
+    setTimeout(function(){ selectContact(wasEditing); }, 100);
+  }
   showToast('"'+name+'" saved','success');
 }
 
@@ -480,6 +488,7 @@ function saveContactAndAnother() {
     name:        name.trim(),
     company:     (document.getElementById('m-ctco')||{}).value||'',
     phone:       (document.getElementById('m-ctph')||{}).value||'',
+    phoneType:   (document.getElementById('m-ctphtype')||{}).value||'',
     phone2:      (document.getElementById('m-ctph2')||{}).value||'',
     phone2Type:  (document.getElementById('m-ctph2type')||{}).value||'',
     email:       (document.getElementById('m-ctem')||{}).value||'',

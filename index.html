@@ -5869,7 +5869,18 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div><label>Company</label><input id="m-ctco" list="m-ctco-list" placeholder="Company name"><datalist id="m-ctco-list"></datalist></div>
       </div>
       <div class="form-row cols2">
-        <div><label>Primary Phone</label><input id="m-ctph" type="tel" placeholder="Phone number"></div>
+        <div style="display:flex;gap:6px">
+          <div style="flex:1"><label>Primary Phone</label><input id="m-ctph" type="tel" placeholder="Phone number"></div>
+          <div style="width:110px"><label>Type</label>
+            <select id="m-ctphtype" style="width:100%">
+              <option value="">-- Type --</option>
+              <option value="mobile">Mobile</option>
+              <option value="office">Office</option>
+              <option value="direct">Direct</option>
+              <option value="fax">Fax</option>
+            </select>
+          </div>
+        </div>
         <div><label>Email</label><input id="m-ctem" type="email" placeholder="Email address"></div>
       </div>
       <div class="form-row cols2">

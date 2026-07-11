@@ -6811,9 +6811,13 @@ function showContactsForCustomer(contacts) {
     contacts.map(function(c){
       var isDefault = cust && cust.defaultContactId === c.id;
       var phones = [c.phone, c.phone2].filter(Boolean).join(' / ');
-      return '<div class="autocomplete-item" onmousedown="selectContact(\''+c.id+'\')">' +
-        '<span class="autocomplete-item-main">'+escHtml(c.name||'')+(isDefault?' <span style="font-size:10px;color:#1565c0;font-weight:700">DEFAULT</span>':'')+'</span>' +
-        '<span class="autocomplete-item-sub">'+(c.title||c.role||'')+(phones?' · '+phones:'')+(c.email?' · '+c.email:'')+'</span>' +
+      return '<div style="display:flex;align-items:center;gap:0">' +
+        '<div class="autocomplete-item" onmousedown="selectContact(\''+c.id+'\')" style="flex:1;border-radius:6px 0 0 6px">' +
+          '<span class="autocomplete-item-main">'+escHtml(c.name||'')+(isDefault?' <span style="font-size:10px;color:#1565c0;font-weight:700">DEFAULT</span>':'')+'</span>' +
+          '<span class="autocomplete-item-sub">'+(c.title||c.role||'')+(phones?' · '+phones:'')+(c.email?' · '+c.email:'')+'</span>' +
+        '</div>' +
+        '<div onmousedown="editContactFromQQ(\''+c.id+'\')" title="Edit this contact" ' +
+          'style="padding:0 10px;cursor:pointer;color:#1565c0;font-size:15px;border-left:1px solid #e0e7ef;height:100%;display:flex;align-items:center;background:#f8fafc;border-radius:0 6px 6px 0;min-height:44px">✏️</div>' +
       '</div>';
     }).join('')+
     '<div class="autocomplete-item" onmousedown="createContactFromQuote(\'\')" style="border-top:1px solid #e0e0e0;color:#1565c0">'+
@@ -6821,6 +6825,13 @@ function showContactsForCustomer(contacts) {
       '<span class="autocomplete-item-sub">Fill in name, title, phone and email</span>'+
     '</div>';
   dropdown.style.display='block';
+}
+
+function editContactFromQQ(contactId) {
+  closeContactDropdown();
+  // Store which contact we're editing so we can re-select after save
+  window._qqEditingContactId = contactId;
+  if (typeof editContact === 'function') editContact(contactId);
 }
 
 function selectContact(id) {
