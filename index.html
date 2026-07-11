@@ -5264,6 +5264,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline btn-sm" id="wo-btn-invoice-top" onclick="createWOInvoice()" style="color:#1565c0;border-color:#1565c0;font-weight:700">🧾 Create Invoice</button>
+        <button class="btn btn-outline btn-sm" id="wo-btn-print-top" onclick="printWorkOrder(_woCurrentId)" style="display:none">🖨 Print</button>
         <button class="btn btn-primary btn-sm" onclick="saveWorkOrder()">💾 Save</button>
         <button class="close-btn" data-action="closeModal" data-modal="modal-work-order">×</button>
       </div>
@@ -5490,7 +5491,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           <button class="wo-tab" onclick="switchWOTab('comments')" id="wotab-comments">💬 Comments</button>
           <button class="wo-tab" onclick="switchWOTab('photos')" id="wotab-photos">📐 Field Docs</button>
         </div>
-        <div id="wo-tab-content" style="padding:16px;min-height:180px;background:#fff"></div>
+        <div id="wo-tab-content" style="padding:16px;min-height:300px;background:#fff"></div>
       </div>
 
       <!-- Footer -->
