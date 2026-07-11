@@ -6656,18 +6656,23 @@ function selectCustomer(id) {
   var ctEl=document.getElementById('qq-contact-name');
   var ctIdEl=document.getElementById('qq-contact-id');
   if(ctIdEl) ctIdEl.value='';
-  // Find contacts — prefer customerId match, fall back to company name match
+  // Find contacts linked to this customer
   var contacts = DB.contacts.filter(function(c){
     return c.customerId===cust.id ||
       (!c.customerId && (c.company||'').toLowerCase()===(cust.name||'').toLowerCase());
   });
-  if (contacts.length===1) {
+  // Pre-select default contact if one is flagged
+  var defaultContact = cust.defaultContactId
+    ? contacts.find(function(c){ return c.id===cust.defaultContactId; })
+    : null;
+  if (defaultContact) {
+    selectContact(defaultContact.id);
+  } else if (contacts.length===1) {
     selectContact(contacts[0].id);
   } else if (contacts.length>1 && ctEl) {
     ctEl.placeholder='Select contact...';
     ctEl.value='';
     showContactsForCustomer(contacts);
-    // Don't call .focus() here — it triggers blur on current element which closes the dropdown
   } else if (ctEl) {
     ctEl.placeholder='No contacts on file';
     ctEl.value='';
@@ -6785,11 +6790,14 @@ function showContactsForCustomer(contacts) {
   if (!dropdown) return;
   var custName = (document.getElementById('qq-cn')||{}).value||'';
   var custId = (document.getElementById('qq-customer-id')||{}).value||'';
+  var cust = custId ? (DB.customers||[]).find(function(c){ return c.id===custId; }) : null;
   dropdown.innerHTML=
     contacts.map(function(c){
+      var isDefault = cust && cust.defaultContactId === c.id;
+      var phones = [c.phone, c.phone2].filter(Boolean).join(' / ');
       return '<div class="autocomplete-item" onmousedown="selectContact(\''+c.id+'\')">' +
-        '<span class="autocomplete-item-main">'+escHtml(c.name||'')+'</span>' +
-        '<span class="autocomplete-item-sub">'+(c.title||c.role||'')+(c.phone?' · '+c.phone:'')+(c.email?' · '+c.email:'')+'</span>' +
+        '<span class="autocomplete-item-main">'+escHtml(c.name||'')+(isDefault?' <span style="font-size:10px;color:#1565c0;font-weight:700">DEFAULT</span>':'')+'</span>' +
+        '<span class="autocomplete-item-sub">'+(c.title||c.role||'')+(phones?' · '+phones:'')+(c.email?' · '+c.email:'')+'</span>' +
       '</div>';
     }).join('')+
     '<div class="autocomplete-item" onmousedown="createContactFromQuote(\'\')" style="border-top:1px solid #e0e0e0;color:#1565c0">'+
@@ -6807,6 +6815,28 @@ function selectContact(id) {
   var tiEl=document.getElementById('qq-contact-title');  if(tiEl)   tiEl.value=contact.title||contact.role||'';
   var phEl=document.getElementById('qq-ph');             if(phEl&&contact.phone&&!phEl.value) phEl.value=contact.phone;
   var emEl=document.getElementById('qq-em');             if(emEl&&contact.email&&!emEl.value) emEl.value=contact.email;
+  // Address: use contact's own address if set, otherwise fall back to customer address
+  var adEl=document.getElementById('qq-ad');
+  var cyEl=document.getElementById('qq-city');
+  var stEl=document.getElementById('qq-state');
+  var zpEl=document.getElementById('qq-zip');
+  if (contact.street || contact.city) {
+    // Contact has their own address — use it
+    if(adEl) adEl.value = contact.street||'';
+    if(cyEl) cyEl.value = contact.city||'';
+    if(stEl) stEl.value = contact.state||'';
+    if(zpEl) zpEl.value = contact.zip||'';
+  } else {
+    // Fall back to customer address if fields are empty
+    var custId = (document.getElementById('qq-customer-id')||{}).value;
+    var cust = custId ? (DB.customers||[]).find(function(c){ return c.id===custId; }) : null;
+    if (cust) {
+      if(adEl&&!adEl.value) adEl.value = cust.street||cust.address||'';
+      if(cyEl&&!cyEl.value) cyEl.value = cust.city||'';
+      if(stEl&&!stEl.value) stEl.value = cust.state||'';
+      if(zpEl&&!zpEl.value) zpEl.value = cust.zip||'';
+    }
+  }
   closeContactDropdown();
 }
 
@@ -6837,7 +6867,7 @@ function saveNewContactFromQuote() {
   var custName = (document.getElementById('qq-cn')||{}).value||'';
 
   var newContact = {
-    id:         'ct-' + Date.now(),
+    id:         typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now(),
     name:       name,
     company:    custName,
     customerId: custId,

@@ -5861,7 +5861,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 </div>
 
 <div class="modal-overlay" id="modal-contact">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:620px">
     <div class="modal-head"><h3 id="modal-ct-title">New Contact</h3><button class="close-btn" data-action="closeModal" data-modal="modal-contact">×</button></div>
     <div class="modal-body">
       <div class="form-row cols2">
@@ -5869,18 +5869,37 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div><label>Company</label><input id="m-ctco" list="m-ctco-list" placeholder="Company name"><datalist id="m-ctco-list"></datalist></div>
       </div>
       <div class="form-row cols2">
-        <div><label>Phone</label><input id="m-ctph" type="tel" placeholder="Phone number"></div>
+        <div><label>Primary Phone</label><input id="m-ctph" type="tel" placeholder="Phone number"></div>
         <div><label>Email</label><input id="m-ctem" type="email" placeholder="Email address"></div>
       </div>
       <div class="form-row cols2">
+        <div style="display:flex;gap:6px">
+          <div style="flex:1"><label>Second Phone</label><input id="m-ctph2" type="tel" placeholder="Second number"></div>
+          <div style="width:110px"><label>Type</label>
+            <select id="m-ctph2type" style="width:100%">
+              <option value="">-- Type --</option>
+              <option value="mobile">Mobile</option>
+              <option value="office">Office</option>
+              <option value="direct">Direct</option>
+              <option value="fax">Fax</option>
+            </select>
+          </div>
+        </div>
         <div><label>Title / Role</label>
           <select id="m-ctrole">
             <option value="">-- Select Title --</option>
           </select>
         </div>
+      </div>
+      <div class="form-row cols2">
         <div><label>Contact Type</label>
           <select id="m-ct-type">
             <option value="">-- Select Type --</option>
+          </select>
+        </div>
+        <div><label>Best Contact Method</label>
+          <select id="m-ct-pref">
+            <option value="">-- Preference --</option>
           </select>
         </div>
       </div>
@@ -5890,10 +5909,21 @@ body.role-lead-tech .page-settings-btn{display:none!important}
             <option value="">— Not linked —</option>
           </select>
         </div>
-        <div><label>Best Contact Method</label>
-          <select id="m-ct-pref">
-            <option value="">-- Preference --</option>
-          </select>
+        <div style="display:flex;align-items:flex-end;padding-bottom:4px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:#1f3b57">
+            <input type="checkbox" id="m-ct-isdefault" style="width:16px;height:16px;cursor:pointer">
+            Set as default contact for this customer
+          </label>
+        </div>
+      </div>
+      <div class="form-row" style="margin-bottom:6px">
+        <div><label style="font-size:12px;font-weight:700;color:#546e7a;margin-bottom:4px;display:block">Contact Address <span style="font-size:11px;font-weight:400;color:#90a4ae">(only if different from company address)</span></label>
+          <input id="m-ct-street" placeholder="Street address" style="width:100%;margin-bottom:6px">
+          <div style="display:grid;grid-template-columns:1fr 80px 90px;gap:6px">
+            <input id="m-ct-city" placeholder="City">
+            <input id="m-ct-state" placeholder="State" maxlength="2">
+            <input id="m-ct-zip" placeholder="Zip" maxlength="10">
+          </div>
         </div>
       </div>
       <div class="form-row"><div><label>Notes</label><textarea id="m-ct-notes" rows="2" placeholder="Any notes about this contact..."></textarea></div></div>

@@ -390,15 +390,22 @@ function editContact(id) {
   var c=(DB.contacts||[]).find(function(x){ return x.id==id; });
   if (!c) return;
   function sv(eid,v){ var e=document.getElementById(eid); if(e) e.value=v||''; }
+  function sc(eid,v){ var e=document.getElementById(eid); if(e) e.checked=!!v; }
   sv('m-ctname', c.name);
   sv('m-ctco',   c.company);
   sv('m-ctph',   c.phone);
+  sv('m-ctph2',  c.phone2);
+  sv('m-ctph2type', c.phone2Type);
   sv('m-ctem',   c.email);
-  sv('m-ctrole', c.role||c.title);
-  sv('m-ct-type',c.contactType);
-  sv('m-ct-pref',c.contactPref);
-  sv('m-ct-notes',c.notes);
+  sv('m-ct-street', c.street);
+  sv('m-ct-city',   c.city);
+  sv('m-ct-state',  c.state);
+  sv('m-ct-zip',    c.zip);
+  sv('m-ct-notes',  c.notes);
   sv('m-ctid',   c.id);
+  // Check if this contact is the default for its customer
+  var cust = c.customerId ? (DB.customers||[]).find(function(x){ return x.id===c.customerId; }) : null;
+  sc('m-ct-isdefault', cust && cust.defaultContactId === c.id);
   var titleEl=document.getElementById('modal-ct-title'); if(titleEl) titleEl.textContent='Edit Contact';
   populateContactCustomerDropdown(c.customerId||'');
   var dl = document.getElementById('m-ctco-list');
@@ -429,23 +436,34 @@ function saveContact() {
   var name = (document.getElementById('m-ctname')||{}).value||'';
   if (!name.trim()) { showToast('Name required','error'); return; }
   var custId = (document.getElementById('m-ct-custid')||{}).value||'';
-  // Use UUID from creation so ID never changes during Supabase push
+  var isDefault = !!(document.getElementById('m-ct-isdefault')||{}).checked;
   var newId = id || (typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now());
   var data = {
     id:          newId,
     name:        name.trim(),
     company:     (document.getElementById('m-ctco')||{}).value||'',
     phone:       (document.getElementById('m-ctph')||{}).value||'',
+    phone2:      (document.getElementById('m-ctph2')||{}).value||'',
+    phone2Type:  (document.getElementById('m-ctph2type')||{}).value||'',
     email:       (document.getElementById('m-ctem')||{}).value||'',
     role:        (document.getElementById('m-ctrole')||{}).value||'',
     title:       (document.getElementById('m-ctrole')||{}).value||'',
     contactType: (document.getElementById('m-ct-type')||{}).value||'',
     contactPref: (document.getElementById('m-ct-pref')||{}).value||'',
+    street:      (document.getElementById('m-ct-street')||{}).value||'',
+    city:        (document.getElementById('m-ct-city')||{}).value||'',
+    state:       (document.getElementById('m-ct-state')||{}).value||'',
+    zip:         (document.getElementById('m-ct-zip')||{}).value||'',
     notes:       (document.getElementById('m-ct-notes')||{}).value||'',
     customerId:  custId
   };
   if (id) { var idx=DB.contacts.findIndex(function(c){ return c.id==id; }); if(idx>=0) DB.contacts[idx]=data; else DB.contacts.push(data); }
   else DB.contacts.push(data);
+  // If set as default, mark on the customer record
+  if (isDefault && custId) {
+    var cust = (DB.customers||[]).find(function(c){ return c.id===custId; });
+    if (cust) cust.defaultContactId = newId;
+  }
   saveDB(); closeModal('modal-contact'); renderContacts();
   if (_cpCustomerId) switchCPTab(_cpTab);
   showToast('"'+name+'" saved','success');
@@ -455,19 +473,31 @@ function saveContactAndAnother() {
   var name = (document.getElementById('m-ctname')||{}).value||'';
   if (!name.trim()) { showToast('Name required','error'); return; }
   var custId = (document.getElementById('m-ct-custid')||{}).value||'';
+  var isDefault = !!(document.getElementById('m-ct-isdefault')||{}).checked;
+  var newId = typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now();
   var data = {
-    id:          (typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now()),
+    id:          newId,
     name:        name.trim(),
     company:     (document.getElementById('m-ctco')||{}).value||'',
     phone:       (document.getElementById('m-ctph')||{}).value||'',
+    phone2:      (document.getElementById('m-ctph2')||{}).value||'',
+    phone2Type:  (document.getElementById('m-ctph2type')||{}).value||'',
     email:       (document.getElementById('m-ctem')||{}).value||'',
     role:        (document.getElementById('m-ctrole')||{}).value||'',
     title:       (document.getElementById('m-ctrole')||{}).value||'',
     contactType: (document.getElementById('m-ct-type')||{}).value||'',
     contactPref: (document.getElementById('m-ct-pref')||{}).value||'',
+    street:      (document.getElementById('m-ct-street')||{}).value||'',
+    city:        (document.getElementById('m-ct-city')||{}).value||'',
+    state:       (document.getElementById('m-ct-state')||{}).value||'',
+    zip:         (document.getElementById('m-ct-zip')||{}).value||'',
     notes:       (document.getElementById('m-ct-notes')||{}).value||'',
     customerId:  custId
   };
+  if (isDefault && custId) {
+    var cust2 = (DB.customers||[]).find(function(c){ return c.id===custId; });
+    if (cust2) cust2.defaultContactId = newId;
+  }
   DB.contacts.push(data);
   saveDB(); renderContacts();
   // Clear fields but keep company/customer for next contact at same company
