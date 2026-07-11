@@ -5269,48 +5269,84 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       </div>
     </div>
     <div class="modal-body" style="padding:0;overflow-y:auto;max-height:85vh">
-      <!-- Status bar -->
-      <div style="background:#f8f9fa;padding:10px 20px;border-bottom:1px solid #e0e7ef;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <div style="display:flex;flex-direction:column;gap:2px">
-          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Status</span>
-          <select id="wo-status" onchange="onWOStatusChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:700;min-width:180px"></select>
+
+      <!-- Status bar: Customer + Contact LEFT | Status + Service Type + Priority RIGHT -->
+      <div style="background:#f8f9fa;padding:10px 20px;border-bottom:1px solid #e0e7ef;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+
+        <!-- Customer -->
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:200px">
+          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Customer *</span>
+          <input id="wo-customer-name" placeholder="Search customer..." autocomplete="off" oninput="onWOCustomerInput(this.value)" onfocus="onWOCustomerInput(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;min-width:200px">
+          <div id="wo-customer-dropdown" style="display:none;position:absolute;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:200;max-height:200px;overflow-y:auto;min-width:280px"></div>
+          <input type="hidden" id="wo-customer-id">
         </div>
-        <div style="display:flex;flex-direction:column;gap:2px">
-          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Priority</span>
-          <select id="wo-priority" onchange="onWOPriorityChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
-            <option value="Normal">Normal</option>
-            <option value="Low">Low</option>
-            <option value="High">🟠 High</option>
-            <option value="Urgent">🔴 URGENT</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:2px">
-          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Service Type</span>
-          <select id="wo-service-type" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;min-width:160px"></select>
-        </div>
-        <div id="wo-contact-bar" style="display:flex;flex-direction:column;gap:2px;margin-left:auto">
+
+        <!-- Contact -->
+        <div id="wo-contact-bar" style="display:flex;flex-direction:column;gap:2px;min-width:200px">
           <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Contact</span>
           <div style="position:relative">
             <input id="wo-contact-name" placeholder="Select contact..." autocomplete="off"
-              style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;min-width:220px;cursor:pointer"
+              style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;min-width:200px;cursor:pointer"
               onfocus="woContactFocus()"
               oninput="woContactInput(this.value)"
               onblur="setTimeout(woContactClose,300)">
-            <div id="wo-contact-dropdown" style="display:none;position:absolute;right:0;top:100%;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:300;max-height:220px;overflow-y:auto;margin-top:2px;min-width:320px"></div>
+            <div id="wo-contact-dropdown" style="display:none;position:absolute;left:0;top:100%;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:300;max-height:220px;overflow-y:auto;margin-top:2px;min-width:320px"></div>
             <input type="hidden" id="wo-contact">
           </div>
           <div id="wo-contact-bar-info" style="font-size:12px;color:#1565c0;line-height:1.6"></div>
         </div>
-      </div>
-      <!-- Main grid -->
-      <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px;padding:20px">
-        <div>
-          <div style="margin-bottom:12px">
-            <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Customer *</label>
-            <input id="wo-customer-name" placeholder="Search customer..." autocomplete="off" oninput="onWOCustomerInput(this.value)" onfocus="onWOCustomerInput(this.value)" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
-            <div id="wo-customer-dropdown" style="display:none;position:absolute;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:200;max-height:200px;overflow-y:auto;min-width:280px"></div>
-            <input type="hidden" id="wo-customer-id">
+
+        <!-- Spacer pushes Status to the right -->
+        <div style="flex:1"></div>
+
+        <!-- Status -->
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Status</span>
+          <select id="wo-status" onchange="onWOStatusChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;font-weight:700;min-width:160px"></select>
+        </div>
+
+        <!-- Service Type + Priority stacked below Status left edge via a sub-column -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;gap:10px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Service Type</span>
+              <select id="wo-service-type" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;min-width:140px"></select>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Priority</span>
+              <select id="wo-priority" onchange="onWOPriorityChange(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;min-width:110px">
+                <option value="Normal">Normal</option>
+                <option value="Low">Low</option>
+                <option value="High">🟠 High</option>
+                <option value="Urgent">🔴 URGENT</option>
+              </select>
+            </div>
           </div>
+        </div>
+
+      </div>
+
+      <!-- Main grid: 60% left (address + work) / 40% right (ref + dates + team + notes) -->
+      <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px;padding:20px">
+
+        <!-- LEFT COLUMN -->
+        <div>
+
+          <!-- Job Site Address — nested close to customer -->
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Job Site Address</label>
+            <input id="wo-site-addr" placeholder="Street address" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px">
+              <input id="wo-site-city" placeholder="City" style="padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+              <input id="wo-site-state" placeholder="ST" maxlength="2" style="padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;text-transform:uppercase">
+              <input id="wo-site-zip" placeholder="Zip" style="padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+            </div>
+          </div>
+
+          <!-- Divider before work fields -->
+          <div style="height:1px;background:#e0e7ef;margin-bottom:12px"></div>
+
+          <!-- Work Requested -->
           <div style="margin-bottom:12px">
             <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Work Requested *</label>
             <div id="wo-description-wrap" style="border:1px solid #e0e7ef;border-radius:6px;overflow:hidden;transition:border-color .15s">
@@ -5334,6 +5370,8 @@ body.role-lead-tech .page-settings-btn{display:none!important}
                 onblur="woRtfHideBar('wo-description',event)"></div>
             </div>
           </div>
+
+          <!-- Work Performed -->
           <div style="margin-bottom:12px">
             <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Work Performed</label>
             <div id="wo-work-performed-wrap" style="border:1px solid #e0e7ef;border-radius:6px;overflow:hidden;transition:border-color .15s">
@@ -5357,32 +5395,19 @@ body.role-lead-tech .page-settings-btn{display:none!important}
                 onblur="woRtfHideBar('wo-work-performed',event)"></div>
             </div>
           </div>
+
         </div>
+
+        <!-- RIGHT COLUMN -->
         <div>
+
+          <!-- Reference # -->
           <div style="margin-bottom:12px">
             <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Reference #</label>
             <input id="wo-ref-num" placeholder="PO / Ref #" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
           </div>
-          <!-- Assigned Techs — Team button style -->
-          <div style="margin-bottom:12px;background:#f0f4f8;border-radius:8px;padding:10px 12px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-              <label style="font-size:12px;font-weight:700;color:#1565c0">👷 Team</label>
-              <button onclick="openTeamModal()" class="btn btn-primary btn-sm">👷 Assign Techs</button>
-            </div>
-            <div id="wo-assigned-techs">
-              <span style="font-size:12px;color:#90a4ae;cursor:pointer" onclick="openTeamModal()">No techs assigned — tap to assign</span>
-            </div>
-          </div>
-          <div style="margin-bottom:12px">
-            <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Job Site Address</label>
-            <input id="wo-site-addr" placeholder="Street address" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
-            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px">
-              <input id="wo-site-city" placeholder="City" style="padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
-              <input id="wo-site-state" placeholder="ST" maxlength="2" style="padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;text-transform:uppercase">
-              <input id="wo-site-zip" placeholder="Zip" style="padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
-            </div>
-          </div>
-          <!-- Scheduling row -->
+
+          <!-- Scheduling dates -->
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
             <div>
               <label style="font-size:12px;font-weight:700;color:#1565c0;display:block;margin-bottom:4px">📅 Scheduled Date</label>
@@ -5397,7 +5422,19 @@ body.role-lead-tech .page-settings-btn{display:none!important}
               <input type="date" id="wo-date-requested" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
             </div>
           </div>
-          <!-- Lifecycle dates row -->
+
+          <!-- Team -->
+          <div style="margin-bottom:12px;background:#f0f4f8;border-radius:8px;padding:10px 12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <label style="font-size:12px;font-weight:700;color:#1565c0">👷 Team</label>
+              <button onclick="openTeamModal()" class="btn btn-primary btn-sm">👷 Assign Techs</button>
+            </div>
+            <div id="wo-assigned-techs">
+              <span style="font-size:12px;color:#90a4ae;cursor:pointer" onclick="openTeamModal()">No techs assigned — tap to assign</span>
+            </div>
+          </div>
+
+          <!-- Lifecycle dates -->
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
             <div>
               <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">📆 Created</label>
@@ -5412,15 +5449,20 @@ body.role-lead-tech .page-settings-btn{display:none!important}
               <input type="date" id="wo-date-followup" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
             </div>
           </div>
+
+          <!-- Labor + Tax -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
             <div><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Labor Rate ($/hr)</label><input type="number" id="wo-labor-rate" min="0" step="0.01" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
             <div><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Tax Rate (%)</label><input type="number" id="wo-tax-rate" min="0" step="0.01" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
           </div>
+
+          <!-- Internal Notes -->
           <div id="wo-internal-notes-section" style="margin-bottom:12px">
             <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Internal Notes <span style="color:#e65100;font-size:10px">(Office Only)</span></label>
             <textarea id="wo-internal-notes" rows="3" placeholder="Back office notes — not shown to field techs..." style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;resize:vertical"></textarea>
           </div>
-          <!-- Quick Stats: Expenses + Documents -->
+
+          <!-- Expenses + Docs -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px">
             <div id="wo-expense-summary" style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:8px 12px;cursor:pointer" onclick="switchWOTab('expenses')" title="Click to view expenses">
               <div style="font-size:10px;font-weight:700;color:#e65100;text-transform:uppercase;margin-bottom:2px">💸 Expenses</div>
@@ -5433,8 +5475,10 @@ body.role-lead-tech .page-settings-btn{display:none!important}
               <div style="font-size:10px;color:#2e7d32">files attached</div>
             </div>
           </div>
+
         </div>
       </div>
+
       <!-- Tabs -->
       <div style="border-top:2px solid #e0e7ef">
         <div style="display:flex;overflow-x:auto;background:#f8f9fa">
@@ -5450,10 +5494,11 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         </div>
         <div id="wo-tab-content" style="padding:16px;min-height:180px;background:#fff"></div>
       </div>
+
       <!-- Footer -->
       <div style="padding:16px;border-top:1px solid #e0e7ef;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#f8f9fa">
         <button class="btn btn-outline" onclick="printWorkOrder(_woCurrentId)" id="wo-btn-print" style="display:none">🖨 Print</button>
-              <button class="btn btn-primary" onclick="saveWorkOrder()">💾 Save Work Order</button>
+        <button class="btn btn-primary" onclick="saveWorkOrder()">💾 Save Work Order</button>
         <button class="btn btn-outline" id="wo-btn-invoice" onclick="createWOInvoice()" style="display:none">🧾 Create Invoice</button>
         <button class="btn btn-outline btn-sm" id="wo-btn-wt" onclick="wtOpenFromWorkOrder()" style="color:#7b1fa2;border-color:#ce93d8" title="Open or create Work Tracking project for this job">📋 Work Tracking</button>
         <button class="btn btn-outline btn-sm" id="wo-btn-co" onclick="createChangeOrder(_woCurrentId)" style="color:#e65100;border-color:#ffb300" title="Create a linked change order for this work order">+ Change Order</button>
@@ -5461,6 +5506,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <button class="btn btn-outline btn-sm" onclick="woStartTimer('travel')" id="wo-timer-travel-btn">🚗 Travel Timer</button>
         <span id="wo-timer-display" style="font-size:13px;font-weight:700;color:#1565c0;min-width:80px"></span>
       </div>
+
     </div>
   </div>
 </div>
