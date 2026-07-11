@@ -1593,8 +1593,7 @@ var DEFAULT_LISTS = {
   jobTypes:        ['New Construction','Remodel','Service Call','Upgrade','Addition','Change Order','Maintenance'],
   projectEnvs:     ['Office','Warehouse','Exterior Heavy','Mixed','High Complexity','Retail','Industrial','Healthcare','Education'],
   serviceTypes:    ['Onsite Service','Remote Support','Preventive Maintenance','Emergency Call','Inspection','Installation'],
-  woPriorities:    ['Normal','Low','Urgent','Emergency'],
-  paymentTerms:    ['Due on Receipt','Net 15','Net 30','Net 45','Net 60','50% Down, Balance on Completion','25% Down, Balance on Completion','COD','Progress Billing']
+  woPriorities:    ['Normal','Low','Urgent','Emergency']
 };
 
 function getList(key) {
@@ -1620,13 +1619,13 @@ function renderMsDefaults() {
     { key:'contactMethods', label:'Best Contact Method',        desc:'Preferred contact method options for each contact.' },
     { key:'jobTypes',       label:'Quote — Job Type',           desc:'Job type dropdown on the Quick Quote form.' },
     { key:'projectEnvs',    label:'Quote — Project Environment',desc:'Project environment dropdown on the Quick Quote form.' },
-    { key:'paymentTerms',   label:'Payment Terms',              desc:'Payment terms options shown on quotes and customer profiles.' },
     { key:'serviceTypes',   label:'Work Order — Service Type',  desc:'Service type dropdown on Work Order forms.' },
     { key:'woPriorities',   label:'Work Order — Priority',      desc:'Priority levels for Work Orders.' }
   ];
 
   var html = '<div style="padding:4px 0 20px">' +
-    '<div style="font-size:13px;color:#546e7a;margin-bottom:20px">Manage the options available in dropdowns throughout the app. Changes take effect immediately for all users.</div>';
+    '<div style="font-size:13px;color:#546e7a;margin-bottom:12px">Manage the options available in dropdowns throughout the app. Changes take effect immediately for all users.</div>' +
+    '<div style="font-size:12px;color:#90a4ae;background:#f8fafc;border:1px solid #e0e7ef;border-radius:6px;padding:10px 14px;margin-bottom:20px">💳 <strong>Payment Terms</strong> are managed in the <strong>Quoting</strong> tab — they have their own drag-to-reorder editor there.</div>';
 
   SECTIONS.forEach(function(s) {
     html += '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:10px;padding:18px 20px;margin-bottom:16px">' +
