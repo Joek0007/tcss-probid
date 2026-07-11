@@ -1752,13 +1752,31 @@ function deleteListItem(key, idx) {
 }
 
 function resetList(key) {
-  if (!confirm('Reset "' + key + '" to default values? Your custom options will be lost.')) return;
-  if (!DB.settings.lists) DB.settings.lists = {};
-  delete DB.settings.lists[key];
-  saveDB();
-  _pushSettingsToSupabase();
-  renderListItems(key);
-  showToast('Reset to defaults', 'success', 2000);
+  var btn = document.querySelector('[onclick="resetList(\''+key+'\')"]');
+  if (!btn) return;
+  if (btn.dataset.confirmPending === '1') {
+    // Second click — confirmed
+    btn.dataset.confirmPending = '';
+    btn.textContent = 'Reset defaults';
+    btn.style.color = '';
+    if (!DB.settings.lists) DB.settings.lists = {};
+    delete DB.settings.lists[key];
+    delete DB.settings.lists[key + '_default'];
+    saveDB();
+    _pushSettingsToSupabase();
+    renderListItems(key);
+    showToast('Reset to defaults', 'success', 2000);
+  } else {
+    // First click — ask for confirmation inline
+    btn.dataset.confirmPending = '1';
+    btn.textContent = 'Click again to confirm reset';
+    btn.style.color = '#f44336';
+    setTimeout(function(){
+      btn.dataset.confirmPending = '';
+      btn.textContent = 'Reset defaults';
+      btn.style.color = '';
+    }, 3000);
+  }
 }
 
 // ---- ROLES TAB ----
