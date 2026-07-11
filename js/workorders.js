@@ -510,7 +510,6 @@ function openNewWorkOrder() {
   // Reset contact field
   var ctNameEl=document.getElementById('wo-contact-name'); if(ctNameEl){ ctNameEl.value=''; ctNameEl.placeholder='— Select customer first —'; ctNameEl._woContacts=null; }
   var ctHiddenEl=document.getElementById('wo-contact'); if(ctHiddenEl) ctHiddenEl.value='';
-  var ctInfoEl=document.getElementById('wo-contact-info'); if(ctInfoEl) ctInfoEl.style.display='none';
   _updateWOContactBar(null);
 
   // Internal notes only for office/owner
@@ -889,23 +888,11 @@ function _populateWOContacts(customerId, selectedContactId) {
     if (selectedContactId) {
       var sc = contacts.find(function(c){ return c.id===selectedContactId; });
       nameEl.value = sc ? sc.name||'' : '';
-      // Populate info strip and top bar
       _updateWOContactBar(selectedContactId);
-      var infoEl = document.getElementById('wo-contact-info');
-      if (infoEl && sc) {
-        var parts = [];
-        if (sc.phone) parts.push('📞 ' + sc.phone + (sc.phoneType ? ' ('+sc.phoneType+')' : ''));
-        if (sc.phone2) parts.push('📞 ' + sc.phone2 + (sc.phone2Type ? ' ('+sc.phone2Type+')' : ''));
-        if (sc.email) parts.push('✉️ ' + sc.email);
-        infoEl.innerHTML = parts.join('&nbsp;&nbsp;·&nbsp;&nbsp;');
-        infoEl.style.display = parts.length ? 'block' : 'none';
-      }
     } else {
       nameEl.value = '';
       nameEl.placeholder = contacts.length ? '— Select contact —' : '— No contacts on file —';
       _updateWOContactBar(null);
-      var infoEl2 = document.getElementById('wo-contact-info');
-      if (infoEl2) infoEl2.style.display = 'none';
     }
   }
   // Store contacts for this customer on the element for focus lookup
@@ -990,26 +977,11 @@ function woContactSelect(id, name) {
   var hiddenEl = document.getElementById('wo-contact');
   var nameEl   = document.getElementById('wo-contact-name');
   var dd       = document.getElementById('wo-contact-dropdown');
-  var infoEl   = document.getElementById('wo-contact-info');
   if (hiddenEl) hiddenEl.value = id;
   if (nameEl)   nameEl.value  = name;
   if (dd)       dd.style.display = 'none';
   // Update the always-visible contact bar at the top of the WO
   _updateWOContactBar(id);
-  // Show contact phone/email in the info strip below the field
-  if (infoEl) {
-    var c = id ? (DB.contacts||[]).find(function(x){ return x.id===id; }) : null;
-    if (c) {
-      var parts = [];
-      if (c.phone) parts.push('📞 ' + c.phone + (c.phoneType ? ' ('+c.phoneType+')' : ''));
-      if (c.phone2) parts.push('📞 ' + c.phone2 + (c.phone2Type ? ' ('+c.phone2Type+')' : ''));
-      if (c.email) parts.push('✉️ ' + c.email);
-      infoEl.innerHTML = parts.join('&nbsp;&nbsp;·&nbsp;&nbsp;');
-      infoEl.style.display = parts.length ? 'block' : 'none';
-    } else {
-      infoEl.style.display = 'none';
-    }
-  }
 }
 
 function woContactClose() {
