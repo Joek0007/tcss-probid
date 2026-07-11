@@ -801,7 +801,7 @@ function saveWorkOrder() {
   if (creEl && isNew) creEl.value = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   // Show print button as soon as WO is saved — even on first save
   var pb = document.getElementById('wo-btn-print'); if (pb) pb.style.display='';
-  var pbt = document.getElementById('wo-btn-print-top'); if (pbt) pbt.style.display='';
+  var pbt2 = document.getElementById('wo-btn-print-top'); if (pbt2) pbt2.style.display='';
   // Refresh assigned techs section now that WO is saved
   setTimeout(function(){ renderAssignedTechs(id); }, 100);
 }

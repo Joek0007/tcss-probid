@@ -7052,11 +7052,31 @@ function woRtfHideBar(fieldId, e) {
   if (wrap) wrap.style.borderColor = '#e0e7ef';
 }
 function woRtfFmt(fieldId, cmd) {
-  document.getElementById(fieldId).focus();
+  var el = document.getElementById(fieldId);
+  if (!el) return;
+  // Save selection before focus() clears it
+  var sel = window.getSelection();
+  var savedRange = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0).cloneRange() : null;
+  el.focus();
+  // Restore selection if it was cleared by focus
+  if (savedRange) {
+    sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedRange);
+  }
   document.execCommand(cmd, false, null);
 }
 function woRtfBlock(fieldId, tag) {
-  document.getElementById(fieldId).focus();
+  var el = document.getElementById(fieldId);
+  if (!el) return;
+  var sel = window.getSelection();
+  var savedRange = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0).cloneRange() : null;
+  el.focus();
+  if (savedRange) {
+    sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedRange);
+  }
   document.execCommand('formatBlock', false, tag);
 }
 // Helper: load plain text or HTML into a WO rich editor
