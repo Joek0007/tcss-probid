@@ -5300,7 +5300,15 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           </div>
           <div style="margin-bottom:12px">
             <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Contact</label>
-            <select id="wo-contact" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"><option value="">— Select contact —</option></select>
+            <div style="position:relative">
+              <input id="wo-contact-name" placeholder="Select customer first..." autocomplete="off"
+                style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;box-sizing:border-box"
+                onfocus="woContactFocus()"
+                oninput="woContactInput(this.value)"
+                onblur="setTimeout(woContactClose,300)">
+              <div id="wo-contact-dropdown" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:300;max-height:220px;overflow-y:auto;margin-top:2px"></div>
+              <input type="hidden" id="wo-contact">
+            </div>
           </div>
           <div style="margin-bottom:12px">
             <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Work Requested *</label>

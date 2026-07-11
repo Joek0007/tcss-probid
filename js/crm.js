@@ -474,6 +474,18 @@ function saveContact() {
     window._qqEditingContactId = null;
     setTimeout(function(){ selectContact(wasEditing); }, 100);
   }
+  // If we were editing from the WO contact dropdown, re-populate it
+  if (window._woEditingContactId) {
+    var woWasEditing = window._woEditingContactId;
+    window._woEditingContactId = null;
+    setTimeout(function(){
+      var custIdEl = document.getElementById('wo-customer-id');
+      if (custIdEl && custIdEl.value) {
+        _populateWOContacts(custIdEl.value, woWasEditing);
+        if (typeof woContactSelect === 'function') woContactSelect(woWasEditing, (DB.contacts.find(function(c){ return c.id===woWasEditing; })||{}).name||'');
+      }
+    }, 100);
+  }
   showToast('"'+name+'" saved','success');
 }
 

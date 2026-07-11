@@ -507,8 +507,9 @@ function openNewWorkOrder() {
   var lrEl=document.getElementById('wo-labor-rate'); if(lrEl) lrEl.value=settings.defaultLaborRate||125;
   var txEl=document.getElementById('wo-tax-rate');   if(txEl) txEl.value=settings.defaultTaxRate||0;
 
-  // Contact dropdown empty
-  var ctEl=document.getElementById('wo-contact'); if(ctEl) ctEl.innerHTML='<option value="">— Select customer first —</option>';
+  // Reset contact field
+  var ctNameEl=document.getElementById('wo-contact-name'); if(ctNameEl){ ctNameEl.value=''; ctNameEl.placeholder='— Select customer first —'; ctNameEl._woContacts=null; }
+  var ctHiddenEl=document.getElementById('wo-contact'); if(ctHiddenEl) ctHiddenEl.value='';
 
   // Internal notes only for office/owner
   var intSection=document.getElementById('wo-internal-notes-section');
@@ -877,11 +878,113 @@ function selectWOCustomer(id, name) {
 }
 
 function _populateWOContacts(customerId, selectedContactId) {
-  var sel=document.getElementById('wo-contact');
-  if (!sel) return;
   var contacts=(DB.contacts||[]).filter(function(c){ return c.customerId===customerId; });
-  sel.innerHTML='<option value="">— Select contact —</option>'+
-    contacts.map(function(c){ return '<option value="'+escHtml(c.id)+'"'+(c.id===selectedContactId?' selected':'')+'>'+escHtml(c.name||'')+(c.role?' — '+escHtml(c.role):'')+'</option>'; }).join('');
+  // Set the hidden value and name field if a contact is pre-selected
+  var hiddenEl = document.getElementById('wo-contact');
+  var nameEl   = document.getElementById('wo-contact-name');
+  if (hiddenEl) hiddenEl.value = selectedContactId || '';
+  if (nameEl) {
+    if (selectedContactId) {
+      var sc = contacts.find(function(c){ return c.id===selectedContactId; });
+      nameEl.value = sc ? sc.name||'' : '';
+    } else {
+      nameEl.value = '';
+      nameEl.placeholder = contacts.length ? '— Select contact —' : '— No contacts on file —';
+    }
+  }
+  // Store contacts for this customer on the element for focus lookup
+  if (nameEl) nameEl._woContacts = contacts;
+}
+
+function _buildWOContactDropdown(contacts, customerId) {
+  var dd = document.getElementById('wo-contact-dropdown');
+  if (!dd) return;
+  if (!contacts || !contacts.length) { dd.style.display='none'; return; }
+  var cust = customerId ? (DB.customers||[]).find(function(c){ return c.id===customerId; }) : null;
+  dd.innerHTML = contacts.map(function(c){
+    var phones = [
+      c.phone ? (c.phoneType ? c.phone+' ('+c.phoneType+')' : c.phone) : '',
+      c.phone2 ? (c.phone2Type ? c.phone2+' ('+c.phone2Type+')' : c.phone2) : ''
+    ].filter(Boolean).join(' · ');
+    var isDefault = cust && cust.defaultContactId === c.id;
+    return '<div style="display:flex;align-items:center;gap:0">' +
+      '<div onmousedown="woContactSelect(\''+c.id+'\',\''+escHtml(c.name||'').replace(/'/g,"\\'")+'\')" ' +
+        'style="flex:1;padding:10px 12px;cursor:pointer;border-bottom:1px solid #f0f4f8" ' +
+        'onmouseover="this.style.background=\'#f0f6ff\'" onmouseout="this.style.background=\'\'">' +
+        '<div style="font-size:13px;font-weight:600;color:#1f3b57">'+escHtml(c.name||'')+(isDefault?' <span style="font-size:10px;color:#1565c0;font-weight:700">DEFAULT</span>':'')+'</div>' +
+        '<div style="font-size:11px;color:#90a4ae;margin-top:2px">' +
+          (c.role||c.title ? escHtml(c.role||c.title)+' &nbsp;·&nbsp; ' : '') +
+          (phones ? escHtml(phones)+' &nbsp;·&nbsp; ' : '') +
+          (c.email ? escHtml(c.email) : '') +
+        '</div>' +
+      '</div>' +
+      '<div onmousedown="woContactEdit(\''+c.id+'\')" title="Edit contact" ' +
+        'style="padding:0 12px;cursor:pointer;color:#1565c0;font-size:15px;border-left:1px solid #e0e7ef;display:flex;align-items:center;background:#f8fafc;min-height:48px">✏️</div>' +
+    '</div>';
+  }).join('') +
+  '<div onmousedown="woContactAdd()" ' +
+    'style="padding:10px 12px;cursor:pointer;color:#1565c0;font-size:13px;border-top:1px solid #e0e0e0" ' +
+    'onmouseover="this.style.background=\'#f0f6ff\'" onmouseout="this.style.background=\'\'">' +
+    '✚ Add new contact' +
+  '</div>';
+  dd.style.display = 'block';
+}
+
+function woContactFocus() {
+  var nameEl = document.getElementById('wo-contact-name');
+  var custIdEl = document.getElementById('wo-customer-id');
+  if (!custIdEl || !custIdEl.value) return;
+  var contacts = (nameEl && nameEl._woContacts) ||
+    (DB.contacts||[]).filter(function(c){ return c.customerId===custIdEl.value; });
+  if (nameEl) nameEl._woContacts = contacts;
+  _buildWOContactDropdown(contacts, custIdEl.value);
+  if (nameEl) nameEl.select();
+}
+
+function woContactInput(val) {
+  var custIdEl = document.getElementById('wo-customer-id');
+  if (!custIdEl || !custIdEl.value) return;
+  var nameEl = document.getElementById('wo-contact-name');
+  var contacts = (nameEl && nameEl._woContacts) ||
+    (DB.contacts||[]).filter(function(c){ return c.customerId===custIdEl.value; });
+  var sl = val.toLowerCase();
+  var filtered = sl ? contacts.filter(function(c){ return (c.name||'').toLowerCase().includes(sl); }) : contacts;
+  _buildWOContactDropdown(filtered, custIdEl.value);
+}
+
+function woContactSelect(id, name) {
+  var hiddenEl = document.getElementById('wo-contact');
+  var nameEl   = document.getElementById('wo-contact-name');
+  var dd       = document.getElementById('wo-contact-dropdown');
+  if (hiddenEl) hiddenEl.value = id;
+  if (nameEl)   nameEl.value  = name;
+  if (dd)       dd.style.display = 'none';
+}
+
+function woContactClose() {
+  var dd = document.getElementById('wo-contact-dropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+function woContactEdit(contactId) {
+  woContactClose();
+  window._woEditingContactId = contactId;
+  if (typeof editContact === 'function') editContact(contactId);
+}
+
+function woContactAdd() {
+  woContactClose();
+  var custIdEl = document.getElementById('wo-customer-id');
+  var custNameEl = document.getElementById('wo-customer-name');
+  // Open contact modal pre-linked to this customer
+  if (typeof newContact === 'function') {
+    newContact();
+    setTimeout(function(){
+      var custSel = document.getElementById('m-ct-custid');
+      if (custSel && custIdEl && custIdEl.value) custSel.value = custIdEl.value;
+      if (typeof populateDynamicSelects === 'function') populateDynamicSelects();
+    }, 100);
+  }
 }
 
 function _populateWOStatusSelect() {
