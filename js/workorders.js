@@ -486,6 +486,7 @@ function openNewWorkOrder() {
   document.getElementById('wo-urgent-badge').style.display='none';
   document.getElementById('wo-btn-invoice').style.display='none';
   var printBtn=document.getElementById('wo-btn-print'); if(printBtn) printBtn.style.display='none';
+  var printBtnTop=document.getElementById('wo-btn-print-top'); if(printBtnTop) printBtnTop.style.display='none';
 
   // Populate status dropdown
   _populateWOStatusSelect();
@@ -543,6 +544,8 @@ function openWorkOrder(id) {
 
   document.getElementById('wo-modal-title').textContent='Work Order';
   document.getElementById('wo-modal-num').textContent=wo.woNumber||'';
+  var _pb=document.getElementById('wo-btn-print'); if(_pb) _pb.style.display='';
+  var _pbt=document.getElementById('wo-btn-print-top'); if(_pbt) _pbt.style.display='';
   var urgBadge=document.getElementById('wo-urgent-badge');
   if(urgBadge) urgBadge.style.display=wo.priority==='Urgent'?'inline-block':'none';
 
@@ -798,6 +801,7 @@ function saveWorkOrder() {
   if (creEl && isNew) creEl.value = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   // Show print button as soon as WO is saved — even on first save
   var pb = document.getElementById('wo-btn-print'); if (pb) pb.style.display='';
+  var pbt2 = document.getElementById('wo-btn-print-top'); if (pbt2) pbt2.style.display='';
   // Refresh assigned techs section now that WO is saved
   setTimeout(function(){ renderAssignedTechs(id); }, 100);
 }
