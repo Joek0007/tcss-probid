@@ -4165,15 +4165,18 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div class="card ms-full" style="border-left:4px solid #1565c0">
       <div class="card-title">💾 Data Backup &amp; Restore</div>
       <div style="font-size:13px;color:#546e7a;margin-bottom:12px;line-height:1.5">
-        Download a full copy of your database as a file and keep it somewhere safe (your computer, Google Drive, etc.).
+        Download a full copy of your data and keep it somewhere safe (your computer, Google Drive, etc.).
         On the free plan this is your backup — the cloud does not keep automatic backups for you.
+        <strong>Full Backup</strong> includes your uploaded photos and documents; <strong>Data Only</strong> is a fast records-only file.
         Restoring is safe: it only <strong>adds back records you are missing</strong>, and never deletes or overwrites current data.
         <span id="backup-last-info" style="display:block;margin-top:8px;color:#90a4ae;font-size:12px"></span>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="downloadBackup()">⬇️ Download Backup</button>
-        <button class="btn btn-outline" onclick="document.getElementById('restore-file-input').click()">↩️ Restore from Backup…</button>
-        <input type="file" id="restore-file-input" accept="application/json,.json" style="display:none" onchange="restoreFromBackupFile(this)">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" onclick="downloadFullBackup()">⬇️ Full Backup (data + photos)</button>
+        <button class="btn btn-outline" onclick="downloadBackup()">Data Only (fast)</button>
+        <button class="btn btn-outline" onclick="document.getElementById('restore-file-input').click()">↩️ Restore…</button>
+        <input type="file" id="restore-file-input" accept="application/json,.json,.zip,application/zip" style="display:none" onchange="restoreFromBackupFile(this)">
+        <span id="backup-progress" style="font-size:12px;color:#1565c0;font-weight:700"></span>
       </div>
     </div>
 

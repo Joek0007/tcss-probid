@@ -153,37 +153,51 @@ function _restorableCount(backupDB) {
   return n;
 }
 
-// Restore from a user-selected backup file (safe additive merge).
+// Apply a parsed backup payload (safe additive merge). Shared by json + zip restore.
+function _applyRestoreObject(parsed) {
+  var bdb = parsed && parsed.db ? parsed.db : parsed; // accept {db:...} or a raw DB dump
+  if (!bdb || !Array.isArray(bdb.quotes)) {
+    if (typeof showToast === 'function') showToast('That file is not a ProBid backup.', 'error');
+    return;
+  }
+  var meta = parsed && parsed._backupMeta;
+  var when = (meta && meta.createdAt) ? new Date(meta.createdAt).toLocaleString() : 'unknown date';
+  var addN = _restorableCount(bdb);
+  if (addN === 0) {
+    if (typeof showToast === 'function') showToast('Nothing to restore — this backup has no records you are missing.', 'info');
+    return;
+  }
+  if (!confirm('Restore from backup dated ' + when + '?\n\nThis is SAFE: it ONLY ADDS the ' + addN + ' record(s) from the backup that are missing now. It never deletes or overwrites your current data.\n\nA snapshot of your current data is saved first.')) return;
+  _saveRestorePoint('before-restore');
+  var added = _mergeBackupDB(bdb);
+  saveDB();
+  if (typeof showToast === 'function') showToast('Restore complete — added ' + added + ' record(s). Syncing to cloud…', 'success', 4000);
+  if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 600);
+  setTimeout(function(){ try { if (typeof renderDash === 'function') renderDash(); if (typeof renderQuotes === 'function') renderQuotes(); } catch(e){} }, 800);
+}
+
+// Restore from a user-selected backup file — accepts the data .json OR a full .zip
+// backup (extracts probid-data.json from it). Restores RECORDS only (additive/safe);
+// image files inside a full backup are your archived copies, not auto-re-uploaded.
 function restoreFromBackupFile(input) {
   var file = input && input.files && input.files[0];
   if (!file) return;
+  var isZip = /\.zip$/i.test(file.name) || file.type === 'application/zip';
+  if (isZip) {
+    _loadJSZip().then(function(JSZipLib){ return JSZipLib.loadAsync(file); }).then(function(zip){
+      var entry = zip.file('probid-data.json');
+      if (!entry) { if (typeof showToast==='function') showToast('No probid-data.json found inside that backup zip.', 'error'); return; }
+      return entry.async('string').then(function(txt){ _applyRestoreObject(JSON.parse(txt)); });
+    }).catch(function(e){
+      console.error('[Restore zip] failed', e);
+      if (typeof showToast==='function') showToast('Could not read that backup zip: ' + (e && e.message || e), 'error');
+    }).then(function(){ input.value = ''; });
+    return;
+  }
   var reader = new FileReader();
   reader.onload = function(ev) {
-    try {
-      var parsed = JSON.parse(ev.target.result);
-      var bdb = parsed && parsed.db ? parsed.db : parsed; // accept {db:...} or a raw DB dump
-      if (!bdb || !Array.isArray(bdb.quotes)) {
-        if (typeof showToast === 'function') showToast('That file is not a ProBid backup.', 'error');
-        input.value = ''; return;
-      }
-      var meta = parsed && parsed._backupMeta;
-      var when = (meta && meta.createdAt) ? new Date(meta.createdAt).toLocaleString() : 'unknown date';
-      var addN = _restorableCount(bdb);
-      if (addN === 0) {
-        if (typeof showToast === 'function') showToast('Nothing to restore — this backup has no records you are missing.', 'info');
-        input.value = ''; return;
-      }
-      if (!confirm('Restore from backup dated ' + when + '?\n\nThis is SAFE: it ONLY ADDS the ' + addN + ' record(s) from the backup that are missing now. It never deletes or overwrites your current data.\n\nA snapshot of your current data is saved first.')) { input.value = ''; return; }
-      _saveRestorePoint('before-restore');
-      var added = _mergeBackupDB(bdb);
-      saveDB();
-      if (typeof showToast === 'function') showToast('Restore complete — added ' + added + ' record(s). Syncing to cloud…', 'success', 4000);
-      if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 600);
-      setTimeout(function(){ try { if (typeof renderDash === 'function') renderDash(); if (typeof renderQuotes === 'function') renderQuotes(); } catch(e){} }, 800);
-    } catch(e) {
-      console.error('[Restore] failed', e);
-      if (typeof showToast === 'function') showToast('Restore failed: ' + (e && e.message || e), 'error');
-    }
+    try { _applyRestoreObject(JSON.parse(ev.target.result)); }
+    catch(e) { console.error('[Restore] failed', e); if (typeof showToast === 'function') showToast('Restore failed: ' + (e && e.message || e), 'error'); }
     input.value = '';
   };
   reader.readAsText(file);
@@ -230,6 +244,92 @@ function updateBackupInfo() {
     if (snap) { var s = JSON.parse(snap); if (s && s.at) parts.push('Auto snapshot: ' + new Date(s.at).toLocaleString()); }
   } catch(e) {}
   el.textContent = parts.length ? parts.join('   •   ') : 'No backup taken yet — download one now to be safe.';
+}
+
+// Lazy-load JSZip (only when a full backup/restore is actually requested).
+function _loadJSZip() {
+  return new Promise(function(resolve, reject){
+    if (window.JSZip) return resolve(window.JSZip);
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload = function(){ window.JSZip ? resolve(window.JSZip) : reject(new Error('zip library failed to initialize')); };
+    s.onerror = function(){ reject(new Error('could not load the zip library (need an internet connection)')); };
+    document.head.appendChild(s);
+  });
+}
+
+function _safeName(prefix, pathOrName) {
+  var base = String(pathOrName || 'file').split('/').pop().replace(/[^a-zA-Z0-9._-]/g, '_');
+  return (prefix != null && prefix !== '' ? String(prefix).replace(/[^a-zA-Z0-9._-]/g, '_') + '__' : '') + base;
+}
+
+function _backupProgress(msg) { var el = document.getElementById('backup-progress'); if (el) el.textContent = msg || ''; }
+
+// Full backup: the data JSON PLUS every uploaded photo/document from cloud Storage,
+// bundled into one downloadable .zip. Files are fetched via the Supabase client
+// (no CORS issues); any that can't be fetched are listed in README.txt, never abort.
+async function downloadFullBackup() {
+  if (typeof _sb === 'undefined' || !_sb) {
+    if (typeof showToast === 'function') showToast('Cloud not connected — use "Data Only" backup instead.', 'error');
+    return;
+  }
+  try {
+    _backupProgress('Loading zip library…');
+    var JSZipLib = await _loadJSZip();
+    var zip = new JSZipLib();
+    zip.file('probid-data.json', JSON.stringify(_backupPayload(), null, 2));
+
+    // Enumerate every stored file: job photos + WO documents/receipts.
+    var files = [], idx = 0, pad = function(n){ n=String(n); while(n.length<3)n='0'+n; return n; };
+    (DB.jobPhotos || []).forEach(function(p){
+      var path = p.filePath || p.file_path;
+      if (path || p.url) files.push({ path: path, url: p.url, zipPath: 'photos/' + pad(++idx) + '__' + _safeName(p.jobId, path || p.url) });
+    });
+    (DB.woDocuments || []).forEach(function(d){
+      if (d && d.deleted) return;
+      var path = d.path || d.file_path;
+      if (path || d.url) files.push({ path: path, url: d.url, zipPath: 'documents/' + ((d.docType||'office')) + '/' + pad(++idx) + '__' + _safeName(d.woId, d.fileName || path || d.url) });
+    });
+
+    var total = files.length, done = 0, ok = 0, failed = [];
+    _backupProgress(total ? ('Fetching files… 0/' + total) : 'Packaging data…');
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i], blob = null;
+      try {
+        if (f.path) { var res = await _sb.storage.from('job-photos').download(f.path); if (res && res.data) blob = res.data; }
+        if (!blob && f.url) { var r = await fetch(f.url); if (r.ok) blob = await r.blob(); }
+      } catch(e) {
+        try { if (f.url) { var r2 = await fetch(f.url); if (r2.ok) blob = await r2.blob(); } } catch(e2) {}
+      }
+      if (blob) { zip.file(f.zipPath, blob); ok++; } else { failed.push(f.zipPath); }
+      done++; _backupProgress('Fetching files… ' + done + '/' + total);
+    }
+
+    var manifest = 'TCSS ProBid — Full Backup\r\nCreated: ' + new Date().toLocaleString() + '\r\n\r\n'
+      + 'Records: ' + (DB.quotes||[]).length + ' quotes, ' + (DB.customers||[]).length + ' customers, '
+      + (DB.contacts||[]).length + ' contacts, ' + (DB.workOrders||[]).length + ' work orders\r\n'
+      + 'Files saved: ' + ok + ' of ' + total + '\r\n'
+      + (failed.length ? ('\r\nCOULD NOT FETCH ' + failed.length + ' FILE(S):\r\n' + failed.join('\r\n') + '\r\n') : '\r\nAll files saved successfully.\r\n')
+      + '\r\nTo restore your records, use Settings > Restore and pick this .zip (or the probid-data.json inside it).';
+    zip.file('README.txt', manifest);
+
+    _backupProgress('Compressing…');
+    var out = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+    var d = new Date(), p2 = function(n){ return (n<10?'0':'')+n; };
+    var name = 'ProBid_FullBackup_' + d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()) + '_' + p2(d.getHours()) + p2(d.getMinutes()) + '.zip';
+    var url = URL.createObjectURL(out);
+    var a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ try { document.body.removeChild(a); URL.revokeObjectURL(url); } catch(e){} }, 1500);
+    try { localStorage.setItem(BACKUP_DL_TS_KEY, d.toISOString()); } catch(e) {}
+    if (typeof updateBackupInfo === 'function') updateBackupInfo();
+    _backupProgress('');
+    if (typeof showToast === 'function') showToast('Full backup downloaded (' + ok + '/' + total + ' files): ' + name + (failed.length ? ' — ' + failed.length + ' skipped, see README' : ''), failed.length ? 'warning' : 'success', 6000);
+  } catch(e) {
+    console.error('[FullBackup] failed', e);
+    _backupProgress('');
+    if (typeof showToast === 'function') showToast('Full backup failed: ' + (e && e.message || e), 'error');
+  }
 }
 
 function loadDB() {
