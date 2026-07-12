@@ -3100,7 +3100,7 @@ function renderContacts() {
           ? '<a href="mailto:'+escHtml(c.email)+'" class="cont-quick-btn" title="Email '+escHtml(c.email)+'">✉️ Email</a>'
           : '<span class="cont-quick-btn cont-quick-disabled" title="No email on file">✉️ Email</span>')+
         '<button class="cont-quick-btn" onclick="newQuoteForContact(\''+c.id+'\')" title="New Quote">📋 Quote</button>'+
-        '<button class="btn btn-outline btn-sm" data-action="editContact" data-id="'+c.id+'" title="Edit">✏ Edit</button>'+
+        '<button class="cont-quick-btn" data-action="editContact" data-id="'+c.id+'" title="Edit">✏ Edit</button>'+
         '<button class="btn btn-danger btn-sm" data-action="delContact" data-id="'+c.id+'" title="Delete">✕</button>'+
       '</div>'+
     '</div>';
