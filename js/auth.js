@@ -427,7 +427,7 @@ function runPermissionsSelfTest(role) {
   return results;
 }
 
-async function syncAllFromCloud() {
+async function syncAllFromCloud(silent) {
   // Always re-enforce role permissions when sync completes
   var _syncRole = _currentUser ? _currentUser.role : null;
   if (!_sb || !_currentUser) return;
@@ -435,7 +435,10 @@ async function syncAllFromCloud() {
   // Rollback safety: snapshot the pre-sync local state so a bad pull can be undone
   // (restoreLastKnownGood()). Cheap, quota-guarded, one write per pull.
   try { if (typeof _saveRestorePoint === 'function') _saveRestorePoint('pre-sync'); } catch(e){}
-  showSpinner('Syncing with cloud...');
+  // Background/auto syncs run silently — a small dashboard indicator, no blocking
+  // overlay — so they never freeze you mid-quote. Only the initial login sync blocks.
+  if (silent) { var _syncInd = document.getElementById('dash-last-updated'); if (_syncInd) _syncInd.textContent = 'Syncing…'; }
+  else { showSpinner('Syncing with cloud...'); }
   var errors = [];
   // Ensure deletedIds exists and is properly structured
   if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
@@ -580,8 +583,9 @@ async function syncAllFromCloud() {
         }
         cloudQuotes.forEach(function(cq){ cq._synced = true; }); // mark as known-in-cloud
         DB.quotes = cloudQuotes.concat(localOnlyQuotes);
-        // Clear any stale QQ draft — cloud is now the source of truth
-        try { if (typeof clearQQDraft === 'function') clearQQDraft(); } catch(e) {}
+        // Clear any stale QQ draft — cloud is now the source of truth. But NOT during a
+        // silent background sync: that would wipe an in-progress quote the user is writing.
+        try { if (!silent && typeof clearQQDraft === 'function') clearQQDraft(); } catch(e) {}
       }
     } catch(e) { errors.push('quotes: '+e.message); }
 
@@ -978,10 +982,13 @@ async function syncAllFromCloud() {
   hideSpinner();
   if (errors.length) {
     console.warn('[Sync] Partial errors:', errors);
-    showToast('Synced with warnings — check console', 'warning', 3000);
-  } else {
+    if (!silent) showToast('Synced with warnings — check console', 'warning', 3000);
+  } else if (!silent) {
     showToast('Synced ✓', 'success', 2000);
   }
+  // Quiet, non-blocking confirmation for every sync (incl. background).
+  var _syncDone = document.getElementById('dash-last-updated');
+  if (_syncDone) _syncDone.textContent = 'Synced ' + new Date().toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
 }
 
 var _pushInProgress = false;
@@ -1819,8 +1826,13 @@ function startAutoSync() {
   clearInterval(_autoSyncTimer);
   _autoSyncTimer = setInterval(function() {
     if (_currentUser && _sb) {
-      console.log('[AutoSync] Running background sync');
-      syncAllFromCloud();
+      // Never interrupt active work: skip this cycle if the user is typing or has an
+      // unsaved quote in progress. It'll sync on the next tick when they're idle.
+      var ae = document.activeElement;
+      var editing = (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) || (typeof _qqDirty !== 'undefined' && _qqDirty);
+      if (editing) { console.log('[AutoSync] skipped — user is editing'); return; }
+      console.log('[AutoSync] Running silent background sync');
+      syncAllFromCloud(true);   // silent = non-blocking, no spinner
     } else {
       clearInterval(_autoSyncTimer);
     }
