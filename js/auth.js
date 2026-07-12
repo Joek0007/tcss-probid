@@ -15,6 +15,27 @@ function init() {
   clearQQ(true);
   initQQStage3Watchers();
   wrapQQStage3Mutations();
+  // Cross-tab safety: when another tab writes the DB to localStorage, reload our
+  // in-memory copy so this tab never pushes a stale snapshot — which would resurrect
+  // records that the other tab just deleted. Guarded against running mid-sync/push.
+  if (!window._crossTabGuard) {
+    window._crossTabGuard = true;
+    window.addEventListener('storage', function(e){
+      if (!e || e.key !== DB_KEY) return;
+      if (window._syncInProgress || _pushInProgress) return;
+      // Don't clobber an unsaved edit in THIS tab: skip the reload while the user is
+      // typing or has unsaved Quick Quote changes. The next pull reconciles anyway.
+      var ae = document.activeElement;
+      if (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) return;
+      if (typeof _qqDirty !== 'undefined' && _qqDirty) return;
+      try { loadDB(); } catch(err){}
+      try {
+        if (typeof renderDash === 'function') renderDash();
+        if (typeof renderQuotes === 'function') renderQuotes();
+        if (typeof renderWorkOrders === 'function') renderWorkOrders();
+      } catch(err){}
+    });
+  }
   if (qqHasRecoverableDraft()) { try { if (confirm('Recover the last unsaved Quick Quote draft from this browser?')) restoreQQDraft(); else clearQQDraft(); } catch(e){} }
   updateQQStage3UI();
   renderTplLibrary();
@@ -485,7 +506,14 @@ async function syncAllFromCloud() {
           }
         });
         // Preserve local quotes not yet in cloud — check by ID AND by quote number
-        var localOnlyQuotes = (DB.quotes||[]).filter(function(q){ return q.id && !cloudQuoteIds.has(String(q.id)) && !(q.num && cloudQuoteNums.has(String(q.num))) && delQ.indexOf(String(q.id)) < 0; });
+        // Preserve ONLY genuinely-new local quotes (never synced). A quote that was
+        // previously pulled from the cloud (_synced) but is now absent was deleted
+        // elsewhere — do NOT preserve/re-push it, or it resurrects.
+        // Safety: only treat a synced-but-absent row as "deleted elsewhere" when the
+        // pull is provably COMPLETE — non-empty and under Supabase's 1000-row default
+        // cap. An empty or capped result must NOT drop synced rows (would lose data).
+        var qCloudComplete = quotes.length > 0 && quotes.length < 1000;
+        var localOnlyQuotes = (DB.quotes||[]).filter(function(q){ return q.id && !cloudQuoteIds.has(String(q.id)) && !(q.num && cloudQuoteNums.has(String(q.num))) && delQ.indexOf(String(q.id)) < 0 && !(q._synced && qCloudComplete); });
         var cloudQuotes = quotes.map(function(q) {
           return {
             id: q.id,
@@ -544,6 +572,7 @@ async function syncAllFromCloud() {
           console.log('[Sync] Pushing', localOnlyQuotes.length, 'local-only quote(s) to cloud');
           setTimeout(pushAllToCloud, 500);
         }
+        cloudQuotes.forEach(function(cq){ cq._synced = true; }); // mark as known-in-cloud
         DB.quotes = cloudQuotes.concat(localOnlyQuotes);
         // Clear any stale QQ draft — cloud is now the source of truth
         try { if (typeof clearQQDraft === 'function') clearQQDraft(); } catch(e) {}
@@ -557,10 +586,12 @@ async function syncAllFromCloud() {
       else if (custs) {
         custs = custs.filter(function(c){ return delC.indexOf(String(c.id)) < 0; });
         var cloudCustIds = new Set(custs.map(function(c){ return String(c.id); }));
-        var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)) && delC.indexOf(String(c.id)) < 0; });
+        var cCloudComplete = custs.length > 0 && custs.length < 1000;
+        var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)) && delC.indexOf(String(c.id)) < 0 && !(c._synced && cCloudComplete); });
         var cloudCusts = custs.map(function(c) {
           return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, moduleAlerts:c.module_alerts||null, notes:c.notes, active:c.is_active };
         });
+        cloudCusts.forEach(function(cc){ cc._synced = true; });
         DB.customers = cloudCusts.concat(localOnlyCusts);
       }
     } catch(e) { errors.push('customers: '+e.message); }
@@ -611,7 +642,8 @@ async function syncAllFromCloud() {
       else if (conts) {
         conts = conts.filter(function(c){ return delCt.indexOf(String(c.id)) < 0; });
         var cloudContIds = new Set(conts.map(function(c){ return String(c.id); }));
-        var localOnlyConts = (DB.contacts||[]).filter(function(c){ return c.id && !cloudContIds.has(String(c.id)) && delCt.indexOf(String(c.id)) < 0; });
+        var ctCloudComplete = conts.length > 0 && conts.length < 1000;
+        var localOnlyConts = (DB.contacts||[]).filter(function(c){ return c.id && !cloudContIds.has(String(c.id)) && delCt.indexOf(String(c.id)) < 0 && !(c._synced && ctCloudComplete); });
         var cloudConts = conts.map(function(c) {
           return {
             id:          c.id,
@@ -628,6 +660,7 @@ async function syncAllFromCloud() {
             createdAt:   c.created_at
           };
         });
+        cloudConts.forEach(function(cc){ cc._synced = true; });
         DB.contacts = cloudConts.concat(localOnlyConts);
       }
     } catch(e) { errors.push('contacts: '+e.message); }
@@ -873,7 +906,9 @@ async function syncAllFromCloud() {
         });
         // Merge: Supabase is authoritative for records it has, keep local-only records
         var sbIds = mapped.map(function(r){return r.id;});
-        var localOnly = (DB.recurringContracts||[]).filter(function(c){return !sbIds.includes(c.id);});
+        var rcCloudComplete = rcRows.length > 0 && rcRows.length < 1000;
+        var localOnly = (DB.recurringContracts||[]).filter(function(c){return !sbIds.includes(c.id) && !(c._synced && rcCloudComplete);});
+        mapped.forEach(function(m){ m._synced = true; });
         DB.recurringContracts = mapped.concat(localOnly);
       }
     } catch(e) { errors.push('recurring_contracts: '+e.message); }
@@ -967,13 +1002,17 @@ async function pushAllToCloud() {
       var dc = DB.deletedIds.customers|| [];
       var dct= DB.deletedIds.contacts || [];
       var dj = DB.deletedIds.jobs     || [];
-      for (var qDel of dq) { await _sb.from('quote_line_items').delete().eq('quote_id', qDel); await _sb.from('quotes').delete().eq('id', qDel); }
-      for (var tDel of dt)  await _sb.from('team').delete().eq('id', tDel);
-      for (var cDel of dc)  await _sb.from('customers').delete().eq('id', cDel);
-      for (var ctDel of dct) await _sb.from('contacts').delete().eq('id', ctDel);
-      for (var jDel of dj)  await _sb.from('jobs').delete().eq('id', jDel);
-      // Clear the log after successful deletion sweep
-      DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+      // Keep ONLY the tombstones whose cloud delete failed, so they retry next push.
+      // Previously this cleared ALL tombstones unconditionally — a failed/blocked
+      // delete then left no record and the row resurrected on the next upsert.
+      var keepQ=[], keepT=[], keepC=[], keepCt=[], keepJ=[];
+      for (var qDel of dq) { await _sb.from('quote_line_items').delete().eq('quote_id', qDel); var _rq = await _sb.from('quotes').delete().eq('id', qDel); if (_rq && _rq.error) keepQ.push(qDel); }
+      for (var tDel of dt)   { var _rt  = await _sb.from('team').delete().eq('id', tDel);      if (_rt  && _rt.error)  keepT.push(tDel); }
+      for (var cDel of dc)   { var _rc  = await _sb.from('customers').delete().eq('id', cDel); if (_rc  && _rc.error)  keepC.push(cDel); }
+      for (var ctDel of dct) { var _rct = await _sb.from('contacts').delete().eq('id', ctDel); if (_rct && _rct.error) keepCt.push(ctDel); }
+      for (var jDel of dj)   { var _rj  = await _sb.from('jobs').delete().eq('id', jDel);      if (_rj  && _rj.error)  keepJ.push(jDel); }
+      // Successful deletes are cleared; only failures remain tombstoned for retry.
+      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ};
       try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
     }
     // Push settings to company_settings (single row, id=1)
