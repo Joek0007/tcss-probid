@@ -2149,6 +2149,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       </select>
       <button class="btn btn-ghost btn-sm" onclick="saveQuoteSortDefault()" title="Save this sort as your default view">⭐ Save Default</button>
       <button class="btn btn-ghost btn-sm" data-action="refreshQuotes">↻ Refresh</button>
+      <button class="btn btn-ghost btn-sm" onclick="cleanupEmptyDraftQuotes()" title="Remove empty $0 draft quotes that have no line items (one-time cleanup of legacy auto-save stubs)">🧹 Clean Up Empty Drafts</button>
     </div>
     <table><thead><tr>
       <th onclick="setSortQuotes(document.getElementById('q-sort').value==='num-desc'?'num-asc':'num-desc')" style="cursor:pointer" title="Sort by quote number"># <span id="qsort-num-desc"></span><span id="qsort-num-asc"></span></th>

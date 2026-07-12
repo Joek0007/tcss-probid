@@ -235,6 +235,14 @@ function qqFieldIds(){
 
 function clearQQ(skipConfirm) {
   if (!skipConfirm && lineItems.length > 0 && !confirm('Clear the current quote form?')) return;
+  // Reset auto-save protection so the NEXT quote can auto-save again. Without this the
+  // stub only ever fired once per page load, because _autoSaveStubDone was only reset
+  // in a duplicate clearQQ() in quotes.js that is shadowed by THIS definition (reports.js
+  // loads later) and never ran. NOTE: we deliberately do NOT clear the local QQ draft
+  // here — clearQQ() runs during init() (auth.js) BEFORE the draft-recovery prompt, so
+  // wiping it here would break resume-on-startup. The draft is cleared on a successful
+  // saveQQ() and overwritten as the user types the next quote. See changelog.
+  if (typeof _resetAutoSaveStub === 'function') _resetAutoSaveStub();
   lineItems = [];
   equipmentRows = [];
   renderEquipRows();

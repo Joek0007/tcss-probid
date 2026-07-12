@@ -401,10 +401,21 @@ function setQQDirty(flag, note){
 }
 
 // ── Auto-save stub ────────────────────────────────────────────────────────────
-// Saves quote to DB as soon as customer + job name are filled, without requiring
-// a line item. This means navigating away never loses the quote — it's in the DB.
+// Persists the quote to the DB as soon as it has REAL scope (a line item or an
+// equipment row) together with a customer + job name. Customer + job name ALONE is
+// no longer enough: that intermediate state is already protected by the local draft
+// + resume banner (see saveQQDraft / _checkQQDraftOnLogin), so we no longer write an
+// empty $0 row that would be orphaned in the DB if the entry is later abandoned.
 var _autoSaveStubTimer = null;
-var _autoSaveStubDone = false; // reset when clearQQ is called
+var _autoSaveStubDone = false; // reset by _resetAutoSaveStub() when the form is cleared
+
+// Reset auto-save protection so the NEXT quote can auto-save again. Called from the
+// authoritative clearQQ (reports.js) whenever the form is cleared/abandoned. Lives
+// here so all auto-save state stays in one module.
+function _resetAutoSaveStub() {
+  _autoSaveStubDone = false;
+  clearTimeout(_autoSaveStubTimer);
+}
 
 function _scheduleAutoSaveStub() {
   if (_autoSaveStubDone) return; // already auto-saved this quote
@@ -416,7 +427,12 @@ function _scheduleAutoSaveStub() {
     if (!cn.trim() || !jn.trim()) return; // not ready yet
     var idEl = document.getElementById('qq-id');
     if (idEl && idEl.value) return; // already has an ID — already saved
-    // Auto-save a stub quote
+    // Require real scope before creating a DB row — a line item or an equipment row.
+    // Until then the local draft protects the work and we avoid orphan $0 quotes.
+    var hasItems = (typeof lineItems !== 'undefined' && lineItems && lineItems.length > 0);
+    var hasEquip = (typeof equipmentRows !== 'undefined' && equipmentRows && equipmentRows.length > 0);
+    if (!hasItems && !hasEquip) return; // nothing real yet — stay a local draft
+    // Auto-save the quote
     saveQQ();
     _autoSaveStubDone = true;
     showToast('✅ Quote auto-saved — your work is protected', 'success', 3000);
@@ -1793,6 +1809,47 @@ function deleteQuote(id) {
   } else { saveDB(); }
   renderQuotes(); renderDash();
   showToast('Quote deleted', 'info');
+}
+
+// One-time cleanup: remove empty draft "stub" quotes that the pre-fix auto-save left
+// orphaned in the DB (customer + job name saved with no line items, $0 total). Routes
+// through the SAME tombstone + Supabase delete path as deleteQuote() so the rows are
+// removed locally AND in the cloud and can't be resurrected by the next pushAllToCloud.
+function cleanupEmptyDraftQuotes() {
+  var openId = (document.getElementById('qq-id')||{}).value || '';
+  function isEmptyStub(q) {
+    if (!q || !q.id) return false;
+    if (q.id === openId) return false;                          // never touch the quote open in the form
+    if ((q.status || 'draft').toLowerCase() !== 'draft') return false; // only unsent drafts
+    var noItems = !q.items || q.items.length === 0;
+    var noEquip = !q.equipmentRows || q.equipmentRows.length === 0;
+    var noPD    = !q.perDiemCost || Number(q.perDiemCost) <= 0;
+    var noLump  = !(q.lumpSum && q.lumpSum.enabled);
+    var zeroTot = !q.total || Number(q.total) <= 0;
+    return noItems && noEquip && noPD && noLump && zeroTot;
+  }
+  var victims = (DB.quotes || []).filter(isEmptyStub);
+  if (!victims.length) { showToast('No empty draft quotes to clean up ✓', 'success'); return; }
+  if (!confirm('Found ' + victims.length + ' empty draft quote' + (victims.length===1?'':'s') +
+               ' (no line items, $0 total). Delete permanently? This cannot be undone.')) return;
+  if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+  var ids = victims.map(function(q){ return q.id; });
+  ids.forEach(function(id){ if (DB.deletedIds.quotes.indexOf(id) < 0) DB.deletedIds.quotes.push(id); });
+  DB.quotes = DB.quotes.filter(function(q){ return ids.indexOf(q.id) < 0; });
+  if (window._syncTimer) { clearTimeout(window._syncTimer); window._syncTimer = null; }
+  if (_sb && _currentUser) {
+    ids.forEach(function(id){
+      _sb.from('quote_line_items').delete().eq('quote_id', id).then(function(){});
+      _sb.from('quotes').delete().eq('id', id).then(function(r){ if (r && r.error) console.warn('[Cleanup] Quote', id, r.error.message); });
+    });
+    saveDB();
+    if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 400);
+  } else {
+    saveDB();
+  }
+  if (typeof renderQuotes === 'function') renderQuotes();
+  if (typeof renderDash === 'function') renderDash();
+  showToast('Removed ' + victims.length + ' empty draft quote' + (victims.length===1?'':'s') + ' ✓', 'success');
 }
 
 function _generateToken() {
