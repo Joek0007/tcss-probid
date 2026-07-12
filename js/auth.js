@@ -40,6 +40,9 @@ function init() {
   updateQQStage3UI();
   renderTplLibrary();
   renderDash();
+  // Backup safety net: once-a-day local snapshot + refresh the Settings backup panel.
+  try { if (typeof _saveDailySnapshot === 'function') _saveDailySnapshot(); } catch(e){}
+  try { if (typeof updateBackupInfo === 'function') updateBackupInfo(); } catch(e){}
   loadMarginFloors();
   loadLogoOnStartup();
   initLogoUpload();
@@ -429,6 +432,9 @@ async function syncAllFromCloud() {
   var _syncRole = _currentUser ? _currentUser.role : null;
   if (!_sb || !_currentUser) return;
   window._syncInProgress = true;
+  // Rollback safety: snapshot the pre-sync local state so a bad pull can be undone
+  // (restoreLastKnownGood()). Cheap, quota-guarded, one write per pull.
+  try { if (typeof _saveRestorePoint === 'function') _saveRestorePoint('pre-sync'); } catch(e){}
   showSpinner('Syncing with cloud...');
   var errors = [];
   // Ensure deletedIds exists and is properly structured

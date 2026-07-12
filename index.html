@@ -4161,6 +4161,22 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <div class="ms-section active" id="ms-company">
     <div class="ms-grid">
 
+    <!-- DATA BACKUP & RESTORE -->
+    <div class="card ms-full" style="border-left:4px solid #1565c0">
+      <div class="card-title">💾 Data Backup &amp; Restore</div>
+      <div style="font-size:13px;color:#546e7a;margin-bottom:12px;line-height:1.5">
+        Download a full copy of your database as a file and keep it somewhere safe (your computer, Google Drive, etc.).
+        On the free plan this is your backup — the cloud does not keep automatic backups for you.
+        Restoring is safe: it only <strong>adds back records you are missing</strong>, and never deletes or overwrites current data.
+        <span id="backup-last-info" style="display:block;margin-top:8px;color:#90a4ae;font-size:12px"></span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="downloadBackup()">⬇️ Download Backup</button>
+        <button class="btn btn-outline" onclick="document.getElementById('restore-file-input').click()">↩️ Restore from Backup…</button>
+        <input type="file" id="restore-file-input" accept="application/json,.json" style="display:none" onchange="restoreFromBackupFile(this)">
+      </div>
+    </div>
+
     <!-- VIEW AS — owner only -->
     <div class="card ms-full" id="view-as-card" style="display:none;background:linear-gradient(135deg,#1565c0,#0d47a1);color:#fff;border:none">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">

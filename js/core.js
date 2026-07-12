@@ -73,6 +73,165 @@ function saveDB() {
     window._syncTimer = setTimeout(pushAllToCloud, 2000);
   }
 }
+
+// ============================================================
+// BACKUP & RESTORE  (free-tier safety net — Supabase does not
+// keep automated backups on the free plan, so this is our own)
+// ============================================================
+var BACKUP_LASTGOOD_KEY = 'tcss_backup_lastgood';
+var BACKUP_DAILY_KEY    = 'tcss_backup_daily';
+var BACKUP_DL_TS_KEY    = 'tcss_backup_last_download';
+
+function _backupPayload() {
+  return {
+    _backupMeta: {
+      app: 'TCSS ProBid V9',
+      createdAt: new Date().toISOString(),
+      counts: {
+        quotes:      (DB.quotes||[]).length,
+        customers:   (DB.customers||[]).length,
+        contacts:    (DB.contacts||[]).length,
+        workOrders:  (DB.workOrders||[]).length,
+        invoices:    (DB.invoices||[]).length
+      }
+    },
+    db: DB
+  };
+}
+
+// Download the entire database as a JSON file the user keeps off-site.
+function downloadBackup() {
+  try {
+    var json = JSON.stringify(_backupPayload(), null, 2);
+    var blob = new Blob([json], { type: 'application/json' });
+    var url  = URL.createObjectURL(blob);
+    var d = new Date();
+    var p = function(n){ return (n<10?'0':'')+n; };
+    var name = 'ProBid_Backup_' + d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()) + '.json';
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ try{ document.body.removeChild(a); URL.revokeObjectURL(url); }catch(e){} }, 1000);
+    try { localStorage.setItem(BACKUP_DL_TS_KEY, d.toISOString()); } catch(e) {}
+    if (typeof updateBackupInfo === 'function') updateBackupInfo();
+    if (typeof showToast === 'function') showToast('Backup downloaded: ' + name, 'success', 4000);
+  } catch(e) {
+    console.error('[Backup] download failed', e);
+    if (typeof showToast === 'function') showToast('Backup failed: ' + (e && e.message || e), 'error');
+  }
+}
+
+// Additive merge: add any records present in `backupDB` that are missing now,
+// matched by id, across every array collection. NEVER deletes or overwrites —
+// the safest possible restore (worst case: re-adds a record you had deleted).
+function _mergeBackupDB(backupDB) {
+  var added = 0;
+  if (!backupDB) return 0;
+  Object.keys(backupDB).forEach(function(key){
+    var bArr = backupDB[key];
+    if (!Array.isArray(bArr)) return;               // only merge array collections
+    if (!Array.isArray(DB[key])) DB[key] = [];
+    var have = {};
+    DB[key].forEach(function(r){ if (r && r.id != null) have[String(r.id)] = true; });
+    bArr.forEach(function(r){
+      if (!r || r.id == null) return;               // skip idless records (can't dedupe safely)
+      if (have[String(r.id)]) return;               // already present
+      DB[key].push(r); have[String(r.id)] = true; added++;
+    });
+  });
+  return added;
+}
+
+function _restorableCount(backupDB) {
+  var n = 0; if (!backupDB) return 0;
+  Object.keys(backupDB).forEach(function(key){
+    var bArr = backupDB[key]; if (!Array.isArray(bArr)) return;
+    var cur = Array.isArray(DB[key]) ? DB[key] : [];
+    var have = {}; cur.forEach(function(r){ if (r && r.id != null) have[String(r.id)] = true; });
+    bArr.forEach(function(r){ if (r && r.id != null && !have[String(r.id)]) n++; });
+  });
+  return n;
+}
+
+// Restore from a user-selected backup file (safe additive merge).
+function restoreFromBackupFile(input) {
+  var file = input && input.files && input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      var parsed = JSON.parse(ev.target.result);
+      var bdb = parsed && parsed.db ? parsed.db : parsed; // accept {db:...} or a raw DB dump
+      if (!bdb || !Array.isArray(bdb.quotes)) {
+        if (typeof showToast === 'function') showToast('That file is not a ProBid backup.', 'error');
+        input.value = ''; return;
+      }
+      var meta = parsed && parsed._backupMeta;
+      var when = (meta && meta.createdAt) ? new Date(meta.createdAt).toLocaleString() : 'unknown date';
+      var addN = _restorableCount(bdb);
+      if (addN === 0) {
+        if (typeof showToast === 'function') showToast('Nothing to restore — this backup has no records you are missing.', 'info');
+        input.value = ''; return;
+      }
+      if (!confirm('Restore from backup dated ' + when + '?\n\nThis is SAFE: it ONLY ADDS the ' + addN + ' record(s) from the backup that are missing now. It never deletes or overwrites your current data.\n\nA snapshot of your current data is saved first.')) { input.value = ''; return; }
+      _saveRestorePoint('before-restore');
+      var added = _mergeBackupDB(bdb);
+      saveDB();
+      if (typeof showToast === 'function') showToast('Restore complete — added ' + added + ' record(s). Syncing to cloud…', 'success', 4000);
+      if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 600);
+      setTimeout(function(){ try { if (typeof renderDash === 'function') renderDash(); if (typeof renderQuotes === 'function') renderQuotes(); } catch(e){} }, 800);
+    } catch(e) {
+      console.error('[Restore] failed', e);
+      if (typeof showToast === 'function') showToast('Restore failed: ' + (e && e.message || e), 'error');
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// Snapshot the CURRENT db to localStorage before any destructive/large change.
+function _saveRestorePoint(tag) {
+  try { localStorage.setItem(BACKUP_LASTGOOD_KEY, JSON.stringify({ tag: tag||'snapshot', at: new Date().toISOString(), db: DB })); }
+  catch(e) { console.warn('[Backup] restore-point skipped:', e && e.name); }
+}
+
+// Once-a-day rolling local snapshot (runs on login). Quota-guarded.
+function _saveDailySnapshot() {
+  try {
+    var raw = localStorage.getItem(BACKUP_DAILY_KEY);
+    if (raw) { var last = JSON.parse(raw); if (last && last.at && (new Date() - new Date(last.at)) < 20*60*60*1000) return; }
+    localStorage.setItem(BACKUP_DAILY_KEY, JSON.stringify({ at: new Date().toISOString(), db: DB }));
+  } catch(e) { console.warn('[Backup] daily snapshot skipped:', e && e.name); }
+}
+
+// Emergency: restore from the most recent local snapshot (additive merge).
+function restoreLastKnownGood() {
+  try {
+    var raw = localStorage.getItem(BACKUP_LASTGOOD_KEY) || localStorage.getItem(BACKUP_DAILY_KEY);
+    if (!raw) { if (typeof showToast==='function') showToast('No local snapshot found.', 'error'); return; }
+    var snap = JSON.parse(raw); var bdb = snap.db || snap;
+    var addN = _restorableCount(bdb);
+    if (!confirm('Restore local snapshot from ' + (snap.at ? new Date(snap.at).toLocaleString() : 'unknown') + '?\n\nAdds ' + addN + ' missing record(s). Never deletes anything.')) return;
+    var added = _mergeBackupDB(bdb); saveDB();
+    if (typeof showToast==='function') showToast('Local snapshot restored — added ' + added + ' record(s).', 'success');
+    if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 600);
+    setTimeout(function(){ try { if (typeof renderDash==='function') renderDash(); } catch(e){} }, 600);
+  } catch(e) { if (typeof showToast==='function') showToast('Snapshot restore failed: ' + (e && e.message || e), 'error'); }
+}
+
+// Fill the Settings backup panel with last-backup timestamps.
+function updateBackupInfo() {
+  var el = document.getElementById('backup-last-info'); if (!el) return;
+  var parts = [];
+  try {
+    var d = localStorage.getItem(BACKUP_DL_TS_KEY);
+    if (d) parts.push('Last download: ' + new Date(d).toLocaleString());
+    var snap = localStorage.getItem(BACKUP_DAILY_KEY);
+    if (snap) { var s = JSON.parse(snap); if (s && s.at) parts.push('Auto snapshot: ' + new Date(s.at).toLocaleString()); }
+  } catch(e) {}
+  el.textContent = parts.length ? parts.join('   •   ') : 'No backup taken yet — download one now to be safe.';
+}
+
 function loadDB() {
   try {
     const raw = localStorage.getItem(DB_KEY);
