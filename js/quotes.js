@@ -2985,7 +2985,18 @@ function renderContacts() {
 
   // Summary
   var linked    = contacts.filter(function(c){ return c.customerId; }).length;
-  var decisions = contacts.filter(function(c){ return c.contactType==='decision'; }).length;
+  // Normalize contactType — handle both old short values and new full string values
+  function normType(t) {
+    if (!t) return '';
+    var tl = t.toLowerCase();
+    if (tl==='decision' || tl.includes('decision maker')) return 'decision';
+    if (tl==='billing'  || tl.includes('billing'))        return 'billing';
+    if (tl==='site'     || tl.includes('site'))           return 'site';
+    if (tl==='technical'|| tl.includes('technical'))      return 'technical';
+    return tl;
+  }
+
+  var decisions = contacts.filter(function(c){ return normType(c.contactType)==='decision'; }).length;
   var noEmail   = contacts.filter(function(c){ return !c.email; }).length;
   function setS(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
   setS('ct-total',    contacts.length);
@@ -3003,9 +3014,9 @@ function renderContacts() {
   });
 
   // Filter
-  if (filter==='decision')  contacts=contacts.filter(function(c){ return c.contactType==='decision'; });
-  if (filter==='billing')   contacts=contacts.filter(function(c){ return c.contactType==='billing'; });
-  if (filter==='site')      contacts=contacts.filter(function(c){ return c.contactType==='site'; });
+  if (filter==='decision')  contacts=contacts.filter(function(c){ return normType(c.contactType)==='decision'; });
+  if (filter==='billing')   contacts=contacts.filter(function(c){ return normType(c.contactType)==='billing'; });
+  if (filter==='site')      contacts=contacts.filter(function(c){ return normType(c.contactType)==='site'; });
   if (filter==='no-email')  contacts=contacts.filter(function(c){ return !c.email; });
   if (filter==='no-phone')  contacts=contacts.filter(function(c){ return !c.phone; });
   if (filter==='unlinked')  contacts=contacts.filter(function(c){ return !c.customerId; });
@@ -3063,8 +3074,8 @@ function renderContacts() {
       ? '<a href="#" class="cont-company-link" onclick="openCustomerProfile(\''+cust.id+'\');return false">'+escHtml(custName)+'</a>'
       : (custName?'<span style="font-size:13px;color:#546e7a">'+escHtml(custName)+'</span>':'<span style="color:#d0d0d0;font-size:12px">—</span>');
 
-    var typeBadge = c.contactType && typeLabels[c.contactType]
-      ? '<span class="cont-type-badge '+c.contactType+'">'+typeLabels[c.contactType]+'</span>'
+    var typeBadge = c.contactType && typeLabels[normType(c.contactType)]
+      ? '<span class="cont-type-badge '+normType(c.contactType)+'">'+typeLabels[normType(c.contactType)]+'</span>'
       : '';
     var roleTxt = c.role||c.title||'';
 
