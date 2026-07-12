@@ -2700,6 +2700,7 @@ async function uploadWODocument(file, woId, label, docType) {
   if (!_sb || !_currentUser) { showToast('Not logged in','error'); return null; }
   docType = docType || 'office';
 
+  file = await compressImage(file);   // shrink photo uploads; PDFs/non-images pass through unchanged
   var ext  = file.name.split('.').pop().toLowerCase();
   var safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
   var path = 'wo-docs/'+woId+'/'+Date.now()+'-'+safe;

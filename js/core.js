@@ -332,6 +332,63 @@ async function downloadFullBackup() {
   }
 }
 
+// ============================================================
+// IMAGE COMPRESSION on upload. Supabase does not compress, and
+// raw phone photos are 3–12MB each. We resize to a max edge and
+// re-encode as JPEG before upload — typically a 5–15x reduction.
+// Non-images (PDFs, SVG, etc.) and any failure pass through UNCHANGED,
+// so an upload is never blocked by compression.
+// ============================================================
+function _isCompressibleImage(file) {
+  if (!file || !file.type) return false;
+  var t = file.type.toLowerCase();
+  return t === 'image/jpeg' || t === 'image/jpg' || t === 'image/png' || t === 'image/webp' || t === 'image/heic' || t === 'image/heif';
+}
+
+function _fmtSize(bytes) {
+  bytes = bytes || 0;
+  if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+  if (bytes >= 1024)    return Math.round(bytes / 1024) + ' KB';
+  return bytes + ' B';
+}
+
+async function compressImage(file, opts) {
+  try {
+    if (!_isCompressibleImage(file)) return file;               // leave PDFs/SVG/others alone
+    opts = opts || {};
+    var maxDim  = opts.maxDim  || (DB.settings && DB.settings.photoMaxDim)  || 2000;
+    var quality = opts.quality || (DB.settings && DB.settings.photoQuality) || 0.82;
+    var bmp;
+    if (typeof createImageBitmap === 'function') {
+      bmp = await createImageBitmap(file);
+    } else {
+      bmp = await new Promise(function(res, rej){
+        var img = new Image(), url = URL.createObjectURL(file);
+        img.onload  = function(){ URL.revokeObjectURL(url); res(img); };
+        img.onerror = function(){ URL.revokeObjectURL(url); rej(new Error('image load failed')); };
+        img.src = url;
+      });
+    }
+    var w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
+    if (!w || !h) return file;
+    var scale = Math.min(1, maxDim / Math.max(w, h));
+    var tw = Math.max(1, Math.round(w * scale)), th = Math.max(1, Math.round(h * scale));
+    var canvas = document.createElement('canvas'); canvas.width = tw; canvas.height = th;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, tw, th);      // flatten transparency to white (no black JPEGs)
+    ctx.drawImage(bmp, 0, 0, tw, th);
+    if (bmp.close) { try { bmp.close(); } catch(e){} }
+    var blob = await new Promise(function(res){ canvas.toBlob(function(b){ res(b); }, 'image/jpeg', quality); });
+    if (!blob || blob.size >= file.size) return file;           // no gain (already small) → keep original
+    var base = ((file.name || 'photo').replace(/\.[^.]+$/, '')) || 'photo';
+    try { return new File([blob], base + '.jpg', { type: 'image/jpeg', lastModified: Date.now() }); }
+    catch(e) { try { blob.name = base + '.jpg'; } catch(e2){} return blob; } // older Safari: no File ctor
+  } catch(e) {
+    console.warn('[compressImage] using original (compression failed):', e && e.message);
+    return file;                                                // never block an upload on compression
+  }
+}
+
 function loadDB() {
   try {
     const raw = localStorage.getItem(DB_KEY);

@@ -276,9 +276,12 @@ function openPhotoUpload(jobId) {
 
 async function uploadJobPhoto(jobId, file, caption) {
   if (!_sb || !_currentUser) { showToast('Must be logged in to upload photos','error'); return; }
+  var _origSize = file.size;
+  file = await compressImage(file);                       // shrink photos before upload
+  var _cNote = (_origSize > file.size) ? ' (' + _fmtSize(_origSize) + ' → ' + _fmtSize(file.size) + ')' : '';
   var ext = file.name.split('.').pop();
   var path = jobId + '/' + Date.now() + '-' + Math.random().toString(36).slice(2,7) + '.' + ext;
-  showToast('Uploading ' + file.name + '...', 'info', 3000);
+  showToast('Uploading ' + file.name + _cNote + '...', 'info', 3000);
   try {
     var { data: uploadData, error: uploadErr } = await _sb.storage.from('job-photos').upload(path, file, { cacheControl: '3600', upsert: false });
     if (uploadErr) { showToast('Upload failed: ' + uploadErr.message, 'error'); return; }
