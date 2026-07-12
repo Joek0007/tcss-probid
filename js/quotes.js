@@ -3093,11 +3093,10 @@ function renderContacts() {
       '</div>'+
       // Quick actions
       '<div class="cont-quick-actions">'+
-        (c.phone?'<a href="tel:'+escHtml(c.phone)+'" class="cont-quick-btn" title="Call">📞</a>':'')+
-        (c.phone?'<a href="sms:'+escHtml(c.phone)+'" class="cont-quick-btn" title="Text">💬</a>':'')+
-        (c.email?'<a href="mailto:'+escHtml(c.email)+'" class="cont-quick-btn" title="Email">✉️</a>':'')+
-        '<button class="cont-quick-btn" onclick="newQuoteForContact(\''+c.id+'\')" title="New Quote">📋</button>'+
-        '<button class="btn btn-outline btn-sm" data-action="editContact" data-id="'+c.id+'" title="Edit">✏</button>'+
+        (c.phone?'<a href="tel:'+escHtml(c.phone)+'" class="cont-quick-btn" title="Call">📞 Call</a>':'')+
+        (c.email?'<a href="mailto:'+escHtml(c.email)+'" class="cont-quick-btn" title="Email">✉️ Email</a>':'')+
+        '<button class="cont-quick-btn" onclick="newQuoteForContact(\''+c.id+'\')" title="New Quote">📋 Quote</button>'+
+        '<button class="btn btn-outline btn-sm" data-action="editContact" data-id="'+c.id+'" title="Edit">✏ Edit</button>'+
         '<button class="btn btn-danger btn-sm" data-action="delContact" data-id="'+c.id+'" title="Delete">✕</button>'+
       '</div>'+
     '</div>';
