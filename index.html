@@ -5254,7 +5254,20 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   </div>
 </div>
 
-<!-- WORK ORDER DETAIL MODAL -->
+<!-- UNSAVED QUOTE NAVIGATION WARNING MODAL -->
+<div id="modal-qq-nav-warn" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div style="font-size:22px;margin-bottom:8px">⚠️</div>
+    <div style="font-size:16px;font-weight:700;color:#1f3b57;margin-bottom:8px">You have an unsaved quote</div>
+    <div id="modal-qq-nav-msg" style="font-size:13px;color:#546e7a;margin-bottom:20px;line-height:1.6">Your work has been saved as a draft. You can resume it any time from the Quotes page.</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="qqNavWarnStay()" class="btn btn-outline" style="font-size:13px">Stay on Quote</button>
+      <button onclick="qqNavWarnLeave()" class="btn btn-primary" style="font-size:13px">Leave anyway</button>
+    </div>
+  </div>
+</div>
+
+
 <div class="modal-overlay" id="modal-work-order" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
   <div class="modal-box" style="max-width:900px;width:95%;margin:0 auto">
     <div class="modal-head" style="position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #e0e7ef">
@@ -7038,6 +7051,31 @@ document.addEventListener('click', function(e) {
 });
 // Also populate on settings save (lists may have changed)
 document.addEventListener('DOMContentLoaded', function(){ setTimeout(populateDynamicSelects, 1500); });
+
+// ── QQ Navigation Warning Modal ──────────────────────────────────────────────
+var _qqNavTarget = null;
+function qqNavWarnStay() {
+  var modal = document.getElementById('modal-qq-nav-warn');
+  if (modal) modal.style.display = 'none';
+  _qqNavTarget = null;
+}
+function qqNavWarnLeave() {
+  var modal = document.getElementById('modal-qq-nav-warn');
+  if (modal) modal.style.display = 'none';
+  var target = _qqNavTarget;
+  _qqNavTarget = null;
+  if (target && typeof goPage === 'function') goPage(target);
+}
+
+// Protect against browser tab close / refresh when QQ is dirty
+window.addEventListener('beforeunload', function(e) {
+  if (typeof _qqDirty !== 'undefined' && _qqDirty) {
+    var msg = 'You have an unsaved quote. Your draft is saved locally — resume it next time.';
+    e.preventDefault();
+    e.returnValue = msg;
+    return msg;
+  }
+});
 
 function woRtfShowBar(fieldId) {
   var tb = document.getElementById(fieldId+'-toolbar');

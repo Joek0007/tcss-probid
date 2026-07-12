@@ -193,11 +193,21 @@ function goPage(id) {
       if (!confirm('Leave Work Tracking?\n\nAll your work is saved. You can come back any time.')) return;
     }
   }
-  // Warn if leaving Quick Quote with unsaved changes — only if QQ page is actually visible
+  // Warn if leaving Quick Quote with unsaved changes — use in-app modal not browser confirm
   var qqPage = document.getElementById('page-qq');
   var qqActive = qqPage && qqPage.classList.contains('active');
   if (id !== 'qq' && qqActive && typeof _qqDirty !== 'undefined' && _qqDirty) {
-    if (!confirm('You have unsaved changes in the Quick Quote.\nLeave anyway? Your changes will be lost.')) return;
+    // Show in-app modal instead of browser confirm
+    _qqNavTarget = id;
+    var modal = document.getElementById('modal-qq-nav-warn');
+    var msg = document.getElementById('modal-qq-nav-msg');
+    var idEl = document.getElementById('qq-id');
+    var hasSavedStub = idEl && idEl.value;
+    if (msg) msg.textContent = hasSavedStub
+      ? 'Your work has been auto-saved as a draft quote. You can resume it any time from the Quotes page.'
+      : 'Your draft has been saved locally in this browser. Resume it next time you open a new quote.';
+    if (modal) { modal.style.display = 'flex'; }
+    return; // don't navigate yet
   }
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});

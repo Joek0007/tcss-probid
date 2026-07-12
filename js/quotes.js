@@ -315,7 +315,56 @@ function qqFieldIds() {
 // was never defined, meaning every programmatic "new quote" attempt left the
 // previous quote's data in the form — causing customer/contact cross-contamination
 // when navigating from a customer profile to a new quote.
+// ── Draft resume banner after login ──────────────────────────────────────────
+function _checkQQDraftOnLogin() {
+  try {
+    var raw = localStorage.getItem(QQ_DRAFT_KEY);
+    if (!raw) return;
+    var parsed = JSON.parse(raw);
+    if (!parsed || !parsed.savedAt) return;
+    // Only show if draft has meaningful content
+    var cn = (parsed.fields && parsed.fields['qq-cn']) || '';
+    var jn = (parsed.fields && parsed.fields['qq-jn']) || '';
+    if (!cn.trim() && !jn.trim() && !(parsed.lineItems||[]).length) return;
+    // Format the time
+    var savedAt = new Date(parsed.savedAt);
+    var timeStr = savedAt.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true });
+    // Show banner on dashboard
+    _showQQResumeBanner(cn || jn || 'Untitled Quote', timeStr);
+  } catch(e) {}
+}
+
+function _showQQResumeBanner(quoteName, timeStr) {
+  var existing = document.getElementById('qq-resume-banner');
+  if (existing) existing.remove();
+  var banner = document.createElement('div');
+  banner.id = 'qq-resume-banner';
+  banner.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#1565c0;color:#fff;border-radius:10px;padding:14px 20px;box-shadow:0 4px 20px rgba(0,0,0,.2);z-index:8000;display:flex;align-items:center;gap:14px;max-width:500px;width:90%';
+  banner.innerHTML =
+    '<div style="font-size:20px">📋</div>'+
+    '<div style="flex:1">'+
+      '<div style="font-weight:700;font-size:14px">Unfinished quote from '+timeStr+'</div>'+
+      '<div style="font-size:12px;opacity:.85;margin-top:2px">"'+escHtml(quoteName)+'" — click Resume to continue where you left off</div>'+
+    '</div>'+
+    '<button onclick="_resumeQQDraft()" style="background:#fff;color:#1565c0;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">Resume</button>'+
+    '<button onclick="document.getElementById(\'qq-resume-banner\').remove();clearQQDraft();" style="background:none;border:none;color:#fff;opacity:.7;font-size:18px;cursor:pointer;padding:0 4px">×</button>';
+  document.body.appendChild(banner);
+  // Auto-dismiss after 15 seconds — banner disappears but draft is preserved
+  setTimeout(function(){ if (banner.parentNode) banner.remove(); }, 15000);
+}
+
+function _resumeQQDraft() {
+  var banner = document.getElementById('qq-resume-banner');
+  if (banner) banner.remove();
+  goPage('qq');
+  setTimeout(function(){
+    if (typeof restoreQQDraft === 'function') restoreQQDraft();
+  }, 300);
+}
+
 function clearQQ(clearDraft) {
+  _autoSaveStubDone = false; // reset so next new quote can auto-save
+  clearTimeout(_autoSaveStubTimer);
   try {
     // Clear all standard fields
     // Clear rich text notes editor
@@ -347,6 +396,31 @@ function setQQDirty(flag, note){
   var sub = document.getElementById('qq-stage3-sub');
   if (pill) pill.textContent = _qqDirty ? 'Draft In Progress' : 'Quote Stable';
   if (sub && note) sub.textContent = note;
+  // Trigger auto-save check whenever form becomes dirty
+  if (flag) _scheduleAutoSaveStub();
+}
+
+// ── Auto-save stub ────────────────────────────────────────────────────────────
+// Saves quote to DB as soon as customer + job name are filled, without requiring
+// a line item. This means navigating away never loses the quote — it's in the DB.
+var _autoSaveStubTimer = null;
+var _autoSaveStubDone = false; // reset when clearQQ is called
+
+function _scheduleAutoSaveStub() {
+  if (_autoSaveStubDone) return; // already auto-saved this quote
+  if (_qqRestoreLock) return;
+  clearTimeout(_autoSaveStubTimer);
+  _autoSaveStubTimer = setTimeout(function() {
+    var cn = (document.getElementById('qq-cn')||{}).value || '';
+    var jn = (document.getElementById('qq-jn')||{}).value || '';
+    if (!cn.trim() || !jn.trim()) return; // not ready yet
+    var idEl = document.getElementById('qq-id');
+    if (idEl && idEl.value) return; // already has an ID — already saved
+    // Auto-save a stub quote
+    saveQQ();
+    _autoSaveStubDone = true;
+    showToast('✅ Quote auto-saved — your work is protected', 'success', 3000);
+  }, 2000);
 }
 function qqCollectDraft(){
   var notesEl = document.getElementById('qq-notes');

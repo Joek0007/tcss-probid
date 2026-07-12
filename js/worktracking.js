@@ -7886,13 +7886,13 @@ document.addEventListener('click', function(e) {
     case 'newQuote': 
       clearQQ(true); 
       goPage('qq'); 
-      // Clear notes div again after page settles — contenteditable div persists across goPage calls
       setTimeout(function(){
         var notesEl = document.getElementById('qq-notes');
         if (notesEl && notesEl.contentEditable === 'true') { 
           notesEl.innerHTML = ''; 
           if(typeof qqNotesUpdatePlaceholder==='function') qqNotesUpdatePlaceholder(); 
         }
+        showToast('✨ New Quote started — fill in customer and job name to auto-save', 'info', 4000);
       }, 100);
       break;
     case 'saveQQ': saveQQ(); break;

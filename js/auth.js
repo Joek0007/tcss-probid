@@ -118,6 +118,8 @@ async function signIn(email, password) {
     startClockInReminder();
     checkYearEndForfeiture();
     setTimeout(flushOfflineQueue, 2000);
+    // Check for unfinished quote draft after login
+    setTimeout(_checkQQDraftOnLogin, 2500);
     setTimeout(function initPhase2() {
       // Phase 2 init — runs 500ms after login
       // Re-enforce role permissions after all syncs have settled
