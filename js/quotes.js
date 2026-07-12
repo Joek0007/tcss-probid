@@ -3091,10 +3091,14 @@ function renderContacts() {
         (roleTxt?'<span style="font-size:11px;color:#546e7a">'+escHtml(roleTxt)+'</span>':'')+
         prefHtml+
       '</div>'+
-      // Quick actions
+      // Quick actions — always show all buttons, gray out when data missing
       '<div class="cont-quick-actions">'+
-        (c.phone?'<a href="tel:'+escHtml(c.phone)+'" class="cont-quick-btn" title="Call">📞 Call</a>':'')+
-        (c.email?'<a href="mailto:'+escHtml(c.email)+'" class="cont-quick-btn" title="Email">✉️ Email</a>':'')+
+        (c.phone
+          ? '<a href="tel:'+escHtml(c.phone)+'" class="cont-quick-btn" title="Call '+escHtml(c.phone)+'">📞 Call</a>'
+          : '<span class="cont-quick-btn cont-quick-disabled" title="No phone on file">📞 Call</span>')+
+        (c.email
+          ? '<a href="mailto:'+escHtml(c.email)+'" class="cont-quick-btn" title="Email '+escHtml(c.email)+'">✉️ Email</a>'
+          : '<span class="cont-quick-btn cont-quick-disabled" title="No email on file">✉️ Email</span>')+
         '<button class="cont-quick-btn" onclick="newQuoteForContact(\''+c.id+'\')" title="New Quote">📋 Quote</button>'+
         '<button class="btn btn-outline btn-sm" data-action="editContact" data-id="'+c.id+'" title="Edit">✏ Edit</button>'+
         '<button class="btn btn-danger btn-sm" data-action="delContact" data-id="'+c.id+'" title="Delete">✕</button>'+
