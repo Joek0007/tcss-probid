@@ -229,13 +229,19 @@ function renderCPOverview(customer, quotes, jobs, contacts, projects) {
     '</div>'+
     // Primary contact quick view
     (contacts.length?
-      '<div class="cp-section-title" style="margin-top:14px">Primary Contact</div>'+
-      '<div class="cp-contact-card">'+
-        '<div class="cp-contact-avatar">'+escHtml((contacts[0].name||'?')[0].toUpperCase())+'</div>'+
-        '<div><div style="font-weight:700;font-size:13px">'+escHtml(contacts[0].name||'')+'</div>'+
-        '<div style="font-size:12px;color:#546e7a">'+escHtml(contacts[0].role||contacts[0].title||'')+'</div>'+
-        (contacts[0].phone?'<div style="font-size:12px;color:#1565c0">'+escHtml(contacts[0].phone)+'</div>':'')+
-      '</div></div>':'')+
+      (function(){
+        var pc = contacts.find(function(c){ return c.id===customer.defaultContactId; }) || contacts[0];
+        var isDefault = customer.defaultContactId === pc.id;
+        return '<div class="cp-section-title" style="margin-top:14px">Primary Contact</div>'+
+          '<div class="cp-contact-card">'+
+            '<div class="cp-contact-avatar">'+escHtml((pc.name||'?')[0].toUpperCase())+'</div>'+
+            '<div><div style="font-weight:700;font-size:13px">'+escHtml(pc.name||'')+(isDefault?' <span style="font-size:10px;color:#1565c0;font-weight:700;background:#e3f2fd;padding:1px 6px;border-radius:10px">DEFAULT</span>':'')+'</div>'+
+            '<div style="font-size:12px;color:#546e7a">'+escHtml(pc.role||pc.title||'')+'</div>'+
+            (pc.phone?'<div style="font-size:12px;color:#1565c0"><a href="tel:'+escHtml(pc.phone)+'" style="color:#1565c0">📞 '+escHtml(pc.phone)+(pc.phoneType?' <span style="color:#90a4ae;font-size:10px">('+escHtml(pc.phoneType)+')</span>':'')+'</a></div>':'')+
+            (pc.phone2?'<div style="font-size:12px;color:#1565c0"><a href="tel:'+escHtml(pc.phone2)+'" style="color:#1565c0">📞 '+escHtml(pc.phone2)+(pc.phone2Type?' <span style="color:#90a4ae;font-size:10px">('+escHtml(pc.phone2Type)+')</span>':'')+'</a></div>':'')+
+            (pc.email?'<div style="font-size:12px"><a href="mailto:'+escHtml(pc.email)+'" style="color:#1565c0">✉️ '+escHtml(pc.email)+'</a></div>':'')+
+            '</div></div>';
+      })():'')+
   '</div>';
 
   html += '</div>';
@@ -297,18 +303,25 @@ function renderCPContacts(contacts, customer) {
     '</div>'+
     (contacts.length?
       contacts.map(function(c){
+        var isDefault = customer.defaultContactId === c.id;
         return '<div class="cp-contact-card">'+
           '<div class="cp-contact-avatar">'+escHtml((c.name||'?')[0].toUpperCase())+'</div>'+
           '<div style="flex:1">'+
-            '<div style="font-weight:700;font-size:13px">'+escHtml(c.name||'')+'</div>'+
+            '<div style="font-weight:700;font-size:13px">'+escHtml(c.name||'')+(isDefault?' <span style="font-size:10px;color:#1565c0;font-weight:700;background:#e3f2fd;padding:1px 6px;border-radius:10px">DEFAULT</span>':'')+'</div>'+
             '<div style="font-size:12px;color:#546e7a">'+escHtml(c.role||c.title||'')+(c.company?' · '+escHtml(c.company):'')+'</div>'+
-            '<div style="font-size:12px;margin-top:2px;display:flex;gap:12px">'+
-              (c.phone?'<a href="tel:'+escHtml(c.phone)+'" style="color:#1565c0">'+escHtml(c.phone)+'</a>':'')+
-              (c.email?'<a href="mailto:'+escHtml(c.email)+'" style="color:#1565c0">'+escHtml(c.email)+'</a>':'')+
+            '<div style="font-size:12px;margin-top:4px;display:flex;flex-direction:column;gap:2px">'+
+              (c.phone?'<div><a href="tel:'+escHtml(c.phone)+'" style="color:#1565c0">📞 '+escHtml(c.phone)+(c.phoneType?' <span style="color:#90a4ae;font-size:10px">('+escHtml(c.phoneType)+')</span>':'')+'</a></div>':'')+
+              (c.phone2?'<div><a href="tel:'+escHtml(c.phone2)+'" style="color:#1565c0">📞 '+escHtml(c.phone2)+(c.phone2Type?' <span style="color:#90a4ae;font-size:10px">('+escHtml(c.phone2Type)+')</span>':'')+'</a></div>':'')+
+              (c.email?'<div><a href="mailto:'+escHtml(c.email)+'" style="color:#1565c0">✉️ '+escHtml(c.email)+'</a></div>':'')+
+              (c.street?'<div style="color:#546e7a;font-size:11px">📍 '+escHtml(c.street)+', '+escHtml(c.city||'')+(c.state?' '+escHtml(c.state):'')+(c.zip?' '+escHtml(c.zip):'')+'</div>':'')+
             '</div>'+
           '</div>'+
-          '<div style="display:flex;gap:4px">'+
+          '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">'+
             '<button class="btn btn-outline btn-sm" onclick="editContact(\''+c.id+'\')">Edit</button>'+
+            (isDefault
+              ? '<span style="font-size:10px;color:#1565c0;cursor:pointer" onclick="setContactAsDefault(\''+_cpCustomerId+'\',\'\')">Clear default</span>'
+              : '<span style="font-size:10px;color:#90a4ae;cursor:pointer" onclick="setContactAsDefault(\''+_cpCustomerId+'\',\''+c.id+'\')">Set default</span>'
+            )+
           '</div>'+
         '</div>';
       }).join('') :
@@ -334,6 +347,15 @@ function renderCPProjects(projects) {
 }
 
 // ---- CONTACT LINKING ----
+function setContactAsDefault(customerId, contactId) {
+  var cust = (DB.customers||[]).find(function(c){ return c.id===customerId; });
+  if (!cust) return;
+  cust.defaultContactId = contactId || null;
+  saveDB();
+  switchCPTab('contacts');
+  showToast(contactId ? 'Default contact updated' : 'Default contact cleared', 'success', 2000);
+}
+
 function newContactForCustomer(customerId, customerName) {
   newContact();
   var custSel = document.getElementById('m-ct-custid');

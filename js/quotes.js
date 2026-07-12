@@ -3051,7 +3051,8 @@ function renderContacts() {
       .sort(function(a,b){ return (b.dt||'').localeCompare(a.dt||''); })[0];
 
     var phoneHtml = c.phone
-      ? '<a href="tel:'+escHtml(c.phone)+'" class="cust-phone-link">'+escHtml(c.phone)+'</a>'
+      ? '<a href="tel:'+escHtml(c.phone)+'" class="cust-phone-link">'+escHtml(c.phone)+(c.phoneType?'<span style="color:#90a4ae;font-size:10px"> ('+escHtml(c.phoneType)+')</span>':'')+'</a>'+
+        (c.phone2?'<br><a href="tel:'+escHtml(c.phone2)+'" class="cust-phone-link">'+escHtml(c.phone2)+(c.phone2Type?'<span style="color:#90a4ae;font-size:10px"> ('+escHtml(c.phone2Type)+')</span>':'')+'</a>':'')
       : '<span style="color:#d0d0d0;font-size:12px">—</span>';
 
     var emailHtml = c.email
