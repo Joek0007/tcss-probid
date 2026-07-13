@@ -1070,15 +1070,20 @@ function buildPrintHTML(q, mode) {
       } else {
         unitSell = 0;
       }
-      const totalSell = unitSell * qty;
+      // Include THIS line's labor (install hours × labor rate) so labor-bearing lines
+      // show a real price instead of "—". Line total = material sell + labor; the lines
+      // therefore sum to the pre-tax subtotal (matches the Pricing Summary).
+      const _laborRate = parseFloat(q.laborRate) || 100;
+      const lineTotal  = (unitSell * qty) + (qty * lh * _laborRate);
+      const lineUnit   = qty > 0 ? lineTotal / qty : lineTotal;
       rowNum++;
       rows += '<tr style="border-bottom:1px solid #e8e8e8">';
       rows += '<td style="padding:8px 12px;width:40px;color:#888">' + rowNum + '</td>';
       rows += '<td style="padding:8px 12px">' + escHtml(item.desc || 'Item') + '</td>';
       rows += '<td style="padding:8px 12px;text-align:center">' + qty + '</td>';
       rows += '<td style="padding:8px 12px">' + escHtml(item.unit||'ea') + '</td>';
-      rows += '<td style="padding:8px 12px;text-align:right">' + (totalSell > 0 ? fmt(unitSell) : '—') + '</td>';
-      rows += '<td style="padding:8px 12px;text-align:right;font-weight:600">' + (totalSell > 0 ? fmt(totalSell) : '—') + '</td>';
+      rows += '<td style="padding:8px 12px;text-align:right">' + (lineTotal > 0 ? fmt(lineUnit) : '—') + '</td>';
+      rows += '<td style="padding:8px 12px;text-align:right;font-weight:600">' + (lineTotal > 0 ? fmt(lineTotal) : '—') + '</td>';
       rows += '</tr>';
     });
 
