@@ -966,6 +966,28 @@ async function syncAllFromCloud(silent) {
 
   }
 
+  // Secondary collections (tools, checkouts, inventory locations/transfers) live in the
+  // app_state blob store. Only overwrite local when the cloud actually returned an array.
+  try {
+    var { data: stateRows } = await _sb.from('app_state').select('key,data');
+    if (stateRows && stateRows.length) {
+      stateRows.forEach(function(row){ if (row && row.key && Array.isArray(row.data)) DB[row.key] = row.data; });
+    }
+  } catch(e) { errors.push('app_state: '+e.message); }
+
+  // Audit log — read recent history back so the view isn't empty after a reload.
+  try {
+    var { data: auditRows } = await _sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(500);
+    if (auditRows) {
+      DB.auditLog = auditRows.map(function(a){ return {
+        id:a.id, event:a.event, recordType:a.record_type, recordId:a.record_id,
+        actorId:a.actor_id, actorName:a.actor_name, actorRole:a.actor_role,
+        oldValue:a.old_value, newValue:a.new_value, note:a.note,
+        ts:a.created_at || '', viewAsMode:a.view_as_mode, realActorName:a.real_actor
+      }; });
+    }
+  } catch(e) { errors.push('audit_log: '+e.message); }
+
   // Save to localStorage only — do NOT call saveDB() here as it would schedule a push
   // We just pulled from Supabase so there's nothing to push back
   window._syncInProgress = false;
@@ -1499,6 +1521,15 @@ async function pushAllToCloud() {
           price_history:rc.priceHistory||[], created_at:rc.createdAt||new Date().toISOString()
         });
       } catch(rcErr) { console.warn('[Push] RC:', rcErr.message||rcErr); }
+    }
+
+    // Persist secondary collections that have no dedicated table (tools & assets,
+    // tool checkouts, checkout log, inventory locations/transfers). Stored as whole-
+    // collection JSON blobs in app_state so they survive reloads and reach every device.
+    var _blobKeys = ['tools','toolCheckouts','checkoutLog','invLocations','invTransfers'];
+    for (var _bk of _blobKeys) {
+      try { await _sb.from('app_state').upsert({ key: _bk, data: DB[_bk] || [], updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
+      catch(_be) { console.warn('[Push] app_state', _bk, _be && _be.message); }
     }
 
   } catch(e) {
