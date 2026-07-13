@@ -389,6 +389,60 @@ async function compressImage(file, opts) {
   }
 }
 
+// ============================================================
+// PRIVATE STORAGE — signed-URL media hydration
+// The job-photos bucket can be private. Photos/documents are rendered with
+// data-sp="<storage path>" plus a public-URL fallback in src/href; this swaps in
+// short-lived signed URLs so private files display without exposing them publicly.
+// Safe on a PUBLIC bucket too (the fallback URL already works; signing just upgrades it).
+// ============================================================
+async function hydrateSignedMedia(root) {
+  try {
+    if (typeof _sb === 'undefined' || !_sb) return;
+    root = root || document;
+    if (!root.querySelectorAll) return;
+    var els = root.querySelectorAll('img[data-sp], a[data-sp]');
+    if (!els || !els.length) return;
+    var paths = [];
+    for (var i = 0; i < els.length; i++) { var p = els[i].getAttribute('data-sp'); if (p && paths.indexOf(p) < 0) paths.push(p); }
+    if (!paths.length) return;
+    var map = {};
+    var res = await _sb.storage.from('job-photos').createSignedUrls(paths, 3600);
+    if (res && res.data) res.data.forEach(function(r){ if (r && r.path && r.signedUrl) map[r.path] = r.signedUrl; });
+    for (var k = 0; k < els.length; k++) {
+      var el = els[k], sp = el.getAttribute('data-sp'), signed = map[sp];
+      if (signed) { if (el.tagName === 'IMG') el.src = signed; else el.setAttribute('href', signed); }
+      el.removeAttribute('data-sp'); // processed — don't reprocess
+    }
+  } catch(e) { console.warn('[signedMedia]', e && e.message); }
+}
+
+// Auto-hydrate whenever photo/doc elements are added to the page.
+function _initSignedMediaObserver() {
+  if (window._signedMediaObserver || typeof MutationObserver === 'undefined' || !document.body) return;
+  var pending = false;
+  var obs = new MutationObserver(function(muts){
+    if (pending) return;
+    for (var i = 0; i < muts.length; i++) {
+      var added = muts[i].addedNodes;
+      for (var j = 0; j < added.length; j++) {
+        var n = added[j];
+        if (n.nodeType === 1 && ((n.matches && n.matches('img[data-sp],a[data-sp]')) || (n.querySelector && n.querySelector('img[data-sp],a[data-sp]')))) {
+          pending = true;
+          setTimeout(function(){ pending = false; hydrateSignedMedia(document); }, 50);
+          return;
+        }
+      }
+    }
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+  window._signedMediaObserver = obs;
+}
+if (typeof document !== 'undefined') {
+  if (document.body) _initSignedMediaObserver();
+  else document.addEventListener('DOMContentLoaded', _initSignedMediaObserver);
+}
+
 function loadDB() {
   try {
     const raw = localStorage.getItem(DB_KEY);
