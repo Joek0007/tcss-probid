@@ -256,6 +256,10 @@ function clearQQ(skipConfirm) {
   const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
   updatePermitStatus();
   ['qq-cn','qq-ph','qq-em','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-num','qq-id','qq-notes','qq-int','qq-tc','qq-contact-name','qq-contact-title'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+  // qq-notes (Scope of Work) is a rich-text contenteditable div — .value is a no-op on it,
+  // so clear its innerHTML explicitly or the PREVIOUS quote's scope bleeds into a new quote.
+  var _qnClr = document.getElementById('qq-notes');
+  if (_qnClr && _qnClr.contentEditable === 'true') { _qnClr.innerHTML = ''; if (typeof qqNotesUpdatePlaceholder==='function') qqNotesUpdatePlaceholder(); }
   // Clear hidden ID fields and hide new contact panel
   var cidEl=document.getElementById('qq-customer-id'); if(cidEl) cidEl.value='';
   var ctidEl=document.getElementById('qq-contact-id'); if(ctidEl) ctidEl.value='';
@@ -331,7 +335,18 @@ function editQuote(id) {
   setV('qq-dt', q.dt); setV('qq-vu', q.vu); setV('qq-num', q.num); setV('qq-id', q.id||''); setV('qq-followup', q.followupDate || calcFollowupDate(q.dt || getTodayISO()));
   setV('qq-created', q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || getTodayISO());
   setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc);
-  setV('qq-notes', q.notes); setV('qq-int', q.intNotes||q.int||'');
+  // qq-notes is contenteditable — load via innerHTML (setV/.value is a no-op on it), or
+  // the editor keeps showing stale content instead of THIS quote's saved Scope of Work.
+  (function(){
+    var _nc = q.notes || '';
+    var _isHtml = !!q.notesIsHtml || (typeof _nc === 'string' && _nc.replace(/^\s+/,'').charAt(0) === '<');
+    var _el = document.getElementById('qq-notes');
+    if (_el && _el.contentEditable === 'true') {
+      if (typeof woRtfLoad === 'function') woRtfLoad('qq-notes', _nc, _isHtml); else _el.innerHTML = _nc;
+      if (typeof qqNotesUpdatePlaceholder === 'function') qqNotesUpdatePlaceholder();
+    } else { setV('qq-notes', _nc); }
+  })();
+  setV('qq-int', q.intNotes||q.int||'');
   setV('qq-status', q.status||'draft');
   setV('qq-lr', q.laborRate||100); setV('qq-mk', q.targetMargin!==undefined && q.targetMargin!==null ? q.targetMargin : (q.markup!==undefined && q.markup!==null ? q.markup : 35)); setV('qq-tx', q.taxRate||0); setV('qq-disc', q.discount||0);
   if (typeof refreshAllPaymentTermsDropdowns==='function') refreshAllPaymentTermsDropdowns();

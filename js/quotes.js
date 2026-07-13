@@ -198,6 +198,7 @@ function calcTotals() {
   setEl('ps-tax', fmt(taxAmt));
   setEl('ps-disc', '-' + fmt(discountAmt));
   setEl('ps-total', fmt(totalSell));
+  setEl('qq-stage4-total', fmt(totalSell)); // keep the header "Current quote total" in sync on every recalc
   setEl('ps-margin', pct(achievedMarginPct));
 
   // V5: equipment warning
