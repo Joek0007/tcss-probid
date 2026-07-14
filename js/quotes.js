@@ -691,6 +691,12 @@ function saveQQ() {
 
   var q = getQData();
 
+  // Stamp the day a quote first goes to 'sent'/'followup' so aging counts from the send date.
+  // getQData preserves an existing sentDate, so this only fires the first time and never resets it.
+  if ((q.status==='sent' || q.status==='followup') && !q.sentDate) {
+    q.sentDate = getTodayISO();
+  }
+
   // Assign or reuse quote number
   var numEl = document.getElementById('qq-num');
   var idEl  = document.getElementById('qq-id');
@@ -1687,9 +1693,10 @@ function fireEmailQuote(q) {
   if (!q) return;
   if (q.status === 'draft' || !q.status) {
     q.status = 'sent';
+    if (!q.sentDate) q.sentDate = getTodayISO();
     if (q.id) {
       var saved = DB.quotes.find(function(x){ return x.id===q.id; });
-      if (saved) { saved.status='sent'; saveDB(); renderQuotes && renderQuotes(); renderDash(); }
+      if (saved) { saved.status='sent'; if(!saved.sentDate) saved.sentDate=getTodayISO(); saveDB(); renderQuotes && renderQuotes(); renderDash(); }
     }
     var stEl = document.getElementById('qq-status');
     if (stEl && stEl.value==='draft') stEl.value='sent';

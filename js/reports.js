@@ -12,6 +12,28 @@ function qqSetDefaultFollowup(){
   if (fuEl.value) return;
   fuEl.value = calcFollowupDate(dt);
 }
+// Aging anchor: for a SENT/FOLLOWUP quote we count from the day it was sent
+// (how long the customer has been sitting on it); otherwise from the quote/created date.
+// Legacy sent quotes with no sentDate fall back to the quote date.
+function getQuoteAgeInfo(q){
+  if (!q) return {days:null, basis:'', fromSent:false};
+  var status = q.status || 'draft';
+  var fromSent = (status === 'sent' || status === 'followup') && !!q.sentDate;
+  var anchor = fromSent ? q.sentDate : (q.dt || q.createdDate || ((q.createdAt||'').split('T')[0]) || '');
+  if (!anchor) return {days:null, basis:'', fromSent:fromSent};
+  var days = Math.floor((new Date(getTodayISO()) - new Date(anchor)) / 86400000);
+  if (isNaN(days) || days < 0) days = 0;
+  return {days:days, basis: fromSent ? 'since sent' : 'since created', fromSent:fromSent};
+}
+// Color for an age value — closed quotes are neutral, open ones escalate green→amber→orange→red.
+function quoteAgeColor(days, status){
+  if (status === 'approved' || status === 'declined') return '#90a4ae';
+  if (days == null) return '#90a4ae';
+  if (days >= 30) return '#c62828';
+  if (days >= 14) return '#e65100';
+  if (days >= 7)  return '#f9a825';
+  return '#2e7d32';
+}
 function getQuotePriority(q){
   if (!q) return {label:'Normal', tone:'normal', sort:50};
   var status = q.status || 'draft';
@@ -19,12 +41,13 @@ function getQuotePriority(q){
   if ((status === 'sent' || status === 'followup') && isFollowupOverdue(q)) return {label:'Critical', tone:'critical', sort:1};
   if ((status === 'sent' || status === 'followup') && isFollowupDue(q)) return {label:'High', tone:'high', sort:2};
   if (status === 'draft' && ready !== 'READY') return {label:'Needs Work', tone:'needswork', sort:3};
-  var dt = q.dt || q.createdAt || '';
-  if (dt) {
-    var age = Math.floor((new Date(getTodayISO()) - new Date(dt)) / 86400000);
-    if (age >= 30 && status !== 'approved' && status !== 'declined') return {label:'Aging 30+', tone:'critical', sort:4};
-    if (age >= 14 && status !== 'approved' && status !== 'declined') return {label:'Aging 14+', tone:'high', sort:5};
-    if (age >= 7  && status !== 'approved' && status !== 'declined') return {label:'Aging 7+', tone:'watch', sort:6};
+  if (status !== 'approved' && status !== 'declined') {
+    var age = getQuoteAgeInfo(q).days;
+    if (age != null) {
+      if (age >= 30) return {label:'Aging 30+', tone:'critical', sort:4};
+      if (age >= 14) return {label:'Aging 14+', tone:'high', sort:5};
+      if (age >= 7)  return {label:'Aging 7+', tone:'watch', sort:6};
+    }
   }
   if (status === 'ready') return {label:'Ready to Send', tone:'ready', sort:7};
   if (status === 'sent') return {label:'Waiting', tone:'watch', sort:8};
@@ -225,7 +248,9 @@ function getQData(id) {
     subtotal: totals.sellBeforeTax,
     margin: totals.achievedMarginPct,
     items: JSON.parse(JSON.stringify(lineItems)),
-    createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString()
+    createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString(),
+    // Preserve the date the quote first went out so aging counts from send, not from every re-save.
+    sentDate: existing && existing.sentDate ? existing.sentDate : null
   };
 }
 
@@ -450,12 +475,16 @@ function renderQuotes() {
       list.sort(function(a,b){ return (b.achievedMargin||0)-(a.achievedMargin||0); }); break;
     case 'followup':
       list.sort(function(a,b){ return (a.followupDate||'9999').localeCompare(b.followupDate||'9999'); }); break;
+    case 'age-desc':
+      list.sort(function(a,b){ var da=getQuoteAgeInfo(a).days, db=getQuoteAgeInfo(b).days; return (db==null?-1:db)-(da==null?-1:da); }); break;
+    case 'age-asc':
+      list.sort(function(a,b){ var da=getQuoteAgeInfo(a).days, db=getQuoteAgeInfo(b).days; return (da==null?1e9:da)-(db==null?1e9:db); }); break;
     default:
       list.sort(function(a,b){ return (b.num||'').localeCompare(a.num||'',undefined,{numeric:true}); }); break;
   }
 
   // Update column header sort indicators
-  ['num-desc','num-asc','customer','total-desc','margin-desc','date-desc'].forEach(function(k){
+  ['num-desc','num-asc','customer','total-desc','margin-desc','date-desc','age-desc'].forEach(function(k){
     var el=document.getElementById('qsort-'+k);
     if(el) el.textContent=sort===k?'▲':sort==='num-asc'&&k==='num-asc'?'▲':'';
   });
@@ -463,7 +492,7 @@ function renderQuotes() {
   const tbody = document.getElementById('quotes-tbl');
   if (!tbody) return;
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><p>No quotes found.</p></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><p>No quotes found.</p></td></tr>';
     return;
   }
   const healthColor = function(q){ return q.pricingHealth==='Healthy'?'color:#2e7d32':q.pricingHealth==='Watch'?'color:#e65100':'color:#c62828'; };
@@ -473,7 +502,21 @@ function renderQuotes() {
     const pr = getQuotePriority(q);
     const prColor = pr.tone==='critical'?'#c62828':pr.tone==='high'?'#e65100':pr.tone==='needswork'?'#e65100':pr.tone==='ready'?'#2e7d32':'#607d8b';
     var canConvert = q.status!=='approved' && q.status!=='declined';
-    return '<tr>'+
+    // Aging: days old (from sent date for sent quotes, else created), color-coded, with a row accent.
+    var ageInfo = getQuoteAgeInfo(q);
+    var ageColor = quoteAgeColor(ageInfo.days, q.status);
+    var isClosed = q.status==='approved' || q.status==='declined';
+    var rowStyle = '';
+    if (!isClosed && ageInfo.days!=null && ageInfo.days>=7) {
+      rowStyle = 'border-left:4px solid '+ageColor+';';
+      if (ageInfo.days>=30) rowStyle += 'background:#fff5f5;';
+      else if (ageInfo.days>=14) rowStyle += 'background:#fff9f2;';
+    }
+    var ageCell = (ageInfo.days==null)
+      ? '<td style="color:#b0bec5">—</td>'
+      : '<td style="white-space:nowrap"><span style="font-weight:700;color:'+ageColor+'">'+ageInfo.days+'d</span>'+
+        '<div style="font-size:9px;color:#b0bec5">'+ageInfo.basis+'</div></td>';
+    return '<tr'+(rowStyle?' style="'+rowStyle+'"':'')+'>'+
       '<td style="font-weight:700;color:#1565c0">'+escHtml(q.num||'')+'</td>'+
       '<td>'+escHtml(q.cn||'')+'</td>'+
       '<td>'+escHtml(q.jn||'')+'</td>'+
@@ -482,6 +525,7 @@ function renderQuotes() {
       '<td style="font-weight:700;'+healthColor(q)+'">'+pct(q.achievedMargin||0)+'</td>'+
       '<td><span class="status-badge s-'+(q.status||'draft')+'">'+(q.status||'draft')+'</span>'+fuBadge+
         '<div style="font-size:10px;color:'+prColor+';font-weight:700;margin-top:3px">'+pr.label+'</div></td>'+
+      ageCell+
       '<td style="color:#90a4ae;font-size:11px">'+(q.followupDate?'📅 '+q.followupDate:(q.dt||''))+'</td>'+
       '<td style="white-space:nowrap">'+
         '<button class="btn btn-ghost btn-sm" data-action="viewQuote" data-id="'+q.id+'">View</button> '+

@@ -2146,6 +2146,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <option value="customer">Customer A–Z</option>
         <option value="margin-desc">Highest Margin</option>
         <option value="followup">Follow-Up Due</option>
+        <option value="age-desc">Aging (Oldest First)</option>
       </select>
       <button class="btn btn-ghost btn-sm" onclick="saveQuoteSortDefault()" title="Save this sort as your default view">⭐ Save Default</button>
       <button class="btn btn-ghost btn-sm" data-action="refreshQuotes">↻ Refresh</button>
@@ -2159,6 +2160,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <th onclick="setSortQuotes('total-desc')" style="cursor:pointer" title="Sort by value">Total <span id="qsort-total-desc"></span></th>
       <th onclick="setSortQuotes('margin-desc')" style="cursor:pointer" title="Sort by margin">Margin <span id="qsort-margin-desc"></span></th>
       <th>Status</th>
+      <th onclick="setSortQuotes(document.getElementById('q-sort').value==='age-desc'?'age-asc':'age-desc')" style="cursor:pointer" title="Sort by age (oldest first)">Age <span id="qsort-age-desc"></span></th>
       <th onclick="setSortQuotes('date-desc')" style="cursor:pointer" title="Sort by date">Date <span id="qsort-date-desc"></span></th>
       <th>Actions</th>
     </tr></thead>
