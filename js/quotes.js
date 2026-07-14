@@ -1801,11 +1801,16 @@ function viewQuote(id) {
     '<div style="display:flex;justify-content:space-between;padding:4px 0;font-weight:800;font-size:15px"><span>TOTAL</span><span style="color:#1565c0">' + fmt(q.total||0) + '</span></div></div>' +
     '</div></div>';
   openModal('modal-view-quote');
+  // Prev/next arrows — step through quotes by number (read-only view, no dirty guard)
+  if (typeof showDocNav === 'function') showDocNav('quote', id, viewQuote, null);
 }
 
 // ---- MODAL HELPERS ----
 function openModal(id) { const m=document.getElementById(id); if(m){ m.classList.add('open'); const body=m.querySelector('.modal-body'); if(body) body.scrollTop=0; m.scrollTop=0; } }
-function closeModal(id) { const m=document.getElementById(id); if(m) m.classList.remove('open'); }
+function closeModal(id) { const m=document.getElementById(id); if(m) m.classList.remove('open');
+  // Hide the document prev/next arrows when a document modal closes
+  if (typeof hideDocNav === 'function' && ['modal-view-quote','modal-work-order','modal-invoice','modal-contract'].indexOf(id) >= 0) hideDocNav();
+}
 
 function deleteQuote(id) {
   if (!confirm('Delete this quote? This cannot be undone.')) return;
@@ -2067,6 +2072,8 @@ function reprintInvoice(invId) {
   renderInvItemsEditor();
   refreshInvTotals();
   openModal('modal-invoice');
+  // Prev/next arrows — step through invoices by number
+  if (typeof showDocNav === 'function') showDocNav('invoice', invId, reprintInvoice, null);
 }
 
 function printInvoiceDirect(invId) {

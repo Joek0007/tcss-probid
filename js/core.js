@@ -550,6 +550,83 @@ function makeUUID() {
 // ---- NAVIGATION ----
 const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log',contracts:'Contracts',recurring:'Managed Services'};
 
+// ============================================================
+// DOCUMENT PREV/NEXT NAVIGATOR
+// Floating ‹ / › arrows pinned to the right edge of an open document
+// (Quote, Work Order, Invoice, Contract). Steps strictly by record
+// NUMBER — previous number / next number — regardless of how the
+// document was reached (list, search, deep link). Openers register
+// themselves via showDocNav(); pages/modals hide it via hideDocNav().
+// ============================================================
+var _docNav = null;
+var _DOCNAV_BTN_CSS = 'width:40px;height:46px;border:none;border-radius:9px;background:#455a64;color:#fff;'
+  + 'font-size:24px;font-weight:700;line-height:1;box-shadow:0 2px 8px rgba(0,0,0,.28);'
+  + 'display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s';
+
+// Build the number-sorted record list for a given document type.
+function _docNavList(type){
+  var arr = [], numf = 'num';
+  if (type === 'quote')      { arr = DB.quotes||[];      numf = 'num'; }
+  else if (type === 'wo')    { arr = DB.workOrders||[];  numf = 'woNumber'; }
+  else if (type === 'invoice'){ arr = DB.invoices||[];   numf = 'num'; }
+  else if (type === 'contract'){ arr = DB.contracts||[]; numf = 'number'; }
+  return arr.slice().sort(function(a,b){
+    return String(a[numf]||'').localeCompare(String(b[numf]||''), undefined, {numeric:true, sensitivity:'base'});
+  });
+}
+
+// Called by each document opener. type drives the record list; openFn reopens
+// a record (same modal/page the user is in); isDirtyFn optionally guards edits.
+function showDocNav(type, currentId, openFn, isDirtyFn){
+  var list = _docNavList(type);
+  var ids = list.map(function(r){ return r.id; });
+  _docNav = { type:type, ids:ids, index:ids.indexOf(currentId), open:openFn, isDirty:isDirtyFn||null };
+  _renderDocNav();
+}
+
+function hideDocNav(){
+  _docNav = null;
+  var el = document.getElementById('doc-nav-arrows');
+  if (el) el.style.display = 'none';
+}
+
+function _renderDocNav(){
+  var el = document.getElementById('doc-nav-arrows');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'doc-nav-arrows';
+    el.style.cssText = 'position:fixed;right:12px;top:50%;transform:translateY(-50%);z-index:100050;'
+      + 'display:flex;flex-direction:column;gap:10px';
+    el.innerHTML = '<button id="doc-nav-prev" title="Previous number" style="'+_DOCNAV_BTN_CSS+'">&#8249;</button>'
+      + '<button id="doc-nav-next" title="Next number" style="'+_DOCNAV_BTN_CSS+'">&#8250;</button>';
+    document.body.appendChild(el);
+    el.querySelector('#doc-nav-prev').addEventListener('click', function(){ docNavGo(-1); });
+    el.querySelector('#doc-nav-next').addEventListener('click', function(){ docNavGo(1); });
+  }
+  if (!_docNav || _docNav.index < 0 || _docNav.ids.length < 2){ el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  var prev = document.getElementById('doc-nav-prev');
+  var next = document.getElementById('doc-nav-next');
+  var atFirst = _docNav.index <= 0;
+  var atLast  = _docNav.index >= _docNav.ids.length - 1;
+  if (prev){ prev.style.opacity = atFirst?'0.3':'1'; prev.style.cursor = atFirst?'default':'pointer'; prev.disabled = atFirst;
+             prev.title = atFirst?'Already at the first number':'Previous number'; }
+  if (next){ next.style.opacity = atLast?'0.3':'1'; next.style.cursor = atLast?'default':'pointer'; next.disabled = atLast;
+             next.title = atLast?'Already at the last number':'Next number'; }
+}
+
+function docNavGo(dir){
+  if (!_docNav) return;
+  var ni = _docNav.index + dir;
+  if (ni < 0 || ni >= _docNav.ids.length) return;
+  if (_docNav.isDirty && _docNav.isDirty()){
+    if (!confirm('This document has unsaved changes. Leave without saving?')) return;
+  }
+  var targetId = _docNav.ids[ni];
+  var openFn = _docNav.open;
+  if (typeof openFn === 'function') openFn(targetId); // opener calls showDocNav again → index updates
+}
+
 function goPage(id) {
   // Warn if leaving Work Tracking while inside a project or wizard
   var wtPage = document.getElementById('page-worktracking');
@@ -579,6 +656,8 @@ function goPage(id) {
     if (modal) { modal.style.display = 'flex'; }
     return; // don't navigate yet
   }
+  // Hide the document prev/next arrows when navigating pages (openers re-show them as needed)
+  if (typeof hideDocNav === 'function') hideDocNav();
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});
   // Enforce nav permissions on every navigation — one place, always runs

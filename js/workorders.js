@@ -637,6 +637,9 @@ function openWorkOrder(id) {
 
   // Hot notes
   _checkHotNotes(wo.customerId, wo.id, false);
+
+  // Prev/next arrows — step through work orders by number
+  if (typeof showDocNav === 'function') showDocNav('wo', id, openWorkOrder, null);
 }
 
 function _checkHotNotes(customerId, woId, isNew) {
