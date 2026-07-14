@@ -558,6 +558,36 @@ function openNewWorkOrder() {
   openModal('modal-work-order');
 }
 
+// ── Work Order unsaved-changes guard (mirrors the quote's nav warning) ──────────
+var _woDirty = false;
+var _woNavTarget = null;
+function _wireWODirty(){
+  var m = document.getElementById('modal-work-order');
+  if (!m || m._dirtyWired) return;
+  m.addEventListener('input',  function(){ _woDirty = true; });
+  m.addEventListener('change', function(){ _woDirty = true; });
+  m._dirtyWired = true;
+}
+function woNavWarnStay(){
+  var mod = document.getElementById('modal-wo-nav-warn'); if (mod) mod.style.display='none';
+  _woNavTarget = null;
+}
+function woNavWarnDiscard(){
+  var mod = document.getElementById('modal-wo-nav-warn'); if (mod) mod.style.display='none';
+  _woDirty = false;
+  var t = _woNavTarget; _woNavTarget = null;
+  if (t && typeof goPage==='function') goPage(t);
+}
+function woNavWarnSave(){
+  var mod = document.getElementById('modal-wo-nav-warn'); if (mod) mod.style.display='none';
+  var t = _woNavTarget; _woNavTarget = null;
+  if (typeof saveWorkOrder==='function') saveWorkOrder();   // clears _woDirty on success; returns early (still dirty) on validation error
+  if (typeof _woDirty==='undefined' || !_woDirty){
+    if (t && typeof goPage==='function') goPage(t);
+  }
+  // If the save failed validation (_woDirty still true), stay on the WO — saveWorkOrder already showed the reason.
+}
+
 function openWorkOrder(id) {
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===id; });
   if (!wo) return;
@@ -640,6 +670,10 @@ function openWorkOrder(id) {
 
   // Prev/next arrows — step through work orders by number
   if (typeof showDocNav === 'function') showDocNav('wo', id, openWorkOrder, null, 'modal-work-order');
+
+  // Track unsaved edits for the leave-without-saving guard; start clean after populating.
+  _wireWODirty();
+  _woDirty = false;
 }
 
 function _checkHotNotes(customerId, woId, isNew) {
@@ -828,6 +862,8 @@ function saveWorkOrder() {
   var pbt2 = document.getElementById('wo-btn-print-top'); if (pbt2) pbt2.style.display='';
   // Refresh assigned techs section now that WO is saved
   setTimeout(function(){ renderAssignedTechs(id); }, 100);
+  // Saved successfully — clear the unsaved-changes flag
+  _woDirty = false;
 }
 
 function _triggerUrgentAlert(wo) {

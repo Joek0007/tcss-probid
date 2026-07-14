@@ -713,6 +713,13 @@ function goPage(id) {
     if (modal) { modal.style.display = 'flex'; }
     return; // don't navigate yet
   }
+  // Warn on unsaved Work Order changes before navigating away (mirrors the quote guard above)
+  var woModalEl = document.getElementById('modal-work-order');
+  if (woModalEl && woModalEl.classList.contains('open') && typeof _woDirty !== 'undefined' && _woDirty) {
+    _woNavTarget = id;
+    var woWarn = document.getElementById('modal-wo-nav-warn');
+    if (woWarn) { woWarn.style.display = 'flex'; return; } // don't navigate yet
+  }
   // Hide the document prev/next arrows when navigating pages (openers re-show them as needed)
   if (typeof hideDocNav === 'function') hideDocNav();
   // Close any open document modal when navigating via the menu, so the destination page is

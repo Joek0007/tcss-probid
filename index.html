@@ -5295,6 +5295,20 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   </div>
 </div>
 
+<!-- Work Order unsaved-changes navigation warning (mirrors the quote warning) -->
+<div id="modal-wo-nav-warn" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:460px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div style="font-size:22px;margin-bottom:8px">⚠️</div>
+    <div style="font-size:16px;font-weight:700;color:#1f3b57;margin-bottom:8px">Unsaved work order changes</div>
+    <div style="font-size:13px;color:#546e7a;margin-bottom:20px;line-height:1.6">You have unsaved changes on this work order. Save them before leaving, or discard them?</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+      <button onclick="woNavWarnStay()" class="btn btn-outline" style="font-size:13px">Stay</button>
+      <button onclick="woNavWarnDiscard()" class="btn btn-outline" style="font-size:13px;color:#c62828;border-color:#c62828">Discard &amp; Leave</button>
+      <button onclick="woNavWarnSave()" class="btn btn-primary" style="font-size:13px">Save &amp; Leave</button>
+    </div>
+  </div>
+</div>
+
 
 <div class="modal-overlay" id="modal-work-order" style="align-items:flex-start;padding:20px 0;overflow:hidden">
   <div class="modal-box" style="max-width:1800px;width:97%;margin:0 auto;display:flex;flex-direction:column;max-height:calc(100vh - 40px);overflow:hidden">
