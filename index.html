@@ -69,6 +69,8 @@ label{display:block;font-size:12px;font-weight:700;color:#455a64;margin-bottom:5
 .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:1500;align-items:center;justify-content:center}
 /* Work Order modal opens in the content area, leaving the left menu visible/usable (not covered) */
 #modal-work-order{left:var(--sidebar);width:calc(100% - var(--sidebar))}
+/* Lock the page behind the WO modal so only the modal body scrolls (no stray page scrollbar) */
+body:has(#modal-work-order.open){overflow:hidden}
 .modal-overlay.open{display:flex}
 .modal-box{background:#fff;border-radius:14px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25);width:90%;max-width:900px}
 .modal{background:#fff;border-radius:14px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25);width:90%}
@@ -5294,9 +5296,9 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 </div>
 
 
-<div class="modal-overlay" id="modal-work-order" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
-  <div class="modal-box" style="max-width:1800px;width:97%;margin:0 auto">
-    <div class="modal-head" style="position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #e0e7ef">
+<div class="modal-overlay" id="modal-work-order" style="align-items:flex-start;padding:20px 0;overflow:hidden">
+  <div class="modal-box" style="max-width:1800px;width:97%;margin:0 auto;display:flex;flex-direction:column;max-height:calc(100vh - 40px);overflow:hidden">
+    <div class="modal-head" style="position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #e0e7ef;flex-shrink:0">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <h3 id="wo-modal-title">Work Order</h3>
         <span id="wo-modal-num" style="font-size:13px;color:#90a4ae;font-weight:700"></span>
@@ -5309,7 +5311,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <button class="close-btn" data-action="closeModal" data-modal="modal-work-order">×</button>
       </div>
     </div>
-    <div class="modal-body" style="padding:0;overflow-y:auto;max-height:85vh">
+    <div class="modal-body" style="padding:0;overflow-y:auto;flex:1 1 auto;min-height:0">
 
       <!-- Status bar: Customer + Contact LEFT | Status + Service Type + Priority RIGHT -->
       <div style="background:#f8f9fa;padding:10px 20px;border-bottom:1px solid #e0e7ef;display:flex;gap:16px;align-items:flex-start;flex-wrap:nowrap">
