@@ -139,7 +139,7 @@ function openContractModal(id) {
   document.getElementById('contract-print-btn').style.display = '';
   openModal('modal-contract');
   // Prev/next arrows — step through contracts by number
-  if (typeof showDocNav === 'function') showDocNav('contract', id, openContractModal, null);
+  if (typeof showDocNav === 'function') showDocNav('contract', id, openContractModal, null, 'modal-contract');
 }
 
 function _populateContractWOSelect(selectedId) {

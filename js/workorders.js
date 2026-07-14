@@ -639,7 +639,7 @@ function openWorkOrder(id) {
   _checkHotNotes(wo.customerId, wo.id, false);
 
   // Prev/next arrows — step through work orders by number
-  if (typeof showDocNav === 'function') showDocNav('wo', id, openWorkOrder, null);
+  if (typeof showDocNav === 'function') showDocNav('wo', id, openWorkOrder, null, 'modal-work-order');
 }
 
 function _checkHotNotes(customerId, woId, isNew) {

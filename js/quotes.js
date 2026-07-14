@@ -1802,7 +1802,7 @@ function viewQuote(id) {
     '</div></div>';
   openModal('modal-view-quote');
   // Prev/next arrows — step through quotes by number (read-only view, no dirty guard)
-  if (typeof showDocNav === 'function') showDocNav('quote', id, viewQuote, null);
+  if (typeof showDocNav === 'function') showDocNav('quote', id, viewQuote, null, 'modal-view-quote');
 }
 
 // ---- MODAL HELPERS ----
@@ -2073,7 +2073,7 @@ function reprintInvoice(invId) {
   refreshInvTotals();
   openModal('modal-invoice');
   // Prev/next arrows — step through invoices by number
-  if (typeof showDocNav === 'function') showDocNav('invoice', invId, reprintInvoice, null);
+  if (typeof showDocNav === 'function') showDocNav('invoice', invId, reprintInvoice, null, 'modal-invoice');
 }
 
 function printInvoiceDirect(invId) {

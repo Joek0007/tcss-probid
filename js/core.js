@@ -576,16 +576,44 @@ function _docNavList(type){
 }
 
 // Called by each document opener. type drives the record list; openFn reopens
-// a record (same modal/page the user is in); isDirtyFn optionally guards edits.
-function showDocNav(type, currentId, openFn, isDirtyFn){
+// a record (same modal/page the user is in); isDirtyFn optionally guards edits;
+// containerId is the modal/page element the arrows belong to — they auto-hide
+// the moment it stops being open/active, no matter how it's closed.
+function showDocNav(type, currentId, openFn, isDirtyFn, containerId){
   var list = _docNavList(type);
   var ids = list.map(function(r){ return r.id; });
-  _docNav = { type:type, ids:ids, index:ids.indexOf(currentId), open:openFn, isDirty:isDirtyFn||null };
+  _docNav = { type:type, ids:ids, index:ids.indexOf(currentId), open:openFn, isDirty:isDirtyFn||null, container:containerId||null };
+  _docNavWatch(_docNav.container);
   _renderDocNav();
+}
+
+// Is the document the arrows belong to still visible? Modals carry class 'open',
+// pages carry class 'active'. No container registered → treat as not-open (hide).
+function _docNavContainerOpen(){
+  if (!_docNav) return false;
+  if (!_docNav.container) return true;
+  var el = document.getElementById(_docNav.container);
+  if (!el) return false;
+  return el.classList.contains('open') || el.classList.contains('active');
+}
+
+// Watch ONLY the current container's class attribute; hide arrows the instant it closes.
+function _docNavWatch(containerId){
+  if (window._docNavObs) window._docNavObs.disconnect();
+  if (!containerId) return;
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  if (!window._docNavObs){
+    window._docNavObs = new MutationObserver(function(){
+      if (_docNav && !_docNavContainerOpen()) hideDocNav();
+    });
+  }
+  window._docNavObs.observe(el, {attributes:true, attributeFilter:['class']});
 }
 
 function hideDocNav(){
   _docNav = null;
+  if (window._docNavObs) window._docNavObs.disconnect();
   var el = document.getElementById('doc-nav-arrows');
   if (el) el.style.display = 'none';
 }
@@ -595,7 +623,7 @@ function _renderDocNav(){
   if (!el){
     el = document.createElement('div');
     el.id = 'doc-nav-arrows';
-    el.style.cssText = 'position:fixed;right:12px;top:50%;transform:translateY(-50%);z-index:100050;'
+    el.style.cssText = 'position:fixed;right:12px;top:150px;z-index:100050;'
       + 'display:flex;flex-direction:column;gap:10px';
     el.innerHTML = '<button id="doc-nav-prev" title="Previous number" style="'+_DOCNAV_BTN_CSS+'">&#8249;</button>'
       + '<button id="doc-nav-next" title="Next number" style="'+_DOCNAV_BTN_CSS+'">&#8250;</button>';
@@ -603,7 +631,7 @@ function _renderDocNav(){
     el.querySelector('#doc-nav-prev').addEventListener('click', function(){ docNavGo(-1); });
     el.querySelector('#doc-nav-next').addEventListener('click', function(){ docNavGo(1); });
   }
-  if (!_docNav || _docNav.index < 0 || _docNav.ids.length < 2){ el.style.display = 'none'; return; }
+  if (!_docNav || _docNav.index < 0 || _docNav.ids.length < 2 || !_docNavContainerOpen()){ el.style.display = 'none'; return; }
   el.style.display = 'flex';
   var prev = document.getElementById('doc-nav-prev');
   var next = document.getElementById('doc-nav-next');

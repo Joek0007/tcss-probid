@@ -411,7 +411,7 @@ function editQuote(id) {
   qqStage4Init();
   goPage('qq');
   // Prev/next arrows — step through quotes by number; warn if the editor has unsaved changes
-  if (typeof showDocNav === 'function') showDocNav('quote', id, editQuote, function(){ return (typeof _qqDirty !== 'undefined' && _qqDirty); });
+  if (typeof showDocNav === 'function') showDocNav('quote', id, editQuote, function(){ return (typeof _qqDirty !== 'undefined' && _qqDirty); }, 'page-qq');
   // Populate job type dropdown from dynamic list AFTER page loads, preserve selected value
   setTimeout(function(){
     if (typeof populateJTDropdown === 'function') {
