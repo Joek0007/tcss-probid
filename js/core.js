@@ -618,6 +618,30 @@ function hideDocNav(){
   if (el) el.style.display = 'none';
 }
 
+// Anchor the arrows to the RIGHT EDGE OF THE OPEN DOCUMENT (the modal box, or a
+// full-width page), not the screen edge — so they always sit on the document even
+// when the modal is a centered box narrower than the viewport.
+function _positionDocNav(el){
+  el.style.top = '150px';
+  var box = null;
+  if (_docNav && _docNav.container){
+    var c = document.getElementById(_docNav.container);
+    if (c) box = (c.querySelector && c.querySelector('.modal-box')) || c;
+  }
+  if (box){
+    var rect = box.getBoundingClientRect();
+    if (rect && rect.width){
+      // sit just inside the document's right edge, hanging slightly onto it like a tab
+      var right = Math.round(window.innerWidth - rect.right) - 4;
+      el.style.right = Math.max(4, right) + 'px';
+      el.style.left = 'auto';
+      return;
+    }
+  }
+  el.style.right = '12px';
+  el.style.left = 'auto';
+}
+
 function _renderDocNav(){
   var el = document.getElementById('doc-nav-arrows');
   if (!el){
@@ -630,9 +654,14 @@ function _renderDocNav(){
     document.body.appendChild(el);
     el.querySelector('#doc-nav-prev').addEventListener('click', function(){ docNavGo(-1); });
     el.querySelector('#doc-nav-next').addEventListener('click', function(){ docNavGo(1); });
+    // Keep the arrows glued to the document's right edge when the window resizes
+    window.addEventListener('resize', function(){ var a=document.getElementById('doc-nav-arrows'); if(a && a.style.display!=='none') _positionDocNav(a); });
   }
   if (!_docNav || _docNav.index < 0 || _docNav.ids.length < 2 || !_docNavContainerOpen()){ el.style.display = 'none'; return; }
   el.style.display = 'flex';
+  _positionDocNav(el);
+  // Re-measure once layout settles (modal open animation / late render)
+  setTimeout(function(){ var a=document.getElementById('doc-nav-arrows'); if(a && a.style.display!=='none') _positionDocNav(a); }, 40);
   var prev = document.getElementById('doc-nav-prev');
   var next = document.getElementById('doc-nav-next');
   var atFirst = _docNav.index <= 0;
