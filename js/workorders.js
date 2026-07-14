@@ -2060,8 +2060,25 @@ function createWOInvoice() {
   var labor=(DB.woLabor||[]).filter(function(l){return l.woId===woId;});
   var expenses=(DB.woExpenses||[]).filter(function(e){return e.woId===woId;});
   var parts=(DB.woParts||[]).filter(function(p){return p.woId===woId;});
+  // Clocked time-clock hours (field techs) — mirror the WO "Labor" tab so the invoice equals what Joe sees there.
+  // Without this the invoice missed all clocked time and totaled $0 when techs clocked instead of adding manual entries.
+  // Prefer stored totalHours; fall back to clockIn/clockOut minus breaks for completed sessions.
+  // A still-active session (no clock-out) is skipped — we don't invoice a running clock.
+  var clocked=(DB.timeEntries||[]).filter(function(t){return t.jobId===woId||t.job_id===woId;});
+  function _woClockedHrs(t){
+    if(t.totalHours!=null && t.totalHours!=='') return parseFloat(t.totalHours)||0;
+    var ci=t.clockIn||t.clock_in, co=t.clockOut||t.clock_out;
+    if(ci && co){
+      var h=(new Date(co)-new Date(ci))/3600000;
+      if(t.breakMinutes) h-=(t.breakMinutes/60);
+      return Math.max(0,h);
+    }
+    return 0; // active/unknown — not billed
+  }
+  var clockedHrs=clocked.reduce(function(s,t){return s+_woClockedHrs(t);},0);
   var rate=parseFloat(wo.laborRate)||125;
-  var totalHrs=labor.reduce(function(s,l){return s+parseFloat(l.hours||0);},0);
+  var manualHrs=labor.reduce(function(s,l){return s+parseFloat(l.hours||0);},0);
+  var totalHrs=manualHrs+clockedHrs;
   var laborAmt=totalHrs*rate;
 
   var expAmt=expenses.reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
@@ -2095,7 +2112,7 @@ function createWOInvoice() {
     expAmt:expAmt,
     taxAmt:taxAmt,
     taxRate:taxRate,
-    notes:'Labor: '+totalHrs.toFixed(2)+' hrs @ $'+rate+'/hr\n'+
+    notes:'Labor: '+totalHrs.toFixed(2)+' hrs @ $'+rate+'/hr'+(clockedHrs>0?' ('+manualHrs.toFixed(2)+' manual + '+clockedHrs.toFixed(2)+' clocked)':'')+'\n'+
           (expAmt>0?'Expenses: $'+expAmt.toFixed(2)+'\n':'')+
           (parts.length?'Parts: '+parts.map(function(p){return p.name;}).join(', ')+'\n':'')+
           (wo.workPerformed||''),
