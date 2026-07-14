@@ -67,8 +67,8 @@ label{display:block;font-size:12px;font-weight:700;color:#455a64;margin-bottom:5
 .form-row.cols3{grid-template-columns:1fr 1fr 1fr}
 .form-row.cols4{grid-template-columns:1fr 1fr 1fr 1fr}
 .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:1500;align-items:center;justify-content:center}
-/* Work Order modal opens in the content area, leaving the left menu visible/usable (not covered) */
-#modal-work-order{left:var(--sidebar);width:calc(100% - var(--sidebar))}
+/* Work Order modal opens in the content area like a page: light page-colored backdrop (not the dark modal dim), leaving the left menu visible/usable */
+#modal-work-order{left:var(--sidebar);width:calc(100% - var(--sidebar));background:#f0f2f5}
 /* Lock the page behind the WO modal so only the modal body scrolls (no stray page scrollbar) */
 body:has(#modal-work-order.open){overflow:hidden}
 .modal-overlay.open{display:flex}

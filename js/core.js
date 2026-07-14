@@ -715,6 +715,11 @@ function goPage(id) {
   }
   // Hide the document prev/next arrows when navigating pages (openers re-show them as needed)
   if (typeof hideDocNav === 'function') hideDocNav();
+  // Close any open document modal when navigating via the menu, so the destination page is
+  // visible instead of staying hidden behind the modal (matches how leaving the quote page works).
+  ['modal-work-order','modal-invoice','modal-contract','modal-view-quote'].forEach(function(mid){
+    var mm = document.getElementById(mid); if (mm) mm.classList.remove('open');
+  });
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});
   // Enforce nav permissions on every navigation — one place, always runs
