@@ -2761,14 +2761,14 @@ function renderWODocsTab(woId) {
     var kb    = d.fileSize ? (d.fileSize/1024).toFixed(0)+'KB' : '';
     return '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">'+
       (isImg && d.url
-        ? '<img data-sp="'+escHtml(d.path||'')+'" src="'+escHtml(d.url||'')+'" style="width:100%;height:110px;object-fit:cover;display:block">'
+        ? '<img data-sp="'+escHtml(d.path||'')+'" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" style="width:100%;height:110px;object-fit:cover;display:block;background:#eef2f7">'
         : '<div style="height:80px;background:#f0f4f8;display:flex;align-items:center;justify-content:center;font-size:30px">'+icon+'</div>'
       )+
       '<div style="padding:8px 10px">'+
         '<div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(d.name)+'">'+escHtml(d.name)+'</div>'+
         '<div style="font-size:10px;color:#90a4ae;margin-bottom:6px">'+escHtml(d.uploadedBy||'')+' · '+escHtml(kb)+'</div>'+
         '<div style="display:flex;gap:5px">'+
-          '<a data-sp="'+escHtml(d.path||'')+'" href="'+escHtml(d.url||'')+'" target="_blank" download style="flex:1;text-align:center;padding:4px;background:#1565c0;color:#fff;border-radius:4px;font-size:11px;font-weight:700;text-decoration:none">⬇ Open</a>'+
+          '<a data-sp="'+escHtml(d.path||'')+'" href="#" target="_blank" rel="noopener" style="flex:1;text-align:center;padding:4px;background:#1565c0;color:#fff;border-radius:4px;font-size:11px;font-weight:700;text-decoration:none">⬇ Open</a>'+
           (canDelete ? '<button onclick="'+deleteFn+'(\''+d.id+'\')" style="padding:4px 8px;background:#ffebee;color:#c62828;border:none;border-radius:4px;font-size:11px;cursor:pointer">✕</button>' : '')+
         '</div>'+
       '</div>'+

@@ -335,8 +335,8 @@ function renderJobPhotosSection(jobId) {
     photos.forEach(function(p) {
       if (!p.url) return;
       html += '<div style="position:relative">'+
-        '<img data-sp="'+escHtml(p.filePath||p.file_path||'')+'" src="'+escHtml(p.url||'')+'" onclick="window.open(this.src,\'_blank\')" '+
-        'style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid #e0e7ef" '+
+        '<img data-sp="'+escHtml(p.filePath||p.file_path||'')+'" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" onclick="if(this.getAttribute(\'src\').indexOf(\'/sign/\')>-1)window.open(this.src,\'_blank\')" '+
+        'style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid #e0e7ef;background:#eef2f7" '+
         'title="'+escHtml(p.caption||p.fileName||'')+'" loading="lazy">'+
         (p.caption?'<div style="font-size:9px;color:#546e7a;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(p.caption)+'</div>':'')+
       '</div>';
