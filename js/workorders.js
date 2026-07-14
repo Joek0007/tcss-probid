@@ -148,6 +148,21 @@ function initWorkOrdersPage() {
 }
 
 // ---- RENDER LIST ----
+// Resolve the best phone number to show for a work order without opening it:
+// prefer the WO's specific site contact, then fall back to the customer's primary/secondary phone.
+function _woContactPhone(wo){
+  if (!wo) return {phone:'', name:''};
+  if (wo.contactId) {
+    var ct = (DB.contacts||[]).find(function(c){ return c.id===wo.contactId; });
+    if (ct && ct.phone) return {phone:ct.phone, name:ct.name||''};
+  }
+  if (wo.customerId) {
+    var cu = (DB.customers||[]).find(function(c){ return c.id===wo.customerId; });
+    if (cu && (cu.phone||cu.phone2)) return {phone:(cu.phone||cu.phone2), name:(cu.name||wo.customerName||'')};
+  }
+  return {phone:'', name:''};
+}
+
 function renderWorkOrders() {
   if (!DB.workOrders) DB.workOrders = [];
 
@@ -308,6 +323,12 @@ function renderWorkOrders() {
       ? '<div style="font-size:10px;color:#90a4ae;margin-top:2px">&#128197; '+escHtml(wo.scheduledDate)+(wo.scheduledTime?' &middot; '+escHtml(wo.scheduledTime):'')+'</div>'
       : '<div style="font-size:10px;color:#c62828;margin-top:2px">&#9888; Not scheduled</div>';
 
+    // Contact phone shown inline so it's reachable without opening the WO (tap-to-call on mobile).
+    var _cp = _woContactPhone(wo);
+    var phoneLine = _cp.phone
+      ? '<a href="tel:'+escHtml(_cp.phone.replace(/[^0-9+]/g,''))+'" data-nostop="1" onclick="event.stopPropagation()" style="font-size:10px;color:#1565c0;text-decoration:none;white-space:nowrap" title="Call '+escHtml(_cp.name||wo.customerName||'')+'">&#128222; '+escHtml(_cp.phone)+'</a>'
+      : '<span style="font-size:10px;color:#cfd8dc">no phone</span>';
+
     var techNames = (wo.assignedTechs||[]).map(function(t){ return typeof t==='string'?t:(t.name||''); }).filter(Boolean);
     var techHtml = techNames.length
       ? techNames.slice(0,3).map(function(n,i){
@@ -328,7 +349,7 @@ function renderWorkOrders() {
 
     return '<div class="wo-list-row" data-woid="'+escHtml(wo.id)+'" style="display:grid;grid-template-columns:'+cols+';padding:11px 16px;border-bottom:1px solid #f0f4f8;align-items:center;cursor:pointer">'
       +'<div class="wo-num-link" data-woid="'+escHtml(wo.id)+'" style="font-weight:700;color:#1565c0;font-size:13px;text-decoration:underline">'+escHtml(wo.woNumber||'')+'</div>'
-      +'<div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(wo.customerName||'—')+'</div>'
+      +'<div style="overflow:hidden"><div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(wo.customerName||'—')+'</div>'+phoneLine+'</div>'
       +'<div style="overflow:hidden"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml((wo.description||'').substring(0,50))+'</div>'+schedHtml+'</div>'
       +'<div>'+techHtml+'</div>'
       +'<div><span class="wo-status-badge" data-woid="'+escHtml(wo.id)+'" style="background:'+stColor+';color:'+_smartTextColor(stColor)+';padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;display:inline-block">'+escHtml(wo.status||'')+'</span></div>'
