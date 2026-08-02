@@ -1339,7 +1339,9 @@ function renderDash() {
   });
 
   // Active jobs
-  var activeJobs = jobs.filter(function(j){ return j.status==='in_progress'||j.status==='In Progress'||j.status==='scheduled'||j.status==='Scheduled'; });
+  // jobs = active work orders (finished states already excluded). "Active" here = work has started
+  // (anything past the brand-new state), so the tile reflects jobs actually being worked.
+  var activeJobs = jobs.filter(function(j){ return (j.status||'').toLowerCase().indexOf('new')<0; });
   setT('ds-active-jobs', activeJobs.length);
 
   // Clocked in today
@@ -1378,7 +1380,11 @@ function renderDash() {
   setT('ds-flags', openFlags);
 
   // Open WOs
-  var openWOs  = workOrders.filter(function(w){ return !w.deleted&&w.status!=='closed'&&w.status!=='invoiced'; });
+  var openWOs  = workOrders.filter(function(w){
+    if (w.deleted) return false;
+    var s=(w.status||'').toLowerCase();
+    return s.indexOf('billed')<0 && s.indexOf('void')<0 && s.indexOf('closed')<0 && s.indexOf('complete')<0 && s.indexOf('invoiced')<0;
+  });
   var urgentWO = workOrders.filter(function(w){ return !w.deleted&&w.status==='urgent'; }).length;
   var woTile = document.getElementById('ds-wo-tile');
   if (woTile) {
