@@ -68,7 +68,12 @@ function _woToJob(wo) {
 // Returns all active (non-closed) WOs as job-compatible objects
 function _getActiveWOsAsJobs() {
   return (DB.workOrders||[])
-    .filter(function(w){ return !w.deleted && w.status!=='Billed' && w.status!=='Void' && w.status!=='Closed'; })
+    .filter(function(w){
+      if (w.deleted) return false;
+      // Exclude finished states case-insensitively (statuses are stored like "BILLED", "Void (Q-Books ...)")
+      var st = (w.status||'').toLowerCase();
+      return st.indexOf('billed')<0 && st.indexOf('void')<0 && st.indexOf('closed')<0 && st.indexOf('complete')<0;
+    })
     .map(_woToJob);
 }
 

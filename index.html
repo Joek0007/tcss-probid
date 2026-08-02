@@ -1400,6 +1400,11 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <div class="dash-stat-icon">💰</div>
       <div class="dash-stat-val" id="ds-won-rev">$0</div>
       <div class="dash-stat-lbl">Revenue Won</div>
+      <div onclick="event.stopPropagation()" style="display:flex;gap:3px;justify-content:center;margin-top:5px">
+        <span id="ds-rp-month"   onclick="setRevWonPeriod('month')"   title="This calendar month"     style="cursor:pointer;font-size:9px;font-weight:700;color:#2e7d32;background:rgba(255,255,255,.65);padding:2px 6px;border-radius:8px">Mo</span>
+        <span id="ds-rp-quarter" onclick="setRevWonPeriod('quarter')" title="This fiscal quarter"       style="cursor:pointer;font-size:9px;font-weight:700;color:#2e7d32;background:rgba(255,255,255,.65);padding:2px 6px;border-radius:8px">Qtr</span>
+        <span id="ds-rp-ytd"     onclick="setRevWonPeriod('ytd')"     title="Fiscal year to date"      style="cursor:pointer;font-size:9px;font-weight:800;color:#fff;background:#2e7d32;padding:2px 6px;border-radius:8px">YTD</span>
+      </div>
     </div>
     <div class="dash-stat-tile blue" onclick="goPage('jobs')">
       <div class="dash-stat-icon">🔧</div>
@@ -1449,7 +1454,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           <span class="dash-card-title">👷 Field Activity</span>
           <button class="btn btn-ghost btn-sm" onclick="goPage('field')">Time Clock →</button>
         </div>
-        <div id="dash-field-activity"></div>
+        <div id="dash-field-activity" style="max-height:360px;overflow-y:auto"></div>
       </div>
 
       <!-- Today's Absences (only shows if any) -->
@@ -4251,6 +4256,17 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div><label>Website</label><input id="s-cweb" placeholder="www.company.com"></div>
       </div>
       <div class="form-row"><div><label>Tagline</label><input id="s-ctag" placeholder="Your company tagline"></div></div>
+      <div class="form-row cols2">
+        <div><label>Fiscal Year Starts</label>
+          <select id="s-fiscal-month">
+            <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+            <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end"><span style="font-size:11px;color:#90a4ae;padding-bottom:8px">Drives the dashboard's Revenue Won periods (Quarter &amp; Year-to-Date). Your year begins on the 1st of this month.</span></div>
+      </div>
     </div>
     <div class="card"><div class="card-title">💰 Pricing Defaults</div>
       <div class="form-row cols2">

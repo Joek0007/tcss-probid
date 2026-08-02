@@ -696,6 +696,10 @@ function saveQQ() {
   if ((q.status==='sent' || q.status==='followup') && !q.sentDate) {
     q.sentDate = getTodayISO();
   }
+  // Stamp the day a quote is marked Won (approved) if it wasn't set via Convert-to-Job — for dashboard revenue periods.
+  if ((q.status==='approved' || q.status==='won') && !q.wonDate) {
+    q.wonDate = getTodayISO();
+  }
 
   // Assign or reuse quote number
   var numEl = document.getElementById('qq-num');

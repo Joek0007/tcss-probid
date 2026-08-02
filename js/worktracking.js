@@ -7216,6 +7216,7 @@ function loadSettings() {
   sv('s-lr',s.laborRate||100);sv('s-mk',s.targetMargin||35);sv('s-tx',s.taxRate||0);sv('s-vd',s.validDays||30);sv('s-pt',s.payTerms);sv('s-tc',s.tc);
   sv('s-followup-days', s.followupDays||7);
   sv('s-perdiem-markup', s.perDiemMarkup!==undefined ? s.perDiemMarkup : 15);
+  sv('s-fiscal-month', s.fiscalYearStartMonth||1);
   sv('s-uname',s.uname);sv('s-utitle',s.utitle);sv('s-uphone',s.uphone);sv('s-uemail',s.uemail);
   // Geofence settings
   sv('s-office-addr', s.officeAddr||'');
@@ -7285,6 +7286,7 @@ function saveSettings() {
     laborRate:parseFloat(gv('s-lr'))||100,targetMargin:parseFloat(gv('s-mk'))||35,taxRate:parseFloat(gv('s-tx'))||0,validDays:parseInt(gv('s-vd'))||30,payTerms:gv('s-pt'),tc:gv('s-tc'),
     followupDays:parseInt(gv('s-followup-days'))||7,
     perDiemMarkup:parseFloat(gv('s-perdiem-markup'))||0,
+    fiscalYearStartMonth:parseInt(gv('s-fiscal-month'))||1,
     uname:gv('s-uname'),utitle:gv('s-utitle'),uphone:gv('s-uphone'),uemail:gv('s-uemail')
   });
   saveDB();

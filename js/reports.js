@@ -2,6 +2,35 @@
 // STAGE 5: CONTROL + FOLLOW-UP SYSTEM
 // =============================================
 function getTodayISO(){ return new Date().toISOString().split('T')[0]; }
+
+// ── Dashboard "Revenue Won" period logic (fiscal-year aware) ──────────────────
+// Fiscal year start month from Company Settings (1-12); defaults to January.
+function _fiscalStartMonth(){ var m=parseInt((DB.settings&&DB.settings.fiscalYearStartMonth))||1; return (m>=1&&m<=12)?m:1; }
+// Best available "won date" for a quote: the stamped wonDate, else last-updated, else the quote date.
+function _quoteWonDate(q){
+  if (!q) return '';
+  if (q.wonDate) return q.wonDate;
+  if (q.updatedAt) return String(q.updatedAt).split('T')[0];
+  return q.dt || (q.createdAt ? String(q.createdAt).split('T')[0] : '');
+}
+// Selected dashboard revenue period ('month' | 'quarter' | 'ytd'), remembered per browser.
+function getRevWonPeriod(){ try { return localStorage.getItem('dashRevPeriod') || 'ytd'; } catch(e){ return 'ytd'; } }
+function setRevWonPeriod(p){ try { localStorage.setItem('dashRevPeriod', p); } catch(e){} if (typeof renderDash==='function') renderDash(); }
+// Start-of-period Date for the current month / current fiscal quarter / current fiscal year.
+function _revWonPeriodStart(period){
+  var now=new Date(), y=now.getFullYear(), m0=now.getMonth(), fsm=_fiscalStartMonth();
+  if (period==='month') return new Date(y, m0, 1);
+  if (period==='quarter'){
+    var fmi=((m0+1) - fsm + 12) % 12;                 // 0-based fiscal month index
+    var qStart0=(fsm-1 + Math.floor(fmi/3)*3) % 12;   // calendar month (0-based) the quarter started
+    var start=new Date(y, qStart0, 1);
+    if (start>now) start=new Date(y-1, qStart0, 1);
+    return start;
+  }
+  var ys=new Date(y, fsm-1, 1);                        // ytd (fiscal)
+  if (ys>now) ys=new Date(y-1, fsm-1, 1);
+  return ys;
+}
 function getQQQuoteDate(){ return (document.getElementById('qq-dt')||{}).value || getTodayISO(); }
 function getQQFollowupDate(){ return (document.getElementById('qq-followup')||{}).value || ''; }
 function getQQCreatedDate(){ return (document.getElementById('qq-created')||{}).value || ''; }
@@ -250,7 +279,9 @@ function getQData(id) {
     items: JSON.parse(JSON.stringify(lineItems)),
     createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString(),
     // Preserve the date the quote first went out so aging counts from send, not from every re-save.
-    sentDate: existing && existing.sentDate ? existing.sentDate : null
+    sentDate: existing && existing.sentDate ? existing.sentDate : null,
+    // Preserve the date a quote was marked Won so dashboard revenue periods stay accurate across re-saves.
+    wonDate: existing && existing.wonDate ? existing.wonDate : null
   };
 }
 
@@ -1292,9 +1323,20 @@ function renderDash() {
   setT('ds-tq', quotes.length);
 
   // Revenue won
+  var _rperiod = getRevWonPeriod();
+  var _rstart  = _revWonPeriodStart(_rperiod);
   var wonRev = quotes.filter(function(q){ return q.status==='approved'||q.status==='won'; })
+    .filter(function(q){ var d=_quoteWonDate(q); return d && new Date(d) >= _rstart; })
     .reduce(function(s,q){ return s+(parseFloat(q.total)||0); }, 0);
   setT('ds-won-rev', '$'+wonRev.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}));
+  // Highlight the active period pill (Mo / Qtr / YTD)
+  ['month','quarter','ytd'].forEach(function(p){
+    var el=document.getElementById('ds-rp-'+p); if(!el) return;
+    var on=(p===_rperiod);
+    el.style.background = on ? '#2e7d32' : 'rgba(255,255,255,.65)';
+    el.style.color      = on ? '#fff' : '#2e7d32';
+    el.style.fontWeight = on ? '800' : '700';
+  });
 
   // Active jobs
   var activeJobs = jobs.filter(function(j){ return j.status==='in_progress'||j.status==='In Progress'||j.status==='scheduled'||j.status==='Scheduled'; });
@@ -1353,11 +1395,14 @@ function renderDash() {
   // ── Field Activity ─────────────────────────────────────────────────────────
   var fieldEl = document.getElementById('dash-field-activity');
   if (fieldEl) {
-    var team = (DB.team||[]).filter(function(m){ return m.active!==false; }).slice(0,8);
     var todayDays = workDays.filter(function(d){ return d.date===today; });
+    var _fstat = function(m){ var wd=todayDays.find(function(d){ return d.techName===m.name; }); return wd ? (wd.totalPaidMins?'out':wd.currentStatus||'in') : 'out'; };
+    // Show ALL active members (card scrolls); put anyone clocked in / active at the top.
+    var team = (DB.team||[]).filter(function(m){ return m.active!==false; });
+    team.sort(function(a,b){ var ao=_fstat(a)==='out'?1:0, bo=_fstat(b)==='out'?1:0; return ao!==bo ? ao-bo : (a.name||'').localeCompare(b.name||''); });
     fieldEl.innerHTML = team.map(function(m){
       var wd = todayDays.find(function(d){ return d.techName===m.name; });
-      var status = wd ? (wd.totalPaidMins?'out':wd.currentStatus||'in') : 'out';
+      var status = _fstat(m);
       var statusLabels = {in:'Clocked In',out:'Not started',break:'On Break',lunch:'Lunch',traveling:'Traveling',onsite:'On Site'};
       var statusClasses = {in:'in',out:'out',break:'break',lunch:'lunch',traveling:'in',onsite:'in'};
       var initials = (m.name||'?').split(' ').map(function(w){ return w[0]||''; }).slice(0,2).join('').toUpperCase();
