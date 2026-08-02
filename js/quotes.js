@@ -696,9 +696,13 @@ function saveQQ() {
   if ((q.status==='sent' || q.status==='followup') && !q.sentDate) {
     q.sentDate = getTodayISO();
   }
-  // Stamp the day a quote is marked Won (approved) if it wasn't set via Convert-to-Job — for dashboard revenue periods.
-  if ((q.status==='approved' || q.status==='won') && !q.wonDate) {
-    q.wonDate = getTodayISO();
+  // Stamp the win date ONLY when a quote transitions INTO won in THIS save — never back-date a quote
+  // that was already won (legacy wins keep their original/absent date; Convert-to-Job stamps its own).
+  if (q.status==='approved' || q.status==='won') {
+    var _qidW = (document.getElementById('qq-id')||{}).value || '';
+    var _prevQ = _qidW ? (DB.quotes||[]).find(function(x){ return x.id===_qidW; }) : null;
+    var _wasWon = _prevQ && (_prevQ.status==='approved' || _prevQ.status==='won');
+    if (!_wasWon && !q.wonDate) q.wonDate = getTodayISO();
   }
 
   // Assign or reuse quote number
