@@ -1228,6 +1228,22 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// Convert rich-text/HTML (from the WO & quote editors) into clean plain text for
+// list/summary previews. Strips tags, turns block breaks into spaces, decodes the
+// common entities, and collapses whitespace. Use this — NOT escHtml — whenever a
+// stored description/notes field is shown as a short text preview.
+function stripHtmlToText(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/<\s*(br|\/p|\/div|\/li|\/h[1-6]|\/tr)\s*>/gi, ' ')  // block ends -> space
+    .replace(/<[^>]*>/g, '')                                       // drop remaining tags
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"').replace(/&#0*39;|&apos;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 
 // =============================================
 // V5 PHASE 1: EQUIPMENT RENTAL FUNCTIONS

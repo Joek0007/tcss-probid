@@ -45,7 +45,7 @@ function _woToJob(wo) {
     id:            wo.id,
     woId:          wo.id,
     woNumber:      wo.woNumber || '',
-    name:          wo.description || wo.woNumber || 'Work Order',
+    name:          (typeof stripHtmlToText==='function' ? stripHtmlToText(wo.description) : (wo.description||'')) || wo.woNumber || 'Work Order',
     customer:      wo.customerName || '',
     customerName:  wo.customerName || '',
     address:       [wo.siteAddr, wo.siteCity, wo.siteState].filter(Boolean).join(', '),
@@ -350,7 +350,7 @@ function renderWorkOrders() {
     return '<div class="wo-list-row" data-woid="'+escHtml(wo.id)+'" style="display:grid;grid-template-columns:'+cols+';padding:11px 16px;border-bottom:1px solid #f0f4f8;align-items:center;cursor:pointer">'
       +'<div class="wo-num-link" data-woid="'+escHtml(wo.id)+'" style="font-weight:700;color:#1565c0;font-size:13px;text-decoration:underline">'+escHtml(wo.woNumber||'')+'</div>'
       +'<div style="overflow:hidden"><div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(wo.customerName||'—')+'</div>'+phoneLine+'</div>'
-      +'<div style="overflow:hidden"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml((wo.description||'').substring(0,50))+'</div>'+schedHtml+'</div>'
+      +'<div style="overflow:hidden"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(stripHtmlToText(wo.description).substring(0,60))+'</div>'+schedHtml+'</div>'
       +'<div>'+techHtml+'</div>'
       +'<div><span class="wo-status-badge" data-woid="'+escHtml(wo.id)+'" style="background:'+stColor+';color:'+_smartTextColor(stColor)+';padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;display:inline-block">'+escHtml(wo.status||'')+'</span></div>'
       +'<div style="display:flex;align-items:center;gap:4px">'+prDot+'</div>'
@@ -871,7 +871,7 @@ function _triggerUrgentAlert(wo) {
   var count = parseInt((document.getElementById('notif-count')||{}).textContent||'0') + 1;
   var countEl = document.getElementById('notif-count');
   if (countEl) { countEl.textContent=count; countEl.style.display=''; }
-  showToast('🚨 URGENT Work Order: '+escHtml(wo.customerName||'')+' — '+escHtml((wo.description||'').substring(0,50)), 'error', 8000);
+  showToast('🚨 URGENT Work Order: '+escHtml(wo.customerName||'')+' — '+escHtml(stripHtmlToText(wo.description).substring(0,50)), 'error', 8000);
   // SMS via Twilio — queued for when Twilio is wired
   if (typeof sendUrgentWOSMS === 'function') sendUrgentWOSMS(wo);
 }
@@ -2574,7 +2574,7 @@ function saveTeamModal() {
       wo.smsNotified.push(techName);
       saveDB();
       var msg = 'TCSS Dispatch: '+(wo.woNumber||'WO')+' | '+(wo.customerName||'');
-      if (wo.description) msg += '\n'+wo.description.substring(0,80);
+      if (wo.description) msg += '\n'+stripHtmlToText(wo.description).substring(0,80);
       if (wo.scheduledDate) {
         var d = new Date(wo.scheduledDate+'T12:00:00');
         msg += '\nScheduled: '+d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
@@ -3016,7 +3016,7 @@ function createChangeOrder(parentWoId) {
         '<div style="background:#f5f7fa;border-radius:10px;padding:12px;margin-bottom:16px">'+
           '<div style="font-size:12px;font-weight:700;color:#546e7a;margin-bottom:4px">PARENT WORK ORDER</div>'+
           '<div style="font-size:14px;font-weight:800;color:#0d1b2a">'+escHtml(parent.woNumber||'')+'</div>'+
-          '<div style="font-size:13px;color:#546e7a">'+escHtml(parent.customerName||'')+(parent.description?' — '+parent.description.substring(0,50):'')+'</div>'+
+          '<div style="font-size:13px;color:#546e7a">'+escHtml(parent.customerName||'')+(parent.description?' — '+escHtml(stripHtmlToText(parent.description).substring(0,50)):'')+'</div>'+
         '</div>'+
         '<div style="margin-bottom:16px">'+
           '<label class="wiz-label">REASON FOR CHANGE ORDER *</label>'+
@@ -3068,7 +3068,7 @@ function confirmCreateChangeOrder(parentWoId) {
 
     // Pre-fill description with CO context
     var descEl = document.getElementById('wo-desc');
-    if (descEl) descEl.value = 'Change Order — '+escHtml(parent.woNumber||'')+(parent.description?' ('+parent.description.substring(0,40)+')':'');
+    if (descEl) descEl.value = 'Change Order — '+(parent.woNumber||'')+(parent.description?' ('+stripHtmlToText(parent.description).substring(0,40)+')':'');
 
     // Show parent WO banner
     _renderParentWOBanner(parent);

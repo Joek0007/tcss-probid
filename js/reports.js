@@ -648,7 +648,7 @@ function openJournalEntry(techName, preType) {
           '<select id="tj-wo" class="form-control">'+
             '<option value="">— None —</option>'+
             (DB.workOrders||[]).slice(0,30).map(function(w){
-              return '<option value="'+w.id+'">'+escHtml((w.woNumber||w.id)+' — '+(w.customerName||w.description||'').substring(0,40))+'</option>';
+              return '<option value="'+w.id+'">'+escHtml((w.woNumber||w.id)+' — '+(w.customerName||stripHtmlToText(w.description)||'').substring(0,40))+'</option>';
             }).join('')+
           '</select>'+
         '</div>'+
@@ -1293,7 +1293,7 @@ function renderDash() {
 
   // Revenue won
   var wonRev = quotes.filter(function(q){ return q.status==='approved'||q.status==='won'; })
-    .reduce(function(s,q){ return s+(parseFloat(q.totalPrice)||0); }, 0);
+    .reduce(function(s,q){ return s+(parseFloat(q.total)||0); }, 0);
   setT('ds-won-rev', '$'+wonRev.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}));
 
   // Active jobs
@@ -1382,7 +1382,7 @@ function renderDash() {
         var statusColor = j.status==='In Progress'||j.status==='in_progress'?'#1565c0':'#546e7a';
         return '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5;display:flex;justify-content:space-between;align-items:center">'+
           '<div>'+
-            '<div style="font-size:13px;font-weight:700;color:#0d1b2a;cursor:pointer" onclick="goPage(\'jobs\')">'+escHtml(j.name||'Job')+'</div>'+
+            '<div style="font-size:13px;font-weight:700;color:#0d1b2a;cursor:pointer" onclick="goPage(\'jobs\')">'+escHtml(stripHtmlToText(j.name)||'Job')+'</div>'+
             '<div style="font-size:11px;color:#546e7a">'+(j.customer||j.customerName||'')+(j.assignedTechs&&j.assignedTechs.length?' — '+j.assignedTechs.slice(0,2).join(', '):'')+'</div>'+
           '</div>'+
           '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#e3f2fd;color:'+statusColor+'">'+escHtml(j.status||'Scheduled')+'</span>'+
@@ -1426,11 +1426,11 @@ function renderDash() {
       var sc = statusColors[q.status]||'#546e7a';
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;cursor:pointer" onclick="editQuote(\''+q.id+'\')">'+
         '<div>'+
-          '<div style="font-size:13px;font-weight:700;color:#1565c0">'+escHtml('Q-'+(q.num||q.id))+'</div>'+
+          '<div style="font-size:13px;font-weight:700;color:#1565c0">'+escHtml(q.num || ('Q-'+q.id))+'</div>'+
           '<div style="font-size:11px;color:#546e7a">'+escHtml(q.cn||'')+(q.projName?' — '+escHtml(q.projName):'')+'</div>'+
         '</div>'+
         '<div style="text-align:right">'+
-          '<div style="font-size:13px;font-weight:700">$'+((q.totalPrice||0).toLocaleString())+'</div>'+
+          '<div style="font-size:13px;font-weight:700">$'+((parseFloat(q.total)||0).toLocaleString())+'</div>'+
           '<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:'+sc+'22;color:'+sc+'">'+escHtml((q.status||'').toUpperCase())+'</span>'+
         '</div>'+
       '</div>';

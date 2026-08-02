@@ -125,7 +125,7 @@ function _saveJobToWO(job) {
       // Build a rich message
       var msg = 'TCSS Dispatch: ' + (wo.woNumber||'Work Order');
       msg += ' | ' + (wo.customerName||'');
-      if (wo.description) msg += '\n' + wo.description.substring(0,80);
+      if (wo.description) msg += '\n' + stripHtmlToText(wo.description).substring(0,80);
       if (wo.scheduledDate) {
         var d = new Date(wo.scheduledDate+'T12:00:00');
         msg += '\nScheduled: ' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
