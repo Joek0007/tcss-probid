@@ -991,7 +991,7 @@ async function syncAllFromCloud(silent) {
   // Save to localStorage only — do NOT call saveDB() here as it would schedule a push
   // We just pulled from Supabase so there's nothing to push back
   window._syncInProgress = false;
-  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+  try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
   clearTimeout(window._syncTimer); // Cancel any push timer that snuck in during sync
   // Re-apply permissions after sync then render correct dashboard for role
   if (_currentUser) applyRolePermissions(_currentUser.role);
@@ -1048,7 +1048,7 @@ async function pushAllToCloud() {
       for (var jDel of dj)   { var _rj  = await _sb.from('jobs').delete().eq('id', jDel);      if (_rj  && _rj.error)  keepJ.push(jDel); }
       // Successful deletes are cleared; only failures remain tombstoned for retry.
       DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ};
-      try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+      try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
     }
     // Push settings to company_settings (single row, id=1)
     await _sb.from('company_settings').upsert({
