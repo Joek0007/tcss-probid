@@ -3345,7 +3345,7 @@ function renderContacts() {
       '<div>'+
         '<div class="cont-name">'+escHtml(c.name||'')+'</div>'+
         (lastQ?'<div class="cont-sub">Last quote: '+escHtml(lastQ.dt||'')+'</div>':'')+
-        (c.notes?'<div class="cont-sub" style="font-style:italic">'+escHtml(c.notes.slice(0,60))+(c.notes.length>60?'…':'')+'</div>':'')+
+        (c.notes?(function(){var _t=(typeof stripHtmlToText==='function'?stripHtmlToText(c.notes):c.notes);return '<div class="cont-sub" style="font-style:italic">'+escHtml(_t.slice(0,60))+(_t.length>60?'…':'')+'</div>';})():'')+
       '</div>'+
       // Company (clickable)
       '<div>'+companyHtml+'</div>'+

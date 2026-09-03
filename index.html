@@ -6223,25 +6223,25 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260903e with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260903f with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260903e"></script>
-<script src="js/quotes.js?v=20260903e"></script>
-<script src="js/tools.js?v=20260903e"></script>
-<script src="js/field.js?v=20260903e"></script>
-<script src="js/crm.js?v=20260903e"></script>
-<script src="js/dispatch.js?v=20260903e"></script>
-<script src="js/permissions.js?v=20260903e"></script>
-<script src="js/worktracking.js?v=20260903e"></script>
-<script src="js/calendar.js?v=20260903e"></script>
-<script src="js/workorders.js?v=20260903e"></script>
-<script src="js/purchaseorders.js?v=20260903e"></script>
-<script src="js/inventory.js?v=20260903e"></script>
-<script src="js/reports.js?v=20260903e"></script>
-<script src="js/contracts.js?v=20260903e"></script>
-  <script src="js/recurring.js?v=20260903e"></script>
-  <script src="js/seed_managed.js?v=20260903e"></script>
-  <script src="js/auth.js?v=20260903e"></script>
+<script src="js/core.js?v=20260903f"></script>
+<script src="js/quotes.js?v=20260903f"></script>
+<script src="js/tools.js?v=20260903f"></script>
+<script src="js/field.js?v=20260903f"></script>
+<script src="js/crm.js?v=20260903f"></script>
+<script src="js/dispatch.js?v=20260903f"></script>
+<script src="js/permissions.js?v=20260903f"></script>
+<script src="js/worktracking.js?v=20260903f"></script>
+<script src="js/calendar.js?v=20260903f"></script>
+<script src="js/workorders.js?v=20260903f"></script>
+<script src="js/purchaseorders.js?v=20260903f"></script>
+<script src="js/inventory.js?v=20260903f"></script>
+<script src="js/reports.js?v=20260903f"></script>
+<script src="js/contracts.js?v=20260903f"></script>
+  <script src="js/recurring.js?v=20260903f"></script>
+  <script src="js/seed_managed.js?v=20260903f"></script>
+  <script src="js/auth.js?v=20260903f"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
@@ -7240,6 +7240,14 @@ function woRtfRead(fieldId) {
 var _woRtfRanges = {};
 function _woRtfEd(id){ return document.getElementById(id); }
 function _woRtfEmpty(h){ return !h || h==='<br>' || h.replace(/<br\s*\/?>|<div>|<\/div>|&nbsp;|\s/gi,'')===''; }
+// Render a rich-editor value for display: if it already contains HTML tags, use as-is;
+// if it's legacy plain text, escape it and convert newlines. Safe for both old & new data.
+function rtfDisplayHTML(v){
+  v = (v==null) ? '' : String(v);
+  if (/<[a-z!\/][^>]*>/i.test(v)) return v;
+  var esc = (typeof escHtml==='function') ? escHtml(v) : v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return esc.replace(/\n/g,'<br>');
+}
 function _woRtfDirty(id){ var ed=_woRtfEd(id); if(ed){ try{ ed.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} } }
 function _woRtfSaveRange(id){ var ed=_woRtfEd(id); if(!ed)return; var s=window.getSelection(); if(s&&s.rangeCount){ var r=s.getRangeAt(0); if(ed.contains(r.commonAncestorContainer)) _woRtfRanges[id]=r.cloneRange(); } }
 function _woRtfRestore(id){ var ed=_woRtfEd(id); if(!ed)return; ed.focus(); var r=_woRtfRanges[id]; if(r){ var s=window.getSelection(); s.removeAllRanges(); s.addRange(r); } }
@@ -7338,6 +7346,9 @@ function _rtfBootWO(){
     }
   });
   woRtfUpgrade('wo-internal-notes', {placeholder:'Back office notes — not shown to field techs...', minHeight:'70px'});
+  // Batch 2: Customers & Contacts
+  woRtfUpgrade('m-cnotes',   {placeholder:'Notes about this customer...', minHeight:'70px'});
+  woRtfUpgrade('m-ct-notes', {placeholder:'Notes about this contact...', minHeight:'60px'});
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(_rtfBootWO, 300); });
 else setTimeout(_rtfBootWO, 300);

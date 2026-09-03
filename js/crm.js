@@ -205,7 +205,7 @@ function renderCPOverview(customer, quotes, jobs, contacts, projects) {
               '<span style="font-size:14px;font-weight:700;color:#e65100">Taxable</span>'+
             '</div>')+
       '</div>'+
-      (customer.notes?'<div style="margin-top:8px;color:#546e7a;font-size:12px;font-style:italic">'+escHtml(customer.notes)+'</div>':'')+
+      (customer.notes?'<div style="margin-top:8px;color:#546e7a;font-size:12px;font-style:italic">'+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(customer.notes):escHtml(customer.notes))+'</div>':'')+
     '</div>'+
     '<div style="margin-top:12px;display:flex;gap:8px">'+
       '<button class="btn btn-primary btn-sm" onclick="editCustomer(\''+_cpCustomerId+'\')">✏ Edit</button>'+
