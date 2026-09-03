@@ -1382,7 +1382,7 @@ table{font-size:12.5px}
     if (!fullTC.trim()) return '';
     return '<div class="prop-section"><div class="prop-section-title">Terms &amp; Conditions</div>' +
       '<div class="scope-box" style="font-size:12px">' +
-        escHtml(baseTC).replace(/\n/g,'<br>') +
+        (typeof rtfDisplayHTML==='function' ? rtfDisplayHTML(baseTC) : escHtml(baseTC).replace(/\n/g,'<br>')) +
         (jtExtra ? '<br><br><strong style="color:#1565c0">' + escHtml(q.jt) + ' — Additional Terms:</strong><br>' + escHtml(jtExtra).replace(/\n/g,'<br>') : '') +
       '</div></div>';
   })() +
@@ -1865,11 +1865,11 @@ function openSectionEditor(kind) {
     ta.value = (document.getElementById('qq-exec-summary')||{}).value || '';
     ta.placeholder = 'Leave blank to auto-generate a summary from the equipment on this quote…';
   } else if (kind === 'terms') {
-    titleEl.textContent = '📜 Terms & Conditions';
-    scopeEl.textContent = 'This quote only';
-    hintEl.textContent  = 'Terms for this proposal. Leave blank to use your default T&C from Settings.';
-    ta.value = (document.getElementById('qq-tc')||{}).value || '';
-    ta.placeholder = 'Payment terms, warranty information, conditions…';
+    // Terms is now a full rich editor inline — jump to it instead of the plain popup.
+    var _tc = document.getElementById('qq-tc');
+    if (_tc) { try { _tc.scrollIntoView({block:'center'}); _tc.focus(); } catch(e){} }
+    _sectionEditorKind = null;
+    return;
   } else if (kind === 'assumptions') {
     titleEl.textContent = '✅ Assumptions';
     scopeEl.textContent = 'Default — used on ALL proposals';
