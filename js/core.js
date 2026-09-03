@@ -36,9 +36,14 @@ const MF_DEFAULTS = { 'New Construction':35, 'Remodel':40, 'Service Call':50, 'U
 // ---- DATABASE ----
 let DB = { quotes:[], customers:[], contacts:[], jobs:[], team:[], catalog:[], templates:[], settings:{}, marginFloors:{}, quoteSeq:1000, jobSeq:1, deletedIds:{quotes:[],team:[],customers:[],contacts:[],jobs:[]}, workOrders:[], woLabor:[], woExpenses:[], woParts:[], woChecklist:[], woSettings:null, woSeq:1000, jobPhotos:[], commsLog:[], invoicePayments:[], purchaseOrders:[], vendors:[], poSeq:1000, invLocations:[], invTransfers:[] };
 
+/* lz-string 1.5.0 (pieroxy, MIT) — embedded for localStorage compression */
+var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",n="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$",e={};function t(r,o){if(!e[r]){e[r]={};for(var n=0;n<r.length;n++)e[r][r.charAt(n)]=n}return e[r][o]}var i={compressToBase64:function(r){if(null==r)return"";var n=i._compress(r,6,function(r){return o.charAt(r)});switch(n.length%4){default:case 0:return n;case 1:return n+"===";case 2:return n+"==";case 3:return n+"="}},decompressFromBase64:function(r){return null==r?"":""==r?null:i._decompress(r.length,32,function(n){return t(o,r.charAt(n))})},compressToUTF16:function(o){return null==o?"":i._compress(o,15,function(o){return r(o+32)})+" "},decompressFromUTF16:function(r){return null==r?"":""==r?null:i._decompress(r.length,16384,function(o){return r.charCodeAt(o)-32})},compressToUint8Array:function(r){for(var o=i.compress(r),n=new Uint8Array(2*o.length),e=0,t=o.length;e<t;e++){var s=o.charCodeAt(e);n[2*e]=s>>>8,n[2*e+1]=s%256}return n},decompressFromUint8Array:function(o){if(null==o)return i.decompress(o);for(var n=new Array(o.length/2),e=0,t=n.length;e<t;e++)n[e]=256*o[2*e]+o[2*e+1];var s=[];return n.forEach(function(o){s.push(r(o))}),i.decompress(s.join(""))},compressToEncodedURIComponent:function(r){return null==r?"":i._compress(r,6,function(r){return n.charAt(r)})},decompressFromEncodedURIComponent:function(r){return null==r?"":""==r?null:(r=r.replace(/ /g,"+"),i._decompress(r.length,32,function(o){return t(n,r.charAt(o))}))},compress:function(o){return i._compress(o,16,function(o){return r(o)})},_compress:function(r,o,n){if(null==r)return"";var e,t,i,s={},u={},a="",p="",c="",l=2,f=3,h=2,d=[],m=0,v=0;for(i=0;i<r.length;i+=1)if(a=r.charAt(i),Object.prototype.hasOwnProperty.call(s,a)||(s[a]=f++,u[a]=!0),p=c+a,Object.prototype.hasOwnProperty.call(s,p))c=p;else{if(Object.prototype.hasOwnProperty.call(u,c)){if(c.charCodeAt(0)<256){for(e=0;e<h;e++)m<<=1,v==o-1?(v=0,d.push(n(m)),m=0):v++;for(t=c.charCodeAt(0),e=0;e<8;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;e<h;e++)m=m<<1|t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=c.charCodeAt(0),e=0;e<16;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}0==--l&&(l=Math.pow(2,h),h++),delete u[c]}else for(t=s[c],e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;0==--l&&(l=Math.pow(2,h),h++),s[p]=f++,c=String(a)}if(""!==c){if(Object.prototype.hasOwnProperty.call(u,c)){if(c.charCodeAt(0)<256){for(e=0;e<h;e++)m<<=1,v==o-1?(v=0,d.push(n(m)),m=0):v++;for(t=c.charCodeAt(0),e=0;e<8;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;e<h;e++)m=m<<1|t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=c.charCodeAt(0),e=0;e<16;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}0==--l&&(l=Math.pow(2,h),h++),delete u[c]}else for(t=s[c],e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;0==--l&&(l=Math.pow(2,h),h++)}for(t=2,e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;for(;;){if(m<<=1,v==o-1){d.push(n(m));break}v++}return d.join("")},decompress:function(r){return null==r?"":""==r?null:i._decompress(r.length,32768,function(o){return r.charCodeAt(o)})},_decompress:function(o,n,e){var t,i,s,u,a,p,c,l=[],f=4,h=4,d=3,m="",v=[],g={val:e(0),position:n,index:1};for(t=0;t<3;t+=1)l[t]=t;for(s=0,a=Math.pow(2,2),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;switch(s){case 0:for(s=0,a=Math.pow(2,8),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;c=r(s);break;case 1:for(s=0,a=Math.pow(2,16),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;c=r(s);break;case 2:return""}for(l[3]=c,i=c,v.push(c);;){if(g.index>o)return"";for(s=0,a=Math.pow(2,d),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;switch(c=s){case 0:for(s=0,a=Math.pow(2,8),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;l[h++]=r(s),c=h-1,f--;break;case 1:for(s=0,a=Math.pow(2,16),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;l[h++]=r(s),c=h-1,f--;break;case 2:return v.join("")}if(0==f&&(f=Math.pow(2,d),d++),l[c])m=l[c];else{if(c!==h)return null;m=i+i.charAt(0)}v.push(m),l[h++]=i+m.charAt(0),i=m,0==--f&&(f=Math.pow(2,d),d++)}}};return i}();
+function _dbPack(obj){ try { return "\u0001Z"+LZString.compressToUTF16(JSON.stringify(obj)); } catch(e){ try { return JSON.stringify(obj); } catch(_){ return ""; } } }
+function _dbUnpack(raw){ if(raw==null) return null; if(raw.charAt(0)==="\u0001"){ return JSON.parse(LZString.decompressFromUTF16(raw.slice(2))); } return JSON.parse(raw); }
+
 function saveDB() {
   try {
-    localStorage.setItem(DB_KEY, JSON.stringify(DB));
+    localStorage.setItem(DB_KEY, _dbPack(DB));
   } catch(e) {
     if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
       // localStorage is full — strip large WT defaults (they're re-generatable) and retry
@@ -55,7 +60,7 @@ function saveDB() {
         }
         if (slim.wtBuildingTypes) delete slim.wtBuildingTypes;
         // Also trim wizard draft from DB if somehow stored there
-        localStorage.setItem(DB_KEY, JSON.stringify(slim));
+        localStorage.setItem(DB_KEY, _dbPack(slim));
         console.warn('saveDB: trimmed WT defaults to fit quota');
       } catch(e2) {
         console.error('saveDB: quota still exceeded after trim', e2);
@@ -205,7 +210,7 @@ function restoreFromBackupFile(input) {
 
 // Snapshot the CURRENT db to localStorage before any destructive/large change.
 function _saveRestorePoint(tag) {
-  try { localStorage.setItem(BACKUP_LASTGOOD_KEY, JSON.stringify({ tag: tag||'snapshot', at: new Date().toISOString(), db: DB })); }
+  try { localStorage.setItem(BACKUP_LASTGOOD_KEY, _dbPack({ tag: tag||'snapshot', at: new Date().toISOString(), db: DB })); }
   catch(e) { console.warn('[Backup] restore-point skipped:', e && e.name); }
 }
 
@@ -213,8 +218,8 @@ function _saveRestorePoint(tag) {
 function _saveDailySnapshot() {
   try {
     var raw = localStorage.getItem(BACKUP_DAILY_KEY);
-    if (raw) { var last = JSON.parse(raw); if (last && last.at && (new Date() - new Date(last.at)) < 20*60*60*1000) return; }
-    localStorage.setItem(BACKUP_DAILY_KEY, JSON.stringify({ at: new Date().toISOString(), db: DB }));
+    if (raw) { var last = _dbUnpack(raw); if (last && last.at && (new Date() - new Date(last.at)) < 20*60*60*1000) return; }
+    localStorage.setItem(BACKUP_DAILY_KEY, _dbPack({ at: new Date().toISOString(), db: DB }));
   } catch(e) { console.warn('[Backup] daily snapshot skipped:', e && e.name); }
 }
 
@@ -223,7 +228,7 @@ function restoreLastKnownGood() {
   try {
     var raw = localStorage.getItem(BACKUP_LASTGOOD_KEY) || localStorage.getItem(BACKUP_DAILY_KEY);
     if (!raw) { if (typeof showToast==='function') showToast('No local snapshot found.', 'error'); return; }
-    var snap = JSON.parse(raw); var bdb = snap.db || snap;
+    var snap = _dbUnpack(raw); var bdb = snap.db || snap;
     var addN = _restorableCount(bdb);
     if (!confirm('Restore local snapshot from ' + (snap.at ? new Date(snap.at).toLocaleString() : 'unknown') + '?\n\nAdds ' + addN + ' missing record(s). Never deletes anything.')) return;
     var added = _mergeBackupDB(bdb); saveDB();
@@ -241,7 +246,7 @@ function updateBackupInfo() {
     var d = localStorage.getItem(BACKUP_DL_TS_KEY);
     if (d) parts.push('Last download: ' + new Date(d).toLocaleString());
     var snap = localStorage.getItem(BACKUP_DAILY_KEY);
-    if (snap) { var s = JSON.parse(snap); if (s && s.at) parts.push('Auto snapshot: ' + new Date(s.at).toLocaleString()); }
+    if (snap) { var s = _dbUnpack(snap); if (s && s.at) parts.push('Auto snapshot: ' + new Date(s.at).toLocaleString()); }
   } catch(e) {}
   el.textContent = parts.length ? parts.join('   •   ') : 'No backup taken yet — download one now to be safe.';
 }
@@ -447,7 +452,7 @@ function loadDB() {
   try {
     const raw = localStorage.getItem(DB_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw);
+      const parsed = _dbUnpack(raw);
       DB = Object.assign({quotes:[],customers:[],contacts:[],jobs:[],team:[],catalog:[],templates:[],settings:{},marginFloors:{},inventory:[],checkoutLog:[],tools:[],toolCheckouts:[],quoteSeq:1000,jobSeq:1,invSeq:1,toolSeq:1,deletedIds:{quotes:[],team:[],customers:[],contacts:[],jobs:[]},workOrders:[],woLabor:[],woExpenses:[],woParts:[],woChecklist:[],woSettings:null,woSeq:1000,jobPhotos:[],commsLog:[],invoicePayments:[],purchaseOrders:[],vendors:[],poSeq:1000,invLocations:[],invTransfers:[],auditLog:[],woDocuments:[],timeEntries:[],contracts:[],recurringContracts:[],msSettings:{}}, parsed);
       // Ensure deletedIds sub-arrays exist even on old saved data
       if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
