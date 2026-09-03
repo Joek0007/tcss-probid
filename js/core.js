@@ -553,7 +553,7 @@ function makeUUID() {
 }
 
 // ---- NAVIGATION ----
-const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log',contracts:'Contracts',recurring:'Managed Services'};
+const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log',recyclebin:'Recycle Bin',contracts:'Contracts',recurring:'Managed Services'};
 
 // ============================================================
 // DOCUMENT PREV/NEXT NAVIGATOR
@@ -775,6 +775,7 @@ function goPage(id) {
   if (id==='scanner')    { if (typeof renderScannerPage === 'function') renderScannerPage(); }
   if (id==='dash')       { if (typeof renderDashReorderAlert === 'function') setTimeout(renderDashReorderAlert, 200); }
   if (id==='auditlog')   { if (typeof renderAuditLog === 'function') setTimeout(renderAuditLog, 100); }
+  if (id==='recyclebin') { if (typeof renderRecycleBin === 'function') setTimeout(renderRecycleBin, 100); }
   if (id==='catalog')    { _pumActive=false; renderCatalog(); }
   else if (id==='templates') renderTemplates();
   if (id==='reports')    renderReports();

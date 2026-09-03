@@ -835,6 +835,11 @@ body.role-lead-tech .nav-item[data-page="auditlog"],
 body.role-lead-tech .nav-item[data-page="settings"],
 body.role-lead-tech .team-rate-col
 { display:none!important }
+/* Recycle Bin: owner/manager only (they are the only roles that can restore) */
+body.role-helper-tech .nav-item[data-page="recyclebin"],
+body.role-lead-tech   .nav-item[data-page="recyclebin"],
+body.role-back-office .nav-item[data-page="recyclebin"]
+{ display:none!important }
 body.dark-mode .page-header h2{color:var(--text)!important}
 body.dark-mode .modal-box{background:#1e1e1e!important;border-color:#333!important;color:var(--text)!important}
 body.dark-mode .modal-head{background:#111!important;border-color:#333!important}
@@ -1309,6 +1314,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div class="nav-group-title">Business</div>
     <div class="nav-item" data-page="reports"><span class="nav-icon">📈</span>Reports</div>
     <div class="nav-item" data-page="auditlog"><span class="nav-icon">📋</span>Audit Log</div>
+    <div class="nav-item" data-page="recyclebin"><span class="nav-icon">♻️</span>Recycle Bin</div>
     <div class="nav-item" data-page="calendar"><span class="nav-icon">📅</span>Calendar</div>
     <div class="nav-item" data-page="inventory"><span class="nav-icon">📦</span>Inventory</div>
     <div class="nav-item" data-page="scanner"><span class="nav-icon">📷</span>Scanner</div>
@@ -4172,6 +4178,14 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <div id="audit-log-content"></div>
 </div>
 
+<div class="page" id="page-recyclebin">
+  <div class="page-header">
+    <h2>♻️ Recycle Bin</h2>
+    <button class="btn btn-outline btn-sm" onclick="renderRecycleBin()">⟳ Refresh</button>
+  </div>
+  <div id="recyclebin-content"></div>
+</div>
+
 <div class="page" id="page-settings" style="max-width:1400px">
   <div class="page-header">
     <h2>⚙️ Settings</h2>
@@ -6223,25 +6237,26 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260903p with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260903q with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260903p"></script>
-<script src="js/quotes.js?v=20260903p"></script>
-<script src="js/tools.js?v=20260903p"></script>
-<script src="js/field.js?v=20260903p"></script>
-<script src="js/crm.js?v=20260903p"></script>
-<script src="js/dispatch.js?v=20260903p"></script>
-<script src="js/permissions.js?v=20260903p"></script>
-<script src="js/worktracking.js?v=20260903p"></script>
-<script src="js/calendar.js?v=20260903p"></script>
-<script src="js/workorders.js?v=20260903p"></script>
-<script src="js/purchaseorders.js?v=20260903p"></script>
-<script src="js/inventory.js?v=20260903p"></script>
-<script src="js/reports.js?v=20260903p"></script>
-<script src="js/contracts.js?v=20260903p"></script>
-  <script src="js/recurring.js?v=20260903p"></script>
-  <script src="js/seed_managed.js?v=20260903p"></script>
-  <script src="js/auth.js?v=20260903p"></script>
+<script src="js/core.js?v=20260903q"></script>
+<script src="js/quotes.js?v=20260903q"></script>
+<script src="js/tools.js?v=20260903q"></script>
+<script src="js/field.js?v=20260903q"></script>
+<script src="js/crm.js?v=20260903q"></script>
+<script src="js/dispatch.js?v=20260903q"></script>
+<script src="js/permissions.js?v=20260903q"></script>
+<script src="js/worktracking.js?v=20260903q"></script>
+<script src="js/calendar.js?v=20260903q"></script>
+<script src="js/workorders.js?v=20260903q"></script>
+<script src="js/purchaseorders.js?v=20260903q"></script>
+<script src="js/inventory.js?v=20260903q"></script>
+<script src="js/reports.js?v=20260903q"></script>
+<script src="js/recyclebin.js?v=20260903q"></script>
+<script src="js/contracts.js?v=20260903q"></script>
+  <script src="js/recurring.js?v=20260903q"></script>
+  <script src="js/seed_managed.js?v=20260903q"></script>
+  <script src="js/auth.js?v=20260903q"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
