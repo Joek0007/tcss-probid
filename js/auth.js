@@ -1041,12 +1041,20 @@ async function pushAllToCloud() {
       // Previously this cleared ALL tombstones unconditionally — a failed/blocked
       // delete then left no record and the row resurrected on the next upsert.
       var keepQ=[], keepT=[], keepC=[], keepCt=[], keepJ=[];
-      for (var qDel of dq) { await _sb.from('quote_line_items').delete().eq('quote_id', qDel); var _rq = await _sb.from('quotes').delete().eq('id', qDel); if (_rq && _rq.error) keepQ.push(qDel); }
-      for (var tDel of dt)   { var _rt  = await _sb.from('team').delete().eq('id', tDel);      if (_rt  && _rt.error)  keepT.push(tDel); }
-      for (var cDel of dc)   { var _rc  = await _sb.from('customers').delete().eq('id', cDel); if (_rc  && _rc.error)  keepC.push(cDel); }
-      for (var ctDel of dct) { var _rct = await _sb.from('contacts').delete().eq('id', ctDel); if (_rct && _rct.error) keepCt.push(ctDel); }
-      for (var jDel of dj)   { var _rj  = await _sb.from('jobs').delete().eq('id', jDel);      if (_rj  && _rj.error)  keepJ.push(jDel); }
-      // Successful deletes are cleared; only failures remain tombstoned for retry.
+      // IMPORTANT: append .select('id') to every delete. Without it, Supabase RLS
+      // that blocks the DELETE returns NO error and 0 rows — the old `if (_rq.error)`
+      // check saw no error, cleared the tombstone, and the row resurrected on the next
+      // pull/upsert. With .select('id') we can tell a real delete (data.length>0) from a
+      // blocked/no-op one (empty data) and KEEP the tombstone so the pull filter keeps
+      // suppressing the row. A tombstone that never clears is harmless; a lost one is the bug.
+      function _delFailed(r){ return !r || r.error || !(r.data && r.data.length); }
+      for (var qDel of dq) { await _sb.from('quote_line_items').delete().eq('quote_id', qDel); var _rq = await _sb.from('quotes').delete().eq('id', qDel).select('id'); if (_delFailed(_rq)) keepQ.push(qDel); }
+      for (var tDel of dt)   { var _rt  = await _sb.from('team').delete().eq('id', tDel).select('id');      if (_delFailed(_rt))  keepT.push(tDel); }
+      for (var cDel of dc)   { var _rc  = await _sb.from('customers').delete().eq('id', cDel).select('id'); if (_delFailed(_rc))  keepC.push(cDel); }
+      for (var ctDel of dct) { var _rct = await _sb.from('contacts').delete().eq('id', ctDel).select('id'); if (_delFailed(_rct)) keepCt.push(ctDel); }
+      for (var jDel of dj)   { var _rj  = await _sb.from('jobs').delete().eq('id', jDel).select('id');      if (_delFailed(_rj))  keepJ.push(jDel); }
+      // Only confirmed cloud deletes (a row actually came back from .select) clear the
+      // tombstone; blocked/no-op deletes stay tombstoned so the row never resurrects.
       DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ};
       try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
     }
