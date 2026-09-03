@@ -6223,25 +6223,25 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260903c with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260903d with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260903c"></script>
-<script src="js/quotes.js?v=20260903c"></script>
-<script src="js/tools.js?v=20260903c"></script>
-<script src="js/field.js?v=20260903c"></script>
-<script src="js/crm.js?v=20260903c"></script>
-<script src="js/dispatch.js?v=20260903c"></script>
-<script src="js/permissions.js?v=20260903c"></script>
-<script src="js/worktracking.js?v=20260903c"></script>
-<script src="js/calendar.js?v=20260903c"></script>
-<script src="js/workorders.js?v=20260903c"></script>
-<script src="js/purchaseorders.js?v=20260903c"></script>
-<script src="js/inventory.js?v=20260903c"></script>
-<script src="js/reports.js?v=20260903c"></script>
-<script src="js/contracts.js?v=20260903c"></script>
-  <script src="js/recurring.js?v=20260903c"></script>
-  <script src="js/seed_managed.js?v=20260903c"></script>
-  <script src="js/auth.js?v=20260903c"></script>
+<script src="js/core.js?v=20260903d"></script>
+<script src="js/quotes.js?v=20260903d"></script>
+<script src="js/tools.js?v=20260903d"></script>
+<script src="js/field.js?v=20260903d"></script>
+<script src="js/crm.js?v=20260903d"></script>
+<script src="js/dispatch.js?v=20260903d"></script>
+<script src="js/permissions.js?v=20260903d"></script>
+<script src="js/worktracking.js?v=20260903d"></script>
+<script src="js/calendar.js?v=20260903d"></script>
+<script src="js/workorders.js?v=20260903d"></script>
+<script src="js/purchaseorders.js?v=20260903d"></script>
+<script src="js/inventory.js?v=20260903d"></script>
+<script src="js/reports.js?v=20260903d"></script>
+<script src="js/contracts.js?v=20260903d"></script>
+  <script src="js/recurring.js?v=20260903d"></script>
+  <script src="js/seed_managed.js?v=20260903d"></script>
+  <script src="js/auth.js?v=20260903d"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
@@ -7272,15 +7272,51 @@ function qqNotesFmt(cmd) {
   qqNotesSyncToolbar();
   if (typeof setQQDirty === 'function') setQQDirty(true, 'notes format');
 }
+// When the caret is just sitting in a line (nothing highlighted), expand the
+// selection to that whole line/block so H / Normal act on the entire line.
+function _qqExpandToBlock() {
+  var ed = document.getElementById('qq-notes'); if (!ed) return;
+  var sel = window.getSelection(); if (!sel.rangeCount) return;
+  var r = sel.getRangeAt(0);
+  if (!r.collapsed) return; // respect an explicit highlight
+  var block = r.startContainer;
+  while (block && block.parentNode && block.parentNode !== ed) block = block.parentNode;
+  var rng = document.createRange();
+  if (!block || block === ed) { rng.selectNodeContents(ed); }
+  else { rng.selectNodeContents(block); }
+  sel.removeAllRanges(); sel.addRange(rng);
+}
+// Strip any leftover inline font-size spans from the block the caret is in,
+// so "Normal" / "H" truly reset a line that was resized with the dropdown.
+function _qqStripFontSizeInBlock() {
+  var ed = document.getElementById('qq-notes'); if (!ed) return;
+  var sel = window.getSelection(); if (!sel.rangeCount) return;
+  var node = sel.getRangeAt(0).commonAncestorContainer;
+  var block = node.nodeType === 3 ? node.parentNode : node;
+  while (block && block !== ed && block.parentNode !== ed) block = block.parentNode;
+  var scope = (block && block !== ed) ? block : ed;
+  scope.querySelectorAll('span[style*="font-size"], font[size]').forEach(function(s){
+    while (s.firstChild) s.parentNode.insertBefore(s.firstChild, s);
+    s.parentNode.removeChild(s);
+  });
+}
 function qqNotesHeader() {
   _qqNotesRestoreRange();
+  _qqExpandToBlock();
+  try { document.execCommand('removeFormat'); } catch (e) {}   // clear prior inline size/format
   document.execCommand('formatBlock', false, 'h3');
+  _qqStripFontSizeInBlock();
+  _qqNotesSaveRange();
   qqNotesSyncToolbar();
   if (typeof setQQDirty === 'function') setQQDirty(true, 'notes header');
 }
 function qqNotesNormal() {
   _qqNotesRestoreRange();
+  _qqExpandToBlock();
+  try { document.execCommand('removeFormat'); } catch (e) {}   // strip size/bold/etc so the line returns to plain text
   document.execCommand('formatBlock', false, 'p');
+  _qqStripFontSizeInBlock();
+  _qqNotesSaveRange();
   qqNotesSyncToolbar();
   if (typeof setQQDirty === 'function') setQQDirty(true, 'notes normal');
 }
@@ -7345,11 +7381,13 @@ function qqNotesUpdatePlaceholder() {
     '.rtf-editable h3{font-size:16px;font-weight:700;margin:8px 0 4px;color:#12283b}' +
     '.rtf-editable p{margin:4px 0}' +
     // toolbar buttons + active (pressed) state
-    '.rtf-btn{padding:4px 9px;font-size:12px;border:1px solid #d0d7e2;border-radius:5px;background:#fff;cursor:pointer;color:#1f3b57;line-height:1.2;min-width:26px;transition:background .12s,border-color .12s,color .12s}' +
+    '.rtf-toolbar{row-gap:4px}' +
+    '.rtf-btn{flex:0 0 auto;padding:4px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:5px;background:#fff;cursor:pointer;color:#1f3b57;line-height:1.2;min-width:24px;transition:background .12s,border-color .12s,color .12s}' +
     '.rtf-btn:hover{background:#eef4fb;border-color:#9db8d6}' +
     '.rtf-btn.rtf-active{background:#1565c0;border-color:#1565c0;color:#fff;box-shadow:inset 0 1px 2px rgba(0,0,0,.18)}' +
-    '.rtf-sep{width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block}' +
-    '.rtf-size{padding:4px 6px;font-size:12px;border:1px solid #d0d7e2;border-radius:5px;background:#fff;color:#1f3b57;cursor:pointer;font-family:inherit}' +
+    '.rtf-sep{flex:0 0 auto;width:1px;background:#d0d7e2;align-self:stretch;margin:0 3px;display:inline-block}' +
+    // width:auto overrides the global input,select,textarea{width:100%} that was stretching the dropdown full-width and breaking the toolbar onto extra rows
+    '.rtf-size{flex:0 0 auto;width:auto!important;max-width:104px;padding:4px 6px;font-size:12px;border:1px solid #d0d7e2;border-radius:5px;background:#fff;color:#1f3b57;cursor:pointer;font-family:inherit;margin:0}' +
     '.rtf-size:hover{border-color:#9db8d6}';
   document.head.appendChild(style);
 })();
