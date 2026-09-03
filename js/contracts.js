@@ -272,7 +272,7 @@ function printContractTemplate() {
     +'<div class="info-row"><div class="info-label">Executed:</div><div>'+esc(c.dateExecuted||'___________________________')+'</div></div>'
     +(c.dateExpires?'<div class="info-row"><div class="info-label">Expires:</div><div>'+esc(c.dateExpires)+'</div></div>':'')
     +'<h2>Scope of Work</h2>'
-    +'<div style="background:#f9f9f9;border:1px solid #e0e7ef;border-radius:6px;padding:12px;min-height:80px;white-space:pre-wrap">'+esc(c.scope||fld('Describe scope of work here'))+'</div>'
+    +'<div style="background:#f9f9f9;border:1px solid #e0e7ef;border-radius:6px;padding:12px;min-height:80px;white-space:pre-wrap">'+(c.scope?(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(c.scope):esc(c.scope)):fld('Describe scope of work here'))+'</div>'
     +'<h2>Terms & Conditions</h2>'
     +'<p style="font-size:11px;color:#546e7a;font-style:italic">This contract is governed by the terms of TCSS\'s standard '+esc(ct.label)+'. A complete copy of the governing terms and conditions is attached or available upon request.</p>'
     +'<div style="margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:40px">'

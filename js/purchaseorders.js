@@ -589,7 +589,7 @@ function _printPOHTML(po) {
     '</div>'+
     '<table><thead><tr><th style="width:45%">Description</th><th style="width:12%">Part #</th><th style="width:8%;text-align:center">Qty</th><th style="width:15%;text-align:right">Unit Cost</th><th style="width:15%;text-align:right">Total</th></tr></thead><tbody>'+rows+'</tbody></table>'+
     '<div class="totals"><div class="totals-table"><div class="tot-final"><span>PO Total</span><span>$'+parseFloat(po.total||0).toLocaleString('en-US',{minimumFractionDigits:2})+'</span></div></div></div>'+
-    (po.notes?'<div style="background:#f8f9fa;border-left:4px solid #1565c0;padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:24px;font-size:12px;color:#37474f"><strong>Notes:</strong> '+escHtml(po.notes)+'</div>':'')+
+    (po.notes?'<div style="background:#f8f9fa;border-left:4px solid #1565c0;padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:24px;font-size:12px;color:#37474f"><strong>Notes:</strong> '+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(po.notes):escHtml(po.notes))+'</div>':'')+
     '<div class="footer">Total Communications Systems &amp; Solutions, Inc. · '+escHtml(po.poNumber||'')+'</div>'+
   '</body></html>';
 
@@ -607,7 +607,7 @@ function emailPO() {
   if((DB.settings||{}).sgKey){
     showToast('Sending PO to '+toEmail+'...','info',2000);
     var subject='Purchase Order '+escHtml(po.poNumber)+' from TCSS';
-    var body='Please find attached Purchase Order '+po.poNumber+' from Total Communications Systems & Solutions.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2)+'\n'+(po.dateNeeded?'Date Needed: '+po.dateNeeded+'\n':'')+(po.notes?'\nNotes: '+po.notes:'');
+    var body='Please find attached Purchase Order '+po.poNumber+' from Total Communications Systems & Solutions.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2)+'\n'+(po.dateNeeded?'Date Needed: '+po.dateNeeded+'\n':'')+(po.notes?'\nNotes: '+(typeof stripHtmlToText==='function'?stripHtmlToText(po.notes):po.notes):'');
     sendViaSendGrid(toEmail,vendor.name||'',subject,body,null).then(function(ok){
       if(ok){po.status='Sent';saveDB();renderPOList();showToast('PO emailed to '+toEmail+' ✓','success',4000);}
     });

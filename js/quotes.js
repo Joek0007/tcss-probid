@@ -2725,7 +2725,7 @@ function buildInvoiceHTML(inv) {
     '</div></div>'+
 
     /* Notes */
-    (inv.notes?'<div class="inv-notes"><strong>Notes &amp; Payment Instructions</strong>'+escHtml(inv.notes).replace(/\n/g,'<br>')+'</div>':'')+
+    (inv.notes?'<div class="inv-notes"><strong>Notes &amp; Payment Instructions</strong>'+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(inv.notes):escHtml(inv.notes).replace(/\n/g,'<br>'))+'</div>':'')+
 
     /* Footer */
     '<div class="inv-footer">'+
