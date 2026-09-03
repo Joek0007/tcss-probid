@@ -1689,23 +1689,29 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div class="form-row"><div>
           <label>Scope / Notes (used in proposal)</label>
           <div id="qq-notes-wrap" style="border:1px solid #e0e7ef;border-radius:6px;overflow:hidden;transition:border-color .15s">
-            <div id="qq-notes-toolbar" style="display:none;padding:5px 8px;background:#f8fafc;border-bottom:1px solid #e0e7ef;gap:2px;flex-wrap:wrap;align-items:center">
-              <button type="button" onclick="qqNotesFmt('bold')" title="Bold" style="padding:3px 8px;font-size:12px;font-weight:700;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">B</button>
-              <button type="button" onclick="qqNotesFmt('italic')" title="Italic" style="padding:3px 8px;font-size:12px;font-style:italic;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">I</button>
-              <button type="button" onclick="qqNotesFmt('underline')" title="Underline" style="padding:3px 8px;font-size:12px;text-decoration:underline;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">U</button>
-              <span style="width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block"></span>
-              <button type="button" onclick="qqNotesFmt('insertUnorderedList')" title="Bullet list" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">• List</button>
-              <button type="button" onclick="qqNotesFmt('insertOrderedList')" title="Numbered list" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">1. List</button>
-              <span style="width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block"></span>
-              <button type="button" onclick="qqNotesHeader()" title="Section header" style="padding:3px 8px;font-size:12px;font-weight:600;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">Header</button>
-              <button type="button" onclick="qqNotesNormal()" title="Normal text" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">Normal</button>
-              <span style="width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block"></span>
-              <button type="button" onclick="qqNotesFmt('indent')" title="Indent" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">→</button>
-              <button type="button" onclick="qqNotesFmt('outdent')" title="Outdent" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">←</button>
+            <div id="qq-notes-toolbar" class="rtf-toolbar" style="display:none;padding:6px 8px;background:#f8fafc;border-bottom:1px solid #e0e7ef;gap:3px;flex-wrap:wrap;align-items:center">
+              <button type="button" class="rtf-btn" data-cmd="bold" onmousedown="event.preventDefault()" onclick="qqNotesFmt('bold')" title="Bold" style="font-weight:700">B</button>
+              <button type="button" class="rtf-btn" data-cmd="italic" onmousedown="event.preventDefault()" onclick="qqNotesFmt('italic')" title="Italic" style="font-style:italic">I</button>
+              <button type="button" class="rtf-btn" data-cmd="underline" onmousedown="event.preventDefault()" onclick="qqNotesFmt('underline')" title="Underline" style="text-decoration:underline">U</button>
+              <span class="rtf-sep"></span>
+              <button type="button" class="rtf-btn" data-cmd="insertUnorderedList" onmousedown="event.preventDefault()" onclick="qqNotesFmt('insertUnorderedList')" title="Bullet list">•&nbsp;List</button>
+              <button type="button" class="rtf-btn" data-cmd="insertOrderedList" onmousedown="event.preventDefault()" onclick="qqNotesFmt('insertOrderedList')" title="Numbered list">1.&nbsp;List</button>
+              <button type="button" class="rtf-btn" onmousedown="event.preventDefault()" onclick="qqNotesFmt('outdent')" title="Decrease indent">⇤</button>
+              <button type="button" class="rtf-btn" onmousedown="event.preventDefault()" onclick="qqNotesFmt('indent')" title="Increase indent">⇥</button>
+              <span class="rtf-sep"></span>
+              <button type="button" class="rtf-btn" onmousedown="event.preventDefault()" onclick="qqNotesHeader()" title="Section header (bold heading)" style="font-weight:700">H</button>
+              <select class="rtf-size" onmousedown="event.stopPropagation()" onchange="qqNotesSize(this.value);this.selectedIndex=0" title="Text size — highlight text first, then pick a size">
+                <option value="">A▾ Size</option>
+                <option value="13px">Normal</option>
+                <option value="16px">Large</option>
+                <option value="20px">X-Large</option>
+                <option value="26px">Huge</option>
+              </select>
+              <button type="button" class="rtf-btn" onmousedown="event.preventDefault()" onclick="qqNotesNormal()" title="Reset the current line to normal text">Normal</button>
             </div>
-            <div id="qq-notes"
+            <div id="qq-notes" class="rtf-editable"
               contenteditable="true"
-              style="min-height:90px;padding:8px 10px;font-size:13px;line-height:1.6;color:#1f3b57;outline:none;font-family:inherit"
+              style="min-height:90px;padding:8px 12px;font-size:13px;line-height:1.6;color:#1f3b57;outline:none;font-family:inherit"
               data-placeholder="Describe the scope of work..."
               onfocus="qqNotesShowToolbar()"
               onblur="qqNotesHideToolbar(event)"
@@ -5458,8 +5464,8 @@ body.role-lead-tech .page-settings-btn{display:none!important}
                 <button type="button" onclick="woRtfFmt('wo-description','indent')" onmousedown="event.preventDefault()" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">→</button>
                 <button type="button" onclick="woRtfFmt('wo-description','outdent')" onmousedown="event.preventDefault()" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">←</button>
               </div>
-              <div id="wo-description" contenteditable="true"
-                style="min-height:100px;flex:1;padding:8px 10px 8px 24px;font-size:13px;line-height:1.6;color:#1f3b57;outline:none;font-family:inherit"
+              <div id="wo-description" class="rtf-editable" contenteditable="true"
+                style="min-height:100px;flex:1;padding:8px 12px;font-size:13px;line-height:1.6;color:#1f3b57;outline:none;font-family:inherit"
                 onfocus="woRtfShowBar('wo-description')"
                 onblur="woRtfHideBar('wo-description',event)"></div>
             </div>
@@ -5483,8 +5489,8 @@ body.role-lead-tech .page-settings-btn{display:none!important}
                 <button type="button" onclick="woRtfFmt('wo-work-performed','indent')" onmousedown="event.preventDefault()" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">→</button>
                 <button type="button" onclick="woRtfFmt('wo-work-performed','outdent')" onmousedown="event.preventDefault()" style="padding:3px 8px;font-size:12px;border:1px solid #d0d7e2;border-radius:4px;background:#fff;cursor:pointer;color:#1f3b57">←</button>
               </div>
-              <div id="wo-work-performed" contenteditable="true"
-                style="min-height:100px;flex:1;padding:8px 10px 8px 24px;font-size:13px;line-height:1.6;color:#1f3b57;outline:none;font-family:inherit"
+              <div id="wo-work-performed" class="rtf-editable" contenteditable="true"
+                style="min-height:100px;flex:1;padding:8px 12px;font-size:13px;line-height:1.6;color:#1f3b57;outline:none;font-family:inherit"
                 onfocus="woRtfShowBar('wo-work-performed')"
                 onblur="woRtfHideBar('wo-work-performed',event)"></div>
             </div>
@@ -6217,25 +6223,25 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260903b with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260903c with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260903b"></script>
-<script src="js/quotes.js?v=20260903b"></script>
-<script src="js/tools.js?v=20260903b"></script>
-<script src="js/field.js?v=20260903b"></script>
-<script src="js/crm.js?v=20260903b"></script>
-<script src="js/dispatch.js?v=20260903b"></script>
-<script src="js/permissions.js?v=20260903b"></script>
-<script src="js/worktracking.js?v=20260903b"></script>
-<script src="js/calendar.js?v=20260903b"></script>
-<script src="js/workorders.js?v=20260903b"></script>
-<script src="js/purchaseorders.js?v=20260903b"></script>
-<script src="js/inventory.js?v=20260903b"></script>
-<script src="js/reports.js?v=20260903b"></script>
-<script src="js/contracts.js?v=20260903b"></script>
-  <script src="js/recurring.js?v=20260903b"></script>
-  <script src="js/seed_managed.js?v=20260903b"></script>
-  <script src="js/auth.js?v=20260903b"></script>
+<script src="js/core.js?v=20260903c"></script>
+<script src="js/quotes.js?v=20260903c"></script>
+<script src="js/tools.js?v=20260903c"></script>
+<script src="js/field.js?v=20260903c"></script>
+<script src="js/crm.js?v=20260903c"></script>
+<script src="js/dispatch.js?v=20260903c"></script>
+<script src="js/permissions.js?v=20260903c"></script>
+<script src="js/worktracking.js?v=20260903c"></script>
+<script src="js/calendar.js?v=20260903c"></script>
+<script src="js/workorders.js?v=20260903c"></script>
+<script src="js/purchaseorders.js?v=20260903c"></script>
+<script src="js/inventory.js?v=20260903c"></script>
+<script src="js/reports.js?v=20260903c"></script>
+<script src="js/contracts.js?v=20260903c"></script>
+  <script src="js/recurring.js?v=20260903c"></script>
+  <script src="js/seed_managed.js?v=20260903c"></script>
+  <script src="js/auth.js?v=20260903c"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
@@ -7239,18 +7245,83 @@ function qqNotesHideToolbar(e) {
   if (tb) tb.style.display = 'none';
   if (wrap) wrap.style.borderColor = '#e0e7ef';
 }
+// Remember the caret/selection so toolbar buttons and the size dropdown
+// (which can steal focus) still act on the right text.
+var _qqNotesRange = null;
+function _qqNotesSaveRange() {
+  var ed = document.getElementById('qq-notes'); if (!ed) return;
+  var sel = window.getSelection();
+  if (sel && sel.rangeCount) {
+    var r = sel.getRangeAt(0);
+    if (ed.contains(r.commonAncestorContainer)) _qqNotesRange = r.cloneRange();
+  }
+}
+function _qqNotesRestoreRange() {
+  var ed = document.getElementById('qq-notes'); if (!ed) return;
+  ed.focus();
+  if (_qqNotesRange) {
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(_qqNotesRange);
+  }
+}
 function qqNotesFmt(cmd) {
-  document.getElementById('qq-notes').focus();
+  _qqNotesRestoreRange();
   document.execCommand(cmd, false, null);
+  _qqNotesSaveRange();
+  qqNotesSyncToolbar();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'notes format');
 }
 function qqNotesHeader() {
-  document.getElementById('qq-notes').focus();
+  _qqNotesRestoreRange();
   document.execCommand('formatBlock', false, 'h3');
+  qqNotesSyncToolbar();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'notes header');
 }
 function qqNotesNormal() {
-  document.getElementById('qq-notes').focus();
+  _qqNotesRestoreRange();
   document.execCommand('formatBlock', false, 'p');
+  qqNotesSyncToolbar();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'notes normal');
 }
+function qqNotesSize(px) {
+  if (!px) return;
+  _qqNotesRestoreRange();
+  var ed = document.getElementById('qq-notes'); if (!ed) return;
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) {
+    if (typeof showToast === 'function') showToast('Highlight the text you want to resize first, then pick a size', 'info', 2800);
+    return;
+  }
+  try { document.execCommand('styleWithCSS', false, false); } catch (e) {}
+  document.execCommand('fontSize', false, '7');           // temporary marker
+  ed.querySelectorAll('font[size="7"]').forEach(function(f){ // convert to clean px spans
+    var span = document.createElement('span');
+    span.style.fontSize = px;
+    while (f.firstChild) span.appendChild(f.firstChild);
+    f.parentNode.replaceChild(span, f);
+  });
+  _qqNotesSaveRange();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'notes size');
+}
+// Highlight the toolbar buttons that are active at the caret (bold, lists, etc.)
+function qqNotesSyncToolbar() {
+  var tb = document.getElementById('qq-notes-toolbar'); if (!tb) return;
+  ['bold','italic','underline','insertUnorderedList','insertOrderedList'].forEach(function(cmd){
+    var btn = tb.querySelector('[data-cmd="'+cmd+'"]'); if (!btn) return;
+    var on = false; try { on = document.queryCommandState(cmd); } catch (e) {}
+    btn.classList.toggle('rtf-active', !!on);
+  });
+}
+// Keep the saved range + button states current as the caret moves.
+document.addEventListener('selectionchange', function(){
+  var ed = document.getElementById('qq-notes'); if (!ed) return;
+  var sel = window.getSelection();
+  if (sel && sel.rangeCount && ed.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+    _qqNotesSaveRange();
+    qqNotesSyncToolbar();
+  }
+});
 function qqNotesUpdatePlaceholder() {
   var el = document.getElementById('qq-notes');
   if (!el) return;
@@ -7260,10 +7331,26 @@ function qqNotesUpdatePlaceholder() {
     el.removeAttribute('data-empty');
   }
 }
-// Apply placeholder style via CSS
+// Apply placeholder + rich-text editor styles via CSS
 (function() {
   var style = document.createElement('style');
-  style.textContent = '#qq-notes[data-empty="true"]:before{content:attr(data-placeholder);color:#9ca3af;pointer-events:none;position:absolute} #qq-notes{position:relative}';
+  style.textContent =
+    '#qq-notes[data-empty="true"]:before{content:attr(data-placeholder);color:#9ca3af;pointer-events:none;position:absolute}' +
+    '#qq-notes{position:relative}' +
+    // list + indent fixes — the global *{padding:0;margin:0} reset was hiding bullets/numbers and killing indent inside editors
+    '.rtf-editable ul{list-style:disc outside;padding-left:1.6em;margin:6px 0}' +
+    '.rtf-editable ol{list-style:decimal outside;padding-left:1.9em;margin:6px 0}' +
+    '.rtf-editable li{margin:3px 0}' +
+    '.rtf-editable blockquote{margin:4px 0 4px 1.8em;padding:0;border:none}' +
+    '.rtf-editable h3{font-size:16px;font-weight:700;margin:8px 0 4px;color:#12283b}' +
+    '.rtf-editable p{margin:4px 0}' +
+    // toolbar buttons + active (pressed) state
+    '.rtf-btn{padding:4px 9px;font-size:12px;border:1px solid #d0d7e2;border-radius:5px;background:#fff;cursor:pointer;color:#1f3b57;line-height:1.2;min-width:26px;transition:background .12s,border-color .12s,color .12s}' +
+    '.rtf-btn:hover{background:#eef4fb;border-color:#9db8d6}' +
+    '.rtf-btn.rtf-active{background:#1565c0;border-color:#1565c0;color:#fff;box-shadow:inset 0 1px 2px rgba(0,0,0,.18)}' +
+    '.rtf-sep{width:1px;background:#d0d7e2;align-self:stretch;margin:0 4px;display:inline-block}' +
+    '.rtf-size{padding:4px 6px;font-size:12px;border:1px solid #d0d7e2;border-radius:5px;background:#fff;color:#1f3b57;cursor:pointer;font-family:inherit}' +
+    '.rtf-size:hover{border-color:#9db8d6}';
   document.head.appendChild(style);
 })();
 // ── getQData patch: read innerHTML from the rich editor ──────────────────────
