@@ -1923,14 +1923,15 @@ function deleteQuote(id) {
   if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
   if (DB.deletedIds.quotes.indexOf(id) < 0) DB.deletedIds.quotes.push(id);
   DB.quotes = DB.quotes.filter(function(q){ return q.id != id; });
+  saveDB(); // persist the removal + deleted-tombstone right away, so a refresh (or a cloud delete blocked by security rules) can't resurrect it
   if (window._syncTimer) { clearTimeout(window._syncTimer); window._syncTimer = null; }
   if (_sb && _currentUser) {
     _sb.from('quote_line_items').delete().eq('quote_id', id).then(function(){});
     _sb.from('quotes').delete().eq('id', id).then(function(r){
       if (r.error) console.warn('[Delete] Quote:', r.error.message);
-      else { saveDB(); if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300); }
+      if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300);
     });
-  } else { saveDB(); }
+  }
   renderQuotes(); renderDash();
   showToast('Quote deleted', 'info');
 }
