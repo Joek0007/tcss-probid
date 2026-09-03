@@ -1627,6 +1627,29 @@ function printInternal() {
 // =============================================
 // V6: EMAIL QUOTE (Option A — mailto)
 // =============================================
+// Convert quote notes (which may be rich-text HTML from the editor) into clean,
+// readable PLAIN TEXT for emails. Preserves line breaks and bullet structure,
+// strips every tag, and decodes HTML entities. Safe on plain-text notes too.
+function _notesToEmailText(notes, isHtml) {
+  if (!notes) return '';
+  var t = String(notes);
+  var looksHtml = isHtml || /<[a-z!/][\s\S]*>/i.test(t);
+  if (!looksHtml) return t.trim();
+  return t
+    .replace(/<\s*(br|hr)\s*\/?\s*>/gi, '\n')                    // <br>/<hr> -> newline
+    .replace(/<\s*li[^>]*>/gi, '\n• ')                      // <li> -> bullet (its \n starts the line)
+    .replace(/<\s*\/(p|div|h[1-6]|tr|ul|ol|table)\s*>/gi, '\n') // block ends -> newline
+    .replace(/<[^>]*>/g, '')                                     // drop remaining tags
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"').replace(/&#0*39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, '&')                                     // decode &amp; last
+    .replace(/[ \t]+\n/g, '\n')                                  // trim line-end spaces
+    .replace(/\n{3,}/g, '\n\n')                                  // collapse blank lines
+    .replace(/[ \t]{2,}/g, ' ')                                  // collapse space runs
+    .trim();
+}
+
 function buildEmailBody(q) {
   const s      = DB.settings || {};
   const cname  = s.cname  || 'TCSS';
@@ -1675,10 +1698,11 @@ function buildEmailBody(q) {
   }
   if (q.pt) { lines.push(''); lines.push('  Payment Terms: ' + q.pt); }
   lines.push('');
-  if (q.notes) {
+  var scopeText = _notesToEmailText(q.notes, q.notesIsHtml);
+  if (scopeText) {
     lines.push('SCOPE OF WORK');
     lines.push('─────────────────────────────────────────');
-    lines.push(q.notes);
+    lines.push(scopeText);
     lines.push('');
   }
   lines.push('─────────────────────────────────────────');
