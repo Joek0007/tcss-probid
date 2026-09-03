@@ -271,7 +271,7 @@ function getQData(id) {
     lumpSum: getLumpSumState(),
     showLaborBanner: typeof getLaborBannerOn==='function' ? getLaborBannerOn() : true,
     svcContract: getSvcContractData(),
-    execSummary: existing && existing.execSummary ? existing.execSummary : '',
+    execSummary: (function(){ var _e=document.getElementById('qq-exec-summary'); if(_e) return _e.value; return existing && existing.execSummary ? existing.execSummary : ''; })(),
     proposalSections: getProposalSections(),
     markup: totals.totalMaterialCost > 0 ? ((totals.materialSell / totals.totalMaterialCost - 1)*100).toFixed(1) : '0',
     subtotal: totals.sellBeforeTax,
@@ -311,7 +311,7 @@ function clearQQ(skipConfirm) {
   const otx = document.getElementById('permit-other-text'); if(otx) otx.value='';
   const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
   updatePermitStatus();
-  ['qq-cn','qq-ph','qq-em','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-num','qq-id','qq-notes','qq-int','qq-tc','qq-contact-name','qq-contact-title'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+  ['qq-cn','qq-ph','qq-em','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-num','qq-id','qq-notes','qq-int','qq-tc','qq-exec-summary','qq-contact-name','qq-contact-title'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
   // qq-notes (Scope of Work) is a rich-text contenteditable div — .value is a no-op on it,
   // so clear its innerHTML explicitly or the PREVIOUS quote's scope bleeds into a new quote.
   var _qnClr = document.getElementById('qq-notes');
@@ -390,7 +390,7 @@ function editQuote(id) {
   setV('qq-jn', q.jn); setV('qq-jt', q.jt); setV('qq-env', q.env||'office');
   setV('qq-dt', q.dt); setV('qq-vu', q.vu); setV('qq-num', q.num); setV('qq-id', q.id||''); setV('qq-followup', q.followupDate || calcFollowupDate(q.dt || getTodayISO()));
   setV('qq-created', q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || getTodayISO());
-  setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc);
+  setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc); setV('qq-exec-summary', q.execSummary||'');
   // qq-notes is contenteditable — load via innerHTML (setV/.value is a no-op on it), or
   // the editor keeps showing stale content instead of THIS quote's saved Scope of Work.
   (function(){

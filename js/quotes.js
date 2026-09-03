@@ -1844,6 +1844,80 @@ function closeModal(id) { const m=document.getElementById(id); if(m) m.classList
   if (typeof hideDocNav === 'function' && ['modal-view-quote','modal-work-order','modal-invoice','modal-contract'].indexOf(id) >= 0) hideDocNav();
 }
 
+// ============================================================
+// INLINE SECTION EDITORS — click a proposal-section label to edit
+// its content in a popup without leaving the quote you're building.
+// exec + terms = THIS quote; assumptions + exclusions = the shared
+// defaults used on every proposal.
+// ============================================================
+var _sectionEditorKind = null;
+function openSectionEditor(kind) {
+  _sectionEditorKind = kind;
+  var titleEl = document.getElementById('sec-ed-title');
+  var hintEl  = document.getElementById('sec-ed-hint');
+  var scopeEl = document.getElementById('sec-ed-scope');
+  var ta      = document.getElementById('sec-ed-text');
+  if (!ta) return;
+  if (kind === 'exec') {
+    titleEl.textContent = '📝 Executive Summary';
+    scopeEl.textContent = 'This quote only';
+    hintEl.textContent  = 'Custom opening summary for this proposal. Leave blank to auto-generate one from the line items.';
+    ta.value = (document.getElementById('qq-exec-summary')||{}).value || '';
+    ta.placeholder = 'Leave blank to auto-generate a summary from the equipment on this quote…';
+  } else if (kind === 'terms') {
+    titleEl.textContent = '📜 Terms & Conditions';
+    scopeEl.textContent = 'This quote only';
+    hintEl.textContent  = 'Terms for this proposal. Leave blank to use your default T&C from Settings.';
+    ta.value = (document.getElementById('qq-tc')||{}).value || '';
+    ta.placeholder = 'Payment terms, warranty information, conditions…';
+  } else if (kind === 'assumptions') {
+    titleEl.textContent = '✅ Assumptions';
+    scopeEl.textContent = 'Default — used on ALL proposals';
+    hintEl.textContent  = 'One assumption per line. This is your standard list applied to every proposal.';
+    var pdA = (typeof getProposalDefaults==='function') ? getProposalDefaults() : (DB.settings.proposalDefaults||{});
+    ta.value = (pdA.assumptions || (typeof DEFAULT_ASSUMPTIONS!=='undefined'?DEFAULT_ASSUMPTIONS:[])).join('\n');
+    ta.placeholder = 'One assumption per line…';
+  } else if (kind === 'exclusions') {
+    titleEl.textContent = '🚫 Exclusions';
+    scopeEl.textContent = 'Default — used on ALL proposals';
+    hintEl.textContent  = 'One exclusion per line. This is your standard list applied to every proposal.';
+    var pdE = (typeof getProposalDefaults==='function') ? getProposalDefaults() : (DB.settings.proposalDefaults||{});
+    ta.value = (pdE.exclusions || (typeof DEFAULT_EXCLUSIONS!=='undefined'?DEFAULT_EXCLUSIONS:[])).join('\n');
+    ta.placeholder = 'One exclusion per line…';
+  } else { return; }
+  openModal('modal-section-editor');
+  setTimeout(function(){ try{ ta.focus(); }catch(e){} }, 60);
+}
+
+function saveSectionEditor() {
+  var kind = _sectionEditorKind;
+  var ta = document.getElementById('sec-ed-text');
+  if (!ta) { closeModal('modal-section-editor'); return; }
+  var val = ta.value;
+  if (kind === 'exec') {
+    var h = document.getElementById('qq-exec-summary'); if (h) h.value = val.trim();
+    if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
+  } else if (kind === 'terms') {
+    var t = document.getElementById('qq-tc'); if (t) t.value = val;
+    if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
+  } else if (kind === 'assumptions' || kind === 'exclusions') {
+    var list = val.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+    var cur = (typeof getProposalDefaults==='function') ? getProposalDefaults() : (DB.settings.proposalDefaults||{});
+    var pd = {
+      showAssumptions: cur.showAssumptions !== false,
+      showExclusions:  cur.showExclusions  !== false,
+      assumptions: (cur.assumptions || (typeof DEFAULT_ASSUMPTIONS!=='undefined'?DEFAULT_ASSUMPTIONS:[])).slice(),
+      exclusions:  (cur.exclusions  || (typeof DEFAULT_EXCLUSIONS!=='undefined'?DEFAULT_EXCLUSIONS:[])).slice()
+    };
+    if (kind === 'assumptions') pd.assumptions = list; else pd.exclusions = list;
+    DB.settings.proposalDefaults = pd;
+    if (typeof saveDB === 'function') saveDB();
+  }
+  closeModal('modal-section-editor');
+  if (typeof showToast === 'function') showToast('Saved — back to your quote', 'success', 1800);
+  _sectionEditorKind = null;
+}
+
 function deleteQuote(id) {
   if (!confirm('Delete this quote? This cannot be undone.')) return;
   if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
