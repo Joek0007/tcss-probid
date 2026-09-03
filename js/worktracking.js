@@ -1772,7 +1772,7 @@ function wtRenderReworksView() {
               '<div style="flex:1">'+
                 '<div style="font-size:14px;font-weight:700;color:#0d1b2a">'+escHtml((item&&item.name)||'Unknown item')+'</div>'+
                 (bldg?'<div style="font-size:11px;color:#546e7a">'+escHtml(bldg.name)+'</div>':'')+
-                '<div style="font-size:12px;color:#546e7a;margin-top:4px">'+escHtml(rw.description)+'</div>'+
+                '<div style="font-size:12px;color:#546e7a;margin-top:4px">'+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(rw.description):escHtml(rw.description))+'</div>'+
                 '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:11px">'+
                   '<span style="padding:2px 8px;border-radius:10px;background:'+(svr[rw.severity]||'#90a4ae')+'20;color:'+(svr[rw.severity]||'#90a4ae')+';font-weight:700">'+
                     (rw.severity||'standard').toUpperCase()+
@@ -5693,7 +5693,7 @@ function showAbsenceStep(step) {
         '<div>📋 <strong>Reason:</strong> '+escHtml(_absenceData.reasonLabel)+'</div>'+
         '<div>⏱ <strong>Duration:</strong> '+escHtml(durLabels[_absenceData.duration]||_absenceData.duration)+(_absenceData.durationDetail?' — '+escHtml(_absenceData.durationDetail):'')+'</div>'+
         '<div>💰 <strong>Coverage:</strong> '+escHtml(covLabels[_absenceData.coverage]||_absenceData.coverage)+'</div>'+
-        (_absenceData.details?'<div style="margin-top:6px;padding-top:6px;border-top:1px solid #ffcdd2">📝 '+escHtml(_absenceData.details)+'</div>':'')+
+        (_absenceData.details?'<div style="margin-top:6px;padding-top:6px;border-top:1px solid #ffcdd2">📝 '+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(_absenceData.details):escHtml(_absenceData.details))+'</div>':'')+
         '<div style="margin-top:8px;font-size:11px;color:#90a4ae">Submitted at '+timeStr+'</div>';
     }
     var lateWarn = document.getElementById('abs-late-warning');
@@ -5802,7 +5802,7 @@ function renderAbsenceDashboard() {
           '<div style="font-size:12px;color:#546e7a;margin-top:4px">'+
             escHtml(a.reasonLabel)+' · '+escHtml(durLabels[a.duration]||a.duration)+' · '+escHtml(covLabels[a.coverage]||a.coverage)+
           '</div>'+
-          (a.details?'<div style="font-size:11px;color:#546e7a;margin-top:4px;font-style:italic">'+escHtml(a.details)+'</div>':'')+
+          (a.details?'<div style="font-size:11px;color:#546e7a;margin-top:4px;font-style:italic">'+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(a.details):escHtml(a.details))+'</div>':'')+
           '<div style="font-size:10px;color:#90a4ae;margin-top:4px">Reported '+new Date(a.submittedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})+'</div>'+
         '</div>';
       }).join('')+

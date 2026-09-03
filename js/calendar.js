@@ -244,7 +244,7 @@ function renderCommsLog(customerId, jobId) {
         '</div>'+
         '<div style="font-size:11px;color:#90a4ae">'+escHtml(date)+'</div>'+
       '</div>'+
-      '<div style="font-size:13px;color:#37474f;line-height:1.5">'+escHtml(e.notes)+'</div>'+
+      '<div style="font-size:13px;color:#37474f;line-height:1.5">'+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(e.notes):escHtml(e.notes))+'</div>'+
       (e.followUpDate?'<div style="margin-top:6px;font-size:11px;color:#e65100;font-weight:600">📅 Follow-up: '+escHtml(e.followUpDate)+'</div>':'')+
       '<div style="margin-top:4px;font-size:10px;color:#b0bec5">Logged by '+escHtml(e.loggerName||'Unknown')+'</div>'+
     '</div>';

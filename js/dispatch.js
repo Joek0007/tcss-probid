@@ -864,7 +864,7 @@ function openDispatchDetail(jobId) {
     (pct!==null?'<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:#546e7a;margin-bottom:4px">WORK TRACKING</div>'+
       '<div style="display:flex;align-items:center;gap:8px"><div class="wt-progress-bar" style="flex:1"><div class="wt-progress-fill" style="width:'+pct+'%"></div></div><span style="font-weight:700;color:#1565c0">'+pct+'%</span></div></div>':'')+
     (job.address?'<div style="background:#f8f9fa;border-radius:6px;padding:8px;font-size:12px;color:#546e7a;margin-bottom:14px">📍 '+escHtml(job.address)+'</div>':'')+
-    (job.dispatchNotes?'<div style="background:#fff8e1;border-radius:6px;padding:8px;font-size:12px;color:#f57f17;margin-bottom:14px;border-left:3px solid #ffb300">📋 '+escHtml(job.dispatchNotes)+'</div>':'')+
+    (job.dispatchNotes?'<div style="background:#fff8e1;border-radius:6px;padding:8px;font-size:12px;color:#f57f17;margin-bottom:14px;border-left:3px solid #ffb300">📋 '+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(job.dispatchNotes):escHtml(job.dispatchNotes))+'</div>':'')+
     // Crew
     '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-bottom:14px">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+

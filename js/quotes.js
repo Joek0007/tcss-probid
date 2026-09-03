@@ -5179,7 +5179,7 @@ function renderInventory() {
       const activeCoCount = DB.checkoutLog.filter(function(c){ return c.itemId===item.id && !c.returnDate; }).length;
       return '<tr>' +
         '<td><span class="asset-tag">'+escHtml(item.tag||'—')+'</span></td>' +
-        '<td><div style="font-weight:700;font-size:13px">'+escHtml(item.name||'')+'</div>'+(item.notes?'<div style="font-size:11px;color:#90a4ae">'+escHtml(item.notes.substring(0,60))+'</div>':'')+'</td>' +
+        '<td><div style="font-weight:700;font-size:13px">'+escHtml(item.name||'')+'</div>'+(item.notes?'<div style="font-size:11px;color:#90a4ae">'+escHtml((typeof stripHtmlToText==='function'?stripHtmlToText(item.notes):item.notes).substring(0,60))+'</div>':'')+'</td>' +
         '<td style="font-size:12px">'+escHtml(item.cat||'General')+'</td>' +
         '<td style="font-size:12px">'+escHtml(item.location||'—')+'</td>' +
         '<td><span class="inv-qty-badge '+qtyClass+'">'+qty+' — '+qtyLabel+'</span></td>' +
