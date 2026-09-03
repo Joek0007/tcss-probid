@@ -2879,7 +2879,7 @@ function renderCustomers() {
       '<div class="cust-actions">'+
         '<button class="btn btn-primary btn-sm" onclick="openCustomerProfile(\''+c.id+'\')" title="View profile">Profile</button>'+
         '<button class="btn btn-outline btn-sm" data-action="editCustomer" data-id="'+c.id+'" title="Edit">✏</button>'+
-        '<button class="btn btn-danger btn-sm" data-action="delCustomer" data-id="'+c.id+'" title="Delete">✕</button>'+
+        ((typeof hasPermission!=='function' || hasPermission('cust.delete')) ? '<button class="btn btn-danger btn-sm" data-action="delCustomer" data-id="'+c.id+'" title="Delete">✕</button>' : '')+
       '</div>'+
     '</div>';
   }).join('');
@@ -2991,7 +2991,7 @@ function _renderContactSection(mode, customerId, customerName) {
           '</div>'+
           '<div style="display:flex;gap:6px;flex-shrink:0">'+
             '<button onclick="_editInlineContact(\''+ct.id+'\',\''+customerId+'\')" style="padding:5px 10px;background:#e3f2fd;color:#1565c0;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">✏ Edit</button>'+
-            '<button onclick="_deleteInlineContact(\''+ct.id+'\')" style="padding:5px 10px;background:#ffebee;color:#c62828;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">✕</button>'+
+            ((typeof hasPermission!=='function' || hasPermission('cust.delete')) ? '<button onclick="_deleteInlineContact(\''+ct.id+'\')" style="padding:5px 10px;background:#ffebee;color:#c62828;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">✕</button>' : '')+
           '</div>'+
         '</div>';
       }).join('')
@@ -3090,9 +3090,27 @@ function _editInlineContact(contactId, customerId) {
 }
 
 function _deleteInlineContact(contactId) {
-  if (!confirm('Remove this contact?')) return;
+  if (typeof hasPermission === 'function' && !hasPermission('cust.delete')) {
+    showToast('Your role is not permitted to delete contacts.', 'error', 5000);
+    return;
+  }
+  if (!confirm('Remove this contact?\n\nIt is hidden and can be restored by an owner or manager.')) return;
+  var isReal = String(contactId).length > 10;
+  if (isReal) {
+    if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+    if (!DB.deletedIds.contacts) DB.deletedIds.contacts = [];
+    if (DB.deletedIds.contacts.indexOf(contactId) < 0) DB.deletedIds.contacts.push(contactId);
+  }
   DB.contacts = (DB.contacts||[]).filter(function(c){ return c.id !== contactId; });
   saveDB();
+  if (_sb && _currentUser && isReal) {
+    // Previously this removed the contact only locally, so it returned on the next
+    // cloud pull. Route it through the authorized soft-delete like every other path.
+    _sb.rpc('soft_delete_contact', { p_id: contactId }).then(function(r){
+      if (r && r.error) console.warn('[Delete] soft_delete_contact (inline):', r.error.message);
+      if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300);
+    });
+  }
   var section = document.getElementById('m-c-primary-contact-section');
   var custId  = section ? (section.dataset.custId||'') : '';
   var custName= section ? (section.dataset.custName||'') : '';
@@ -3226,22 +3244,30 @@ function saveCustomerAndAnother() {
   showToast('"'+name+'" saved — ready for next customer','success');
 }
 function delCustomer(id) {
-  if (!confirm('Delete customer? This cannot be undone.')) return;
-  // Soft-delete in Supabase first (mark is_active=false so pull never restores it)
-  if (_sb && _currentUser) {
-    var uuid = id;
-    // Only hit Supabase if this looks like a real UUID (not a demo timestamp ID)
-    if (String(id).length > 10) {
-      _sb.from('customers').update({is_active: false}).eq('id', uuid).then(function(res){
-        if (res.error) console.warn('[Delete] Customer soft-delete failed:', res.error.message);
-      });
-    }
+  // UI-layer authorization; the database (soft_delete_customer RPC) is the real lock.
+  if (typeof hasPermission === 'function' && !hasPermission('cust.delete')) {
+    showToast('Your role is not permitted to delete customers.', 'error', 5000);
+    return;
   }
-  // Remove from local DB
+  if (!confirm('Delete customer?\n\nIt is hidden and can be restored by an owner or manager.')) return;
+  var isReal = String(id).length > 10;
+  if (isReal) {
+    if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+    if (!DB.deletedIds.customers) DB.deletedIds.customers = [];
+    if (DB.deletedIds.customers.indexOf(id) < 0) DB.deletedIds.customers.push(id);
+  }
   DB.customers = DB.customers.filter(function(c){ return c.id != id; });
   saveDB();
+  if (_sb && _currentUser && isReal) {
+    // Authorized soft delete: role check + audit, atomic, server-side. On error the
+    // tombstone is kept and pushAllToCloud retries (also covers offline).
+    _sb.rpc('soft_delete_customer', { p_id: id }).then(function(r){
+      if (r && r.error) { console.warn('[Delete] soft_delete_customer:', r.error.message); showToast('Cloud delete pending ('+r.error.message+') — will retry on next sync.', 'error', 6000); }
+      if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300);
+    });
+  }
   renderCustomers();
-  showToast('Customer deleted','info');
+  showToast('Customer deleted (recoverable)','info');
 }
 
 // ---- RENDER CONTACTS ----
@@ -3382,7 +3408,7 @@ function renderContacts() {
           : '<span class="cont-quick-btn cont-quick-disabled" title="No email on file">✉️ Email</span>')+
         '<button class="cont-quick-btn" onclick="newQuoteForContact(\''+c.id+'\')" title="New Quote">📋 Quote</button>'+
         '<button class="cont-quick-btn" data-action="editContact" data-id="'+c.id+'" title="Edit">✏ Edit</button>'+
-        '<button class="btn btn-danger btn-sm" data-action="delContact" data-id="'+c.id+'" title="Delete">✕</button>'+
+        ((typeof hasPermission!=='function' || hasPermission('cust.delete')) ? '<button class="btn btn-danger btn-sm" data-action="delContact" data-id="'+c.id+'" title="Delete">✕</button>' : '')+
       '</div>'+
     '</div>';
   }).join('');
@@ -3438,13 +3464,27 @@ function newQuoteForContact(contactId) {
   showToast('New quote for '+(c.name||''), 'info');
 }
 function delContact(id) {
-  if (!confirm('Delete contact?')) return;
-  if (_sb && _currentUser && String(id).length > 10) {
-    _sb.from('contacts').update({is_active:false}).eq('id',id).then(function(r){ if(r.error) console.warn('[Delete] Contact:',r.error.message); });
+  if (typeof hasPermission === 'function' && !hasPermission('cust.delete')) {
+    showToast('Your role is not permitted to delete contacts.', 'error', 5000);
+    return;
+  }
+  if (!confirm('Delete contact?\n\nIt is hidden and can be restored by an owner or manager.')) return;
+  var isReal = String(id).length > 10;
+  if (isReal) {
+    if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+    if (!DB.deletedIds.contacts) DB.deletedIds.contacts = [];
+    if (DB.deletedIds.contacts.indexOf(id) < 0) DB.deletedIds.contacts.push(id);
   }
   DB.contacts = DB.contacts.filter(function(c){return c.id!=id});
-  saveDB(); renderContacts();
-  showToast('Contact deleted','info');
+  saveDB();
+  if (_sb && _currentUser && isReal) {
+    _sb.rpc('soft_delete_contact', { p_id: id }).then(function(r){
+      if (r && r.error) { console.warn('[Delete] soft_delete_contact:', r.error.message); showToast('Cloud delete pending ('+r.error.message+') — will retry on next sync.', 'error', 6000); }
+      if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300);
+    });
+  }
+  renderContacts();
+  showToast('Contact deleted (recoverable)','info');
 }
 function newJob(){
   ['m-jname','m-jcust','m-jqnum','m-jnotes','m-jid','m-jassign'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});
@@ -3488,13 +3528,27 @@ function saveJob(){
   saveDB();closeModal('modal-job');renderJobs();renderDash();
 }
 function delJob(id) {
-  if (!confirm('Delete job?')) return;
-  if (_sb && _currentUser && String(id).length > 10) {
-    _sb.from('jobs').update({is_active:false}).eq('id',id).then(function(r){ if(r.error) console.warn('[Delete] Job:',r.error.message); });
+  if (typeof hasPermission === 'function' && !hasPermission('job.delete')) {
+    showToast('Your role is not permitted to delete jobs.', 'error', 5000);
+    return;
+  }
+  if (!confirm('Delete job?\n\nIt is hidden and can be restored by an owner or manager.')) return;
+  var isReal = String(id).length > 10;
+  if (isReal) {
+    if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+    if (!DB.deletedIds.jobs) DB.deletedIds.jobs = [];
+    if (DB.deletedIds.jobs.indexOf(id) < 0) DB.deletedIds.jobs.push(id);
   }
   DB.jobs = DB.jobs.filter(function(j){return j.id!=id});
-  saveDB(); renderJobs();
-  showToast('Job deleted','info');
+  saveDB();
+  if (_sb && _currentUser && isReal) {
+    _sb.rpc('soft_delete_job', { p_id: id }).then(function(r){
+      if (r && r.error) { console.warn('[Delete] soft_delete_job:', r.error.message); showToast('Cloud delete pending ('+r.error.message+') — will retry on next sync.', 'error', 6000); }
+      if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300);
+    });
+  }
+  renderJobs();
+  showToast('Job deleted (recoverable)','info');
 }
 
 // ---- RENDER TEAM ----

@@ -8322,7 +8322,7 @@ function renderJobs() {
         (wtProj?'<button class="btn btn-outline btn-sm" onclick="loadWTProject(\''+wtProj.id+'\');goPage(\'worktracking\')" title="Work Tracking">✅</button>':'')+
         '<button class="btn btn-sm" onclick="var _j=typeof _findJobOrWO==="function"?_findJobOrWO(\''+j.id+'\'):(DB.jobs||[]).find(function(x){return x.id===\''+j.id+'\'});;if(_j)openInvoiceModal(_j);" style="background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;font-weight:700" title="Generate Invoice">🧾 Invoice</button>'+
         '<button class="btn btn-outline btn-sm" data-action="editJob" data-id="'+j.id+'" title="Edit">✏</button>'+
-        '<button class="btn btn-danger btn-sm" data-action="delJob" data-id="'+j.id+'" title="Delete">✕</button>'+
+        ((typeof hasPermission!=='function' || hasPermission('job.delete')) ? '<button class="btn btn-danger btn-sm" data-action="delJob" data-id="'+j.id+'" title="Delete">✕</button>' : '')+
         (j.status==='Complete'||j.status==='Closed'?
           '<button class="btn btn-outline btn-sm" data-action="openCloseout" data-id="'+j.id+'" title="Closeout">📋</button>':'')
       +'</div>'+

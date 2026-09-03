@@ -592,7 +592,7 @@ async function syncAllFromCloud(silent) {
 
     // 3. Customers
     try {
-      var { data: custs, error: ce } = await _sb.from('customers').select('*').order('name');
+      var { data: custs, error: ce } = await _sb.from('customers').select('*').eq('is_active', true).order('name');
       if (ce) { errors.push('customers: '+ce.message); }
       else if (custs) {
         custs = custs.filter(function(c){ return delC.indexOf(String(c.id)) < 0; });
@@ -1054,9 +1054,12 @@ async function pushAllToCloud() {
       // clean return clears the tombstone; an error keeps it for the next retry.
       for (var qDel of dq) { var _rq = await _sb.rpc('soft_delete_quote', { p_id: qDel }); if (_rq && _rq.error) keepQ.push(qDel); }
       for (var tDel of dt)   { var _rt  = await _sb.from('team').delete().eq('id', tDel).select('id');      if (_delFailed(_rt))  keepT.push(tDel); }
-      for (var cDel of dc)   { var _rc  = await _sb.from('customers').delete().eq('id', cDel).select('id'); if (_delFailed(_rc))  keepC.push(cDel); }
-      for (var ctDel of dct) { var _rct = await _sb.from('contacts').delete().eq('id', ctDel).select('id'); if (_delFailed(_rct)) keepCt.push(ctDel); }
-      for (var jDel of dj)   { var _rj  = await _sb.from('jobs').delete().eq('id', jDel).select('id');      if (_delFailed(_rj))  keepJ.push(jDel); }
+      // Customers/contacts/jobs delete via their authorized soft-delete RPCs (role
+      // check + audit + recoverable), NOT raw DELETE — same model as quotes. A clean
+      // return clears the tombstone; an error keeps it for the next retry.
+      for (var cDel of dc)   { var _rc  = await _sb.rpc('soft_delete_customer', { p_id: cDel }); if (_rc  && _rc.error)  keepC.push(cDel); }
+      for (var ctDel of dct) { var _rct = await _sb.rpc('soft_delete_contact',  { p_id: ctDel }); if (_rct && _rct.error) keepCt.push(ctDel); }
+      for (var jDel of dj)   { var _rj  = await _sb.rpc('soft_delete_job',       { p_id: jDel }); if (_rj  && _rj.error)  keepJ.push(jDel); }
       // Only confirmed cloud deletes (a row actually came back from .select) clear the
       // tombstone; blocked/no-op deletes stay tombstoned so the row never resurrects.
       DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ};
