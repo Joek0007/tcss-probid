@@ -478,7 +478,9 @@ function renderQuotes() {
   const search = (document.getElementById('q-search')||{}).value || '';
   const filter = (document.getElementById('q-filter')||{}).value || '';
   const sort   = (document.getElementById('q-sort')||{}).value || 'priority';
-  let list = DB.quotes.slice();
+  // Never show soft-deleted quotes. deletedAt is set locally the moment a quote
+  // is deleted; the cloud pull also filters them out, so this is belt-and-suspenders.
+  let list = DB.quotes.filter(function(q){ return !q.deletedAt; });
   if (search) { const sl=search.toLowerCase(); list=list.filter(function(q){ return (q.cn||'').toLowerCase().includes(sl)||(q.jn||'').toLowerCase().includes(sl)||(q.num||'').toLowerCase().includes(sl); }); }
   if (filter) list=list.filter(function(q){ return (q.status||'draft').toLowerCase()===filter.toLowerCase(); });
 
@@ -529,6 +531,10 @@ function renderQuotes() {
     return;
   }
   const healthColor = function(q){ return q.pricingHealth==='Healthy'?'color:#2e7d32':q.pricingHealth==='Watch'?'color:#e65100':'color:#c62828'; };
+  // UI-layer authorization: only show the Del control to roles the permission
+  // matrix allows. This is convenience only — the database (soft_delete_quote
+  // RPC) is the real lock, so a hidden button can't be worked around.
+  var _canDelQ = (typeof hasPermission === 'function') ? hasPermission('quote.delete') : true;
   tbody.innerHTML = list.map(function(q){
     const envLabel = q.envLabel || (ENV_PRESETS[q.env] ? ENV_PRESETS[q.env].label : q.env || '');
     const fuBadge = isFollowupDue(q) ? '<span class="followup-due'+(isFollowupOverdue(q)?' followup-overdue':'')+'" style="margin-left:4px">'+(isFollowupOverdue(q)?'Overdue':'Follow-Up')+'</span>' : '';
@@ -568,7 +574,7 @@ function renderQuotes() {
           ' style="'+(canConvert?'':'opacity:.3;cursor:not-allowed;pointer-events:none')+'" title="'+(canConvert?'Mark Won & Create Job':'Already converted')+'">▶</button> '+
         '<button class="btn btn-success btn-sm" data-action="emailSavedQuote" data-id="'+q.id+'" title="Email to customer">📧</button> '+
         '<button class="btn btn-outline btn-sm" data-action="copyPortalLink" data-id="'+q.id+'" title="Copy client approval link" style="font-size:11px">🔗 Link</button> '+
-        '<button class="btn btn-danger btn-sm" data-action="deleteQuote" data-id="'+q.id+'">Del</button>'+
+        (_canDelQ ? '<button class="btn btn-danger btn-sm" data-action="deleteQuote" data-id="'+q.id+'">Del</button>' : '')+
       '</td>'+
     '</tr>';
   }).join('');

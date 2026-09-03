@@ -1919,21 +1919,34 @@ function saveSectionEditor() {
 }
 
 function deleteQuote(id) {
-  if (!confirm('Delete this quote? This cannot be undone.')) return;
+  // Layer 1 (UX): only offer deletion to roles the permission matrix allows.
+  // The database (soft_delete_quote RPC) is the real lock — this just keeps the
+  // UI honest and gives a clear message if a disallowed path is reached.
+  if (typeof hasPermission === 'function' && !hasPermission('quote.delete')) {
+    showToast('Your role is not permitted to delete quotes.', 'error', 5000);
+    return;
+  }
+  if (!confirm('Delete this quote?\n\nIt moves to the recycle bin — an owner or manager can restore it.')) return;
   if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
   if (DB.deletedIds.quotes.indexOf(id) < 0) DB.deletedIds.quotes.push(id);
   DB.quotes = DB.quotes.filter(function(q){ return q.id != id; });
-  saveDB(); // persist the removal + deleted-tombstone right away, so a refresh (or a cloud delete blocked by security rules) can't resurrect it
+  saveDB(); // persist the removal + tombstone right away so a refresh can't resurrect it
   if (window._syncTimer) { clearTimeout(window._syncTimer); window._syncTimer = null; }
   if (_sb && _currentUser) {
-    _sb.from('quote_line_items').delete().eq('quote_id', id).then(function(){});
-    _sb.from('quotes').delete().eq('id', id).then(function(r){
-      if (r.error) console.warn('[Delete] Quote:', r.error.message);
+    // Server-authoritative soft delete: the RPC checks the caller's role, marks
+    // the row deleted_at (recoverable, line items preserved), and writes the audit
+    // record — atomically, server-side. A blocked delete returns an error, so we
+    // keep the tombstone and retry on the next sync (also covers offline).
+    _sb.rpc('soft_delete_quote', { p_id: id }).then(function(r){
+      if (r && r.error) {
+        console.warn('[Delete] soft_delete_quote:', r.error.message);
+        showToast('Cloud delete pending (' + r.error.message + ') — will retry on next sync.', 'error', 6000);
+      }
       if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300);
     });
   }
   renderQuotes(); renderDash();
-  showToast('Quote deleted', 'info');
+  showToast('Quote deleted (recoverable)', 'info');
 }
 
 // One-time cleanup: remove empty draft "stub" quotes that the pre-fix auto-save left
@@ -1964,8 +1977,7 @@ function cleanupEmptyDraftQuotes() {
   if (window._syncTimer) { clearTimeout(window._syncTimer); window._syncTimer = null; }
   if (_sb && _currentUser) {
     ids.forEach(function(id){
-      _sb.from('quote_line_items').delete().eq('quote_id', id).then(function(){});
-      _sb.from('quotes').delete().eq('id', id).then(function(r){ if (r && r.error) console.warn('[Cleanup] Quote', id, r.error.message); });
+      _sb.rpc('soft_delete_quote', { p_id: id }).then(function(r){ if (r && r.error) console.warn('[Cleanup] Quote', id, r.error.message); });
     });
     saveDB();
     if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 400);

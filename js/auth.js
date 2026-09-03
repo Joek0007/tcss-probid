@@ -498,6 +498,7 @@ async function syncAllFromCloud(silent) {
     try {
       var { data: quotes, error: qe } = await _sb.from('quotes')
         .select('*, quote_line_items(*)')
+        .is('deleted_at', null)   // never pull soft-deleted quotes — structural fix for resurrection
         .order('created_at', { ascending: false });
       if (qe) { errors.push('quotes: '+qe.message); }
       else if (quotes) {
@@ -1048,7 +1049,10 @@ async function pushAllToCloud() {
       // blocked/no-op one (empty data) and KEEP the tombstone so the pull filter keeps
       // suppressing the row. A tombstone that never clears is harmless; a lost one is the bug.
       function _delFailed(r){ return !r || r.error || !(r.data && r.data.length); }
-      for (var qDel of dq) { await _sb.from('quote_line_items').delete().eq('quote_id', qDel); var _rq = await _sb.from('quotes').delete().eq('id', qDel).select('id'); if (_delFailed(_rq)) keepQ.push(qDel); }
+      // Quotes delete via the authorized soft-delete RPC (role check + audit +
+      // recoverable). The RPC returns an error only on real failure/refusal, so a
+      // clean return clears the tombstone; an error keeps it for the next retry.
+      for (var qDel of dq) { var _rq = await _sb.rpc('soft_delete_quote', { p_id: qDel }); if (_rq && _rq.error) keepQ.push(qDel); }
       for (var tDel of dt)   { var _rt  = await _sb.from('team').delete().eq('id', tDel).select('id');      if (_delFailed(_rt))  keepT.push(tDel); }
       for (var cDel of dc)   { var _rc  = await _sb.from('customers').delete().eq('id', cDel).select('id'); if (_delFailed(_rc))  keepC.push(cDel); }
       for (var ctDel of dct) { var _rct = await _sb.from('contacts').delete().eq('id', ctDel).select('id'); if (_delFailed(_rct)) keepCt.push(ctDel); }
