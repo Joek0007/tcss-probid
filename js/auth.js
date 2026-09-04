@@ -1243,12 +1243,16 @@ async function pushAllToCloud() {
           created_by: _currentUser.id
         });
 
-        // Push line items for this quote
-        if (q.items && q.items.length > 0) {
-          await _sb.from('quote_line_items').delete().eq('quote_id', qId);
+        // Push line items ATOMICALLY (SF-1). The old code did a loose
+        // delete-then-insert with no error checks: a failed insert left the quote
+        // with NO line items in the cloud — pricing silently wiped. replace_quote_line_items
+        // does both in one transaction, so a failed insert rolls back the delete and
+        // the quote keeps its existing pricing. Guard on Array.isArray (not length>0) so
+        // that emptying a quote's items actually clears them in the cloud too — the old
+        // length>0 guard left stale line items behind when the last item was removed.
+        if (Array.isArray(q.items)) {
           var lineItems = q.items.map(function(item, idx) {
             return {
-              quote_id: qId,
               sort_order: idx,
               description: item.desc || '',
               category: item.cat || null,
@@ -1258,8 +1262,13 @@ async function pushAllToCloud() {
               labor_hours: item.lh || 0
             };
           });
-          if (lineItems.length > 0) {
-            await _sb.from('quote_line_items').insert(lineItems);
+          var _rli = await _sb.rpc('replace_quote_line_items', { p_quote_id: qId, p_items: lineItems });
+          if (_rli && _rli.error) {
+            // Do NOT swallow — the quote's pricing is at stake. Surface it so the sync
+            // reports a problem instead of a false "Saved". The transaction rolled back,
+            // so the previously-stored line items are intact.
+            console.warn('[Push] Quote line items error for', q.num, _rli.error.message);
+            errors.push('quote '+(q.num || qId)+' line items: '+_rli.error.message);
           }
         }
       } catch(qErr) {
