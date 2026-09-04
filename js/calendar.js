@@ -406,14 +406,19 @@ function openRecordPayment(invId) {
   openModal('modal-record-payment');
 }
 
-function savePaymentRecord() {
+async function savePaymentRecord() {
+  // AZ-2: only billing-capable roles may record a payment (also enforced at the DB).
+  var _role = _currentUser && _currentUser.role;
+  if (['owner','manager','back_office'].indexOf(_role) < 0) {
+    showToast('You are not permitted to record payments.', 'error', 5000);
+    return;
+  }
   var invId  = (document.getElementById('rp-invoice-id')||{}).value;
   var amount = parseFloat((document.getElementById('rp-amount')||{}).value)||0;
   var date   = (document.getElementById('rp-date')||{}).value;
   if (!invId || !amount || !date) { showToast('Amount and date are required','error'); return; }
   var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
   if (!inv) return;
-  if (!DB.invoicePayments) DB.invoicePayments = [];
   var payment = {
     id:            'pmt-' + Date.now(),
     invoiceId:     invId,
@@ -426,8 +431,30 @@ function savePaymentRecord() {
     paymentDate:   date,
     createdAt:     new Date().toISOString()
   };
+  // SF-2: persist to the cloud FIRST and confirm it. Previously the invoice was marked
+  // paid and the "paid ✓" toast shown BEFORE this insert, so a failed/blocked write left
+  // the balance still owing to everyone else while this user believed it was paid.
+  if (_sb && _currentUser) {
+    var r = await _sb.from('invoice_payments').insert({
+      id:             payment.id,
+      invoice_id:     invId,
+      amount:         amount,
+      payment_method: payment.paymentMethod,
+      reference:      payment.reference || null,
+      notes:          payment.notes || null,
+      recorded_by:    payment.recordedBy,
+      recorder_name:  payment.recorderName,
+      payment_date:   date
+    });
+    if (r && r.error) {
+      console.warn('[Payments] insert error:', r.error.message);
+      showToast('Could not record payment: ' + r.error.message, 'error', 7000);
+      return; // do NOT mark the invoice paid on a failed write
+    }
+  }
+  // Confirmed in the cloud (or offline) — now update local state.
+  if (!DB.invoicePayments) DB.invoicePayments = [];
   DB.invoicePayments.push(payment);
-  // Check if fully paid
   var allPayments = DB.invoicePayments.filter(function(p){ return p.invoiceId===invId; });
   var totalPaid   = allPayments.reduce(function(s,p){ return s+parseFloat(p.amount||0); }, 0);
   if (totalPaid >= (inv.total||0)) {
@@ -440,20 +467,6 @@ function savePaymentRecord() {
     inv.status = 'partial';
     var remaining = (inv.total||0) - totalPaid;
     showToast('Payment of $'+amount.toLocaleString('en-US',{minimumFractionDigits:2})+' recorded. Balance: $'+remaining.toLocaleString('en-US',{minimumFractionDigits:2}), 'success', 5000);
-  }
-  // Push to Supabase
-  if (_sb && _currentUser) {
-    _sb.from('invoice_payments').insert({
-      id:             payment.id,
-      invoice_id:     invId,
-      amount:         amount,
-      payment_method: payment.paymentMethod,
-      reference:      payment.reference || null,
-      notes:          payment.notes || null,
-      recorded_by:    payment.recordedBy,
-      recorder_name:  payment.recorderName,
-      payment_date:   date
-    }).then(function(r){ if (r.error) console.warn('[Payments] Push error:', r.error.message); });
   }
   saveDB();
   closeModal('modal-record-payment');

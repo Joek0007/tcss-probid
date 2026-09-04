@@ -1053,7 +1053,7 @@ async function pushAllToCloud() {
       // recoverable). The RPC returns an error only on real failure/refusal, so a
       // clean return clears the tombstone; an error keeps it for the next retry.
       for (var qDel of dq) { var _rq = await _sb.rpc('soft_delete_quote', { p_id: qDel }); if (_rq && _rq.error) keepQ.push(qDel); }
-      for (var tDel of dt)   { var _rt  = await _sb.from('team').delete().eq('id', tDel).select('id');      if (_delFailed(_rt))  keepT.push(tDel); }
+      for (var tDel of dt)   { var _rt  = await _sb.rpc('soft_delete_team', { p_id: tDel }); if (_rt  && _rt.error)  keepT.push(tDel); }
       // Customers/contacts/jobs delete via their authorized soft-delete RPCs (role
       // check + audit + recoverable), NOT raw DELETE — same model as quotes. A clean
       // return clears the tombstone; an error keeps it for the next retry.

@@ -3763,18 +3763,30 @@ function _upsertTeamMember(data) {
   }
 }
 function delTeamMember(id){
-  if(!confirm('Remove team member?')) return;
+  // Removing a staff record is high-privilege: owner/manager only, enforced at the DB
+  // by soft_delete_team. This client check just keeps the UI honest.
+  var _role = _currentUser && _currentUser.role;
+  if (_role !== 'owner' && _role !== 'manager') {
+    showToast('Only an owner or manager can remove team members.', 'error', 5000);
+    return;
+  }
+  if(!confirm('Remove team member?\n\nThey are hidden and can be restored by an owner or manager.')) return;
   if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
+  if (!DB.deletedIds.team) DB.deletedIds.team = [];
   if (DB.deletedIds.team.indexOf(id) < 0) DB.deletedIds.team.push(id);
   DB.team = DB.team.filter(function(t){ return t.id != id; });
+  saveDB();
   if (window._syncTimer) { clearTimeout(window._syncTimer); window._syncTimer = null; }
   if (_sb && _currentUser) {
-    _sb.from('team').delete().eq('id', id).then(function(r){
-      if (r.error) console.warn('[Delete] Team:', r.error.message);
-      else { saveDB(); if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300); }
+    // Authorized soft-delete: role check + audit, recoverable. Was a raw hard DELETE
+    // that any signed-in user could invoke and the server confirmed.
+    _sb.rpc('soft_delete_team', { p_id: id }).then(function(r){
+      if (r && r.error) { console.warn('[Delete] soft_delete_team:', r.error.message); showToast('Cloud removal pending ('+r.error.message+') — will retry on next sync.', 'error', 6000); }
+      if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300);
     });
-  } else { saveDB(); }
+  }
   renderTeam();
+  showToast('Team member removed (recoverable)', 'info');
 }
 
 
