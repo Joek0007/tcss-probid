@@ -452,6 +452,7 @@ async function syncAllFromCloud(silent) {
   var delInv  = DB.deletedIds.inventory || [];
   var delWO   = DB.deletedIds.workOrders    || [];
   var delPO   = DB.deletedIds.purchaseOrders|| [];
+  var delTime = DB.deletedIds.timeEntries   || [];
 
   // Status map — Supabase Title Case → app lowercase
   var pullStatusMap = {
@@ -756,17 +757,31 @@ async function syncAllFromCloud(silent) {
 
     // 10. Time Entries
     try {
-      var { data: timeRows, error: tre } = await _sb.from('time_entries').select('*').order('clock_in', { ascending: false });
+      var { data: timeRows, error: tre } = await _sb.from('time_entries').select('*').order('created_at', { ascending: false });
       if (tre) { errors.push('time_entries: '+tre.message); }
       else if (timeRows) {
         var cloudTimeIds = new Set(timeRows.map(function(t){ return String(t.id); }));
         var localOnlyTime = (DB.timeEntries||[]).filter(function(t){ return t.id && !cloudTimeIds.has(String(t.id)); });
         DB.timeEntries = timeRows.map(function(t){
           return {
-            id: t.id, userId: t.user_id, teamMemberId: t.team_member_id,
-            jobId: t.job_id, clockIn: t.clock_in, clockOut: t.clock_out,
-            breakMinutes: t.break_minutes||0, totalHours: t.total_hours,
-            entryType: t.entry_type||'regular', notes: t.notes,
+            id: t.id,
+            // manual timesheet model
+            techName: t.tech_name || null, date: t.entry_date || null,
+            entryType: t.entry_type || 'regular',
+            startTime: t.start_time || null, endTime: t.end_time || null,
+            totalHours: t.total_hours, totalMins: t.total_mins,
+            isPaid: t.is_paid, woId: t.wo_id || null, jobId: t.job_id || null,
+            woLabel: t.wo_label || null, notes: t.notes, gpsReason: t.gps_reason || null,
+            isManual: !!t.is_manual, addedBy: t.added_by || null, addedAt: t.added_at || null,
+            lastEditedBy: t.last_edited_by || null, lastEditedAt: t.last_edited_at || null,
+            auditTrail: Array.isArray(t.audit_trail) ? t.audit_trail : (function(){ try { return JSON.parse(t.audit_trail||'[]'); } catch(e){ return []; } })(),
+            // soft-delete — carried so payroll's !e.deleted filters actually work.
+            // A tombstoned id is forced deleted even if a stale cloud row still says false.
+            deleted: (t.deleted === true) || (delTime.indexOf(String(t.id)) >= 0),
+            deletedBy: t.deleted_by || null, deletedAt: t.deleted_at || null,
+            // clock-based model
+            userId: t.user_id, teamMemberId: t.team_member_id,
+            clockIn: t.clock_in, clockOut: t.clock_out, breakMinutes: t.break_minutes||0,
             gpsLat: t.gps_lat, gpsLng: t.gps_lng,
             isApproved: !!t.is_approved, approvedBy: t.approved_by,
             createdAt: t.created_at
@@ -1112,9 +1127,23 @@ async function pushAllToCloud() {
         try { await _sb.from('po_line_items').delete().eq('po_id',_ip); } catch(e) {}
         var _r5 = await _sb.from('purchase_orders').delete().eq('id',_ip).select('id'); if (_delFailed(_r5)) keepPO.push(_ip);
       }
+      // Time entries soft-delete (deleted=true). UPDATE, so it re-matches on every retry
+      // and clears the tombstone once the flag is confirmed persisted. Payroll-sensitive:
+      // the tombstone keeps a deleted entry deleted through a pull until the flag reaches
+      // the cloud, so deleted hours can't re-inflate pay.
+      var dte = DB.deletedIds.timeEntries||[]; var keepTE=[];
+      for (var _ite of dte) {
+        var _le = (DB.timeEntries||[]).find(function(x){ return String(x.id)===String(_ite); });
+        var _r6 = await _sb.from('time_entries').update({
+          deleted:true,
+          deleted_by: (_le && _le.deletedBy) || (_currentUser ? _currentUser.full_name : null),
+          deleted_at: (_le && _le.deletedAt) || new Date().toISOString()
+        }).eq('id',_ite).select('id');
+        if (_delFailed(_r6)) keepTE.push(_ite);
+      }
       // Only confirmed cloud deletes (a row actually came back from .select) clear the
       // tombstone; blocked/no-op deletes stay tombstoned so the row never resurrects.
-      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO};
+      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO, timeEntries:keepTE};
       try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
     }
     // Push settings to company_settings (single row, id=1)
@@ -1433,26 +1462,14 @@ async function pushAllToCloud() {
       }
     }
 
-    // Push time entries
+    // Push time entries — one shared row mapper (_timeEntryToRow) with the manual
+    // push, so both write the identical full column set including the deleted flag.
     for (var te of (DB.timeEntries || [])) {
       if (!te || !te.id) continue;
       try {
-        var { error: teErr } = await _sb.from('time_entries').upsert({
-          id:             te.id,
-          user_id:        te.userId || _currentUser.id,
-          team_member_id: te.teamMemberId || null,
-          job_id:         te.jobId || null,
-          clock_in:       te.clockIn || null,
-          clock_out:      te.clockOut || null,
-          break_minutes:  te.breakMinutes || 0,
-          total_hours:    te.totalHours || null,
-          entry_type:     te.entryType || 'regular',
-          notes:          te.notes || null,
-          gps_lat:        te.gpsLat || null,
-          gps_lng:        te.gpsLng || null,
-          is_approved:    !!te.isApproved,
-          approved_by:    te.approvedBy || null
-        });
+        var teRow = (typeof _timeEntryToRow === 'function') ? _timeEntryToRow(te) : null;
+        if (!teRow) continue;
+        var { error: teErr } = await _sb.from('time_entries').upsert(teRow, {onConflict:'id'});
         if (teErr) console.warn('[Push] Time entry error:', teErr.message);
       } catch(teCatch) { console.warn('[Push] Time entry error:', teCatch.message||teCatch); }
     }

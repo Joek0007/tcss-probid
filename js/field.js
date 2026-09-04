@@ -1109,34 +1109,77 @@ function deleteTimeEntry() {
     entry.deletedBy = adder;
     entry.deletedAt = now;
   }
+  // Tombstone so an unconfirmed cloud soft-delete (offline, or a failed write)
+  // can't be un-deleted by a stale cloud row on the next pull — the pull forces
+  // deleted=true for any tombstoned id until the delete is confirmed. pushAllToCloud
+  // persists the flag (UPDATE, so it re-matches every retry) and clears the tombstone.
+  if(!DB.deletedIds)DB.deletedIds={};
+  if(!DB.deletedIds.timeEntries)DB.deletedIds.timeEntries=[];
+  if(DB.deletedIds.timeEntries.indexOf(editId)<0)DB.deletedIds.timeEntries.push(editId);
   saveDB();
-  if (_sb) _sb.from('time_entries').update({deleted:true, deleted_by:adder, deleted_at:now}).eq('id',editId).then(function(){});
+  if (_sb && _currentUser) {
+    _sb.from('time_entries').update({deleted:true, deleted_by:adder, deleted_at:now}).eq('id',editId).select('id').then(function(r){
+      if(r&&r.error)console.warn('[Delete] time_entry:',r.error.message);
+      if(typeof pushAllToCloud==='function')setTimeout(pushAllToCloud,300);
+    });
+  }
   closeModal('modal-time-entry');
+  if (entry) _rebuildDaySummary(entry.techName, entry.date); // recompute payroll day totals without the deleted entry
   loadTimesheets();
   showToast('Entry deleted','info');
+}
+
+// Single source of truth for the time_entries row shape. Carries BOTH the manual
+// timesheet model (tech_name/entry_date/start_time/... + deleted flag) AND the
+// clock-based columns, so an entry of either kind round-trips without losing
+// fields. Every column here exists after migration 2026-09-04_09. Used by the
+// per-entry push below AND by pushAllToCloud's bulk push so the two can never
+// disagree (they used to write different, partly-nonexistent column sets).
+function _timeEntryToRow(e) {
+  return {
+    id:             e.id,
+    // manual timesheet model
+    tech_name:      e.techName || null,
+    entry_date:     e.date || null,
+    entry_type:     e.entryType || 'regular',
+    start_time:     e.startTime || null,
+    end_time:       e.endTime || null,
+    total_hours:    (e.totalHours !== undefined && e.totalHours !== null) ? e.totalHours : null,
+    total_mins:     (e.totalMins  !== undefined && e.totalMins  !== null) ? e.totalMins  : null,
+    is_paid:        (e.isPaid !== undefined) ? !!e.isPaid : null,
+    wo_id:          e.woId || null,
+    job_id:         e.jobId || null,
+    wo_label:       e.woLabel || null,
+    notes:          e.notes || null,
+    gps_reason:     e.gpsReason || null,
+    is_manual:      (e.isManual !== undefined) ? !!e.isManual : true,
+    added_by:       e.addedBy || (_currentUser ? _currentUser.full_name : null),
+    added_at:       e.addedAt || null,
+    last_edited_by: e.lastEditedBy || null,
+    last_edited_at: e.lastEditedAt || null,
+    audit_trail:    e.auditTrail || [],
+    // soft-delete
+    deleted:        !!e.deleted,
+    deleted_by:     e.deletedBy || null,
+    deleted_at:     e.deletedAt || null,
+    // clock-based model (preserved for clock entries; null for manual)
+    user_id:        e.userId || (_currentUser ? _currentUser.id : null),
+    team_member_id: e.teamMemberId || null,
+    clock_in:       e.clockIn || null,
+    clock_out:      e.clockOut || null,
+    break_minutes:  e.breakMinutes || 0,
+    gps_lat:        e.gpsLat || null,
+    gps_lng:        e.gpsLng || null,
+    is_approved:    !!e.isApproved,
+    approved_by:    e.approvedBy || null
+  };
 }
 
 async function _pushTimeEntryToSupabase(entry) {
   if (!_sb || !_currentUser || !entry) return;
   try {
-    await _sb.from('time_entries').upsert({
-      id:            entry.id,
-      tech_name:     entry.techName,
-      entry_date:    entry.date,
-      entry_type:    entry.entryType,
-      start_time:    entry.startTime,
-      end_time:      entry.endTime,
-      total_hours:   entry.totalHours,
-      is_paid:       entry.isPaid,
-      wo_id:         entry.woId||null,
-      job_id:        entry.jobId||null,
-      wo_label:      entry.woLabel||null,
-      notes:         entry.notes||null,
-      gps_reason:    entry.gpsReason||null,
-      is_manual:     true,
-      added_by:      entry.addedBy||_currentUser.full_name,
-      audit_trail:   JSON.stringify(entry.auditTrail||[])
-    },{onConflict:'id'});
+    var r = await _sb.from('time_entries').upsert(_timeEntryToRow(entry), {onConflict:'id'}).select('id');
+    if (r && r.error) console.warn('[TimeEntry push]', r.error.message);
   } catch(e) { console.warn('[TimeEntry push]', e.message); }
 }
 

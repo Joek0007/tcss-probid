@@ -1034,7 +1034,8 @@ async function calcLogCompletionRate(techName, startDate, endDate) {
 
   // Also check clock sessions for days not in workDays yet
   var clockDays = (DB.timeEntries||[]).filter(function(e){
-    return e.techName === techName &&
+    return !e.deleted &&
+           e.techName === techName &&
            e.date >= startDate &&
            (!endDate || e.date <= endDate) &&
            e.entryType === 'day_end';
