@@ -74,10 +74,7 @@ async function renderRecycleBin(){
     }
 
     var html = ''
-      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
-      + '<div style="color:#607d8b;font-size:13px">'+total+' deleted record'+(total===1?'':'s')+'. Restoring returns a record to the app for everyone.</div>'
-      + '<button class="btn btn-outline btn-sm" onclick="renderRecycleBin()">⟳ Refresh</button>'
-      + '</div>';
+      + '<div style="color:#607d8b;font-size:13px;margin-bottom:14px">'+total+' deleted record'+(total===1?'':'s')+'. Restoring returns a record to the app for everyone.</div>';
 
     html += section('Quotes','💰','quote', quotes,
       ['Quote #','Customer','Job','Total','Deleted','By'],

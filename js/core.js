@@ -774,7 +774,7 @@ function goPage(id) {
   if (id==='vendors')    { if (typeof renderVendors === 'function') renderVendors(); }
   if (id==='scanner')    { if (typeof renderScannerPage === 'function') renderScannerPage(); }
   if (id==='dash')       { if (typeof renderDashReorderAlert === 'function') setTimeout(renderDashReorderAlert, 200); }
-  if (id==='auditlog')   { if (typeof renderAuditLog === 'function') setTimeout(renderAuditLog, 100); }
+  if (id==='auditlog')   { if (typeof loadAuditLogFromCloud === 'function') setTimeout(loadAuditLogFromCloud, 100); else if (typeof renderAuditLog === 'function') setTimeout(renderAuditLog, 100); }
   if (id==='recyclebin') { if (typeof renderRecycleBin === 'function') setTimeout(renderRecycleBin, 100); }
   if (id==='catalog')    { _pumActive=false; renderCatalog(); }
   else if (id==='templates') renderTemplates();
@@ -1643,6 +1643,30 @@ function auditPermChange(roleId, permKey, oldVal, newVal) {
 // AUDIT LOG RENDER
 // ============================================================
 
+// Pull the latest audit_log from the cloud, then render. Ensures the page reflects
+// events (like a delete that just happened) without waiting for the next full sync.
+// Falls back to whatever is local if the fetch fails (offline).
+async function loadAuditLogFromCloud() {
+  var el = document.getElementById('audit-log-content');
+  if (el && !(DB.auditLog && DB.auditLog.length)) {
+    el.innerHTML = '<div class="card" style="text-align:center;padding:40px;color:#90a4ae">Loading audit history…</div>';
+  }
+  try {
+    if (_sb && _currentUser) {
+      var { data: rows } = await _sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(500);
+      if (rows) {
+        DB.auditLog = rows.map(function(a){ return {
+          id:a.id, event:a.event, recordType:a.record_type, recordId:a.record_id,
+          actorId:a.actor_id, actorName:a.actor_name, actorRole:a.actor_role,
+          oldValue:a.old_value, newValue:a.new_value, note:a.note,
+          ts:a.created_at || '', viewAsMode:a.view_as_mode, realActorName:a.real_actor
+        }; });
+      }
+    }
+  } catch(e) { /* offline or transient — render whatever we have locally */ }
+  renderAuditLog();
+}
+
 function renderAuditLog() {
   var el = document.getElementById('audit-log-content');
   if (!el) return;
@@ -1697,11 +1721,13 @@ function renderAuditLog() {
 
   var typeColors = {
     work_order:'#e3f2fd', time_entry:'#e8f5e9', settings:'#f3e5f5',
-    quote:'#fff3e0', invoice:'#fce4ec', purchase_order:'#fff8e1', inventory:'#e0f2f1'
+    quote:'#fff3e0', invoice:'#fce4ec', purchase_order:'#fff8e1', inventory:'#e0f2f1',
+    customer:'#e8eaf6', contact:'#e0f7fa', job:'#fbe9e7'
   };
   var typeIcons = {
     work_order:'🔨', time_entry:'⏱', settings:'⚙️',
-    quote:'💰', invoice:'📄', purchase_order:'📦', inventory:'🏪'
+    quote:'💰', invoice:'📄', purchase_order:'📦', inventory:'🏪',
+    customer:'🏢', contact:'👤', job:'🧰'
   };
 
   var html = '<div class="card" style="padding:0;overflow:hidden">'+
