@@ -5873,15 +5873,20 @@ async function flushOfflineQueue() {
   else showToast(failed.length+' events failed to sync — will retry', 'warning', 4000);
 }
 
-// Override logTimeEvent to queue when offline
+// Override logTimeEvent to queue when offline.
+// NOTE: this MUST be a capture-then-ASSIGN, not a `function logTimeEvent(){}`
+// declaration. A declaration hoists to the top of this module and overwrites
+// field.js's real logTimeEvent BEFORE the line below runs, so `_origLogTimeEvent`
+// would capture this wrapper itself -> infinite recursion on every online event.
+// The assignment form captures field.js's version first, then replaces the global.
 var _origLogTimeEvent = logTimeEvent;
-async function logTimeEvent(type,lat,lng,acc,note){
+logTimeEvent = async function(type,lat,lng,acc,note){
   if (!_isOnline) {
     queueOfflineEvent({type:type,lat:lat,lng:lng,accuracy:acc,note:note,jobId:_clockState.jobId,jobName:_clockState.jobName,timestamp:new Date().toISOString()});
     return;
   }
   return _origLogTimeEvent(type,lat,lng,acc,note);
-}
+};
 
 // ============================================================
 // CLOCK-IN REMINDER

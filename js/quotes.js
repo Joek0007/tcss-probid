@@ -300,16 +300,10 @@ function qqGetVal(id){ var el=document.getElementById(id); return el ? el.value 
 function qqSetVal(id,val){ var el=document.getElementById(id); if(el) el.value = val==null ? '' : val; }
 
 // Return the full list of QQ form field IDs — used by draft save/restore and clearQQ
-function qqFieldIds() {
-  return [
-    'qq-id','qq-num','qq-cn','qq-jn','qq-em','qq-ph','qq-dt','qq-vu',
-    'qq-jt','qq-env','qq-status','qq-rep','qq-pt','qq-tc','qq-notes-hidden',
-    'qq-int','qq-followup','qq-labor-rate','qq-tax-rate',
-    'qq-discount','qq-margin','qq-customer-id','qq-contact-id',
-    'qq-contact-name','qq-ad','qq-city','qq-state','qq-zip',
-    'qq-ad' // legacy address field
-  ];
-}
+// qqFieldIds is defined canonically in reports.js (loaded after this file, so it wins).
+// The former copy here had drifted to stale field names (qq-labor-rate/qq-tax-rate/
+// qq-discount/qq-margin/qq-notes-hidden) that no longer exist in the DOM. Removed to keep
+// a single source of truth — see reports.js:qqFieldIds().
 
 // Reset the Quick Quote form to a completely blank state.
 // This was called in multiple places (auth.js, worktracking.js, quotes.js) but
