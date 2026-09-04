@@ -447,6 +447,9 @@ async function syncAllFromCloud(silent) {
   var delC   = DB.deletedIds.customers|| [];
   var delCt  = DB.deletedIds.contacts || [];
   var delJ   = DB.deletedIds.jobs     || [];
+  var delCat  = DB.deletedIds.catalog   || [];
+  var delTmpl = DB.deletedIds.templates || [];
+  var delInv  = DB.deletedIds.inventory || [];
 
   // Status map — Supabase Title Case → app lowercase
   var pullStatusMap = {
@@ -612,7 +615,7 @@ async function syncAllFromCloud(silent) {
       var { data: cat, error: cate } = await _sb.from('catalog').select('*').eq('is_active', true).order('name');
       if (cate) { errors.push('catalog: '+cate.message); }
       else if (cat && cat.length) {
-        DB.catalog = cat.map(function(item) {
+        DB.catalog = cat.filter(function(item){ return delCat.indexOf(String(item.id)) < 0; }).map(function(item) {
           return { id:item.id, name:item.name, desc:item.description, cat:item.category, unit:item.unit, cost:item.default_cost, hours:item.default_hours, notes:item.notes, active:item.is_active };
         });
       }
@@ -623,7 +626,7 @@ async function syncAllFromCloud(silent) {
       var { data: tmpl, error: te } = await _sb.from('templates').select('*').eq('is_active', true).order('name');
       if (te) { errors.push('templates: '+te.message); }
       else if (tmpl && tmpl.length) {
-        DB.templates = tmpl.map(function(t) {
+        DB.templates = tmpl.filter(function(t){ return delTmpl.indexOf(String(t.id)) < 0; }).map(function(t) {
           return { id:t.id, name:t.name, cat:t.category, desc:t.description, items:t.items||[], active:t.is_active };
         });
       }
@@ -866,7 +869,10 @@ async function syncAllFromCloud(silent) {
       var { data: invRows, error: inve } = await _sb.from('inventory').select('*').order('name');
       if (inve) { errors.push('inventory: '+inve.message); }
       else if (invRows) {
-        DB.inventory = invRows.map(function(i){
+        // Exclude soft-deleted (is_active===false). NULL-safe: existing rows may have
+        // is_active NULL (column predates the flag), so treat NULL/true as active — a
+        // strict .eq('is_active',true) would have hidden all legacy inventory.
+        DB.inventory = invRows.filter(function(i){ return i.is_active !== false && delInv.indexOf(String(i.id)) < 0; }).map(function(i){
           return {
             id:         i.id,
             name:       i.name,
@@ -1060,9 +1066,16 @@ async function pushAllToCloud() {
       for (var cDel of dc)   { var _rc  = await _sb.rpc('soft_delete_customer', { p_id: cDel }); if (_rc  && _rc.error)  keepC.push(cDel); }
       for (var ctDel of dct) { var _rct = await _sb.rpc('soft_delete_contact',  { p_id: ctDel }); if (_rct && _rct.error) keepCt.push(ctDel); }
       for (var jDel of dj)   { var _rj  = await _sb.rpc('soft_delete_job',       { p_id: jDel }); if (_rj  && _rj.error)  keepJ.push(jDel); }
+      // catalog/templates/inventory soft-delete via an is_active flag (not an RPC). Retry
+      // the flag flip; keep the tombstone only if the update actually errored.
+      var dcat = DB.deletedIds.catalog||[], dtmpl = DB.deletedIds.templates||[], dinv = DB.deletedIds.inventory||[];
+      var keepCat=[], keepTmpl=[], keepInv=[];
+      for (var _ic of dcat)  { var _r1 = await _sb.from('catalog').update({is_active:false}).eq('id',_ic).select('id');   if (_r1 && _r1.error) keepCat.push(_ic); }
+      for (var _it of dtmpl) { var _r2 = await _sb.from('templates').update({is_active:false}).eq('id',_it).select('id'); if (_r2 && _r2.error) keepTmpl.push(_it); }
+      for (var _ii of dinv)  { var _r3 = await _sb.from('inventory').update({is_active:false}).eq('id',_ii).select('id'); if (_r3 && _r3.error) keepInv.push(_ii); }
       // Only confirmed cloud deletes (a row actually came back from .select) clear the
       // tombstone; blocked/no-op deletes stay tombstoned so the row never resurrects.
-      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ};
+      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv};
       try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
     }
     // Push settings to company_settings (single row, id=1)
@@ -1314,7 +1327,7 @@ async function pushAllToCloud() {
           category: t.cat || null,
           description: t.desc || null,
           items: t.items || [],
-          is_active: true,
+          is_active: t.active !== false,   // was hardcoded true, which un-deleted templates
           created_by: _currentUser.id
         });
       } catch(tErr) {

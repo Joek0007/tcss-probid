@@ -3891,7 +3891,17 @@ function addCatToQQ(id) {
 function newCatalogItem(){document.getElementById('cat-modal-title').textContent='New Catalog Item';['m-caname','m-cacat','m-caunit','m-canotes','m-caid'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});const mc=document.getElementById('m-camc');if(mc)mc.value=0;const lh=document.getElementById('m-calh');if(lh)lh.value=0;openModal('modal-catalog-item');}
 function editCatalogItem(id){const item=DB.catalog.find(function(x){return x.id==id});if(!item)return;document.getElementById('cat-modal-title').textContent='Edit Item';function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v!==undefined?v:'';}sv('m-caname',item.name);sv('m-cacat',item.cat);sv('m-caunit',item.unit);sv('m-camc',item.mc||0);sv('m-calh',item.lh||0);sv('m-canotes',item.notes);sv('m-caid',item.id);openModal('modal-catalog-item');}
 function saveCatalogItem(){const id=document.getElementById('m-caid').value;const name=document.getElementById('m-caname').value;if(!name.trim()){showToast('Name required.','error'); return;}const data={id:id||Date.now().toString(),name,cat:document.getElementById('m-cacat').value||'General',unit:document.getElementById('m-caunit').value||'ea',mc:parseFloat(document.getElementById('m-camc').value)||0,lh:parseFloat(document.getElementById('m-calh').value)||0,notes:document.getElementById('m-canotes').value};if(id){const idx=DB.catalog.findIndex(function(i){return i.id==id});if(idx>=0)DB.catalog[idx]=data;else DB.catalog.push(data);}else DB.catalog.push(data);saveDB();closeModal('modal-catalog-item');renderCatalog();}
-function delCatalogItem(id){if(!confirm('Delete catalog item?'))return;DB.catalog=DB.catalog.filter(function(i){return i.id!=id});saveDB();renderCatalog();}
+function delCatalogItem(id){
+  if(!confirm('Delete catalog item?'))return;
+  DB.catalog=DB.catalog.filter(function(i){return i.id!=id});
+  if(!DB.deletedIds)DB.deletedIds={};
+  if(!DB.deletedIds.catalog)DB.deletedIds.catalog=[];
+  if(DB.deletedIds.catalog.indexOf(id)<0)DB.deletedIds.catalog.push(id);
+  saveDB();
+  // Soft-delete in the cloud (is_active=false) so it doesn't resurrect on the next pull.
+  if(_sb&&_currentUser){ _sb.from('catalog').update({is_active:false}).eq('id',id).then(function(r){ if(r&&r.error)console.warn('[Delete] catalog:',r.error.message); if(typeof pushAllToCloud==='function')setTimeout(pushAllToCloud,300); }); }
+  renderCatalog();
+}
 
 // ---- CATALOG PICKER MODAL ----
 function openCatalog() {
@@ -4553,7 +4563,17 @@ function saveTemplate(){
   if(id){const idx=DB.templates.findIndex(function(t){return t.id==id});if(idx>=0)DB.templates[idx]=data;else DB.templates.push(data);}else DB.templates.push(data);
   saveDB();closeModal('modal-template');renderTemplates();renderTplLibrary();
 }
-function delTemplate(id){if(!confirm('Delete this template?'))return;DB.templates=DB.templates.filter(function(t){return t.id!=id});saveDB();if(_tmgmtActiveId===id)_tmgmtActiveId=null;renderTemplates();renderTplLibrary();}
+function delTemplate(id){
+  if(!confirm('Delete this template?'))return;
+  DB.templates=DB.templates.filter(function(t){return t.id!=id});
+  if(!DB.deletedIds)DB.deletedIds={};
+  if(!DB.deletedIds.templates)DB.deletedIds.templates=[];
+  if(DB.deletedIds.templates.indexOf(id)<0)DB.deletedIds.templates.push(id);
+  if(_tmgmtActiveId===id)_tmgmtActiveId=null;
+  saveDB();
+  if(_sb&&_currentUser){ _sb.from('templates').update({is_active:false}).eq('id',id).then(function(r){ if(r&&r.error)console.warn('[Delete] template:',r.error.message); if(typeof pushAllToCloud==='function')setTimeout(pushAllToCloud,300); }); }
+  renderTemplates();renderTplLibrary();
+}
 
 // ---- REPORTS ----
 // =============================================
@@ -5394,7 +5414,11 @@ function saveInventoryItem() {
 function delInventoryItem(id) {
   if (!confirm('Delete this inventory item? Checkout history will be preserved.')) return;
   DB.inventory = DB.inventory.filter(function(i){ return i.id!=id; });
+  if(!DB.deletedIds)DB.deletedIds={};
+  if(!DB.deletedIds.inventory)DB.deletedIds.inventory=[];
+  if(DB.deletedIds.inventory.indexOf(id)<0)DB.deletedIds.inventory.push(id);
   saveDB();
+  if(_sb&&_currentUser){ _sb.from('inventory').update({is_active:false}).eq('id',id).then(function(r){ if(r&&r.error)console.warn('[Delete] inventory:',r.error.message); if(typeof pushAllToCloud==='function')setTimeout(pushAllToCloud,300); }); }
   renderInventory();
 }
 
