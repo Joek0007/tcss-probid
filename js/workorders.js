@@ -884,19 +884,16 @@ function _triggerUrgentAlert(wo) {
 function deleteWorkOrder(id) {
   if (!confirm('Delete this work order? This cannot be undone.')) return;
   DB.workOrders = (DB.workOrders||[]).filter(function(w){ return w.id!==id; });
-  // Tombstone so a cloud delete that RLS silently blocks (no error, 0 rows) can't
-  // resurrect this WO on the next pull. pushAllToCloud clears it only once the cloud
-  // delete is confirmed. Same pattern as quotes/catalog/etc.
+  // Single-writer delete: only tombstone here, then hand off to pushAllToCloud, which
+  // is the ONE place that performs the cloud delete and clears the tombstone on a
+  // CONFIRMED delete (.select('id') returns the row). Doing the cloud delete here too
+  // would leave pushAllToCloud's retry finding 0 rows — indistinguishable from an
+  // RLS-blocked delete — so the tombstone could never clear and the list would grow.
   if(!DB.deletedIds)DB.deletedIds={};
   if(!DB.deletedIds.workOrders)DB.deletedIds.workOrders=[];
   if(DB.deletedIds.workOrders.indexOf(id)<0)DB.deletedIds.workOrders.push(id);
   saveDB();
-  if (_sb && _currentUser) {
-    _sb.from('work_orders').delete().eq('id',id).select('id').then(function(r){
-      if(r&&r.error)console.warn('[Delete] work_order:',r.error.message);
-      if(typeof pushAllToCloud==='function')setTimeout(pushAllToCloud,300);
-    });
-  }
+  if (_sb && _currentUser && typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
   renderWorkOrders();
   showToast('Work order deleted','info');
 }

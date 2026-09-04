@@ -524,20 +524,14 @@ async function _pushPOToCloud(po) {
 function deletePO(id) {
   if(!confirm('Delete this purchase order?')) return;
   DB.purchaseOrders=(DB.purchaseOrders||[]).filter(function(p){return p.id!==id;});
-  // Tombstone so an RLS-silently-blocked cloud delete can't resurrect this PO on pull.
+  // Single-writer delete: only tombstone here. pushAllToCloud performs the cloud delete
+  // (cascading po_line_items first, then the PO) and clears the tombstone on a confirmed
+  // delete. Deleting here too would leave the retry finding 0 rows and never clearing.
   if(!DB.deletedIds)DB.deletedIds={};
   if(!DB.deletedIds.purchaseOrders)DB.deletedIds.purchaseOrders=[];
   if(DB.deletedIds.purchaseOrders.indexOf(id)<0)DB.deletedIds.purchaseOrders.push(id);
   saveDB();
-  if(_sb&&_currentUser){
-    // Cascade line items first, then the PO — otherwise po_line_items are orphaned.
-    _sb.from('po_line_items').delete().eq('po_id',id).then(function(){
-      _sb.from('purchase_orders').delete().eq('id',id).select('id').then(function(r){
-        if(r&&r.error)console.warn('[Delete] purchase_order:',r.error.message);
-        if(typeof pushAllToCloud==='function')setTimeout(pushAllToCloud,300);
-      });
-    });
-  }
+  if(_sb&&_currentUser&&typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
   renderPOList();
   showToast('PO deleted','info');
 }
