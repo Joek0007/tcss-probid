@@ -4812,17 +4812,43 @@ async function wtEditBuilding(bldgId) {
   } catch(e) { showToast('Error: '+e.message,'error'); }
 }
 
+// Bounded cloud-cascade of checkoffs for a set of item ids (checkoffs only key on
+// item_id). Chunked so a big building can't build an over-long request URL.
+async function _wtDelCheckoffsForItems(itemIds) {
+  for (var i = 0; i < itemIds.length; i += 100) {
+    var chunk = itemIds.slice(i, i+100);
+    if (chunk.length) { try { await _sb.from('wt_checkoffs').delete().in('item_id', chunk); } catch(e) {} }
+  }
+}
+
+// Every wtDelete* below now (1) explicitly deletes ALL descendants in the cloud —
+// not just the top row — so children can't linger as orphans and reappear on the
+// next project load, and (2) guards the primary delete with .select('id'): a delete
+// that RLS silently blocks (no error, 0 rows) must NOT be reported as success and
+// must NOT remove local state, or the row resurrects on reload. On a blocked/failed
+// delete we reload from the cloud (the source of truth for this module) and warn.
 async function wtDeleteBuilding(bldgId) {
   var d = wtProjData();
   var b = (d.buildings||[]).find(function(x){ return x.id===bldgId; });
   if (!b) return;
   if (!confirm('Delete "'+b.name+'" and ALL its floors, rooms, and items? This cannot be undone.')) return;
   try {
-    await _sb.from('wt_buildings').delete().eq('id',bldgId);
+    // Cascade descendants first (all carry building_id except checkoffs, keyed by item_id).
+    var itemIds = (d.items||[]).filter(function(x){ return x.building_id===bldgId; }).map(function(x){ return x.id; });
+    await _wtDelCheckoffsForItems(itemIds);
+    await _sb.from('wt_items').delete().eq('building_id',bldgId);
+    await _sb.from('wt_rooms').delete().eq('building_id',bldgId);
+    await _sb.from('wt_floors').delete().eq('building_id',bldgId);
+    var res = await _sb.from('wt_buildings').delete().eq('id',bldgId).select('id');
+    if (res.error || !(res.data && res.data.length)) {
+      showToast('Building not deleted (no permission or already removed) — refreshing','error');
+      await wtLoadProjectData(WT.proj.id); wtNav('dashboard'); return;
+    }
     WT.data[WT.proj.id].buildings = d.buildings.filter(function(x){ return x.id!==bldgId; });
     WT.data[WT.proj.id].floors    = (d.floors||[]).filter(function(x){ return x.building_id!==bldgId; });
     WT.data[WT.proj.id].rooms     = (d.rooms||[]).filter(function(x){ return x.building_id!==bldgId; });
     WT.data[WT.proj.id].items     = (d.items||[]).filter(function(x){ return x.building_id!==bldgId; });
+    WT.data[WT.proj.id].checkoffs = (d.checkoffs||[]).filter(function(x){ return itemIds.indexOf(x.item_id) < 0; });
     wtNav('dashboard');
     showToast('Building deleted','info');
   } catch(e) { showToast('Error: '+e.message,'error'); }
@@ -4848,11 +4874,22 @@ async function wtDeleteFloor(floorId) {
   if (!f) return;
   if (!confirm('Delete "'+f.name+'" and all its rooms and items?')) return;
   try {
-    await _sb.from('wt_floors').delete().eq('id',floorId);
+    // Rooms carry floor_id; items carry room_id (not floor_id), so cascade items by their room ids.
+    var roomIds = (d.rooms||[]).filter(function(r){ return r.floor_id===floorId; }).map(function(r){ return r.id; });
+    var itemIds = (d.items||[]).filter(function(x){ return roomIds.indexOf(x.room_id) >= 0; }).map(function(x){ return x.id; });
+    await _wtDelCheckoffsForItems(itemIds);
+    for (var i=0;i<roomIds.length;i+=100){ var ch=roomIds.slice(i,i+100); if(ch.length) await _sb.from('wt_items').delete().in('room_id',ch); }
+    await _sb.from('wt_rooms').delete().eq('floor_id',floorId);
+    var res = await _sb.from('wt_floors').delete().eq('id',floorId).select('id');
+    if (res.error || !(res.data && res.data.length)) {
+      showToast('Floor not deleted (no permission or already removed) — refreshing','error');
+      await wtLoadProjectData(WT.proj.id); wtRenderBuildingView(); return;
+    }
+    var roomIdSet = new Set(roomIds);
     WT.data[WT.proj.id].floors = (d.floors||[]).filter(function(x){ return x.id!==floorId; });
     WT.data[WT.proj.id].rooms  = (d.rooms||[]).filter(function(x){ return x.floor_id!==floorId; });
-    var roomIds = new Set((d.rooms||[]).filter(function(r){ return r.floor_id===floorId; }).map(function(r){ return r.id; }));
-    WT.data[WT.proj.id].items  = (d.items||[]).filter(function(x){ return !roomIds.has(x.room_id); });
+    WT.data[WT.proj.id].items  = (d.items||[]).filter(function(x){ return !roomIdSet.has(x.room_id); });
+    WT.data[WT.proj.id].checkoffs = (d.checkoffs||[]).filter(function(x){ return itemIds.indexOf(x.item_id) < 0; });
     wtRenderBuildingView();
     showToast('Floor deleted','info');
   } catch(e) { showToast('Error: '+e.message,'error'); }
@@ -4878,9 +4915,17 @@ async function wtDeleteRoom(roomId) {
   var r = (d.rooms||[]).find(function(x){ return x.id===roomId; });
   if (!r || !confirm('Delete room "'+r.name+'" and all its items?')) return;
   try {
-    await _sb.from('wt_rooms').delete().eq('id',roomId);
+    var itemIds = (d.items||[]).filter(function(x){ return x.room_id===roomId; }).map(function(x){ return x.id; });
+    await _wtDelCheckoffsForItems(itemIds);
+    await _sb.from('wt_items').delete().eq('room_id',roomId);
+    var res = await _sb.from('wt_rooms').delete().eq('id',roomId).select('id');
+    if (res.error || !(res.data && res.data.length)) {
+      showToast('Room not deleted (no permission or already removed) — refreshing','error');
+      await wtLoadProjectData(WT.proj.id); wtRenderFloorView(); return;
+    }
     WT.data[WT.proj.id].rooms = (d.rooms||[]).filter(function(x){ return x.id!==roomId; });
     WT.data[WT.proj.id].items = (d.items||[]).filter(function(x){ return x.room_id!==roomId; });
+    WT.data[WT.proj.id].checkoffs = (d.checkoffs||[]).filter(function(x){ return itemIds.indexOf(x.item_id) < 0; });
     wtRenderFloorView();
     showToast('Room deleted','info');
   } catch(e) { showToast('Error: '+e.message,'error'); }
@@ -4905,7 +4950,12 @@ async function wtDeleteItem(itemId) {
   var item = (d.items||[]).find(function(x){ return x.id===itemId; });
   if (!item || !confirm('Delete item "'+item.name+'"?')) return;
   try {
-    await _sb.from('wt_items').delete().eq('id',itemId);
+    await _sb.from('wt_checkoffs').delete().eq('item_id',itemId);
+    var res = await _sb.from('wt_items').delete().eq('id',itemId).select('id');
+    if (res.error || !(res.data && res.data.length)) {
+      showToast('Item not deleted (no permission or already removed) — refreshing','error');
+      await wtLoadProjectData(WT.proj.id); wtRenderRoomView(); return;
+    }
     WT.data[WT.proj.id].items     = (d.items||[]).filter(function(x){ return x.id!==itemId; });
     WT.data[WT.proj.id].checkoffs = (d.checkoffs||[]).filter(function(x){ return x.item_id!==itemId; });
     wtRenderRoomView();
