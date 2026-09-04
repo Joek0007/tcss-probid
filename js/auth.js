@@ -450,6 +450,8 @@ async function syncAllFromCloud(silent) {
   var delCat  = DB.deletedIds.catalog   || [];
   var delTmpl = DB.deletedIds.templates || [];
   var delInv  = DB.deletedIds.inventory || [];
+  var delWO   = DB.deletedIds.workOrders    || [];
+  var delPO   = DB.deletedIds.purchaseOrders|| [];
 
   // Status map — Supabase Title Case → app lowercase
   var pullStatusMap = {
@@ -814,9 +816,24 @@ async function syncAllFromCloud(silent) {
       var { data: woRows, error: woe } = await _sb.from('work_orders').select('*').order('created_at', { ascending: false });
       if (woe) { errors.push('work_orders: '+woe.message); }
       else if (woRows) {
-        DB.workOrders = woRows.map(function(w){
-          return { id:w.id, woNumber:w.wo_number, customerId:w.customer_id, customerName:w.customer_name, contactId:w.contact_id, description:w.description, workPerformed:w.work_performed, status:w.status, serviceType:w.service_type, priority:w.priority, serviceRep:w.service_rep, refNum:w.reference_num, siteAddr:w.site_address, siteCity:w.site_city, siteState:w.site_state, siteZip:w.site_zip, laborRate:w.labor_rate, taxRate:w.tax_rate, dateRequested:w.date_requested, dateFollowup:w.date_followup, dateOpened:w.date_opened, dateClosed:w.date_closed, internalNotes:w.internal_notes, invoiceId:w.invoice_id, jobId:w.job_id, quoteId:w.quote_id, assignedTechs:w.assigned_techs||[], scheduledDate:w.scheduled_date||'', scheduledTime:w.scheduled_time||'', wtProjectId:w.wt_project_id||null, createdBy:w.created_by, createdByName:w.created_by_name, createdAt:w.created_at, updatedAt:w.updated_at };
+        // Suppress rows we deleted here whose cloud delete hasn't confirmed yet
+        // (RLS can silently block a DELETE — the tombstone keeps them hidden).
+        woRows = woRows.filter(function(w){ return delWO.indexOf(String(w.id)) < 0; });
+        var cloudWOIds = new Set(woRows.map(function(w){ return String(w.id); }));
+        // Same completeness guard as quotes/customers: only treat a synced-but-absent
+        // row as deleted-elsewhere when the pull is provably complete (non-empty, under
+        // the 1000-row cap). Otherwise keep it, so an empty/capped pull can't wipe data.
+        var woCloudComplete = woRows.length > 0 && woRows.length < 1000;
+        var localOnlyWOs = (DB.workOrders||[]).filter(function(w){ return w.id && !cloudWOIds.has(String(w.id)) && delWO.indexOf(String(w.id)) < 0 && !(w._synced && woCloudComplete); });
+        var cloudWOs = woRows.map(function(w){
+          return { id:w.id, woNumber:w.wo_number, customerId:w.customer_id, customerName:w.customer_name, contactId:w.contact_id, description:w.description, workPerformed:w.work_performed, status:w.status, serviceType:w.service_type, priority:w.priority, serviceRep:w.service_rep, refNum:w.reference_num, siteAddr:w.site_address, siteCity:w.site_city, siteState:w.site_state, siteZip:w.site_zip, laborRate:w.labor_rate, taxRate:w.tax_rate, dateRequested:w.date_requested, dateFollowup:w.date_followup, dateOpened:w.date_opened, dateClosed:w.date_closed, internalNotes:w.internal_notes, invoiceId:w.invoice_id, jobId:w.job_id, quoteId:w.quote_id, assignedTechs:w.assigned_techs||[], scheduledDate:w.scheduled_date||'', scheduledTime:w.scheduled_time||'', wtProjectId:w.wt_project_id||null, parentWoId:w.parent_wo_id||null, isChangeOrder:w.is_change_order||false, changeOrderReason:w.change_order_reason||null, createdBy:w.created_by, createdByName:w.created_by_name, createdAt:w.created_at, updatedAt:w.updated_at };
         });
+        cloudWOs.forEach(function(cw){ cw._synced = true; }); // mark as known-in-cloud
+        // Push any offline-created WOs so they land in the cloud (they were never synced).
+        if (localOnlyWOs.length > 0 && typeof _pushWOToCloud === 'function') {
+          localOnlyWOs.forEach(function(w){ try { _pushWOToCloud(w); } catch(e){} });
+        }
+        DB.workOrders = cloudWOs.concat(localOnlyWOs);
       }
     } catch(e) { errors.push('work_orders: '+e.message); }
 
@@ -953,7 +970,12 @@ async function syncAllFromCloud(silent) {
       var { data: poRows, error: poe } = await _sb.from('purchase_orders').select('*, po_line_items(*)').order('created_at', { ascending: false });
       if (poe) { errors.push('purchase_orders: '+poe.message); }
       else if (poRows) {
-        DB.purchaseOrders = poRows.map(function(p){
+        // Suppress tombstoned rows until their cloud delete confirms (RLS-silent-block guard).
+        poRows = poRows.filter(function(p){ return delPO.indexOf(String(p.id)) < 0; });
+        var cloudPOIds = new Set(poRows.map(function(p){ return String(p.id); }));
+        var poCloudComplete = poRows.length > 0 && poRows.length < 1000;
+        var localOnlyPOs = (DB.purchaseOrders||[]).filter(function(p){ return p.id && !cloudPOIds.has(String(p.id)) && delPO.indexOf(String(p.id)) < 0 && !(p._synced && poCloudComplete); });
+        var cloudPOs = poRows.map(function(p){
           return {
             id:p.id, poNumber:p.po_number, vendorId:p.vendor_id, vendorName:p.vendor_name,
             jobId:p.job_id, woId:p.wo_id, status:p.status, date:p.created_at?p.created_at.split('T')[0]:'',
@@ -968,6 +990,12 @@ async function syncAllFromCloud(silent) {
             })
           };
         });
+        cloudPOs.forEach(function(cp){ cp._synced = true; }); // mark as known-in-cloud
+        // Push any offline-created POs so they land in the cloud (never synced).
+        if (localOnlyPOs.length > 0 && typeof _pushPOToCloud === 'function') {
+          localOnlyPOs.forEach(function(p){ try { _pushPOToCloud(p); } catch(e){} });
+        }
+        DB.purchaseOrders = cloudPOs.concat(localOnlyPOs);
       }
     } catch(e) { errors.push('purchase_orders: '+e.message); }
 
@@ -1073,9 +1101,20 @@ async function pushAllToCloud() {
       for (var _ic of dcat)  { var _r1 = await _sb.from('catalog').update({is_active:false}).eq('id',_ic).select('id');   if (_r1 && _r1.error) keepCat.push(_ic); }
       for (var _it of dtmpl) { var _r2 = await _sb.from('templates').update({is_active:false}).eq('id',_it).select('id'); if (_r2 && _r2.error) keepTmpl.push(_it); }
       for (var _ii of dinv)  { var _r3 = await _sb.from('inventory').update({is_active:false}).eq('id',_ii).select('id'); if (_r3 && _r3.error) keepInv.push(_ii); }
+      // Work orders and purchase orders are HARD-delete tables (no soft-delete flag).
+      // Same RLS-silent-block guard: append .select('id') so a blocked delete (no error,
+      // 0 rows) keeps its tombstone instead of resurrecting the row on the next pull.
+      var dwo = DB.deletedIds.workOrders||[], dpo = DB.deletedIds.purchaseOrders||[];
+      var keepWO=[], keepPO=[];
+      for (var _iw of dwo) { var _r4 = await _sb.from('work_orders').delete().eq('id',_iw).select('id'); if (_delFailed(_r4)) keepWO.push(_iw); }
+      for (var _ip of dpo) {
+        // Cascade line items first so no orphan po_line_items rows are left behind.
+        try { await _sb.from('po_line_items').delete().eq('po_id',_ip); } catch(e) {}
+        var _r5 = await _sb.from('purchase_orders').delete().eq('id',_ip).select('id'); if (_delFailed(_r5)) keepPO.push(_ip);
+      }
       // Only confirmed cloud deletes (a row actually came back from .select) clear the
       // tombstone; blocked/no-op deletes stay tombstoned so the row never resurrects.
-      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv};
+      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO};
       try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
     }
     // Push settings to company_settings (single row, id=1)
