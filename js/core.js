@@ -1583,7 +1583,7 @@ function auditLog(event, recordType, recordId, details) {
 async function _pushAuditEntry(entry) {
   if (!_sb || !_currentUser) return;
   try {
-    await _sb.from('audit_log').insert({
+    await _sb.from('probid_audit').insert({
       id:           entry.id,
       event:        entry.event,
       record_type:  entry.recordType,
@@ -1653,7 +1653,7 @@ async function loadAuditLogFromCloud() {
   }
   try {
     if (_sb && _currentUser) {
-      var { data: rows } = await _sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(500);
+      var { data: rows } = await _sb.from('probid_audit').select('*').order('created_at', { ascending: false }).limit(500);
       if (rows) {
         DB.auditLog = rows.map(function(a){ return {
           id:a.id, event:a.event, recordType:a.record_type, recordId:a.record_id,

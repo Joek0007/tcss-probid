@@ -978,7 +978,7 @@ async function syncAllFromCloud(silent) {
 
   // Audit log — read recent history back so the view isn't empty after a reload.
   try {
-    var { data: auditRows } = await _sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(500);
+    var { data: auditRows } = await _sb.from('probid_audit').select('*').order('created_at', { ascending: false }).limit(500);
     if (auditRows) {
       DB.auditLog = auditRows.map(function(a){ return {
         id:a.id, event:a.event, recordType:a.record_type, recordId:a.record_id,
@@ -987,7 +987,7 @@ async function syncAllFromCloud(silent) {
         ts:a.created_at || '', viewAsMode:a.view_as_mode, realActorName:a.real_actor
       }; });
     }
-  } catch(e) { errors.push('audit_log: '+e.message); }
+  } catch(e) { errors.push('audit: '+e.message); }
 
   // Save to localStorage only — do NOT call saveDB() here as it would schedule a push
   // We just pulled from Supabase so there's nothing to push back
