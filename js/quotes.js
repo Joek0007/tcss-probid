@@ -678,6 +678,7 @@ function wrapQQStage3Mutations(){
 // This was missing and is why Save Quote was silently broken.
 // ============================================================
 function saveQQ() {
+  if (typeof hasPermission==='function' && !hasPermission('quote.create')) { showToast('You do not have permission to create or edit quotes','error'); return; }
   var cn = (document.getElementById('qq-cn')||{}).value || '';
   var jn = (document.getElementById('qq-jn')||{}).value || '';
   if (!cn.trim()) { showToast('Customer name is required before saving.','error'); return; }
@@ -1750,6 +1751,7 @@ function fireEmailQuote(q) {
 
 // From preview modal — uses the currently previewed quote data
 function emailQuote() {
+  if (typeof hasPermission==='function' && !hasPermission('quote.send')) { showToast('You do not have permission to send quotes','error'); return; }
   // Get quote data from the current QQ form (same as what's in preview)
   const q = getQData();
   q.num = (document.getElementById('qq-num')||{}).value || '';
@@ -1763,6 +1765,7 @@ function emailQuote() {
 
 // From QQ toolbar — saves first if unsaved, then emails
 function emailQuoteQQ() {
+  if (typeof hasPermission==='function' && !hasPermission('quote.send')) { showToast('You do not have permission to send quotes','error'); return; }
   const cn = (document.getElementById('qq-cn')||{}).value || '';
   const jn = (document.getElementById('qq-jn')||{}).value || '';
   if (!cn.trim() || !jn.trim()) {
@@ -3191,6 +3194,7 @@ function _savePrimaryContact(customerId, customerName) {
 }
 
 function saveCustomer() {
+  if (typeof hasPermission==='function' && !hasPermission('cust.edit')) { showToast('You do not have permission to add or edit customers','error'); return; }
   const id = document.getElementById('m-cid').value;
   const name = (document.getElementById('m-cname')||{}).value||'';
   if (!name.trim()) { showToast('Customer name required','error'); return; }
@@ -3212,6 +3216,7 @@ function saveCustomer() {
   showToast('"'+name+'" saved','success');
 }
 function saveCustomerAndAnother() {
+  if (typeof hasPermission==='function' && !hasPermission('cust.edit')) { showToast('You do not have permission to add or edit customers','error'); return; }
   const id = document.getElementById('m-cid').value;
   const name = (document.getElementById('m-cname')||{}).value||'';
   if (!name.trim()) { showToast('Customer name required','error'); return; }

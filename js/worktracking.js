@@ -6756,6 +6756,7 @@ function createCustomerFromQuote(name) {
 }
 
 function saveNewCustomerFromQuote() {
+  if (typeof hasPermission==='function' && !hasPermission('cust.edit')) { showToast('You do not have permission to add customers','error'); return; }
   var name  = ((document.getElementById('ncust-name')||{}).value||'').trim();
   var phone = (document.getElementById('ncust-phone')||{}).value||'';
   var email = (document.getElementById('ncust-email')||{}).value||'';
@@ -8230,6 +8231,7 @@ function isFollowupOverdue(q) {
 // V6 PHASE 2: CONVERT QUOTE TO JOB (upgraded in CRM module)
 // =============================================
 function openConvertToJob(qid) {
+  if (typeof hasPermission==='function' && !hasPermission('quote.convert')) { showToast('You do not have permission to convert quotes to jobs','error'); return; }
   prepareConvertModal(qid);
   openModal('modal-convert-job');
 }

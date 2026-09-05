@@ -455,6 +455,7 @@ function populateContactCustomerDropdown(selectedId) {
 // Patch saveContact to save customerId
 var _origSaveContact = saveContact;
 function saveContact() {
+  if (typeof hasPermission==='function' && !hasPermission('contact.edit')) { showToast('You do not have permission to add or edit contacts','error'); return; }
   var id   = document.getElementById('m-ctid').value;
   var name = (document.getElementById('m-ctname')||{}).value||'';
   if (!name.trim()) { showToast('Name required','error'); return; }
@@ -512,6 +513,7 @@ function saveContact() {
 }
 
 function saveContactAndAnother() {
+  if (typeof hasPermission==='function' && !hasPermission('contact.edit')) { showToast('You do not have permission to add or edit contacts','error'); return; }
   var name = (document.getElementById('m-ctname')||{}).value||'';
   if (!name.trim()) { showToast('Name required','error'); return; }
   var custId = (document.getElementById('m-ct-custid')||{}).value||'';
