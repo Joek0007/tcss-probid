@@ -587,7 +587,7 @@ function prepareConvertModal(qid) {
 }
 
 // Override confirmConvertJob to use new fields
-function confirmConvertJob() {
+async function confirmConvertJob() {
   const qid  = document.getElementById('ctj-qid').value;
   const name = document.getElementById('ctj-name').value.trim();
   if (!name) { showToast('Job name is required','error'); return; }
@@ -606,10 +606,12 @@ function confirmConvertJob() {
   q.wonDate   = new Date().toISOString().split('T')[0];
   q.contactId = contactId;
 
-  // Create job
+  // Create job — server-authoritative number (migration _17)
+  const jobFloor = _maxNum(DB.jobs, function(j){ return j.num; }, /J-(\d+)/);
+  const jobN = await allocNumber('job', jobFloor);
   const job = {
     id:              Date.now().toString(),
-    num:             'J-' + (++DB.jobSeq),
+    num:             'J-' + jobN,
     name:            name,
     customer:        customer,
     contactId:       contactId,
@@ -654,13 +656,14 @@ function confirmConvertJob() {
   saveDB();
   closeModal('modal-convert-job');
 
-  // Auto-create Work Order linked to this job
+  // Auto-create Work Order linked to this job — server-authoritative number (migration _17).
+  // This path was previously a blind counter++ (a top collision risk); now atomic.
   if (!DB.workOrders) DB.workOrders = [];
-  if (!DB.woSeq) DB.woSeq = 1000;
-  DB.woSeq++;
+  var woFloorC = _maxNum(DB.workOrders, function(w){ return w.woNumber; }, /WO-(\d+)/i);
+  var woNC = await allocNumber('wo', woFloorC);
   var wo = {
     id:           'wo-'+Date.now(),
-    woNumber:     'WO-'+DB.woSeq,
+    woNumber:     'WO-'+woNC,
     customerId:   (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(customer||'').toLowerCase(); }) ? (DB.customers.find(function(c){ return (c.name||'').toLowerCase()===(customer||'').toLowerCase(); })).id : null,
     customerName: customer,
     contactId:    contactId||null,

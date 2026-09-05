@@ -583,10 +583,10 @@ function woNavWarnDiscard(){
   var t = _woNavTarget; _woNavTarget = null;
   if (t && typeof goPage==='function') goPage(t);
 }
-function woNavWarnSave(){
+async function woNavWarnSave(){
   var mod = document.getElementById('modal-wo-nav-warn'); if (mod) mod.style.display='none';
   var t = _woNavTarget; _woNavTarget = null;
-  if (typeof saveWorkOrder==='function') saveWorkOrder();   // clears _woDirty on success; returns early (still dirty) on validation error
+  if (typeof saveWorkOrder==='function') await saveWorkOrder();   // clears _woDirty on success; returns early (still dirty) on validation error
   if (typeof _woDirty==='undefined' || !_woDirty){
     if (t && typeof goPage==='function') goPage(t);
   }
@@ -730,7 +730,7 @@ function dismissHotNotes() {
 }
 
 // ---- SAVE ----
-function saveWorkOrder() {
+async function saveWorkOrder() {
   var custName = (document.getElementById('wo-customer-name')||{}).value||'';
   var descEl   = document.getElementById('wo-description');
   var desc     = descEl ? (descEl.contentEditable==='true' ? (typeof woRtfRead==='function' ? woRtfRead('wo-description') : descEl.innerText) : descEl.value) : '';
@@ -761,17 +761,14 @@ function saveWorkOrder() {
   }
   var priority = gv('wo-priority') || 'Normal';
 
-  // Auto-generate WO number for new — always derive from highest existing
+  // Auto-generate WO number for new — server-authoritative atomic allocation
+  // (migration _17), with the local max as the floor so it never dips below an
+  // existing number even on a device that is behind on sync.
   var woNum;
   if (isNew) {
-    var _maxSeq = 1000;
-    (DB.workOrders||[]).forEach(function(w){
-      var m = (w.woNumber||'').match(/WO-(\d+)/i);
-      if (m) { var n=parseInt(m[1],10); if(n>_maxSeq) _maxSeq=n; }
-    });
-    DB.woSeq = _maxSeq + 1;
-    woNum = 'WO-' + DB.woSeq;
-    saveDB();
+    var woFloor = _maxNum(DB.workOrders, function(w){ return w.woNumber; }, /WO-(\d+)/i);
+    var woN = await allocNumber('wo', woFloor);
+    woNum = 'WO-' + woN;
   } else {
     var existing = DB.workOrders.find(function(w){ return w.id===id; });
     woNum = existing ? existing.woNumber : 'WO-?';
@@ -1775,9 +1772,9 @@ function deleteWOLabor(id) {
 }
 
 // ---- TIMERS ----
-function woStartTimer(type) {
+async function woStartTimer(type) {
   if (_woTimerInterval) { woStopTimer(); return; }
-  if (!_woCurrentId) { saveWorkOrder(); }
+  if (!_woCurrentId) { await saveWorkOrder(); }
   _woTimerType  = type;
   _woTimerStart = Date.now();
   var workBtn=document.getElementById('wo-timer-work-btn');
@@ -2155,7 +2152,7 @@ function deleteWOChecklistItem(id) {
 }
 
 // ---- CREATE INVOICE FROM WO ----
-function createWOInvoice() {
+async function createWOInvoice() {
   var woId=_woCurrentId; if(!woId) return;
   var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;}); if(!wo) return;
   var labor=(DB.woLabor||[]).filter(function(l){return l.woId===woId;});
@@ -2196,10 +2193,11 @@ function createWOInvoice() {
   // Find or link job
   var job=(DB.jobs||[]).find(function(j){return j.customerId===wo.customerId;});
   if(!DB.invoices) DB.invoices=[];
-  DB.invSeq=(DB.invSeq||1000)+1;
+  var _invFloor = _maxNum(DB.invoices, function(i){ return i.num; }, /INV-(?:MSC-)?(\d+)/);
+  var _invN = await allocNumber('invoice', _invFloor);
   var inv={
     id:'inv-'+Date.now(),
-    num:'INV-'+DB.invSeq,
+    num:'INV-'+_invN,
     status:'draft',
     date:getTodayISO(),
     due:'',

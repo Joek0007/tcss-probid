@@ -542,7 +542,7 @@ function rcRunUpdateTotal() {
 }
 
 // ── Execute billing run ────────────────────────────────────────────────────────
-function executeBillingRun() {
+async function executeBillingRun() {
   var runDate = document.getElementById('rc-run-date').value;
   if (!runDate) { showToast('Select a run date','warning',2000); return; }
   // Warn about contracts with no invoicing email
@@ -561,11 +561,13 @@ function executeBillingRun() {
 
   var generated = [];
 
-  due.forEach(function(c) {
-    // Generate invoice
+  for (var c of due) {
+    // Generate invoice — server-authoritative number (migration _17), shares the
+    // 'invoice' sequence with WO/manual invoices but keeps the INV-MSC- prefix.
     if (!DB.invoices) DB.invoices = [];
-    if (!DB.invSeq) DB.invSeq = 1000;
-    var invNum = 'INV-MSC-' + String(DB.invSeq++);
+    var _mscFloor = _maxNum(DB.invoices, function(i){ return i.num; }, /INV-(?:MSC-)?(\d+)/);
+    var _mscN = await allocNumber('invoice', _mscFloor);
+    var invNum = 'INV-MSC-' + _mscN;
     var amt = _rcLineTotal2(c);
     var invoiceDate = document.getElementById('rc-invoice-date').value || runDate;
     var inv = {
@@ -597,7 +599,7 @@ function executeBillingRun() {
     // Push to Supabase
     _pushRCToSupabase(c);
     _pushRCInvoiceToSupabase(inv);
-  });
+  }
 
   saveDB();
   closeModal('modal-billing-run');

@@ -122,6 +122,56 @@ function initSupabase() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Server-authoritative business-number allocation (migration _17).
+// Every human-facing sequence number (Q-, J-, WO-, PO-, INV-) is allocated by
+// the atomic next_number() RPC, so two devices can never mint the same number.
+// `localFloor` is the highest number this device currently knows about for the
+// sequence; the server never issues at or below it, so numbering only moves
+// FORWARD even if this device is behind on sync. Offline / not-signed-in falls
+// back to a self-healing local increment (best-effort — a rare offline number
+// is reconciled the next time the server allocates above the local floor).
+// Always returns a Promise<number>. Callers format the prefix/padding.
+// ---------------------------------------------------------------------------
+async function allocNumber(seqName, localFloor) {
+  var floor = parseInt(localFloor, 10); if (!(floor >= 0)) floor = 0;
+  try {
+    if (_sb && _currentUser) {
+      var res = await _sb.rpc('next_number', { p_seq: seqName, p_floor: floor });
+      if (res && !res.error && res.data != null) {
+        var n = parseInt(res.data, 10);
+        if (n > 0) {
+          DB._seqCache = DB._seqCache || {};
+          DB._seqCache[seqName] = n;   // remember last server value for offline fallback
+          return n;
+        }
+      }
+      if (res && res.error) console.warn('[allocNumber] RPC error for', seqName, res.error.message);
+    }
+  } catch (e) {
+    console.warn('[allocNumber] falling back to local for', seqName, e && e.message);
+  }
+  // Offline / not-signed-in fallback: self-healing local increment.
+  DB._seqCache = DB._seqCache || {};
+  var base = Math.max(DB._seqCache[seqName] || 0, floor);
+  DB._seqCache[seqName] = base + 1;
+  return base + 1;
+}
+
+// Max integer embedded in a business-number field across a set of rows, using
+// the entity's own prefix regex — the "floor" passed to allocNumber so the
+// server sequence can never dip below a number already present locally.
+function _maxNum(arr, getStr, re) {
+  var mx = 0;
+  (arr || []).forEach(function (o) {
+    try {
+      var m = re.exec(String((getStr(o)) || ''));
+      if (m && m[1]) { var n = parseInt(m[1], 10); if (n > mx) mx = n; }
+    } catch (e) {}
+  });
+  return mx;
+}
+
 // ---- AUTH — Email + Password ----
 async function signIn(email, password) {
   if (!_sb) return { error: { message: 'Not connected' } };

@@ -274,16 +274,13 @@ function calcTotals() {
 }
 
 // ---- QUOTE NUMBER GENERATOR ----
-function nextQNum() {
-  // Always ensure quoteSeq is at least as high as the highest existing quote number
-  var maxExisting = 1024;
-  (DB.quotes||[]).forEach(function(q) {
-    var match = (q.num||'').match(/Q-(\d+)/);
-    if (match) maxExisting = Math.max(maxExisting, parseInt(match[1]));
-  });
-  DB.quoteSeq = Math.max(DB.quoteSeq||0, maxExisting) + 1;
-  saveDB();
-  return 'Q-' + DB.quoteSeq;
+// Server-authoritative (migration _17): the number is allocated atomically by
+// next_number() so two devices can never mint the same Q-. The local max is
+// passed as the floor so the sequence never dips below a number already present.
+async function nextQNum() {
+  var floor = _maxNum(DB.quotes, function(q){ return q.num; }, /Q-(\d+)/);
+  var n = await allocNumber('quote', floor);
+  return 'Q-' + n;
 }
 
 
@@ -677,7 +674,7 @@ function wrapQQStage3Mutations(){
 // saveQQ — Save the current Quick Quote form to DB.quotes
 // This was missing and is why Save Quote was silently broken.
 // ============================================================
-function saveQQ() {
+async function saveQQ() {
   if (typeof hasPermission==='function' && !hasPermission('quote.create')) { showToast('You do not have permission to create or edit quotes','error'); return; }
   var cn = (document.getElementById('qq-cn')||{}).value || '';
   var jn = (document.getElementById('qq-jn')||{}).value || '';
@@ -707,7 +704,7 @@ function saveQQ() {
   var existingNum = (numEl && numEl.value)  || q.num || '';
 
   if (!existingNum || existingNum === 'PREVIEW' || existingNum === 'DRAFT') {
-    existingNum = nextQNum();
+    existingNum = await nextQNum();
     if (numEl) numEl.value = existingNum;
     // Also update the visible Quote #--- header immediately
     var displayEl = document.getElementById('qq-stage4-num');
@@ -1433,7 +1430,7 @@ function resetSummary() {
 
 // ---- END EXECUTIVE SUMMARY EDITOR ----
 
-function printQuote() {
+async function printQuote() {
   var q = _previewQuoteData;
   if (!q) {
     var cn = (document.getElementById('qq-cn')||{}).value || '';
@@ -1443,7 +1440,7 @@ function printQuote() {
   }
   // Auto-generate quote number if missing
   if (!q.num || q.num === 'PREVIEW') {
-    q.num = nextQNum();
+    q.num = await nextQNum();
     if (_previewQuoteData) _previewQuoteData.num = q.num;
     var numEl = document.getElementById('qq-num');
     if (numEl) numEl.value = q.num;
@@ -1689,13 +1686,13 @@ function emailSavedQuote(qid) {
 }
 let _viewingQuoteId = null;
 
-function dupQuote(id) {
+async function dupQuote(id) {
   const q = DB.quotes.find(function(x){ return x.id==id; });
   if (!q) return;
   const nq = JSON.parse(JSON.stringify(q));
   // Use UUID so ID never collides with existing quotes
   nq.id = typeof makeUUID==='function' ? makeUUID() : Date.now().toString();
-  nq.num = nextQNum();
+  nq.num = await nextQNum();
   nq.status = 'draft';
   nq.createdAt = new Date().toISOString();
   // Re-assign fresh _id to every line item to prevent cross-item edit bugs
@@ -2121,7 +2118,7 @@ function previewInvoice() {
   if (win) { win.document.write(html); win.document.close(); }
 }
 
-function saveAndPrintInvoice() {
+async function saveAndPrintInvoice() {
   var jobId = (document.getElementById('inv-job-id')||{}).value||'';
   var job   = (typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;}))||{};
   var invData = buildInvoiceData(job);
@@ -2133,6 +2130,15 @@ function saveAndPrintInvoice() {
     if (idx>=0) { invData.id=existingId; DB.invoices[idx]=invData; }
     else DB.invoices.push(invData);
   } else {
+    // NEW invoice — allocate the authoritative number now (atomic, server-side),
+    // unless the user typed a custom one (blank field surfaces as 'INV-0001').
+    var typed = (invData.num||'').trim();
+    if (!typed || typed === 'INV-0001') {
+      var invFloor = _maxNum(DB.invoices, function(i){ return i.num; }, /INV-(?:MSC-)?(\d+)/);
+      var invN = await allocNumber('invoice', invFloor);
+      invData.num = 'INV-' + invN;
+      var _nEl = document.getElementById('inv-num'); if (_nEl) _nEl.value = invData.num;
+    }
     DB.invoices.push(invData);
     if (job.id) { job.status='Invoiced'; job.invoiced=true; job.invoiceNum=invData.num; }
   }
@@ -2303,8 +2309,9 @@ function refreshInvTotals() {
 
 // ---- OPEN INVOICE MODAL ----
 function openInvoiceModal(job) {
-  if (!DB.invSeq) DB.invSeq=1000;
-  DB.invSeq++;
+  // Invoice number is NOT allocated here anymore. Opening (and cancelling) the
+  // modal used to burn a number off the counter; now the authoritative number is
+  // allocated atomically on SAVE (saveAndPrintInvoice), so cancels cost nothing.
   var today = getTodayISO();
 
   // Find linked WO and Quote
@@ -2325,7 +2332,7 @@ function openInvoiceModal(job) {
   }
 
   function sv(id,val){ var el=document.getElementById(id); if(el) el.value=(val!==undefined&&val!==null)?String(val):''; }
-  sv('inv-num',      'INV-'+DB.invSeq);
+  sv('inv-num',      '');   // blank → auto-assigned on save (user may type a custom # to override)
   sv('inv-date',     today);
   sv('inv-due',      dueDate);
   sv('inv-terms',    terms);
@@ -5201,11 +5208,15 @@ function switchInvTab(tab) {
 }
 
 // ---- ASSET TAG GENERATOR ----
+// Own allocation — must NOT touch DB.invSeq. It used to draw from the invoice
+// counter, so creating an inventory item silently shifted invoice numbering.
+// Asset tags are identifiers (gaps are fine), so self-heal over existing
+// inventory AND tool tags to avoid 'TCSS -' collisions across the two domains.
 function nextAssetTag() {
-  DB.invSeq = (DB.invSeq || 1);
-  const tag = 'TCSS -' + DB.invSeq;
-  DB.invSeq++;
-  return tag;
+  var mx = 0;
+  function scan(arr){ (arr||[]).forEach(function(o){ var m=/TCSS\s*-\s*(\d+)/.exec(String((o&&o.tag)||'')); if(m){ var n=parseInt(m[1],10); if(n>mx) mx=n; } }); }
+  scan(DB.inventory); scan(DB.tools);
+  return 'TCSS -' + (mx + 1);
 }
 
 // ---- RENDER INVENTORY ----
@@ -5337,8 +5348,8 @@ function newInventoryItem() {
   const qtyEl=document.getElementById('inv-qty'); if(qtyEl) qtyEl.value=1;
   const minEl=document.getElementById('inv-min'); if(minEl) minEl.value=1;
   const costEl=document.getElementById('inv-cost'); if(costEl) costEl.value=0;
-  // Generate next tag
-  const tagEl=document.getElementById('inv-tag'); if(tagEl) tagEl.value='TCSS -'+DB.invSeq;
+  // Suggest the next asset tag (own sequence — no longer tied to the invoice counter)
+  const tagEl=document.getElementById('inv-tag'); if(tagEl) tagEl.value=nextAssetTag();
   // Populate datalists
   populateInvDataLists();
   openModal('modal-inv-item');
@@ -5357,7 +5368,7 @@ function saveInventoryItem() {
   if (!name) { showToast('Item name is required.','error'); return; }
 
   let tag = document.getElementById('inv-tag').value.trim();
-  if (!tag) { tag = nextAssetTag(); } else if (!id) { DB.invSeq++; } // advance seq if custom
+  if (!tag) { tag = nextAssetTag(); } // custom tags are respected as-is; nextAssetTag self-heals from existing tags
 
   const data = {
     id:       id || Date.now().toString(),

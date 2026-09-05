@@ -423,22 +423,29 @@ function onPOReadyToPay(checked) {
 
 // ---- SAVE PO ----
 
-function savePO() {
+async function savePO() {
   var vendorId=(document.getElementById('po-vendor')||{}).value||'';
   if(!vendorId){showToast('Select a vendor','error');return;}
   function gv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
   var vendor=(DB.vendors||[]).find(function(v){return v.id===vendorId;})||{};
   var isNew=!_poCurrentId;
   var id=_poCurrentId||crypto.randomUUID();
-  if(!DB.poSeq) DB.poSeq=1000;
-  if(isNew) DB.poSeq++;
+  // Server-authoritative PO number (migration _17) for new POs; existing POs keep theirs.
+  var poNumber;
+  if (isNew) {
+    var poFloor = _maxNum(DB.purchaseOrders, function(p){ return p.poNumber; }, /PO-(\d+)/);
+    var poN = await allocNumber('po', poFloor);
+    poNumber = 'PO-' + poN;
+  } else {
+    poNumber = ((DB.purchaseOrders||[]).find(function(p){return p.id===_poCurrentId;})||{}).poNumber || 'PO-?';
+  }
   var subtotal=_poItems.reduce(function(s,li){return s+(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));},0);
   var jobId=gv('po-job-id-hidden');
   var job=jobId?(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})):null;
 
   var po={
     id:          id,
-    poNumber:    isNew?('PO-'+DB.poSeq):(_poCurrentId&&(DB.purchaseOrders||[]).find(function(p){return p.id===_poCurrentId;})||{}).poNumber||('PO-'+DB.poSeq),
+    poNumber:    poNumber,
     vendorId:    vendorId,
     vendorName:  vendor.name||'',
     jobId:       jobId||null,
