@@ -212,6 +212,14 @@ async function loadCurrentUserProfile() {
   console.log('[Profile] Loading for uid:', uid, 'email:', email);
   var res = await _sb.from('profiles').select('*').eq('id', uid).single();
   console.log('[Profile] Result:', res);
+  if (res.data && res.data.is_active === false) {
+    // AZ-6 onboarding: a pending (or deactivated) account has NO access — the database
+    // denies it everywhere (current_app_role() is null for inactive users). Show a clear
+    // blocking screen instead of a half-working UI, and don't establish a session identity.
+    _currentUser = null;
+    _showPendingApprovalScreen(res.data.full_name || email);
+    return;
+  }
   if (res.data) {
     _currentUser = res.data;
     applyRolePermissions(_currentUser.role);
@@ -238,6 +246,25 @@ async function loadCurrentUserProfile() {
     updateUserBadge(_currentUser);
     showToast('Profile not found for ' + email + ' — contact your administrator.', 'error', 8000);
   }
+}
+
+// AZ-6: blocking screen for a pending/deactivated account (is_active=false).
+function _showPendingApprovalScreen(name) {
+  var ov = document.getElementById('pending-approval-overlay');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'pending-approval-overlay'; document.body.appendChild(ov); }
+  var first = ((name||'').split(' ')[0]) || 'there';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:2000000;background:#0d1b2a;color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:system-ui,Arial,sans-serif';
+  ov.innerHTML =
+    '<div style="max-width:460px">'+
+      '<div style="font-size:48px;margin-bottom:12px">⏳</div>'+
+      '<h2 style="margin:0 0 10px;font-size:22px">Account Pending Approval</h2>'+
+      '<p style="font-size:15px;line-height:1.6;color:#cfd8e3">Hi '+escHtml(first)+' — your login works, but an administrator still needs to activate your account and set your access before you can use ProBid.</p>'+
+      '<p style="font-size:13px;color:#90a4ae;margin-top:16px">Please contact your administrator. Once you’re approved, refresh this page.</p>'+
+      '<div style="margin-top:18px">'+
+        '<button onclick="location.reload()" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer">↻ Refresh</button> '+
+        '<button onclick="(async function(){try{await _sb.auth.signOut();}catch(e){}location.reload();})()" style="background:none;border:1px solid #456;color:#cfd8e3;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer">Sign out</button>'+
+      '</div>'+
+    '</div>';
 }
 
 // ── Role permission system ───────────────────────────────────────────────────

@@ -766,7 +766,7 @@ function goPage(id) {
   if (id==='recurring')  renderRecurring();
   if (id==='contacts')   renderContacts();
   if (id==='jobs')       renderJobs();
-  if (id==='team')       renderTeam();
+  if (id==='team')       { renderTeam(); if (typeof renderUserAccessPanel==='function') renderUserAccessPanel(); }
   if (id==='calendar')   { if (typeof renderCalendar === 'function') renderCalendar(); }
   if (id==='workorders') { if (typeof initWorkOrdersPage === 'function') initWorkOrdersPage(); }
   if (id==='wo-settings'){ if (typeof renderWOSettingsPage === 'function') renderWOSettingsPage(); }

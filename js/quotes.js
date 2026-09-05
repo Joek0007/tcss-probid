@@ -3509,6 +3509,71 @@ function renderTeam() {
   }).join('');
 }
 
+// AZ-6: owner-only login-access panel. Lists real login users (from list_user_profiles),
+// lets the owner approve pending sign-ups, set roles, and revoke access — all via the
+// owner-only, audited RPCs. Rendered on the Team page (goPage 'team').
+var _UAP_ROLE_LABELS = { owner:'Owner', manager:'Manager', back_office:'Back Office', lead_tech:'Lead Tech', helper_tech:'Helper Tech' };
+async function renderUserAccessPanel() {
+  var el = document.getElementById('user-access-panel'); if (!el) return;
+  if (!(_currentUser && _currentUser.role === 'owner')) { el.innerHTML=''; el.style.display='none'; return; }
+  if (typeof _sb==='undefined' || !_sb) { el.innerHTML=''; return; }
+  el.style.display='';
+  el.innerHTML = '<div class="card" style="margin-top:16px">'+
+    '<div class="card-title" style="margin:0">🔑 User Login Access</div>'+
+    '<p style="font-size:12px;color:#546e7a;margin:4px 0 12px">Everyone who has signed in. A new sign-up shows as <strong>⏳ Pending</strong> with no access until you set a role and approve them. Only you (owner) can see or change this.</p>'+
+    '<div id="uap-body" style="font-size:13px;color:#90a4ae">Loading…</div></div>';
+  var res;
+  try { res = await _sb.rpc('list_user_profiles'); }
+  catch(e){ res = {error:{message:e.message||String(e)}}; }
+  var body = document.getElementById('uap-body'); if (!body) return;
+  if (res.error) { body.innerHTML = '<div style="color:#c62828">Could not load users: '+escHtml(res.error.message)+'</div>'; return; }
+  var rows = res.data || [];
+  if (!rows.length) { body.innerHTML = '<div style="color:#90a4ae">No login users yet.</div>'; return; }
+  var roles = ['owner','manager','back_office','lead_tech','helper_tech'];
+  var html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f0f4f8">'+
+    '<th style="text-align:left;padding:8px 10px;font-size:11px;color:#546e7a;text-transform:uppercase">Name</th>'+
+    '<th style="text-align:left;padding:8px 10px;font-size:11px;color:#546e7a;text-transform:uppercase">Status</th>'+
+    '<th style="text-align:left;padding:8px 10px;font-size:11px;color:#546e7a;text-transform:uppercase">Role</th>'+
+    '<th style="padding:8px 10px"></th></tr></thead><tbody>';
+  rows.forEach(function(u){
+    var pending = !u.is_active;
+    var badge = pending
+      ? '<span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⏳ Pending</span>'
+      : '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✓ Active</span>';
+    var sel = '<select id="uap-role-'+u.id+'" style="padding:5px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
+      roles.map(function(r){ return '<option value="'+r+'"'+(u.role===r?' selected':'')+'>'+(_UAP_ROLE_LABELS[r]||r)+'</option>'; }).join('')+'</select>';
+    var safeName = (u.full_name||'').replace(/["'\\]/g,'');
+    html += '<tr style="border-bottom:1px solid #f0f4f8">'+
+      '<td style="padding:6px 10px;font-weight:700;font-size:13px">'+escHtml(u.full_name||'(no name)')+'</td>'+
+      '<td style="padding:6px 10px">'+badge+'</td>'+
+      '<td style="padding:6px 10px">'+sel+'</td>'+
+      '<td style="padding:6px 10px;white-space:nowrap;text-align:right">'+
+        '<button class="btn btn-primary btn-sm" onclick="uapSetRole(\''+u.id+'\')">'+(pending?'Approve &amp; Set Role':'Save Role')+'</button> '+
+        (u.is_active ? '<button class="btn btn-danger btn-sm" onclick="uapDeactivate(\''+u.id+'\',\''+escHtml(safeName)+'\')">Revoke</button>' : '')+
+      '</td></tr>';
+  });
+  html += '</tbody></table>';
+  body.innerHTML = html;
+}
+async function uapSetRole(uid){
+  var sel = document.getElementById('uap-role-'+uid); if (!sel) return;
+  var res;
+  try { res = await _sb.rpc('set_user_role', { p_user_id: uid, p_role: sel.value, p_active: true }); }
+  catch(e){ res = {error:{message:e.message||String(e)}}; }
+  if (res && res.error) { showToast('Could not update access: '+res.error.message,'error',5000); return; }
+  showToast('Access updated ✓','success');
+  renderUserAccessPanel();
+}
+async function uapDeactivate(uid, name){
+  if (!confirm('Revoke login access for '+(name||'this user')+'? They will lose access until you reactivate them.')) return;
+  var res;
+  try { res = await _sb.rpc('deactivate_user', { p_user_id: uid }); }
+  catch(e){ res = {error:{message:e.message||String(e)}}; }
+  if (res && res.error) { showToast('Could not revoke: '+res.error.message,'error',5000); return; }
+  showToast('Access revoked','info');
+  renderUserAccessPanel();
+}
+
 function newTeamMemberV2() {
   ['m-tmname','m-tmrole','m-tmph','m-tmem','m-tmid','m-tmhire','m-tm-invited'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.value='';
