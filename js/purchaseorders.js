@@ -41,6 +41,7 @@ function renderVendors() {
       '<div style="display:flex;gap:4px">'+
         '<button class="btn btn-outline btn-sm" onclick="editVendor(\''+v.id+'\')">Edit</button>'+
         '<button class="btn btn-primary btn-sm" onclick="newPOForVendor(\''+v.id+'\')">+ PO</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="deleteVendor(\''+v.id+'\')">Del</button>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -110,6 +111,31 @@ function saveVendor() {
   closeModal('modal-vendor');
   renderVendors();
   showToast('"'+name+'" saved','success');
+}
+
+// ---- DELETE (soft-delete) A VENDOR ----
+// Vendors carry an `active` flag and renderVendors already hides inactive ones,
+// but until now there was no way to set it — you could never remove a vendor
+// (e.g. a duplicate or a typo). This soft-deletes: the vendor drops off the
+// active list and the pickers, existing purchase orders keep their own copy of
+// the vendor name, and it's recoverable by flipping is_active back on. Mirrors
+// the direct-write pattern saveVendor already uses (vendor management is not
+// role-gated server-side today — a possible future hardening item, noted).
+function deleteVendor(id) {
+  var v = (DB.vendors||[]).find(function(x){ return x.id===id; });
+  if (!v) return;
+  if (!confirm('Delete vendor "'+(v.name||'')+'"?\n\nExisting purchase orders keep their record; the vendor is just removed from your active list.')) return;
+  v.active = false;
+  // Cloud: flip is_active off. The vendor pull only fetches is_active=true, so it
+  // won't come back on any device; pushAllToCloud never re-pushes vendors, so it
+  // can't resurrect. No tombstone needed (this is a flag update, not a row delete).
+  if (_sb && _currentUser) {
+    _sb.from('vendors').update({ is_active:false }).eq('id', id)
+      .then(function(r){ if (r && r.error) console.warn('[Vendor Delete]', r.error.message); });
+  }
+  saveDB();
+  renderVendors();
+  if (typeof showToast==='function') showToast('Vendor "'+(v.name||'')+'" deleted','info');
 }
 
 // ---- PURCHASE ORDERS LIST ----
