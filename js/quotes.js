@@ -755,100 +755,6 @@ function saveQQ() {
 // ============================================================
 // editQuote — Load a saved quote back into the QQ form
 // ============================================================
-function editQuote(id) {
-  var q = (DB.quotes||[]).find(function(x){ return x.id === id; });
-  if (!q) { showToast('Quote not found','error'); return; }
-
-  goPage('qq');
-  setTimeout(function() {
-    // Set hidden fields
-    var idEl  = document.getElementById('qq-id');
-    var numEl = document.getElementById('qq-num');
-    if (idEl)  idEl.value  = q.id  || '';
-    if (numEl) numEl.value = q.num || '';
-
-    // Set all standard form fields
-    var fields = {
-      'qq-cn':        q.cn        || '',
-      'qq-jn':        q.jn        || '',
-      'qq-em':        q.em        || '',
-      'qq-ph':        q.ph        || '',
-      'qq-dt':        q.dt        || '',
-      'qq-vu':        q.vu        || '',
-      'qq-jt':        q.jt        || '',
-      'qq-env':       q.env       || 'office',
-      'qq-status':    q.status    || 'draft',
-      'qq-rep':       q.rep       || '',
-      'qq-pt':        q.pt        || '',
-      'qq-tc':        q.tc        || '',
-      'qq-int':       q.intNotes  || '',
-      'qq-followup':  q.followupDate || '',
-      'qq-labor-rate':q.laborRate || '',
-      'qq-tax-rate':  q.taxRate   || '',
-      'qq-discount':  q.discount  || '',
-      'qq-margin':    q.targetMargin || '',
-    };
-    Object.keys(fields).forEach(function(fid) {
-      var el = document.getElementById(fid);
-      if (el) el.value = fields[fid];
-    });
-
-    // Load notes into rich text editor (contenteditable) or textarea fallback
-    var notesEl = document.getElementById('qq-notes');
-    if (notesEl) {
-      if (notesEl.contentEditable === 'true') {
-        var notesContent = q.notes || '';
-        // Detect HTML by flag OR by content starting with < — handles quotes saved
-        // before notesIsHtml flag was introduced
-        var contentIsHtml = q.notesIsHtml || (notesContent.trimLeft().charAt(0) === '<');
-        if (!contentIsHtml && notesContent) {
-          // Plain text — convert newlines to HTML
-          var html = notesContent
-            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-            .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
-          notesContent = '<p>' + html + '</p>';
-        }
-        notesEl.innerHTML = notesContent;
-        if (typeof qqNotesUpdatePlaceholder === 'function') qqNotesUpdatePlaceholder();
-      } else {
-        notesEl.value = q.notes || '';
-      }
-    }
-
-    // Address fields
-    var adFields = {
-      'qq-ad':    q.adStreet || q.ad || '',
-      'qq-city':  q.adCity   || q.city  || '',
-      'qq-state': q.adState  || q.state || '',
-      'qq-zip':   q.adZip    || q.zip   || '',
-    };
-    Object.keys(adFields).forEach(function(fid) {
-      var el = document.getElementById(fid);
-      if (el) el.value = adFields[fid];
-    });
-
-    // Restore line items
-    if (typeof lineItems !== 'undefined') {
-      lineItems = JSON.parse(JSON.stringify(q.items || []));
-      lineItems.forEach(function(item){ if (!item._id) item._id = nextLiId(); });
-    }
-
-    // Restore equipment rows
-    if (typeof equipmentRows !== 'undefined') {
-      equipmentRows = JSON.parse(JSON.stringify(q.equipmentRows || []));
-    }
-
-    // Re-render
-    if (typeof renderLI          === 'function') renderLI();
-    if (typeof renderEquipRows   === 'function') renderEquipRows();
-    if (typeof calcTotals        === 'function') calcTotals();
-    if (typeof updateQQStage3UI  === 'function') updateQQStage3UI();
-
-    setQQDirty(false, 'Editing saved quote ' + q.num);
-    showToast('Editing ' + q.num + ' — ' + (q.cn||''), 'info', 2000);
-  }, 150);
-}
-
 function upsertCustomer(q) {
   if (!q.cn) return null;
   // Look for existing customer by ID first, then name
@@ -5162,25 +5068,6 @@ function renderReports() {
   }
 }
 
-function exportPayrollCSV() {
-  var days = (DB.workDays||[]).filter(function(d){ return d.totalPaidMins; });
-  var laborRate = (DB.settings&&DB.settings.laborRate)||100;
-  var rows = [['Date','Tech Name','Clock In','Clock Out','Regular Hrs','OT Hrs','Total Hrs','Est Cost','Job','Flagged']];
-  days.sort(function(a,b){ return b.date.localeCompare(a.date); }).forEach(function(d){
-    var reg = ((d.regularMins||d.totalPaidMins||0)/60).toFixed(2);
-    var ot  = ((d.otMins||0)/60).toFixed(2);
-    var tot = (parseFloat(reg)+parseFloat(ot)).toFixed(2);
-    var cost= (parseFloat(reg)*laborRate + parseFloat(ot)*laborRate*1.5).toFixed(2);
-    rows.push([d.date||'',d.techName||'',d.clockInTime||'',d.clockOutTime||'',reg,ot,tot,cost,d.jobName||'',d.flag?'Yes':'No']);
-  });
-  var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
-  var blob = new Blob([csv],{type:'text/csv'});
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a'); a.href=url; a.download='TCSS_Payroll_'+getTodayISO()+'.csv'; a.click();
-  URL.revokeObjectURL(url);
-  showToast('Payroll CSV exported','success');
-}
-
 function exportReportCSV() {
   const quotes = getFilteredQuotes();
   const rows = [['Quote#','Customer','Job','Environment','Job Type','Total','Target Margin','Achieved Margin','Health','Status','Date','Follow-Up Date','Equipment Cost','Per Diem Cost','Lump Sum']];
@@ -5357,20 +5244,6 @@ function newInventoryItem() {
   // Generate next tag
   const tagEl=document.getElementById('inv-tag'); if(tagEl) tagEl.value='TCSS -'+DB.invSeq;
   // Populate datalists
-  populateInvDataLists();
-  openModal('modal-inv-item');
-}
-
-function editInventoryItem(id) {
-  const item = DB.inventory.find(function(i){ return i.id==id; });
-  if (!item) return;
-  document.getElementById('inv-modal-title').textContent = 'Edit: ' + (item.name||'Item');
-  function sv(eid,v){ const el=document.getElementById(eid); if(el) el.value=v!==undefined&&v!==null?v:''; }
-  sv('inv-name',item.name); sv('inv-tag',item.tag); sv('inv-cat',item.cat);
-  sv('inv-loc',item.location); sv('inv-qty',item.qty||0); sv('inv-min',item.minQty||1);
-  sv('inv-cost',item.cost||0); sv('inv-item-notes',item.notes||''); sv('inv-id',item.id);
-  // Remove readonly on tag for editing
-  const tagEl = document.getElementById('inv-tag'); if(tagEl) tagEl.removeAttribute('readonly');
   populateInvDataLists();
   openModal('modal-inv-item');
 }
