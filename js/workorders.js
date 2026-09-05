@@ -1763,7 +1763,15 @@ function addWOLaborEntry() {
 function deleteWOLabor(id) {
   if(!confirm('Remove this labor entry?')) return;
   DB.woLabor=(DB.woLabor||[]).filter(function(l){return l.id!==id;});
+  // Single-writer delete: tombstone so pushAllToCloud performs the cloud delete exactly
+  // once (with the .select('id') RLS-block guard) and the pull filter suppresses the row
+  // until confirmed. Previously this did NO cloud delete — a removed labor entry (which
+  // feeds invoicing) resurrected on the next full-replace pull.
+  if(!DB.deletedIds)DB.deletedIds={};
+  if(!DB.deletedIds.woLabor)DB.deletedIds.woLabor=[];
+  if(DB.deletedIds.woLabor.indexOf(id)<0)DB.deletedIds.woLabor.push(id);
   saveDB(); switchWOTab('labor');
+  if(_sb&&_currentUser&&typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
 }
 
 // ---- TIMERS ----
@@ -1937,10 +1945,16 @@ function addWOExpense() {
 function deleteWOExpense(id) {
   if (!confirm('Remove this expense?')) return;
   DB.woExpenses = (DB.woExpenses||[]).filter(function(e){ return e.id!==id; });
+  // Single-writer delete via tombstone (replaces the old unguarded fire-and-forget delete,
+  // which removed locally even when the cloud delete silently failed/was RLS-blocked →
+  // resurrection on next pull). pushAllToCloud does the guarded cloud delete.
+  if(!DB.deletedIds)DB.deletedIds={};
+  if(!DB.deletedIds.woExpenses)DB.deletedIds.woExpenses=[];
+  if(DB.deletedIds.woExpenses.indexOf(id)<0)DB.deletedIds.woExpenses.push(id);
   saveDB();
-  if (_sb && _currentUser) _sb.from('wo_expenses').delete().eq('id',id).then(function(){});
   switchWOTab('expenses');
   refreshWOQuickStats(_woCurrentId);
+  if(_sb&&_currentUser&&typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
 }
 
 // ---- PARTS TAB ----
@@ -2129,11 +2143,15 @@ function toggleWOChecklistItem(id,checked) {
 
 function deleteWOChecklistItem(id) {
   DB.woChecklist=(DB.woChecklist||[]).filter(function(c){return c.id!==id;});
+  // Single-writer delete via tombstone (replaces the old unguarded fire-and-forget delete).
+  // pushAllToCloud performs the guarded cloud delete; the pull filter suppresses the row
+  // until it's confirmed gone, so a blocked/offline delete can't resurrect it.
+  if(!DB.deletedIds)DB.deletedIds={};
+  if(!DB.deletedIds.woChecklist)DB.deletedIds.woChecklist=[];
+  if(DB.deletedIds.woChecklist.indexOf(id)<0)DB.deletedIds.woChecklist.push(id);
   saveDB();
-  if (typeof _sb!=='undefined'&&_sb) {
-    _sb.from('wo_checklist').delete().eq('id',id).then(function(){});
-  }
   switchWOTab('checklist');
+  if(_sb&&_currentUser&&typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
 }
 
 // ---- CREATE INVOICE FROM WO ----

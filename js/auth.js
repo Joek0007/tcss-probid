@@ -492,6 +492,9 @@ async function syncAllFromCloud(silent) {
   var delCon  = DB.deletedIds.contracts     || [];
   var delRC   = DB.deletedIds.recurringContracts || [];
   var delWP   = DB.deletedIds.woParts       || [];  // SC-3b: WO parts tombstones
+  var delWL   = DB.deletedIds.woLabor       || [];  // WO child-record tombstones (delete-guard hardening)
+  var delWE   = DB.deletedIds.woExpenses    || [];
+  var delWCl  = DB.deletedIds.woChecklist   || [];
 
   // Status map — Supabase Title Case → app lowercase
   var pullStatusMap = {
@@ -896,7 +899,10 @@ async function syncAllFromCloud(silent) {
       var { data: woLaborRows, error: wole } = await _sb.from('wo_labor').select('*').order('created_at', { ascending: false });
       if (wole) { errors.push('wo_labor: '+wole.message); }
       else if (woLaborRows) {
-        DB.woLabor = woLaborRows.map(function(l){
+        // Tombstone-filter: a labor entry deleted locally but not yet confirmed-deleted
+        // in the cloud must be excluded from this full-replace pull, or it resurrects on
+        // every sync (payroll-adjacent — a resurrected entry could re-inflate an invoice).
+        DB.woLabor = woLaborRows.filter(function(l){ return delWL.indexOf(String(l.id)) < 0; }).map(function(l){
           return { id:l.id, woId:l.wo_id, techName:l.tech_name, entryType:l.entry_type, clockIn:l.clock_in, clockOut:l.clock_out, hours:l.hours, notes:l.notes, createdAt:l.created_at };
         });
       }
@@ -921,7 +927,7 @@ async function syncAllFromCloud(silent) {
       var { data: woClRows, error: wocle } = await _sb.from('wo_checklist').select('*').order('created_at', { ascending: true });
       if (wocle) { errors.push('wo_checklist: '+wocle.message); }
       else if (woClRows) {
-        DB.woChecklist = woClRows.map(function(c){
+        DB.woChecklist = woClRows.filter(function(c){ return delWCl.indexOf(String(c.id)) < 0; }).map(function(c){
           return { id:c.id, woId:c.wo_id, item:c.item, completed:!!c.completed, createdAt:c.created_at };
         });
       }
@@ -932,7 +938,7 @@ async function syncAllFromCloud(silent) {
       var { data: woExpRows, error: woee } = await _sb.from('wo_expenses').select('*').order('created_at', { ascending: false });
       if (woee) { errors.push('wo_expenses: '+woee.message); }
       else if (woExpRows) {
-        DB.woExpenses = woExpRows.map(function(e){
+        DB.woExpenses = woExpRows.filter(function(e){ return delWE.indexOf(String(e.id)) < 0; }).map(function(e){
           return { id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, createdAt:e.created_at };
         });
       }
@@ -1213,9 +1219,20 @@ async function pushAllToCloud() {
       // the row resurrect on the next full-replace pull.
       var dwp = DB.deletedIds.woParts||[]; var keepWP=[];
       for (var _iwp of dwp) { var _r9 = await _sb.from('wo_parts').delete().eq('id',_iwp).select('id'); if (_delFailed(_r9)) keepWP.push(_iwp); }
+      // WO child records (labor / expenses / checklist) — HARD-delete tables (text ids).
+      // Delete-guard hardening: same single-writer + RLS-silent-block .select('id') pattern
+      // as WO parts. deleteWOLabor previously did NO cloud delete at all (payroll-adjacent
+      // resurrection risk); deleteWOExpense/deleteWOChecklistItem used unguarded
+      // fire-and-forget deletes. Routing all three through here makes deletes reliable,
+      // offline-safe (tombstone retries), and RLS-block-safe.
+      var dwl = DB.deletedIds.woLabor||[], dwe = DB.deletedIds.woExpenses||[], dwcl = DB.deletedIds.woChecklist||[];
+      var keepWL=[], keepWE=[], keepWCl=[];
+      for (var _iwl of dwl)  { var _r10 = await _sb.from('wo_labor').delete().eq('id',_iwl).select('id');     if (_delFailed(_r10)) keepWL.push(_iwl); }
+      for (var _iwe of dwe)  { var _r11 = await _sb.from('wo_expenses').delete().eq('id',_iwe).select('id');  if (_delFailed(_r11)) keepWE.push(_iwe); }
+      for (var _iwc of dwcl) { var _r12 = await _sb.from('wo_checklist').delete().eq('id',_iwc).select('id'); if (_delFailed(_r12)) keepWCl.push(_iwc); }
       // Only confirmed cloud deletes (a row actually came back from .select) clear the
       // tombstone; blocked/no-op deletes stay tombstoned so the row never resurrects.
-      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO, timeEntries:keepTE, contracts:keepCon, recurringContracts:keepRC, woParts:keepWP};
+      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO, timeEntries:keepTE, contracts:keepCon, recurringContracts:keepRC, woParts:keepWP, woLabor:keepWL, woExpenses:keepWE, woChecklist:keepWCl};
       try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
     }
     // Push settings to company_settings (single row, id=1)
