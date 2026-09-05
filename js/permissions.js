@@ -2,62 +2,11 @@
 // END ROLE PERMISSIONS SYSTEM
 // ============================================================
 
-function printQRLabels() {
-  if (!_wtProjectId) { showToast('Select a project first','warning'); return; }
-  var project  = (DB.wtProjects||[]).find(function(p){ return p.id===_wtProjectId; });
-  var buildings = (DB.wtBuildings||[]).filter(function(b){ return b.projectId===_wtProjectId; });
-  if (!buildings.length) { showToast('No buildings on this project yet','warning'); return; }
-
-  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'+
-    '<title>QR Labels — '+(project?project.name:'Project')+'</title>'+
-    '<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>'+
-    '<style>'+
-      'body{font-family:Arial,sans-serif;margin:0;padding:16px;background:#fff}'+
-      'h2{font-size:16px;margin:0 0 16px;color:#1565c0}'+
-      '.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}'+
-      '.label{border:2px solid #1565c0;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}'+
-      '.label-bld{font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px}'+
-      '.label-room{font-size:16px;font-weight:900;color:#0d1b2a;margin:4px 0}'+
-      '.label-floor{font-size:10px;color:#90a4ae}'+
-      'canvas{margin:6px 0}'+
-      '.bld-title{font-size:14px;font-weight:700;color:#0d1b2a;margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid #1565c0}'+
-      '@media print{.no-print{display:none}@page{margin:10mm}}'+
-    '</style></head><body>'+
-    '<div class="no-print" style="margin-bottom:16px">'+
-      '<h2>🏷 QR Room Labels — '+(project?escHtml(project.name):'')+'</h2>'+
-      '<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;margin-right:8px">🖨 Print Labels</button>'+
-      '<button onclick="window.close()" style="background:none;border:1px solid #e0e0e0;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer">Close</button>'+
-    '</div>';
-
-  buildings.forEach(function(b){
-    var rooms = (DB.wtRooms||[]).filter(function(r){ return r.buildingId===b.id; });
-    if (!rooms.length) return;
-    html += '<div class="bld-title">🏢 '+escHtml(b.name)+'</div><div class="grid">';
-    rooms.forEach(function(r){
-      var qrData = 'TCSS-ROOM:'+r.id;
-      html += '<div class="label" id="lbl-'+r.id+'">'+
-        '<div class="label-bld">'+escHtml(b.name)+'</div>'+
-        '<div class="label-room">'+escHtml(r.name)+'</div>'+
-        '<div class="label-floor">Floor '+escHtml(r.floor||'')+(r.layout?' · '+escHtml(r.layout):'')+'</div>'+
-        '<canvas id="qr-'+r.id+'"></canvas>'+
-        '<div style="font-size:8px;color:#90a4ae;margin-top:2px">'+escHtml(qrData)+'</div>'+
-      '</div>';
-    });
-    html += '</div>';
-  });
-
-  html += '<script>'+
-    'document.addEventListener("DOMContentLoaded",function(){'+
-    'document.querySelectorAll("canvas[id^=\'qr-\']").forEach(function(canvas){'+
-      'var roomId=canvas.id.replace("qr-","");'+
-      'QRCode.toCanvas(canvas,"TCSS-ROOM:"+roomId,{width:90,margin:1},function(){});'+
-    '});});'+
-  '<\/script></body></html>';
-
-  var win = window.open('','_blank','width=900,height=700');
-  if (win) { win.document.write(html); win.document.close(); }
-  else showToast('Allow popups to print QR labels','warning');
-}
+// DUP-4 RESOLVED: the legacy printQRLabels() that lived here read the old
+// DB.wtProjects/wtBuildings/wtRooms model (no longer populated by the V9 work-tracking
+// module) and was shadowed by a "coming soon" stub in worktracking.js. It has been
+// removed and replaced by a working implementation in worktracking.js that reads the
+// current model (WT.proj + wtProjData()). Do not re-add a copy here.
 
 // ============================================================
 // PHASE 3 — TIME PER ITEM + BENCHMARK SYSTEM (Q40, Q50)

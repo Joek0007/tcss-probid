@@ -1722,7 +1722,7 @@ async function pushAllToCloud() {
     // Persist secondary collections that have no dedicated table (tools & assets,
     // tool checkouts, checkout log, inventory locations/transfers). Stored as whole-
     // collection JSON blobs in app_state so they survive reloads and reach every device.
-    var _blobKeys = ['tools','toolCheckouts','checkoutLog','invLocations','invTransfers'];
+    var _blobKeys = ['tools','toolCheckouts','checkoutLog','invLocations','invTransfers','timeOffRequests','absences'];
     for (var _bk of _blobKeys) {
       try { await _sb.from('app_state').upsert({ key: _bk, data: DB[_bk] || [], updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
       catch(_be) { console.warn('[Push] app_state', _bk, _be && _be.message); }

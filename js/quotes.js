@@ -4560,7 +4560,32 @@ function delTemplate(id){
 let _rptActiveTab = 'overview';
 let _rptDateFilter = 'all';
 
+// Report-tab → permission map (rpt.* keys). 'overview' is the high-level summary and
+// requires ANY report permission; each detail tab requires its specific key. Margins is
+// part of the quoting/pipeline picture, so it shares rpt.quotes.
+var _RPT_TAB_PERM = { overview:'*', pipeline:'rpt.quotes', margins:'rpt.quotes', jobs:'rpt.jobs', techs:'rpt.tech', tools:'rpt.tools', payroll:'rpt.payroll' };
+var _RPT_TABS = ['overview','pipeline','margins','jobs','techs','tools','payroll'];
+function _rptAnyPerm(){ return ['rpt.quotes','rpt.jobs','rpt.tech','rpt.tools','rpt.payroll'].some(function(k){ return (typeof hasPermission!=='function') || hasPermission(k); }); }
+function _rptCanView(tab){
+  if (typeof hasPermission!=='function') return true;
+  var p = _RPT_TAB_PERM[tab]; if (!p) return true;
+  return p==='*' ? _rptAnyPerm() : hasPermission(p);
+}
+// Hide report-tab buttons the current user can't view, and if their active tab isn't
+// permitted, fall back to the first one that is. Called at the top of renderReports so it
+// stays correct on every render.
+function _applyReportTabPermissions(){
+  _RPT_TABS.forEach(function(t){ var b=document.getElementById('rpt-tabbtn-'+t); if(b) b.style.display=_rptCanView(t)?'':'none'; });
+  if (!_rptCanView(_rptActiveTab)){
+    var first = _RPT_TABS.filter(_rptCanView)[0] || 'overview';
+    _rptActiveTab = first;
+    document.querySelectorAll('.rpt-tab').forEach(function(b,i){ b.classList.toggle('active', _RPT_TABS[i]===first); });
+    document.querySelectorAll('.rpt-section').forEach(function(s){ s.classList.toggle('active', s.id==='rpt-'+first); });
+  }
+}
+
 function switchRptTab(tab) {
+  if (!_rptCanView(tab)) { showToast('You do not have permission to view this report','error'); return; }
   _rptActiveTab = tab;
   document.querySelectorAll('.rpt-tab').forEach(function(b,i){
     const tabs = ['overview','pipeline','margins','jobs','techs','tools','payroll'];
@@ -4592,6 +4617,7 @@ function makeBar(label, value, maxVal, color, suffix) {
 }
 
 function renderReports() {
+  if (typeof _applyReportTabPermissions==='function') _applyReportTabPermissions();
   _rptDateFilter = (document.getElementById('rpt-date-filter')||{}).value || 'all';
   const quotes = getFilteredQuotes();
   const tab    = _rptActiveTab;

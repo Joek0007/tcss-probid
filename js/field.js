@@ -845,9 +845,129 @@ async function loadTimesheets() {
 
 // ---- OPEN / POPULATE ENTRY MODAL ----
 
+// ============================================================
+// TEAM CLOCK (simple) — a lead/office clocks a teammate IN or OUT.
+// Creates/closes an OPEN time_entries row for that teammate (no GPS/timers — that's the
+// planned "full GPS shift on behalf" follow-up). An OPEN shift = a time entry with no end
+// time for that tech, today. Who did it is stamped in added_by (persists through sync, so
+// clock-out still works after a cloud round-trip). Gated by time.clockteam.
+// ============================================================
+function _tcNowHHMM(){ var d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function _tcHHMMtoMins(t){ var p=String(t||'').split(':'); return (parseInt(p[0],10)||0)*60+(parseInt(p[1],10)||0); }
+function _findOpenTeamShift(techName){
+  var today = getTodayISO();
+  return (DB.timeEntries||[]).find(function(e){
+    if (!e || e.deleted || e.techName!==techName || e.date!==today || e.endTime) return false;
+    // Pre-sync: the local teamClock flag is set. Post-sync that flag is gone (not a DB
+    // column), so fall back to persistent fields: an open (no end-time) manual entry whose
+    // added_by is someone OTHER than the tech is a team clock-in. Self-clock never uses
+    // time_entries, so an open time_entries row is effectively always a team clock.
+    return e.teamClock===true || (e.isManual && e.addedBy && e.addedBy!==e.techName);
+  });
+}
+function openTeamClock(){
+  if (typeof hasPermission==='function' && !hasPermission('time.clockteam')) { showToast('You do not have permission to clock the team','error'); return; }
+  var existing = document.getElementById('modal-team-clock'); if (existing) existing.remove();
+  var team = (DB.team||[]).filter(function(m){ return m.active!==false; })
+    .sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+  var opts = '<option value="">— Select teammate —</option>' +
+    team.map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
+  var html = '<div class="modal-overlay open" id="modal-team-clock" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box sm" style="max-width:420px">'+
+      '<div class="modal-head"><h3>⏱ Clock a Teammate</h3>'+
+        '<button class="btn-icon" onclick="document.getElementById(\'modal-team-clock\').remove()">✕</button></div>'+
+      '<div class="modal-body">'+
+        '<label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">TEAMMATE</label>'+
+        '<select id="tc-team-tech" onchange="_renderTeamClockState()" style="width:100%;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px;box-sizing:border-box">'+opts+'</select>'+
+        '<div id="tc-team-state" style="margin:14px 0;font-size:13px;color:#546e7a;min-height:20px"></div>'+
+        '<div id="tc-team-actions"></div>'+
+        '<div style="font-size:11px;color:#90a4ae;margin-top:14px">Records to the timesheet under the teammate’s name, stamped with your name. No GPS — for quick crew clock-in/out.</div>'+
+      '</div>'+
+    '</div></div>';
+  var wrap = document.createElement('div'); wrap.innerHTML = html;
+  document.body.appendChild(wrap.firstChild);
+}
+function _renderTeamClockState(){
+  var tech = (document.getElementById('tc-team-tech')||{}).value||'';
+  var stateEl = document.getElementById('tc-team-state');
+  var actEl = document.getElementById('tc-team-actions');
+  if (!stateEl || !actEl) return;
+  if (!tech){ stateEl.textContent=''; actEl.innerHTML=''; return; }
+  var open = _findOpenTeamShift(tech);
+  if (open){
+    stateEl.innerHTML = '<span style="color:#2e7d32;font-weight:700">● On the clock</span> since '+escHtml(open.startTime||'?')+' today (started by '+escHtml(open.addedBy||'?')+').';
+    actEl.innerHTML = '<button class="btn btn-danger" style="width:100%" onclick="teamClockOut()">Clock '+escHtml(tech)+' Out Now</button>';
+  } else {
+    stateEl.innerHTML = '<span style="color:#90a4ae;font-weight:700">○ Not on the clock</span> today.';
+    actEl.innerHTML = '<button class="btn btn-success" style="width:100%" onclick="teamClockIn()">Clock '+escHtml(tech)+' In Now</button>';
+  }
+}
+function teamClockIn(){
+  if (typeof hasPermission==='function' && !hasPermission('time.clockteam')) { showToast('You do not have permission to clock the team','error'); return; }
+  var tech = (document.getElementById('tc-team-tech')||{}).value||'';
+  if (!tech){ showToast('Select a teammate','error'); return; }
+  if (_findOpenTeamShift(tech)){ showToast(tech+' is already clocked in','warning'); return; }
+  var adder = _currentUser ? _currentUser.full_name : 'Unknown';
+  var now = new Date().toISOString();
+  var entry = {
+    id:         'te-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),
+    techName:   tech,
+    date:       getTodayISO(),
+    entryType:  'work',
+    startTime:  _tcNowHHMM(),
+    endTime:    '',
+    totalHours: 0,
+    totalMins:  0,
+    isPaid:     true,
+    woId:       '',
+    jobId:      '',
+    woLabel:    '',
+    notes:      'Team clock-in by '+adder,
+    isManual:   true,
+    teamClock:  true,
+    addedBy:    adder,
+    addedAt:    now,
+    auditTrail: [{ action:'team-clock-in', by:adder, at:now }]
+  };
+  if (!DB.timeEntries) DB.timeEntries = [];
+  DB.timeEntries.push(entry);
+  saveDB();
+  if (typeof _pushTimeEntryToSupabase==='function') _pushTimeEntryToSupabase(entry);
+  showToast(tech+' clocked in','success');
+  _renderTeamClockState();
+  if (typeof loadTimesheets==='function') loadTimesheets();
+}
+function teamClockOut(){
+  if (typeof hasPermission==='function' && !hasPermission('time.clockteam')) { showToast('You do not have permission to clock the team','error'); return; }
+  var tech = (document.getElementById('tc-team-tech')||{}).value||'';
+  if (!tech){ showToast('Select a teammate','error'); return; }
+  var open = _findOpenTeamShift(tech);
+  if (!open){ showToast(tech+' is not clocked in','warning'); return; }
+  var adder = _currentUser ? _currentUser.full_name : 'Unknown';
+  var now = new Date().toISOString();
+  var endHHMM = _tcNowHHMM();
+  var mins = _tcHHMMtoMins(endHHMM) - _tcHHMMtoMins(open.startTime);
+  if (mins < 0) mins = 0; // guard against a clock-out that crosses midnight in this simple v1
+  open.endTime    = endHHMM;
+  open.totalMins  = mins;
+  open.totalHours = Math.round((mins/60)*100)/100;
+  open.teamClock  = false; // shift closed
+  open.lastEditedBy = adder;
+  open.lastEditedAt = now;
+  if (!open.auditTrail) open.auditTrail = [];
+  open.auditTrail.push({ action:'team-clock-out', by:adder, at:now });
+  saveDB();
+  if (typeof _pushTimeEntryToSupabase==='function') _pushTimeEntryToSupabase(open);
+  showToast(tech+' clocked out — '+open.totalHours+' hrs','success');
+  _renderTeamClockState();
+  if (typeof loadTimesheets==='function') loadTimesheets();
+}
+
 function openAddTimeEntry(prefillTech, prefillDate, prefillWoId) {
-  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
-  if (!isAdmin) { showToast('Admin access required','error'); return; }
+  // Recording/adjusting time for the team is governed by the time.clockteam permission
+  // (default: owner/manager/back_office/lead_tech — owner can adjust per role in Settings).
+  // Replaces the old hardcoded office-only check, which excluded lead techs.
+  if (typeof hasPermission==='function' && !hasPermission('time.clockteam')) { showToast('You do not have permission to record time for the team','error'); return; }
 
   // Clear form
   document.getElementById('te-edit-id').value = '';
@@ -887,6 +1007,10 @@ function openAddTimeEntry(prefillTech, prefillDate, prefillWoId) {
 }
 
 function openEditTimeEntry(entryId) {
+  // Editing an existing entry is a time CORRECTION → time.correct (distinct from adding
+  // team time, which is time.clockteam). A lead may clock the crew in/out but not
+  // retroactively correct records unless the owner grants time.correct.
+  if (typeof hasPermission==='function' && !hasPermission('time.correct')) { showToast('You do not have permission to correct time entries','error'); return; }
   var canDelete = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
   var entry = (DB.timeEntries||[]).find(function(e){ return e.id===entryId; });
   if (!entry) { showToast('Entry not found','error'); return; }
@@ -980,6 +1104,11 @@ function updateTeDuration() {
 
 function saveManualTimeEntry() {
   var editId   = (document.getElementById('te-edit-id')||{}).value||'';
+  // Adding a new entry = time.clockteam; editing an existing one = time.correct.
+  var _needPerm = editId ? 'time.correct' : 'time.clockteam';
+  if (typeof hasPermission==='function' && !hasPermission(_needPerm)) {
+    showToast('You do not have permission to '+(editId?'correct time entries':'record time for the team'),'error'); return;
+  }
   var techName = (document.getElementById('te-tech')||{}).value||'';
   var date     = (document.getElementById('te-date')||{}).value||'';
   var type     = (document.getElementById('te-type')||{}).value||'work';

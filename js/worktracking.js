@@ -5654,7 +5654,72 @@ function openCheckoffModal(i,p)  { openWTCheckoffModal(i,p); }
 function submitWTCheckoff()      { wtSubmitCheckoff(); }
 function onCoPhotoSelected(i)    { wtAddCheckoffPhotos(i); }
 function bulkCompleteRoom()      {}
-function printQRLabels()         { showToast('QR labels — coming soon','info'); }
+// DUP-4 RESOLVED: real QR-room-label printing, ported to the current WT data model
+// (WT.proj + wtProjData() → buildings/floors/rooms). The old copy in permissions.js read
+// the legacy DB.wtProjects/wtBuildings/wtRooms model the V9 module no longer populates.
+function printQRLabels() {
+  if (!WT.proj) { showToast('Open a work-tracking project first','warning'); return; }
+  var project   = WT.proj;
+  var d         = wtProjData();
+  var buildings = d.buildings || [];
+  var rooms     = d.rooms || [];
+  var floors    = d.floors || [];
+  if (!rooms.length) { showToast('No rooms on this project yet','warning'); return; }
+  var floorById = {}; floors.forEach(function(f){ floorById[f.id] = f; });
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'+
+    '<title>QR Labels — '+escHtml(project.name||'Project')+'</title>'+
+    '<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>'+
+    '<style>'+
+      'body{font-family:Arial,sans-serif;margin:0;padding:16px;background:#fff}'+
+      'h2{font-size:16px;margin:0 0 16px;color:#1565c0}'+
+      '.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}'+
+      '.label{border:2px solid #1565c0;border-radius:10px;padding:10px;text-align:center;break-inside:avoid}'+
+      '.label-bld{font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px}'+
+      '.label-room{font-size:16px;font-weight:900;color:#0d1b2a;margin:4px 0}'+
+      '.label-floor{font-size:10px;color:#90a4ae}'+
+      'canvas{margin:6px 0}'+
+      '.bld-title{font-size:14px;font-weight:700;color:#0d1b2a;margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid #1565c0}'+
+      '@media print{.no-print{display:none}@page{margin:10mm}}'+
+    '</style></head><body>'+
+    '<div class="no-print" style="margin-bottom:16px">'+
+      '<h2>🏷 QR Room Labels — '+escHtml(project.name||'')+'</h2>'+
+      '<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;margin-right:8px">🖨 Print Labels</button>'+
+      '<button onclick="window.close()" style="background:none;border:1px solid #e0e0e0;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer">Close</button>'+
+    '</div>';
+
+  buildings.forEach(function(b){
+    var bRooms = rooms.filter(function(r){ return r.building_id===b.id; });
+    if (!bRooms.length) return;
+    html += '<div class="bld-title">🏢 '+escHtml(b.name||'Building')+'</div><div class="grid">';
+    bRooms.forEach(function(r){
+      var fl = floorById[r.floor_id];
+      var floorLabel = fl ? escHtml(fl.name || ('Floor '+(fl.floor_number||''))) : '';
+      var roomTitle = escHtml(r.name || r.room_number || 'Room');
+      var qrData = 'TCSS-ROOM:'+r.id;
+      html += '<div class="label">'+
+        '<div class="label-bld">'+escHtml(b.name||'')+'</div>'+
+        '<div class="label-room">'+roomTitle+'</div>'+
+        '<div class="label-floor">'+floorLabel+(r.unit_type?' · '+escHtml(r.unit_type):'')+'</div>'+
+        '<canvas id="qr-'+escHtml(r.id)+'"></canvas>'+
+        '<div style="font-size:8px;color:#90a4ae;margin-top:2px">'+escHtml(qrData)+'</div>'+
+      '</div>';
+    });
+    html += '</div>';
+  });
+
+  html += '<script>'+
+    'document.addEventListener("DOMContentLoaded",function(){'+
+    'document.querySelectorAll("canvas[id^=\'qr-\']").forEach(function(canvas){'+
+      'var roomId=canvas.id.replace("qr-","");'+
+      'QRCode.toCanvas(canvas,"TCSS-ROOM:"+roomId,{width:90,margin:1},function(){});'+
+    '});});'+
+  '<\/script></body></html>';
+
+  var win = window.open('','_blank','width=900,height=700');
+  if (win) { win.document.write(html); win.document.close(); }
+  else showToast('Allow popups to print QR labels','warning');
+}
 
 // ─── INDEX.HTML PAGE ENTRY POINT ──────────────────────────────────────────────
 // <div id="wt-main"></div>  ← sole mount point; this module populates it
@@ -6195,7 +6260,12 @@ function submitTimeOffRequest() {
 function renderTimeOffTab() {
   var myName  = _currentUser ? _currentUser.full_name : '';
   var myRole  = _currentUser ? _currentUser.role : '';
-  var isAdmin = myRole==='owner'||myRole==='manager'||myRole==='back_office';
+  // The approve/deny queue is governed by the leave.approve permission (owner can adjust
+  // per role in Settings). Falls back to the old office-role check if the permission
+  // system isn't loaded yet.
+  var isAdmin = (typeof hasPermission==='function')
+    ? hasPermission('leave.approve')
+    : (myRole==='owner'||myRole==='manager'||myRole==='back_office');
   var requests = DB.timeOffRequests||[];
 
   // My requests
@@ -6244,6 +6314,7 @@ function renderTimeOffRow(r, showActions) {
 }
 
 function resolveTimeOff(id, status) {
+  if (typeof hasPermission==='function' && !hasPermission('leave.approve')) { showToast('You do not have permission to approve or deny time off','error'); return; }
   var r = (DB.timeOffRequests||[]).find(function(x){ return x.id===id; }); if(!r) return;
   if (status==='denied') {
     var reason = prompt('Reason for denial (optional):','')||'';
