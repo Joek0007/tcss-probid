@@ -3390,6 +3390,7 @@ function wtUnitDef(id) {
 
 // ─── WIZARD OPEN / SHOW ───────────────────────────────────────────────────────
 function openNewProjectWizard() {
+  if (typeof hasPermission==='function' && !hasPermission('wt.create')) { showToast('You do not have permission to create Work Tracking projects','error'); return; }
   var draft = wtWizLoadDraft();
   // Validate draft is compatible with V5 format (rooms array, not units)
   var draftValid = draft && draft.proj && draft.proj.name && draft.proj.name.trim() &&
@@ -4198,6 +4199,7 @@ function wtWizNext(fromStep) {
 
 // ─── CREATE PROJECT ───────────────────────────────────────────────────────────
 async function wtCreateProject() {
+  if (typeof hasPermission==='function' && !hasPermission('wt.create')) { showToast('You do not have permission to create Work Tracking projects','error'); return; }
   var btn=document.getElementById('wiz-create-btn');
   if(btn){ btn.disabled=true; btn.textContent='Creating…'; }
   try {
@@ -6473,6 +6475,7 @@ function renderDaySummaryCard(d) {
 }
 
 function resolveLunchFlag(flagId, action) {
+  if (typeof hasPermission==='function' && !hasPermission('time.approveflag')) { showToast('You do not have permission to approve lunch flags','error'); return; }
   var flag=(DB.lunchFlags||[]).find(function(f){return f.id===flagId;});
   if(!flag) return;
   flag.status='resolved'; flag.resolution=action;

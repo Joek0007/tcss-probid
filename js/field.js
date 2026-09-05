@@ -147,6 +147,7 @@ async function doStartDay() {
 
 // PHASE 1 — START TRAVEL (from homebase or from a job to next job)
 async function doStartTravel(){
+  if (typeof hasPermission==='function' && !hasPermission('time.clock')) { showToast('You do not have permission to clock in','error'); return; }
   var jobSel=document.getElementById('clock-job-select');
   var jobId=jobSel?jobSel.value:'';
   var jobName=jobSel&&jobSel.selectedIndex>0?jobSel.options[jobSel.selectedIndex].text:'General';

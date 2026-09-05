@@ -385,6 +385,7 @@ function editTool(id) {
 }
 
 function saveToolItem() {
+  if (typeof hasPermission==='function' && !hasPermission('tool.edit')) { showToast('You do not have permission to add or edit tools','error'); return; }
   var id   = document.getElementById('tool-id').value;
   var name = document.getElementById('tool-name').value.trim();
   if (!name) { showToast('Tool name is required.','error'); return; }
@@ -440,6 +441,7 @@ function delTool(id) {
 
 // ---- CHECKOUT / CHECKIN ----
 function checkoutTool(toolId) {
+  if (typeof hasPermission==='function' && !hasPermission('tool.checkout')) { showToast('You do not have permission to check out tools','error'); return; }
   var tool=(DB.tools||[]).find(function(t){return t.id==toolId}); if(!tool) return;
   // Show flag warning if tool has unresolved issues
   var openFlags = (tool.flags||[]).filter(function(f){ return !f.resolved; });
@@ -710,6 +712,7 @@ function openTransferModal(toolId) {
 }
 
 function confirmTransfer(modalId) {
+  if (typeof hasPermission==='function' && !hasPermission('tool.transfer')) { showToast('You do not have permission to transfer tools','error'); return; }
   var toolId = (document.getElementById('tr-tool-id')||{}).value||'';
   var coId   = (document.getElementById('tr-co-id')||{}).value||'';
   var toName = ((document.getElementById('tr-to')||{}).value||'').trim();
@@ -809,6 +812,7 @@ function renderPendingVerifyTab() {
 }
 
 function verifyToolReturn(coId) {
+  if (typeof hasPermission==='function' && !hasPermission('tool.inspect')) { showToast('You do not have permission to inspect returned tools','error'); return; }
   var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co) return;
   var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
   var included = (co.groupsIncluded||[]).filter(function(g){ return g.included; });
