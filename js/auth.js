@@ -491,6 +491,7 @@ async function syncAllFromCloud(silent) {
   var delTime = DB.deletedIds.timeEntries   || [];
   var delCon  = DB.deletedIds.contracts     || [];
   var delRC   = DB.deletedIds.recurringContracts || [];
+  var delWP   = DB.deletedIds.woParts       || [];  // SC-3b: WO parts tombstones
 
   // Status map — Supabase Title Case → app lowercase
   var pullStatusMap = {
@@ -906,8 +907,11 @@ async function syncAllFromCloud(silent) {
       var { data: woPartsRows, error: wope } = await _sb.from('wo_parts').select('*').order('created_at', { ascending: false });
       if (wope) { errors.push('wo_parts: '+wope.message); }
       else if (woPartsRows) {
-        DB.woParts = woPartsRows.map(function(p){
-          return { id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, status:p.status, notes:p.notes, requestedBy:p.requested_by, createdAt:p.created_at };
+        // SC-3b: this pull FULL-REPLACES DB.woParts, so a part tombstoned locally but
+        // not yet confirmed-deleted in the cloud must be filtered out here or it would
+        // resurrect on every sync. Mirrors the WO/PO tombstone-filter pattern.
+        DB.woParts = woPartsRows.filter(function(p){ return delWP.indexOf(String(p.id)) < 0; }).map(function(p){
+          return { id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, unit:p.unit, status:p.status, notes:p.notes, requestedBy:p.requested_by, createdAt:p.created_at };
         });
       }
     } catch(e) { errors.push('wo_parts: '+e.message); }
@@ -968,7 +972,11 @@ async function syncAllFromCloud(silent) {
       if (ve) { errors.push('vendors: '+ve.message); }
       else if (vendorRows) {
         DB.vendors = vendorRows.map(function(v){
-          return { id:v.id, name:v.name, contact:v.contact_name, phone:v.phone, email:v.email, acctNum:v.account_num, address:v.address, city:v.city, state:v.state, zip:v.zip, defaultTerms:v.default_terms||'Due on Receipt', taxExempt:!!v.tax_exempt, notes:v.notes, active:v.is_active!==false };
+          // SC-1: the vendors table column is payment_terms (see vendor save in
+          // purchaseorders.js). The old read of v.default_terms hit a nonexistent
+          // column, so every vendor's terms silently fell back to 'Due on Receipt'
+          // regardless of what was saved. Read the real column.
+          return { id:v.id, name:v.name, contact:v.contact_name, phone:v.phone, email:v.email, acctNum:v.account_num, address:v.address, city:v.city, state:v.state, zip:v.zip, defaultTerms:v.payment_terms||'Due on Receipt', taxExempt:!!v.tax_exempt, notes:v.notes, active:v.is_active!==false };
         });
       }
     } catch(e) { errors.push('vendors: '+e.message); }
@@ -1200,9 +1208,14 @@ async function pushAllToCloud() {
       var keepCon=[], keepRC=[];
       for (var _icn of dcon) { var _r7 = await _sb.from('contracts').delete().eq('id',_icn).select('id'); if (_delFailed(_r7)) keepCon.push(_icn); }
       for (var _irc of drc) { var _r8 = await _sb.from('recurring_contracts').delete().eq('id',_irc).select('id'); if (_delFailed(_r8)) keepRC.push(_irc); }
+      // SC-3b: WO parts are a HARD-delete table (text ids). Same RLS-silent-block guard:
+      // .select('id') so a blocked/no-op delete keeps its tombstone rather than letting
+      // the row resurrect on the next full-replace pull.
+      var dwp = DB.deletedIds.woParts||[]; var keepWP=[];
+      for (var _iwp of dwp) { var _r9 = await _sb.from('wo_parts').delete().eq('id',_iwp).select('id'); if (_delFailed(_r9)) keepWP.push(_iwp); }
       // Only confirmed cloud deletes (a row actually came back from .select) clear the
       // tombstone; blocked/no-op deletes stay tombstoned so the row never resurrects.
-      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO, timeEntries:keepTE, contracts:keepCon, recurringContracts:keepRC};
+      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO, timeEntries:keepTE, contracts:keepCon, recurringContracts:keepRC, woParts:keepWP};
       try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
     }
     // Push settings to company_settings (single row, id=1)
@@ -1565,27 +1578,13 @@ async function pushAllToCloud() {
       } catch(invErr) { console.warn('[Push] Inventory:', invErr.message||invErr); }
     }
 
-    // Push work tracking checkoffs
-    for (var wt of (DB.wtCheckoffs || [])) {
-      if (!wt || !wt.id) continue;
-      try {
-        var { error: wtErr } = await _sb.from('work_tracking').upsert({
-          id:           wt.id,
-          project_id:   wt.projectId || null,
-          building_id:  wt.buildingId || null,
-          room_id:      wt.roomId || null,
-          item_id:      wt.itemId || null,
-          assigned_to:  wt.assignedTo || null,
-          status:       wt.status || 'pending',
-          completed_at: wt.completedAt || null,
-          completed_by: wt.completedBy || null,
-          notes:        wt.notes || null,
-          rework:       !!wt.rework,
-          rework_reason:wt.reworkReason || null
-        });
-        if (wtErr) console.warn('[Push] Work tracking error:', wtErr.message);
-      } catch(wtCatch) { console.warn('[Push] Work tracking error:', wtCatch.message||wtCatch); }
-    }
+    // SC-2: removed an orphan push of DB.wtCheckoffs into the `work_tracking` table.
+    // That was dead/wrong on two counts: (1) DB.wtCheckoffs is a legacy global that
+    // nothing populates from the cloud anymore (it is initialized empty in core.js and
+    // only read by legacy report code), and (2) the live work-tracking module persists
+    // check-offs to the `wt_checkoffs` table with its own upsert/delete path
+    // (js/worktracking.js). The `work_tracking` table is empty and unused. Writing an
+    // always-empty array to a dead table did nothing but risk future confusion.
 
     // Push jobs
     var _activeJobsForStats = typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]);
@@ -1658,6 +1657,32 @@ async function pushAllToCloud() {
       } catch(jbErr) {
         console.warn('[Push] Job error for', jb.name, jbErr.message || jbErr);
       }
+    }
+
+    // SC-3b: Push WO parts. Previously parts were pulled but NEVER pushed, so any part
+    // created locally — from the WO Parts tab, the inventory scanner, or a PO receipt,
+    // all of which write to DB.woParts — was wiped on the next full-replace pull. This
+    // one bulk upsert covers every creation path uniformly (each calls saveDB(), which
+    // schedules this push). Text ids ('wop-…') match the table, so no UUID conversion.
+    // Tombstoned ids are skipped so a part being deleted isn't re-created by its own upsert.
+    var _wpTomb = (DB.deletedIds && DB.deletedIds.woParts) || [];
+    for (var wp of (DB.woParts||[])) {
+      if (!wp || !wp.id) continue;
+      if (_wpTomb.indexOf(String(wp.id)) >= 0) continue;
+      try {
+        _pushErr('wo_part '+(wp.name||wp.id), await _sb.from('wo_parts').upsert({
+          id:           wp.id,
+          wo_id:        wp.woId||null,
+          part_name:    wp.name||null,
+          part_num:     wp.partNum||null,
+          quantity:     wp.qty||0,
+          unit:         wp.unit||null,
+          status:       wp.status||'requested',
+          notes:        wp.notes||null,
+          requested_by: wp.requestedBy||null,
+          created_at:   wp.createdAt||new Date().toISOString()
+        }, {onConflict:'id'}));
+      } catch(wpErr) { console.warn('[Push] WO part:', wpErr.message||wpErr); }
     }
 
     // Push recurring contracts (Managed Services)

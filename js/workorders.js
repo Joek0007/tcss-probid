@@ -2076,7 +2076,15 @@ function updateWOPartStatus(id,status) {
 function deleteWOPart(id) {
   if(!confirm('Remove this part request?'))return;
   DB.woParts=(DB.woParts||[]).filter(function(p){return p.id!==id;});
+  // SC-3b: single-writer delete. Record a tombstone so the cloud delete is performed
+  // exactly once by pushAllToCloud (with the RLS-silent-block .select('id') guard) and
+  // the pull filter keeps suppressing the row until that delete is confirmed. Without
+  // this, the part would resurrect on the next full-replace pull from wo_parts.
+  if(!DB.deletedIds)DB.deletedIds={};
+  if(!DB.deletedIds.woParts)DB.deletedIds.woParts=[];
+  if(DB.deletedIds.woParts.indexOf(id)<0)DB.deletedIds.woParts.push(id);
   saveDB(); switchWOTab('parts');
+  if(_sb&&_currentUser&&typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
 }
 
 // ---- CHECKLIST TAB ----
@@ -2290,6 +2298,11 @@ async function _pushWOToCloud(wo) {
       scheduled_date:   wo.scheduledDate||null,
       scheduled_time:   wo.scheduledTime||null,
       wt_project_id:    wo.wtProjectId||null,
+      // SC-3a: job_id / quote_id columns exist on work_orders but were never written,
+      // so a WO's link back to its originating job or quote was lost on every cloud
+      // round-trip. Persist both (null when the WO isn't tied to one).
+      job_id:           wo.jobId||null,
+      quote_id:         wo.quoteId||null,
       date_followup: wo.dateFollowup||null,
       date_opened:   wo.dateOpened||null,
       date_closed:   wo.dateClosed||null,
