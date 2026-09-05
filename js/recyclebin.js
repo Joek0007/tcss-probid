@@ -38,16 +38,18 @@ async function renderRecycleBin(){
       _sb.from('customers').select('id,name,company,deleted_at,deleted_by').eq('is_active',false).order('deleted_at',{ascending:false}),
       _sb.from('contacts').select('id,name,deleted_at,deleted_by').eq('is_active',false).order('deleted_at',{ascending:false}),
       _sb.from('jobs').select('id,name,deleted_at,deleted_by').eq('is_active',false).order('deleted_at',{ascending:false}),
-      _sb.from('profiles').select('id,full_name')
+      _sb.from('profiles').select('id,full_name'),
+      _sb.from('time_entries').select('id,tech_name,entry_date,entry_type,total_hours,deleted_at,deleted_by').eq('deleted',true).order('deleted_at',{ascending:false})
     ]);
     var firstErr = res.find(function(r){ return r && r.error; });
     if (firstErr) { el.innerHTML = '<div class="card" style="text-align:center;padding:40px;color:#c62828">Could not load the Recycle Bin: '+_rbEsc(firstErr.error.message)+'</div>'; return; }
 
     var quotes=res[0].data||[], custs=res[1].data||[], conts=res[2].data||[], jobs=res[3].data||[];
+    var tents=res[5].data||[];
     var who={}; (res[4].data||[]).forEach(function(p){ who[p.id]=p.full_name; });
     var by=function(uid){ return uid ? (who[uid]||'—') : '—'; };
 
-    var total = quotes.length+custs.length+conts.length+jobs.length;
+    var total = quotes.length+custs.length+conts.length+jobs.length+tents.length;
     if (total === 0) {
       el.innerHTML = '<div class="card" style="text-align:center;padding:48px;color:#90a4ae">'
         + '<div style="font-size:40px;margin-bottom:8px">♻️</div>'
@@ -104,6 +106,17 @@ async function renderRecycleBin(){
         function(r){ return _rbEsc(_rbDate(r.deleted_at)); },
         function(r){ return _rbEsc(by(r.deleted_by)); } ]);
 
+    // SD-6: deleted time entries. Note deleted_by here is stored as a NAME string (set by
+    // deleteTimeEntry), not a profile uuid, so it's shown directly rather than via by().
+    html += section('Time Entries','⏱','timeEntry', tents,
+      ['Tech','Date','Type','Hours','Deleted','By'],
+      [ function(r){ return '<b>'+_rbEsc(r.tech_name||'')+'</b>'; },
+        function(r){ return _rbEsc(r.entry_date||''); },
+        function(r){ return _rbEsc(r.entry_type||''); },
+        function(r){ return r.total_hours!=null ? _rbEsc(r.total_hours)+' h' : ''; },
+        function(r){ return _rbEsc(_rbDate(r.deleted_at)); },
+        function(r){ return _rbEsc(r.deleted_by||'—'); } ]);
+
     el.innerHTML = html;
   } catch(e){
     el.innerHTML = '<div class="card" style="text-align:center;padding:40px;color:#c62828">Could not load the Recycle Bin: '+_rbEsc(String(e))+'</div>';
@@ -113,8 +126,8 @@ async function renderRecycleBin(){
 // One-click restore via the authorized RPC. Also clears any local tombstone so the
 // next pull doesn't re-hide the record, then pulls so it reappears in the app.
 async function rbRestore(kind, id, btn){
-  var rpcMap  = { quote:'restore_quote', customer:'restore_customer', contact:'restore_contact', job:'restore_job' };
-  var tombMap = { quote:'quotes', customer:'customers', contact:'contacts', job:'jobs' };
+  var rpcMap  = { quote:'restore_quote', customer:'restore_customer', contact:'restore_contact', job:'restore_job', timeEntry:'restore_time_entry' };
+  var tombMap = { quote:'quotes', customer:'customers', contact:'contacts', job:'jobs', timeEntry:'timeEntries' };
   var rpc = rpcMap[kind]; if (!rpc || !_sb) return;
   if (btn){ btn.disabled = true; btn.textContent = 'Restoring…'; }
   try {
