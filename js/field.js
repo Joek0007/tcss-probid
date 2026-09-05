@@ -1317,6 +1317,40 @@ function _timeEntryToRow(e) {
   };
 }
 
+// Payroll sync (migration _15): map a DB.workDays record → app_work_days row. The app's
+// work-day objects are sparse and vary by origin (clock-out / manual aggregation / PTO
+// approval); this writes the full column superset. Preserves the correction audit
+// (corrections/corrected), PTO day_type/approved, and the raw clock events JSON.
+function _workDayToRow(wd) {
+  return {
+    id:                 wd.id,
+    tech_name:          wd.techName || null,
+    tech_id:            wd.techId || null,
+    work_date:          wd.date || null,
+    total_paid_mins:    (wd.totalPaidMins != null) ? wd.totalPaidMins : null,
+    onsite_mins:        (wd.onsiteMins   != null) ? wd.onsiteMins   : null,
+    travel_mins:        (wd.travelMins   != null) ? wd.travelMins   : null,
+    break_mins:         (wd.breakMins    != null) ? wd.breakMins    : null,
+    lunch_mins:         (wd.lunchMins    != null) ? wd.lunchMins    : null,
+    office_mins:        (wd.officeMins   != null) ? wd.officeMins   : null,
+    pto_mins:           (wd.ptoMins      != null) ? wd.ptoMins      : null,
+    vacation_mins:      (wd.vacationMins != null) ? wd.vacationMins : null,
+    holiday_mins:       (wd.holidayMins  != null) ? wd.holidayMins  : null,
+    job_name:           wd.jobName || null,
+    job_id:             wd.jobId || null,
+    day_type:           wd.dayType || null,
+    approved:           (wd.approved != null) ? !!wd.approved : null,
+    approved_by:        wd.approvedBy || null,
+    lunch_flagged:      (wd.lunchFlagged != null) ? !!wd.lunchFlagged : null,
+    has_manual_entries: (wd.hasManualEntries != null) ? !!wd.hasManualEntries : null,
+    corrected:          (wd.corrected != null) ? !!wd.corrected : null,
+    corrections:        wd.corrections || null,
+    events:             wd.events || null,
+    created_by:         wd.techId || (_currentUser ? _currentUser.id : null),
+    updated_at:         new Date().toISOString()
+  };
+}
+
 async function _pushTimeEntryToSupabase(entry) {
   if (!_sb || !_currentUser || !entry) return;
   try {

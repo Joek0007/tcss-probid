@@ -832,6 +832,31 @@ async function syncAllFromCloud(silent) {
       }
     } catch(e) { errors.push('time_entries: '+e.message); }
 
+    // 10b. Work Days (payroll) — migration _15. Mirror the time_entries merge: preserve
+    // local-only (not-yet-pushed) rows so payroll period totals stay COMPLETE, and map
+    // back the correction audit (corrections/corrected) + PTO flags so they survive the
+    // round-trip. No tombstones (workDays has no delete path).
+    try {
+      var { data: wdRows, error: wdpe } = await _sb.from('app_work_days').select('*');
+      if (wdpe) { errors.push('app_work_days: '+wdpe.message); }
+      else if (wdRows) {
+        var cloudWdIds = new Set(wdRows.map(function(w){ return String(w.id); }));
+        var localOnlyWd = (DB.workDays||[]).filter(function(w){ return w.id && !cloudWdIds.has(String(w.id)); });
+        DB.workDays = wdRows.map(function(w){
+          return {
+            id: w.id, techName: w.tech_name||null, techId: w.tech_id||null, date: w.work_date||null,
+            totalPaidMins: w.total_paid_mins, onsiteMins: w.onsite_mins, travelMins: w.travel_mins,
+            breakMins: w.break_mins, lunchMins: w.lunch_mins, officeMins: w.office_mins,
+            ptoMins: w.pto_mins, vacationMins: w.vacation_mins, holidayMins: w.holiday_mins,
+            jobName: w.job_name||'', jobId: w.job_id||null, dayType: w.day_type||null,
+            approved: (w.approved!=null)?!!w.approved:undefined, approvedBy: w.approved_by||null,
+            lunchFlagged: !!w.lunch_flagged, hasManualEntries: !!w.has_manual_entries,
+            corrected: !!w.corrected, corrections: w.corrections||null, events: w.events||null
+          };
+        }).concat(localOnlyWd);
+      }
+    } catch(e) { errors.push('app_work_days: '+e.message); }
+
     // 11. Work Tracking — sync project metadata only (items/checkoffs fetched on demand)
     try {
       var { data: wtProjRows, error: wtpe } = await _sb.from('wt_projects').select('*').in('status',['active','paused']).order('created_at', { ascending: false });
@@ -1571,6 +1596,19 @@ async function pushAllToCloud() {
         var { error: teErr } = await _sb.from('time_entries').upsert(teRow, {onConflict:'id'});
         if (teErr) { console.warn('[Push] Time entry error:', teErr.message); _pushErrors.push('time entry '+(te.id)+': '+teErr.message); }
       } catch(teCatch) { console.warn('[Push] Time entry error:', teCatch.message||teCatch); }
+    }
+
+    // Push work days (payroll) — migration _15. Previously local-only, so payroll data
+    // lived per-device; now synced per-row via _workDayToRow, same model as time_entries.
+    // workDays has no delete path, so no tombstones — pure upsert.
+    for (var wd of (DB.workDays || [])) {
+      if (!wd || !wd.id) continue;
+      try {
+        var wdRow = (typeof _workDayToRow === 'function') ? _workDayToRow(wd) : null;
+        if (!wdRow) continue;
+        var { error: wdErr } = await _sb.from('app_work_days').upsert(wdRow, {onConflict:'id'});
+        if (wdErr) { console.warn('[Push] Work day error:', wdErr.message); _pushErrors.push('work day '+(wd.id)+': '+wdErr.message); }
+      } catch(wdCatch) { console.warn('[Push] Work day error:', wdCatch.message||wdCatch); }
     }
 
     // Push inventory
