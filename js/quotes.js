@@ -2165,6 +2165,11 @@ function markInvoicePaid(invId) {
 function deleteInvoice(invId) {
   if (!confirm('Delete this invoice? This cannot be undone.')) return;
   DB.invoices = (DB.invoices||[]).filter(function(i){ return i.id!==invId; });
+  // RED #4: record the tombstone so pushAllToCloud removes it from app_invoices
+  // (single-writer delete with .select('id') guard) and a later pull can't resurrect it.
+  DB.deletedIds = DB.deletedIds || {};
+  DB.deletedIds.invoices = DB.deletedIds.invoices || [];
+  if (DB.deletedIds.invoices.indexOf(invId) === -1) DB.deletedIds.invoices.push(invId);
   saveDB();
   renderInvoicesPage();
   showToast('Invoice deleted','info');

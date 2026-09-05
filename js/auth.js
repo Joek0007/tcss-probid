@@ -495,6 +495,7 @@ async function syncAllFromCloud(silent) {
   var delWL   = DB.deletedIds.woLabor       || [];  // WO child-record tombstones (delete-guard hardening)
   var delWE   = DB.deletedIds.woExpenses    || [];
   var delWCl  = DB.deletedIds.woChecklist   || [];
+  var delInvoices = DB.deletedIds.invoices  || [];  // RED #4: invoice tombstones
 
   // Status map — Supabase Title Case → app lowercase
   var pullStatusMap = {
@@ -864,6 +865,24 @@ async function syncAllFromCloud(silent) {
         }).concat(localOnlyWd);
       }
     } catch(e) { errors.push('app_work_days: '+e.message); }
+
+    // 10c. Invoices — migration _16 (RED #4). All invoice shapes (WO, recurring/MSC,
+    // manual) live in one heterogeneous DB.invoices array; each row stores its FULL
+    // object as jsonb `data` for perfect fidelity. Merge preserves local-only (not-yet-
+    // pushed) invoices and drops any that are tombstoned locally, so a pull never wipes
+    // an invoice that hasn't synced and never resurrects one queued for delete.
+    try {
+      var { data: invRows, error: invpe } = await _sb.from('app_invoices').select('*');
+      if (invpe) { errors.push('app_invoices: '+invpe.message); }
+      else if (invRows) {
+        var cloudInvIds = new Set(invRows.map(function(r){ return String(r.id); }));
+        var localOnlyInv = (DB.invoices||[]).filter(function(i){
+          return i.id && !cloudInvIds.has(String(i.id)) && delInvoices.indexOf(i.id) === -1;
+        });
+        DB.invoices = invRows.filter(function(r){ return delInvoices.indexOf(r.id) === -1; })
+          .map(function(r){ return r.data || {}; }).concat(localOnlyInv);
+      }
+    } catch(e) { errors.push('app_invoices: '+e.message); }
 
     // 11. Work Tracking — sync project metadata only (items/checkoffs fetched on demand)
     try {
@@ -1263,9 +1282,12 @@ async function pushAllToCloud() {
       for (var _iwl of dwl)  { var _r10 = await _sb.from('wo_labor').delete().eq('id',_iwl).select('id');     if (_delFailed(_r10)) keepWL.push(_iwl); }
       for (var _iwe of dwe)  { var _r11 = await _sb.from('wo_expenses').delete().eq('id',_iwe).select('id');  if (_delFailed(_r11)) keepWE.push(_iwe); }
       for (var _iwc of dwcl) { var _r12 = await _sb.from('wo_checklist').delete().eq('id',_iwc).select('id'); if (_delFailed(_r12)) keepWCl.push(_iwc); }
+      // RED #4: invoices — hard-delete table (text ids), same single-writer + .select('id') guard.
+      var dinvc = DB.deletedIds.invoices||[]; var keepInvoices=[];
+      for (var _iinv of dinvc) { var _r13 = await _sb.from('app_invoices').delete().eq('id',_iinv).select('id'); if (_delFailed(_r13)) keepInvoices.push(_iinv); }
       // Only confirmed cloud deletes (a row actually came back from .select) clear the
       // tombstone; blocked/no-op deletes stay tombstoned so the row never resurrects.
-      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO, timeEntries:keepTE, contracts:keepCon, recurringContracts:keepRC, woParts:keepWP, woLabor:keepWL, woExpenses:keepWE, woChecklist:keepWCl};
+      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO, timeEntries:keepTE, contracts:keepCon, recurringContracts:keepRC, woParts:keepWP, woLabor:keepWL, woExpenses:keepWE, woChecklist:keepWCl, invoices:keepInvoices};
       try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
     }
     // Push settings to company_settings (single row, id=1)
@@ -1618,6 +1640,28 @@ async function pushAllToCloud() {
         var { error: wdErr } = await _sb.from('app_work_days').upsert(wdRow, {onConflict:'id'});
         if (wdErr) { console.warn('[Push] Work day error:', wdErr.message); _pushErrors.push('work day '+(wd.id)+': '+wdErr.message); }
       } catch(wdCatch) { console.warn('[Push] Work day error:', wdCatch.message||wdCatch); }
+    }
+
+    // Push invoices — migration _16 (RED #4). Whole invoice object as jsonb `data`
+    // plus queryable columns, mapped across the three shapes (WO / recurring-MSC /
+    // manual). Per-row upsert, deletes handled by the tombstone loop above.
+    for (var inv0 of (DB.invoices || [])) {
+      if (!inv0 || !inv0.id) continue;
+      try {
+        var _invRow = {
+          id:            inv0.id,
+          num:           inv0.num || null,
+          inv_type:      inv0.type || (inv0.woId ? 'workorder' : 'manual'),
+          status:        inv0.status || null,
+          customer_name: inv0.clientName || (inv0.job && inv0.job.customer) || inv0.customerName || null,
+          total:         (inv0.total != null) ? inv0.total : ((inv0.amount != null) ? inv0.amount : null),
+          invoice_date:  inv0.invoiceDate || inv0.date || null,
+          data:          inv0,
+          updated_at:    new Date().toISOString()
+        };
+        var { error: invErr } = await _sb.from('app_invoices').upsert(_invRow, {onConflict:'id'});
+        if (invErr) { console.warn('[Push] Invoice error:', invErr.message); _pushErrors.push('invoice '+(inv0.id)+': '+invErr.message); }
+      } catch(invCatch) { console.warn('[Push] Invoice error:', invCatch.message||invCatch); }
     }
 
     // Push inventory
