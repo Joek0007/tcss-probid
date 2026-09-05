@@ -246,7 +246,7 @@ function getQData(id) {
     followupDate: (document.getElementById('qq-followup')||{}).value || calcFollowupDate((document.getElementById('qq-dt')||{}).value || ''),
     createdDate: createdVal,
     laborRate: getLaborRate(),
-    targetMargin: (function(){ var v=parseFloat((document.getElementById('qq-mk')||{}).value); return isNaN(v)?35:v; })(),
+    targetMargin: (function(){ var raw=String((document.getElementById('qq-mk')||{}).value==null?'':(document.getElementById('qq-mk')||{}).value).trim(); var v=parseFloat(raw); return (raw===''||isNaN(v))?0:v; })(), // blank = 0 (was silently 35%)
     pricingMode: currentPricingMode(),
     taxRate: parseFloat((document.getElementById('qq-tx')||{}).value)||0,
     discount: totals.discountAmt,
@@ -265,7 +265,19 @@ function getQData(id) {
     equipmentCost: totals.equipCost || 0,
     permits: getPermitData(),
     marginFloor: getMarginFloor((document.getElementById('qq-jt')||{}).value || 'New Construction'),
-    belowMarginFloor: totals.achievedMarginPct < getMarginFloor((document.getElementById('qq-jt')||{}).value || 'New Construction'),
+    belowMarginFloor: (typeof isNoMarginOn==='function' && isNoMarginOn()) ? false : (totals.achievedMarginPct < getMarginFloor((document.getElementById('qq-jt')||{}).value || 'New Construction')),
+    // No Margin (price at cost) snapshot — records the intent + who/when, preserving the
+    // ORIGINAL attribution across re-saves so a later default change never rewrites history.
+    marginBypass: (function(){
+      var on = (typeof isNoMarginOn==='function' && isNoMarginOn());
+      if (!on) return { enabled:false, by:null, at:null };
+      var prev = existing && existing.marginBypass;
+      return {
+        enabled: true,
+        by: (prev && prev.enabled && prev.by) ? prev.by : (typeof _currentUserName==='function' ? _currentUserName() : 'owner'),
+        at: (prev && prev.enabled && prev.at) ? prev.at : new Date().toISOString()
+      };
+    })(),
     perDiem: JSON.parse(JSON.stringify(perDiemData)),
     perDiemCost: totals.pdCost || 0,
     lumpSum: getLumpSumState(),
@@ -361,6 +373,11 @@ function clearQQ(skipConfirm) {
   resetProposalSectionToggles();
   // Reset pricing mode to default (margin) for a fresh quote
   setPricingMode('margin', { silent: true });
+  // No Margin (price at cost): new quotes inherit the company default; the control
+  // is shown only to users with the quote.bypass permission.
+  var nmCb = document.getElementById('qq-nomargin'); if (nmCb) nmCb.checked = !!(DB.settings && DB.settings.defaultNoMargin);
+  if (typeof applyNoMarginRowVisibility==='function') applyNoMarginRowVisibility();
+  if (typeof applyNoMarginVisual==='function') applyNoMarginVisual();
   renderLI();
   calcTotals();
   qqStage4Init();
@@ -412,6 +429,16 @@ function editQuote(id) {
   setV('qq-pt', q.pt||'Due on Receipt');
   // Restore pricing mode (margin/markup) — defaults to margin for older quotes that didn't save this field
   setPricingMode(q.pricingMode === 'markup' ? 'markup' : 'margin', { silent: true });
+  // Restore No Margin (price at cost) + its saved attribution stamp (integrity snapshot).
+  (function(){
+    var mb = q.marginBypass || null;
+    var on = !!(mb && mb.enabled);
+    var nmCb = document.getElementById('qq-nomargin'); if (nmCb) nmCb.checked = on;
+    if (typeof applyNoMarginRowVisibility==='function') applyNoMarginRowVisibility();
+    if (typeof applyNoMarginVisual==='function') applyNoMarginVisual();
+    var stamp = document.getElementById('qq-nomargin-stamp');
+    if (stamp && on) { stamp.textContent = 'At cost — set by ' + ((mb && mb.by) || 'owner') + (mb && mb.at ? (' on ' + String(mb.at).split('T')[0]) : ''); stamp.style.display = 'block'; }
+  })();
   lineItems = q.items ? JSON.parse(JSON.stringify(q.items)) : [];
   lineItems.forEach(function(item){ if(!item._id) item._id = nextLiId(); });
   equipmentRows = q.equipmentRows ? JSON.parse(JSON.stringify(q.equipmentRows)) : [];

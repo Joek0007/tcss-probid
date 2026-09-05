@@ -7371,6 +7371,7 @@ function loadSettings() {
   function sv(id,v){const el=document.getElementById(id);if(el)el.value=v||'';}
   sv('s-cname',s.cname);sv('s-cphone',s.cphone);sv('s-cemail',s.cemail);sv('s-caddr',s.caddr);sv('s-clic',s.clic);sv('s-cweb',s.cweb);sv('s-ctag',s.ctag);
   sv('s-lr',s.laborRate||100);sv('s-mk',s.targetMargin||35);sv('s-tx',s.taxRate||0);sv('s-vd',s.validDays||30);sv('s-pt',s.payTerms);sv('s-tc',s.tc);
+  var sNoM=document.getElementById('s-nomargin'); if(sNoM) sNoM.checked = !!s.defaultNoMargin; // No Margin (price at cost) company default
   sv('s-followup-days', s.followupDays||7);
   sv('s-perdiem-markup', s.perDiemMarkup!==undefined ? s.perDiemMarkup : 15);
   sv('s-fiscal-month', s.fiscalYearStartMonth||1);
@@ -7446,6 +7447,7 @@ function saveSettings() {
   DB.settings = Object.assign({}, DB.settings, {
     cname:gv('s-cname'),cphone:gv('s-cphone'),cemail:gv('s-cemail'),caddr:gv('s-caddr'),clic:gv('s-clic'),cweb:gv('s-cweb'),ctag:gv('s-ctag'),
     laborRate:parseFloat(gv('s-lr'))||100,targetMargin:parseFloat(gv('s-mk'))||35,taxRate:parseFloat(gv('s-tx'))||0,validDays:parseInt(gv('s-vd'))||30,payTerms:gv('s-pt'),tc:gv('s-tc'),
+    defaultNoMargin: !!(document.getElementById('s-nomargin')||{}).checked, // No Margin (price at cost) company default
     followupDays:parseInt(gv('s-followup-days'))||7,
     perDiemMarkup:parseFloat(gv('s-perdiem-markup'))||0,
     fiscalYearStartMonth:parseInt(gv('s-fiscal-month'))||1,

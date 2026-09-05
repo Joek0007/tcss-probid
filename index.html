@@ -2095,6 +2095,16 @@ body.role-lead-tech .page-settings-btn{display:none!important}
             <label id="qq-mk-label">Target Margin (%)</label>
             <input id="qq-mk" type="number" value="35" min="1" max="99" step="1">
             <div class="env-default-note" id="env-default-note">Environment default applied</div>
+            <!-- No Margin (price at cost): owner/manager override, gated by quote.bypass.
+                 Distinct from the "Lump Sum" presentation feature. Row is shown only for
+                 users with the permission (toggled in JS). -->
+            <div id="qq-nomargin-row" style="display:none;margin-top:7px;align-items:center;gap:6px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,.82);cursor:pointer;margin:0;font-weight:600">
+                <input type="checkbox" id="qq-nomargin" onchange="onNoMarginToggle()" style="width:auto;margin:0;cursor:pointer">
+                🔒 No Margin (price at cost)
+              </label>
+              <div id="qq-nomargin-stamp" style="font-size:10px;color:rgba(255,255,255,.5);margin-top:2px"></div>
+            </div>
           </div>
         </div>
         <div class="form-row cols2" style="margin-bottom:10px">
@@ -4328,6 +4338,13 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div><label>Default Tax Rate (%)</label><input id="s-tx" type="number" value="0" min="0"></div>
         <div><label>Default Valid Days</label><input id="s-vd" type="number" value="30" min="1"></div>
       </div>
+      <div class="form-row"><div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="s-nomargin" style="width:auto;margin:0;cursor:pointer">
+          Start new quotes at <strong>No Margin (price at cost)</strong>
+        </label>
+        <div style="font-size:11px;color:#78909c;margin-top:3px">For shops that quote lump-sum at cost. New quotes begin with No Margin on; anyone with the “Bypass Margin Floor” permission can flip it per quote.</div>
+      </div></div>
       <div class="form-row"><div><label>Default Payment Terms</label><input id="s-pt" placeholder="Net 30 upon approval"></div></div>
       <div class="form-row"><div><label>Default Terms &amp; Conditions</label><textarea id="s-tc" rows="4" placeholder="Enter standard terms and conditions..."></textarea></div></div>
       <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0">
@@ -6242,26 +6259,26 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260904at with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260904av with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260904at"></script>
-<script src="js/quotes.js?v=20260904at"></script>
-<script src="js/tools.js?v=20260904at"></script>
-<script src="js/field.js?v=20260904at"></script>
-<script src="js/crm.js?v=20260904at"></script>
-<script src="js/dispatch.js?v=20260904at"></script>
-<script src="js/permissions.js?v=20260904at"></script>
-<script src="js/worktracking.js?v=20260904at"></script>
-<script src="js/calendar.js?v=20260904at"></script>
-<script src="js/workorders.js?v=20260904at"></script>
-<script src="js/purchaseorders.js?v=20260904at"></script>
-<script src="js/inventory.js?v=20260904at"></script>
-<script src="js/reports.js?v=20260904at"></script>
-<script src="js/recyclebin.js?v=20260904at"></script>
-<script src="js/contracts.js?v=20260904at"></script>
-  <script src="js/recurring.js?v=20260904at"></script>
-  <script src="js/seed_managed.js?v=20260904at"></script>
-  <script src="js/auth.js?v=20260904at"></script>
+<script src="js/core.js?v=20260904av"></script>
+<script src="js/quotes.js?v=20260904av"></script>
+<script src="js/tools.js?v=20260904av"></script>
+<script src="js/field.js?v=20260904av"></script>
+<script src="js/crm.js?v=20260904av"></script>
+<script src="js/dispatch.js?v=20260904av"></script>
+<script src="js/permissions.js?v=20260904av"></script>
+<script src="js/worktracking.js?v=20260904av"></script>
+<script src="js/calendar.js?v=20260904av"></script>
+<script src="js/workorders.js?v=20260904av"></script>
+<script src="js/purchaseorders.js?v=20260904av"></script>
+<script src="js/inventory.js?v=20260904av"></script>
+<script src="js/reports.js?v=20260904av"></script>
+<script src="js/recyclebin.js?v=20260904av"></script>
+<script src="js/contracts.js?v=20260904av"></script>
+  <script src="js/recurring.js?v=20260904av"></script>
+  <script src="js/seed_managed.js?v=20260904av"></script>
+  <script src="js/auth.js?v=20260904av"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

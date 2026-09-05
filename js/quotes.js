@@ -154,8 +154,12 @@ function calcTotals() {
   // - Markup mode: material × (1 + markup %), labor/equipment/per-diem PASS THROUGH at cost.
   //   This is true T&M behavior — customer pays your hourly rate × hours, your material cost + markup, your actual equipment/per-diem cost.
   // - Margin mode: total sell = total cost / (1 - margin %). Margin spread across everything.
-  const targetRate = getMarginDecimal();
-  const isMarkup = currentPricingMode() === 'markup';
+  // No Margin (price at cost) override — permission quote.bypass. Prices at cost
+  // (no margin/markup) and, below, suppresses the floor warning + approval. Distinct
+  // from the "Lump Sum" customer-presentation feature.
+  const isNoMargin = (typeof isNoMarginOn === 'function' && isNoMarginOn());
+  const targetRate = isNoMargin ? 0 : getMarginDecimal();
+  const isMarkup = !isNoMargin && currentPricingMode() === 'markup';
   let sellBeforeTax = 0;
   if (isMarkup) {
     // Markup mode: ONLY material gets marked up. Labor + equipment + per diem pass through.
@@ -255,12 +259,23 @@ function calcTotals() {
   } else if (health !== 'Low' && lineItems.length > 0) {
     readiness = 'REVIEW'; readClass = 'readiness-review';
   }
-  if (readinessEl) { readinessEl.textContent = readiness; readinessEl.className = 'readiness-badge ' + readClass; }
 
   // V5: Margin floor check
   const jobType = (document.getElementById('qq-jt')||{}).value || 'New Construction';
-  const belowFloor = checkMarginFloor(achievedMarginPct, jobType);
-  if (belowFloor && readiness === 'READY') { readiness = 'REVIEW'; readClass = 'readiness-review'; if(readinessEl){readinessEl.textContent=readiness;readinessEl.className='readiness-badge '+readClass;} }
+  let belowFloor = false;
+  if (isNoMargin) {
+    // Intentional at-cost quote — neutralize the margin-health nag and suppress the
+    // below-floor warning + approval entirely (it's a recorded, permissioned decision).
+    if (healthEl) { healthEl.textContent = 'No Margin — priced at cost'; healthEl.className = 'health-badge health-watch'; }
+    var _mfb = document.getElementById('mf-floor-badge');
+    if (_mfb) { _mfb.style.display='inline-block'; _mfb.className='margin-floor-badge mf-ok'; _mfb.textContent = 'No Margin — priced at cost' + ((typeof _currentUserName==='function') ? (' (set by '+_currentUserName()+')') : ''); }
+    var _mfa = document.getElementById('mf-approval'); if (_mfa) _mfa.classList.remove('visible');
+    if (lineItems.length > 0) { readiness = 'READY'; readClass = 'readiness-ready'; }
+  } else {
+    belowFloor = checkMarginFloor(achievedMarginPct, jobType);
+    if (belowFloor && readiness === 'READY') { readiness = 'REVIEW'; readClass = 'readiness-review'; }
+  }
+  if (readinessEl) { readinessEl.textContent = readiness; readinessEl.className = 'readiness-badge ' + readClass; }
 
   // V6: update lump sum preview
   updateLumpSumPreview();
@@ -4488,7 +4503,7 @@ function saveAsTemplate() {
   if (lineItems.length === 0) { showToast('Add some line items first before saving as a template.','error'); return; }
   const jn  = (document.getElementById('qq-jn')||{}).value || '';
   const env = (document.getElementById('qq-env')||{}).value || 'office';
-  const mkEl = document.getElementById('qq-mk'); const mk = (mkEl && mkEl.value!=='' && mkEl.value!==undefined) ? mkEl.value : '35';
+  const mkEl = document.getElementById('qq-mk'); const mk = (mkEl && mkEl.value!=='' && mkEl.value!==undefined) ? mkEl.value : '0'; // blank = 0 (was silently 35%)
   document.getElementById('sat-name').value   = jn ? jn + ' Template' : '';
   document.getElementById('sat-icon').value   = '📐';
   document.getElementById('sat-cat').value    = '';
@@ -4645,7 +4660,10 @@ function renderReports() {
     const revQ      = quotes.reduce(function(s,q){ return s+(q.total||0); },0);
     const revWon    = wonQ.reduce(function(s,q){ return s+(q.total||0); },0);
     const winRate   = total>0 ? wonQ.length/total*100 : 0;
-    const avgMargin = wonQ.length>0 ? wonQ.reduce(function(s,q){ return s+(q.achievedMargin||0); },0)/wonQ.length : 0;
+    // Avg margin reflects only MARGIN-TRACKED won quotes — quotes deliberately priced at
+    // cost ("No Margin") are excluded so the KPI isn't dragged to ~0 by lump-sum work.
+    const marginWonQ = wonQ.filter(function(q){ return !(q.marginBypass && q.marginBypass.enabled); });
+    const avgMargin = marginWonQ.length>0 ? marginWonQ.reduce(function(s,q){ return s+(q.achievedMargin||0); },0)/marginWonQ.length : 0;
     const avgDeal   = wonQ.length>0 ? revWon/wonQ.length : 0;
 
     setT('ko-quotes', total);
@@ -4653,7 +4671,7 @@ function renderReports() {
     setT('ko-rev-won', '$'+Math.round(revWon).toLocaleString());
     setT('ko-winrate', pct(winRate));
     setT('ko-winrate-sub', wonQ.length+' won of '+total);
-    setT('ko-avgmargin', pct(avgMargin));
+    setT('ko-avgmargin', marginWonQ.length>0 ? pct(avgMargin) : '—');
     setT('ko-avgdeal', '$'+Math.round(avgDeal).toLocaleString());
 
     // Revenue trend by month (last 12)

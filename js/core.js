@@ -1108,12 +1108,64 @@ function getLaborRate() {
 }
 function getMarginDecimal() {
   const el = document.getElementById('qq-mk');
-  const _mv = el ? parseFloat(el.value) : NaN; const v = !isNaN(_mv) ? _mv : 35;
+  if (!el) return 0;
+  // A BLANK/cleared field means ZERO (no margin/markup). Previously an empty field
+  // was NaN and silently fell back to 35%, so clearing the % (instead of typing 0)
+  // priced the quote at 35% and every recalc — including one a dropdown change
+  // triggered — re-applied it. Blank now = 0; only a real number is used as-is.
+  const raw = String(el.value == null ? '' : el.value).trim();
+  const _mv = parseFloat(raw);
+  const v = (raw === '' || isNaN(_mv)) ? 0 : _mv;
   // In markup mode, allow rates up to 500% (5.0). In margin mode, cap at 99% (0.99).
   if (currentPricingMode() === 'markup') {
     return Math.min(Math.max(v,0),500) / 100;
   }
   return Math.min(Math.max(v,0),99) / 100;
+}
+
+// ---- NO MARGIN (price at cost) — permission quote.bypass ----
+// Distinct from the "Lump Sum" customer-presentation feature. When on, the quote
+// prices at cost (no margin/markup) and the margin-floor warning/approval is
+// suppressed for that quote — an intentional, recorded owner/manager decision.
+function isNoMarginOn() {
+  var cb = document.getElementById('qq-nomargin');
+  return !!(cb && cb.checked);
+}
+function _currentUserName() {
+  var u = (typeof _currentUser !== 'undefined') ? _currentUser : null;
+  return (u && (u.full_name || u.name || u.email)) || 'owner';
+}
+// Apply only the VISUAL state of the No-Margin switch (grey/disable the margin
+// field, show/hide the stamp) — no recalc, no dirty flag. Safe to call on load/reset.
+function applyNoMarginVisual() {
+  var cb    = document.getElementById('qq-nomargin');
+  var mk    = document.getElementById('qq-mk');
+  var stamp = document.getElementById('qq-nomargin-stamp');
+  var on = !!(cb && cb.checked);
+  if (mk) {
+    mk.disabled = on;
+    mk.style.opacity = on ? '0.45' : '';
+    if (on) { if (mk.value !== '') mk.setAttribute('data-prev', mk.value); mk.value = ''; mk.placeholder = '—'; }
+    else { mk.placeholder = ''; if (mk.value === '' && mk.getAttribute('data-prev') != null) mk.value = mk.getAttribute('data-prev'); }
+  }
+  if (stamp) { stamp.style.display = on ? 'block' : 'none'; if (!on) stamp.textContent = ''; }
+}
+// User flipped the switch: apply visual, stamp with the current user, recalc, mark dirty.
+function onNoMarginToggle() {
+  applyNoMarginVisual();
+  var stamp = document.getElementById('qq-nomargin-stamp');
+  if (stamp && isNoMarginOn()) stamp.textContent = 'At cost — set by ' + _currentUserName();
+  if (typeof calcTotals === 'function') calcTotals();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'No-margin toggled');
+}
+// Show/enable the No-Margin row only for users allowed to bypass the margin floor
+// (permission quote.bypass), and set its default from the company setting for a
+// fresh quote. Called when a quote is opened/reset.
+function applyNoMarginRowVisibility() {
+  var row = document.getElementById('qq-nomargin-row');
+  if (!row) return;
+  var allowed = (typeof hasPermission !== 'function') || hasPermission('quote.bypass');
+  row.style.display = allowed ? 'flex' : 'none';
 }
 
 // Current pricing mode for the active quote.
