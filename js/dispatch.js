@@ -1353,6 +1353,11 @@ var PERM_DEFS = [
   {key:'page.timesheet',   label:'Timesheets Page',       group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'page.worktracking',label:'Work Tracking Page',    group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
   {key:'page.settings',    label:'Settings Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  // AZ-5: the nav map referenced these two but they were missing from PERM_DEFS, so
+  // the Contracts and Managed Services pages were hidden from every non-owner role
+  // and could not be granted. Add them with office-role defaults.
+  {key:'page.contracts',   label:'Contracts Page',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'page.recurring',   label:'Managed Services Page', group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
 ];
 
 function getPermMatrix() {

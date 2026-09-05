@@ -1504,6 +1504,7 @@ function mfDeleteRow(idx) {
 }
 
 function addMarginFloorRow() {
+  if (typeof hasPermission==='function' && !hasPermission('settings.margin')) { showToast('You do not have permission to change margin floors','error'); return; }
   var list = _getMFList();
   list.push({ jobType:'New Job Type', floor:35, notes:'' });
   DB.marginFloors = list;
@@ -1518,6 +1519,7 @@ function addMarginFloorRow() {
 }
 
 function saveMarginFloors() {
+  if (typeof hasPermission==='function' && !hasPermission('settings.margin')) { showToast('You do not have permission to change margin floors','error'); return; }
   // Read current values from DOM and save
   var list = _getMFList();
   var rows = document.querySelectorAll('#mf-tbody tr[data-mf-idx]');
