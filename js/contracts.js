@@ -227,6 +227,7 @@ function saveContract() {
 function contractMenu(id) {
   var c = (DB.contracts||[]).find(function(x){return x.id===id;});
   if (!c) return;
+  if (typeof _canDeleteOfficeRecords==='function' && !_canDeleteOfficeRecords()) { showToast('Only owner, manager, or office staff can delete contracts','error'); return; }
   if (!confirm('Delete contract '+c.number+'? This cannot be undone.')) return;
   DB.contracts = (DB.contracts||[]).filter(function(x){return x.id!==id;});
   // Single-writer delete: tombstone here, then hand off to pushAllToCloud, which performs

@@ -393,6 +393,7 @@ function saveRC() {
 function rcMenu(id) {
   var c = (DB.recurringContracts||[]).find(function(x){return x.id===id;});
   if (!c) return;
+  if (typeof _canDeleteOfficeRecords==='function' && !_canDeleteOfficeRecords()) { showToast('Only owner, manager, or office staff can delete contracts','error'); return; }
   if (!confirm('Delete managed service contract '+c.number+' for '+c.client+'?\nThis cannot be undone.')) return;
   DB.recurringContracts = (DB.recurringContracts||[]).filter(function(x){return x.id!==id;});
   // Single-writer delete: tombstone + hand off to pushAllToCloud (reliable .select('id')

@@ -522,6 +522,7 @@ async function _pushPOToCloud(po) {
 }
 
 function deletePO(id) {
+  if (typeof _canDeleteOfficeRecords==='function' && !_canDeleteOfficeRecords()) { showToast('Only owner, manager, or office staff can delete purchase orders','error'); return; }
   if(!confirm('Delete this purchase order?')) return;
   DB.purchaseOrders=(DB.purchaseOrders||[]).filter(function(p){return p.id!==id;});
   // Single-writer delete: only tombstone here. pushAllToCloud performs the cloud delete

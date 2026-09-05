@@ -882,6 +882,7 @@ function _triggerUrgentAlert(wo) {
 }
 
 function deleteWorkOrder(id) {
+  if (typeof _canDeleteOfficeRecords==='function' && !_canDeleteOfficeRecords()) { showToast('Only owner, manager, or office staff can delete work orders','error'); return; }
   if (!confirm('Delete this work order? This cannot be undone.')) return;
   DB.workOrders = (DB.workOrders||[]).filter(function(w){ return w.id!==id; });
   // Single-writer delete: only tombstone here, then hand off to pushAllToCloud, which

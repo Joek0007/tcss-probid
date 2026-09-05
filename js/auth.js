@@ -244,6 +244,15 @@ async function loadCurrentUserProfile() {
 // enforceNavPermissions() is called from goPage() on every navigation.
 // That is the single enforcement point. No timers, no observers, no CSS tricks.
 
+// AZ-3: who may DELETE a top-level office record (work order, PO, contract,
+// managed-service contract). Same office/management set as payments. This is the
+// client layer for UX + defense in depth; migration _12 enforces it at the DB so
+// it holds even if _currentUser is tampered with in the console.
+function _canDeleteOfficeRecords() {
+  return !!(typeof _currentUser !== 'undefined' && _currentUser &&
+            ['owner','manager','back_office'].indexOf(_currentUser.role) >= 0);
+}
+
 var _activeRole = null;
 
 function applyRolePermissions(role) {
