@@ -1983,19 +1983,11 @@ function hideUserMenuOutside(e) {
   if (menu && badge && !menu.contains(e.target) && e.target !== badge) hideUserMenu();
 }
 
-function showForgotPassword() {
-  var email = (document.getElementById('auth-email')||{}).value || '';
-  if (!email) { showToast('Enter your email address first, then click Forgot Password.','error'); return; }
-  if (_sb) {
-    // For local file usage, direct them to Supabase dashboard to set password
-    if (window.location.protocol === 'file:') {
-      alert('To reset your password:\n\n1. Go to supabase.com\n2. Open your project\n3. Go to Authentication → Users\n4. Click the three dots next to ' + email + '\n5. Click "Edit user" and set a new password directly');
-      return;
-    }
-    _sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
-    alert('Password reset email sent to ' + email + '. Check your inbox.');
-  }
-}
+// NOTE: the active showForgotPassword() is defined earlier in this file — it opens the
+// in-page "Reset Password" panel (#auth-forgot-form), whose "Send Reset Link" button calls
+// doPasswordReset() (inline success/error, no browser alert()s). A second, alert()-based
+// copy used to live here and shadowed that panel (last definition wins); it was removed so
+// the cleaner in-page form is what runs. Do not re-add a duplicate here.
 
 function continueOffline() {
   hideAuthModal();

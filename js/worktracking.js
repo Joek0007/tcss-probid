@@ -1010,6 +1010,7 @@ function wtRenderCheckoffPhotoList() {
 }
 
 async function wtSubmitCheckoff() {
+  if (typeof hasPermission==='function' && !hasPermission('wt.checkoff')) { showToast('You do not have permission to complete check-offs','error'); return; }
   var status = (document.getElementById('wt-co-status')||{}).value;
   if (!status) { showToast('Please select Complete or In Progress', 'warning'); return; }
   if (!_wtCheckoffItem || !_wtCheckoffPhase) return;
@@ -1047,6 +1048,7 @@ async function wtSubmitCheckoff() {
 }
 
 async function wtConfirmCheckoff(itemId, phase) {
+  if (typeof hasPermission==='function' && !hasPermission('wt.confirm')) { showToast('You do not have permission to confirm check-offs','error'); return; }
   var co = wtGetCheckoff(itemId, phase);
   if (!co || !co.id) return;
   try {
@@ -1069,6 +1071,7 @@ async function wtConfirmCheckoff(itemId, phase) {
 }
 
 async function wtUnlockCheckoff(itemId, phase) {
+  if (typeof hasPermission==='function' && !hasPermission('wt.reopen')) { showToast('You do not have permission to reopen confirmed check-offs','error'); return; }
   if (!confirm('This will unlock a confirmed check-off. Back office only. Continue?')) return;
   var co = wtGetCheckoff(itemId, phase);
   if (!co) return;
@@ -1584,6 +1587,11 @@ function wtBigPhaseButton(item, phId) {
 }
 
 async function wtUndoComplete(itemId, phId) {
+  // Undoing a not-yet-confirmed check-off is part of managing your own check-off
+  // (the Undo button only renders for status 'complete'; confirmed items are locked
+  // in the UI). Gated by wt.checkoff so anyone who can check off can undo before
+  // confirmation; reopening a CONFIRMED item is the supervisory wt.reopen path.
+  if (typeof hasPermission==='function' && !hasPermission('wt.checkoff')) { showToast('You do not have permission to change check-offs','error'); return; }
   // Remove the checkoff entirely — as if nothing was done
   if (!confirm('Mark this item as not done? The check-off will be removed.')) return;
   var d = wtProjData();
@@ -1608,6 +1616,7 @@ async function wtUndoComplete(itemId, phId) {
 }
 
 async function wtQuickComplete(itemId, phId) {
+  if (typeof hasPermission==='function' && !hasPermission('wt.checkoff')) { showToast('You do not have permission to complete check-offs','error'); return; }
   // One-tap complete for non-verify phases — no modal needed
   var d = wtProjData();
   var item = (d.items||[]).find(function(i){ return i.id===itemId; });
@@ -1686,6 +1695,7 @@ function wtRenderConfirmView() {
 }
 
 async function wtConfirmAllVisible() {
+  if (typeof hasPermission==='function' && !hasPermission('wt.confirm')) { showToast('You do not have permission to confirm check-offs','error'); return; }
   var d = wtProjData();
   var pending = (d.checkoffs||[]).filter(function(c){ return c.status==='complete'; });
   if (!pending.length) return;
@@ -1796,6 +1806,7 @@ function wtRenderReworksView() {
 var _wtReworkTarget = null;
 
 function wtOpenReworkModal(itemId) {
+  if (typeof hasPermission==='function' && !hasPermission('wt.rework')) { showToast('You do not have permission to log reworks','error'); return; }
   _wtReworkTarget = itemId || null;
   var d = wtProjData();
   var teamOptions = (DB.team||[]).map(function(m){ return '<option value="'+m.id+'">'+escHtml(m.name)+'</option>'; }).join('');
@@ -1835,6 +1846,7 @@ function wtOpenReworkModal(itemId) {
 }
 
 async function wtSaveRework() {
+  if (typeof hasPermission==='function' && !hasPermission('wt.rework')) { showToast('You do not have permission to log reworks','error'); return; }
   var desc  = (document.getElementById('rw-desc')||{}).value||'';
   var itemId = _wtReworkTarget || (document.getElementById('rw-item')||{}).value||'';
   if (!desc.trim()) { showToast('Description is required', 'warning'); return; }
@@ -2048,6 +2060,7 @@ async function wtSubmitFlag(itemId, roomId) {
 }
 
 function wtOpenResolveFlag(flagId) {
+  if (typeof hasPermission==='function' && !hasPermission('wt.flags')) { showToast('You do not have permission to resolve flags','error'); return; }
   var html = '<div class="modal-overlay open" id="wt-resolve-flag-modal" onclick="if(event.target===this)this.remove()">'+
     '<div class="modal-box sm">'+
       '<div class="modal-head"><h3>✅ Resolve Flag</h3><button class="btn-icon" onclick="document.getElementById(\'wt-resolve-flag-modal\').remove()">✕</button></div>'+
@@ -2069,6 +2082,7 @@ function wtOpenResolveFlag(flagId) {
 }
 
 async function wtSubmitFlagResolve(flagId) {
+  if (typeof hasPermission==='function' && !hasPermission('wt.flags')) { showToast('You do not have permission to resolve flags','error'); return; }
   var note = (document.getElementById('rfl-note')||{}).value||'';
   if (!note.trim()) { showToast('Note is required', 'warning'); return; }
   if (!window._rflPhoto) { showToast('Photo is required', 'warning'); return; }
@@ -2110,6 +2124,12 @@ function wtShowReport(type) {
   var d = wtProjData();
 
   if (type === 'leaderboard') {
+    if (typeof hasPermission==='function' && !hasPermission('wt.leaderboard')) {
+      el.innerHTML = '<div class="card" style="text-align:center;padding:24px;color:#90a4ae">'+
+        '<div style="font-size:32px;margin-bottom:8px">🔒</div>'+
+        '<div style="font-weight:700">You do not have permission to view the leaderboard.</div></div>';
+      return;
+    }
     // Count confirmed check-offs per tech
     var techScore = {};
     (d.checkoffs||[]).filter(function(c){ return c.status==='confirmed'; }).forEach(function(c){
@@ -5651,6 +5671,7 @@ var _absenceStep = 1;
 var _absenceData = {};
 
 function openAbsenceModal() {
+  if (typeof hasPermission==='function' && !hasPermission('leave.request')) { showToast('You do not have permission to request time off','error'); return; }
   _absenceStep = 1;
   _absenceData = {};
   // Populate team datalist
@@ -5777,6 +5798,7 @@ function selectAbsCoverage(val, label) {
 }
 
 function submitAbsence() {
+  if (typeof hasPermission==='function' && !hasPermission('leave.request')) { showToast('You do not have permission to request time off','error'); return; }
   var record = {
     id:           'abs-'+Date.now(),
     techName:     _absenceData.name,
