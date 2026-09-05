@@ -1461,8 +1461,21 @@ function renderPermissionsEditor() {
   grid.innerHTML = html;
 }
 
+// AZ-4: the permission matrix decides who can do what, so editing it must be
+// owner-only and must not be grantable THROUGH the matrix itself (circular). A hard
+// owner check gates all four editors on the client; a DB trigger on company_settings
+// (migration _11) enforces it server-side too, since _currentUser is reassignable.
+function _canEditPermissions() {
+  return !!(typeof _currentUser !== 'undefined' && _currentUser && _currentUser.role === 'owner');
+}
+function _denyPermEdit() {
+  if (typeof showToast === 'function') showToast('Only the owner can change role permissions','error',3000);
+  return false;
+}
+
 // ---- ADD CUSTOM ROLE ----
 function openAddRoleModal() {
+  if (!_canEditPermissions()) return _denyPermEdit();
   var name = prompt('New role name (e.g. "Field Supervisor"):');
   if (!name || !name.trim()) return;
   var id = name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_');
@@ -1484,6 +1497,7 @@ function openAddRoleModal() {
 }
 
 function deleteCustomRole(roleId) {
+  if (!_canEditPermissions()) return _denyPermEdit();
   if (BUILT_IN_ROLES.indexOf(roleId) >= 0) {
     showToast('Built-in roles cannot be deleted','error'); return;
   }
@@ -1497,6 +1511,7 @@ function deleteCustomRole(roleId) {
 }
 
 function savePermChange(permKey, role, value) {
+  if (!_canEditPermissions()) return _denyPermEdit();
   if (!DB.settings) DB.settings={};
   if (!DB.settings.rolePermissions) DB.settings.rolePermissions={};
   if (!DB.settings.rolePermissions[permKey]) DB.settings.rolePermissions[permKey]={};
@@ -1508,6 +1523,7 @@ function savePermChange(permKey, role, value) {
 }
 
 function resetPermissionsToDefault() {
+  if (!_canEditPermissions()) return _denyPermEdit();
   if (!confirm('Reset ALL permissions to factory defaults? This cannot be undone.')) return;
   if (!DB.settings) DB.settings={};
   DB.settings.rolePermissions = {};
