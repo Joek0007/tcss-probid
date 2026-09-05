@@ -7425,6 +7425,11 @@ function _pushSettingsToSupabase() {
     if (typeof DB.woSettings !== 'undefined' && DB.woSettings) {
       settingsPayload._woSettings = DB.woSettings;
     }
+    // Bundle Managed-Services settings too, so both settings writers carry the same complete
+    // blob and don't clobber each other (RED #6).
+    if (typeof DB.msSettings !== 'undefined' && DB.msSettings) {
+      settingsPayload._msSettings = DB.msSettings;
+    }
     _sb.from('company_settings').upsert({
       id: 1,
       settings_json: settingsPayload,

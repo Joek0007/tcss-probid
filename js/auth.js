@@ -526,6 +526,14 @@ async function syncAllFromCloud(silent) {
             pinSalt: settingsRow.ma_pin_salt || '',
           }
         });
+        // sync-audit RED #5/#6: WO settings and Managed-Services settings are bundled into
+        // settings_json on push (below). Restore them to their top-level DB keys, then strip
+        // the nested copies so DB.settings isn't bloated. This makes custom WO statuses/types/
+        // expense categories and MS types/statuses/cycles round-trip across devices.
+        if (settingsRow.settings_json._woSettings) DB.woSettings = settingsRow.settings_json._woSettings;
+        if (settingsRow.settings_json._msSettings) DB.msSettings = settingsRow.settings_json._msSettings;
+        delete DB.settings._woSettings;
+        delete DB.settings._msSettings;
       } else {
         // Fallback: individual field merge (old behavior)
         DB.settings.cname = settingsRow.company_name || DB.settings.cname;
@@ -953,7 +961,7 @@ async function syncAllFromCloud(silent) {
       if (wocle) { errors.push('wo_checklist: '+wocle.message); }
       else if (woClRows) {
         DB.woChecklist = woClRows.filter(function(c){ return delWCl.indexOf(String(c.id)) < 0; }).map(function(c){
-          return { id:c.id, woId:c.wo_id, item:c.item, completed:!!c.completed, createdAt:c.created_at };
+          return { id:c.id, woId:c.wo_id, item:c.item, completed:!!c.completed, completedBy:c.completed_by, completedAt:c.completed_at, createdAt:c.created_at };
         });
       }
     } catch(e) { errors.push('wo_checklist: '+e.message); }
@@ -964,7 +972,7 @@ async function syncAllFromCloud(silent) {
       if (woee) { errors.push('wo_expenses: '+woee.message); }
       else if (woExpRows) {
         DB.woExpenses = woExpRows.filter(function(e){ return delWE.indexOf(String(e.id)) < 0; }).map(function(e){
-          return { id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, createdAt:e.created_at };
+          return { id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, receiptUrl:e.receipt_url, receiptDocId:e.receipt_doc_id, createdAt:e.created_at };
         });
       }
     } catch(e) { errors.push('wo_expenses: '+e.message); }
@@ -1270,7 +1278,8 @@ async function pushAllToCloud() {
       ma_below_floor_only: DB.settings.managerApproval ? !!DB.settings.managerApproval.belowFloorOnly : true,
       ma_pin_hash: DB.settings.managerApproval ? (DB.settings.managerApproval.pinHash || '') : '',
       ma_pin_salt: DB.settings.managerApproval ? (DB.settings.managerApproval.pinSalt || '') : '',
-      settings_json: DB.settings
+      // Bundle the per-module settings blobs so they persist + round-trip (RED #5/#6).
+      settings_json: Object.assign({}, DB.settings, { _woSettings: DB.woSettings || null, _msSettings: DB.msSettings || null })
     }));
 
     // Push margin floors — upsert each row
@@ -1740,6 +1749,68 @@ async function pushAllToCloud() {
       } catch(wpErr) { console.warn('[Push] WO part:', wpErr.message||wpErr); }
     }
 
+    // Push WO labor / expenses / checklist (sync-audit RED #1-3). These previously had NO
+    // create/edit push (expenses none; labor only a manual-add insert; checklist only a
+    // create insert, never the toggle) — so records were lost or reverted on the next
+    // full-replace pull. Bulk upsert covers create AND edit for all three, same model as
+    // wo_parts. Deletes are already tombstone-guarded above. Skip tombstoned ids.
+    var _wlTomb = (DB.deletedIds && DB.deletedIds.woLabor) || [];
+    for (var wl of (DB.woLabor||[])) {
+      if (!wl || !wl.id) continue;
+      if (_wlTomb.indexOf(String(wl.id)) >= 0) continue;
+      try {
+        _pushErr('wo_labor '+wl.id, await _sb.from('wo_labor').upsert({
+          id:         wl.id,
+          wo_id:      wl.woId||null,
+          tech_name:  wl.techName||null,
+          tech_id:    wl.techId||null,
+          entry_type: wl.entryType||'work',
+          clock_in:   wl.clockIn||null,
+          clock_out:  wl.clockOut||null,
+          hours:      (wl.hours!=null)?wl.hours:null,
+          rate:       (wl.rate!=null)?wl.rate:null,
+          notes:      wl.notes||null,
+          created_at: wl.createdAt||new Date().toISOString()
+        }, {onConflict:'id'}));
+      } catch(wlErr) { console.warn('[Push] WO labor:', wlErr.message||wlErr); }
+    }
+    var _weTomb = (DB.deletedIds && DB.deletedIds.woExpenses) || [];
+    for (var we of (DB.woExpenses||[])) {
+      if (!we || !we.id) continue;
+      if (_weTomb.indexOf(String(we.id)) >= 0) continue;
+      try {
+        _pushErr('wo_expense '+we.id, await _sb.from('wo_expenses').upsert({
+          id:            we.id,
+          wo_id:         we.woId||null,
+          category:      we.category||null,
+          description:   we.description||null,
+          amount:        (we.amount!=null)?we.amount:null,
+          payment_type:  we.paymentType||null,
+          logged_by:     we.loggedBy||null,
+          expense_date:  we.date||null,
+          receipt_url:   we.receiptUrl||null,
+          receipt_doc_id:we.receiptDocId||null,
+          created_at:    we.createdAt||new Date().toISOString()
+        }, {onConflict:'id'}));
+      } catch(weErr) { console.warn('[Push] WO expense:', weErr.message||weErr); }
+    }
+    var _wcTomb = (DB.deletedIds && DB.deletedIds.woChecklist) || [];
+    for (var wc of (DB.woChecklist||[])) {
+      if (!wc || !wc.id) continue;
+      if (_wcTomb.indexOf(String(wc.id)) >= 0) continue;
+      try {
+        _pushErr('wo_checklist '+wc.id, await _sb.from('wo_checklist').upsert({
+          id:           wc.id,
+          wo_id:        wc.woId||null,
+          item:         wc.item||null,
+          completed:    !!wc.completed,
+          completed_by: wc.completedBy||null,
+          completed_at: wc.completedAt||null,
+          created_at:   wc.createdAt||new Date().toISOString()
+        }, {onConflict:'id'}));
+      } catch(wcErr) { console.warn('[Push] WO checklist:', wcErr.message||wcErr); }
+    }
+
     // Push recurring contracts (Managed Services)
     for (var rc of (DB.recurringContracts||[])) {
       try {
@@ -1760,7 +1831,11 @@ async function pushAllToCloud() {
     // Persist secondary collections that have no dedicated table (tools & assets,
     // tool checkouts, checkout log, inventory locations/transfers). Stored as whole-
     // collection JSON blobs in app_state so they survive reloads and reach every device.
-    var _blobKeys = ['tools','toolCheckouts','checkoutLog','invLocations','invTransfers','timeOffRequests','absences'];
+    var _blobKeys = ['tools','toolCheckouts','checkoutLog','invLocations','invTransfers','timeOffRequests','absences',
+      // sync-audit RED #7: payroll/tool side-records that were local-only (per-device). Arrays,
+      // synced via the app_state blob store (whole-array last-write-wins — fine for these
+      // low-frequency, office-written collections; strictly better than never syncing).
+      'lunchFlags','payrollLog','timeCorrections','leaveForfeiture','toolLoans'];
     for (var _bk of _blobKeys) {
       try { await _sb.from('app_state').upsert({ key: _bk, data: DB[_bk] || [], updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
       catch(_be) { console.warn('[Push] app_state', _bk, _be && _be.message); }
