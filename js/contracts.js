@@ -229,8 +229,15 @@ function contractMenu(id) {
   if (!c) return;
   if (!confirm('Delete contract '+c.number+'? This cannot be undone.')) return;
   DB.contracts = (DB.contracts||[]).filter(function(x){return x.id!==id;});
+  // Single-writer delete: tombstone here, then hand off to pushAllToCloud, which performs
+  // the cloud delete with .select('id') and clears the tombstone only on a confirmed delete.
+  // The old fire-and-forget delete (no error check) let an RLS-blocked delete resurrect the
+  // contract on the next pull. (SF-5)
+  if(!DB.deletedIds)DB.deletedIds={};
+  if(!DB.deletedIds.contracts)DB.deletedIds.contracts=[];
+  if(DB.deletedIds.contracts.indexOf(id)<0)DB.deletedIds.contracts.push(id);
   saveDB();
-  if (typeof _sb!=='undefined'&&_sb) _sb.from('contracts').delete().eq('id',id).then(function(){});
+  if (typeof _sb!=='undefined'&&_sb&&typeof _currentUser!=='undefined'&&_currentUser&&typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
   renderContracts();
   showToast('Contract deleted','info',2000);
 }

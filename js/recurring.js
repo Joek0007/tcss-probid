@@ -395,8 +395,14 @@ function rcMenu(id) {
   if (!c) return;
   if (!confirm('Delete managed service contract '+c.number+' for '+c.client+'?\nThis cannot be undone.')) return;
   DB.recurringContracts = (DB.recurringContracts||[]).filter(function(x){return x.id!==id;});
+  // Single-writer delete: tombstone + hand off to pushAllToCloud (reliable .select('id')
+  // delete, tombstone cleared only on confirm). Old fire-and-forget delete could be
+  // silently RLS-blocked and resurrect on pull. (SF-5)
+  if(!DB.deletedIds)DB.deletedIds={};
+  if(!DB.deletedIds.recurringContracts)DB.deletedIds.recurringContracts=[];
+  if(DB.deletedIds.recurringContracts.indexOf(id)<0)DB.deletedIds.recurringContracts.push(id);
   saveDB();
-  if (typeof _sb!=='undefined'&&_sb) _sb.from('recurring_contracts').delete().eq('id',id).then(function(){});
+  if (typeof _sb!=='undefined'&&_sb&&typeof _currentUser!=='undefined'&&_currentUser&&typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
   renderRecurring();
   showToast('Contract deleted','info',2000);
 }

@@ -157,15 +157,27 @@ async function doStartTravel(){
     var session={user_id:_currentUser?_currentUser.id:null,user_name:_currentUser?_currentUser.full_name:'Unknown',
       job_id:jobId,job_name:jobName,status:'traveling',clock_in_at:now.toISOString(),
       clock_in_lat:lat,clock_in_lng:lng,date:now.toISOString().split('T')[0]};
-    var sessionId=null;
-    if(_sb&&_currentUser){var res=await _sb.from('clock_sessions').insert(session).select().single();if(res.data)sessionId=res.data.id;}
+    var sessionId=null; var _clockCloudFailed=false;
+    if(_sb&&_currentUser){
+      var res=await _sb.from('clock_sessions').insert(session).select().single();
+      if(res && res.error){
+        // SF-4: the insert error was ignored, leaving sessionId null — the whole shift
+        // never reached clock_sessions, but the tech still saw a success toast. Surface it.
+        _clockCloudFailed=true;
+        console.warn('[Clock] session insert failed:', res.error.message);
+      } else if(res && res.data){ sessionId=res.data.id; }
+    }
     _clockState.status='traveling';onClockStateChange('traveling');_clockState.sessionId=sessionId;
     _clockState.dayStart=now;_clockState.travelOutStart=now;
     _clockState.jobId=jobId;_clockState.jobName=jobName;
     _clockState.todayEvents.push({type:'travel_start',time:now,lat:lat,lng:lng,label:'Started Travel'});
     await logTimeEvent('travel_start',lat,lng,acc);
     updateClockUI();startClockTimer();
-    showToast('Travel started — drive safe!','success');
+    if(_clockCloudFailed){
+      showToast('Travel started on this device — but it did NOT reach the cloud, so the office dashboard won’t show it yet. Check your connection; tell the office if this keeps happening.','warning',7000);
+    } else {
+      showToast('Travel started — drive safe!','success');
+    }
     scheduleEodReminder();
   });
 }

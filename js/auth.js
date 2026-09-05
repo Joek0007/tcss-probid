@@ -453,6 +453,8 @@ async function syncAllFromCloud(silent) {
   var delWO   = DB.deletedIds.workOrders    || [];
   var delPO   = DB.deletedIds.purchaseOrders|| [];
   var delTime = DB.deletedIds.timeEntries   || [];
+  var delCon  = DB.deletedIds.contracts     || [];
+  var delRC   = DB.deletedIds.recurringContracts || [];
 
   // Status map — Supabase Title Case → app lowercase
   var pullStatusMap = {
@@ -953,10 +955,12 @@ async function syncAllFromCloud(silent) {
             priceHistory:r.price_history||[], createdAt:r.created_at
           };
         });
+        // Suppress tombstoned rows until their cloud delete confirms (RLS-silent-block guard).
+        mapped = mapped.filter(function(r){ return delRC.indexOf(String(r.id)) < 0; });
         // Merge: Supabase is authoritative for records it has, keep local-only records
         var sbIds = mapped.map(function(r){return r.id;});
         var rcCloudComplete = rcRows.length > 0 && rcRows.length < 1000;
-        var localOnly = (DB.recurringContracts||[]).filter(function(c){return !sbIds.includes(c.id) && !(c._synced && rcCloudComplete);});
+        var localOnly = (DB.recurringContracts||[]).filter(function(c){return !sbIds.includes(c.id) && delRC.indexOf(String(c.id)) < 0 && !(c._synced && rcCloudComplete);});
         mapped.forEach(function(m){ m._synced = true; });
         DB.recurringContracts = mapped.concat(localOnly);
       }
@@ -966,8 +970,9 @@ async function syncAllFromCloud(silent) {
     try {
       var { data: ctrRows, error: ctre } = await _sb.from('contracts').select('*').order('created_at',{ascending:false});
       if (ctre) { errors.push('contracts: '+ctre.message); }
-      else if (ctrRows && ctrRows.length) {
-        DB.contracts = ctrRows.map(function(r){
+      else if (ctrRows) {
+        // Suppress tombstoned rows until the cloud delete confirms (RLS-silent-block guard).
+        var ctrMapped = ctrRows.filter(function(r){ return delCon.indexOf(String(r.id)) < 0; }).map(function(r){
           return {
             id:r.id, number:r.number, type:r.type, client:r.client,
             project:r.project||'', value:r.value||0, status:r.status||'draft',
@@ -977,6 +982,11 @@ async function syncAllFromCloud(silent) {
             parentContractId:r.parent_contract_id||null, createdAt:r.created_at
           };
         });
+        var ctrIds = ctrMapped.map(function(r){ return String(r.id); });
+        var ctrComplete = ctrRows.length > 0 && ctrRows.length < 1000;
+        var ctrLocalOnly = (DB.contracts||[]).filter(function(c){ return c.id && ctrIds.indexOf(String(c.id)) < 0 && delCon.indexOf(String(c.id)) < 0 && !(c._synced && ctrComplete); });
+        ctrMapped.forEach(function(m){ m._synced = true; });
+        DB.contracts = ctrMapped.concat(ctrLocalOnly);
       }
     } catch(e) { errors.push('contracts: '+e.message); }
 
@@ -1079,6 +1089,12 @@ async function pushAllToCloud() {
   // Background push — silent, no spinner, no UI blocking
   var syncEl = document.getElementById('dash-last-updated');
   if (syncEl) syncEl.textContent = 'Saving...';
+  // SF-3: Supabase returns {error} on a failed write instead of throwing, so the old
+  // per-section try/catch (which only caught throws) let write failures pass and the
+  // status still read "Saved". Collect every write failure here and reflect it honestly
+  // in the final status instead of always claiming success.
+  var _pushErrors = [];
+  function _pushErr(label, res) { if (res && res.error) _pushErrors.push(label + ': ' + (res.error.message || res.error)); return res; }
   try {
     // First — process any pending deletions so they don't get restored by upserts below
     if (DB.deletedIds) {
@@ -1141,13 +1157,20 @@ async function pushAllToCloud() {
         }).eq('id',_ite).select('id');
         if (_delFailed(_r6)) keepTE.push(_ite);
       }
+      // Contracts and recurring contracts are HARD-delete tables (no soft-delete flag).
+      // Same RLS-silent-block guard as WO/PO: .select('id') so a blocked delete keeps its
+      // tombstone instead of resurrecting on the next pull.
+      var dcon = DB.deletedIds.contracts||[], drc = DB.deletedIds.recurringContracts||[];
+      var keepCon=[], keepRC=[];
+      for (var _icn of dcon) { var _r7 = await _sb.from('contracts').delete().eq('id',_icn).select('id'); if (_delFailed(_r7)) keepCon.push(_icn); }
+      for (var _irc of drc) { var _r8 = await _sb.from('recurring_contracts').delete().eq('id',_irc).select('id'); if (_delFailed(_r8)) keepRC.push(_irc); }
       // Only confirmed cloud deletes (a row actually came back from .select) clear the
       // tombstone; blocked/no-op deletes stay tombstoned so the row never resurrects.
-      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO, timeEntries:keepTE};
+      DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO, timeEntries:keepTE, contracts:keepCon, recurringContracts:keepRC};
       try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
     }
     // Push settings to company_settings (single row, id=1)
-    await _sb.from('company_settings').upsert({
+    _pushErr('company_settings', await _sb.from('company_settings').upsert({
       id: 1,
       company_name: DB.settings.cname || 'TCSS',
       default_labor_rate: DB.settings.laborRate || 100,
@@ -1157,7 +1180,7 @@ async function pushAllToCloud() {
       ma_pin_hash: DB.settings.managerApproval ? (DB.settings.managerApproval.pinHash || '') : '',
       ma_pin_salt: DB.settings.managerApproval ? (DB.settings.managerApproval.pinSalt || '') : '',
       settings_json: DB.settings
-    });
+    }));
 
     // Push margin floors — upsert each row
     if (_getMFList) {
@@ -1165,11 +1188,11 @@ async function pushAllToCloud() {
       for (var mf of mfList) {
         if (!mf || !mf.jobType) continue;
         try {
-          await _sb.from('margin_floors').upsert({
+          _pushErr('margin_floors', await _sb.from('margin_floors').upsert({
             job_type: mf.jobType,
             floor_pct: mf.floor !== undefined ? mf.floor : 35,
             notes: mf.notes || ''
-          }, { onConflict: 'job_type' });
+          }, { onConflict: 'job_type' }));
         } catch(mfErr) { console.warn('[Push] Margin floor:', mfErr.message||mfErr); }
       }
     }
@@ -1191,7 +1214,7 @@ async function pushAllToCloud() {
           'rejected': 'Rejected', 'Rejected': 'Rejected',
           'expired': 'Expired', 'Expired': 'Expired'
         };
-        await _sb.from('quotes').upsert({
+        _pushErr('quote '+(q.num||qId), await _sb.from('quotes').upsert({
           id: qId,
           quote_number: q.num || null,
           customer_name: q.cn || null,
@@ -1241,7 +1264,7 @@ async function pushAllToCloud() {
           payment_terms: q.pt || 'Net 30',
           followup_date: q.followupDate || null,
           created_by: _currentUser.id
-        });
+        }));
 
         // Push line items ATOMICALLY (SF-1). The old code did a loose
         // delete-then-insert with no error checks: a failed insert left the quote
@@ -1268,7 +1291,7 @@ async function pushAllToCloud() {
             // reports a problem instead of a false "Saved". The transaction rolled back,
             // so the previously-stored line items are intact.
             console.warn('[Push] Quote line items error for', q.num, _rli.error.message);
-            errors.push('quote '+(q.num || qId)+' line items: '+_rli.error.message);
+            _pushErrors.push('quote '+(q.num || qId)+' line items: '+_rli.error.message);
           }
         }
       } catch(qErr) {
@@ -1343,7 +1366,7 @@ async function pushAllToCloud() {
       if (!c) continue;
       try {
         var cId = ensureUUID(c);
-        await _sb.from('customers').upsert({
+        _pushErr('customer '+(c.name||cId), await _sb.from('customers').upsert({
           id: cId,
           name: c.name || '',
           company: c.company || null,
@@ -1366,7 +1389,7 @@ async function pushAllToCloud() {
           notes: c.notes || null,
           is_active: c.active !== false,
           created_by: _currentUser.id
-        });
+        }));
       } catch(cErr) {
         console.warn('[Push] Customer error for', c.name, cErr);
       }
@@ -1377,7 +1400,7 @@ async function pushAllToCloud() {
       if (!item) continue;
       try {
         var itemId = ensureUUID(item);
-        await _sb.from('catalog').upsert({
+        _pushErr('catalog '+(item.name||itemId), await _sb.from('catalog').upsert({
           id: itemId,
           name: item.name || '',
           description: item.desc || null,
@@ -1387,7 +1410,7 @@ async function pushAllToCloud() {
           default_hours: item.hours || 0,
           notes: item.notes || null,
           is_active: item.active !== false
-        });
+        }));
       } catch(iErr) {
         console.warn('[Push] Catalog error for', item.name, iErr);
       }
@@ -1398,7 +1421,7 @@ async function pushAllToCloud() {
       if (!t) continue;
       try {
         var tId = ensureUUID(t);
-        await _sb.from('templates').upsert({
+        _pushErr('template '+(t.name||tId), await _sb.from('templates').upsert({
           id: tId,
           name: t.name || '',
           category: t.cat || null,
@@ -1406,7 +1429,7 @@ async function pushAllToCloud() {
           items: t.items || [],
           is_active: t.active !== false,   // was hardcoded true, which un-deleted templates
           created_by: _currentUser.id
-        });
+        }));
       } catch(tErr) {
         console.warn('[Push] Template error for', t.name, tErr);
       }
@@ -1437,9 +1460,10 @@ async function pushAllToCloud() {
         });
         var ctRes = await _sb.from('contacts').upsert(ctFull);
         if (ctRes.error && ctRes.error.message && ctRes.error.message.includes('column')) {
-          await _sb.from('contacts').upsert(ctBase);
+          _pushErr('contact '+(ct.name||ctId), await _sb.from('contacts').upsert(ctBase));
         } else if (ctRes.error) {
           console.warn('[Push] Contact error for', ct.name, ctRes.error.message);
+          _pushErrors.push('contact '+(ct.name||ctId)+': '+ctRes.error.message);
         }
       } catch(ctErr) {
         console.warn('[Push] Contact error for', ct.name, ctErr.message || ctErr);
@@ -1465,7 +1489,7 @@ async function pushAllToCloud() {
           sms_enabled:  tm.smsEnabled !== false,
           created_by:   _currentUser.id
         });
-        if (tmErr) console.warn('[Push] Team error for', tm.name, tmErr.message);
+        if (tmErr) { console.warn('[Push] Team error for', tm.name, tmErr.message); _pushErrors.push('team '+(tm.name)+': '+tmErr.message); }
       } catch(tmCatch) {
         console.warn('[Push] Team error for', tm.name, tmCatch.message || tmCatch);
       }
@@ -1479,7 +1503,7 @@ async function pushAllToCloud() {
         var teRow = (typeof _timeEntryToRow === 'function') ? _timeEntryToRow(te) : null;
         if (!teRow) continue;
         var { error: teErr } = await _sb.from('time_entries').upsert(teRow, {onConflict:'id'});
-        if (teErr) console.warn('[Push] Time entry error:', teErr.message);
+        if (teErr) { console.warn('[Push] Time entry error:', teErr.message); _pushErrors.push('time entry '+(te.id)+': '+teErr.message); }
       } catch(teCatch) { console.warn('[Push] Time entry error:', teCatch.message||teCatch); }
     }
 
@@ -1487,7 +1511,7 @@ async function pushAllToCloud() {
     for (var inv of (DB.inventory || [])) {
       if (!inv || !inv.id) continue;
       try {
-        await _sb.from('inventory').upsert({
+        _pushErr('inventory '+(inv.name||inv.id), await _sb.from('inventory').upsert({
           id:         inv.id,
           name:       inv.name,
           tag:        inv.tag||null,
@@ -1501,7 +1525,7 @@ async function pushAllToCloud() {
           unit_cost:  inv.cost||0,
           notes:      inv.notes||null,
           created_by: _currentUser.id
-        }, {onConflict:'id'});
+        }, {onConflict:'id'}));
       } catch(invErr) { console.warn('[Push] Inventory:', invErr.message||invErr); }
     }
 
@@ -1588,11 +1612,12 @@ async function pushAllToCloud() {
           // Custom columns not yet added — fall back to base schema
           console.warn('[Push] Job falling back to base schema for', jb.name);
           var jbRes2 = await _sb.from('jobs').upsert(jbBase);
-          if (jbRes2.error) console.warn('[Push] Job base error for', jb.name, jbRes2.error.message);
+          if (jbRes2.error) { console.warn('[Push] Job base error for', jb.name, jbRes2.error.message); _pushErrors.push('job '+(jb.name)+': '+jbRes2.error.message); }
         } else if (jbRes.error) {
           console.warn('[Push] Job error for', jb.name, jbRes.error.message);
           if (jbRes.error.details) console.warn('[Push] Job details:', jbRes.error.details);
           if (jbRes.error.hint) console.warn('[Push] Job hint:', jbRes.error.hint);
+          _pushErrors.push('job '+(jb.name)+': '+jbRes.error.message);
         }
       } catch(jbErr) {
         console.warn('[Push] Job error for', jb.name, jbErr.message || jbErr);
@@ -1602,7 +1627,7 @@ async function pushAllToCloud() {
     // Push recurring contracts (Managed Services)
     for (var rc of (DB.recurringContracts||[])) {
       try {
-        await _sb.from('recurring_contracts').upsert({
+        _pushErr('recurring contract '+(rc.number||rc.id), await _sb.from('recurring_contracts').upsert({
           id:rc.id, number:rc.number, client:rc.client, type:rc.type,
           billing_cycle:rc.billingCycle, billing_day:rc.billingDay||1,
           status:rc.status||'active', auto_renew:!!rc.autoRenew,
@@ -1612,7 +1637,7 @@ async function pushAllToCloud() {
           line_items:rc.lineItems||[], notes:rc.notes||null,
           do_not_bill:!!rc.doNotBill, sort_order:rc.sortOrder||0,
           price_history:rc.priceHistory||[], created_at:rc.createdAt||new Date().toISOString()
-        });
+        }));
       } catch(rcErr) { console.warn('[Push] RC:', rcErr.message||rcErr); }
     }
 
@@ -1627,12 +1652,23 @@ async function pushAllToCloud() {
 
   } catch(e) {
     console.error('Push error:', e);
+    _pushErrors.push('sync aborted: ' + (e.message || e));
     showToast('Sync error — changes saved locally', 'warning');
   } finally {
     _pushInProgress = false;
   }
+  // SF-3: tell the truth. Only claim "Saved" when every cloud write actually
+  // succeeded; otherwise show that some writes failed (they stay in local storage
+  // and retry on the next push) instead of a misleading green "Saved".
   var syncEl = document.getElementById('dash-last-updated');
-  if (syncEl) syncEl.textContent = 'Saved ' + new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+  var _now = new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+  if (_pushErrors.length) {
+    console.warn('[Push] '+_pushErrors.length+' write(s) failed this sync:', _pushErrors);
+    if (syncEl) { syncEl.textContent = '⚠ '+_pushErrors.length+' item(s) not synced — kept locally, will retry'; syncEl.title = _pushErrors.slice(0,10).join('\n'); }
+    if (typeof showToast === 'function') showToast(_pushErrors.length+' change(s) could not be saved to the cloud — kept locally and will retry', 'warning', 5000);
+  } else {
+    if (syncEl) { syncEl.textContent = 'Saved ' + _now; syncEl.title = ''; }
+  }
   // No hideSpinner — push runs silently in background
 }
 
