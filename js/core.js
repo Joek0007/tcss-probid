@@ -751,7 +751,7 @@ function goPage(id) {
   var tt = document.getElementById('topbar-title');
   if (tt) tt.textContent = PAGE_TITLES[id] || id;
   // Render page content
-  if (id==='dash')       renderDash();
+  if (id==='dash')       { renderDash(); if (typeof applyDashPrefs === 'function') applyDashPrefs(); }
   if (id==='quotes') {
     // Apply saved default sort on page visit
     var qs = document.getElementById('q-sort');
@@ -909,9 +909,10 @@ var _menuAnimReady = false;
 function _normUiPrefs(p) {
   p = p || {};
   return {
-    favorites: Array.isArray(p.favorites) ? p.favorites.slice() : [],
-    hidden:    Array.isArray(p.hidden)    ? p.hidden.slice()    : [],
-    collapsed: Array.isArray(p.collapsed) ? p.collapsed.slice() : []
+    favorites:  Array.isArray(p.favorites)  ? p.favorites.slice()  : [],
+    hidden:     Array.isArray(p.hidden)     ? p.hidden.slice()     : [],
+    collapsed:  Array.isArray(p.collapsed)  ? p.collapsed.slice()  : [],
+    dashHidden: Array.isArray(p.dashHidden) ? p.dashHidden.slice() : []  // hidden dashboard tiles/cards
   };
 }
 
@@ -932,7 +933,7 @@ function _ensurePersonal() {
 }
 function _companyDefaultIsSet() {
   var d = _companyMenuDefault();
-  return (d.favorites.length + d.hidden.length + d.collapsed.length) > 0;
+  return (d.favorites.length + d.hidden.length + d.collapsed.length + d.dashHidden.length) > 0;
 }
 
 // Load this user's saved menu prefs from the cloud (self-only row).
@@ -950,6 +951,7 @@ async function loadUiPrefs() {
   _uiPrefsLoaded = true;
   try { initMenuChrome(); } catch (e) {}
   try { applyUserMenuPrefs(); } catch (e) {}
+  try { applyDashPrefs(); } catch (e) {}
 }
 
 // Debounced save of the current prefs (upsert into the user's own row).
@@ -1217,6 +1219,117 @@ function openCustomizeMenu() {
 
 function closeCustomizeMenu() {
   var modal = document.getElementById('modal-customize-menu');
+  if (modal) modal.style.display = 'none';
+}
+
+// ============================================================
+// DASHBOARD PERSONALIZATION  (per-user show/hide of stat tiles + cards)
+// Reuses the same user_ui_prefs row (prefs.dashHidden) and the same company
+// default. Tiles/cards are tagged at runtime with data-dash / data-dash-label.
+// ============================================================
+var _dashChromeInit = false;
+
+function initDashChrome() {
+  if (_dashChromeInit) return;
+  var page = document.getElementById('page-dash');
+  if (!page) return;
+  _dashChromeInit = true;
+  // Stat tiles — keyed by position (order is fixed), labelled from their own text.
+  var strip = document.getElementById('dash-stat-strip');
+  if (strip) Array.prototype.forEach.call(strip.querySelectorAll('.dash-stat-tile'), function (t, i) {
+    if (t.getAttribute('data-dash')) return;
+    t.setAttribute('data-dash', 'stat-' + i);
+    var lbl = t.querySelector('.dash-stat-lbl');
+    t.setAttribute('data-dash-label', ((lbl ? lbl.textContent : 'Stat ' + (i + 1)) || '').trim());
+  });
+  // Main panels — keyed by a slug of their title. Skip the conditional alert cards
+  // (Out Today / Follow-Ups Due) which show themselves only when there's something.
+  var skip = { 'dash-absence-card': 1, 'dash-followup-card': 1 };
+  Array.prototype.forEach.call(page.querySelectorAll('.dash-main-grid .dash-card'), function (c) {
+    if ((c.id && skip[c.id]) || c.getAttribute('data-dash')) return;
+    var t = c.querySelector('.dash-card-title');
+    var label = ((t ? t.textContent : 'Card') || '').trim();
+    var slug = 'card-' + label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    c.setAttribute('data-dash', slug);
+    c.setAttribute('data-dash-label', label);
+  });
+}
+
+// Apply the user's (or company-default) hidden dashboard tiles/cards.
+function applyDashPrefs() {
+  if (!_uiPrefsLoaded) return;
+  initDashChrome();
+  var page = document.getElementById('page-dash');
+  if (!page) return;
+  var hidden = _effPrefs().dashHidden || [];
+  page.querySelectorAll('[data-dash]').forEach(function (el) {
+    if (hidden.indexOf(el.getAttribute('data-dash')) >= 0) el.style.setProperty('display', 'none', 'important');
+    else el.style.removeProperty('display');
+  });
+}
+
+function toggleDashHidden(id) {
+  if (!id) return;
+  _ensurePersonal();
+  _uiPrefs.dashHidden = _uiPrefs.dashHidden || [];
+  var i = _uiPrefs.dashHidden.indexOf(id);
+  if (i >= 0) _uiPrefs.dashHidden.splice(i, 1); else _uiPrefs.dashHidden.push(id);
+  saveUiPrefs();
+  applyDashPrefs();
+  _refreshCustomizeDashIfOpen();
+}
+
+function resetDashPrefs() {
+  _ensurePersonal();
+  _uiPrefs.dashHidden = (_companyMenuDefault().dashHidden || []).slice(); // company default (or empty)
+  saveUiPrefs();
+  applyDashPrefs();
+  _refreshCustomizeDashIfOpen();
+}
+
+function _refreshCustomizeDashIfOpen() {
+  var m = document.getElementById('modal-customize-dash');
+  if (m && getComputedStyle(m).display !== 'none') openCustomizeDash();
+}
+
+function _cmDashRow(id, label, hidden) {
+  return '<div class="cm-row">'
+    + '<label class="cm-show"><input type="checkbox" ' + (hidden ? '' : 'checked')
+    + ' onchange="toggleDashHidden(\'' + id + '\')"> Show</label>'
+    + '<span class="cm-label">' + (typeof escHtml === 'function' ? escHtml(label) : label) + '</span>'
+    + '</div>';
+}
+
+function openCustomizeDash() {
+  initDashChrome();
+  var modal = document.getElementById('modal-customize-dash');
+  var body = document.getElementById('cd-body');
+  var page = document.getElementById('page-dash');
+  if (!modal || !body || !page) return;
+  var hidden = _effPrefs().dashHidden || [];
+  body.innerHTML = '';
+  var strip = document.getElementById('dash-stat-strip');
+  var statsHtml = '';
+  if (strip) strip.querySelectorAll('[data-dash]').forEach(function (el) {
+    var id = el.getAttribute('data-dash');
+    statsHtml += _cmDashRow(id, el.getAttribute('data-dash-label') || id, hidden.indexOf(id) >= 0);
+  });
+  if (statsHtml) body.innerHTML += '<div class="cm-group">Stat tiles</div>' + statsHtml;
+  var panelsHtml = '';
+  page.querySelectorAll('.dash-main-grid [data-dash]').forEach(function (el) {
+    var id = el.getAttribute('data-dash');
+    panelsHtml += _cmDashRow(id, el.getAttribute('data-dash-label') || id, hidden.indexOf(id) >= 0);
+  });
+  if (panelsHtml) body.innerHTML += '<div class="cm-group">Cards</div>' + panelsHtml;
+  var sd = document.getElementById('cd-save-default');
+  if (sd) sd.style.display = (_currentUser && _currentUser.role === 'owner') ? '' : 'none';
+  var rb = document.getElementById('cd-reset-btn');
+  if (rb) rb.textContent = _companyDefaultIsSet() ? '↺ Reset to company default' : '↺ Reset to default';
+  modal.style.display = 'flex';
+}
+
+function closeCustomizeDash() {
+  var modal = document.getElementById('modal-customize-dash');
   if (modal) modal.style.display = 'none';
 }
 

@@ -52,19 +52,19 @@ body.menu-anim-ready .nav-group-body{transition:grid-template-rows .24s ease}
 .nav-customize{display:flex;align-items:center;gap:10px;margin:8px 12px 4px;padding:8px 12px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,.6);font-size:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);transition:all .2s}
 .nav-customize:hover{background:rgba(255,255,255,.12);color:#fff}
 /* Customize Menu modal */
-#modal-customize-menu .cm-card{background:#fff;border-radius:16px;max-width:460px;width:100%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(0,0,0,.3)}
-#modal-customize-menu .cm-head{padding:20px 24px 12px;border-bottom:1px solid #eee}
-#modal-customize-menu .cm-head h3{margin:0;font-size:18px;color:#0d1b2a}
-#modal-customize-menu .cm-head p{margin:6px 0 0;font-size:13px;color:#78909c;line-height:1.5}
-#modal-customize-menu #cm-body{padding:8px 24px;overflow-y:auto;flex:1}
-#modal-customize-menu .cm-group{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#90a4ae;margin:16px 0 6px}
-#modal-customize-menu .cm-row{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid #f4f6f8}
-#modal-customize-menu .cm-show{display:flex;align-items:center;gap:7px;font-size:13px;color:#37474f;cursor:pointer;width:74px;flex:0 0 auto}
-#modal-customize-menu .cm-show input{width:16px;height:16px;cursor:pointer}
-#modal-customize-menu .cm-fav{background:none;border:none;font-size:18px;color:#ffb300;cursor:pointer;padding:0 2px;line-height:1;flex:0 0 auto;opacity:.4}
-#modal-customize-menu .cm-fav.on{opacity:1}
-#modal-customize-menu .cm-label{font-size:14px;color:#263238}
-#modal-customize-menu .cm-foot{padding:14px 24px 20px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.cm-modal .cm-card{background:#fff;border-radius:16px;max-width:460px;width:100%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(0,0,0,.3)}
+.cm-modal .cm-head{padding:20px 24px 12px;border-bottom:1px solid #eee}
+.cm-modal .cm-head h3{margin:0;font-size:18px;color:#0d1b2a}
+.cm-modal .cm-head p{margin:6px 0 0;font-size:13px;color:#78909c;line-height:1.5}
+.cm-modal .cm-body{padding:8px 24px;overflow-y:auto;flex:1}
+.cm-modal .cm-group{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#90a4ae;margin:16px 0 6px}
+.cm-modal .cm-row{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid #f4f6f8}
+.cm-modal .cm-show{display:flex;align-items:center;gap:7px;font-size:13px;color:#37474f;cursor:pointer;width:74px;flex:0 0 auto}
+.cm-modal .cm-show input{width:16px;height:16px;cursor:pointer}
+.cm-modal .cm-fav{background:none;border:none;font-size:18px;color:#ffb300;cursor:pointer;padding:0 2px;line-height:1;flex:0 0 auto;opacity:.4}
+.cm-modal .cm-fav.on{opacity:1}
+.cm-modal .cm-label{font-size:14px;color:#263238}
+.cm-modal .cm-foot{padding:14px 24px 20px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .nav-item:hover{background:rgba(255,255,255,.08);color:#fff}
 .nav-item.active{background:rgba(25,118,210,.25);color:#64b5f6;border-left-color:#1976d2}
 .nav-icon{font-size:16px;width:20px;text-align:center}
@@ -1432,6 +1432,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <h2>📊 Dashboard</h2>
     <div style="display:flex;gap:8px">
       <span id="dash-last-updated" style="font-size:11px;color:#90a4ae;align-self:center"></span>
+      <button class="btn btn-outline btn-sm" onclick="openCustomizeDash()">⚙ Customize</button>
       <button class="btn btn-outline btn-sm" data-action="refreshDash">↻ Refresh</button>
     </div>
   </div>
@@ -5420,17 +5421,31 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 </div>
 
 <!-- UNSAVED QUOTE NAVIGATION WARNING MODAL -->
-<div id="modal-customize-menu" style="display:none;position:fixed;inset:0;background:rgba(13,27,42,.55);z-index:100000;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">
+<div id="modal-customize-menu" class="cm-modal" style="display:none;position:fixed;inset:0;background:rgba(13,27,42,.55);z-index:100000;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">
   <div class="cm-card">
     <div class="cm-head">
       <h3>Customize Menu</h3>
       <p>Show or hide the pages you use, and tap the star to pin favorites to the top. Your menu is saved to your account and follows you on every device.</p>
     </div>
-    <div id="cm-body"></div>
+    <div id="cm-body" class="cm-body"></div>
     <div class="cm-foot">
       <button id="cm-reset-btn" class="btn btn-outline btn-sm" onclick="resetMenuPrefs()" style="font-size:13px">↺ Reset to default</button>
       <button id="cm-save-default" class="btn btn-outline btn-sm" onclick="saveAsCompanyDefault()" style="font-size:13px;display:none">🏢 Save as company default</button>
       <button class="btn btn-primary btn-sm" onclick="closeCustomizeMenu()" style="font-size:13px">Done</button>
+    </div>
+  </div>
+</div>
+<div id="modal-customize-dash" class="cm-modal" style="display:none;position:fixed;inset:0;background:rgba(13,27,42,.55);z-index:100000;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">
+  <div class="cm-card">
+    <div class="cm-head">
+      <h3>Customize Dashboard</h3>
+      <p>Choose which stats and cards show on your dashboard. Saved to your account and follows you on every device.</p>
+    </div>
+    <div id="cd-body" class="cm-body"></div>
+    <div class="cm-foot">
+      <button id="cd-reset-btn" class="btn btn-outline btn-sm" onclick="resetDashPrefs()" style="font-size:13px">↺ Reset to default</button>
+      <button id="cd-save-default" class="btn btn-outline btn-sm" onclick="saveAsCompanyDefault()" style="font-size:13px;display:none">🏢 Save as company default</button>
+      <button class="btn btn-primary btn-sm" onclick="closeCustomizeDash()" style="font-size:13px">Done</button>
     </div>
   </div>
 </div>
@@ -6326,26 +6341,26 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260906bd with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260906be with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260906bd"></script>
-<script src="js/quotes.js?v=20260906bd"></script>
-<script src="js/tools.js?v=20260906bd"></script>
-<script src="js/field.js?v=20260906bd"></script>
-<script src="js/crm.js?v=20260906bd"></script>
-<script src="js/dispatch.js?v=20260906bd"></script>
-<script src="js/permissions.js?v=20260906bd"></script>
-<script src="js/worktracking.js?v=20260906bd"></script>
-<script src="js/calendar.js?v=20260906bd"></script>
-<script src="js/workorders.js?v=20260906bd"></script>
-<script src="js/purchaseorders.js?v=20260906bd"></script>
-<script src="js/inventory.js?v=20260906bd"></script>
-<script src="js/reports.js?v=20260906bd"></script>
-<script src="js/recyclebin.js?v=20260906bd"></script>
-<script src="js/contracts.js?v=20260906bd"></script>
-  <script src="js/recurring.js?v=20260906bd"></script>
-  <script src="js/seed_managed.js?v=20260906bd"></script>
-  <script src="js/auth.js?v=20260906bd"></script>
+<script src="js/core.js?v=20260906be"></script>
+<script src="js/quotes.js?v=20260906be"></script>
+<script src="js/tools.js?v=20260906be"></script>
+<script src="js/field.js?v=20260906be"></script>
+<script src="js/crm.js?v=20260906be"></script>
+<script src="js/dispatch.js?v=20260906be"></script>
+<script src="js/permissions.js?v=20260906be"></script>
+<script src="js/worktracking.js?v=20260906be"></script>
+<script src="js/calendar.js?v=20260906be"></script>
+<script src="js/workorders.js?v=20260906be"></script>
+<script src="js/purchaseorders.js?v=20260906be"></script>
+<script src="js/inventory.js?v=20260906be"></script>
+<script src="js/reports.js?v=20260906be"></script>
+<script src="js/recyclebin.js?v=20260906be"></script>
+<script src="js/contracts.js?v=20260906be"></script>
+  <script src="js/recurring.js?v=20260906be"></script>
+  <script src="js/seed_managed.js?v=20260906be"></script>
+  <script src="js/auth.js?v=20260906be"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
