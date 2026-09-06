@@ -919,7 +919,8 @@ function _normUiPrefs(p) {
     dashHidden:  Array.isArray(p.dashHidden)  ? p.dashHidden.slice()  : [],  // hidden dashboard tiles/cards
     itemOrder:   io,                                                          // { sectionKey: [pageId,...] }
     sectionOrder:Array.isArray(p.sectionOrder)? p.sectionOrder.slice(): [],   // [sectionKey,...]
-    dashLayout:  Array.isArray(p.dashLayout)  ? p.dashLayout.slice()  : []    // [{id,x,y,w,h},...] (dashboard grid)
+    dashLayout:  Array.isArray(p.dashLayout)  ? p.dashLayout.slice()  : [],   // [{id,x,y,w,h},...] (dashboard grid)
+    statOrder:   Array.isArray(p.statOrder)   ? p.statOrder.slice()   : []    // [statTileId,...] (dashboard stat strip)
   };
 }
 
@@ -941,7 +942,8 @@ function _ensurePersonal() {
 function _companyDefaultIsSet() {
   var d = _companyMenuDefault();
   return (d.favorites.length + d.hidden.length + d.collapsed.length + d.dashHidden.length
-    + Object.keys(d.itemOrder || {}).length + d.sectionOrder.length + d.dashLayout.length) > 0;
+    + Object.keys(d.itemOrder || {}).length + d.sectionOrder.length + d.dashLayout.length
+    + d.statOrder.length) > 0;
 }
 
 // Load this user's saved menu prefs from the cloud (self-only row).
@@ -1354,6 +1356,11 @@ function applyDashPrefs() {
     if (hidden.indexOf(el.getAttribute('data-dash')) >= 0) el.style.setProperty('display', 'none', 'important');
     else el.style.removeProperty('display');
   });
+  // Stat strip drag-to-reorder: apply saved order + (re)attach grips & the Sortable.
+  // Done here (runs after every renderDash) so the OPEN-WOs tile, whose innerHTML renderDash
+  // rewrites, gets its grip back each visit.
+  _applyStatOrder();
+  _wireStatSortable();
   if (!_dashGrid) { // no grid engine → fallback: show/hide the panels by display
     page.querySelectorAll('.dash-main-grid [data-dash]').forEach(function (el) {
       if (hidden.indexOf(el.getAttribute('data-dash')) >= 0) el.style.setProperty('display', 'none', 'important');
@@ -1379,6 +1386,7 @@ function resetDashPrefs() {
   var cd = _companyMenuDefault();
   _uiPrefs.dashHidden = (cd.dashHidden || []).slice(); // company default (or empty)
   _uiPrefs.dashLayout = (cd.dashLayout || []).slice();
+  _uiPrefs.statOrder  = (cd.statOrder  || []).slice();
   saveUiPrefs();
   if (_dashGrid) { try { buildDashGrid(); } catch (e) {} }
   applyDashPrefs();
@@ -1573,6 +1581,74 @@ function _saveDashLayout() {
     _uiPrefs.dashLayout = lay;
     saveUiPrefs();
   } catch (e) { console.warn('[dashLayout] save failed:', e && e.message); }
+}
+
+// ============================================================
+// DASHBOARD STAT-STRIP DRAG-TO-REORDER  (SortableJS, progressive enhancement)
+// The 9 KPI tiles are uniform and click-to-navigate, so each gets a small ⠿ grip and
+// only the grip drags (the tile body still navigates on tap). Order persists per-user
+// (prefs.statOrder) + company default. If SortableJS is absent the tiles are simply
+// fixed — nothing breaks.
+// ============================================================
+var _statSortable = null;
+
+// Add the drag grip to a stat tile (idempotent). Clicking the grip must not navigate.
+function _addTileGrip(tile) {
+  if (!tile || tile.querySelector('.dash-tile-grip')) return;
+  var g = document.createElement('span');
+  g.className = 'dash-tile-grip'; g.title = 'Drag to reorder'; g.textContent = '⠿';
+  g.addEventListener('click', function (e) { e.stopPropagation(); e.preventDefault(); });
+  tile.insertBefore(g, tile.firstChild);
+}
+
+// Reorder the stat tiles in the DOM to match saved statOrder. With no saved order
+// (e.g. after Reset) restore the built-in order — the tiles were tagged stat-0..stat-N
+// by their original position, so ascending numeric IS the default layout.
+function _applyStatOrder() {
+  var strip = document.getElementById('dash-stat-strip'); if (!strip) return;
+  var tiles = [].slice.call(strip.querySelectorAll('.dash-stat-tile[data-dash]'));
+  if (!tiles.length) return;
+  var order = (_effPrefs().statOrder) || [];
+  if (!order.length) {
+    // default: sort by the numeric suffix of the data-dash id (stat-0, stat-1, ...)
+    tiles.sort(function (a, b) {
+      var na = parseInt((a.getAttribute('data-dash') || '').replace(/\D+/g, ''), 10) || 0;
+      var nb = parseInt((b.getAttribute('data-dash') || '').replace(/\D+/g, ''), 10) || 0;
+      return na - nb;
+    });
+    tiles.forEach(function (t) { strip.appendChild(t); });
+    return;
+  }
+  var byId = {};
+  tiles.forEach(function (t) { byId[t.getAttribute('data-dash')] = t; });
+  order.forEach(function (id) { var t = byId[id]; if (t) strip.appendChild(t); }); // saved order first
+  // any tile not in the saved order (new tile) stays after, in its current position
+}
+
+// Persist the current DOM order of the stat tiles.
+function _saveStatOrder() {
+  var strip = document.getElementById('dash-stat-strip'); if (!strip) return;
+  try {
+    var order = [].map.call(strip.querySelectorAll('.dash-stat-tile[data-dash]'),
+      function (t) { return t.getAttribute('data-dash'); });
+    _ensurePersonal();
+    _uiPrefs.statOrder = order;
+    saveUiPrefs();
+  } catch (e) { console.warn('[statOrder] save failed:', e && e.message); }
+}
+
+// Attach grips + the Sortable to the stat strip (idempotent — safe to call every visit).
+function _wireStatSortable() {
+  var strip = document.getElementById('dash-stat-strip'); if (!strip) return;
+  strip.querySelectorAll('.dash-stat-tile[data-dash]').forEach(_addTileGrip);
+  if (typeof Sortable === 'undefined') return;      // progressive enhancement
+  if (_statSortable && _statSortable.el === strip) return; // already wired
+  try {
+    _statSortable = Sortable.create(strip, {
+      handle: '.dash-tile-grip', draggable: '.dash-stat-tile', animation: 150,
+      forceFallback: true, onEnd: _saveStatOrder
+    });
+  } catch (e) { _statSortable = null; console.warn('[statSortable] init failed:', e && e.message); }
 }
 
 // ---- LINE ITEMS ----

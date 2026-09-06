@@ -559,6 +559,13 @@ body:has(#modal-work-order.open){overflow:hidden}
 .dash-stat-tile.teal{border-color:#80cbc4;background:#f0faf9}
 .dash-stat-tile.orange{border-color:#ffb74d;background:#fff8f0}
 .dash-stat-tile.red{border-color:#ef9a9a;background:#fff0f0}
+.dash-tile-grip{position:absolute;top:3px;left:5px;font-size:11px;line-height:1;color:#b0bec5;opacity:.45;cursor:grab;touch-action:none;z-index:3;user-select:none;padding:2px}
+.dash-stat-tile:hover .dash-tile-grip{opacity:.9;color:#78909c}
+.dash-tile-grip:active{cursor:grabbing}
+.dash-stat-strip .sortable-ghost{opacity:.4;background:#e3f2fd;border-color:#90caf9}
+.dash-stat-strip .sortable-chosen{box-shadow:0 6px 20px rgba(0,0,0,.18)}
+.dash-stat-strip .sortable-drag{opacity:.95}
+body.dark-mode .dash-tile-grip{color:#555}
 .dash-stat-icon{font-size:18px;margin-bottom:4px}
 .dash-stat-val{font-size:18px;font-weight:900;color:#0d1b2a;letter-spacing:-.5px;line-height:1}
 .dash-stat-lbl{font-size:9px;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-top:3px;font-weight:700}
@@ -6362,26 +6369,26 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260906bi with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260906bj with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260906bi"></script>
-<script src="js/quotes.js?v=20260906bi"></script>
-<script src="js/tools.js?v=20260906bi"></script>
-<script src="js/field.js?v=20260906bi"></script>
-<script src="js/crm.js?v=20260906bi"></script>
-<script src="js/dispatch.js?v=20260906bi"></script>
-<script src="js/permissions.js?v=20260906bi"></script>
-<script src="js/worktracking.js?v=20260906bi"></script>
-<script src="js/calendar.js?v=20260906bi"></script>
-<script src="js/workorders.js?v=20260906bi"></script>
-<script src="js/purchaseorders.js?v=20260906bi"></script>
-<script src="js/inventory.js?v=20260906bi"></script>
-<script src="js/reports.js?v=20260906bi"></script>
-<script src="js/recyclebin.js?v=20260906bi"></script>
-<script src="js/contracts.js?v=20260906bi"></script>
-  <script src="js/recurring.js?v=20260906bi"></script>
-  <script src="js/seed_managed.js?v=20260906bi"></script>
-  <script src="js/auth.js?v=20260906bi"></script>
+<script src="js/core.js?v=20260906bj"></script>
+<script src="js/quotes.js?v=20260906bj"></script>
+<script src="js/tools.js?v=20260906bj"></script>
+<script src="js/field.js?v=20260906bj"></script>
+<script src="js/crm.js?v=20260906bj"></script>
+<script src="js/dispatch.js?v=20260906bj"></script>
+<script src="js/permissions.js?v=20260906bj"></script>
+<script src="js/worktracking.js?v=20260906bj"></script>
+<script src="js/calendar.js?v=20260906bj"></script>
+<script src="js/workorders.js?v=20260906bj"></script>
+<script src="js/purchaseorders.js?v=20260906bj"></script>
+<script src="js/inventory.js?v=20260906bj"></script>
+<script src="js/reports.js?v=20260906bj"></script>
+<script src="js/recyclebin.js?v=20260906bj"></script>
+<script src="js/contracts.js?v=20260906bj"></script>
+  <script src="js/recurring.js?v=20260906bj"></script>
+  <script src="js/seed_managed.js?v=20260906bj"></script>
+  <script src="js/auth.js?v=20260906bj"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
