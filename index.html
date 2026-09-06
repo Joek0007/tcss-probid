@@ -83,6 +83,16 @@ body.menu-anim-ready .nav-group-body{transition:grid-template-rows .24s ease}
 .dash-main-grid.dash-gridded{display:block!important;grid-template-columns:none!important;gap:0!important}
 #dash-grid .grid-stack-item-content{display:block;background:transparent;border:none;overflow-y:auto;overflow-x:hidden}
 #dash-grid .grid-stack-item-content > .dash-card{margin:0;width:100%;box-sizing:border-box}
+/* Fill mode (applied after the snug measure): the card fills its slot and its main
+   content region grows, so a stretched panel shows MORE content (e.g. more employees in
+   Field Activity) instead of blank space. The head stays fixed; the last child grows+scrolls. */
+#dash-grid.dash-fill .grid-stack-item-content{display:flex;flex-direction:column;overflow:hidden}
+#dash-grid.dash-fill .grid-stack-item-content > .dash-card{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+#dash-grid.dash-fill .dash-card > .dash-card-head{flex:0 0 auto}
+#dash-grid.dash-fill .dash-card > :last-child{flex:1 1 auto;min-height:0;overflow:auto;max-height:none}
+/* Resize handles: keep the corner glyphs faint so panels aren't busy; firmer on hover. */
+#dash-grid .ui-resizable-se,#dash-grid .ui-resizable-sw{opacity:.18;transition:opacity .15s}
+#dash-grid .grid-stack-item:hover .ui-resizable-se,#dash-grid .grid-stack-item:hover .ui-resizable-sw{opacity:.5}
 #dash-alerts:empty{display:none}
 .dash-drag-handle{cursor:grab;color:#b0bec5;margin-right:8px;font-size:14px;line-height:1;touch-action:none;letter-spacing:-2px;flex:0 0 auto}
 .dash-drag-handle:active{cursor:grabbing}
@@ -6369,26 +6379,26 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260906bk with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260906bl with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260906bk"></script>
-<script src="js/quotes.js?v=20260906bk"></script>
-<script src="js/tools.js?v=20260906bk"></script>
-<script src="js/field.js?v=20260906bk"></script>
-<script src="js/crm.js?v=20260906bk"></script>
-<script src="js/dispatch.js?v=20260906bk"></script>
-<script src="js/permissions.js?v=20260906bk"></script>
-<script src="js/worktracking.js?v=20260906bk"></script>
-<script src="js/calendar.js?v=20260906bk"></script>
-<script src="js/workorders.js?v=20260906bk"></script>
-<script src="js/purchaseorders.js?v=20260906bk"></script>
-<script src="js/inventory.js?v=20260906bk"></script>
-<script src="js/reports.js?v=20260906bk"></script>
-<script src="js/recyclebin.js?v=20260906bk"></script>
-<script src="js/contracts.js?v=20260906bk"></script>
-  <script src="js/recurring.js?v=20260906bk"></script>
-  <script src="js/seed_managed.js?v=20260906bk"></script>
-  <script src="js/auth.js?v=20260906bk"></script>
+<script src="js/core.js?v=20260906bl"></script>
+<script src="js/quotes.js?v=20260906bl"></script>
+<script src="js/tools.js?v=20260906bl"></script>
+<script src="js/field.js?v=20260906bl"></script>
+<script src="js/crm.js?v=20260906bl"></script>
+<script src="js/dispatch.js?v=20260906bl"></script>
+<script src="js/permissions.js?v=20260906bl"></script>
+<script src="js/worktracking.js?v=20260906bl"></script>
+<script src="js/calendar.js?v=20260906bl"></script>
+<script src="js/workorders.js?v=20260906bl"></script>
+<script src="js/purchaseorders.js?v=20260906bl"></script>
+<script src="js/inventory.js?v=20260906bl"></script>
+<script src="js/reports.js?v=20260906bl"></script>
+<script src="js/recyclebin.js?v=20260906bl"></script>
+<script src="js/contracts.js?v=20260906bl"></script>
+  <script src="js/recurring.js?v=20260906bl"></script>
+  <script src="js/seed_managed.js?v=20260906bl"></script>
+  <script src="js/auth.js?v=20260906bl"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

@@ -1575,6 +1575,10 @@ function buildDashGrid() {
       if (typeof _dashGrid.checkDynamicColumn === 'function') _dashGrid.checkDynamicColumn();
       if (_dashGrid.commit) _dashGrid.commit();
     } catch (e) {}
+    // Now that heights are measured, switch cards to fill their slots so a stretched panel
+    // grows its content (more employees in Field Activity, etc.) instead of blank space.
+    // (Applied AFTER the snug measure — the fill flexbox would otherwise break the measure.)
+    grid.classList.add('dash-fill');
     _dashApplyingLayout = false;
     _dashGrid.on('change', _saveDashLayout);
   } catch (e) { _dashGrid = null; console.warn('[dashGrid] init failed:', e && e.message); return false; }
