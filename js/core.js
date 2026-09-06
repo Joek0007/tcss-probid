@@ -1061,6 +1061,7 @@ function initMenuChrome() {
       a.setAttribute('title', qa.title || 'Add new');
       a.setAttribute('onclick', "event.stopPropagation();event.preventDefault();quickAdd('" + el.getAttribute('data-page') + "');return false;");
       el.appendChild(a);
+      el.classList.add('has-add'); // reserve right padding so the absolutely-placed "+" aligns
     }
   });
 }
@@ -1190,6 +1191,9 @@ function _addFavGrip(row) {
   var g = document.createElement('span');
   g.className = 'nav-fav-grip'; g.textContent = '⠿'; g.title = 'Drag to reorder';
   g.addEventListener('click', function (e) { e.stopPropagation(); e.preventDefault(); });
+  // <a> links are natively draggable, which fights SortableJS's fallback drag — turn it off
+  // so the grip actually reorders (stat tiles are <div>, so they never had this problem).
+  row.setAttribute('draggable', 'false');
   row.insertBefore(g, row.firstChild); // leading handle → keeps the trailing "+" column aligned
 }
 
