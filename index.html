@@ -29,9 +29,11 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e;mi
 /* ---- Menu customization chrome (favorites / collapse / hide) ---- */
 .nav-caret{font-size:12px;opacity:.8;flex:0 0 auto;margin-left:8px;transition:transform .22s ease}
 .nav-group.collapsed .nav-caret{transform:rotate(-90deg)}
+/* Stars are hover-only (both empty and favorited) so the resting list stays calm —
+   no persistent gold dots scattered down the menu. On hover: faint ☆ to pin, bright ★
+   to un-pin. Which pages are favorited is already shown by the Favorites group up top. */
 .nav-star{margin-left:auto;font-size:15px;line-height:1;color:#ffd24d;opacity:0;padding:0 2px;transition:opacity .15s;cursor:pointer;flex:0 0 auto}
-.nav-item:hover .nav-star{opacity:.55}
-.nav-star.on{opacity:1}
+.nav-item:hover .nav-star{opacity:.5}
 .nav-item:hover .nav-star.on{opacity:1}
 /* Smooth slide open/close: animate the grid row from 1fr to 0fr (works at any
    content height, no max-height guesswork). Transitions are enabled only after
@@ -6317,26 +6319,26 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260906ba with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260906bb with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260906ba"></script>
-<script src="js/quotes.js?v=20260906ba"></script>
-<script src="js/tools.js?v=20260906ba"></script>
-<script src="js/field.js?v=20260906ba"></script>
-<script src="js/crm.js?v=20260906ba"></script>
-<script src="js/dispatch.js?v=20260906ba"></script>
-<script src="js/permissions.js?v=20260906ba"></script>
-<script src="js/worktracking.js?v=20260906ba"></script>
-<script src="js/calendar.js?v=20260906ba"></script>
-<script src="js/workorders.js?v=20260906ba"></script>
-<script src="js/purchaseorders.js?v=20260906ba"></script>
-<script src="js/inventory.js?v=20260906ba"></script>
-<script src="js/reports.js?v=20260906ba"></script>
-<script src="js/recyclebin.js?v=20260906ba"></script>
-<script src="js/contracts.js?v=20260906ba"></script>
-  <script src="js/recurring.js?v=20260906ba"></script>
-  <script src="js/seed_managed.js?v=20260906ba"></script>
-  <script src="js/auth.js?v=20260906ba"></script>
+<script src="js/core.js?v=20260906bb"></script>
+<script src="js/quotes.js?v=20260906bb"></script>
+<script src="js/tools.js?v=20260906bb"></script>
+<script src="js/field.js?v=20260906bb"></script>
+<script src="js/crm.js?v=20260906bb"></script>
+<script src="js/dispatch.js?v=20260906bb"></script>
+<script src="js/permissions.js?v=20260906bb"></script>
+<script src="js/worktracking.js?v=20260906bb"></script>
+<script src="js/calendar.js?v=20260906bb"></script>
+<script src="js/workorders.js?v=20260906bb"></script>
+<script src="js/purchaseorders.js?v=20260906bb"></script>
+<script src="js/inventory.js?v=20260906bb"></script>
+<script src="js/reports.js?v=20260906bb"></script>
+<script src="js/recyclebin.js?v=20260906bb"></script>
+<script src="js/contracts.js?v=20260906bb"></script>
+  <script src="js/recurring.js?v=20260906bb"></script>
+  <script src="js/seed_managed.js?v=20260906bb"></script>
+  <script src="js/auth.js?v=20260906bb"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
