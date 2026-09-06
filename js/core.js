@@ -901,6 +901,7 @@ function _applyBootRoute() {
 // ============================================================
 var _uiPrefs = { favorites: [], hidden: [], collapsed: [] };
 var _uiPrefsLoaded = false;
+var _uiPrefsExists = false;   // true once THIS user has their own saved prefs row
 var _uiPrefsSaveTimer = null;
 var _menuChromeInit = false;
 var _menuAnimReady = false;
@@ -914,16 +915,38 @@ function _normUiPrefs(p) {
   };
 }
 
+// ---- Company default menu (owner sets it; everyone inherits until they personalize) ----
+// Stored in DB.settings.menuDefault, which is company-wide and already cloud-synced.
+function _companyMenuDefault() {
+  try { return _normUiPrefs((typeof DB !== 'undefined' && DB.settings) ? DB.settings.menuDefault : null); }
+  catch (e) { return _normUiPrefs(null); }
+}
+// The prefs to DISPLAY: this user's own if they've personalized, else the company default.
+function _effPrefs() {
+  return _uiPrefsExists ? _uiPrefs : _companyMenuDefault();
+}
+// Before the user's first personal edit, seed their prefs from the company default so
+// their first change starts from that baseline instead of a blank slate.
+function _ensurePersonal() {
+  if (!_uiPrefsExists) { _uiPrefs = _normUiPrefs(_companyMenuDefault()); _uiPrefsExists = true; }
+}
+function _companyDefaultIsSet() {
+  var d = _companyMenuDefault();
+  return (d.favorites.length + d.hidden.length + d.collapsed.length) > 0;
+}
+
 // Load this user's saved menu prefs from the cloud (self-only row).
 async function loadUiPrefs() {
   try {
     if (typeof _sb !== 'undefined' && _sb && _currentUser && _currentUser.id) {
       var res = await _sb.from('user_ui_prefs').select('prefs').eq('user_id', _currentUser.id).maybeSingle();
-      _uiPrefs = _normUiPrefs(res && !res.error && res.data ? res.data.prefs : null);
+      var found = !!(res && !res.error && res.data && res.data.prefs);
+      _uiPrefs = _normUiPrefs(found ? res.data.prefs : null);
+      _uiPrefsExists = found;   // no personal row yet → inherit the company default
     } else {
-      _uiPrefs = _normUiPrefs(null);
+      _uiPrefs = _normUiPrefs(null); _uiPrefsExists = false;
     }
-  } catch (e) { _uiPrefs = _normUiPrefs(null); }
+  } catch (e) { _uiPrefs = _normUiPrefs(null); _uiPrefsExists = false; }
   _uiPrefsLoaded = true;
   try { initMenuChrome(); } catch (e) {}
   try { applyUserMenuPrefs(); } catch (e) {}
@@ -999,7 +1022,8 @@ function applyUserMenuPrefs() {
   if (!_uiPrefsLoaded) return;
   var sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
-  var fav = _uiPrefs.favorites || [], hidden = _uiPrefs.hidden || [], collapsed = _uiPrefs.collapsed || [];
+  var eff = _effPrefs();
+  var fav = eff.favorites || [], hidden = eff.hidden || [], collapsed = eff.collapsed || [];
 
   // Clear the favorites clones first so the queries below only see real items.
   var favContainer = document.getElementById('nav-fav-items');
@@ -1069,6 +1093,7 @@ function applyUserMenuPrefs() {
 
 function toggleFavorite(page) {
   if (!page) return;
+  _ensurePersonal();
   var i = _uiPrefs.favorites.indexOf(page);
   if (i >= 0) _uiPrefs.favorites.splice(i, 1); else _uiPrefs.favorites.push(page);
   saveUiPrefs();
@@ -1078,6 +1103,7 @@ function toggleFavorite(page) {
 
 function toggleHidden(page) {
   if (!page || page === 'dash') return; // Dashboard is home — never hideable
+  _ensurePersonal();
   var i = _uiPrefs.hidden.indexOf(page);
   if (i >= 0) _uiPrefs.hidden.splice(i, 1); else _uiPrefs.hidden.push(page);
   saveUiPrefs();
@@ -1090,6 +1116,7 @@ function toggleHidden(page) {
 function toggleCollapseAll() {
   var sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
+  _ensurePersonal();
   var vis = Array.prototype.filter.call(sidebar.querySelectorAll('.nav-group[data-group]'), function (g) { return g.style.display !== 'none'; });
   var keys = vis.map(function (g) { return g.getAttribute('data-group'); });
   var colCount = keys.filter(function (k) { return _uiPrefs.collapsed.indexOf(k) >= 0; }).length;
@@ -1107,6 +1134,7 @@ function toggleCollapseAll() {
 function toggleGroupCollapsed(titleEl) {
   var g = titleEl && titleEl.closest ? titleEl.closest('.nav-group') : null;
   if (!g) return;
+  _ensurePersonal();
   var key = (g.getAttribute('data-group') || (titleEl.textContent || '')).trim();
   var i = _uiPrefs.collapsed.indexOf(key);
   if (i >= 0) _uiPrefs.collapsed.splice(i, 1); else _uiPrefs.collapsed.push(key);
@@ -1115,9 +1143,29 @@ function toggleGroupCollapsed(titleEl) {
 }
 
 function resetMenuPrefs() {
-  _uiPrefs = _normUiPrefs(null);
+  // Reset returns the menu to the company default (or the built-in default if the
+  // owner hasn't set one). The user gets their own copy of it to tweak from.
+  _uiPrefs = _normUiPrefs(_companyMenuDefault());
+  _uiPrefsExists = true;
   saveUiPrefs();
   if (typeof enforceNavPermissions === 'function') enforceNavPermissions(); else applyUserMenuPrefs();
+  _refreshCustomizeMenuIfOpen();
+}
+
+// Owner-only: save the current menu (favorites / hidden / collapsed) as the company
+// default that new users inherit and anyone can Reset to.
+function saveAsCompanyDefault() {
+  if (!(_currentUser && _currentUser.role === 'owner')) {
+    if (typeof showToast === 'function') showToast('Only the owner can set the company default menu.', 'warning', 3000);
+    return;
+  }
+  try {
+    if (typeof DB !== 'undefined') { DB.settings = DB.settings || {}; DB.settings.menuDefault = _normUiPrefs(_effPrefs()); }
+    if (typeof saveDB === 'function') saveDB();
+    if (typeof showToast === 'function') showToast('Saved as the company default menu for everyone.', 'success', 3000);
+  } catch (e) {
+    if (typeof showToast === 'function') showToast('Could not save the company default.', 'error', 3000);
+  }
   _refreshCustomizeMenuIfOpen();
 }
 
@@ -1133,6 +1181,7 @@ function openCustomizeMenu() {
   var body = document.getElementById('cm-body');
   var sidebar = document.getElementById('sidebar');
   if (!modal || !body || !sidebar) return;
+  var eff = _effPrefs();
   body.innerHTML = '';
   sidebar.querySelectorAll('.nav-group').forEach(function (g) {
     if (g.id === 'nav-fav-group') return;
@@ -1141,11 +1190,11 @@ function openCustomizeMenu() {
     var rowsHtml = '';
     g.querySelectorAll('.nav-item[data-page]').forEach(function (it) {
       var page = it.getAttribute('data-page');
-      var userHidden = (_uiPrefs.hidden || []).indexOf(page) >= 0;
+      var userHidden = (eff.hidden || []).indexOf(page) >= 0;
       var roleVisible = (it.style.display !== 'none') || userHidden; // include user-hidden, exclude role-hidden
       if (!roleVisible) return;
       var label = it.getAttribute('data-label') || page;
-      var fav = (_uiPrefs.favorites || []).indexOf(page) >= 0;
+      var fav = (eff.favorites || []).indexOf(page) >= 0;
       var locked = (page === 'dash');
       rowsHtml += '<div class="cm-row">'
         + '<label class="cm-show"><input type="checkbox" ' + (userHidden ? '' : 'checked') + (locked ? ' disabled' : '')
@@ -1158,6 +1207,11 @@ function openCustomizeMenu() {
       body.innerHTML += '<div class="cm-group">' + (typeof escHtml === 'function' ? escHtml(groupName) : groupName) + '</div>' + rowsHtml;
     }
   });
+  // Owner-only "Save as company default"; reset label reflects whether one is set.
+  var saveDefBtn = document.getElementById('cm-save-default');
+  if (saveDefBtn) saveDefBtn.style.display = (_currentUser && _currentUser.role === 'owner') ? '' : 'none';
+  var resetBtn = document.getElementById('cm-reset-btn');
+  if (resetBtn) resetBtn.textContent = _companyDefaultIsSet() ? '↺ Reset to company default' : '↺ Reset to default';
   modal.style.display = 'flex';
 }
 
