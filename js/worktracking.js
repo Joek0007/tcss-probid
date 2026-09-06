@@ -8187,6 +8187,14 @@ document.addEventListener('click', function(e) {
 document.addEventListener('click', function(e) {
   const ni = e.target.closest('[data-page]');
   if (ni && ni.classList.contains('nav-item')) {
+    // The nav items are real <a href="#/page"> links now, so the browser can
+    // "Open in new tab/window". Let modified / non-primary clicks fall through to
+    // the browser so that works; only a plain left-click routes in-app (which
+    // keeps the unsaved-quote / work-order guards firing via goPage).
+    if (e.defaultPrevented) return;
+    if (typeof e.button === 'number' && e.button !== 0) return; // middle/right
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return; // open-in-new-tab combos
+    e.preventDefault();
     goPage(ni.getAttribute('data-page'));
   }
 });
