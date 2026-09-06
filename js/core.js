@@ -1190,7 +1190,7 @@ function _addFavGrip(row) {
   var g = document.createElement('span');
   g.className = 'nav-fav-grip'; g.textContent = '⠿'; g.title = 'Drag to reorder';
   g.addEventListener('click', function (e) { e.stopPropagation(); e.preventDefault(); });
-  row.appendChild(g);
+  row.insertBefore(g, row.firstChild); // leading handle → keeps the trailing "+" column aligned
 }
 
 function _wireFavSortable() {
