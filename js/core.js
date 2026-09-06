@@ -697,9 +697,9 @@ function goPage(id) {
     var wizOpen = !!document.getElementById('wt-wizard-modal') || !!document.getElementById('wt-abw-modal');
     var inProject = typeof WT !== 'undefined' && WT.proj && WT.view !== 'list';
     if (wizOpen) {
-      if (!confirm('You are in the middle of a wizard.\n\nYour progress has been saved as a draft — you can resume it next time.\n\nLeave anyway?')) return;
+      if (!confirm('You are in the middle of a wizard.\n\nYour progress has been saved as a draft — you can resume it next time.\n\nLeave anyway?')) { _routeRevert(); return; }
     } else if (inProject) {
-      if (!confirm('Leave Work Tracking?\n\nAll your work is saved. You can come back any time.')) return;
+      if (!confirm('Leave Work Tracking?\n\nAll your work is saved. You can come back any time.')) { _routeRevert(); return; }
     }
   }
   // Warn if leaving Quick Quote with unsaved changes — use in-app modal not browser confirm
@@ -716,6 +716,7 @@ function goPage(id) {
       ? 'Your work has been auto-saved as a draft quote. You can resume it any time from the Quotes page.'
       : 'Your draft has been saved locally in this browser. Resume it next time you open a new quote.';
     if (modal) { modal.style.display = 'flex'; }
+    _routeRevert();
     return; // don't navigate yet
   }
   // Warn on unsaved Work Order changes before navigating away (mirrors the quote guard above)
@@ -723,7 +724,7 @@ function goPage(id) {
   if (woModalEl && woModalEl.classList.contains('open') && typeof _woDirty !== 'undefined' && _woDirty) {
     _woNavTarget = id;
     var woWarn = document.getElementById('modal-wo-nav-warn');
-    if (woWarn) { woWarn.style.display = 'flex'; return; } // don't navigate yet
+    if (woWarn) { woWarn.style.display = 'flex'; _routeRevert(); return; } // don't navigate yet
   }
   // Hide the document prev/next arrows when navigating pages (openers re-show them as needed)
   if (typeof hideDocNav === 'function') hideDocNav();
@@ -802,6 +803,90 @@ qqStage4Init();
     var overlay = document.getElementById('mobile-overlay');
     if (sidebar) { sidebar.classList.remove('mobile-open'); sidebar.style.transform='translateX(-220px)'; sidebar.style.boxShadow='none'; }
     if (overlay) overlay.classList.remove('visible');
+  }
+  // Reflect the page we landed on in the URL (enables Back/Forward + deep links)
+  _syncHash(id);
+}
+
+// ============================================================
+// CLIENT-SIDE HASH ROUTING  (Back/Forward + open-in-new-tab + refresh-safe)
+// ------------------------------------------------------------
+// goPage() stays the single navigation entry point. After it renders a page it
+// records the page in the URL hash (#/<pageId>) via _syncHash(), which pushes a
+// browser history entry — so the browser Back/Forward buttons walk the page
+// history, links can point at #/<page> to open in a new tab, and a refresh
+// re-lands on the same page. A hashchange listener drives goPage() in the other
+// direction (Back/Forward/typed hash). Two flags keep the two directions from
+// echoing each other: _suppressHashNav (a goPage->hash write we must ignore) and
+// _navIsBack (this goPage call originated from a hash change, so a blocked
+// navigation must put the hash back). Only pages in PAGE_TITLES are routable.
+// ============================================================
+var _suppressHashNav = false;   // true while goPage is writing the hash itself
+var _navIsBack = false;         // true while goPage is running for a hashchange
+
+// The page id of the currently-visible page (from the active .page element).
+function _currentPageId() {
+  var el = document.querySelector('.page.active');
+  if (!el || !el.id) return '';
+  return el.id.replace(/^page-/, '');
+}
+
+// Parse the page id out of the location hash: "#/invoices" -> "invoices".
+function _hashPageId() {
+  var h = String(location.hash || '');
+  h = h.replace(/^#\/?/, '');      // drop leading "#" or "#/"
+  h = h.split(/[\/?#]/)[0];        // first segment only
+  return h;
+}
+
+// Write the hash to match the page we just navigated to. Only writes when it
+// differs (so Back/Forward, which already changed the hash, add no extra entry),
+// and flags the write so our own hashchange listener ignores it.
+function _syncHash(id) {
+  if (!id) return;
+  var want = '#/' + id;
+  if (location.hash !== want) {
+    _suppressHashNav = true;
+    location.hash = want;
+  }
+}
+
+// A guard blocked a navigation that came from Back/Forward — the hash now points
+// at a page we did NOT move to. Put it back to the page still on screen.
+function _routeRevert() {
+  if (!_navIsBack) return;         // click-blocked navs never moved the hash
+  _syncHash(_currentPageId());
+}
+
+// Drive goPage from the URL when the user hits Back/Forward or edits the hash.
+window.addEventListener('hashchange', function () {
+  if (_suppressHashNav) { _suppressHashNav = false; return; } // our own write
+  if (typeof _currentUser === 'undefined' || !_currentUser) return; // not signed in
+  var id = _hashPageId();
+  if (!id || !PAGE_TITLES[id]) return;      // unknown/empty hash — ignore
+  if (id === _currentPageId()) return;      // already on that page
+  _navIsBack = true;
+  try { goPage(id); } finally { _navIsBack = false; }
+});
+
+// After login/refresh, land on the page named in the hash (deep link / refresh).
+// No-op when there is no explicit, valid hash — leaves the default landing page.
+var _bootRouteApplied = false;
+function _applyBootRoute() {
+  if (_bootRouteApplied) return;
+  _bootRouteApplied = true;
+  var id = _hashPageId();
+  if (id && PAGE_TITLES[id]) {
+    // Deep link / refresh: land on the page named in the hash.
+    try { goPage(id); } catch (e) {}
+  } else {
+    // No hash on this boot — stamp the current landing page onto the ROOT history
+    // entry (replace, not push) so Back walks pages cleanly and the very first
+    // Back exits the app rather than landing on a hash-less in-between state.
+    try {
+      var cur = _currentPageId();
+      if (cur) history.replaceState(null, '', '#/' + cur);
+    } catch (e) {}
   }
 }
 
@@ -1853,17 +1938,17 @@ var _probidAllowLeave         = false;
 var _probidLeaveCallback      = null;
 
 function probidInstallBackGuard() {
-  if (_probidBackGuardInstalled) return;
-  _probidBackGuardInstalled = true;
-  history.pushState({ probid: true }, '');
-  var _guardReady = false;
-  setTimeout(function(){ _guardReady = true; }, 800);
-  window.addEventListener('popstate', function(e) {
-    if (!_guardReady) return;
-    if (_probidAllowLeave) { _probidAllowLeave = false; return; }
-    history.pushState({ probid: true }, '');
-    probidShowBackDialog();
-  });
+  // RETIRED (build aw): this used to TRAP the browser Back button — it pushed a
+  // sentinel history state on load and cancelled every Back press with a re-push
+  // + "Leave ProBid?" dialog. That is exactly what left staff unable to go back
+  // to the previous screen. Client-side hash routing (see goPage/_syncHash and
+  // the hashchange listener) now owns Back/Forward: each page is a real history
+  // entry, so Back returns to the previous page. Unsaved-work protection is
+  // preserved by the per-page dirty guards inside goPage() and by the
+  // beforeunload handlers that still fire when the app is actually being closed.
+  // Left as a no-op (rather than deleted) so the DOMContentLoaded caller and the
+  // legacy probid* helpers below remain harmless.
+  return;
 }
 
 function probidActuallyLeave() {

@@ -274,6 +274,9 @@ async function loadCurrentUserProfile() {
     _currentUser = res.data;
     applyRolePermissions(_currentUser.role);
     updateUserBadge(_currentUser);
+    // If this boot arrived with a deep-link hash (#/invoices), land on that page
+    // instead of the default. No-op when there is no explicit valid hash.
+    if (typeof _applyBootRoute === 'function') setTimeout(_applyBootRoute, 0);
     console.log('[Profile] Loaded:', _currentUser.full_name, _currentUser.role);
     // Re-apply after page renders
     setTimeout(function(){ applyRolePermissions(_currentUser.role); }, 300);
