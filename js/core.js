@@ -1063,10 +1063,12 @@ function applyUserMenuPrefs() {
       clone.removeAttribute('id');
       clone.style.removeProperty('display');
       var st = clone.querySelector('.nav-star'); if (st) { st.textContent = '★'; st.classList.add('on'); }
+      _addFavGrip(clone);
       favContainer.appendChild(clone);
       added++;
     });
     favGroup.style.display = added > 0 ? '' : 'none';
+    if (added > 1) _wireFavSortable(); // drag-to-reorder favorites live in the sidebar
   }
 
   // Reorder items within each section per saved order (unlisted items fall to the end).
@@ -1138,6 +1140,40 @@ function toggleFavorite(page) {
   saveUiPrefs();
   if (typeof enforceNavPermissions === 'function') enforceNavPermissions(); else applyUserMenuPrefs();
   _refreshCustomizeMenuIfOpen();
+}
+
+// ---- Favorites drag-to-reorder (live in the sidebar) ----------------------------------
+// Each favorite row gets a small ⠿ grip; only the grip drags (a tap on the row still
+// navigates). The new order is written back into prefs.favorites. Favorites that aren't
+// currently visible (role-hidden) are preserved after the visible ones.
+var _favSortable = null;
+
+function _addFavGrip(row) {
+  if (!row || row.querySelector('.nav-fav-grip')) return;
+  var g = document.createElement('span');
+  g.className = 'nav-fav-grip'; g.textContent = '⠿'; g.title = 'Drag to reorder';
+  g.addEventListener('click', function (e) { e.stopPropagation(); e.preventDefault(); });
+  row.appendChild(g);
+}
+
+function _wireFavSortable() {
+  var c = document.getElementById('nav-fav-items'); if (!c) return;
+  if (typeof Sortable === 'undefined') return;            // library absent → favorites still work, just no drag
+  if (_favSortable && _favSortable.el === c) return;      // already wired (container persists across rebuilds)
+  try {
+    _favSortable = Sortable.create(c, {
+      handle: '.nav-fav-grip', draggable: '.nav-item', animation: 150, forceFallback: true,
+      onEnd: function () {
+        var order = Array.prototype.map.call(c.querySelectorAll('.nav-item'), function (a) { return a.getAttribute('data-page'); })
+          .filter(function (p) { return !!p; });
+        _ensurePersonal();
+        var rest = (_uiPrefs.favorites || []).filter(function (p) { return order.indexOf(p) < 0; }); // keep hidden favs
+        _uiPrefs.favorites = order.concat(rest);
+        saveUiPrefs();
+        if (typeof enforceNavPermissions === 'function') enforceNavPermissions(); else applyUserMenuPrefs();
+      }
+    });
+  } catch (e) { _favSortable = null; console.warn('[favSortable] init failed:', e && e.message); }
 }
 
 function toggleHidden(page) {
