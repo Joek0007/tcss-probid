@@ -1332,17 +1332,27 @@ function initDashChrome() {
   });
 }
 
-// Apply the user's (or company-default) hidden dashboard tiles/cards.
+// Apply the user's (or company-default) hidden tiles/cards, and build the drag/resize
+// grid when the engine is available. Stat tiles are always show/hide by display; the
+// panels are owned by the grid when it's active, else fall back to display show/hide.
 function applyDashPrefs() {
   if (!_uiPrefsLoaded) return;
   initDashChrome();
   var page = document.getElementById('page-dash');
   if (!page) return;
   var hidden = _effPrefs().dashHidden || [];
-  page.querySelectorAll('[data-dash]').forEach(function (el) {
+  if (typeof GridStack !== 'undefined') { try { initDashGrid(); } catch (e) {} }
+  var strip = document.getElementById('dash-stat-strip');
+  if (strip) strip.querySelectorAll('[data-dash]').forEach(function (el) {
     if (hidden.indexOf(el.getAttribute('data-dash')) >= 0) el.style.setProperty('display', 'none', 'important');
     else el.style.removeProperty('display');
   });
+  if (!_dashGrid) { // no grid engine → fallback: show/hide the panels by display
+    page.querySelectorAll('.dash-main-grid [data-dash]').forEach(function (el) {
+      if (hidden.indexOf(el.getAttribute('data-dash')) >= 0) el.style.setProperty('display', 'none', 'important');
+      else el.style.removeProperty('display');
+    });
+  }
 }
 
 function toggleDashHidden(id) {
@@ -1352,14 +1362,18 @@ function toggleDashHidden(id) {
   var i = _uiPrefs.dashHidden.indexOf(id);
   if (i >= 0) _uiPrefs.dashHidden.splice(i, 1); else _uiPrefs.dashHidden.push(id);
   saveUiPrefs();
+  if (_dashGrid && String(id).indexOf('card-') === 0) { try { buildDashGrid(); } catch (e) {} } // panel add/remove → rebuild grid
   applyDashPrefs();
   _refreshCustomizeDashIfOpen();
 }
 
 function resetDashPrefs() {
   _ensurePersonal();
-  _uiPrefs.dashHidden = (_companyMenuDefault().dashHidden || []).slice(); // company default (or empty)
+  var cd = _companyMenuDefault();
+  _uiPrefs.dashHidden = (cd.dashHidden || []).slice(); // company default (or empty)
+  _uiPrefs.dashLayout = (cd.dashLayout || []).slice();
   saveUiPrefs();
+  if (_dashGrid) { try { buildDashGrid(); } catch (e) {} }
   applyDashPrefs();
   _refreshCustomizeDashIfOpen();
 }
@@ -1408,6 +1422,128 @@ function openCustomizeDash() {
 function closeCustomizeDash() {
   var modal = document.getElementById('modal-customize-dash');
   if (modal) modal.style.display = 'none';
+}
+
+// ============================================================
+// DASHBOARD DRAG + SNAP-RESIZE GRID  (Gridstack, progressive enhancement)
+// The 6 always-on panels become a draggable/resizable grid: drag a card's ⠿ handle
+// to move it, drag its left/right edge to resize (snaps to columns), height auto-fits
+// content. Layout persists per-user (prefs.dashLayout) + company default. If the grid
+// engine isn't available the dashboard falls back to its normal stacked layout and the
+// show/hide still works — so it can never break.
+// ============================================================
+var _dashGrid = null;
+var _dashGridInit = false;
+var _dashPanelEls = null;
+
+function _captureDashPanels() {
+  if (_dashPanelEls) return _dashPanelEls;
+  var page = document.getElementById('page-dash'); if (!page) return null;
+  initDashChrome();
+  _dashPanelEls = {};
+  page.querySelectorAll('.dash-main-grid .dash-card[data-dash]').forEach(function (c) { _dashPanelEls[c.getAttribute('data-dash')] = c; });
+  return _dashPanelEls;
+}
+
+// Two-column default (12-col grid). y seeds order; float:false compacts upward.
+function _dashDefaultLayout() {
+  return {
+    'card-field-activity':   { x: 0, y: 0, w: 6 },
+    'card-quote-pipeline':   { x: 6, y: 0, w: 6 },
+    'card-active-jobs':      { x: 0, y: 2, w: 6 },
+    'card-project-progress': { x: 6, y: 2, w: 6 },
+    'card-tools':            { x: 0, y: 4, w: 6 },
+    'card-team-journal':     { x: 6, y: 4, w: 6 }
+  };
+}
+
+function _addDashDragHandle(card) {
+  if (!card) return;
+  var head = card.querySelector('.dash-card-head');
+  if (head && !head.querySelector('.dash-drag-handle')) {
+    var g = document.createElement('span');
+    g.className = 'dash-drag-handle'; g.title = 'Drag to move'; g.textContent = '⠿';
+    head.insertBefore(g, head.firstChild);
+  }
+}
+
+// (Re)build the dashboard grid from the current hidden set + saved layout.
+function buildDashGrid() {
+  if (typeof GridStack === 'undefined') return false;
+  var page = document.getElementById('page-dash'); if (!page) return false;
+  var host = page.querySelector('.dash-main-grid'); if (!host) return false;
+  var panels = _captureDashPanels(); if (!panels) return false;
+
+  if (_dashGrid) { try { _dashGrid.off('change'); _dashGrid.destroy(false); } catch (e) {} _dashGrid = null; }
+
+  var eff = _effPrefs();
+  var hidden = eff.dashHidden || [];
+  var layById = {}; (eff.dashLayout || []).forEach(function (l) { if (l && l.id) layById[l.id] = l; });
+  var defaults = _dashDefaultLayout();
+
+  var alerts = document.createElement('div'); alerts.id = 'dash-alerts';
+  ['dash-absence-card', 'dash-followup-card'].forEach(function (cid) { var c = document.getElementById(cid); if (c) alerts.appendChild(c); });
+  var grid = document.createElement('div'); grid.className = 'grid-stack'; grid.id = 'dash-grid';
+  var parked = document.createElement('div'); parked.id = 'dash-parked'; parked.style.display = 'none';
+
+  // Place panels in saved/default order so packing is deterministic.
+  var ids = Object.keys(panels).sort(function (a, b) {
+    var la = layById[a] || defaults[a] || { x: 0, y: 999 }, lb = layById[b] || defaults[b] || { x: 0, y: 999 };
+    return ((la.y || 0) * 100 + (la.x || 0)) - ((lb.y || 0) * 100 + (lb.x || 0));
+  });
+  ids.forEach(function (id) {
+    var card = panels[id];
+    if (hidden.indexOf(id) >= 0) { parked.appendChild(card); return; }
+    var pos = layById[id] || defaults[id] || { x: 0, w: 6 };
+    var item = document.createElement('div'); item.className = 'grid-stack-item'; item.setAttribute('gs-id', id);
+    if (pos.x != null) item.setAttribute('gs-x', pos.x);
+    if (pos.y != null) item.setAttribute('gs-y', pos.y);
+    item.setAttribute('gs-w', pos.w || 6);
+    if (pos.h) item.setAttribute('gs-h', pos.h);
+    var content = document.createElement('div'); content.className = 'grid-stack-item-content';
+    _addDashDragHandle(card);
+    content.appendChild(card);
+    item.appendChild(content);
+    grid.appendChild(item);
+  });
+
+  host.innerHTML = '';
+  host.appendChild(alerts);
+  host.appendChild(grid);
+  host.appendChild(parked);
+
+  try {
+    _dashGrid = GridStack.init({
+      column: 12, margin: 10, cellHeight: 8, float: false, animate: true,
+      sizeToContent: true, handle: '.dash-drag-handle', resizable: { handles: 'e,w' },
+      columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 720, c: 1 }] }
+    }, grid);
+    _dashGrid.on('change', _saveDashLayout);
+  } catch (e) { _dashGrid = null; console.warn('[dashGrid] init failed:', e && e.message); return false; }
+  return true;
+}
+
+function initDashGrid() {
+  if (_dashGridInit) return;
+  if (typeof GridStack === 'undefined') return;
+  var page = document.getElementById('page-dash'); if (!page) return;
+  if (!page.querySelector('.dash-main-grid')) return;
+  _dashGridInit = true;
+  buildDashGrid();
+}
+
+function _saveDashLayout() {
+  if (!_dashGrid) return;
+  try {
+    var nodes = (_dashGrid.engine && _dashGrid.engine.nodes) || [];
+    var lay = nodes.map(function (n) {
+      var id = (n.el && n.el.getAttribute) ? n.el.getAttribute('gs-id') : n.id;
+      return { id: id, x: n.x, y: n.y, w: n.w, h: n.h };
+    }).filter(function (l) { return l.id; });
+    _ensurePersonal();
+    _uiPrefs.dashLayout = lay;
+    saveUiPrefs();
+  } catch (e) { console.warn('[dashLayout] save failed:', e && e.message); }
 }
 
 // ---- LINE ITEMS ----
