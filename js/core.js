@@ -979,6 +979,32 @@ function saveUiPrefs() {
   }, 600);
 }
 
+// Quick-add "+" map: menu page -> where to go + which add-function to fire. Clicking the
+// "+" on a menu item jumps straight into creating that record. Quotes routes to the Quick
+// Quote page (which IS the new-quote flow); the rest open the entity's "new" form/modal.
+var QUICK_ADD = {
+  quotes:         { go: 'qq' },
+  workorders:     { go: 'workorders',     fn: 'openNewWorkOrder', title: 'New work order' },
+  customers:      { go: 'customers',      fn: 'newCustomer',      title: 'New customer' },
+  contacts:       { go: 'contacts',       fn: 'newContact',       title: 'New contact' },
+  vendors:        { go: 'vendors',        fn: 'openNewVendor',    title: 'New vendor' },
+  purchaseorders: { go: 'purchaseorders', fn: 'openNewPO',        title: 'New purchase order' },
+  contracts:      { go: 'contracts',      fn: 'openNewContract',  title: 'New contract' },
+  recurring:      { go: 'recurring',      fn: 'openNewRC',        title: 'New managed service' },
+  catalog:        { go: 'catalog',        fn: 'newCatalogItem',   title: 'New catalog item' },
+  templates:      { go: 'templates',      fn: 'newTemplate',      title: 'New template' },
+  inventory:      { go: 'inventory',      fn: 'newInventoryItem', title: 'New inventory item' },
+  tools:          { go: 'tools',          fn: 'newToolItem',      title: 'New tool' },
+  team:           { go: 'team',           fn: 'openTeamModal',    title: 'Add team member' }
+};
+
+// Fired by a menu item's "+". Navigates to the entity's page, then opens its add form.
+function quickAdd(page) {
+  var m = QUICK_ADD[page]; if (!m) return;
+  try { if (typeof goPage === 'function' && m.go) goPage(m.go); } catch (e) {}
+  if (m.fn) setTimeout(function () { try { if (typeof window[m.fn] === 'function') window[m.fn](); } catch (e) {} }, 200);
+}
+
 // One-time: give each group a stable key + collapse caret, each item a star and
 // a clean data-label. Idempotent — safe to call on every enforceNavPermissions.
 function initMenuChrome() {
@@ -1024,6 +1050,17 @@ function initMenuChrome() {
       s.className = 'nav-star';
       s.setAttribute('title', 'Pin to Favorites');
       el.appendChild(s);
+    }
+    // Quick-add "+" for pages that can create a record. Inline onclick so it survives the
+    // cloneNode used to build the Favorites group; stopPropagation keeps it from navigating.
+    var qa = QUICK_ADD[el.getAttribute('data-page')];
+    if (qa && !el.querySelector('.nav-add')) {
+      var a = document.createElement('span');
+      a.className = 'nav-add';
+      a.textContent = '+';
+      a.setAttribute('title', qa.title || 'Add new');
+      a.setAttribute('onclick', "event.stopPropagation();event.preventDefault();quickAdd('" + el.getAttribute('data-page') + "');return false;");
+      el.appendChild(a);
     }
   });
 }
