@@ -978,6 +978,7 @@ function initMenuChrome() {
   });
   sidebar.querySelectorAll('.nav-item[data-page]').forEach(function (el) {
     if (el.closest('#nav-fav-items')) return;
+    if (!el.closest('.nav-group')) return; // standalone items (Dashboard) get no star/label chrome
     if (!el.hasAttribute('data-label')) {
       var t = el.lastChild;
       var label = (t && t.nodeType === 3 ? t.textContent : el.textContent) || el.getAttribute('data-page');
