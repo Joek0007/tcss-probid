@@ -908,11 +908,18 @@ var _menuAnimReady = false;
 
 function _normUiPrefs(p) {
   p = p || {};
+  var io = {};
+  if (p.itemOrder && typeof p.itemOrder === 'object') {
+    Object.keys(p.itemOrder).forEach(function (k) { if (Array.isArray(p.itemOrder[k])) io[k] = p.itemOrder[k].slice(); });
+  }
   return {
-    favorites:  Array.isArray(p.favorites)  ? p.favorites.slice()  : [],
-    hidden:     Array.isArray(p.hidden)     ? p.hidden.slice()     : [],
-    collapsed:  Array.isArray(p.collapsed)  ? p.collapsed.slice()  : [],
-    dashHidden: Array.isArray(p.dashHidden) ? p.dashHidden.slice() : []  // hidden dashboard tiles/cards
+    favorites:   Array.isArray(p.favorites)   ? p.favorites.slice()   : [],
+    hidden:      Array.isArray(p.hidden)      ? p.hidden.slice()      : [],
+    collapsed:   Array.isArray(p.collapsed)   ? p.collapsed.slice()   : [],
+    dashHidden:  Array.isArray(p.dashHidden)  ? p.dashHidden.slice()  : [],  // hidden dashboard tiles/cards
+    itemOrder:   io,                                                          // { sectionKey: [pageId,...] }
+    sectionOrder:Array.isArray(p.sectionOrder)? p.sectionOrder.slice(): [],   // [sectionKey,...]
+    dashLayout:  Array.isArray(p.dashLayout)  ? p.dashLayout.slice()  : []    // [{id,x,y,w,h},...] (dashboard grid)
   };
 }
 
@@ -933,7 +940,8 @@ function _ensurePersonal() {
 }
 function _companyDefaultIsSet() {
   var d = _companyMenuDefault();
-  return (d.favorites.length + d.hidden.length + d.collapsed.length + d.dashHidden.length) > 0;
+  return (d.favorites.length + d.hidden.length + d.collapsed.length + d.dashHidden.length
+    + Object.keys(d.itemOrder || {}).length + d.sectionOrder.length + d.dashLayout.length) > 0;
 }
 
 // Load this user's saved menu prefs from the cloud (self-only row).
@@ -1059,6 +1067,33 @@ function applyUserMenuPrefs() {
     favGroup.style.display = added > 0 ? '' : 'none';
   }
 
+  // Reorder items within each section per saved order (unlisted items fall to the end).
+  var itemOrder = eff.itemOrder || {};
+  sidebar.querySelectorAll('.nav-group[data-group]').forEach(function (g) {
+    if (g.id === 'nav-fav-group') return;
+    var ord = itemOrder[g.getAttribute('data-group')];
+    if (!ord || !ord.length) return;
+    var inner = g.querySelector('.nav-group-inner') || g;
+    var items = Array.prototype.slice.call(inner.querySelectorAll('.nav-item[data-page]'));
+    items.sort(function (a, b) {
+      var ia = ord.indexOf(a.getAttribute('data-page')); if (ia < 0) ia = 999;
+      var ib = ord.indexOf(b.getAttribute('data-page')); if (ib < 0) ib = 999;
+      return ia - ib;
+    });
+    items.forEach(function (it) { inner.appendChild(it); });
+  });
+
+  // Reorder the sections themselves per saved order (kept before the Customize button;
+  // Favorites group + standalone Dashboard stay put at the top).
+  var secOrder = eff.sectionOrder || [];
+  if (secOrder.length) {
+    var custBtn = document.getElementById('nav-customize-btn');
+    var byKey = {};
+    sidebar.querySelectorAll('.nav-group[data-group]').forEach(function (g) { if (g.id !== 'nav-fav-group') byKey[g.getAttribute('data-group')] = g; });
+    secOrder.forEach(function (key) { var g = byKey[key]; if (g && custBtn && custBtn.parentNode) custBtn.parentNode.insertBefore(g, custBtn); });
+    Object.keys(byKey).forEach(function (key) { if (secOrder.indexOf(key) < 0) { var g = byKey[key]; if (custBtn && custBtn.parentNode) custBtn.parentNode.insertBefore(g, custBtn); } });
+  }
+
   // Collapsed groups — toggle the class; CSS slides the body and rotates the caret.
   sidebar.querySelectorAll('.nav-group[data-group]').forEach(function (g) {
     var key = g.getAttribute('data-group');
@@ -1176,7 +1211,9 @@ function _refreshCustomizeMenuIfOpen() {
   if (m && getComputedStyle(m).display !== 'none') openCustomizeMenu();
 }
 
-// Build + open the Customize Menu panel from the pages this role can see.
+// Build + open the Customize Menu panel from the pages this role can see. Rows and
+// section blocks are drag-sortable (SortableJS, touch-capable) via their grip handles;
+// dragging reorders the live sidebar and saves per-user.
 function openCustomizeMenu() {
   if (typeof initMenuChrome === 'function') initMenuChrome();
   var modal = document.getElementById('modal-customize-menu');
@@ -1184,11 +1221,12 @@ function openCustomizeMenu() {
   var sidebar = document.getElementById('sidebar');
   if (!modal || !body || !sidebar) return;
   var eff = _effPrefs();
-  body.innerHTML = '';
+  var esc = (typeof escHtml === 'function') ? escHtml : function (x) { return x; };
+  var html = '<div class="cm-hint">Drag the ⠿ handles to reorder pages within a section, or reorder the sections themselves.</div><div id="cm-sortwrap">';
   sidebar.querySelectorAll('.nav-group').forEach(function (g) {
     if (g.id === 'nav-fav-group') return;
     var titleEl = g.querySelector('.nav-group-title');
-    var groupName = titleEl ? (titleEl.getAttribute('data-group') || titleEl.textContent || '') : '';
+    var groupKey = titleEl ? (titleEl.getAttribute('data-group') || titleEl.textContent || '') : '';
     var rowsHtml = '';
     g.querySelectorAll('.nav-item[data-page]').forEach(function (it) {
       var page = it.getAttribute('data-page');
@@ -1198,23 +1236,62 @@ function openCustomizeMenu() {
       var label = it.getAttribute('data-label') || page;
       var fav = (eff.favorites || []).indexOf(page) >= 0;
       var locked = (page === 'dash');
-      rowsHtml += '<div class="cm-row">'
+      rowsHtml += '<div class="cm-row" data-page="' + page + '">'
+        + '<span class="cm-grip cm-row-grip" title="Drag to reorder">⠿</span>'
         + '<label class="cm-show"><input type="checkbox" ' + (userHidden ? '' : 'checked') + (locked ? ' disabled' : '')
         + ' onchange="toggleHidden(\'' + page + '\')"> Show</label>'
         + '<button class="cm-fav' + (fav ? ' on' : '') + '" title="Pin to Favorites" onclick="toggleFavorite(\'' + page + '\')">' + (fav ? '★' : '☆') + '</button>'
-        + '<span class="cm-label">' + (typeof escHtml === 'function' ? escHtml(label) : label) + '</span>'
+        + '<span class="cm-label">' + esc(label) + '</span>'
         + '</div>';
     });
     if (rowsHtml) {
-      body.innerHTML += '<div class="cm-group">' + (typeof escHtml === 'function' ? escHtml(groupName) : groupName) + '</div>' + rowsHtml;
+      html += '<div class="cm-section" data-group="' + esc(groupKey) + '">'
+        + '<div class="cm-group"><span class="cm-grip cm-sec-grip" title="Drag to reorder section">⠿</span>' + esc(groupKey) + '</div>'
+        + '<div class="cm-rows" data-group="' + esc(groupKey) + '">' + rowsHtml + '</div>'
+        + '</div>';
     }
   });
+  html += '</div>';
+  body.innerHTML = html;
+  _wireMenuSortables();
   // Owner-only "Save as company default"; reset label reflects whether one is set.
   var saveDefBtn = document.getElementById('cm-save-default');
   if (saveDefBtn) saveDefBtn.style.display = (_currentUser && _currentUser.role === 'owner') ? '' : 'none';
   var resetBtn = document.getElementById('cm-reset-btn');
   if (resetBtn) resetBtn.textContent = _companyDefaultIsSet() ? '↺ Reset to company default' : '↺ Reset to default';
   modal.style.display = 'flex';
+}
+
+// Wire SortableJS on the panel: sections reorder via their grip, items reorder within
+// their section via row grips. On drop we persist and re-apply to the live sidebar.
+function _wireMenuSortables() {
+  if (typeof Sortable === 'undefined') return; // library not loaded → panel still works, just no drag
+  var wrap = document.getElementById('cm-sortwrap');
+  if (!wrap) return;
+  Sortable.create(wrap, {
+    handle: '.cm-sec-grip', draggable: '.cm-section', animation: 150,
+    ghostClass: 'cm-ghost', chosenClass: 'cm-chosen',
+    onEnd: function () {
+      _ensurePersonal();
+      _uiPrefs.sectionOrder = Array.prototype.map.call(wrap.querySelectorAll('.cm-section'), function (s) { return s.getAttribute('data-group'); });
+      saveUiPrefs();
+      if (typeof enforceNavPermissions === 'function') enforceNavPermissions(); else applyUserMenuPrefs();
+    }
+  });
+  wrap.querySelectorAll('.cm-rows').forEach(function (rows) {
+    Sortable.create(rows, {
+      handle: '.cm-row-grip', draggable: '.cm-row', animation: 150,
+      ghostClass: 'cm-ghost', chosenClass: 'cm-chosen',
+      onEnd: function () {
+        var key = rows.getAttribute('data-group');
+        _ensurePersonal();
+        _uiPrefs.itemOrder = _uiPrefs.itemOrder || {};
+        _uiPrefs.itemOrder[key] = Array.prototype.map.call(rows.querySelectorAll('.cm-row'), function (r) { return r.getAttribute('data-page'); });
+        saveUiPrefs();
+        if (typeof enforceNavPermissions === 'function') enforceNavPermissions(); else applyUserMenuPrefs();
+      }
+    });
+  });
 }
 
 function closeCustomizeMenu() {
