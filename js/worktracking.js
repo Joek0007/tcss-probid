@@ -8185,6 +8185,20 @@ document.addEventListener('click', function(e) {
 
 // Navigation
 document.addEventListener('click', function(e) {
+  // Favorite star toggle (sits inside a nav <a>) — never navigate.
+  var star = e.target.closest('.nav-star');
+  if (star) {
+    e.preventDefault();
+    var host = star.closest('[data-page]');
+    if (host && typeof toggleFavorite === 'function') toggleFavorite(host.getAttribute('data-page'));
+    return;
+  }
+  // Collapse / expand a section by clicking its heading.
+  var groupTitle = e.target.closest('.nav-group-title');
+  if (groupTitle && groupTitle.closest('#sidebar')) {
+    if (typeof toggleGroupCollapsed === 'function') toggleGroupCollapsed(groupTitle);
+    return;
+  }
   const ni = e.target.closest('[data-page]');
   if (ni && ni.classList.contains('nav-item')) {
     // The nav items are real <a href="#/page"> links now, so the browser can

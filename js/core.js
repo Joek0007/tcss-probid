@@ -747,8 +747,7 @@ function goPage(id) {
   }
   var pg = document.getElementById('page-'+id);
   if (pg) pg.classList.add('active');
-  var ni = document.querySelector('[data-page="'+id+'"]');
-  if (ni) ni.classList.add('active');
+  document.querySelectorAll('.nav-item[data-page="'+id+'"]').forEach(function(ni){ ni.classList.add('active'); });
   var tt = document.getElementById('topbar-title');
   if (tt) tt.textContent = PAGE_TITLES[id] || id;
   // Render page content
@@ -888,6 +887,235 @@ function _applyBootRoute() {
       if (cur) history.replaceState(null, '', '#/' + cur);
     } catch (e) {}
   }
+}
+
+// ============================================================
+// PER-USER MENU CUSTOMIZATION  (favorites / hide / collapse)
+// ------------------------------------------------------------
+// Preferences live in the user_ui_prefs table (cloud, self-only RLS, migration
+// _19) so a person's menu follows them across tabs and devices. This overlay
+// ALWAYS sits on top of role permissions (enforceNavPermissions): it can only
+// tidy what a role already shows — it can never reveal a page the role can't
+// see. enforceNavPermissions() calls initMenuChrome() + applyUserMenuPrefs() at
+// its end, so the overlay re-applies on login and on every navigation.
+// ============================================================
+var _uiPrefs = { favorites: [], hidden: [], collapsed: [] };
+var _uiPrefsLoaded = false;
+var _uiPrefsSaveTimer = null;
+var _menuChromeInit = false;
+
+function _normUiPrefs(p) {
+  p = p || {};
+  return {
+    favorites: Array.isArray(p.favorites) ? p.favorites.slice() : [],
+    hidden:    Array.isArray(p.hidden)    ? p.hidden.slice()    : [],
+    collapsed: Array.isArray(p.collapsed) ? p.collapsed.slice() : []
+  };
+}
+
+// Load this user's saved menu prefs from the cloud (self-only row).
+async function loadUiPrefs() {
+  try {
+    if (typeof _sb !== 'undefined' && _sb && _currentUser && _currentUser.id) {
+      var res = await _sb.from('user_ui_prefs').select('prefs').eq('user_id', _currentUser.id).maybeSingle();
+      _uiPrefs = _normUiPrefs(res && !res.error && res.data ? res.data.prefs : null);
+    } else {
+      _uiPrefs = _normUiPrefs(null);
+    }
+  } catch (e) { _uiPrefs = _normUiPrefs(null); }
+  _uiPrefsLoaded = true;
+  try { initMenuChrome(); } catch (e) {}
+  try { applyUserMenuPrefs(); } catch (e) {}
+}
+
+// Debounced save of the current prefs (upsert into the user's own row).
+function saveUiPrefs() {
+  if (_uiPrefsSaveTimer) clearTimeout(_uiPrefsSaveTimer);
+  _uiPrefsSaveTimer = setTimeout(function () {
+    _uiPrefsSaveTimer = null;
+    try {
+      if (typeof _sb !== 'undefined' && _sb && _currentUser && _currentUser.id) {
+        _sb.from('user_ui_prefs')
+          .upsert({ user_id: _currentUser.id, prefs: _uiPrefs, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+          .then(function (res) { if (res && res.error) console.warn('[uiPrefs] save error:', res.error.message); });
+      }
+    } catch (e) { console.warn('[uiPrefs] save failed:', e && e.message); }
+  }, 600);
+}
+
+// One-time: give each group a stable key + collapse caret, each item a star and
+// a clean data-label. Idempotent — safe to call on every enforceNavPermissions.
+function initMenuChrome() {
+  if (_menuChromeInit) return;
+  var sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  _menuChromeInit = true;
+  sidebar.querySelectorAll('.nav-group').forEach(function (g) {
+    var title = g.querySelector('.nav-group-title');
+    if (!title) return;
+    var key = (title.getAttribute('data-group') || title.textContent || '').trim();
+    title.setAttribute('data-group', key);
+    g.setAttribute('data-group', key);
+    if (!title.querySelector('.nav-caret')) {
+      var car = document.createElement('span');
+      car.className = 'nav-caret';
+      car.textContent = '▾';
+      title.appendChild(car);
+    }
+  });
+  sidebar.querySelectorAll('.nav-item[data-page]').forEach(function (el) {
+    if (el.closest('#nav-fav-items')) return;
+    if (!el.hasAttribute('data-label')) {
+      var t = el.lastChild;
+      var label = (t && t.nodeType === 3 ? t.textContent : el.textContent) || el.getAttribute('data-page');
+      el.setAttribute('data-label', String(label).trim());
+    }
+    if (!el.querySelector('.nav-star')) {
+      var s = document.createElement('span');
+      s.className = 'nav-star';
+      s.setAttribute('title', 'Pin to Favorites');
+      el.appendChild(s);
+    }
+  });
+}
+
+// Overlay the user's favorites / hidden / collapsed on top of the role-based
+// visibility that enforceNavPermissions() has just set.
+function applyUserMenuPrefs() {
+  if (!_uiPrefsLoaded) return;
+  var sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  var fav = _uiPrefs.favorites || [], hidden = _uiPrefs.hidden || [], collapsed = _uiPrefs.collapsed || [];
+
+  // Clear the favorites clones first so the queries below only see real items.
+  var favContainer = document.getElementById('nav-fav-items');
+  if (favContainer) favContainer.innerHTML = '';
+
+  // Stars + user-hidden (only ever hides what the role already shows; never dash).
+  sidebar.querySelectorAll('.nav-item[data-page]').forEach(function (el) {
+    if (el.closest('#nav-fav-items')) return;
+    var page = el.getAttribute('data-page');
+    if (page !== 'dash' && hidden.indexOf(page) >= 0) {
+      el.style.setProperty('display', 'none', 'important');
+    }
+    var star = el.querySelector('.nav-star');
+    if (star) { var on = fav.indexOf(page) >= 0; star.textContent = on ? '★' : '☆'; star.classList.toggle('on', on); }
+  });
+
+  // Rebuild the Favorites group from favorites that are currently visible.
+  var favGroup = document.getElementById('nav-fav-group');
+  if (favContainer && favGroup) {
+    var added = 0;
+    fav.forEach(function (page) {
+      var src = sidebar.querySelector('.nav-item[data-page="' + page + '"]');
+      if (!src || src.style.display === 'none') return; // role-hidden or user-hidden → don't surface
+      var clone = src.cloneNode(true);
+      clone.removeAttribute('id');
+      clone.style.removeProperty('display');
+      var st = clone.querySelector('.nav-star'); if (st) { st.textContent = '★'; st.classList.add('on'); }
+      favContainer.appendChild(clone);
+      added++;
+    });
+    favGroup.style.display = added > 0 ? '' : 'none';
+  }
+
+  // Collapsed groups (caret + class). Favorites group can collapse too.
+  sidebar.querySelectorAll('.nav-group[data-group]').forEach(function (g) {
+    var key = g.getAttribute('data-group');
+    var isCol = collapsed.indexOf(key) >= 0;
+    g.classList.toggle('collapsed', isCol);
+    var car = g.querySelector('.nav-caret'); if (car) car.textContent = isCol ? '▸' : '▾';
+  });
+
+  // Hide any real group left with no visible items (keep collapsed ones — their
+  // items are hidden by CSS, not inline, so they still count as present).
+  sidebar.querySelectorAll('.nav-group').forEach(function (g) {
+    if (g.id === 'nav-fav-group') return;
+    var items = g.querySelectorAll('.nav-item[data-page]');
+    var anyVis = false;
+    items.forEach(function (it) { if (it.style.display !== 'none') anyVis = true; });
+    g.style.display = anyVis ? '' : 'none';
+  });
+}
+
+function toggleFavorite(page) {
+  if (!page) return;
+  var i = _uiPrefs.favorites.indexOf(page);
+  if (i >= 0) _uiPrefs.favorites.splice(i, 1); else _uiPrefs.favorites.push(page);
+  saveUiPrefs();
+  if (typeof enforceNavPermissions === 'function') enforceNavPermissions(); else applyUserMenuPrefs();
+  _refreshCustomizeMenuIfOpen();
+}
+
+function toggleHidden(page) {
+  if (!page || page === 'dash') return; // Dashboard is home — never hideable
+  var i = _uiPrefs.hidden.indexOf(page);
+  if (i >= 0) _uiPrefs.hidden.splice(i, 1); else _uiPrefs.hidden.push(page);
+  saveUiPrefs();
+  if (typeof enforceNavPermissions === 'function') enforceNavPermissions(); else applyUserMenuPrefs();
+  _refreshCustomizeMenuIfOpen();
+}
+
+function toggleGroupCollapsed(titleEl) {
+  var g = titleEl && titleEl.closest ? titleEl.closest('.nav-group') : null;
+  if (!g) return;
+  var key = (g.getAttribute('data-group') || (titleEl.textContent || '')).trim();
+  var i = _uiPrefs.collapsed.indexOf(key);
+  if (i >= 0) _uiPrefs.collapsed.splice(i, 1); else _uiPrefs.collapsed.push(key);
+  saveUiPrefs();
+  applyUserMenuPrefs();
+}
+
+function resetMenuPrefs() {
+  _uiPrefs = _normUiPrefs(null);
+  saveUiPrefs();
+  if (typeof enforceNavPermissions === 'function') enforceNavPermissions(); else applyUserMenuPrefs();
+  _refreshCustomizeMenuIfOpen();
+}
+
+function _refreshCustomizeMenuIfOpen() {
+  var m = document.getElementById('modal-customize-menu');
+  if (m && getComputedStyle(m).display !== 'none') openCustomizeMenu();
+}
+
+// Build + open the Customize Menu panel from the pages this role can see.
+function openCustomizeMenu() {
+  if (typeof initMenuChrome === 'function') initMenuChrome();
+  var modal = document.getElementById('modal-customize-menu');
+  var body = document.getElementById('cm-body');
+  var sidebar = document.getElementById('sidebar');
+  if (!modal || !body || !sidebar) return;
+  body.innerHTML = '';
+  sidebar.querySelectorAll('.nav-group').forEach(function (g) {
+    if (g.id === 'nav-fav-group') return;
+    var titleEl = g.querySelector('.nav-group-title');
+    var groupName = titleEl ? (titleEl.getAttribute('data-group') || titleEl.textContent || '') : '';
+    var rowsHtml = '';
+    g.querySelectorAll('.nav-item[data-page]').forEach(function (it) {
+      var page = it.getAttribute('data-page');
+      var userHidden = (_uiPrefs.hidden || []).indexOf(page) >= 0;
+      var roleVisible = (it.style.display !== 'none') || userHidden; // include user-hidden, exclude role-hidden
+      if (!roleVisible) return;
+      var label = it.getAttribute('data-label') || page;
+      var fav = (_uiPrefs.favorites || []).indexOf(page) >= 0;
+      var locked = (page === 'dash');
+      rowsHtml += '<div class="cm-row">'
+        + '<label class="cm-show"><input type="checkbox" ' + (userHidden ? '' : 'checked') + (locked ? ' disabled' : '')
+        + ' onchange="toggleHidden(\'' + page + '\')"> Show</label>'
+        + '<button class="cm-fav' + (fav ? ' on' : '') + '" title="Pin to Favorites" onclick="toggleFavorite(\'' + page + '\')">' + (fav ? '★' : '☆') + '</button>'
+        + '<span class="cm-label">' + (typeof escHtml === 'function' ? escHtml(label) : label) + '</span>'
+        + '</div>';
+    });
+    if (rowsHtml) {
+      body.innerHTML += '<div class="cm-group">' + (typeof escHtml === 'function' ? escHtml(groupName) : groupName) + '</div>' + rowsHtml;
+    }
+  });
+  modal.style.display = 'flex';
+}
+
+function closeCustomizeMenu() {
+  var modal = document.getElementById('modal-customize-menu');
+  if (modal) modal.style.display = 'none';
 }
 
 // ---- LINE ITEMS ----

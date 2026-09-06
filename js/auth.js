@@ -277,6 +277,10 @@ async function loadCurrentUserProfile() {
     // If this boot arrived with a deep-link hash (#/invoices), land on that page
     // instead of the default. No-op when there is no explicit valid hash.
     if (typeof _applyBootRoute === 'function') setTimeout(_applyBootRoute, 0);
+    // Load this user's personal menu prefs (favorites / hide / collapse) from the
+    // cloud, then apply them over the role menu. Safe if it fails (menu just shows
+    // the role default).
+    if (typeof loadUiPrefs === 'function') loadUiPrefs();
     console.log('[Profile] Loaded:', _currentUser.full_name, _currentUser.role);
     // Re-apply after page renders
     setTimeout(function(){ applyRolePermissions(_currentUser.role); }, 300);
@@ -370,6 +374,8 @@ function enforceNavPermissions() {
     document.querySelectorAll('.nav-group').forEach(function(g){
       g.style.removeProperty('display');
     });
+    if (typeof initMenuChrome === 'function') initMenuChrome();
+    if (typeof applyUserMenuPrefs === 'function') applyUserMenuPrefs();
     return;
   }
 
@@ -432,6 +438,10 @@ function enforceNavPermissions() {
     'back_office':'role-back-office','manager':'role-manager','owner':'role-owner'}[role];
   if (cls) document.body.classList.add(cls);
 
+  // Overlay the user's personal menu prefs (favorites / hide / collapse) on top
+  // of the role visibility just computed above.
+  if (typeof initMenuChrome === 'function') initMenuChrome();
+  if (typeof applyUserMenuPrefs === 'function') applyUserMenuPrefs();
 }
 
 

@@ -24,8 +24,32 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e;mi
 #sidebar .logo-text{color:#fff;font-size:14px;font-weight:700;line-height:1.3}
 #sidebar .logo-sub{color:rgba(255,255,255,.5);font-size:10px;text-transform:uppercase;letter-spacing:1px}
 .nav-group{padding:10px 0}
-.nav-group-title{color:rgba(255,255,255,.35);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;padding:6px 18px 4px}
-.nav-item{display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;color:rgba(255,255,255,.72);font-size:13px;transition:all .2s;border-left:3px solid transparent;text-decoration:none}
+.nav-group-title{color:rgba(255,255,255,.35);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;padding:6px 18px 4px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;color:rgba(255,255,255,.72);font-size:14px;transition:all .2s;border-left:3px solid transparent;text-decoration:none}
+/* ---- Menu customization chrome (favorites / collapse / hide) ---- */
+.nav-caret{font-size:10px;opacity:.55;transition:transform .15s}
+.nav-star{margin-left:auto;font-size:15px;line-height:1;color:#ffd24d;opacity:0;padding:0 2px;transition:opacity .15s;cursor:pointer;flex:0 0 auto}
+.nav-item:hover .nav-star{opacity:.55}
+.nav-star.on{opacity:1}
+.nav-item:hover .nav-star.on{opacity:1}
+.nav-group.collapsed .nav-item{display:none!important}
+#nav-fav-group .nav-group-title{color:#ffd24d}
+.nav-customize{display:flex;align-items:center;gap:10px;margin:8px 12px 4px;padding:8px 12px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,.6);font-size:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);transition:all .2s}
+.nav-customize:hover{background:rgba(255,255,255,.12);color:#fff}
+/* Customize Menu modal */
+#modal-customize-menu .cm-card{background:#fff;border-radius:16px;max-width:460px;width:100%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(0,0,0,.3)}
+#modal-customize-menu .cm-head{padding:20px 24px 12px;border-bottom:1px solid #eee}
+#modal-customize-menu .cm-head h3{margin:0;font-size:18px;color:#0d1b2a}
+#modal-customize-menu .cm-head p{margin:6px 0 0;font-size:13px;color:#78909c;line-height:1.5}
+#modal-customize-menu #cm-body{padding:8px 24px;overflow-y:auto;flex:1}
+#modal-customize-menu .cm-group{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#90a4ae;margin:16px 0 6px}
+#modal-customize-menu .cm-row{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid #f4f6f8}
+#modal-customize-menu .cm-show{display:flex;align-items:center;gap:7px;font-size:13px;color:#37474f;cursor:pointer;width:74px;flex:0 0 auto}
+#modal-customize-menu .cm-show input{width:16px;height:16px;cursor:pointer}
+#modal-customize-menu .cm-fav{background:none;border:none;font-size:18px;color:#ffb300;cursor:pointer;padding:0 2px;line-height:1;flex:0 0 auto;opacity:.4}
+#modal-customize-menu .cm-fav.on{opacity:1}
+#modal-customize-menu .cm-label{font-size:14px;color:#263238}
+#modal-customize-menu .cm-foot{padding:14px 24px 20px;border-top:1px solid #eee;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .nav-item:hover{background:rgba(255,255,255,.08);color:#fff}
 .nav-item.active{background:rgba(25,118,210,.25);color:#64b5f6;border-left-color:#1976d2}
 .nav-icon{font-size:16px;width:20px;text-align:center}
@@ -1285,6 +1309,10 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div id="sidebar-logo-img-wrap" style="display:none;width:100%;overflow:hidden"><img id="sidebar-logo-img" class="sidebar-logo-img" src="" alt="Logo"></div>
     <div id="sidebar-logo-text-block"><div class="logo-text">TCSS ProBid</div><div class="logo-sub">V9 — Cloud</div></div>
   </div>
+  <div class="nav-group" id="nav-fav-group" style="display:none">
+    <div class="nav-group-title" data-group="⭐ Favorites">⭐ Favorites</div>
+    <div id="nav-fav-items"></div>
+  </div>
   <div class="nav-group">
     <div class="nav-group-title">Main</div>
     <a class="nav-item active" data-page="dash" href="#/dash"><span class="nav-icon">📊</span>Dashboard</a>
@@ -1324,6 +1352,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <a class="nav-item" data-page="worktracking" href="#/worktracking"><span class="nav-icon">✅</span>Work Tracking</a>
     <a class="nav-item" data-page="settings" href="#/settings"><span class="nav-icon">⚙️</span>Settings</a>
   </div>
+  <div class="nav-customize" id="nav-customize-btn" onclick="openCustomizeMenu()"><span class="nav-icon">⚙</span>Customize Menu</div>
 </div>
 <div id="topbar">
   <button id="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
@@ -5367,6 +5396,19 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 </div>
 
 <!-- UNSAVED QUOTE NAVIGATION WARNING MODAL -->
+<div id="modal-customize-menu" style="display:none;position:fixed;inset:0;background:rgba(13,27,42,.55);z-index:100000;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">
+  <div class="cm-card">
+    <div class="cm-head">
+      <h3>Customize Menu</h3>
+      <p>Show or hide the pages you use, and tap the star to pin favorites to the top. Your menu is saved to your account and follows you on every device.</p>
+    </div>
+    <div id="cm-body"></div>
+    <div class="cm-foot">
+      <button class="btn btn-outline btn-sm" onclick="resetMenuPrefs()" style="font-size:13px">↺ Reset to default</button>
+      <button class="btn btn-primary btn-sm" onclick="closeCustomizeMenu()" style="font-size:13px">Done</button>
+    </div>
+  </div>
+</div>
 <div id="modal-qq-nav-warn" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.2)">
     <div style="font-size:22px;margin-bottom:8px">⚠️</div>
@@ -6259,26 +6301,26 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260906ay with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260906az with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260906ay"></script>
-<script src="js/quotes.js?v=20260906ay"></script>
-<script src="js/tools.js?v=20260906ay"></script>
-<script src="js/field.js?v=20260906ay"></script>
-<script src="js/crm.js?v=20260906ay"></script>
-<script src="js/dispatch.js?v=20260906ay"></script>
-<script src="js/permissions.js?v=20260906ay"></script>
-<script src="js/worktracking.js?v=20260906ay"></script>
-<script src="js/calendar.js?v=20260906ay"></script>
-<script src="js/workorders.js?v=20260906ay"></script>
-<script src="js/purchaseorders.js?v=20260906ay"></script>
-<script src="js/inventory.js?v=20260906ay"></script>
-<script src="js/reports.js?v=20260906ay"></script>
-<script src="js/recyclebin.js?v=20260906ay"></script>
-<script src="js/contracts.js?v=20260906ay"></script>
-  <script src="js/recurring.js?v=20260906ay"></script>
-  <script src="js/seed_managed.js?v=20260906ay"></script>
-  <script src="js/auth.js?v=20260906ay"></script>
+<script src="js/core.js?v=20260906az"></script>
+<script src="js/quotes.js?v=20260906az"></script>
+<script src="js/tools.js?v=20260906az"></script>
+<script src="js/field.js?v=20260906az"></script>
+<script src="js/crm.js?v=20260906az"></script>
+<script src="js/dispatch.js?v=20260906az"></script>
+<script src="js/permissions.js?v=20260906az"></script>
+<script src="js/worktracking.js?v=20260906az"></script>
+<script src="js/calendar.js?v=20260906az"></script>
+<script src="js/workorders.js?v=20260906az"></script>
+<script src="js/purchaseorders.js?v=20260906az"></script>
+<script src="js/inventory.js?v=20260906az"></script>
+<script src="js/reports.js?v=20260906az"></script>
+<script src="js/recyclebin.js?v=20260906az"></script>
+<script src="js/contracts.js?v=20260906az"></script>
+  <script src="js/recurring.js?v=20260906az"></script>
+  <script src="js/seed_managed.js?v=20260906az"></script>
+  <script src="js/auth.js?v=20260906az"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
