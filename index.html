@@ -27,13 +27,26 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e;mi
 .nav-group-title{color:rgba(255,255,255,.35);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;padding:6px 18px 4px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;color:rgba(255,255,255,.72);font-size:14px;transition:all .2s;border-left:3px solid transparent;text-decoration:none}
 /* ---- Menu customization chrome (favorites / collapse / hide) ---- */
-.nav-caret{font-size:10px;opacity:.55;transition:transform .15s}
+.nav-caret{font-size:12px;opacity:.8;flex:0 0 auto;margin-left:8px;transition:transform .22s ease}
+.nav-group.collapsed .nav-caret{transform:rotate(-90deg)}
 .nav-star{margin-left:auto;font-size:15px;line-height:1;color:#ffd24d;opacity:0;padding:0 2px;transition:opacity .15s;cursor:pointer;flex:0 0 auto}
 .nav-item:hover .nav-star{opacity:.55}
 .nav-star.on{opacity:1}
 .nav-item:hover .nav-star.on{opacity:1}
-.nav-group.collapsed .nav-item{display:none!important}
+/* Smooth slide open/close: animate the grid row from 1fr to 0fr (works at any
+   content height, no max-height guesswork). Transitions are enabled only after
+   first paint (.menu-anim-ready) so pre-collapsed sections don't animate on load. */
+.nav-group-body{display:grid;grid-template-rows:1fr}
+.nav-group-inner{overflow:hidden;min-height:0}
+.nav-group.collapsed .nav-group-body{grid-template-rows:0fr}
+body.menu-anim-ready .nav-group-body{transition:grid-template-rows .24s ease}
 #nav-fav-group .nav-group-title{color:#ffd24d}
+/* Top toolbar: master collapse-all / expand-all, beside Favorites */
+#nav-toolbar{display:flex;justify-content:flex-end;padding:2px 14px 0}
+#nav-collapse-all{display:inline-flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;color:rgba(255,255,255,.45);font-size:11px;font-weight:600;letter-spacing:.3px;padding:3px 4px;transition:color .15s}
+#nav-collapse-all:hover{color:rgba(255,255,255,.85)}
+#nav-collapse-all .nav-caret-all{font-size:12px;transition:transform .22s ease;display:inline-block}
+#nav-collapse-all.all-collapsed .nav-caret-all{transform:rotate(-90deg)}
 .nav-customize{display:flex;align-items:center;gap:10px;margin:8px 12px 4px;padding:8px 12px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,.6);font-size:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);transition:all .2s}
 .nav-customize:hover{background:rgba(255,255,255,.12);color:#fff}
 /* Customize Menu modal */
@@ -1308,6 +1321,9 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div class="logo-icon" id="sidebar-logo-icon">T</div>
     <div id="sidebar-logo-img-wrap" style="display:none;width:100%;overflow:hidden"><img id="sidebar-logo-img" class="sidebar-logo-img" src="" alt="Logo"></div>
     <div id="sidebar-logo-text-block"><div class="logo-text">TCSS ProBid</div><div class="logo-sub">V9 — Cloud</div></div>
+  </div>
+  <div id="nav-toolbar">
+    <button id="nav-collapse-all" type="button" onclick="toggleCollapseAll()" title="Collapse or expand all sections"><span class="nav-caret-all">▾</span><span id="nav-collapse-all-lbl">Collapse all</span></button>
   </div>
   <div class="nav-group" id="nav-fav-group" style="display:none">
     <div class="nav-group-title" data-group="⭐ Favorites">⭐ Favorites</div>
@@ -6301,26 +6317,26 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260906az with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260906ba with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260906az"></script>
-<script src="js/quotes.js?v=20260906az"></script>
-<script src="js/tools.js?v=20260906az"></script>
-<script src="js/field.js?v=20260906az"></script>
-<script src="js/crm.js?v=20260906az"></script>
-<script src="js/dispatch.js?v=20260906az"></script>
-<script src="js/permissions.js?v=20260906az"></script>
-<script src="js/worktracking.js?v=20260906az"></script>
-<script src="js/calendar.js?v=20260906az"></script>
-<script src="js/workorders.js?v=20260906az"></script>
-<script src="js/purchaseorders.js?v=20260906az"></script>
-<script src="js/inventory.js?v=20260906az"></script>
-<script src="js/reports.js?v=20260906az"></script>
-<script src="js/recyclebin.js?v=20260906az"></script>
-<script src="js/contracts.js?v=20260906az"></script>
-  <script src="js/recurring.js?v=20260906az"></script>
-  <script src="js/seed_managed.js?v=20260906az"></script>
-  <script src="js/auth.js?v=20260906az"></script>
+<script src="js/core.js?v=20260906ba"></script>
+<script src="js/quotes.js?v=20260906ba"></script>
+<script src="js/tools.js?v=20260906ba"></script>
+<script src="js/field.js?v=20260906ba"></script>
+<script src="js/crm.js?v=20260906ba"></script>
+<script src="js/dispatch.js?v=20260906ba"></script>
+<script src="js/permissions.js?v=20260906ba"></script>
+<script src="js/worktracking.js?v=20260906ba"></script>
+<script src="js/calendar.js?v=20260906ba"></script>
+<script src="js/workorders.js?v=20260906ba"></script>
+<script src="js/purchaseorders.js?v=20260906ba"></script>
+<script src="js/inventory.js?v=20260906ba"></script>
+<script src="js/reports.js?v=20260906ba"></script>
+<script src="js/recyclebin.js?v=20260906ba"></script>
+<script src="js/contracts.js?v=20260906ba"></script>
+  <script src="js/recurring.js?v=20260906ba"></script>
+  <script src="js/seed_managed.js?v=20260906ba"></script>
+  <script src="js/auth.js?v=20260906ba"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

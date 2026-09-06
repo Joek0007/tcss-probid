@@ -903,6 +903,7 @@ var _uiPrefs = { favorites: [], hidden: [], collapsed: [] };
 var _uiPrefsLoaded = false;
 var _uiPrefsSaveTimer = null;
 var _menuChromeInit = false;
+var _menuAnimReady = false;
 
 function _normUiPrefs(p) {
   p = p || {};
@@ -962,6 +963,18 @@ function initMenuChrome() {
       car.textContent = '▾';
       title.appendChild(car);
     }
+    // Wrap everything after the title in a body/inner pair so the section can
+    // slide open/closed (grid-row 1fr↔0fr). The caret lives in the title, so it
+    // stays put and rotates. Done once per group.
+    if (!g._bodyWrapped) {
+      g._bodyWrapped = true;
+      var body = document.createElement('div'); body.className = 'nav-group-body';
+      var inner = document.createElement('div'); inner.className = 'nav-group-inner';
+      body.appendChild(inner);
+      var node = title.nextSibling;
+      while (node) { var next = node.nextSibling; inner.appendChild(node); node = next; }
+      g.appendChild(body);
+    }
   });
   sidebar.querySelectorAll('.nav-item[data-page]').forEach(function (el) {
     if (el.closest('#nav-fav-items')) return;
@@ -1019,16 +1032,14 @@ function applyUserMenuPrefs() {
     favGroup.style.display = added > 0 ? '' : 'none';
   }
 
-  // Collapsed groups (caret + class). Favorites group can collapse too.
+  // Collapsed groups — toggle the class; CSS slides the body and rotates the caret.
   sidebar.querySelectorAll('.nav-group[data-group]').forEach(function (g) {
     var key = g.getAttribute('data-group');
-    var isCol = collapsed.indexOf(key) >= 0;
-    g.classList.toggle('collapsed', isCol);
-    var car = g.querySelector('.nav-caret'); if (car) car.textContent = isCol ? '▸' : '▾';
+    g.classList.toggle('collapsed', collapsed.indexOf(key) >= 0);
   });
 
   // Hide any real group left with no visible items (keep collapsed ones — their
-  // items are hidden by CSS, not inline, so they still count as present).
+  // items are hidden by the slide, not inline display, so they still count).
   sidebar.querySelectorAll('.nav-group').forEach(function (g) {
     if (g.id === 'nav-fav-group') return;
     var items = g.querySelectorAll('.nav-item[data-page]');
@@ -1036,6 +1047,23 @@ function applyUserMenuPrefs() {
     items.forEach(function (it) { if (it.style.display !== 'none') anyVis = true; });
     g.style.display = anyVis ? '' : 'none';
   });
+
+  // Master collapse-all / expand-all toggle: label + caret reflect current state,
+  // counting only sections that are actually showing.
+  var allBtn = document.getElementById('nav-collapse-all');
+  if (allBtn) {
+    var vis = Array.prototype.filter.call(sidebar.querySelectorAll('.nav-group[data-group]'), function (g) { return g.style.display !== 'none'; });
+    var keys = vis.map(function (g) { return g.getAttribute('data-group'); });
+    var colCount = keys.filter(function (k) { return collapsed.indexOf(k) >= 0; }).length;
+    var allCol = keys.length > 0 && colCount >= keys.length;
+    allBtn.classList.toggle('all-collapsed', allCol);
+    var lbl = document.getElementById('nav-collapse-all-lbl');
+    if (lbl) lbl.textContent = allCol ? 'Expand all' : 'Collapse all';
+  }
+
+  // Enable slide transitions only after the first paint, so sections that load
+  // already-collapsed don't animate shut on every page load.
+  if (!_menuAnimReady) { _menuAnimReady = true; setTimeout(function () { document.body.classList.add('menu-anim-ready'); }, 60); }
 }
 
 function toggleFavorite(page) {
@@ -1054,6 +1082,25 @@ function toggleHidden(page) {
   saveUiPrefs();
   if (typeof enforceNavPermissions === 'function') enforceNavPermissions(); else applyUserMenuPrefs();
   _refreshCustomizeMenuIfOpen();
+}
+
+// Master toggle: if every visible section is collapsed, expand them all;
+// otherwise collapse them all.
+function toggleCollapseAll() {
+  var sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  var vis = Array.prototype.filter.call(sidebar.querySelectorAll('.nav-group[data-group]'), function (g) { return g.style.display !== 'none'; });
+  var keys = vis.map(function (g) { return g.getAttribute('data-group'); });
+  var colCount = keys.filter(function (k) { return _uiPrefs.collapsed.indexOf(k) >= 0; }).length;
+  if (keys.length > 0 && colCount >= keys.length) {
+    // all collapsed → expand all (drop these keys from collapsed)
+    _uiPrefs.collapsed = _uiPrefs.collapsed.filter(function (k) { return keys.indexOf(k) < 0; });
+  } else {
+    // collapse all visible sections (union with any already stored)
+    keys.forEach(function (k) { if (_uiPrefs.collapsed.indexOf(k) < 0) _uiPrefs.collapsed.push(k); });
+  }
+  saveUiPrefs();
+  applyUserMenuPrefs();
 }
 
 function toggleGroupCollapsed(titleEl) {
