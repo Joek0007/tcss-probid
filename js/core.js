@@ -1341,7 +1341,14 @@ function applyDashPrefs() {
   var page = document.getElementById('page-dash');
   if (!page) return;
   var hidden = _effPrefs().dashHidden || [];
-  if (typeof GridStack !== 'undefined') { try { initDashGrid(); } catch (e) {} }
+  if (typeof GridStack !== 'undefined') {
+    try {
+      initDashGrid();
+      // A build was requested while the page was hidden; now that we're on the visible
+      // dash page, build it cleanly at full width.
+      if (_dashGridPending && _dashHostVisible()) buildDashGrid();
+    } catch (e) {}
+  }
   var strip = document.getElementById('dash-stat-strip');
   if (strip) strip.querySelectorAll('[data-dash]').forEach(function (el) {
     if (hidden.indexOf(el.getAttribute('data-dash')) >= 0) el.style.setProperty('display', 'none', 'important');
@@ -1434,7 +1441,19 @@ function closeCustomizeDash() {
 // ============================================================
 var _dashGrid = null;
 var _dashGridInit = false;
+var _dashGridPending = false; // set when a build was requested while the page was hidden (0 width)
 var _dashPanelEls = null;
+
+// GridStack must never init/rebuild while its container has no width (dash page hidden).
+// At 0 width its responsive-column engine caches a broken 1-column layout that then
+// renders right-shifted when the page becomes visible. Returns true only if buildable now.
+function _dashHostVisible() {
+  var page = document.getElementById('page-dash'); if (!page) return false;
+  var host = page.querySelector('.dash-main-grid'); if (!host) return false;
+  if (host.offsetParent === null) return false;            // self/ancestor display:none
+  var w = host.getBoundingClientRect().width;
+  return w >= 50;                                          // real, laid-out width
+}
 
 function _captureDashPanels() {
   if (_dashPanelEls) return _dashPanelEls;
@@ -1472,6 +1491,10 @@ function buildDashGrid() {
   if (typeof GridStack === 'undefined') return false;
   var page = document.getElementById('page-dash'); if (!page) return false;
   var host = page.querySelector('.dash-main-grid'); if (!host) return false;
+  // Defer building until the page is actually visible with a real width — building at
+  // 0 width poisons GridStack's column layout (the right-shift bug). Leave any existing
+  // good grid untouched; applyDashPrefs rebuilds when we next land on the dash page.
+  if (!_dashHostVisible()) { _dashGridPending = true; return false; }
   var panels = _captureDashPanels(); if (!panels) return false;
 
   if (_dashGrid) { try { _dashGrid.off('change'); _dashGrid.destroy(false); } catch (e) {} _dashGrid = null; }
@@ -1520,7 +1543,11 @@ function buildDashGrid() {
       columnOpts: { breakpoints: [{ w: 720, c: 1 }] }
     }, grid);
     _dashGrid.on('change', _saveDashLayout);
+    // Safety net: re-assert the column count against the settled full width, in case
+    // init measured a transient width during the rebuild (belt-and-suspenders vs right-shift).
+    if (typeof _dashGrid.checkDynamicColumn === 'function') { try { _dashGrid.checkDynamicColumn(); } catch (e) {} }
   } catch (e) { _dashGrid = null; console.warn('[dashGrid] init failed:', e && e.message); return false; }
+  _dashGridPending = false;
   return true;
 }
 
@@ -1529,8 +1556,9 @@ function initDashGrid() {
   if (typeof GridStack === 'undefined') return;
   var page = document.getElementById('page-dash'); if (!page) return;
   if (!page.querySelector('.dash-main-grid')) return;
-  _dashGridInit = true;
-  buildDashGrid();
+  // Only mark initialized once a real build succeeds; a deferred (hidden-page) build
+  // leaves _dashGridInit false so the next visit retries cleanly.
+  if (buildDashGrid()) _dashGridInit = true;
 }
 
 function _saveDashLayout() {
