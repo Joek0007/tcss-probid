@@ -1508,6 +1508,7 @@ function buildDashGrid() {
   });
 
   host.innerHTML = '';
+  host.classList.add('dash-gridded'); // neutralize the old 2-col grid so #dash-grid spans full width
   host.appendChild(alerts);
   host.appendChild(grid);
   host.appendChild(parked);
@@ -1516,7 +1517,7 @@ function buildDashGrid() {
     _dashGrid = GridStack.init({
       column: 12, margin: 10, cellHeight: 8, float: false, animate: true,
       sizeToContent: true, handle: '.dash-drag-handle', resizable: { handles: 'e,w' },
-      columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 720, c: 1 }] }
+      columnOpts: { breakpoints: [{ w: 720, c: 1 }] }
     }, grid);
     _dashGrid.on('change', _saveDashLayout);
   } catch (e) { _dashGrid = null; console.warn('[dashGrid] init failed:', e && e.message); return false; }
