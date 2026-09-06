@@ -1442,14 +1442,17 @@ function closeCustomizeDash() {
 // ============================================================
 // DASHBOARD DRAG + SNAP-RESIZE GRID  (Gridstack, progressive enhancement)
 // The 6 always-on panels become a draggable/resizable grid: drag a card's ⠿ handle
-// to move it, drag its left/right edge to resize (snaps to columns), height auto-fits
-// content. Layout persists per-user (prefs.dashLayout) + company default. If the grid
+// to move it, drag its left/right edge to widen and its bottom edge/corners to stretch
+// it taller (snaps to the grid). Untouched cards snug to their content; a card you resize
+// keeps that size (shrink past the content and it scrolls inside). Reset restores snug.
+// Layout persists per-user (prefs.dashLayout) + company default. If the grid
 // engine isn't available the dashboard falls back to its normal stacked layout and the
 // show/hide still works — so it can never break.
 // ============================================================
 var _dashGrid = null;
 var _dashGridInit = false;
 var _dashGridPending = false; // set when a build was requested while the page was hidden (0 width)
+var _dashApplyingLayout = false; // true during a programmatic (build/snug) pass so it isn't persisted
 var _dashPanelEls = null;
 
 // GridStack must never init/rebuild while its container has no width (dash page hidden).
@@ -1545,15 +1548,35 @@ function buildDashGrid() {
   host.appendChild(parked);
 
   try {
+    // No global sizeToContent: that mode auto-forces height and snaps back any manual
+    // vertical resize. Instead we snug each card to its content ONCE below, which leaves
+    // the user free to drag a card's bottom edge (s / se / sw handles) to stretch it.
     _dashGrid = GridStack.init({
       column: 12, margin: 10, cellHeight: 8, float: false, animate: true,
-      sizeToContent: true, handle: '.dash-drag-handle', resizable: { handles: 'e,w' },
+      handle: '.dash-drag-handle', resizable: { handles: 'e, w, s, se, sw' },
       columnOpts: { breakpoints: [{ w: 720, c: 1 }] }
     }, grid);
+    // Snug default heights: a card the user hasn't manually sized fits its content on each
+    // build (so it adapts to data); a card with a saved height keeps it. Guarded so this
+    // programmatic pass is NOT persisted as a custom layout — only the user's own drags save.
+    _dashApplyingLayout = true;
+    try {
+      if (_dashGrid.batchUpdate) _dashGrid.batchUpdate();
+      if (typeof _dashGrid.resizeToContent === 'function') {
+        Array.prototype.forEach.call(grid.querySelectorAll('.grid-stack-item'), function (itemEl) {
+          var gid = itemEl.getAttribute('gs-id');
+          var saved = layById[gid];
+          if (saved && saved.h) return;              // user-set height → respect it
+          try { _dashGrid.resizeToContent(itemEl); } catch (e) {}
+        });
+      }
+      // Re-assert the column count against the settled full width (belt-and-suspenders vs
+      // the right-shift bug, in case init measured a transient width during a rebuild).
+      if (typeof _dashGrid.checkDynamicColumn === 'function') _dashGrid.checkDynamicColumn();
+      if (_dashGrid.commit) _dashGrid.commit();
+    } catch (e) {}
+    _dashApplyingLayout = false;
     _dashGrid.on('change', _saveDashLayout);
-    // Safety net: re-assert the column count against the settled full width, in case
-    // init measured a transient width during the rebuild (belt-and-suspenders vs right-shift).
-    if (typeof _dashGrid.checkDynamicColumn === 'function') { try { _dashGrid.checkDynamicColumn(); } catch (e) {} }
   } catch (e) { _dashGrid = null; console.warn('[dashGrid] init failed:', e && e.message); return false; }
   _dashGridPending = false;
   return true;
@@ -1571,6 +1594,7 @@ function initDashGrid() {
 
 function _saveDashLayout() {
   if (!_dashGrid) return;
+  if (_dashApplyingLayout) return; // programmatic build/snug pass — not a user change
   try {
     var nodes = (_dashGrid.engine && _dashGrid.engine.nodes) || [];
     var lay = nodes.map(function (n) {
