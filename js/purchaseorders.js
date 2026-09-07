@@ -199,9 +199,12 @@ function renderPOList() {
       '<div style="font-size:12px;color:#546e7a">'+escHtml(po.date||'—')+'</div>'+
       '<div style="font-weight:700;font-size:13px">$'+parseFloat(po.total||0).toLocaleString('en-US',{minimumFractionDigits:2})+'</div>'+
       '<div><span style="background:'+sc.bg+';color:'+sc.color+';padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700">'+escHtml(po.status||'')+'</span></div>'+
-      '<div style="display:flex;gap:4px">'+
+      '<div style="display:flex;gap:4px;justify-content:flex-end">'+
         '<button class="btn btn-outline btn-sm" onclick="openPO(\''+po.id+'\')">Open</button>'+
-        ((['Sent','Partially Received'].includes(po.status))?'<button class="btn btn-success btn-sm" onclick="openReceiving(\''+po.id+'\')">📥 Receive</button>':'')+
+        // Receive is conditional; when absent, reserve its exact slot so the columns stay aligned.
+        ((['Sent','Partially Received'].includes(po.status))
+          ? '<button class="btn btn-success btn-sm" onclick="openReceiving(\''+po.id+'\')">📥 Receive</button>'
+          : '<button class="btn btn-success btn-sm" style="visibility:hidden;pointer-events:none" tabindex="-1" aria-hidden="true">📥 Receive</button>')+
         '<button class="btn btn-outline btn-sm" onclick="printPOById(\''+po.id+'\')">🖨</button>'+
         ((_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?'<button class="btn btn-danger btn-sm" onclick="deletePO(\''+po.id+'\')">✕</button>':'')+
       '</div>'+
