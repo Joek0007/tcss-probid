@@ -1110,6 +1110,8 @@ function applyUserMenuPrefs() {
   }
 
   // Reorder items within each section per saved order (unlisted items fall to the end).
+  // IDEMPOTENT: only touch the DOM when the order actually differs — re-appending nodes
+  // needlessly forces layout and (for sections) resets the collapse slide transition.
   var itemOrder = eff.itemOrder || {};
   sidebar.querySelectorAll('.nav-group[data-group]').forEach(function (g) {
     if (g.id === 'nav-fav-group') return;
@@ -1117,23 +1119,32 @@ function applyUserMenuPrefs() {
     if (!ord || !ord.length) return;
     var inner = g.querySelector('.nav-group-inner') || g;
     var items = Array.prototype.slice.call(inner.querySelectorAll('.nav-item[data-page]'));
-    items.sort(function (a, b) {
+    var sorted = items.slice().sort(function (a, b) {
       var ia = ord.indexOf(a.getAttribute('data-page')); if (ia < 0) ia = 999;
       var ib = ord.indexOf(b.getAttribute('data-page')); if (ib < 0) ib = 999;
       return ia - ib;
     });
-    items.forEach(function (it) { inner.appendChild(it); });
+    var cur = items.map(function (it) { return it.getAttribute('data-page'); }).join('|');
+    var want = sorted.map(function (it) { return it.getAttribute('data-page'); }).join('|');
+    if (cur !== want) sorted.forEach(function (it) { inner.appendChild(it); });
   });
 
   // Reorder the sections themselves per saved order (kept before the Customize button;
-  // Favorites group + standalone Dashboard stay put at the top).
+  // Favorites group + standalone Dashboard stay put at the top). IDEMPOTENT — only move
+  // groups when the current order differs, so a mere collapse toggle doesn't re-insert the
+  // groups (which would cancel the grid-template-rows slide and make them pop shut/open).
   var secOrder = eff.sectionOrder || [];
   if (secOrder.length) {
     var custBtn = document.getElementById('nav-customize-btn');
     var byKey = {};
     sidebar.querySelectorAll('.nav-group[data-group]').forEach(function (g) { if (g.id !== 'nav-fav-group') byKey[g.getAttribute('data-group')] = g; });
-    secOrder.forEach(function (key) { var g = byKey[key]; if (g && custBtn && custBtn.parentNode) custBtn.parentNode.insertBefore(g, custBtn); });
-    Object.keys(byKey).forEach(function (key) { if (secOrder.indexOf(key) < 0) { var g = byKey[key]; if (custBtn && custBtn.parentNode) custBtn.parentNode.insertBefore(g, custBtn); } });
+    var desired = secOrder.filter(function (k) { return byKey[k]; });
+    Object.keys(byKey).forEach(function (k) { if (desired.indexOf(k) < 0) desired.push(k); });
+    var currentSeq = Array.prototype.filter.call(sidebar.querySelectorAll('.nav-group[data-group]'), function (g) { return g.id !== 'nav-fav-group'; })
+      .map(function (g) { return g.getAttribute('data-group'); }).join('|');
+    if (desired.join('|') !== currentSeq && custBtn && custBtn.parentNode) {
+      desired.forEach(function (key) { var g = byKey[key]; if (g) custBtn.parentNode.insertBefore(g, custBtn); });
+    }
   }
 
   // Collapsed groups — toggle the class; CSS slides the body and rotates the caret.
