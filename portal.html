@@ -247,6 +247,28 @@ function fmtDate(d) {
 function show(id) { var el=document.getElementById(id); if(el) el.style.display=''; }
 function hide(id) { var el=document.getElementById(id); if(el) el.style.display='none'; }
 function setText(id, val) { var el=document.getElementById(id); if(el) el.textContent=val||''; }
+// Scope / Terms are stored as the estimator's rich-text (HTML). The portal shows them as
+// plain, readable text (white-space:pre-wrap), so convert tags → clean text with bullets and
+// line breaks instead of dumping raw <ul>/<div> markup at the client. Mirrors the app's
+// _notesToEmailText. Plain, non-HTML values pass through untouched.
+function notesToPlainText(notes) {
+  if (!notes) return '';
+  var t = String(notes);
+  if (!/<[a-z!/][\s\S]*>/i.test(t)) return t.trim();   // already plain text
+  return t
+    .replace(/<\s*(br|hr)\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*li[^>]*>/gi, '\n• ')
+    .replace(/<\s*\/(p|div|h[1-6]|tr|ul|ol|table)\s*>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"').replace(/&#0*39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, '&')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
 
 async function loadPortal() {
   var params = new URLSearchParams(window.location.search);
@@ -297,14 +319,16 @@ async function loadPortal() {
     setText('q-rep', data.sales_rep_name || 'TCSS Team');
 
     // Scope
-    if (data.scope_notes) {
-      setText('q-scope', data.scope_notes);
+    var scopePlain = notesToPlainText(data.scope_notes);
+    if (scopePlain) {
+      setText('q-scope', scopePlain);
       show('scope-card');
     }
 
     // Terms
-    if (data.quote_terms) {
-      setText('q-terms', data.quote_terms);
+    var termsPlain = notesToPlainText(data.quote_terms);
+    if (termsPlain) {
+      setText('q-terms', termsPlain);
       show('terms-card');
     }
 

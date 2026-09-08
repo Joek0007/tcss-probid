@@ -1930,13 +1930,35 @@ async function copyPortalLink(id) {
   var baseUrl = window.location.origin + window.location.pathname.replace('index.html','').replace(/\/$/, '');
   var portalUrl = baseUrl + '/portal.html?token=' + q.approvalToken;
 
-  try {
-    await navigator.clipboard.writeText(portalUrl);
-    showToast('Approval link copied to clipboard! Paste it into your email to ' + (q.cn||'the customer'), 'success', 5000);
-  } catch(e) {
-    // Fallback for browsers that block clipboard
-    prompt('Copy this link and send it to your customer:', portalUrl);
+  // Send the approval link as an email instead of making the user copy/paste it — same path
+  // the proposal email uses: SendGrid direct-send when configured, otherwise open the user's
+  // email client pre-composed. Clipboard is only the last resort when there's no email on file.
+  var toEmail = q.em || '';
+  var toName  = q.contactName || q.cn || '';
+  var cname   = (DB.settings && DB.settings.cname) || 'TCSS';
+  var sender  = (DB.settings && DB.settings.uname) || cname;
+  var subject = 'Review & approve your proposal' + (q.num ? ' ' + q.num : '') + ' from ' + cname;
+  var body = (toName ? 'Hi ' + toName.split(' ')[0] + ',' : 'Hello,') + '\n\n'
+    + 'Your proposal' + (q.jn ? ' for ' + q.jn : '') + ' is ready for your review. You can see the '
+    + 'full details and approve it online here:\n\n' + portalUrl + '\n\n'
+    + 'If you have any questions, just reply to this email.\n\nThank you,\n' + sender;
+
+  if ((DB.settings || {}).sgKey) {                     // SendGrid configured → send directly
+    if (!toEmail) { showToast('No customer email on file for ' + (q.cn||'this quote'), 'error'); return; }
+    showToast('Sending approval link to ' + toEmail + '…', 'info', 2500);
+    sendViaSendGrid(toEmail, toName, subject, body, null).then(function (ok) {
+      if (ok) showToast('Approval link emailed to ' + toEmail, 'success', 4000);
+      else showToast('Send failed — check email settings', 'error', 4000);
+    });
+    return;
   }
+  if (!toEmail) {                                      // no email → keep the old copy behavior
+    try { await navigator.clipboard.writeText(portalUrl); showToast('No email on file — approval link copied to clipboard', 'info', 5000); }
+    catch (e) { prompt('Approval link for your customer:', portalUrl); }
+    return;
+  }
+  showToast('Opening your email with the approval link…', 'info', 3000);
+  window.location.href = 'mailto:' + encodeURIComponent(toEmail) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
 }
 
 // ============================================================
