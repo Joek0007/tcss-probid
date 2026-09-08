@@ -187,9 +187,11 @@ function renderPOList() {
   // Fixed last column (was `auto`) so the header row and data rows compute identical column
   // widths — otherwise the buttons made the data Actions column wider than the header's, and
   // every fr column drifted, misaligning the labels from their data.
-  var GRID='100px 1.5fr 1.5fr 1fr 110px 120px 250px';
+  // Column widths tuned for balance: Vendor gets the room, Job/WO (often empty) is slimmer,
+  // Date/Total/Status are fixed so whitespace doesn't pool in the middle. Status centered.
+  var GRID='90px 2fr 1.1fr 108px 120px 116px 250px';
   var header='<div style="display:grid;grid-template-columns:'+GRID+';gap:8px;padding:10px 16px;background:#f8f9fa;border-bottom:1px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'+
-    '<div>PO #</div><div>Vendor</div><div>Job / WO</div><div>Date</div><div style="text-align:right">Total</div><div>Status</div><div style="text-align:right">Actions</div></div>';
+    '<div>PO #</div><div>Vendor</div><div>Job / WO</div><div>Date</div><div style="text-align:right">Total</div><div style="text-align:center">Status</div><div style="text-align:right">Actions</div></div>';
 
   var rows=list.map(function(po){
     var sc=statusColors[po.status]||{bg:'#f5f5f5',color:'#546e7a'};
@@ -202,7 +204,7 @@ function renderPOList() {
       '<div style="font-size:12px;color:#546e7a">'+escHtml(po.jobName||'—')+'</div>'+
       '<div style="font-size:12px;color:#546e7a">'+escHtml(po.date||'—')+'</div>'+
       '<div style="font-weight:700;font-size:13px;text-align:right">$'+parseFloat(po.total||0).toLocaleString('en-US',{minimumFractionDigits:2})+'</div>'+
-      '<div><span style="background:'+sc.bg+';color:'+sc.color+';padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700">'+escHtml(po.status||'')+'</span></div>'+
+      '<div style="text-align:center"><span style="background:'+sc.bg+';color:'+sc.color+';padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700">'+escHtml(po.status||'')+'</span></div>'+
       '<div style="display:flex;gap:4px;justify-content:flex-end">'+
         '<button class="btn btn-outline btn-sm" onclick="openPO(\''+po.id+'\')">Open</button>'+
         // Receive is conditional; when absent, reserve its exact slot so the columns stay aligned.

@@ -4941,6 +4941,24 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           </div>
         </div>
       </div>
+      <div style="grid-column:span 2">
+        <div class="card-title">✍️ Client Approval Notifications</div>
+        <div class="card-body">
+          <p style="font-size:12px;color:#546e7a;margin-bottom:12px">Get notified the moment a client approves a proposal or requests changes from the approval link. Shows up in the in-app bell, and emails the address below (uses your Mailgun email service).</p>
+          <div class="form-row"><div><label>Notification email (where approvals are sent)</label><input id="ms-notif-email" type="email" placeholder="you@company.com"></div></div>
+          <div class="form-row">
+            <div><label>Email on approval</label>
+              <select id="ms-notif-approval-enabled"><option value="1">Enabled</option><option value="0">Disabled</option></select>
+            </div>
+            <div><label>Email on change requests</label>
+              <select id="ms-notif-changes-enabled"><option value="1">Enabled</option><option value="0">Disabled</option></select>
+            </div>
+          </div>
+          <div class="form-row"><div><label>Also email whoever created the quote</label>
+            <select id="ms-notif-rep-enabled"><option value="1">Enabled</option><option value="0">Disabled</option></select>
+          </div></div>
+        </div>
+      </div>
       <div style="display:flex;justify-content:flex-start;align-items:flex-end;grid-column:span 2">
         <button class="btn btn-primary" onclick="saveNotificationSettings()">💾 Save Notification Settings</button>
       </div>
@@ -6390,26 +6408,26 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260906bu with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260906bv with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260906bu"></script>
-<script src="js/quotes.js?v=20260906bu"></script>
-<script src="js/tools.js?v=20260906bu"></script>
-<script src="js/field.js?v=20260906bu"></script>
-<script src="js/crm.js?v=20260906bu"></script>
-<script src="js/dispatch.js?v=20260906bu"></script>
-<script src="js/permissions.js?v=20260906bu"></script>
-<script src="js/worktracking.js?v=20260906bu"></script>
-<script src="js/calendar.js?v=20260906bu"></script>
-<script src="js/workorders.js?v=20260906bu"></script>
-<script src="js/purchaseorders.js?v=20260906bu"></script>
-<script src="js/inventory.js?v=20260906bu"></script>
-<script src="js/reports.js?v=20260906bu"></script>
-<script src="js/recyclebin.js?v=20260906bu"></script>
-<script src="js/contracts.js?v=20260906bu"></script>
-  <script src="js/recurring.js?v=20260906bu"></script>
-  <script src="js/seed_managed.js?v=20260906bu"></script>
-  <script src="js/auth.js?v=20260906bu"></script>
+<script src="js/core.js?v=20260906bv"></script>
+<script src="js/quotes.js?v=20260906bv"></script>
+<script src="js/tools.js?v=20260906bv"></script>
+<script src="js/field.js?v=20260906bv"></script>
+<script src="js/crm.js?v=20260906bv"></script>
+<script src="js/dispatch.js?v=20260906bv"></script>
+<script src="js/permissions.js?v=20260906bv"></script>
+<script src="js/worktracking.js?v=20260906bv"></script>
+<script src="js/calendar.js?v=20260906bv"></script>
+<script src="js/workorders.js?v=20260906bv"></script>
+<script src="js/purchaseorders.js?v=20260906bv"></script>
+<script src="js/inventory.js?v=20260906bv"></script>
+<script src="js/reports.js?v=20260906bv"></script>
+<script src="js/recyclebin.js?v=20260906bv"></script>
+<script src="js/contracts.js?v=20260906bv"></script>
+  <script src="js/recurring.js?v=20260906bv"></script>
+  <script src="js/seed_managed.js?v=20260906bv"></script>
+  <script src="js/auth.js?v=20260906bv"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

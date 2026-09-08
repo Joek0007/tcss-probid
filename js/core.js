@@ -3281,6 +3281,11 @@ function saveNotificationSettings() {
     notifExpenseEnabled:  expenseEnabled !== '0',
     invLowStockWarn:      invEnabled !== '0',
     invLowStockDaily:     invEnabled !== '0',
+    // Client approval notifications (read by the notify-quote-approval edge function too)
+    notifyEmail:          ((document.getElementById('ms-notif-email')||{}).value||'').trim(),
+    notifyApprovalOn:     ((document.getElementById('ms-notif-approval-enabled')||{}).value) !== '0',
+    notifyChangesOn:      ((document.getElementById('ms-notif-changes-enabled')||{}).value) !== '0',
+    notifyRep:            ((document.getElementById('ms-notif-rep-enabled')||{}).value) !== '0',
   });
   saveDB();
   if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
@@ -3298,6 +3303,14 @@ function loadNotificationSettings() {
   if (clockTime)  clockTime.value  = s.notifClockInTime || '07:00';
   if (expenseEl)  expenseEl.value  = s.notifExpenseEnabled  !== false ? '1' : '0';
   if (invEl)      invEl.value      = (s.invLowStockWarn !== false)    ? '1' : '0';
+  var nEmail = document.getElementById('ms-notif-email');
+  var nAppr  = document.getElementById('ms-notif-approval-enabled');
+  var nChg   = document.getElementById('ms-notif-changes-enabled');
+  var nRep   = document.getElementById('ms-notif-rep-enabled');
+  if (nEmail) nEmail.value = s.notifyEmail || s.uemail || s.cemail || '';
+  if (nAppr)  nAppr.value  = s.notifyApprovalOn !== false ? '1' : '0';
+  if (nChg)   nChg.value   = s.notifyChangesOn  !== false ? '1' : '0';
+  if (nRep)   nRep.value   = s.notifyRep        !== false ? '1' : '0';
 }
 
 // ============================================================
@@ -3398,6 +3411,40 @@ function _checkClockInAnomalies() {
   }
 }
 
+// ============================================================
+// CLIENT APPROVAL CHECK
+// Surfaces an in-app bell notification when a client has approved a proposal or requested
+// changes from the approval link (the email side is handled server-side by the
+// notify-quote-approval edge function). Fires once per event via a localStorage "seen" map;
+// on the very first run it just records current state so old approvals aren't replayed.
+// ============================================================
+function _checkQuoteApprovals() {
+  var isOffice = typeof _currentUser !== 'undefined' && _currentUser &&
+    ['owner','manager','back_office'].includes(_currentUser.role);
+  if (!isOffice) return;
+  var raw = null; try { raw = localStorage.getItem('tcss_approval_seen'); } catch (e) {}
+  var firstRun = (raw === null);
+  var seen; try { seen = JSON.parse(raw || '{}'); } catch (e) { seen = {}; }
+  (DB.quotes || []).forEach(function (q) {
+    var st = q.approval && q.approval.status;
+    if (st !== 'approved' && st !== 'changes_requested') return;
+    var key = q.id || q.num; if (!key) return;
+    if (seen[key] === st) return;                 // already alerted for this state
+    if (!firstRun && typeof addNotification === 'function') {
+      var proj = q.jn ? ('“' + q.jn + '”') : 'the proposal';
+      if (st === 'approved') {
+        addNotification('quote_approved', '✅ Proposal ' + (q.num || '') + ' approved',
+          (q.cn || 'A client') + ' approved ' + proj + '.', 'quotes');
+      } else {
+        addNotification('quote_changes', '✏️ Changes requested — ' + (q.num || ''),
+          (q.cn || 'A client') + ' asked for changes on ' + proj + '. Open it to see their note.', 'quotes');
+      }
+    }
+    seen[key] = st;
+  });
+  try { localStorage.setItem('tcss_approval_seen', JSON.stringify(seen)); } catch (e) {}
+}
+
 // Start the clock-in anomaly check interval — runs every 5 min
 function _startNotificationChecks() {
   // Run daily low stock check on load
@@ -3406,4 +3453,7 @@ function _startNotificationChecks() {
   setInterval(_checkClockInAnomalies, 300000);
   // Also check immediately on load (in case threshold already passed today)
   setTimeout(_checkClockInAnomalies, 5000);
+  // Client approval / change-request alerts — on load + every 5 min
+  setTimeout(_checkQuoteApprovals, 4000);
+  setInterval(_checkQuoteApprovals, 300000);
 }
