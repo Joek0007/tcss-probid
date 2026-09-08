@@ -1936,8 +1936,12 @@ async function copyPortalLink(id) {
   var toEmail = q.em || '';
   var toName  = q.contactName || q.cn || '';
   var cname   = (DB.settings && DB.settings.cname) || 'TCSS';
-  var sender  = (DB.settings && DB.settings.uname) || cname;
-  var subject = 'Review & approve your proposal' + (q.num ? ' ' + q.num : '') + ' from ' + cname;
+  var cabbr   = ((DB.settings && DB.settings.cabbr) || '').trim();
+  var sender  = (DB.settings && DB.settings.uname) || cabbr || cname;
+  // Subject: "Review & approve your proposal Q-#### from ( TCSS ) -- Full Company Name"
+  // (the ( abbr ) -- prefix is only added when a short name / abbreviation is set)
+  var fromLabel = cabbr ? ('( ' + cabbr + ' ) -- ' + cname) : cname;
+  var subject = 'Review & approve your proposal' + (q.num ? ' ' + q.num : '') + ' from ' + fromLabel;
   var body = (toName ? 'Hi ' + toName.split(' ')[0] + ',' : 'Hello,') + '\n\n'
     + 'Your proposal' + (q.jn ? ' for ' + q.jn : '') + ' is ready for your review. You can see the '
     + 'full details and approve it online here:\n\n' + portalUrl + '\n\n'
