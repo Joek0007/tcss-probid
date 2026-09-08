@@ -1634,6 +1634,19 @@ function buildEmailBody(q) {
   return lines.join('\n');
 }
 
+// Resolve who a proposal / approval email should go to. The quote's own email wins; if it's
+// blank (common on older quotes), fall back to the linked customer record's invoicing email,
+// then their main email. So setting a customer's invoicing email now actually takes effect.
+function _quoteRecipientEmail(q) {
+  if (!q) return '';
+  if (q.em && q.em.trim()) return q.em.trim();
+  var cust = q.customerId
+    ? (DB.customers || []).find(function (c) { return c.id === q.customerId; })
+    : (DB.customers || []).find(function (c) { return (c.name || '').toLowerCase() === (q.cn || '').toLowerCase(); });
+  if (cust) return ((cust.invoicingEmail || cust.email || '') + '').trim();
+  return '';
+}
+
 function fireEmailQuote(q) {
   if (!q) return;
   if (q.status === 'draft' || !q.status) {
@@ -1647,7 +1660,7 @@ function fireEmailQuote(q) {
     if (stEl && stEl.value==='draft') stEl.value='sent';
     showToast('Status updated to Sent', 'success', 2000);
   }
-  var toEmail = q.em || '';
+  var toEmail = _quoteRecipientEmail(q);
   var toName  = q.contactName || q.cn || '';
   var subjectTpl = (DB.settings.sgSubject || 'Your Proposal from TCSS - {quote_num}');
   var bodyTpl    = (DB.settings.sgBody    || 'Please find your proposal attached for {job_name}. We appreciate the opportunity.');
@@ -1933,7 +1946,7 @@ async function copyPortalLink(id) {
   // Send the approval link as an email instead of making the user copy/paste it — same path
   // the proposal email uses: SendGrid direct-send when configured, otherwise open the user's
   // email client pre-composed. Clipboard is only the last resort when there's no email on file.
-  var toEmail = q.em || '';
+  var toEmail = _quoteRecipientEmail(q);
   var toName  = q.contactName || q.cn || '';
   var cname   = (DB.settings && DB.settings.cname) || 'TCSS';
   var cabbr   = ((DB.settings && DB.settings.cabbr) || '').trim();
