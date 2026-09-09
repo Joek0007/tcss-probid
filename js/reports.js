@@ -585,13 +585,15 @@ function renderQuotes() {
       ? '<td style="color:#b0bec5">—</td>'
       : '<td style="white-space:nowrap"><span style="font-weight:700;color:'+ageColor+'">'+ageInfo.days+'d</span>'+
         '<div style="font-size:9px;color:#b0bec5">'+ageInfo.basis+'</div></td>';
-    // Customer name links to that customer's Edit Customer screen. Resolve by
-    // customerId, then fall back to a name match; only link when the customer
-    // actually exists (a deleted/unknown customer stays plain text).
+    // Customer name links to that customer's profile page (openCustomerProfile —
+    // the Overview/Quotes/Jobs/Contacts profile with an Edit button, matching the
+    // other customer links in the app). Resolve by customerId, then fall back to a
+    // name match; only link when the customer actually exists (a deleted/unknown
+    // customer stays plain text so there's no dead link).
     var _cust = q.customerId ? (DB.customers||[]).find(function(c){return c.id==q.customerId;}) : null;
     if (!_cust && q.cn) { _cust = (DB.customers||[]).find(function(c){return (c.name||'').toLowerCase()===(q.cn||'').toLowerCase();}); }
     var custCell = _cust
-      ? '<td><span class="cust-link" data-action="editCustomer" data-id="'+_cust.id+'" title="Edit customer info">'+escHtml(q.cn||'')+'</span></td>'
+      ? '<td><span class="cust-link" onclick="event.stopPropagation();openCustomerProfile(\''+_cust.id+'\')" title="Open customer profile">'+escHtml(q.cn||'')+'</span></td>'
       : '<td>'+escHtml(q.cn||'')+'</td>';
     return '<tr'+(rowStyle?' style="'+rowStyle+'"':'')+'>'+
       '<td style="font-weight:700;color:#1565c0">'+escHtml(q.num||'')+'</td>'+
