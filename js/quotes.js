@@ -1766,7 +1766,7 @@ function viewQuote(id) {
 }
 
 // ---- MODAL HELPERS ----
-function openModal(id) { const m=document.getElementById(id); if(m){ m.classList.add('open'); const body=m.querySelector('.modal-body'); if(body) body.scrollTop=0; m.scrollTop=0; } }
+function openModal(id) { const m=document.getElementById(id); if(m){ m.classList.add('open'); const box=m.querySelector('.modal-box'); if(box) box.scrollTop=0; const body=m.querySelector('.modal-body'); if(body) body.scrollTop=0; m.scrollTop=0; } }
 function closeModal(id) { const m=document.getElementById(id); if(m) m.classList.remove('open');
   // Hide the document prev/next arrows when a document modal closes
   if (typeof hideDocNav === 'function' && ['modal-view-quote','modal-work-order','modal-invoice','modal-contract'].indexOf(id) >= 0) hideDocNav();
