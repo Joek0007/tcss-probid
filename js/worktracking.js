@@ -8172,9 +8172,11 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// Close modal by clicking overlay
+// Close modal by clicking overlay — EXCEPT data-entry modals marked
+// data-no-backdrop-close, so a stray click can't discard a half-filled form.
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('modal-overlay')) {
+    if (e.target.getAttribute('data-no-backdrop-close')) return;
     e.target.classList.remove('open');
   }
 });

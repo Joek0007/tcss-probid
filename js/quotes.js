@@ -2886,21 +2886,62 @@ function _contactTypeOptions(selected) {
     types.map(function(t){ return '<option value="'+escHtml(t[0])+'"'+(t[0]===selected?' selected':'')+'>'+escHtml(t[1])+'</option>'; }).join('');
 }
 
-function _contactAddForm(customerId) {
-  return '<div id="m-pc-add-form" style="background:#f8f9fb;border-radius:10px;border:1px solid #e0e7ef;padding:16px;margin-top:12px">'+
-    '<div style="font-size:12px;font-weight:700;color:#1565c0;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">New Contact</div>'+
+function _phoneTypeOptions(sel) {
+  var t = ['mobile','office','direct','fax'];
+  return '<option value="">-- Type --</option>' +
+    t.map(function(x){ return '<option value="'+x+'"'+(x===sel?' selected':'')+'>'+x.charAt(0).toUpperCase()+x.slice(1)+'</option>'; }).join('');
+}
+function _contactMethodOptions(sel) {
+  var m = (typeof getList==='function') ? getList('contactMethods') : ['Phone Call','Text Message','Email'];
+  return '<option value="">-- Preference --</option>' +
+    m.map(function(x){ return '<option'+(x===sel?' selected':'')+'>'+escHtml(x)+'</option>'; }).join('');
+}
+
+// Shared contact field-set — SAME fields as the full New Contact modal, so the
+// inline add-contact experience (on the customer form) matches it exactly.
+// Rendered empty; edit prefills the values afterward.
+function _contactFieldsHTML() {
+  return ''+
     '<div class="form-row cols2" style="margin-bottom:12px">'+
       '<div><label>Contact Name</label><input id="m-pc-name" placeholder="Full name" autocomplete="off"></div>'+
       '<div><label>Title / Role</label><select id="m-pc-role">'+_contactRoleOptions('')+'</select></div>'+
     '</div>'+
     '<div class="form-row cols2" style="margin-bottom:12px">'+
-      '<div><label>Phone</label><input id="m-pc-phone" type="tel" placeholder="Direct phone" autocomplete="off"></div>'+
-      '<div><label>Email</label><input id="m-pc-email" type="email" placeholder="Direct email" autocomplete="off"></div>'+
+      '<div style="display:flex;gap:6px">'+
+        '<div style="flex:1"><label>Primary Phone</label><input id="m-pc-phone" type="tel" placeholder="Phone number" autocomplete="off"></div>'+
+        '<div style="width:104px"><label>Type</label><select id="m-pc-phtype" style="width:100%">'+_phoneTypeOptions('')+'</select></div>'+
+      '</div>'+
+      '<div><label>Email</label><input id="m-pc-email" type="email" placeholder="Email address" autocomplete="off"></div>'+
     '</div>'+
-    '<div class="form-row" style="margin-bottom:12px">'+
+    '<div class="form-row cols2" style="margin-bottom:12px">'+
+      '<div style="display:flex;gap:6px">'+
+        '<div style="flex:1"><label>Second Phone</label><input id="m-pc-phone2" type="tel" placeholder="Second number" autocomplete="off"></div>'+
+        '<div style="width:104px"><label>Type</label><select id="m-pc-ph2type" style="width:100%">'+_phoneTypeOptions('')+'</select></div>'+
+      '</div>'+
       '<div><label>Contact Type</label><select id="m-pc-type">'+_contactTypeOptions('')+'</select></div>'+
     '</div>'+
-    '<div style="display:flex;gap:8px">'+
+    '<div class="form-row cols2" style="margin-bottom:12px">'+
+      '<div><label>Best Contact Method</label><select id="m-pc-pref">'+_contactMethodOptions('')+'</select></div>'+
+      '<div><label>Street Address</label><input id="m-pc-street" placeholder="If different from company" autocomplete="off"></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:10px;margin-bottom:12px">'+
+      '<div style="flex:1"><label>City</label><input id="m-pc-city" autocomplete="off"></div>'+
+      '<div style="width:70px"><label>State</label><input id="m-pc-state" maxlength="2" style="text-transform:uppercase" autocomplete="off"></div>'+
+      '<div style="width:110px"><label>ZIP</label><input id="m-pc-zip" autocomplete="off"></div>'+
+    '</div>'+
+    '<div class="form-row" style="margin-bottom:12px">'+
+      '<div><label>Notes</label><input id="m-pc-notes" placeholder="Optional" autocomplete="off"></div>'+
+    '</div>'+
+    '<div class="form-row" style="margin-bottom:0">'+
+      '<label style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;font-size:13px"><input type="checkbox" id="m-pc-isdefault" style="width:auto;margin:0;flex:0 0 auto"> Set as the default contact for this customer</label>'+
+    '</div>';
+}
+
+function _contactAddForm(customerId) {
+  return '<div id="m-pc-add-form" style="background:#f8f9fb;border-radius:10px;border:1px solid #e0e7ef;padding:16px;margin-top:12px">'+
+    '<div style="font-size:12px;font-weight:700;color:#1565c0;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">New Contact</div>'+
+    _contactFieldsHTML()+
+    '<div style="display:flex;gap:8px;margin-top:14px">'+
       '<button class="btn btn-primary btn-sm" onclick="_saveInlineContact(\''+customerId+'\')">💾 Save Contact</button>'+
       '<button class="btn btn-ghost btn-sm" onclick="_hideInlineContactForm()">Cancel</button>'+
     '</div>'+
@@ -2922,17 +2963,7 @@ function _renderContactSection(mode, customerId, customerName) {
         '</div>'+
       '</div>'+
       '<div style="background:#f8f9fb;border-radius:10px;border:1px solid #e0e7ef;padding:16px">'+
-        '<div class="form-row cols2" style="margin-bottom:12px">'+
-          '<div><label>Contact Name</label><input id="m-pc-name" placeholder="Full name" autocomplete="off"></div>'+
-          '<div><label>Title / Role</label><select id="m-pc-role">'+_contactRoleOptions('')+'</select></div>'+
-        '</div>'+
-        '<div class="form-row cols2" style="margin-bottom:12px">'+
-          '<div><label>Phone</label><input id="m-pc-phone" type="tel" placeholder="Direct phone number" autocomplete="off"></div>'+
-          '<div><label>Email</label><input id="m-pc-email" type="email" placeholder="Direct email address" autocomplete="off"></div>'+
-        '</div>'+
-        '<div class="form-row" style="margin-bottom:0">'+
-          '<div><label>Contact Type</label><select id="m-pc-type">'+_contactTypeOptions('')+'</select></div>'+
-        '</div>'+
+        _contactFieldsHTML()+
       '</div>';
     return;
   }
@@ -3001,6 +3032,9 @@ function _hideInlineContactForm() {
 function _saveInlineContact(customerId) {
   var name = ((document.getElementById('m-pc-name')||{}).value||'').trim();
   if (!name) { showToast('Contact name is required','error'); return; }
+  if (typeof probidCheckEmailField==='function' && !probidCheckEmailField('m-pc-email')) return;
+  var gv = function(id){ return ((document.getElementById(id)||{}).value||'').trim(); };
+  var ph = function(id){ var v=gv(id); return (typeof formatPhone==='function') ? formatPhone(v) : v; };
   var section = document.getElementById('m-c-primary-contact-section');
   var custName = section ? (section.dataset.custName||'') : '';
   var editId = section ? (section.dataset.editContactId||'') : '';
@@ -3009,15 +3043,23 @@ function _saveInlineContact(customerId) {
     id:          editId || (typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now()),
     name:        name,
     company:     custName,
-    phone:       ((document.getElementById('m-pc-phone')||{}).value||'').trim(),
-    email:       ((document.getElementById('m-pc-email')||{}).value||'').trim(),
-    role:        ((document.getElementById('m-pc-role')||{}).value||'').trim(),
-    title:       ((document.getElementById('m-pc-role')||{}).value||'').trim(),
-    contactType: ((document.getElementById('m-pc-type')||{}).value||'').trim(),
-    contactPref: '',
-    notes:       '',
+    phone:       ph('m-pc-phone'),
+    phoneType:   gv('m-pc-phtype'),
+    phone2:      ph('m-pc-phone2'),
+    phone2Type:  gv('m-pc-ph2type'),
+    email:       gv('m-pc-email').toLowerCase(),
+    role:        gv('m-pc-role'),
+    title:       gv('m-pc-role'),
+    contactType: gv('m-pc-type'),
+    contactPref: gv('m-pc-pref'),
+    street:      gv('m-pc-street'),
+    city:        gv('m-pc-city'),
+    state:       gv('m-pc-state').toUpperCase(),
+    zip:         gv('m-pc-zip'),
+    notes:       gv('m-pc-notes'),
     customerId:  customerId
   };
+  var isDefault = !!(document.getElementById('m-pc-isdefault')||{}).checked;
 
   if (!DB.contacts) DB.contacts = [];
   if (editId) {
@@ -3026,6 +3068,10 @@ function _saveInlineContact(customerId) {
     delete section.dataset.editContactId;
   } else {
     DB.contacts.push(contact);
+  }
+  if (customerId) {
+    var custRec = (DB.customers||[]).find(function(c){ return c.id===customerId; });
+    if (custRec && isDefault) custRec.defaultContactId = contact.id;
   }
   saveDB();
   showToast((editId ? 'Contact updated' : '"'+name+'" added') + ' ✓','success');
@@ -3047,8 +3093,19 @@ function _editInlineContact(contactId, customerId) {
   set('m-pc-name', ct.name);
   set('m-pc-role', ct.role||ct.title||'');
   set('m-pc-phone', ct.phone);
+  set('m-pc-phtype', ct.phoneType);
+  set('m-pc-phone2', ct.phone2);
+  set('m-pc-ph2type', ct.phone2Type);
   set('m-pc-email', ct.email);
   set('m-pc-type', ct.contactType);
+  set('m-pc-pref', ct.contactPref);
+  set('m-pc-street', ct.street);
+  set('m-pc-city', ct.city);
+  set('m-pc-state', ct.state);
+  set('m-pc-zip', ct.zip);
+  set('m-pc-notes', ct.notes);
+  var custRec = (DB.customers||[]).find(function(c){ return c.id===customerId; });
+  var dchk = document.getElementById('m-pc-isdefault'); if (dchk) dchk.checked = !!(custRec && custRec.defaultContactId===ct.id);
   // Update button label
   var btn = container.querySelector('.btn-primary');
   if (btn) btn.textContent = '💾 Update Contact';
@@ -3146,23 +3203,36 @@ function _buildCustomerData(id) {
   };
 }
 function _savePrimaryContact(customerId, customerName) {
-  var name = (document.getElementById('m-pc-name')||{}).value.trim();
+  var name = ((document.getElementById('m-pc-name')||{}).value||'').trim();
   if (!name) return; // blank = skip
+  var gv = function(id){ return ((document.getElementById(id)||{}).value||'').trim(); };
+  var ph = function(id){ var v=gv(id); return (typeof formatPhone==='function') ? formatPhone(v) : v; };
   var contact = {
     id:          typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now(),
     name:        name,
     company:     customerName || '',
-    phone:       ((document.getElementById('m-pc-phone')||{}).value||'').trim(),
-    email:       ((document.getElementById('m-pc-email')||{}).value||'').trim(),
-    role:        ((document.getElementById('m-pc-role')||{}).value||'').trim(),
-    title:       ((document.getElementById('m-pc-role')||{}).value||'').trim(),
-    contactType: ((document.getElementById('m-pc-type')||{}).value||'').trim(),
-    contactPref: '',
-    notes:       '',
+    phone:       ph('m-pc-phone'),
+    phoneType:   gv('m-pc-phtype'),
+    phone2:      ph('m-pc-phone2'),
+    phone2Type:  gv('m-pc-ph2type'),
+    email:       gv('m-pc-email').toLowerCase(),
+    role:        gv('m-pc-role'),
+    title:       gv('m-pc-role'),
+    contactType: gv('m-pc-type'),
+    contactPref: gv('m-pc-pref'),
+    street:      gv('m-pc-street'),
+    city:        gv('m-pc-city'),
+    state:       gv('m-pc-state').toUpperCase(),
+    zip:         gv('m-pc-zip'),
+    notes:       gv('m-pc-notes'),
     customerId:  customerId
   };
   if (!DB.contacts) DB.contacts = [];
   DB.contacts.push(contact);
+  if ((document.getElementById('m-pc-isdefault')||{}).checked) {
+    var custRec = (DB.customers||[]).find(function(c){ return c.id===customerId; });
+    if (custRec) custRec.defaultContactId = contact.id;
+  }
 }
 
 function saveCustomer() {
