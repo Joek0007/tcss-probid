@@ -3170,6 +3170,7 @@ function saveCustomer() {
   const id = document.getElementById('m-cid').value;
   const name = (document.getElementById('m-cname')||{}).value||'';
   if (!name.trim()) { showToast('Customer name required','error'); return; }
+  if (typeof probidCheckContactFields==='function' && !probidCheckContactFields('modal-customer')) return;
   // Duplicate detection — block exact name match on NEW customers only
   if (!id) {
     var normalizedNew = name.trim().toLowerCase();
@@ -3722,6 +3723,7 @@ function _buildTeamMemberData() {
 }
 
 function saveTeamMemberV2() {
+  if (typeof probidCheckContactFields==='function' && !probidCheckContactFields('modal-team')) return;
   var data = _buildTeamMemberData(); if(!data) return;
   _upsertTeamMember(data);
   saveDB(); closeModal('modal-team'); renderTeam();

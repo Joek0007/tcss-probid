@@ -75,6 +75,7 @@ function editVendor(id) {
 function saveVendor() {
   var name=(document.getElementById('v-name')||{}).value||'';
   if(!name.trim()){showToast('Vendor name required','error');return;}
+  if (typeof probidCheckContactFields==='function' && !probidCheckContactFields('modal-vendor')) return;
   function gv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
   var id=gv('v-id');
   var data={

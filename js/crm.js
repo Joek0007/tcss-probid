@@ -459,6 +459,7 @@ function saveContact() {
   var id   = document.getElementById('m-ctid').value;
   var name = (document.getElementById('m-ctname')||{}).value||'';
   if (!name.trim()) { showToast('Name required','error'); return; }
+  if (typeof probidCheckContactFields==='function' && !probidCheckContactFields('modal-contact')) return;
   var custId = (document.getElementById('m-ct-custid')||{}).value||'';
   var isDefault = !!(document.getElementById('m-ct-isdefault')||{}).checked;
   var newId = id || (typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now());
@@ -516,6 +517,7 @@ function saveContactAndAnother() {
   if (typeof hasPermission==='function' && !hasPermission('contact.edit')) { showToast('You do not have permission to add or edit contacts','error'); return; }
   var name = (document.getElementById('m-ctname')||{}).value||'';
   if (!name.trim()) { showToast('Name required','error'); return; }
+  if (typeof probidCheckContactFields==='function' && !probidCheckContactFields('modal-contact')) return;
   var custId = (document.getElementById('m-ct-custid')||{}).value||'';
   var isDefault = !!(document.getElementById('m-ct-isdefault')||{}).checked;
   var newId = typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now();

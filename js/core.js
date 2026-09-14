@@ -3457,3 +3457,123 @@ function _startNotificationChecks() {
   setTimeout(_checkQuoteApprovals, 4000);
   setInterval(_checkQuoteApprovals, 300000);
 }
+
+// ============================================================
+// INPUT NORMALIZATION — phone auto-format + email validation
+// Central & app-wide via event delegation, so it also covers
+// fields that are built on the fly (contact rows, WO fields, etc.).
+// A field is treated as phone/email by: data-fmt override, input
+// type (tel/email), or an id/name convention. Opt a field out with
+// data-fmt="none".
+// ============================================================
+function _fmtFieldKind(el){
+  if(!el || el.tagName!=='INPUT') return null;
+  var t=(el.type||'text').toLowerCase();
+  if(['checkbox','radio','file','button','submit','reset','range','color','date','datetime-local','month','week','time','number','hidden','password','search','url'].indexOf(t)>=0) return null;
+  var f=(el.getAttribute('data-fmt')||'').toLowerCase();
+  if(f==='none') return null;
+  if(f==='phone'||f==='email') return f;
+  if(t==='email') return 'email';
+  if(t==='tel')   return 'phone';
+  var id=(el.id||el.name||'').toLowerCase();
+  if(!id) return null;
+  if(/mail/.test(id) || /(^|[-_])em$/.test(id) || /(^|[-_])(ct|tm)em$/.test(id)) return 'email';
+  if(/(phone|mobile|cell|fax)\d?$/.test(id) || /(^|[-_])tel\d?$/.test(id) || /ph\d?$/.test(id)) return 'phone';
+  return null;
+}
+
+// Normalize a US phone to "(xxx) xxx-xxxx" (preserving a trailing extension).
+// Leaves anything that isn't a recognizable 7/10/11-digit number untouched.
+function formatPhone(raw){
+  if(raw==null) return '';
+  var s=(''+raw).trim();
+  if(!s) return '';
+  var ext='';
+  var m=s.match(/(?:\s*(?:ext\.?|x|#)\s*(\d{1,6}))\s*$/i);
+  var main=s;
+  if(m){ ext=m[1]; main=s.slice(0,m.index); }
+  var d=main.replace(/\D/g,'');
+  if(d.length===11 && d.charAt(0)==='1') d=d.slice(1);
+  var out;
+  if(d.length===10)      out='('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);
+  else if(d.length===7)  out=d.slice(0,3)+'-'+d.slice(3);
+  else return s; // not a standard US number — leave exactly as typed
+  if(ext) out+=' ext '+ext;
+  return out;
+}
+
+// Proper email: has local part, an @, a domain, and a >=2-letter ending (.com/.org/.biz...).
+function isValidEmail(v){
+  if(v==null) return false;
+  return /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test((''+v).trim());
+}
+
+// Format all phones + validate all emails inside a scope (id string or element).
+// Returns the first invalid email input found, or null. Used by save guards.
+function probidNormalizeScope(scope){
+  var el = (typeof scope==='string') ? document.getElementById(scope) : scope;
+  if(!el) return null;
+  var inputs = el.querySelectorAll('input');
+  var firstBad=null;
+  for(var i=0;i<inputs.length;i++){
+    var kind=_fmtFieldKind(inputs[i]);
+    if(kind==='phone'){
+      var f=formatPhone(inputs[i].value); if(f!==inputs[i].value) inputs[i].value=f;
+    } else if(kind==='email'){
+      var v=(inputs[i].value||'').trim(); inputs[i].value=v.toLowerCase();
+      var bad = v!=='' && !isValidEmail(v);
+      inputs[i].classList.toggle('field-invalid', bad);
+      if(bad && !firstBad) firstBad=inputs[i];
+    }
+  }
+  return firstBad;
+}
+
+// Convenience guard for savers: normalizes the scope; on a bad email, flags +
+// toasts + focuses and returns false (caller should abort the save).
+function probidCheckContactFields(scope){
+  var bad = probidNormalizeScope(scope);
+  if(bad){
+    if(typeof showToast==='function') showToast('Please fix the email address — it needs an @ and a proper ending like .com','error',4000);
+    try{ bad.focus(); }catch(_){}
+    return false;
+  }
+  return true;
+}
+
+// Single email field guard (for inline/panel forms that aren't in a modal container).
+function probidCheckEmailField(id){
+  var el=document.getElementById(id); if(!el) return true;
+  var v=(el.value||'').trim(); el.value=v.toLowerCase();
+  if(v!=='' && !isValidEmail(v)){
+    el.classList.add('field-invalid');
+    if(typeof showToast==='function') showToast('Please fix the email address — it needs an @ and a proper ending like .com','error',4000);
+    try{ el.focus(); }catch(_){}
+    return false;
+  }
+  el.classList.remove('field-invalid');
+  return true;
+}
+
+function _wireInputFmt(){
+  // Format phone / normalize + validate email when the field loses focus.
+  document.addEventListener('focusout', function(e){
+    var el=e.target, kind=_fmtFieldKind(el);
+    if(!kind) return;
+    if(kind==='phone'){
+      var f=formatPhone(el.value); if(f!==el.value) el.value=f;
+      el.classList.remove('field-invalid');
+    } else {
+      var v=(el.value||'').trim(); if(v!==el.value) el.value=v.toLowerCase(); else el.value=v.toLowerCase();
+      el.classList.toggle('field-invalid', v!=='' && !isValidEmail(v));
+    }
+  }, true);
+  // Clear the red flag as soon as the email becomes valid while typing.
+  document.addEventListener('input', function(e){
+    var el=e.target;
+    if(_fmtFieldKind(el)==='email' && el.classList.contains('field-invalid') && isValidEmail((el.value||'').trim()))
+      el.classList.remove('field-invalid');
+  }, true);
+}
+if(document.readyState!=='loading') _wireInputFmt();
+else document.addEventListener('DOMContentLoaded', _wireInputFmt);

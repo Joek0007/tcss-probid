@@ -6858,6 +6858,9 @@ function saveNewCustomerFromQuote() {
   var email = (document.getElementById('ncust-email')||{}).value||'';
   var addr  = (document.getElementById('ncust-address')||{}).value||'';
   if (!name) { showToast('Customer name is required','error'); return; }
+  if (typeof probidCheckEmailField==='function' && !probidCheckEmailField('ncust-email')) return;
+  if (typeof formatPhone==='function') phone = formatPhone(phone);
+  email = (email||'').trim().toLowerCase();
 
   // Check not a duplicate
   var existing = DB.customers.find(function(c){ return (c.name||'').toLowerCase()===name.toLowerCase(); });
@@ -7045,6 +7048,9 @@ function saveNewContactFromQuote() {
   var phone = (document.getElementById('nc-phone')||{}).value||'';
   var email = (document.getElementById('nc-email')||{}).value||'';
   if (!name) { showToast('Contact name is required','error'); return; }
+  if (typeof probidCheckEmailField==='function' && !probidCheckEmailField('nc-email')) return;
+  if (typeof formatPhone==='function') phone = formatPhone(phone);
+  email = (email||'').trim().toLowerCase();
 
   var custId   = (document.getElementById('qq-customer-id')||{}).value||'';
   var custName = (document.getElementById('qq-cn')||{}).value||'';
