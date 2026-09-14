@@ -3508,6 +3508,63 @@ function isValidEmail(v){
   return /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test((''+v).trim());
 }
 
+// tiny local HTML escaper (avoid depending on escHtml load order)
+function _fmtEsc(s){ return (''+s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+// "Did you mean...?" — suggest a correction for near-certain typos ONLY.
+// TLD list contains only NON-real endings (so we never nudge a legit .co/.io/.us).
+// Domain list is common misspellings of the big providers. Returns a corrected
+// address (valid + different from input) or null.
+var _EML_TLD_FIX = { con:'com', cmo:'com', ocm:'com', vom:'com', xom:'com', dcom:'com', ccom:'com',
+  comm:'com', coom:'com', clm:'com', cpm:'com', cim:'com', xcom:'com', kom:'com', c0m:'com', dom:'com',
+  gom:'com', vcom:'com', ocom:'com', colm:'com', cok:'com',
+  nte:'net', ner:'net', nett:'net', ent:'net', met:'net',
+  ogr:'org', orgg:'org', rog:'org', orh:'org', ord:'org',
+  bizz:'biz', bis:'biz' };
+var _EML_DOMAIN_FIX = {
+  'gmai.com':'gmail.com','gmial.com':'gmail.com','gmal.com':'gmail.com','gnail.com':'gmail.com',
+  'gmaill.com':'gmail.com','gamil.com':'gmail.com','gmail.co':'gmail.com','gmail.cm':'gmail.com','gmil.com':'gmail.com',
+  'hotmial.com':'hotmail.com','hotmai.com':'hotmail.com','hotmall.com':'hotmail.com','hotmil.com':'hotmail.com',
+  'hotmail.co':'hotmail.com','hotmailcom':'hotmail.com',
+  'yaho.com':'yahoo.com','yhaoo.com':'yahoo.com','yahooo.com':'yahoo.com','yaoo.com':'yahoo.com','yahoo.co':'yahoo.com',
+  'outlok.com':'outlook.com','outloook.com':'outlook.com','outlook.co':'outlook.com','outlok.co':'outlook.com',
+  'aol.co':'aol.com','iclod.com':'icloud.com','icloud.co':'icloud.com','comcast.net':'comcast.net' };
+function _emailSuggestion(v){
+  if(v==null) return null;
+  var s=(''+v).trim();
+  if(!s || s.indexOf('@')<0) return null;
+  var cand=s.replace(/\s+/g,'').replace(/\.{2,}/g,'.').replace(/\.+$/,'');
+  var at=cand.lastIndexOf('@');
+  var local=cand.slice(0,at), domain=cand.slice(at+1).toLowerCase();
+  if(!local || !domain) return null;
+  if(_EML_DOMAIN_FIX[domain]) domain=_EML_DOMAIN_FIX[domain];
+  else {
+    var parts=domain.split('.');
+    if(parts.length>=2){
+      var tld=parts[parts.length-1];
+      if(_EML_TLD_FIX[tld]){ parts[parts.length-1]=_EML_TLD_FIX[tld]; domain=parts.join('.'); }
+    }
+  }
+  var out=(local+'@'+domain).toLowerCase();
+  if(out!==s.toLowerCase() && isValidEmail(out)) return out;
+  return null;
+}
+
+// Show/replace/remove the inline "Did you mean X?" prompt after an email field.
+function _showEmailSuggestion(el, sug){
+  if(!el) return;
+  var next = el.nextElementSibling;
+  var node = (next && next.classList && next.classList.contains('eml-suggest')) ? next : null;
+  if(!sug || sug.toLowerCase()===(el.value||'').trim().toLowerCase()){ if(node) node.remove(); return; }
+  if(!node){
+    node=document.createElement('div'); node.className='eml-suggest';
+    if(!el.parentNode) return;
+    el.parentNode.insertBefore(node, el.nextSibling);
+  }
+  node._targetEl = el;
+  node.innerHTML='Did you mean <button type="button" class="eml-suggest-btn" data-sugg="'+_fmtEsc(sug)+'">'+_fmtEsc(sug)+'</button>?';
+}
+
 // Format all phones + validate all emails inside a scope (id string or element).
 // Returns the first invalid email input found, or null. Used by save guards.
 function probidNormalizeScope(scope){
@@ -3521,9 +3578,11 @@ function probidNormalizeScope(scope){
       var f=formatPhone(inputs[i].value); if(f!==inputs[i].value) inputs[i].value=f;
     } else if(kind==='email'){
       var v=(inputs[i].value||'').trim(); inputs[i].value=v.toLowerCase();
-      var bad = v!=='' && !isValidEmail(v);
-      inputs[i].classList.toggle('field-invalid', bad);
-      if(bad && !firstBad) firstBad=inputs[i];
+      var invalid = v!=='' && !isValidEmail(inputs[i].value);
+      var sug = _emailSuggestion(inputs[i].value);
+      inputs[i].classList.toggle('field-invalid', invalid);
+      _showEmailSuggestion(inputs[i], sug);
+      if((invalid || sug) && !firstBad) firstBad=inputs[i];
     }
   }
   return firstBad;
@@ -3534,7 +3593,11 @@ function probidNormalizeScope(scope){
 function probidCheckContactFields(scope){
   var bad = probidNormalizeScope(scope);
   if(bad){
-    if(typeof showToast==='function') showToast('Please fix the email address — it needs an @ and a proper ending like .com','error',4000);
+    var sug=_emailSuggestion(bad.value);
+    var msg = sug
+      ? ('Double-check that email — did you mean '+sug+'?  Tap the suggestion under the field, or edit it.')
+      : 'Please fix the email address — it needs an @ and a proper ending like .com';
+    if(typeof showToast==='function') showToast(msg,'error',5000);
     try{ bad.focus(); }catch(_){}
     return false;
   }
@@ -3545,9 +3608,14 @@ function probidCheckContactFields(scope){
 function probidCheckEmailField(id){
   var el=document.getElementById(id); if(!el) return true;
   var v=(el.value||'').trim(); el.value=v.toLowerCase();
-  if(v!=='' && !isValidEmail(v)){
-    el.classList.add('field-invalid');
-    if(typeof showToast==='function') showToast('Please fix the email address — it needs an @ and a proper ending like .com','error',4000);
+  var invalid = v!=='' && !isValidEmail(el.value);
+  var sug = _emailSuggestion(el.value);
+  if(invalid || sug){
+    el.classList.toggle('field-invalid', invalid);
+    _showEmailSuggestion(el, sug);
+    var msg = sug ? ('Double-check that email — did you mean '+sug+'?  Tap the suggestion under the field, or edit it.')
+                  : 'Please fix the email address — it needs an @ and a proper ending like .com';
+    if(typeof showToast==='function') showToast(msg,'error',5000);
     try{ el.focus(); }catch(_){}
     return false;
   }
@@ -3564,16 +3632,28 @@ function _wireInputFmt(){
       var f=formatPhone(el.value); if(f!==el.value) el.value=f;
       el.classList.remove('field-invalid');
     } else {
-      var v=(el.value||'').trim(); if(v!==el.value) el.value=v.toLowerCase(); else el.value=v.toLowerCase();
-      el.classList.toggle('field-invalid', v!=='' && !isValidEmail(v));
+      var v=(el.value||'').trim(); el.value=v.toLowerCase();
+      el.classList.toggle('field-invalid', v!=='' && !isValidEmail(el.value));
+      _showEmailSuggestion(el, _emailSuggestion(el.value));
     }
   }, true);
-  // Clear the red flag as soon as the email becomes valid while typing.
+  // While typing an email: clear the red flag once it's valid, and drop any stale
+  // suggestion (it's recomputed on blur).
   document.addEventListener('input', function(e){
     var el=e.target;
-    if(_fmtFieldKind(el)==='email' && el.classList.contains('field-invalid') && isValidEmail((el.value||'').trim()))
-      el.classList.remove('field-invalid');
+    if(_fmtFieldKind(el)!=='email') return;
+    if(el.classList.contains('field-invalid') && isValidEmail((el.value||'').trim())) el.classList.remove('field-invalid');
+    _showEmailSuggestion(el, null);
   }, true);
+  // Apply a "Did you mean...?" suggestion when the user taps it.
+  document.addEventListener('click', function(e){
+    var b = (e.target && e.target.closest) ? e.target.closest('.eml-suggest-btn') : null;
+    if(!b) return;
+    e.preventDefault();
+    var node=b.closest('.eml-suggest'); var el=node && node._targetEl;
+    if(el){ el.value=(b.getAttribute('data-sugg')||'').toLowerCase(); el.classList.remove('field-invalid'); try{ el.focus(); }catch(_){} }
+    if(node) node.remove();
+  });
 }
 if(document.readyState!=='loading') _wireInputFmt();
 else document.addEventListener('DOMContentLoaded', _wireInputFmt);
