@@ -2820,24 +2820,36 @@ function renderCustomers() {
   setS('cs-jobs',     totalJ);
   setS('cs-contacts', totalCont);
 
+  // Search — matches name, phone, email OR address, but RANKS by where the match
+  // is so name matches beat coincidental address/email matches (e.g. typing "Old"
+  // surfaces "Old Dominion …" ahead of customers merely on an "Old ___ Rd"). Tiers:
+  //   0 name starts-with · 1 name contains · 2 matched only in phone/email/address.
+  // _mfield records the matched field for a hint when the name itself didn't match.
   if (sl) customers = customers.filter(function(c){
-    return (c.name||'').toLowerCase().includes(sl)||
-           (c.phone||'').toLowerCase().includes(sl)||
-           (c.email||'').toLowerCase().includes(sl)||
-           (c.address||'').toLowerCase().includes(sl);
+    var n = (c.name||'').toLowerCase(), at = n.indexOf(sl);
+    if (at === 0) { c._mrank = 0; c._mfield = ''; return true; }
+    if (at >  0) { c._mrank = 1; c._mfield = ''; return true; }
+    if ((c.phone||'').toLowerCase().includes(sl))   { c._mrank = 2; c._mfield = 'phone';   return true; }
+    if ((c.email||'').toLowerCase().includes(sl))   { c._mrank = 2; c._mfield = 'email';   return true; }
+    if ((c.address||'').toLowerCase().includes(sl)) { c._mrank = 2; c._mfield = 'address'; return true; }
+    return false;
   });
   if (filter==='active')     customers = customers.filter(function(c){ return c._qct>0; });
   if (filter==='won')        customers = customers.filter(function(c){ return c._wonRev>0; });
   if (filter==='jobs')       customers = customers.filter(function(c){ return c._jct>0; });
   if (filter==='no-contact') customers = customers.filter(function(c){ return c._cct===0; });
 
-  customers.sort(function(a,b){
+  function _custCmp(a,b){
     if (sort==='name-asc')    return (a.name||'').localeCompare(b.name||'');
     if (sort==='name-desc')   return (b.name||'').localeCompare(a.name||'');
     if (sort==='won-desc')    return b._wonRev - a._wonRev;
     if (sort==='quotes-desc') return b._qct - a._qct;
     if (sort==='recent')      return (b.createdAt||'').localeCompare(a.createdAt||'');
     return (a.name||'').localeCompare(b.name||'');
+  }
+  customers.sort(function(a,b){
+    if (sl) { var r=(a._mrank||0)-(b._mrank||0); if (r) return r; }  // best matches first
+    return _custCmp(a,b);
   });
 
   var el = document.getElementById('cust-tbl');
@@ -2889,6 +2901,7 @@ function renderCustomers() {
 
     var lastQ = c._lastQ;
     var lastActivity = lastQ ? 'Last quote: '+escHtml(lastQ.dt||'') : '';
+    var matchHint = (sl && c._mfield) ? '<div class="cust-match-hint">🔎 matched in '+c._mfield+'</div>' : '';
 
     var n = escHtml(c.name||'');
     var actCol =
@@ -2906,7 +2919,7 @@ function renderCustomers() {
       : '<span class="cust-won zero">$0</span>';
 
     return '<div class="cust-card">'+
-      '<div><div class="cust-card-name" onclick="openCustomerProfile(\''+c.id+'\')">'+n+'</div>'+(lastActivity?'<div class="cust-card-sub">'+lastActivity+'</div>':'')+alertPill+'</div>'+
+      '<div><div class="cust-card-name" onclick="openCustomerProfile(\''+c.id+'\')">'+n+'</div>'+(lastActivity?'<div class="cust-card-sub">'+lastActivity+'</div>':'')+matchHint+alertPill+'</div>'+
       '<div><div>'+phoneHtml+'</div>'+emailHtml+invEmailHtml+'</div>'+
       actCol+
       '<div>'+wonHtml+'</div>'+
@@ -3423,12 +3436,21 @@ function renderContacts() {
   setS('ct-no-email', noEmail);
 
   // Search
+  // Search — matches name, company, phone, email OR role, RANKED by where the match
+  // is: name beats company beats other fields. Tiers:
+  //   0 name starts-with · 1 name contains · 2 company starts-with · 3 company contains
+  //   · 4 matched only in phone/email/role. _mfield = matched field when name+company miss.
   if (sl) contacts = contacts.filter(function(c){
-    return (c.name||'').toLowerCase().includes(sl)||
-           (c.company||'').toLowerCase().includes(sl)||
-           (c.phone||'').toLowerCase().includes(sl)||
-           (c.email||'').toLowerCase().includes(sl)||
-           (c.role||'').toLowerCase().includes(sl);
+    var n = (c.name||'').toLowerCase(), na = n.indexOf(sl);
+    if (na === 0) { c._mrank = 0; c._mfield = ''; return true; }
+    if (na >  0) { c._mrank = 1; c._mfield = ''; return true; }
+    var co = (c.company||'').toLowerCase(), ca = co.indexOf(sl);
+    if (ca === 0) { c._mrank = 2; c._mfield = ''; return true; }
+    if (ca >  0) { c._mrank = 3; c._mfield = ''; return true; }
+    if ((c.phone||'').toLowerCase().includes(sl)) { c._mrank = 4; c._mfield = 'phone'; return true; }
+    if ((c.email||'').toLowerCase().includes(sl)) { c._mrank = 4; c._mfield = 'email'; return true; }
+    if ((c.role||'').toLowerCase().includes(sl))  { c._mrank = 4; c._mfield = 'role';  return true; }
+    return false;
   });
 
   // Filter
@@ -3439,13 +3461,17 @@ function renderContacts() {
   if (filter==='no-phone')  contacts=contacts.filter(function(c){ return !c.phone; });
   if (filter==='unlinked')  contacts=contacts.filter(function(c){ return !c.customerId; });
 
-  // Sort
-  contacts.sort(function(a,b){
+  // Sort — best matches first when searching, then the chosen sort
+  function _contCmp(a,b){
     if (sort==='name-asc')  return (a.name||'').localeCompare(b.name||'');
     if (sort==='name-desc') return (b.name||'').localeCompare(a.name||'');
     if (sort==='company')   return (a.company||'').localeCompare(b.company||'');
     if (sort==='recent')    return (b.createdAt||'').localeCompare(a.createdAt||'');
     return (a.name||'').localeCompare(b.name||'');
+  }
+  contacts.sort(function(a,b){
+    if (sl) { var r=(a._mrank||0)-(b._mrank||0); if (r) return r; }
+    return _contCmp(a,b);
   });
 
   var el = document.getElementById('cont-tbl');
@@ -3512,6 +3538,7 @@ function renderContacts() {
       // Name + last activity
       '<div>'+
         '<div class="cont-name">'+escHtml(c.name||'')+'</div>'+
+        ((sl&&c._mfield)?'<div class="cust-match-hint">🔎 matched in '+c._mfield+'</div>':'')+
         (lastQ?'<div class="cont-sub">Last quote: '+escHtml(lastQ.dt||'')+'</div>':'')+
         (c.notes?(function(){var _t=(typeof stripHtmlToText==='function'?stripHtmlToText(c.notes):c.notes);return '<div class="cont-sub" style="font-style:italic">'+escHtml(_t.slice(0,60))+(_t.length>60?'…':'')+'</div>';})():'')+
       '</div>'+
