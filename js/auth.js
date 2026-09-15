@@ -123,6 +123,30 @@ function initSupabase() {
 }
 
 // ---------------------------------------------------------------------------
+// Paginated SELECT — fetch ALL rows past Supabase/PostgREST's 1000-row cap.
+// PostgREST returns at most 1000 rows per request unless you page with .range().
+// Without this, tables over 1000 rows (e.g. a large customer/contact import)
+// load only their first 1000 rows and the rest silently never appear.
+// `build` must return a FRESH query builder each call (so .range can be applied
+// per page); the builder's own .select/.eq/.order/.is/.in are preserved.
+// Returns { data, error } just like a normal select. On a mid-page error it
+// returns whatever was gathered so far PLUS the error, so callers that guard on
+// `error` (to avoid dropping local rows) keep working.
+// ---------------------------------------------------------------------------
+async function _sbSelectAll(build) {
+  var PAGE = 1000, from = 0, all = [];
+  for (;;) {
+    var resp = await build().range(from, from + PAGE - 1);
+    if (resp.error) { return { data: all, error: resp.error }; }
+    var rows = resp.data || [];
+    all = all.concat(rows);
+    if (rows.length < PAGE) break;   // last (partial) page reached
+    from += PAGE;
+  }
+  return { data: all, error: null };
+}
+
+// ---------------------------------------------------------------------------
 // Server-authoritative business-number allocation (migration _17).
 // Every human-facing sequence number (Q-, J-, WO-, PO-, INV-) is allocated by
 // the atomic next_number() RPC, so two devices can never mint the same number.
@@ -616,10 +640,10 @@ async function syncAllFromCloud(silent) {
 
     // 2. Quotes
     try {
-      var { data: quotes, error: qe } = await _sb.from('quotes')
+      var { data: quotes, error: qe } = await _sbSelectAll(function(){ return _sb.from('quotes')
         .select('*, quote_line_items(*)')
         .is('deleted_at', null)   // never pull soft-deleted quotes — structural fix for resurrection
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }); });
       if (qe) { errors.push('quotes: '+qe.message); }
       else if (quotes) {
         // Filter out quotes the user has deleted locally
@@ -642,7 +666,7 @@ async function syncAllFromCloud(silent) {
         // Safety: only treat a synced-but-absent row as "deleted elsewhere" when the
         // pull is provably COMPLETE — non-empty and under Supabase's 1000-row default
         // cap. An empty or capped result must NOT drop synced rows (would lose data).
-        var qCloudComplete = quotes.length > 0 && quotes.length < 1000;
+        var qCloudComplete = quotes.length > 0;  // pagination returns the full set (no 1000 cap)
         var localOnlyQuotes = (DB.quotes||[]).filter(function(q){ return q.id && !cloudQuoteIds.has(String(q.id)) && !(q.num && cloudQuoteNums.has(String(q.num))) && delQ.indexOf(String(q.id)) < 0 && !(q._synced && qCloudComplete); });
         var cloudQuotes = quotes.map(function(q) {
           return {
@@ -713,12 +737,14 @@ async function syncAllFromCloud(silent) {
 
     // 3. Customers
     try {
-      var { data: custs, error: ce } = await _sb.from('customers').select('*').eq('is_active', true).order('name');
+      var { data: custs, error: ce } = await _sbSelectAll(function(){ return _sb.from('customers').select('*').eq('is_active', true).order('name'); });
       if (ce) { errors.push('customers: '+ce.message); }
       else if (custs) {
         custs = custs.filter(function(c){ return delC.indexOf(String(c.id)) < 0; });
         var cloudCustIds = new Set(custs.map(function(c){ return String(c.id); }));
-        var cCloudComplete = custs.length > 0 && custs.length < 1000;
+        // Complete = fetched with no error AND non-empty. Pagination now returns the
+        // FULL set, so completeness no longer depends on being under the 1000 cap.
+        var cCloudComplete = custs.length > 0;
         var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)) && delC.indexOf(String(c.id)) < 0 && !(c._synced && cCloudComplete); });
         var cloudCusts = custs.map(function(c) {
           return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, moduleAlerts:c.module_alerts||null, notes:c.notes, active:c.is_active };
@@ -730,7 +756,7 @@ async function syncAllFromCloud(silent) {
 
     // 4. Catalog
     try {
-      var { data: cat, error: cate } = await _sb.from('catalog').select('*').eq('is_active', true).order('name');
+      var { data: cat, error: cate } = await _sbSelectAll(function(){ return _sb.from('catalog').select('*').eq('is_active', true).order('name'); });
       if (cate) { errors.push('catalog: '+cate.message); }
       else if (cat && cat.length) {
         DB.catalog = cat.filter(function(item){ return delCat.indexOf(String(item.id)) < 0; }).map(function(item) {
@@ -741,7 +767,7 @@ async function syncAllFromCloud(silent) {
 
     // 5. Templates
     try {
-      var { data: tmpl, error: te } = await _sb.from('templates').select('*').eq('is_active', true).order('name');
+      var { data: tmpl, error: te } = await _sbSelectAll(function(){ return _sb.from('templates').select('*').eq('is_active', true).order('name'); });
       if (te) { errors.push('templates: '+te.message); }
       else if (tmpl && tmpl.length) {
         DB.templates = tmpl.filter(function(t){ return delTmpl.indexOf(String(t.id)) < 0; }).map(function(t) {
@@ -769,12 +795,13 @@ async function syncAllFromCloud(silent) {
 
     // 7. Contacts
     try {
-      var { data: conts, error: cone } = await _sb.from('contacts').select('*').eq('is_active', true).order('name');
+      var { data: conts, error: cone } = await _sbSelectAll(function(){ return _sb.from('contacts').select('*').eq('is_active', true).order('name'); });
       if (cone) { errors.push('contacts: '+cone.message); }
       else if (conts) {
         conts = conts.filter(function(c){ return delCt.indexOf(String(c.id)) < 0; });
         var cloudContIds = new Set(conts.map(function(c){ return String(c.id); }));
-        var ctCloudComplete = conts.length > 0 && conts.length < 1000;
+        // Complete = non-empty (pagination returns the full set); no longer 1000-capped.
+        var ctCloudComplete = conts.length > 0;
         var localOnlyConts = (DB.contacts||[]).filter(function(c){ return c.id && !cloudContIds.has(String(c.id)) && delCt.indexOf(String(c.id)) < 0 && !(c._synced && ctCloudComplete); });
         var cloudConts = conts.map(function(c) {
           return {
@@ -799,7 +826,7 @@ async function syncAllFromCloud(silent) {
 
     // 8. Jobs
     try {
-      var { data: jobRows, error: je } = await _sb.from('jobs').select('*').eq('is_active', true).order('created_at', {ascending:false});
+      var { data: jobRows, error: je } = await _sbSelectAll(function(){ return _sb.from('jobs').select('*').eq('is_active', true).order('created_at', {ascending:false}); });
       if (je) { errors.push('jobs: '+je.message); }
       else if (jobRows && jobRows.length) {
         var jobPullStatusMap = {
@@ -848,7 +875,7 @@ async function syncAllFromCloud(silent) {
 
     // 9. Team — pull from team table (Supabase is authoritative — no local merge)
     try {
-      var { data: teamRows, error: te2 } = await _sb.from('team').select('*').eq('is_active', true).order('full_name');
+      var { data: teamRows, error: te2 } = await _sbSelectAll(function(){ return _sb.from('team').select('*').eq('is_active', true).order('full_name'); });
       if (te2) { errors.push('team: '+te2.message); }
       else if (teamRows) {
         teamRows = teamRows.filter(function(m){ return delT.indexOf(String(m.id)) < 0; });
@@ -872,7 +899,7 @@ async function syncAllFromCloud(silent) {
 
     // 10. Time Entries
     try {
-      var { data: timeRows, error: tre } = await _sb.from('time_entries').select('*').order('created_at', { ascending: false });
+      var { data: timeRows, error: tre } = await _sbSelectAll(function(){ return _sb.from('time_entries').select('*').order('created_at', { ascending: false }); });
       if (tre) { errors.push('time_entries: '+tre.message); }
       else if (timeRows) {
         var cloudTimeIds = new Set(timeRows.map(function(t){ return String(t.id); }));
@@ -910,7 +937,7 @@ async function syncAllFromCloud(silent) {
     // back the correction audit (corrections/corrected) + PTO flags so they survive the
     // round-trip. No tombstones (workDays has no delete path).
     try {
-      var { data: wdRows, error: wdpe } = await _sb.from('app_work_days').select('*');
+      var { data: wdRows, error: wdpe } = await _sbSelectAll(function(){ return _sb.from('app_work_days').select('*'); });
       if (wdpe) { errors.push('app_work_days: '+wdpe.message); }
       else if (wdRows) {
         var cloudWdIds = new Set(wdRows.map(function(w){ return String(w.id); }));
@@ -936,7 +963,7 @@ async function syncAllFromCloud(silent) {
     // pushed) invoices and drops any that are tombstoned locally, so a pull never wipes
     // an invoice that hasn't synced and never resurrects one queued for delete.
     try {
-      var { data: invRows, error: invpe } = await _sb.from('app_invoices').select('*');
+      var { data: invRows, error: invpe } = await _sbSelectAll(function(){ return _sb.from('app_invoices').select('*'); });
       if (invpe) { errors.push('app_invoices: '+invpe.message); }
       else if (invRows) {
         var cloudInvIds = new Set(invRows.map(function(r){ return String(r.id); }));
@@ -950,12 +977,12 @@ async function syncAllFromCloud(silent) {
 
     // 11. Work Tracking — sync project metadata only (items/checkoffs fetched on demand)
     try {
-      var { data: wtProjRows, error: wtpe } = await _sb.from('wt_projects').select('*').in('status',['active','paused']).order('created_at', { ascending: false });
+      var { data: wtProjRows, error: wtpe } = await _sbSelectAll(function(){ return _sb.from('wt_projects').select('*').in('status',['active','paused']).order('created_at', { ascending: false }); });
       if (wtpe) { errors.push('wt_projects: '+wtpe.message); }
       else if (wtProjRows) { DB.wtProjects = wtProjRows; }
     } catch(e) { errors.push('wt_projects: '+e.message); }
     try {
-      var { data: wtTplRows, error: wtte } = await _sb.from('wt_templates').select('id,name,template_type,customer_id,created_at').order('created_at', { ascending: false });
+      var { data: wtTplRows, error: wtte } = await _sbSelectAll(function(){ return _sb.from('wt_templates').select('id,name,template_type,customer_id,created_at').order('created_at', { ascending: false }); });
       if (!wtte && wtTplRows) DB.wtTemplates = wtTplRows;
     } catch(e) { /* templates optional */ }
 
@@ -964,7 +991,7 @@ async function syncAllFromCloud(silent) {
 
     // 13. Comms Log
     try {
-      var { data: commsRows, error: comme } = await _sb.from('comms_log').select('*').order('created_at', { ascending: false });
+      var { data: commsRows, error: comme } = await _sbSelectAll(function(){ return _sb.from('comms_log').select('*').order('created_at', { ascending: false }); });
       if (comme) { errors.push('comms_log: '+comme.message); }
       else if (commsRows) {
         DB.commsLog = commsRows.map(function(c){
@@ -975,7 +1002,7 @@ async function syncAllFromCloud(silent) {
 
     // 14. Invoice Payments
     try {
-      var { data: pmtRows, error: pmte } = await _sb.from('invoice_payments').select('*').order('created_at', { ascending: false });
+      var { data: pmtRows, error: pmte } = await _sbSelectAll(function(){ return _sb.from('invoice_payments').select('*').order('created_at', { ascending: false }); });
       if (pmte) { errors.push('invoice_payments: '+pmte.message); }
       else if (pmtRows) {
         DB.invoicePayments = pmtRows.map(function(p){
@@ -986,7 +1013,7 @@ async function syncAllFromCloud(silent) {
 
     // 15. Work Orders
     try {
-      var { data: woRows, error: woe } = await _sb.from('work_orders').select('*').order('created_at', { ascending: false });
+      var { data: woRows, error: woe } = await _sbSelectAll(function(){ return _sb.from('work_orders').select('*').order('created_at', { ascending: false }); });
       if (woe) { errors.push('work_orders: '+woe.message); }
       else if (woRows) {
         // Suppress rows we deleted here whose cloud delete hasn't confirmed yet
@@ -1012,7 +1039,7 @@ async function syncAllFromCloud(silent) {
 
     // 16. WO Labor
     try {
-      var { data: woLaborRows, error: wole } = await _sb.from('wo_labor').select('*').order('created_at', { ascending: false });
+      var { data: woLaborRows, error: wole } = await _sbSelectAll(function(){ return _sb.from('wo_labor').select('*').order('created_at', { ascending: false }); });
       if (wole) { errors.push('wo_labor: '+wole.message); }
       else if (woLaborRows) {
         // Tombstone-filter: a labor entry deleted locally but not yet confirmed-deleted
@@ -1026,7 +1053,7 @@ async function syncAllFromCloud(silent) {
 
     // 17. WO Parts
     try {
-      var { data: woPartsRows, error: wope } = await _sb.from('wo_parts').select('*').order('created_at', { ascending: false });
+      var { data: woPartsRows, error: wope } = await _sbSelectAll(function(){ return _sb.from('wo_parts').select('*').order('created_at', { ascending: false }); });
       if (wope) { errors.push('wo_parts: '+wope.message); }
       else if (woPartsRows) {
         // SC-3b: this pull FULL-REPLACES DB.woParts, so a part tombstoned locally but
@@ -1040,7 +1067,7 @@ async function syncAllFromCloud(silent) {
 
     // 17b. WO Checklist
     try {
-      var { data: woClRows, error: wocle } = await _sb.from('wo_checklist').select('*').order('created_at', { ascending: true });
+      var { data: woClRows, error: wocle } = await _sbSelectAll(function(){ return _sb.from('wo_checklist').select('*').order('created_at', { ascending: true }); });
       if (wocle) { errors.push('wo_checklist: '+wocle.message); }
       else if (woClRows) {
         DB.woChecklist = woClRows.filter(function(c){ return delWCl.indexOf(String(c.id)) < 0; }).map(function(c){
@@ -1051,7 +1078,7 @@ async function syncAllFromCloud(silent) {
 
     // 18. WO Expenses
     try {
-      var { data: woExpRows, error: woee } = await _sb.from('wo_expenses').select('*').order('created_at', { ascending: false });
+      var { data: woExpRows, error: woee } = await _sbSelectAll(function(){ return _sb.from('wo_expenses').select('*').order('created_at', { ascending: false }); });
       if (woee) { errors.push('wo_expenses: '+woee.message); }
       else if (woExpRows) {
         DB.woExpenses = woExpRows.filter(function(e){ return delWE.indexOf(String(e.id)) < 0; }).map(function(e){
@@ -1062,7 +1089,7 @@ async function syncAllFromCloud(silent) {
 
     // 19. Inventory
     try {
-      var { data: invRows, error: inve } = await _sb.from('inventory').select('*').order('name');
+      var { data: invRows, error: inve } = await _sbSelectAll(function(){ return _sb.from('inventory').select('*').order('name'); });
       if (inve) { errors.push('inventory: '+inve.message); }
       else if (invRows) {
         // Exclude soft-deleted (is_active===false). NULL-safe: existing rows may have
@@ -1090,7 +1117,7 @@ async function syncAllFromCloud(silent) {
 
     // 16. Vendors
     try {
-      var { data: vendorRows, error: ve } = await _sb.from('vendors').select('*').eq('is_active', true).order('name');
+      var { data: vendorRows, error: ve } = await _sbSelectAll(function(){ return _sb.from('vendors').select('*').eq('is_active', true).order('name'); });
       if (ve) { errors.push('vendors: '+ve.message); }
       else if (vendorRows) {
         DB.vendors = vendorRows.map(function(v){
@@ -1105,7 +1132,7 @@ async function syncAllFromCloud(silent) {
 
     // 20. Recurring Contracts (Managed Services)
     try {
-      var { data: rcRows, error: rce } = await _sb.from('recurring_contracts').select('*').order('sort_order',{ascending:true});
+      var { data: rcRows, error: rce } = await _sbSelectAll(function(){ return _sb.from('recurring_contracts').select('*').order('sort_order',{ascending:true}); });
       if (rce) { errors.push('recurring_contracts: '+rce.message); }
       else if (rcRows) {
         var mapped = rcRows.map(function(r){
@@ -1134,7 +1161,7 @@ async function syncAllFromCloud(silent) {
 
     // 21. Contracts
     try {
-      var { data: ctrRows, error: ctre } = await _sb.from('contracts').select('*').order('created_at',{ascending:false});
+      var { data: ctrRows, error: ctre } = await _sbSelectAll(function(){ return _sb.from('contracts').select('*').order('created_at',{ascending:false}); });
       if (ctre) { errors.push('contracts: '+ctre.message); }
       else if (ctrRows) {
         // Suppress tombstoned rows until the cloud delete confirms (RLS-silent-block guard).
@@ -1158,7 +1185,7 @@ async function syncAllFromCloud(silent) {
 
     // 17. Purchase Orders
     try {
-      var { data: poRows, error: poe } = await _sb.from('purchase_orders').select('*, po_line_items(*)').order('created_at', { ascending: false });
+      var { data: poRows, error: poe } = await _sbSelectAll(function(){ return _sb.from('purchase_orders').select('*, po_line_items(*)').order('created_at', { ascending: false }); });
       if (poe) { errors.push('purchase_orders: '+poe.message); }
       else if (poRows) {
         // Suppress tombstoned rows until their cloud delete confirms (RLS-silent-block guard).
@@ -1195,7 +1222,7 @@ async function syncAllFromCloud(silent) {
   // Secondary collections (tools, checkouts, inventory locations/transfers) live in the
   // app_state blob store. Only overwrite local when the cloud actually returned an array.
   try {
-    var { data: stateRows } = await _sb.from('app_state').select('key,data');
+    var { data: stateRows } = await _sbSelectAll(function(){ return _sb.from('app_state').select('key,data'); });
     if (stateRows && stateRows.length) {
       stateRows.forEach(function(row){ if (row && row.key && Array.isArray(row.data)) DB[row.key] = row.data; });
     }
@@ -1520,7 +1547,7 @@ async function pushAllToCloud() {
     var _localNonUuidCustomers = (DB.customers||[]).filter(function(c){ return c && c.id && !isUUID(c.id); });
     if (_localNonUuidCustomers.length) {
       try {
-        var { data: _existingCusts } = await _sb.from('customers').select('id,name,phone,email');
+        var { data: _existingCusts } = await _sbSelectAll(function(){ return _sb.from('customers').select('id,name,phone,email'); });
         _existingCusts = _existingCusts || [];
         _localNonUuidCustomers.forEach(function(c){
           var norm = function(s){ return (s||'').toString().trim().toLowerCase().replace(/[^a-z0-9]/g,''); };
