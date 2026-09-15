@@ -2723,31 +2723,89 @@ function _openEditForInvEmail(custId) {
   editCustomer(custId);
 }
 
+// ---- List performance helpers (customers + contacts) -----------------------
+// These big lists were recomputing every row's cross-references (quotes/jobs/
+// WOs/invoices/contacts per customer) on EVERY render, including every search
+// keystroke, and drawing all rows at once. That is fine at 40 rows, sluggish at
+// ~1,850. Fixes: (1) debounce the search box, (2) render in pages, (3) compute
+// counts by a single linear pass with lookup maps instead of nested scans.
+var LIST_PAGE_SIZE = 100;
+var _custPage = 1, _custKey = null, _custSearchTimer = null;
+var _contPage = 1, _contKey = null, _contSearchTimer = null;
+function _custSearch(){ clearTimeout(_custSearchTimer); _custSearchTimer = setTimeout(function(){ try{ renderCustomers(); }catch(e){} }, 160); }
+function _contSearch(){ clearTimeout(_contSearchTimer); _contSearchTimer = setTimeout(function(){ try{ renderContacts(); }catch(e){} }, 160); }
+function _custGoPage(n){ _custPage = n; renderCustomers(); var t=document.getElementById('cust-tbl'); if(t&&t.scrollIntoView) t.scrollIntoView({block:'start'}); }
+function _contGoPage(n){ _contPage = n; renderContacts(); var t=document.getElementById('cont-tbl'); if(t&&t.scrollIntoView) t.scrollIntoView({block:'start'}); }
+function _listPager(page, pages, total, start, shown, goFn){
+  if (pages <= 1) return '<div class="list-pager"><span class="list-pager-info">'+total+' total</span></div>';
+  var from = total ? start+1 : 0, to = start+shown;
+  return '<div class="list-pager">'+
+    '<button class="btn btn-outline btn-sm"'+(page<=1?' disabled':' onclick="'+goFn+'('+(page-1)+')"')+'>← Prev</button>'+
+    '<span class="list-pager-info">'+from+'–'+to+' of '+total+' &nbsp;·&nbsp; page '+page+' of '+pages+'</span>'+
+    '<button class="btn btn-outline btn-sm"'+(page>=pages?' disabled':' onclick="'+goFn+'('+(page+1)+')"')+'>Next →</button>'+
+  '</div>';
+}
+
 function renderCustomers() {
   var search  = ((document.getElementById('cust-search')||{}).value||'').trim();
   var sort    = (document.getElementById('cust-sort')||{}).value||'name-asc';
   var filter  = (document.getElementById('cust-filter')||{}).value||'';
   var sl      = search.toLowerCase();
 
+  // Reset to page 1 whenever the search/sort/filter changes (page persists otherwise)
+  var _key = sl+'|'+sort+'|'+filter;
+  if (_key !== _custKey) { _custPage = 1; _custKey = _key; }
+
   var allWOs   = DB.workOrders || [];
   var invoices = (DB.commsLog||[]).filter(function(x){ return x.type==='invoice'; });
+  var woDefs   = (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length)?DB.woSettings.statuses:(typeof WO_STATUSES!=='undefined'?WO_STATUSES:[]);
+  var woOpenMap = {}; woDefs.forEach(function(s){ woOpenMap[s.id] = !!s.open; });
 
-  var customers = DB.customers.map(function(c) {
-    var qct  = DB.quotes.filter(function(q){ return q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase(); });
-    var jct  = (typeof _getActiveWOsAsJobs==='function'?_getActiveWOsAsJobs():(DB.jobs||[])).filter(function(j){ return (j.customerId===c.id||(j.customer||j.customerName||'').toLowerCase()===(c.name||'').toLowerCase()); });
-    var woct = allWOs.filter(function(w){ return w.customerId===c.id||(w.customerName||'').toLowerCase()===(c.name||'').toLowerCase(); });
-    var invct= invoices.filter(function(i){ return i.customerId===c.id||(i.customerName||'').toLowerCase()===(c.name||'').toLowerCase(); });
-    var cct  = DB.contacts.filter(function(x){ return x.customerId===c.id; });
-    var wonRev = qct.filter(function(q){ return q.status==='approved'; }).reduce(function(s,q){ return s+(q.total||0); }, 0);
+  // --- Linear aggregation: one pass per data set, each record attributed to a
+  //     single customer (by customerId, else by matching name). Turns the old
+  //     O(customers × records) nested scans into O(customers + records). ---
+  var agg = {}, nameToId = {};
+  (DB.customers||[]).forEach(function(c){
+    agg[c.id] = { q:0,qOpen:0,won:0,lastQ:null, j:0,jOpen:0, wo:0,woOpen:0, inv:0,invOpen:0, ct:0 };
+    var k = (c.name||'').toLowerCase();
+    if (k && !(k in nameToId)) nameToId[k] = c.id;
+  });
+  function _ownerId(id, name){
+    if (id && agg[id]) return id;
+    var k = (name||'').toLowerCase();
+    return k ? nameToId[k] : undefined;
+  }
+  var _closedQ = { approved:1, rejected:1, archived:1, won:1, lost:1 };
+  (DB.quotes||[]).forEach(function(q){
+    var id = _ownerId(q.customerId, q.cn); if (!id) return; var a = agg[id];
+    a.q++;
+    if (!_closedQ[q.status]) a.qOpen++;
+    if (q.status==='approved') a.won += (q.total||0);
+    if (!a.lastQ || (q.dt||'') > (a.lastQ.dt||'')) a.lastQ = q;
+  });
+  var _jobsSrc = (typeof _getActiveWOsAsJobs==='function'?_getActiveWOsAsJobs():(DB.jobs||[]));
+  _jobsSrc.forEach(function(j){
+    var id = _ownerId(j.customerId, j.customer||j.customerName); if (!id) return; var a = agg[id];
+    a.j++;
+    if (j.status!=='complete' && j.status!=='closed') a.jOpen++;
+  });
+  allWOs.forEach(function(w){
+    var id = _ownerId(w.customerId, w.customerName); if (!id) return; var a = agg[id];
+    a.wo++;
+    if (w.status in woOpenMap ? woOpenMap[w.status] : true) a.woOpen++;
+  });
+  invoices.forEach(function(i){
+    var id = _ownerId(i.customerId, i.customerName); if (!id) return; var a = agg[id];
+    a.inv++;
+    if (!i.paidAt && !i.paid) a.invOpen++;
+  });
+  (DB.contacts||[]).forEach(function(x){
+    if (x.customerId && agg[x.customerId]) agg[x.customerId].ct++;
+  });
 
-    var closedQ = ['approved','rejected','archived','won','lost'];
-    var qOpen   = qct.filter(function(q){ return !closedQ.includes(q.status); }).length;
-    var jOpen   = jct.filter(function(j){ return j.status!=='complete'&&j.status!=='closed'; }).length;
-    var woDefs  = (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length)?DB.woSettings.statuses:(typeof WO_STATUSES!=='undefined'?WO_STATUSES:[]);
-    var woOpen  = woct.filter(function(w){ var d=woDefs.find(function(s){ return s.id===w.status; }); return d?d.open:true; }).length;
-    var invOpen = invct.filter(function(i){ return !i.paidAt&&!i.paid; }).length;
-
-    return Object.assign({},c,{_qct:qct.length,_qOpen:qOpen,_jct:jct.length,_jOpen:jOpen,_woct:woct.length,_woOpen:woOpen,_invct:invct.length,_invOpen:invOpen,_cct:cct.length,_wonRev:wonRev});
+  var customers = (DB.customers||[]).map(function(c) {
+    var a = agg[c.id] || {};
+    return Object.assign({},c,{_qct:a.q||0,_qOpen:a.qOpen||0,_jct:a.j||0,_jOpen:a.jOpen||0,_woct:a.wo||0,_woOpen:a.woOpen||0,_invct:a.inv||0,_invOpen:a.invOpen||0,_cct:a.ct||0,_wonRev:a.won||0,_lastQ:a.lastQ||null});
   });
 
   // Summary strip
@@ -2805,7 +2863,15 @@ function renderCustomers() {
            '<span class="cust-bubble tot" onclick="'+nav+'" title="All '+page+'">'+total+'</span>';
   }
 
-  var rows = customers.map(function(c) {
+  // Pagination — render one page of rows, not all ~1,850 at once.
+  var _total = customers.length;
+  var _pages = Math.max(1, Math.ceil(_total / LIST_PAGE_SIZE));
+  if (_custPage > _pages) _custPage = _pages;
+  if (_custPage < 1) _custPage = 1;
+  var _start = (_custPage - 1) * LIST_PAGE_SIZE;
+  var _pageItems = customers.slice(_start, _start + LIST_PAGE_SIZE);
+
+  var rows = _pageItems.map(function(c) {
     var phoneHtml = c.phone
       ? '<a href="tel:'+escHtml(c.phone)+'" class="cust-phone-link">'+escHtml(c.phone)+'</a>'
       : '<span style="color:#d0d0d0;font-size:12px">—</span>';
@@ -2821,8 +2887,7 @@ function renderCustomers() {
       ? '<div class="cust-alert-pill" onclick="openCustomerProfile(\''+c.id+'\')">⚠ Alert</div>'
       : '';
 
-    var lastQ = DB.quotes.filter(function(q){ return q.customerId===c.id||(q.cn||'').toLowerCase()===(c.name||'').toLowerCase(); })
-      .sort(function(a,b){ return (b.dt||'').localeCompare(a.dt||''); })[0];
+    var lastQ = c._lastQ;
     var lastActivity = lastQ ? 'Last quote: '+escHtml(lastQ.dt||'') : '';
 
     var n = escHtml(c.name||'');
@@ -2853,7 +2918,7 @@ function renderCustomers() {
     '</div>';
   }).join('');
 
-  el.innerHTML = header + rows;
+  el.innerHTML = header + rows + _listPager(_custPage, _pages, _total, _start, _pageItems.length, '_custGoPage');
 }
 function setCustSort(val) {
   var sel = document.getElementById('cust-sort');
@@ -3319,6 +3384,21 @@ function renderContacts() {
   var filter = (document.getElementById('cont-filter')||{}).value||'';
   var sl     = search.toLowerCase();
 
+  // Reset to page 1 whenever the search/sort/filter changes (page persists otherwise)
+  var _key = sl+'|'+sort+'|'+filter;
+  if (_key !== _contKey) { _contPage = 1; _contKey = _key; }
+
+  // Lookup maps built ONCE (were an O(contacts × customers) find + an
+  // O(contacts × quotes) scan per row before).
+  var _custById = {};
+  (DB.customers||[]).forEach(function(x){ _custById[x.id] = x; });
+  var _lastQByContact = {};
+  (DB.quotes||[]).forEach(function(q){
+    if (!q.contactId) return;
+    var prev = _lastQByContact[q.contactId];
+    if (!prev || (q.dt||'') > (prev.dt||'')) _lastQByContact[q.contactId] = q;
+  });
+
   var contacts = DB.contacts.slice();
 
   // Summary
@@ -3390,14 +3470,21 @@ function renderContacts() {
     '<span>Actions</span>'+
   '</div>';
 
-  var rows = contacts.map(function(c){
-    // Find linked customer
-    var cust = c.customerId ? (DB.customers||[]).find(function(x){ return x.id===c.customerId; }) : null;
+  // Pagination — render one page of rows, not all at once.
+  var _total = contacts.length;
+  var _pages = Math.max(1, Math.ceil(_total / LIST_PAGE_SIZE));
+  if (_contPage > _pages) _contPage = _pages;
+  if (_contPage < 1) _contPage = 1;
+  var _start = (_contPage - 1) * LIST_PAGE_SIZE;
+  var _pageItems = contacts.slice(_start, _start + LIST_PAGE_SIZE);
+
+  var rows = _pageItems.map(function(c){
+    // Find linked customer (O(1) map lookup)
+    var cust = c.customerId ? _custById[c.customerId] : null;
     var custName = cust ? cust.name : (c.company||'');
 
-    // Last quote involving this contact
-    var lastQ = (DB.quotes||[]).filter(function(q){ return q.contactId===c.id; })
-      .sort(function(a,b){ return (b.dt||'').localeCompare(a.dt||''); })[0];
+    // Last quote involving this contact (precomputed)
+    var lastQ = _lastQByContact[c.id];
 
     var phoneHtml = c.phone
       ? '<a href="tel:'+escHtml(c.phone)+'" class="cust-phone-link">'+escHtml(c.phone)+(c.phoneType?'<span style="color:#90a4ae;font-size:10px"> ('+escHtml(c.phoneType)+')</span>':'')+'</a>'+
@@ -3455,7 +3542,7 @@ function renderContacts() {
     '</div>';
   }).join('');
 
-  el.innerHTML = header + rows;
+  el.innerHTML = header + rows + _listPager(_contPage, _pages, _total, _start, _pageItems.length, '_contGoPage');
 }
 
 function setContSort(val) {

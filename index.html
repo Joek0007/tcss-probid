@@ -683,6 +683,9 @@ body.dark-mode .dash-stat-val{color:#e0e0e0!important}
 .cust-won.zero{color:#90a4ae;font-weight:400;font-size:13px}
 .cust-actions{display:flex;gap:4px;flex-shrink:0}
 .cust-col-header{display:grid;grid-template-columns:2fr 1.3fr 1.6fr 0.9fr auto;gap:12px;padding:8px 16px;border-bottom:2px solid #e8e8e8;background:#f8f9fa;border-radius:8px 8px 0 0}
+.list-pager{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;padding:14px 16px;margin-top:4px;border-top:1px solid #eee}
+.list-pager-info{font-size:12px;color:#607d8b;white-space:nowrap}
+.list-pager .btn[disabled]{opacity:.45;cursor:default;pointer-events:none}
 .cust-col-header span{font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none}
 .cust-col-header span:hover{color:#1565c0}
 @media(max-width:768px){
@@ -3221,7 +3224,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <div class="card">
     <!-- Filter / sort bar -->
     <div class="filter-bar" style="margin-bottom:12px">
-      <input class="search-input" id="cust-search" placeholder="🔍 Search customers..." oninput="renderCustomers()" onfocus="this.value='';var cf=document.getElementById('cust-filter');if(cf)cf.value='';renderCustomers()">
+      <input class="search-input" id="cust-search" placeholder="🔍 Search customers..." oninput="_custSearch()" onfocus="this.value='';var cf=document.getElementById('cust-filter');if(cf)cf.value='';renderCustomers()">
       <select id="cust-sort" style="width:auto" onchange="renderCustomers()">
         <option value="name-asc">Name A–Z</option>
         <option value="name-desc">Name Z–A</option>
@@ -3260,7 +3263,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
   <div class="card">
     <div class="filter-bar" style="margin-bottom:12px">
-      <input class="search-input" id="cont-search" placeholder="🔍 Search contacts..." oninput="renderContacts()" onfocus="this.value='';renderContacts()">
+      <input class="search-input" id="cont-search" placeholder="🔍 Search contacts..." oninput="_contSearch()" onfocus="this.value='';renderContacts()">
       <select id="cont-sort" style="width:auto" onchange="renderContacts()">
         <option value="name-asc">Name A–Z</option>
         <option value="name-desc">Name Z–A</option>
@@ -6417,26 +6420,26 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260915cf with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260915cg with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260915cf"></script>
-<script src="js/quotes.js?v=20260915cf"></script>
-<script src="js/tools.js?v=20260915cf"></script>
-<script src="js/field.js?v=20260915cf"></script>
-<script src="js/crm.js?v=20260915cf"></script>
-<script src="js/dispatch.js?v=20260915cf"></script>
-<script src="js/permissions.js?v=20260915cf"></script>
-<script src="js/worktracking.js?v=20260915cf"></script>
-<script src="js/calendar.js?v=20260915cf"></script>
-<script src="js/workorders.js?v=20260915cf"></script>
-<script src="js/purchaseorders.js?v=20260915cf"></script>
-<script src="js/inventory.js?v=20260915cf"></script>
-<script src="js/reports.js?v=20260915cf"></script>
-<script src="js/recyclebin.js?v=20260915cf"></script>
-<script src="js/contracts.js?v=20260915cf"></script>
-  <script src="js/recurring.js?v=20260915cf"></script>
-  <script src="js/seed_managed.js?v=20260915cf"></script>
-  <script src="js/auth.js?v=20260915cf"></script>
+<script src="js/core.js?v=20260915cg"></script>
+<script src="js/quotes.js?v=20260915cg"></script>
+<script src="js/tools.js?v=20260915cg"></script>
+<script src="js/field.js?v=20260915cg"></script>
+<script src="js/crm.js?v=20260915cg"></script>
+<script src="js/dispatch.js?v=20260915cg"></script>
+<script src="js/permissions.js?v=20260915cg"></script>
+<script src="js/worktracking.js?v=20260915cg"></script>
+<script src="js/calendar.js?v=20260915cg"></script>
+<script src="js/workorders.js?v=20260915cg"></script>
+<script src="js/purchaseorders.js?v=20260915cg"></script>
+<script src="js/inventory.js?v=20260915cg"></script>
+<script src="js/reports.js?v=20260915cg"></script>
+<script src="js/recyclebin.js?v=20260915cg"></script>
+<script src="js/contracts.js?v=20260915cg"></script>
+  <script src="js/recurring.js?v=20260915cg"></script>
+  <script src="js/seed_managed.js?v=20260915cg"></script>
+  <script src="js/auth.js?v=20260915cg"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
