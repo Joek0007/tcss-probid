@@ -1981,11 +1981,39 @@ async function copyPortalLink(id) {
 // ============================================================
 // INVOICES PAGE
 // ============================================================
+// Invoices page: bounded working set is in DB.invoices; a search also queries the FULL
+// invoice history in the cloud (load-on-demand) so any historical invoice is findable.
+var _invPage = 1, _invKey = null, _invSearchTimer = null, _invCloudRows = [], _invCloudTerm = '', _invCloudBusy = false;
+function _invSearch(){
+  clearTimeout(_invSearchTimer);
+  _invSearchTimer = setTimeout(function(){
+    var term = ((document.getElementById('invp-search')||{}).value||'').trim();
+    if (term && typeof fetchInvoicesCloud==='function') {
+      _invCloudBusy = true; try{ renderInvoicesPage(); }catch(e){}
+      fetchInvoicesCloud({ search: term, limit: 400 }).then(function(res){
+        _invCloudRows = (res && res.data) || []; _invCloudTerm = term.toLowerCase(); _invCloudBusy = false;
+        try{ renderInvoicesPage(); }catch(e){}
+      });
+    } else {
+      _invCloudRows = []; _invCloudTerm = ''; _invCloudBusy = false;
+      try{ renderInvoicesPage(); }catch(e){}
+    }
+  }, 200);
+}
+function _invGoPage(n){ _invPage = n; renderInvoicesPage(); var t=document.getElementById('invp-list'); if(t&&t.scrollIntoView) t.scrollIntoView({block:'start'}); }
 function renderInvoicesPage() {
   var search = ((document.getElementById('invp-search')||{}).value||'').toLowerCase();
   var filter = (document.getElementById('invp-filter')||{}).value||'';
   var today  = getTodayISO();
-  var invs   = (DB.invoices||[]).filter(function(i){ return i.type!=='recurring' && !(i.num||'').match(/^INV-(RC|MSC)/); }).slice();
+  var _key = search+'|'+filter;
+  if (_key !== _invKey) { _invPage = 1; _invKey = _key; }
+  // Base = bounded working set; when searching, merge in cloud matches (dedupe by id)
+  var base = (DB.invoices||[]).slice();
+  if (search && _invCloudTerm===search && _invCloudRows.length) {
+    var have = {}; base.forEach(function(i){ if(i&&i.id) have[i.id]=1; });
+    _invCloudRows.forEach(function(i){ if(i&&i.id&&!have[i.id]) base.push(i); });
+  }
+  var invs = base.filter(function(i){ return i.type!=='recurring' && !(i.num||'').match(/^INV-(RC|MSC)/); }).slice();
 
   // Enrich with overdue status
   invs = invs.map(function(inv){
@@ -2029,7 +2057,14 @@ function renderInvoicesPage() {
     }).join('')+
   '</div>';
 
-  var rows = invs.sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); })
+  invs.sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+  // Pagination (100/page) — bounds the DOM even when a broad search returns many.
+  var _invTotal = invs.length;
+  var _invPages = Math.max(1, Math.ceil(_invTotal/100));
+  if (_invPage > _invPages) _invPage = _invPages;
+  if (_invPage < 1) _invPage = 1;
+  var _invStart = (_invPage-1)*100;
+  var rows = invs.slice(_invStart, _invStart+100)
   .map(function(inv){
     var isPaid    = inv.status==='paid';
     var isPartial = inv.status==='partial';
@@ -2066,12 +2101,19 @@ function renderInvoicesPage() {
     '</div>';
   }).join('');
 
-  cont.innerHTML = header + rows;
+  var note = search
+    ? '<div class="list-pager-info" style="padding:6px 14px">'+(_invCloudBusy?'Searching all invoice history…':('Searched all invoice history — '+_invTotal+' match'+(_invTotal===1?'':'es')))+'</div>'
+    : '<div class="list-pager-info" style="padding:6px 14px">Showing recent &amp; open invoices — type in the search box to find any invoice in your full history.</div>';
+  var pager = _listPager(_invPage, _invPages, _invTotal, _invStart, Math.min(100,_invTotal-_invStart), '_invGoPage');
+  cont.innerHTML = header + rows + note + pager;
 }
 
 function reprintInvoice(invId) {
   var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
-  if (!inv) return;
+  if (!inv) {
+    if (typeof fetchInvoiceById==='function') { fetchInvoiceById(invId).then(function(f){ if(f){ reprintInvoice(invId); } else { showToast && showToast('Invoice not found','error'); } }); }
+    return;
+  }
   // Guard against old invoice records that may not have .job object
   var invJob = inv.job || {};
   // Migrate old items: if they have mc but no unitPrice, use mc as unitPrice
@@ -2151,7 +2193,10 @@ function reprintInvoice(invId) {
 
 function printInvoiceDirect(invId) {
   var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
-  if (!inv) return;
+  if (!inv) {
+    if (typeof fetchInvoiceById==='function') { fetchInvoiceById(invId).then(function(f){ if(f){ printInvoiceDirect(invId); } else { showToast && showToast('Invoice not found','error'); } }); }
+    return;
+  }
   // Check if items are empty/zero — if so, try to reload from quote first
   var itemsTotal = (inv.items||[]).reduce(function(s,li){ return s+(parseFloat(li.unitPrice||li.mc||0))*(parseFloat(li.qty||1)); },0);
   if (itemsTotal === 0 && parseFloat(inv.total||0) > 0) {

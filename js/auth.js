@@ -147,6 +147,43 @@ async function _sbSelectAll(build) {
 }
 
 // ---------------------------------------------------------------------------
+// On-demand invoice fetch (Phase-2 load-on-demand). The sync keeps only a bounded
+// working set of invoices in memory; these fetch older/historical ones straight from
+// the cloud when a screen needs them, so the browser never has to hold them all.
+// ---------------------------------------------------------------------------
+async function fetchInvoicesCloud(opts){
+  opts = opts || {};
+  if (!_sb) return { data: [], error: 'offline' };
+  try {
+    var q = _sb.from('app_invoices').select('*');
+    if (opts.customerName) q = q.eq('customer_name', opts.customerName);
+    if (opts.search) {
+      var s = String(opts.search).replace(/[%,]/g,' ').trim();
+      if (s) q = q.or('num.ilike.%'+s+'%,customer_name.ilike.%'+s+'%');
+    }
+    q = q.order('invoice_date',{ascending:false,nullsFirst:false}).range(opts.offset||0, (opts.offset||0)+(opts.limit||200)-1);
+    var r = await q;
+    if (r.error) return { data: [], error: r.error };
+    var del = (DB.deletedIds && DB.deletedIds.invoices) || [];
+    var rows = (r.data||[]).filter(function(x){ return del.indexOf(x.id)===-1; }).map(function(x){ var d=x.data||{}; d._synced=true; return d; });
+    return { data: rows, error: null };
+  } catch(e){ return { data: [], error: e.message||e }; }
+}
+async function fetchInvoiceById(id){
+  var local = (DB.invoices||[]).find(function(i){ return i.id===id; });
+  if (local) return local;
+  if (!_sb) return null;
+  try {
+    var r = await _sb.from('app_invoices').select('*').eq('id', id).limit(1);
+    if (r.error || !r.data || !r.data.length) return null;
+    var d = r.data[0].data || {}; d._synced=true;
+    // cache into memory so downstream reprint/print/pay lookups by id succeed
+    if (d.id && !(DB.invoices||[]).some(function(i){return i.id===d.id;})) { (DB.invoices=DB.invoices||[]).push(d); }
+    return d;
+  } catch(e){ return null; }
+}
+
+// ---------------------------------------------------------------------------
 // Server-authoritative business-number allocation (migration _17).
 // Every human-facing sequence number (Q-, J-, WO-, PO-, INV-) is allocated by
 // the atomic next_number() RPC, so two devices can never mint the same number.
@@ -962,16 +999,33 @@ async function syncAllFromCloud(silent) {
     // object as jsonb `data` for perfect fidelity. Merge preserves local-only (not-yet-
     // pushed) invoices and drops any that are tombstoned locally, so a pull never wipes
     // an invoice that hasn't synced and never resurrects one queued for delete.
+    // LOAD-ON-DEMAND (Phase-2 history): with thousands of historical invoices in the
+    // cloud, we no longer pull them ALL into memory/localStorage (that overflows the
+    // browser cache and slows startup). Instead we keep a bounded WORKING SET —
+    // every OPEN invoice (unpaid/partial) + the most recent ~600 by date — and fetch
+    // older/paid invoices on demand (Invoices-page search + customer profile) via
+    // fetchInvoicesCloud()/fetchInvoiceById(). Pulled rows are marked _synced so the
+    // local-only merge keeps genuinely-unpushed invoices but drops synced ones that
+    // simply fell outside the working set (they're safe in the cloud).
     try {
-      var { data: invRows, error: invpe } = await _sbSelectAll(function(){ return _sb.from('app_invoices').select('*'); });
-      if (invpe) { errors.push('app_invoices: '+invpe.message); }
-      else if (invRows) {
+      var invpe=null, invRows=[];
+      var _recentQ = await _sb.from('app_invoices').select('*').order('invoice_date',{ascending:false,nullsFirst:false}).limit(600);
+      var _openQ   = await _sb.from('app_invoices').select('*').neq('status','paid').limit(3000);
+      if (_recentQ.error) invpe=_recentQ.error; else if (_openQ.error) invpe=_openQ.error;
+      else {
+        var _seen={};
+        (_recentQ.data||[]).concat(_openQ.data||[]).forEach(function(r){ if(!_seen[r.id]){ _seen[r.id]=1; invRows.push(r); } });
+      }
+      if (invpe) { errors.push('app_invoices: '+(invpe.message||invpe)); }
+      else {
         var cloudInvIds = new Set(invRows.map(function(r){ return String(r.id); }));
+        // keep only genuinely local-only (never pushed) invoices; a synced invoice that
+        // isn't in the working set lives in the cloud and is dropped from memory.
         var localOnlyInv = (DB.invoices||[]).filter(function(i){
-          return i.id && !cloudInvIds.has(String(i.id)) && delInvoices.indexOf(i.id) === -1;
+          return i.id && !cloudInvIds.has(String(i.id)) && delInvoices.indexOf(i.id) === -1 && i._synced !== true;
         });
         DB.invoices = invRows.filter(function(r){ return delInvoices.indexOf(r.id) === -1; })
-          .map(function(r){ return r.data || {}; }).concat(localOnlyInv);
+          .map(function(r){ var d=r.data||{}; d._synced=true; return d; }).concat(localOnlyInv);
       }
     } catch(e) { errors.push('app_invoices: '+e.message); }
 
@@ -1755,6 +1809,7 @@ async function pushAllToCloud() {
         };
         var { error: invErr } = await _sb.from('app_invoices').upsert(_invRow, {onConflict:'id'});
         if (invErr) { console.warn('[Push] Invoice error:', invErr.message); _pushErrors.push('invoice '+(inv0.id)+': '+invErr.message); }
+        else { inv0._synced = true; }  // pushed → safe in cloud; load-on-demand bounding may drop it from memory
       } catch(invCatch) { console.warn('[Push] Invoice error:', invCatch.message||invCatch); }
     }
 
