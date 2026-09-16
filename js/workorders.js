@@ -207,6 +207,12 @@ function renderWorkOrders() {
   var fType    = (document.getElementById('wo-filter-type')||{}).value||'';
 
   var list = DB.workOrders.slice();
+  // Merge in cloud search results (full-history matches) when a search term is active,
+  // so historical/closed work orders outside the working set are findable.
+  if (search && _woCloudRows.length) {
+    var _haveWO = {}; list.forEach(function(w){ if(w.id) _haveWO[w.id]=1; });
+    _woCloudRows.forEach(function(c){ if(c.id && !_haveWO[c.id]) list.push(c); });
+  }
 
   // ---- ASSIGNMENT FILTER — role-based, owner always sees all ----
   var myName  = _currentUser ? _currentUser.full_name : '';
@@ -313,7 +319,15 @@ function renderWorkOrders() {
 
   var avColors = ['#1565c0','#2e7d32','#6a1b9a','#e65100','#546e7a'];
 
-  var rows = list.map(function(wo) {
+  // Pagination — render one page of rows, not the whole (possibly large) match set.
+  var _woTotal = list.length;
+  var _woPages = Math.max(1, Math.ceil(_woTotal / WO_LIST_PAGE));
+  if (_woPage > _woPages) _woPage = _woPages;
+  if (_woPage < 1) _woPage = 1;
+  var _woStart = (_woPage - 1) * WO_LIST_PAGE;
+  var _woPageItems = list.slice(_woStart, _woStart + WO_LIST_PAGE);
+
+  var rows = _woPageItems.map(function(wo) {
     var st = _getWOStatusDef(wo.status);
     var stColor = st.color||'#90a4ae';
     var stText  = _smartTextColor(stColor);
@@ -364,7 +378,11 @@ function renderWorkOrders() {
   }).join('');
 
 
-  body.innerHTML = header + rows;
+  var _woPager = (typeof _listPager==='function') ? _listPager(_woPage, _woPages, _woTotal, _woStart, _woPageItems.length, '_woGoPage') : '';
+  var _woNote = search
+    ? '<div class="list-pager-info" style="padding:6px 14px;font-size:11px;color:#90a4ae">'+(_woCloudBusy?'Searching all work-order history…':('Searched all work-order history — '+_woTotal+' match'+(_woTotal===1?'':'es')))+'</div>'
+    : '<div class="list-pager-info" style="padding:6px 14px;font-size:11px;color:#90a4ae">Showing recent &amp; open work orders — type in the search box to find any work order in your full history.</div>';
+  body.innerHTML = header + rows + _woPager + _woNote;
   if (!body.dataset.eventsWired) { _wireWOListEvents(); body.dataset.eventsWired='1'; }
 }
 
@@ -388,6 +406,26 @@ function _smartTextColor(hexColor) {
 var _woSortField = 'woNumber';
 var _woSortAsc = true;
 var _woUnscheduledFilter = false;
+
+// Load-on-demand search state: the WO list shows a bounded working set; typing in the
+// search box also queries the FULL work-order history in the cloud and merges matches.
+var _woCloudRows = [], _woCloudBusy = false, _woPage = 1, _woSearchTimer = null;
+var WO_LIST_PAGE = 100;
+function _woGoPage(n){ _woPage = n; renderWorkOrders(); var t=document.getElementById('wo-list-body'); if(t&&t.scrollIntoView) t.scrollIntoView({block:'start'}); }
+function _woSearch(){
+  var term = ((document.getElementById('wo-search')||{}).value||'').trim();
+  _woPage = 1;
+  if (_woSearchTimer) clearTimeout(_woSearchTimer);
+  if (!term) { _woCloudRows = []; _woCloudBusy = false; renderWorkOrders(); return; }
+  _woSearchTimer = setTimeout(function(){
+    if (typeof fetchWorkOrdersCloud !== 'function') { renderWorkOrders(); return; }
+    _woCloudBusy = true; try{ renderWorkOrders(); }catch(e){}
+    fetchWorkOrdersCloud({ search: term, limit: 400 }).then(function(res){
+      _woCloudBusy = false; _woCloudRows = (res && res.data) || [];
+      try{ renderWorkOrders(); }catch(e){}
+    }).catch(function(){ _woCloudBusy = false; try{ renderWorkOrders(); }catch(e){} });
+  }, 300);
+}
 
 function woSort(field) {
   if (_woSortField === field) { _woSortAsc = !_woSortAsc; }
@@ -595,7 +633,16 @@ async function woNavWarnSave(){
 
 function openWorkOrder(id) {
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===id; });
-  if (!wo) return;
+  if (!wo) {
+    // Historical work order outside the working set — fetch it on demand, then retry.
+    if (typeof fetchWorkOrderById==='function') {
+      fetchWorkOrderById(id).then(function(f){
+        if (f) { openWorkOrder(id); }
+        else if (typeof showToast==='function') showToast('Work order not found','error');
+      });
+    }
+    return;
+  }
   _woCurrentId = id;
 
   document.getElementById('wo-modal-title').textContent='Work Order';

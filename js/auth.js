@@ -205,6 +205,46 @@ async function fetchInvoiceById(id){
   } catch(e){ return null; }
 }
 
+// Map a work_orders DB row -> the in-memory WO object shape. Shared by the sync pull
+// and the on-demand fetchers so all three stay identical.
+function _mapWORow(w){
+  return { id:w.id, woNumber:w.wo_number, customerId:w.customer_id, customerName:w.customer_name, contactId:w.contact_id, description:w.description, workPerformed:w.work_performed, status:w.status, serviceType:w.service_type, priority:w.priority, serviceRep:w.service_rep, refNum:w.reference_num, siteAddr:w.site_address, siteCity:w.site_city, siteState:w.site_state, siteZip:w.site_zip, laborRate:w.labor_rate, taxRate:w.tax_rate, dateRequested:w.date_requested, dateFollowup:w.date_followup, dateOpened:w.date_opened, dateClosed:w.date_closed, internalNotes:w.internal_notes, invoiceId:w.invoice_id, jobId:w.job_id, quoteId:w.quote_id, assignedTechs:w.assigned_techs||[], scheduledDate:w.scheduled_date||'', scheduledTime:w.scheduled_time||'', wtProjectId:w.wt_project_id||null, parentWoId:w.parent_wo_id||null, isChangeOrder:w.is_change_order||false, changeOrderReason:w.change_order_reason||null, createdBy:w.created_by, createdByName:w.created_by_name, createdAt:w.created_at, updatedAt:w.updated_at };
+}
+
+// On-demand work-order fetch (Phase-2 load-on-demand). The sync keeps only a bounded
+// working set of work orders in memory; these fetch older/closed ones from the cloud when
+// a screen needs them (WO-list search, customer profile) so the browser never holds all.
+async function fetchWorkOrdersCloud(opts){
+  opts = opts || {};
+  if (!_sb) return { data: [], error: 'offline' };
+  try {
+    var q = _sb.from('work_orders').select('*');
+    if (opts.customerId) q = q.eq('customer_id', opts.customerId);
+    if (opts.search) {
+      var s = String(opts.search).replace(/[%,]/g,' ').trim();
+      if (s) q = q.or('wo_number.ilike.%'+s+'%,customer_name.ilike.%'+s+'%,description.ilike.%'+s+'%,site_address.ilike.%'+s+'%,site_city.ilike.%'+s+'%');
+    }
+    q = q.order('created_at',{ascending:false}).range(opts.offset||0, (opts.offset||0)+(opts.limit||300)-1);
+    var r = await q;
+    if (r.error) return { data: [], error: r.error };
+    var del = (DB.deletedIds && DB.deletedIds.workOrders) || [];
+    var rows = (r.data||[]).filter(function(x){ return del.indexOf(x.id)===-1; }).map(function(x){ var w=_mapWORow(x); w._synced=true; return w; });
+    return { data: rows, error: null };
+  } catch(e){ return { data: [], error: e.message||e }; }
+}
+async function fetchWorkOrderById(id){
+  var local = (DB.workOrders||[]).find(function(w){ return w.id===id; });
+  if (local) return local;
+  if (!_sb) return null;
+  try {
+    var r = await _sb.from('work_orders').select('*').eq('id', id).limit(1);
+    if (r.error || !r.data || !r.data.length) return null;
+    var w = _mapWORow(r.data[0]); w._synced=true;
+    if (w.id && !(DB.workOrders||[]).some(function(x){return x.id===w.id;})) { (DB.workOrders=DB.workOrders||[]).push(w); }
+    return w;
+  } catch(e){ return null; }
+}
+
 // ---------------------------------------------------------------------------
 // Server-authoritative business-number allocation (migration _17).
 // Every human-facing sequence number (Q-, J-, WO-, PO-, INV-) is allocated by
@@ -1087,23 +1127,31 @@ async function syncAllFromCloud(silent) {
       }
     } catch(e) { errors.push('invoice_payments: '+e.message); }
 
-    // 15. Work Orders
+    // 15. Work Orders — bounded WORKING SET (load-on-demand, like invoices). Pulling all
+    // work orders into memory/localStorage overflows the cache and slows startup once the
+    // legacy service-order history is loaded (~8.5k rows). Instead keep every OPEN work
+    // order (status flagged open in woSettings) + the most recent ~500 by created_at, and
+    // fetch older/closed ones on demand via fetchWorkOrdersCloud()/fetchWorkOrderById().
+    // Imported historical service orders are dated in the past and closed, so they stay out.
     try {
-      var { data: woRows, error: woe } = await _sbSelectAll(function(){ return _sb.from('work_orders').select('*').order('created_at', { ascending: false }); });
-      if (woe) { errors.push('work_orders: '+woe.message); }
-      else if (woRows) {
-        // Suppress rows we deleted here whose cloud delete hasn't confirmed yet
-        // (RLS can silently block a DELETE — the tombstone keeps them hidden).
+      var woe = null, woRows = [];
+      var _openWOIds = [];
+      try {
+        var _wslist = (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length) ? DB.woSettings.statuses : (typeof WO_STATUSES!=='undefined'?WO_STATUSES:[]);
+        _openWOIds = _wslist.filter(function(s){ return s && s.open; }).map(function(s){ return s.id; });
+      } catch(e){}
+      var _recentWO = await _sb.from('work_orders').select('*').order('created_at',{ascending:false}).limit(500);
+      var _openWO   = _openWOIds.length ? await _sb.from('work_orders').select('*').in('status',_openWOIds).limit(3000) : {data:[],error:null};
+      if (_recentWO.error) woe=_recentWO.error; else if (_openWO.error) woe=_openWO.error;
+      else { var _seenWO={}; (_recentWO.data||[]).concat(_openWO.data||[]).forEach(function(r){ if(!_seenWO[r.id]){ _seenWO[r.id]=1; woRows.push(r); } }); }
+      if (woe) { errors.push('work_orders: '+(woe.message||woe)); }
+      else {
         woRows = woRows.filter(function(w){ return delWO.indexOf(String(w.id)) < 0; });
         var cloudWOIds = new Set(woRows.map(function(w){ return String(w.id); }));
-        // Same completeness guard as quotes/customers: only treat a synced-but-absent
-        // row as deleted-elsewhere when the pull is provably complete (non-empty, under
-        // the 1000-row cap). Otherwise keep it, so an empty/capped pull can't wipe data.
-        var woCloudComplete = woRows.length > 0 && woRows.length < 1000;
-        var localOnlyWOs = (DB.workOrders||[]).filter(function(w){ return w.id && !cloudWOIds.has(String(w.id)) && delWO.indexOf(String(w.id)) < 0 && !(w._synced && woCloudComplete); });
-        var cloudWOs = woRows.map(function(w){
-          return { id:w.id, woNumber:w.wo_number, customerId:w.customer_id, customerName:w.customer_name, contactId:w.contact_id, description:w.description, workPerformed:w.work_performed, status:w.status, serviceType:w.service_type, priority:w.priority, serviceRep:w.service_rep, refNum:w.reference_num, siteAddr:w.site_address, siteCity:w.site_city, siteState:w.site_state, siteZip:w.site_zip, laborRate:w.labor_rate, taxRate:w.tax_rate, dateRequested:w.date_requested, dateFollowup:w.date_followup, dateOpened:w.date_opened, dateClosed:w.date_closed, internalNotes:w.internal_notes, invoiceId:w.invoice_id, jobId:w.job_id, quoteId:w.quote_id, assignedTechs:w.assigned_techs||[], scheduledDate:w.scheduled_date||'', scheduledTime:w.scheduled_time||'', wtProjectId:w.wt_project_id||null, parentWoId:w.parent_wo_id||null, isChangeOrder:w.is_change_order||false, changeOrderReason:w.change_order_reason||null, createdBy:w.created_by, createdByName:w.created_by_name, createdAt:w.created_at, updatedAt:w.updated_at };
-        });
+        // keep only genuinely local-only (never pushed) WOs; a synced WO outside the working
+        // set lives in the cloud and is dropped from memory (fetched on demand).
+        var localOnlyWOs = (DB.workOrders||[]).filter(function(w){ return w.id && !cloudWOIds.has(String(w.id)) && delWO.indexOf(String(w.id)) < 0 && w._synced !== true; });
+        var cloudWOs = woRows.map(function(w){ return _mapWORow(w); });
         cloudWOs.forEach(function(cw){ cw._synced = true; }); // mark as known-in-cloud
         // Push any offline-created WOs so they land in the cloud (they were never synced).
         if (localOnlyWOs.length > 0 && typeof _pushWOToCloud === 'function') {
