@@ -2802,6 +2802,11 @@ function renderCustomers() {
   if (_key !== _custKey) { _custPage = 1; _custKey = _key; }
 
   var allWOs   = DB.workOrders || [];
+  // Invoice counts for the list card come from a cloud rollup (invoices are load-on-demand,
+  // not all held in memory). Kick off the one-time fetch; until it lands, fall back to the
+  // legacy commsLog-derived count so the bubble is never blank.
+  if (typeof _ensureInvoiceRollup === 'function') _ensureInvoiceRollup();
+  var _invRollup = DB.invoiceRollup || null;
   var invoices = (DB.commsLog||[]).filter(function(x){ return x.type==='invoice'; });
   var woDefs   = (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length)?DB.woSettings.statuses:(typeof WO_STATUSES!=='undefined'?WO_STATUSES:[]);
   var woOpenMap = {}; woDefs.forEach(function(s){ woOpenMap[s.id] = !!s.open; });
@@ -2839,11 +2844,19 @@ function renderCustomers() {
     a.wo++;
     if (w.status in woOpenMap ? woOpenMap[w.status] : true) a.woOpen++;
   });
-  invoices.forEach(function(i){
-    var id = _ownerId(i.customerId, i.customerName); if (!id) return; var a = agg[id];
-    a.inv++;
-    if (!i.paidAt && !i.paid) a.invOpen++;
-  });
+  if (_invRollup) {
+    // Authoritative counts from the cloud rollup, keyed by customer id.
+    Object.keys(_invRollup).forEach(function(cid){
+      if (agg[cid]) { agg[cid].inv = _invRollup[cid].cnt; agg[cid].invOpen = _invRollup[cid].open; }
+    });
+  } else {
+    // Fallback until the rollup loads: legacy commsLog-derived count.
+    invoices.forEach(function(i){
+      var id = _ownerId(i.customerId, i.customerName); if (!id) return; var a = agg[id];
+      a.inv++;
+      if (!i.paidAt && !i.paid) a.invOpen++;
+    });
+  }
   (DB.contacts||[]).forEach(function(x){
     if (x.customerId && agg[x.customerId]) agg[x.customerId].ct++;
   });

@@ -170,6 +170,27 @@ async function fetchInvoicesCloud(opts){
     return { data: rows, error: null };
   } catch(e){ return { data: [], error: e.message||e }; }
 }
+// Per-customer invoice count rollup for the customers LIST card bubble. Invoices are
+// load-on-demand (not all in memory), so we fetch one lightweight grouped count from the
+// cloud (one row per customer), cache it on DB.invoiceRollup, and let renderCustomers use it.
+var _invRollupLoaded = false, _invRollupBusy = false;
+function _ensureInvoiceRollup(force){
+  if (force) { _invRollupLoaded = false; }
+  if (_invRollupLoaded || _invRollupBusy) return;
+  if (typeof _sb === 'undefined' || !_sb) return;
+  _invRollupBusy = true;
+  _sb.rpc('customer_invoice_rollup').then(function(rr){
+    _invRollupBusy = false;
+    if (rr && !rr.error && Array.isArray(rr.data)) {
+      var m = {};
+      rr.data.forEach(function(x){ if(x && x.customer_id) m[x.customer_id] = { cnt:+x.cnt||0, open:+x.open_cnt||0 }; });
+      DB.invoiceRollup = m; _invRollupLoaded = true;
+      if (typeof renderCustomers === 'function' && document.getElementById('cust-tbl')) {
+        try { renderCustomers(); } catch(e){}
+      }
+    }
+  }).catch(function(){ _invRollupBusy = false; });
+}
 async function fetchInvoiceById(id){
   var local = (DB.invoices||[]).find(function(i){ return i.id===id; });
   if (local) return local;
