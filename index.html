@@ -6140,7 +6140,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         </div>
       </div>
       <!-- Quick stats -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px" id="cp-stats"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin-top:18px" id="cp-stats"></div>
     </div>
     <!-- Profile tabs -->
     <div style="display:flex;gap:0;border-bottom:1px solid #e0e0e0;background:#fff;position:sticky;top:0;z-index:10">
@@ -6149,6 +6149,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <button class="cp-tab" onclick="switchCPTab('jobs')" id="cpt-jobs">🔧 Jobs</button>
       <button class="cp-tab" onclick="switchCPTab('contacts')" id="cpt-contacts">👤 Contacts</button>
       <button class="cp-tab" onclick="switchCPTab('projects')" id="cpt-projects">✅ Projects</button>
+      <button class="cp-tab" onclick="switchCPTab('invoices')" id="cpt-invoices">🧾 Invoices</button>
       <button class="cp-tab" onclick="switchCPTab('alerts')" id="cpt-alerts">⚠️ Alerts</button>
       <button class="cp-tab" onclick="switchCPTab('comms')" id="cpt-comms">📞 Comms</button>
     </div>
@@ -6421,26 +6422,26 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260916ci with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260916cj with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260916ci"></script>
-<script src="js/quotes.js?v=20260916ci"></script>
-<script src="js/tools.js?v=20260916ci"></script>
-<script src="js/field.js?v=20260916ci"></script>
-<script src="js/crm.js?v=20260916ci"></script>
-<script src="js/dispatch.js?v=20260916ci"></script>
-<script src="js/permissions.js?v=20260916ci"></script>
-<script src="js/worktracking.js?v=20260916ci"></script>
-<script src="js/calendar.js?v=20260916ci"></script>
-<script src="js/workorders.js?v=20260916ci"></script>
-<script src="js/purchaseorders.js?v=20260916ci"></script>
-<script src="js/inventory.js?v=20260916ci"></script>
-<script src="js/reports.js?v=20260916ci"></script>
-<script src="js/recyclebin.js?v=20260916ci"></script>
-<script src="js/contracts.js?v=20260916ci"></script>
-  <script src="js/recurring.js?v=20260916ci"></script>
-  <script src="js/seed_managed.js?v=20260916ci"></script>
-  <script src="js/auth.js?v=20260916ci"></script>
+<script src="js/core.js?v=20260916cj"></script>
+<script src="js/quotes.js?v=20260916cj"></script>
+<script src="js/tools.js?v=20260916cj"></script>
+<script src="js/field.js?v=20260916cj"></script>
+<script src="js/crm.js?v=20260916cj"></script>
+<script src="js/dispatch.js?v=20260916cj"></script>
+<script src="js/permissions.js?v=20260916cj"></script>
+<script src="js/worktracking.js?v=20260916cj"></script>
+<script src="js/calendar.js?v=20260916cj"></script>
+<script src="js/workorders.js?v=20260916cj"></script>
+<script src="js/purchaseorders.js?v=20260916cj"></script>
+<script src="js/inventory.js?v=20260916cj"></script>
+<script src="js/reports.js?v=20260916cj"></script>
+<script src="js/recyclebin.js?v=20260916cj"></script>
+<script src="js/contracts.js?v=20260916cj"></script>
+  <script src="js/recurring.js?v=20260916cj"></script>
+  <script src="js/seed_managed.js?v=20260916cj"></script>
+  <script src="js/auth.js?v=20260916cj"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

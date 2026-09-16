@@ -156,6 +156,7 @@ async function fetchInvoicesCloud(opts){
   if (!_sb) return { data: [], error: 'offline' };
   try {
     var q = _sb.from('app_invoices').select('*');
+    if (opts.customerId) q = q.eq('data->>customerId', opts.customerId);
     if (opts.customerName) q = q.eq('customer_name', opts.customerName);
     if (opts.search) {
       var s = String(opts.search).replace(/[%,]/g,' ').trim();

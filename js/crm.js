@@ -30,7 +30,15 @@ function openCustomerProfile(customerId) {
     cpStat(quotes.length,'Quotes','📋')+
     cpStat(jobs.length,'Jobs','🔧')+
     cpStat(contacts.length,'Contacts','👤')+
+    '<div class="cp-stat-card" style="cursor:pointer" title="View invoice history" onclick="switchCPTab(\'invoices\')">'+
+      '<div class="cp-stat-val"><span id="cp-inv-count">🧾 …</span></div>'+
+      '<div class="cp-stat-lbl">Invoices</div>'+
+    '</div>'+
     cpStat('$'+Math.round(wonRev).toLocaleString(),'Won Revenue','💰');
+
+  // Invoices are load-on-demand (Phase 2). Kick off a cloud fetch for this
+  // customer's full invoice history; the stat card + Invoices tab fill in when ready.
+  _loadCPInvoices(customer);
 
   // Show
   var overlay = document.getElementById('customer-profile-overlay');
@@ -84,6 +92,7 @@ function switchCPTab(tab) {
   else if (tab==='jobs')     content.innerHTML = renderCPJobs(jobs);
   else if (tab==='contacts') content.innerHTML = renderCPContacts(contacts, customer);
   else if (tab==='projects') content.innerHTML = renderCPProjects(projects);
+  else if (tab==='invoices') content.innerHTML = renderCPInvoices();
   else if (tab==='alerts')   content.innerHTML = renderCPAlerts(customer);
   else if (tab==='comms')    content.innerHTML = (typeof renderCPComms === 'function') ? renderCPComms(_cpCustomerId) : '<div style="padding:20px;color:#90a4ae">Loading...</div>';
 }
@@ -344,6 +353,82 @@ function renderCPProjects(projects) {
         '<div style="font-weight:800;font-size:14px;color:#1565c0">'+pct+'%</div>'+
       '</div>';
     }).join('');
+}
+
+// ---- INVOICE HISTORY (load-on-demand, Phase 2) ----
+var _cpInvoices = null;   // null = loading, [] = loaded/empty, [..] = loaded
+
+function _loadCPInvoices(customer) {
+  _cpInvoices = null;
+  var forId = customer.id;
+  // Always include any invoices already in memory for this customer (open / just-created / unpushed).
+  function mem() {
+    return (DB.invoices||[]).filter(function(i){
+      return i && (i.customerId===forId ||
+        (i.clientName||'').toLowerCase()===(customer.name||'').toLowerCase());
+    });
+  }
+  if (typeof fetchInvoicesCloud !== 'function') {
+    _cpInvoices = mem(); _applyCPInvoices(forId); return;
+  }
+  fetchInvoicesCloud({ customerId: forId, limit: 1000 }).then(function(r){
+    if (_cpCustomerId !== forId) return;           // profile switched/closed while loading
+    var rows = (r && r.data) || [];
+    var seen = {}; rows.forEach(function(i){ if(i && i.id) seen[i.id]=1; });
+    mem().forEach(function(i){ if(!i.id || !seen[i.id]){ rows.push(i); if(i.id) seen[i.id]=1; } });
+    _cpInvoices = rows;
+    _applyCPInvoices(forId);
+  }).catch(function(){
+    if (_cpCustomerId !== forId) return;
+    _cpInvoices = mem(); _applyCPInvoices(forId);
+  });
+}
+
+function _applyCPInvoices(forId) {
+  if (_cpCustomerId !== forId) return;
+  var el = document.getElementById('cp-inv-count');
+  if (el) el.textContent = '🧾 ' + (_cpInvoices ? _cpInvoices.length : '…');
+  if (_cpTab === 'invoices') {
+    var c = document.getElementById('cp-content');
+    if (c) c.innerHTML = renderCPInvoices();
+  }
+}
+
+function renderCPInvoices() {
+  if (_cpInvoices === null)
+    return '<div style="color:#90a4ae;padding:20px;text-align:center">Loading invoice history…</div>';
+  var invs = _cpInvoices;
+  if (!invs.length)
+    return '<div style="color:#90a4ae;padding:20px;text-align:center">No invoices for this customer yet.</div>';
+  var statusColors = { paid:'#2e7d32', partial:'#e65100', unpaid:'#c62828' };
+  var sorted = invs.slice().sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
+  var total = invs.reduce(function(s,i){ return s + (Number(i.total)||0); }, 0);
+  var paidAmt = invs.filter(function(i){ return i.status==='paid'; }).reduce(function(s,i){ return s + (Number(i.total)||0); }, 0);
+  var openBal = total - paidAmt;
+  var head = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">'+
+      '<div class="cp-section-title" style="margin:0">Invoices ('+invs.length+')</div>'+
+      '<div style="font-size:12px;color:#546e7a">Billed <strong>$'+Math.round(total).toLocaleString()+'</strong>'+
+        (openBal>0.5 ? ' · Open <strong style="color:#c62828">$'+Math.round(openBal).toLocaleString()+'</strong>' : '')+
+      '</div>'+
+    '</div>';
+  return head + sorted.map(function(inv){
+    var sc = statusColors[inv.status] || '#546e7a';
+    var jobname = (inv.job && inv.job.name) || inv.jobName || '';
+    var idAttr = escHtml(String(inv.id||''));
+    return '<div class="cp-quote-row" style="cursor:pointer" onclick="reprintInvoice(\''+idAttr+'\')">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-weight:700;font-size:13px">#'+escHtml(String(inv.num||''))+
+            (jobname ? ' <span style="font-weight:400;color:#546e7a">— '+escHtml(jobname)+'</span>' : '')+'</div>'+
+          '<div style="font-size:11px;color:#546e7a">'+escHtml(String(inv.date||''))+
+            (inv.po ? ' · PO '+escHtml(String(inv.po)) : '')+
+            (inv.imported ? ' · <span style="color:#90a4ae">imported</span>' : '')+'</div>'+
+        '</div>'+
+        '<div style="text-align:right;white-space:nowrap">'+
+          '<div style="font-weight:700;font-size:14px">$'+ (Number(inv.total)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) +'</div>'+
+          '<span style="background:'+sc+'20;color:'+sc+';border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">'+escHtml(String(inv.status||'unpaid'))+'</span>'+
+        '</div>'+
+      '</div>';
+  }).join('');
 }
 
 // ---- CONTACT LINKING ----
