@@ -191,6 +191,26 @@ function _ensureInvoiceRollup(force){
     }
   }).catch(function(){ _invRollupBusy = false; });
 }
+// Per-customer work-order count rollup for the customers LIST card bubble (work orders are
+// load-on-demand). One lightweight grouped count, cached on DB.woRollup.
+var _woRollupLoaded = false, _woRollupBusy = false;
+function _ensureWORollup(force){
+  if (force) { _woRollupLoaded = false; }
+  if (_woRollupLoaded || _woRollupBusy) return;
+  if (typeof _sb === 'undefined' || !_sb) return;
+  _woRollupBusy = true;
+  _sb.rpc('customer_wo_rollup').then(function(rr){
+    _woRollupBusy = false;
+    if (rr && !rr.error && Array.isArray(rr.data)) {
+      var m = {};
+      rr.data.forEach(function(x){ if(x && x.customer_id) m[x.customer_id] = { cnt:+x.cnt||0 }; });
+      DB.woRollup = m; _woRollupLoaded = true;
+      if (typeof renderCustomers === 'function' && document.getElementById('cust-tbl')) {
+        try { renderCustomers(); } catch(e){}
+      }
+    }
+  }).catch(function(){ _woRollupBusy = false; });
+}
 async function fetchInvoiceById(id){
   var local = (DB.invoices||[]).find(function(i){ return i.id===id; });
   if (local) return local;

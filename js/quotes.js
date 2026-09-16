@@ -2806,7 +2806,9 @@ function renderCustomers() {
   // not all held in memory). Kick off the one-time fetch; until it lands, fall back to the
   // legacy commsLog-derived count so the bubble is never blank.
   if (typeof _ensureInvoiceRollup === 'function') _ensureInvoiceRollup();
+  if (typeof _ensureWORollup === 'function') _ensureWORollup();
   var _invRollup = DB.invoiceRollup || null;
+  var _woRollup = DB.woRollup || null;
   var invoices = (DB.commsLog||[]).filter(function(x){ return x.type==='invoice'; });
   var woDefs   = (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length)?DB.woSettings.statuses:(typeof WO_STATUSES!=='undefined'?WO_STATUSES:[]);
   var woOpenMap = {}; woDefs.forEach(function(s){ woOpenMap[s.id] = !!s.open; });
@@ -2844,6 +2846,13 @@ function renderCustomers() {
     a.wo++;
     if (w.status in woOpenMap ? woOpenMap[w.status] : true) a.woOpen++;
   });
+  if (_woRollup) {
+    // WO total from the cloud rollup (work orders are load-on-demand). Keep woOpen from the
+    // working set below — all open-status WOs are pulled, so the open count stays accurate.
+    Object.keys(_woRollup).forEach(function(cid){
+      if (agg[cid]) agg[cid].wo = _woRollup[cid].cnt;
+    });
+  }
   if (_invRollup) {
     // Authoritative counts from the cloud rollup, keyed by customer id.
     Object.keys(_invRollup).forEach(function(cid){

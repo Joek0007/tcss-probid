@@ -34,11 +34,16 @@ function openCustomerProfile(customerId) {
       '<div class="cp-stat-val"><span id="cp-inv-count">🧾 …</span></div>'+
       '<div class="cp-stat-lbl">Invoices</div>'+
     '</div>'+
+    '<div class="cp-stat-card" style="cursor:pointer" title="View work-order history" onclick="switchCPTab(\'workorders\')">'+
+      '<div class="cp-stat-val"><span id="cp-wo-count">🔨 …</span></div>'+
+      '<div class="cp-stat-lbl">Work Orders</div>'+
+    '</div>'+
     cpStat('$'+Math.round(wonRev).toLocaleString(),'Won Revenue','💰');
 
-  // Invoices are load-on-demand (Phase 2). Kick off a cloud fetch for this
-  // customer's full invoice history; the stat card + Invoices tab fill in when ready.
+  // Invoices + work orders are load-on-demand (Phase 2). Kick off cloud fetches for this
+  // customer's full history; the stat cards + tabs fill in when ready.
   _loadCPInvoices(customer);
+  _loadCPWorkOrders(customer);
 
   // Show
   var overlay = document.getElementById('customer-profile-overlay');
@@ -93,6 +98,7 @@ function switchCPTab(tab) {
   else if (tab==='contacts') content.innerHTML = renderCPContacts(contacts, customer);
   else if (tab==='projects') content.innerHTML = renderCPProjects(projects);
   else if (tab==='invoices') content.innerHTML = renderCPInvoices();
+  else if (tab==='workorders') content.innerHTML = renderCPWorkOrders();
   else if (tab==='alerts')   content.innerHTML = renderCPAlerts(customer);
   else if (tab==='comms')    content.innerHTML = (typeof renderCPComms === 'function') ? renderCPComms(_cpCustomerId) : '<div style="padding:20px;color:#90a4ae">Loading...</div>';
 }
@@ -429,6 +435,71 @@ function renderCPInvoices() {
         '</div>'+
       '</div>';
   }).join('');
+}
+
+// ---- WORK ORDER HISTORY (load-on-demand, Phase 2) ----
+var _cpWorkOrders = null;   // null = loading, [] = loaded/empty
+
+function _loadCPWorkOrders(customer) {
+  _cpWorkOrders = null;
+  var forId = customer.id;
+  function mem() {
+    return (DB.workOrders||[]).filter(function(w){
+      return w && (w.customerId===forId ||
+        (w.customerName||'').toLowerCase()===(customer.name||'').toLowerCase());
+    });
+  }
+  if (typeof fetchWorkOrdersCloud !== 'function') {
+    _cpWorkOrders = mem(); _applyCPWorkOrders(forId); return;
+  }
+  fetchWorkOrdersCloud({ customerId: forId, limit: 1000 }).then(function(r){
+    if (_cpCustomerId !== forId) return;
+    var rows = (r && r.data) || [];
+    var seen = {}; rows.forEach(function(w){ if(w && w.id) seen[w.id]=1; });
+    mem().forEach(function(w){ if(!w.id || !seen[w.id]){ rows.push(w); if(w.id) seen[w.id]=1; } });
+    _cpWorkOrders = rows;
+    _applyCPWorkOrders(forId);
+  }).catch(function(){
+    if (_cpCustomerId !== forId) return;
+    _cpWorkOrders = mem(); _applyCPWorkOrders(forId);
+  });
+}
+
+function _applyCPWorkOrders(forId) {
+  if (_cpCustomerId !== forId) return;
+  var el = document.getElementById('cp-wo-count');
+  if (el) el.textContent = '🔨 ' + (_cpWorkOrders ? _cpWorkOrders.length : '…');
+  if (_cpTab === 'workorders') {
+    var c = document.getElementById('cp-content');
+    if (c) c.innerHTML = renderCPWorkOrders();
+  }
+}
+
+function renderCPWorkOrders() {
+  if (_cpWorkOrders === null)
+    return '<div style="color:#90a4ae;padding:20px;text-align:center">Loading work-order history…</div>';
+  var wos = _cpWorkOrders;
+  if (!wos.length)
+    return '<div style="color:#90a4ae;padding:20px;text-align:center">No work orders for this customer yet.</div>';
+  var statusColors = { 'Invoiced':'#2e7d32', 'No Charge':'#546e7a', 'Completed':'#1565c0', 'Open':'#e65100' };
+  var sorted = wos.slice().sort(function(a,b){ return String(b.createdAt||'').localeCompare(String(a.createdAt||'')); });
+  return '<div class="cp-section-title">Work Orders ('+wos.length+')</div>'+
+    sorted.map(function(wo){
+      var sc = statusColors[wo.status] || (typeof _getWOStatusDef==='function' ? (_getWOStatusDef(wo.status).color||'#546e7a') : '#546e7a');
+      var desc = (typeof stripHtmlToText==='function' ? stripHtmlToText(wo.description||'') : (wo.description||''));
+      var when = (wo.dateClosed || wo.dateOpened || (wo.createdAt ? String(wo.createdAt).slice(0,10) : ''));
+      var idAttr = escHtml(String(wo.id||''));
+      return '<div class="cp-quote-row" style="cursor:pointer" onclick="closeCustomerProfile();openWorkOrder(\''+idAttr+'\')">'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-weight:700;font-size:13px">#'+escHtml(String(wo.woNumber||''))+
+              (desc ? ' <span style="font-weight:400;color:#546e7a">— '+escHtml(desc.substring(0,70))+'</span>' : '')+'</div>'+
+            '<div style="font-size:11px;color:#546e7a">'+escHtml(String(when||''))+
+              (wo.serviceRep ? ' · '+escHtml(wo.serviceRep) : '')+
+              (wo.invoiceId ? ' · 🧾 invoiced' : '')+'</div>'+
+          '</div>'+
+          '<span style="background:'+sc+'20;color:'+sc+';border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;white-space:nowrap">'+escHtml(String(wo.status||''))+'</span>'+
+        '</div>';
+    }).join('');
 }
 
 // ---- CONTACT LINKING ----
