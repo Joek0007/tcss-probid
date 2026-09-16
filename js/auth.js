@@ -265,6 +265,61 @@ async function fetchWorkOrderById(id){
   } catch(e){ return null; }
 }
 
+// Map a time_entries DB row -> in-memory shape. Shared by the sync pull and on-demand
+// fetchers. (Delete-tombstone from DB.deletedIds is applied by the caller.)
+function _mapTimeRow(t){
+  return {
+    id: t.id,
+    techName: t.tech_name || null, date: t.entry_date || null,
+    entryType: t.entry_type || 'regular',
+    startTime: t.start_time || null, endTime: t.end_time || null,
+    totalHours: t.total_hours, totalMins: t.total_mins,
+    isPaid: t.is_paid, woId: t.wo_id || null, jobId: t.job_id || null,
+    woLabel: t.wo_label || null, notes: t.notes, gpsReason: t.gps_reason || null,
+    isManual: !!t.is_manual, addedBy: t.added_by || null, addedAt: t.added_at || null,
+    lastEditedBy: t.last_edited_by || null, lastEditedAt: t.last_edited_at || null,
+    auditTrail: Array.isArray(t.audit_trail) ? t.audit_trail : (function(){ try { return JSON.parse(t.audit_trail||'[]'); } catch(e){ return []; } })(),
+    deleted: (t.deleted === true),
+    deletedBy: t.deleted_by || null, deletedAt: t.deleted_at || null,
+    userId: t.user_id, teamMemberId: t.team_member_id,
+    clockIn: t.clock_in, clockOut: t.clock_out, breakMinutes: t.break_minutes||0,
+    gpsLat: t.gps_lat, gpsLng: t.gps_lng,
+    isApproved: !!t.is_approved, approvedBy: t.approved_by,
+    createdAt: t.created_at
+  };
+}
+// On-demand time-entry fetch (bounded working set keeps only recent+unsettled). These pull
+// older/settled entries from the cloud for reports/timesheet history.
+async function fetchTimeEntriesCloud(opts){
+  opts = opts || {};
+  if (!_sb) return { data: [], error: 'offline' };
+  try {
+    var q = _sb.from('time_entries').select('*');
+    if (opts.techName) q = q.eq('tech_name', opts.techName);
+    if (opts.woId)     q = q.eq('wo_id', opts.woId);
+    if (opts.dateFrom) q = q.gte('entry_date', opts.dateFrom);
+    if (opts.dateTo)   q = q.lte('entry_date', opts.dateTo);
+    q = q.order('entry_date',{ascending:false}).range(opts.offset||0, (opts.offset||0)+(opts.limit||1000)-1);
+    var r = await q;
+    if (r.error) return { data: [], error: r.error };
+    var del = (DB.deletedIds && DB.deletedIds.timeEntries) || [];
+    var rows = (r.data||[]).filter(function(x){ return del.indexOf(String(x.id))<0; }).map(function(x){ var m=_mapTimeRow(x); m._synced=true; return m; });
+    return { data: rows, error: null };
+  } catch(e){ return { data: [], error: e.message||e }; }
+}
+async function fetchTimeEntryById(id){
+  var local = (DB.timeEntries||[]).find(function(t){ return t.id===id; });
+  if (local) return local;
+  if (!_sb) return null;
+  try {
+    var r = await _sb.from('time_entries').select('*').eq('id', id).limit(1);
+    if (r.error || !r.data || !r.data.length) return null;
+    var m = _mapTimeRow(r.data[0]); m._synced=true;
+    if (m.id && !(DB.timeEntries||[]).some(function(t){return t.id===m.id;})) { (DB.timeEntries=DB.timeEntries||[]).push(m); }
+    return m;
+  } catch(e){ return null; }
+}
+
 // ---------------------------------------------------------------------------
 // Server-authoritative business-number allocation (migration _17).
 // Every human-facing sequence number (Q-, J-, WO-, PO-, INV-) is allocated by
@@ -1016,38 +1071,28 @@ async function syncAllFromCloud(silent) {
       }
     } catch(e) { errors.push('team: '+e.message); }
 
-    // 10. Time Entries
+    // 10. Time Entries — bounded WORKING SET (load-on-demand). Pulling every time entry
+    // once the ~56k legacy timelog history is loaded would overflow the browser cache and
+    // slow startup. Payroll periods are computed from Work Days (#10b), not raw time entries,
+    // so bounding this feed is safe: we keep every RECENT entry (last ~180 days by
+    // entry_date) + every UNSETTLED entry (open shift / unpaid / unapproved, any age) +
+    // non-deleted, and fetch older/settled ones on demand via fetchTimeEntriesCloud()/
+    // fetchTimeEntryById(). Imported historical rows are approved+paid+dated in the past, so
+    // they stay out of the set.
     try {
-      var { data: timeRows, error: tre } = await _sbSelectAll(function(){ return _sb.from('time_entries').select('*').order('created_at', { ascending: false }); });
-      if (tre) { errors.push('time_entries: '+tre.message); }
-      else if (timeRows) {
+      var tre=null, timeRows=[];
+      var _teCut = new Date(Date.now() - 180*86400000).toISOString().slice(0,10);
+      var _recentTE = await _sb.from('time_entries').select('*').gte('entry_date', _teCut).order('entry_date',{ascending:false}).limit(8000);
+      var _openTE   = await _sb.from('time_entries').select('*').or('end_time.is.null,is_paid.eq.false,is_approved.eq.false').limit(8000);
+      if (_recentTE.error) tre=_recentTE.error; else if (_openTE.error) tre=_openTE.error;
+      else { var _seenTE={}; (_recentTE.data||[]).concat(_openTE.data||[]).forEach(function(r){ if(!_seenTE[r.id]){ _seenTE[r.id]=1; timeRows.push(r); } }); }
+      if (tre) { errors.push('time_entries: '+(tre.message||tre)); }
+      else {
         var cloudTimeIds = new Set(timeRows.map(function(t){ return String(t.id); }));
-        var localOnlyTime = (DB.timeEntries||[]).filter(function(t){ return t.id && !cloudTimeIds.has(String(t.id)); });
-        DB.timeEntries = timeRows.map(function(t){
-          return {
-            id: t.id,
-            // manual timesheet model
-            techName: t.tech_name || null, date: t.entry_date || null,
-            entryType: t.entry_type || 'regular',
-            startTime: t.start_time || null, endTime: t.end_time || null,
-            totalHours: t.total_hours, totalMins: t.total_mins,
-            isPaid: t.is_paid, woId: t.wo_id || null, jobId: t.job_id || null,
-            woLabel: t.wo_label || null, notes: t.notes, gpsReason: t.gps_reason || null,
-            isManual: !!t.is_manual, addedBy: t.added_by || null, addedAt: t.added_at || null,
-            lastEditedBy: t.last_edited_by || null, lastEditedAt: t.last_edited_at || null,
-            auditTrail: Array.isArray(t.audit_trail) ? t.audit_trail : (function(){ try { return JSON.parse(t.audit_trail||'[]'); } catch(e){ return []; } })(),
-            // soft-delete — carried so payroll's !e.deleted filters actually work.
-            // A tombstoned id is forced deleted even if a stale cloud row still says false.
-            deleted: (t.deleted === true) || (delTime.indexOf(String(t.id)) >= 0),
-            deletedBy: t.deleted_by || null, deletedAt: t.deleted_at || null,
-            // clock-based model
-            userId: t.user_id, teamMemberId: t.team_member_id,
-            clockIn: t.clock_in, clockOut: t.clock_out, breakMinutes: t.break_minutes||0,
-            gpsLat: t.gps_lat, gpsLng: t.gps_lng,
-            isApproved: !!t.is_approved, approvedBy: t.approved_by,
-            createdAt: t.created_at
-          };
-        }).concat(localOnlyTime);
+        // keep only genuinely local-only (never pushed) entries; a synced entry outside the
+        // working set lives in the cloud and is dropped from memory (fetched on demand).
+        var localOnlyTime = (DB.timeEntries||[]).filter(function(t){ return t.id && !cloudTimeIds.has(String(t.id)) && t._synced !== true; });
+        DB.timeEntries = timeRows.map(function(t){ var m=_mapTimeRow(t); m._synced=true; if (delTime.indexOf(String(t.id))>=0) m.deleted=true; return m; }).concat(localOnlyTime);
       }
     } catch(e) { errors.push('time_entries: '+e.message); }
 
