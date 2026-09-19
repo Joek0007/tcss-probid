@@ -154,7 +154,11 @@ async function _sbSelectAll(build) {
 // ---------------------------------------------------------------------------
 var WO_EXPENSE_WINDOW_DAYS = 365;
 var PO_WINDOW_DAYS         = 365;
-var PO_OPEN_STATUSES       = ['Draft','Pending Approval','Sent','Partially Received','Ready to Pay'];
+// A PO is kept in the working set unless its status means DONE. Using a CLOSED-list
+// (rather than an open allow-list) is robust to the legacy CRM-import status strings
+// ("Open", "All Received -- Open", "Partially Back Ordered", …) as well as the app's
+// native statuses — anything not closed stays in memory regardless of age.
+var PO_CLOSED_STATUSES = '("Completed","Received","Matched","Void","Cancelled","Declined","Closed")';
 var _ondemandExpWOIds = {};   // wo ids whose full expense set we've already fetched
 var _ondemandPOIds    = {};   // po ids fetched on demand (preserve across bounded syncs)
 
@@ -1519,7 +1523,7 @@ async function syncAllFromCloud(silent) {
     try {
       var _poCut = new Date(Date.now() - PO_WINDOW_DAYS*86400000).toISOString();
       var _poRecent = await _sbSelectAll(function(){ return _sb.from('purchase_orders').select('*, po_line_items(*)').gte('created_at', _poCut).order('created_at', { ascending: false }); });
-      var _poOpen   = await _sbSelectAll(function(){ return _sb.from('purchase_orders').select('*, po_line_items(*)').in('status', PO_OPEN_STATUSES).order('created_at', { ascending: false }); });
+      var _poOpen   = await _sbSelectAll(function(){ return _sb.from('purchase_orders').select('*, po_line_items(*)').not('status','in',PO_CLOSED_STATUSES).order('created_at', { ascending: false }); });
       var poe = _poRecent.error || _poOpen.error;
       if (poe) { errors.push('purchase_orders: '+poe.message); }
       var poRows = (_poRecent.data||[]).concat(_poOpen.data||[]);
