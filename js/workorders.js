@@ -2020,6 +2020,7 @@ function addWOExpense() {
     receiptUrl:null
   };
   DB.woExpenses.push(expEntry);
+  if (typeof _pushWOExpenseToCloud === 'function') _pushWOExpenseToCloud(expEntry);
   saveDB();
   // Upload receipt if attached
   // Check both camera and file inputs for receipt
@@ -2032,6 +2033,7 @@ function addWOExpense() {
       if (doc) {
         expEntry.receiptUrl = doc.url;
         expEntry.receiptDocId = doc.id;
+        if (typeof _pushWOExpenseToCloud === 'function') _pushWOExpenseToCloud(expEntry);
         saveDB();
         refreshWOQuickStats(woId);
       }
@@ -2351,6 +2353,9 @@ async function createWOInvoice() {
   // Update WO status
   wo.status='Open — Partial Invoice (Please Create)';
   wo.invoiceId=inv.id;
+  // Write-through to cloud immediately (invoice + the WO whose status just changed)
+  if (typeof _pushInvoiceToCloud === 'function') _pushInvoiceToCloud(inv);
+  if (typeof _pushWOToCloud === 'function') _pushWOToCloud(wo);
   saveDB(); renderWorkOrders();
   closeModal('modal-work-order');
   goPage('invoices');

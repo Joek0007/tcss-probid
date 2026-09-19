@@ -644,8 +644,9 @@ function saveContact() {
   // If set as default, mark on the customer record
   if (isDefault && custId) {
     var cust = (DB.customers||[]).find(function(c){ return c.id===custId; });
-    if (cust) cust.defaultContactId = newId;
+    if (cust) { cust.defaultContactId = newId; if (typeof _pushCustomerToCloud === 'function') _pushCustomerToCloud(cust); }
   }
+  if (typeof _pushContactToCloud === 'function') _pushContactToCloud(data);
   saveDB(); closeModal('modal-contact'); renderContacts();
   if (_cpCustomerId) switchCPTab(_cpTab);
   // If we were editing from the QQ contact dropdown, re-select to refresh the form fields
@@ -699,9 +700,10 @@ function saveContactAndAnother() {
   };
   if (isDefault && custId) {
     var cust2 = (DB.customers||[]).find(function(c){ return c.id===custId; });
-    if (cust2) cust2.defaultContactId = newId;
+    if (cust2) { cust2.defaultContactId = newId; if (typeof _pushCustomerToCloud === 'function') _pushCustomerToCloud(cust2); }
   }
   DB.contacts.push(data);
+  if (typeof _pushContactToCloud === 'function') _pushContactToCloud(data);
   saveDB(); renderContacts();
   // Clear fields but keep company/customer for next contact at same company
   var keepCo = (document.getElementById('m-ctco')||{}).value||'';

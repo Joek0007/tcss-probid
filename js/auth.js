@@ -1605,6 +1605,116 @@ async function syncAllFromCloud(silent) {
 
 var _pushInProgress = false;
 
+// ============================================================
+// Inline per-record cloud push (write-through on save).
+// Mirrors the exact row mappings used by pushAllToCloud so a
+// newly created/edited record reaches Supabase immediately —
+// the same pattern work orders, purchase orders, vendors and
+// team already use. pushAllToCloud remains the periodic
+// full-database reconciler / safety net.
+// IMPORTANT: if a mapping below changes, change it in
+// pushAllToCloud too (search the table name) so the two agree.
+// ============================================================
+async function _pushCustomerToCloud(c) {
+  if (!_sb || !_currentUser || !c) return;
+  try {
+    var cId = (typeof ensureUUID === 'function') ? ensureUUID(c) : c.id;
+    var { error } = await _sb.from('customers').upsert({
+      id: cId,
+      name: c.name || '',
+      company: c.company || null,
+      email: c.email || null,
+      phone: c.phone || null,
+      phone_alt: c.phone2 || null,
+      address: c.address || null,
+      street: c.street || null,
+      city: c.city || null,
+      state: c.state || null,
+      zip: c.zip || null,
+      default_terms: c.defaultTerms || 'Due on Receipt',
+      tax_exempt: !!c.taxExempt,
+      hot_note_tech: c.hotNoteTech || null,
+      hot_note_office: c.hotNoteOffice || null,
+      office_alert_scope: c.officeAlertScope || null,
+      invoicing_contact: c.invoicingContact || null,
+      invoicing_email: c.invoicingEmail || null,
+      module_alerts: c.moduleAlerts || null,
+      notes: c.notes || null,
+      is_active: c.active !== false,
+      created_by: _currentUser.id
+    });
+    if (error) console.warn('[Customer Push]', error.message);
+  } catch (e) { console.warn('[Customer Push]', e.message || e); }
+}
+
+async function _pushContactToCloud(ct) {
+  if (!_sb || !_currentUser || !ct) return;
+  try {
+    var ctId = (typeof ensureUUID === 'function') ? ensureUUID(ct) : ct.id;
+    var _isUUID = function(v){ return v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v); };
+    var ctBase = {
+      id:          ctId,
+      name:        ct.name || '',
+      customer_id: _isUUID(ct.customerId) ? ct.customerId : null,
+      phone:       ct.phone || null,
+      email:       ct.email || null,
+      title:       ct.role || ct.title || null,
+      notes:       ct.notes || null,
+      is_active:   true
+    };
+    var ctFull = Object.assign({}, ctBase, {
+      company:      ct.company || null,
+      contact_type: ct.contactType || null,
+      contact_pref: ct.contactPref || null
+    });
+    var ctRes = await _sb.from('contacts').upsert(ctFull);
+    if (ctRes.error && ctRes.error.message && ctRes.error.message.includes('column')) {
+      await _sb.from('contacts').upsert(ctBase);
+    } else if (ctRes.error) {
+      console.warn('[Contact Push]', ctRes.error.message);
+    }
+  } catch (e) { console.warn('[Contact Push]', e.message || e); }
+}
+
+async function _pushInvoiceToCloud(inv0) {
+  if (!_sb || !_currentUser || !inv0 || !inv0.id) return;
+  try {
+    var _invRow = {
+      id:            inv0.id,
+      num:           inv0.num || null,
+      inv_type:      inv0.type || (inv0.woId ? 'workorder' : 'manual'),
+      status:        inv0.status || null,
+      customer_name: inv0.clientName || (inv0.job && inv0.job.customer) || inv0.customerName || null,
+      total:         (inv0.total != null) ? inv0.total : ((inv0.amount != null) ? inv0.amount : null),
+      invoice_date:  inv0.invoiceDate || inv0.date || null,
+      data:          inv0,
+      updated_at:    new Date().toISOString()
+    };
+    var { error } = await _sb.from('app_invoices').upsert(_invRow, { onConflict: 'id' });
+    if (error) console.warn('[Invoice Push]', error.message); else inv0._synced = true;
+  } catch (e) { console.warn('[Invoice Push]', e.message || e); }
+}
+
+async function _pushWOExpenseToCloud(we) {
+  if (!_sb || !_currentUser || !we || !we.id) return;
+  try {
+    var { error } = await _sb.from('wo_expenses').upsert({
+      id:            we.id,
+      wo_id:         we.woId || null,
+      category:      we.category || null,
+      description:   we.description || null,
+      amount:        (we.amount != null) ? we.amount : null,
+      payment_type:  we.paymentType || null,
+      logged_by:     we.loggedBy || null,
+      expense_date:  we.date || null,
+      receipt_url:   we.receiptUrl || null,
+      receipt_doc_id:we.receiptDocId || null,
+      created_at:    we.createdAt || new Date().toISOString()
+    }, { onConflict: 'id' });
+    if (error) console.warn('[Expense Push]', error.message);
+  } catch (e) { console.warn('[Expense Push]', e.message || e); }
+}
+
 async function pushAllToCloud() {
   if (!_sb || !_currentUser) return;
   if (_currentUser.role === 'helper_tech') return;

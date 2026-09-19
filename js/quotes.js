@@ -3374,6 +3374,7 @@ function _savePrimaryContact(customerId, customerName) {
   };
   if (!DB.contacts) DB.contacts = [];
   DB.contacts.push(contact);
+  if (typeof _pushContactToCloud === 'function') _pushContactToCloud(contact);
   if ((document.getElementById('m-pc-isdefault')||{}).checked) {
     var custRec = (DB.customers||[]).find(function(c){ return c.id===customerId; });
     if (custRec) custRec.defaultContactId = contact.id;
@@ -3400,6 +3401,7 @@ function saveCustomer() {
   const data = _buildCustomerData(id);
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
   else { DB.customers.push(data); _savePrimaryContact(data.id, data.name); }
+  if (typeof _pushCustomerToCloud === 'function') _pushCustomerToCloud(data);
   saveDB(); closeModal('modal-customer'); renderCustomers();
   showToast('"'+name+'" saved','success');
 }
@@ -3422,6 +3424,7 @@ function saveCustomerAndAnother() {
   const data = _buildCustomerData(id);
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
   else { DB.customers.push(data); _savePrimaryContact(data.id, data.name); }
+  if (typeof _pushCustomerToCloud === 'function') _pushCustomerToCloud(data);
   saveDB(); renderCustomers();
   _renderContactSection('new', '', '');
   _custFieldIds().forEach(function(fid){var el=document.getElementById(fid);if(el)el.value='';});
