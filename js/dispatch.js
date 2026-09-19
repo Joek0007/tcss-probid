@@ -1412,6 +1412,9 @@ function hasPermission(permKey) {
 // to payroll.view so it stays in one place: owner/manager/payroll-role = yes,
 // generic back_office (Dawn/Lisa/Evan) = no.
 function _canViewPay() {
+  // Per-user grant (e.g. Victoria stays back_office for office writes but is flagged to
+  // handle payroll) OR the role-level payroll permission (owner/manager).
+  if (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.can_view_pay === true) return true;
   return !!(typeof hasPermission === 'function' && hasPermission('payroll.view'));
 }
 

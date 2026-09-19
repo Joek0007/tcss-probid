@@ -6353,11 +6353,10 @@ function getPayPeriodByOffset(offset) {
 function renderPayrollTab() {
   var el = document.getElementById('ts-payroll-content'); if(!el) return;
   var lockEl = document.getElementById('ts-payroll-lock-warning');
-  // AZ-5: gate on the payroll.view matrix permission (was a hardcoded role list,
-  // so the "View Payroll Summary" toggle did nothing).
-  var _canViewPayroll = (typeof hasPermission==='function')
-    ? hasPermission('payroll.view')
-    : (_currentUser && ['owner','manager','back_office'].indexOf(_currentUser.role)>=0);
+  // Pay visibility gate: role-level payroll permission OR per-user can_view_pay flag.
+  var _canViewPayroll = (typeof _canViewPay==='function')
+    ? _canViewPay()
+    : (_currentUser && ['owner','manager'].indexOf(_currentUser.role)>=0);
   if (!_canViewPayroll) { el.innerHTML='<div style="color:#90a4ae;padding:20px;text-align:center">You do not have permission to view payroll.</div>'; return; }
 
   var offsetSel = document.getElementById('payroll-period-select');
@@ -6434,7 +6433,7 @@ function renderPayrollTab() {
 }
 
 function markPayrollProcessed(techName, ppStart, ppEnd) {
-  if (typeof hasPermission==='function' && !hasPermission('payroll.process')) { showToast('You do not have permission to process payroll','error'); return; }
+  if (typeof _canViewPay==='function' && !_canViewPay()) { showToast('You do not have permission to process payroll','error'); return; }
   if (!DB.payrollLog) DB.payrollLog=[];
   DB.payrollLog.push({tech:techName,ppStart:ppStart,ppEnd:ppEnd,processedAt:new Date().toISOString(),processedBy:_currentUser?_currentUser.full_name:'Admin'});
   saveDB();
@@ -6442,7 +6441,7 @@ function markPayrollProcessed(techName, ppStart, ppEnd) {
 }
 
 function exportPayrollCSV() {
-  if (typeof hasPermission==='function' && !hasPermission('payroll.export')) { showToast('You do not have permission to export payroll','error'); return; }
+  if (typeof _canViewPay==='function' && !_canViewPay()) { showToast('You do not have permission to export payroll','error'); return; }
   var offsetSel=document.getElementById('payroll-period-select');
   var offset={current:0,prev1:1,prev2:2}[(offsetSel&&offsetSel.value)||'current']||0;
   var pp=getPayPeriodByOffset(offset);

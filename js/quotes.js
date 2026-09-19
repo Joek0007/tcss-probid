@@ -3871,6 +3871,7 @@ async function renderUserAccessPanel() {
     '<th style="text-align:left;padding:8px 10px;font-size:11px;color:#546e7a;text-transform:uppercase">Name</th>'+
     '<th style="text-align:left;padding:8px 10px;font-size:11px;color:#546e7a;text-transform:uppercase">Status</th>'+
     '<th style="text-align:left;padding:8px 10px;font-size:11px;color:#546e7a;text-transform:uppercase">Role</th>'+
+    '<th style="text-align:left;padding:8px 10px;font-size:11px;color:#546e7a;text-transform:uppercase">Sees Pay</th>'+
     '<th style="padding:8px 10px"></th></tr></thead><tbody>';
   rows.forEach(function(u){
     var pending = !u.is_active;
@@ -3880,10 +3881,17 @@ async function renderUserAccessPanel() {
     var sel = '<select id="uap-role-'+u.id+'" style="padding:5px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
       roles.map(function(r){ return '<option value="'+r+'"'+(u.role===r?' selected':'')+'>'+(_UAP_ROLE_LABELS[r]||r)+'</option>'; }).join('')+'</select>';
     var safeName = (u.full_name||'').replace(/["'\\]/g,'');
+    var seesPay = u.can_view_pay === true;
+    var payCell = (u.role==='owner')
+      ? '<span style="font-size:11px;color:#90a4ae">Always</span>'
+      : '<button class="btn btn-sm" onclick="uapSetPay(\''+u.id+'\','+(seesPay?'false':'true')+')" '+
+        'style="border:1px solid '+(seesPay?'#a5d6a7':'#e0e7ef')+';background:'+(seesPay?'#e8f5e9':'#fff')+';color:'+(seesPay?'#2e7d32':'#90a4ae')+';font-size:11px;font-weight:700;border-radius:10px;padding:3px 10px;cursor:pointer">'+
+        (seesPay?'✓ Pay ON':'Pay off')+'</button>';
     html += '<tr style="border-bottom:1px solid #f0f4f8">'+
       '<td style="padding:6px 10px;font-weight:700;font-size:13px">'+escHtml(u.full_name||'(no name)')+'</td>'+
       '<td style="padding:6px 10px">'+badge+'</td>'+
       '<td style="padding:6px 10px">'+sel+'</td>'+
+      '<td style="padding:6px 10px">'+payCell+'</td>'+
       '<td style="padding:6px 10px;white-space:nowrap;text-align:right">'+
         '<button class="btn btn-primary btn-sm" onclick="uapSetRole(\''+u.id+'\')">'+(pending?'Approve &amp; Set Role':'Save Role')+'</button> '+
         (u.is_active ? '<button class="btn btn-danger btn-sm" onclick="uapDeactivate(\''+u.id+'\',\''+escHtml(safeName)+'\')">Revoke</button>' : '')+
@@ -3899,6 +3907,14 @@ async function uapSetRole(uid){
   catch(e){ res = {error:{message:e.message||String(e)}}; }
   if (res && res.error) { showToast('Could not update access: '+res.error.message,'error',5000); return; }
   showToast('Access updated ✓','success');
+  renderUserAccessPanel();
+}
+async function uapSetPay(uid, canPay){
+  var res;
+  try { res = await _sb.rpc('set_pay_visibility', { p_user_id: uid, p_can: !!canPay }); }
+  catch(e){ res = {error:{message:e.message||String(e)}}; }
+  if (res && res.error) { showToast('Could not update pay visibility: '+res.error.message,'error',5000); return; }
+  showToast(canPay ? 'Pay visibility turned ON ✓' : 'Pay visibility turned off','success');
   renderUserAccessPanel();
 }
 async function uapDeactivate(uid, name){
@@ -4915,6 +4931,8 @@ var _RPT_TAB_PERM = { overview:'*', pipeline:'rpt.quotes', margins:'rpt.quotes',
 var _RPT_TABS = ['overview','pipeline','margins','jobs','techs','tools','payroll'];
 function _rptAnyPerm(){ return ['rpt.quotes','rpt.jobs','rpt.tech','rpt.tools','rpt.payroll'].some(function(k){ return (typeof hasPermission!=='function') || hasPermission(k); }); }
 function _rptCanView(tab){
+  // Payroll report follows pay visibility (role perm OR per-user flag), not rpt.payroll alone.
+  if (tab==='payroll') return (typeof _canViewPay==='function') ? _canViewPay() : false;
   if (typeof hasPermission!=='function') return true;
   var p = _RPT_TAB_PERM[tab]; if (!p) return true;
   return p==='*' ? _rptAnyPerm() : hasPermission(p);
