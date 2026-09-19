@@ -1845,6 +1845,28 @@ async function _pushWOPartToCloud(wp) {
   } catch (e) { console.warn('[WO Part Push]', e.message || e); }
 }
 
+async function _pushInventoryToCloud(inv) {
+  if (!_sb || !_currentUser || !inv || !inv.id) return;
+  try {
+    var { error } = await _sb.from('inventory').upsert({
+      id:         inv.id,
+      name:       inv.name,
+      tag:        inv.tag||null,
+      category:   inv.cat||'General',
+      part_num:   inv.partNum||null,
+      barcode:    inv.barcode||null,
+      returnable: !!inv.returnable,
+      locations:  inv.locations||null,
+      qty:        inv.qty||0,
+      min_qty:    inv.minQty||0,
+      unit_cost:  inv.cost||0,
+      notes:      inv.notes||null,
+      created_by: _currentUser.id
+    }, { onConflict: 'id' });
+    if (error) console.warn('[Inventory Push]', error.message);
+  } catch (e) { console.warn('[Inventory Push]', e.message || e); }
+}
+
 async function _pushQuoteToCloud(q) {
   if (!_sb || !_currentUser || !q) return;
   try {

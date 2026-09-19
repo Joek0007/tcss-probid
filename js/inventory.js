@@ -62,6 +62,9 @@ function adjustItemQty(itemId, locId, delta) {
   item.locations[locId] = Math.max(0, parseFloat(item.locations[locId]) + delta);
   item.qty = getTotalQty(item);
   saveDB();
+  // Write-through so quantity changes (receiving, scanner check-in/out, transfers) reach the
+  // cloud immediately rather than waiting on the next full sync.
+  if (typeof _pushInventoryToCloud === 'function') _pushInventoryToCloud(item);
 }
 
 // ---- SCANNER PAGE ----
@@ -416,6 +419,7 @@ function confirmReceiving() {
   var today = getTodayISO();
   var allReceived = true;
   var anyReceived = false;
+  var _newParts   = [];   // wo_parts to push inline (inventory pushes via adjustItemQty)
 
   _receivingLines.forEach(function(rl, i) {
     if (rl.arriving <= 0) return;
@@ -432,7 +436,7 @@ function confirmReceiving() {
              (inv.tag&&inv.tag===(rl.partNum||''));
     });
 
-    // Add to stock location
+    // Add to stock location (adjustItemQty write-through pushes the item to the cloud)
     if (rl.toStock > 0) {
       if (invItem) {
         adjustItemQty(invItem.id, rl.stockLocId, rl.toStock);
@@ -445,7 +449,7 @@ function confirmReceiving() {
       var woId = po.woId || (po.jobId && (typeof _findJobOrWO==="function"?_findJobOrWO(po.jobId):(DB.jobs||[]).find(function(j){return j.id===po.jobId;}))||{}).woId;
       if (woId) {
         if (!DB.woParts) DB.woParts = [];
-        DB.woParts.push({
+        var _wp = {
           id:          'wop-'+Date.now()+'-'+i,
           woId:        woId,
           name:        rl.desc||'',
@@ -455,7 +459,9 @@ function confirmReceiving() {
           requestedBy: 'PO '+po.poNumber,
           poId:        po.id,
           createdAt:   new Date().toISOString()
-        });
+        };
+        DB.woParts.push(_wp);
+        _newParts.push(_wp);
       }
     }
   });
@@ -465,6 +471,13 @@ function confirmReceiving() {
   else if (anyReceived) po.status = 'Partially Received';
 
   saveDB();
+  // Write-through to the cloud immediately (don't wait on the slow full sync): the received
+  // stock, the WO parts, and the PO's new received-qty/status each push on their own.
+  try {
+    _newParts.forEach(function(wp){ if(typeof _pushWOPartToCloud==='function') _pushWOPartToCloud(wp); });
+    if (typeof _pushPOToCloud==='function') _pushPOToCloud(po);
+  } catch(e) { console.warn('[Receiving push]', e && e.message); }
+
   closeModal('modal-receiving');
   renderPOList();
   showToast('Receiving confirmed — inventory updated ✓','success',4000);
@@ -732,7 +745,9 @@ function saveInventoryItemV2() {
   locations['loc-shop'] = shopQty;
 
   var data = {
-    id:         id || 'inv-'+Date.now(),
+    // inventory.id is a UUID column in the cloud — new items must use a real UUID or the
+    // sync upsert is rejected. (Legacy local 'inv-...' ids predate cloud sync.)
+    id:         id || (window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'inv-'+Date.now()),
     name:       name,
     tag:        gv('inv-tag') || (existing&&existing.tag) || nextAssetTag(),
     cat:        gv('inv-cat') || 'General',
@@ -756,6 +771,7 @@ function saveInventoryItemV2() {
     DB.inventory.push(data);
   }
   saveDB();
+  if (typeof _pushInventoryToCloud === 'function') _pushInventoryToCloud(data); // instant write-through
   closeModal('modal-inv-item');
   renderInventory();
   showToast('"'+name+'" saved ✓','success');
