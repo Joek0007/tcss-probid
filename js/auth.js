@@ -1715,6 +1715,139 @@ async function _pushWOExpenseToCloud(we) {
   } catch (e) { console.warn('[Expense Push]', e.message || e); }
 }
 
+async function _pushQuoteToCloud(q) {
+  if (!_sb || !_currentUser || !q) return;
+  try {
+    var qId = (typeof ensureUUID === 'function') ? ensureUUID(q) : q.id;
+    var statusMap = {
+      'draft':'Draft','Draft':'Draft','sent':'Sent','Sent':'Sent','review':'Review','Review':'Review',
+      'followup':'Review','approved':'Approved','Approved':'Approved','won':'Won','Won':'Won',
+      'declined':'Lost','lost':'Lost','Lost':'Lost','rejected':'Rejected','Rejected':'Rejected',
+      'expired':'Expired','Expired':'Expired'
+    };
+    var { error } = await _sb.from('quotes').upsert({
+      id: qId,
+      quote_number: q.num || null,
+      customer_name: q.cn || null,
+      job_id: null,
+      sales_rep_name: q.rep || null,
+      status: statusMap[q.status] || 'Draft',
+      quote_date: q.dt || new Date().toISOString().split('T')[0],
+      valid_until: q.vu || null,
+      job_name: q.jn || null,
+      contact_name: q.contactName || null,
+      contact_id: q.contactId || null,
+      contact_title: q.contactTitle || null,
+      phone: q.ph || null,
+      email: q.em || null,
+      site_address: q.adStreet || null,
+      site_city: q.adCity || null,
+      site_state: q.adState || null,
+      site_zip: q.adZip || null,
+      customer_id: q.customerId || null,
+      quote_type: q.jt || null,
+      environment: q.env || null,
+      pricing_mode: (q.pricingMode === 'markup' ? 'markup' : 'margin'),
+      target_margin: q.targetMargin !== undefined ? q.targetMargin : 35,
+      labor_rate: q.laborRate || 100,
+      tax_rate: q.taxRate || 0,
+      discount: q.discount || 0,
+      total_material_cost: q.totalMaterialCost || 0,
+      total_labor_hours: q.totalLaborHours || 0,
+      labor_sell: q.laborSell || 0,
+      material_sell: q.materialSell || 0,
+      total_cost: q.totalCost || 0,
+      sell_before_tax: q.sellBeforeTax || 0,
+      tax_amount: q.taxAmt || 0,
+      total_sell: q.total || 0,
+      achieved_margin_pct: q.achievedMargin || 0,
+      below_margin_floor: !!q.belowMarginFloor,
+      margin_bypass:    !!(q.marginBypass && q.marginBypass.enabled),
+      margin_bypass_by: (q.marginBypass && q.marginBypass.by) || null,
+      margin_bypass_at: (q.marginBypass && q.marginBypass.at) || null,
+      scope_notes: q.notes || null,
+      internal_notes: q.internalNotes || null,
+      quote_terms: q.tc || null,
+      priority: q.priority || 'Normal',
+      lump_sum_enabled: !!(q.lumpSum && q.lumpSum.enabled),
+      lump_sum_label: (q.lumpSum && q.lumpSum.label) || null,
+      approval_status: (q.approval && q.approval.status) || null,
+      approval_token: q.approvalToken || null,
+      show_labor_banner: q.showLaborBanner !== undefined ? !!q.showLaborBanner : true,
+      permit_data: q.permits ? JSON.stringify(q.permits) : null,
+      payment_terms: q.pt || 'Net 30',
+      followup_date: q.followupDate || null,
+      created_by: _currentUser.id
+    });
+    if (error) { console.warn('[Quote Push]', error.message); return; }
+    // Line items — atomic replace (same transaction guarantee as the full push).
+    if (Array.isArray(q.items)) {
+      var lineItems = q.items.map(function(item, idx) {
+        return {
+          sort_order: idx,
+          description: item.desc || '',
+          category: item.cat || null,
+          qty: item.qty || 1,
+          unit: item.unit || 'ea',
+          material_cost: item.mc || 0,
+          labor_hours: item.lh || 0
+        };
+      });
+      var _rli = await _sb.rpc('replace_quote_line_items', { p_quote_id: qId, p_items: lineItems });
+      if (_rli && _rli.error) console.warn('[Quote Push] line items', _rli.error.message);
+    }
+  } catch (e) { console.warn('[Quote Push]', e.message || e); }
+}
+
+async function _pushJobToCloud(jb) {
+  if (!_sb || !_currentUser || !jb) return;
+  try {
+    var jbId = (typeof ensureUUID === 'function') ? ensureUUID(jb) : jb.id;
+    var jobStatusMap = {
+      'Scheduled':'pending','scheduled':'pending','In Progress':'active','in_progress':'active',
+      'Active':'active','Paused':'on_hold','On Hold':'on_hold','on_hold':'on_hold',
+      'Complete':'completed','Completed':'completed','complete':'completed','Closed':'closed',
+      'closed':'closed','Invoiced':'invoiced','invoiced':'invoiced'
+    };
+    var _isUUIDjb = function(v){ return v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v); };
+    var jbBase = {
+      id:              jbId,
+      job_number:      jb.num || null,
+      name:            jb.name || '',
+      customer_id:     _isUUIDjb(jb.customerId) ? jb.customerId : null,
+      status:          jobStatusMap[jb.status] || 'pending',
+      site_address:    jb.address || null,
+      scheduled_start: jb.scheduledDate || jb.startDate || null,
+      scheduled_end:   jb.endDate || null,
+      is_active:       true,
+      created_by:      _currentUser.id
+    };
+    var jbFull = Object.assign({}, jbBase, {
+      customer_name:      jb.customer || null,
+      primary_quote_id:   jb.quoteId || null,
+      assigned_to:        jb.assignedTo || null,
+      crew:               jb.crew || [],
+      scheduled_date:     jb.scheduledDate || null,
+      scheduled_time:     jb.scheduledTime || null,
+      scheduled_duration: jb.scheduledDuration || null,
+      est_labor_hours:    jb.estLaborHours || null,
+      actual_labor_hours: jb.actualLaborHours || null,
+      est_total:          jb.estTotal || null,
+      address:            jb.address || null,
+      notes:              jb.notes || null,
+      dispatch_notes:     jb.dispatchNotes || null,
+      contact_id:         jb.contactId || null,
+      quote_id:           jb.quoteId || null
+    });
+    var jbRes = await _sb.from('jobs').upsert(jbFull);
+    if (jbRes.error && jbRes.error.message && jbRes.error.message.includes('column')) {
+      await _sb.from('jobs').upsert(jbBase);
+    } else if (jbRes.error) {
+      console.warn('[Job Push]', jbRes.error.message);
+    }
+  } catch (e) { console.warn('[Job Push]', e.message || e); }
+}
+
 async function pushAllToCloud() {
   if (!_sb || !_currentUser) return;
   if (_currentUser.role === 'helper_tech') return;

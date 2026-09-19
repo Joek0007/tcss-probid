@@ -612,6 +612,19 @@ function makeUUID() {
     return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);
   });
 }
+// Global UUID guards — mirror the helpers inside pushAllToCloud so inline
+// per-record cloud pushes (customers, contacts, quotes, jobs) mint a stable
+// UUID for any legacy non-UUID id BEFORE upserting. The id columns are uuid
+// type, so pushing a legacy 'cust-XXXX' id would otherwise be rejected and the
+// record would only sync later via the full reconciler.
+function isUUID(s) {
+  return typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+function ensureUUID(obj) {
+  if (!obj) return null;
+  if (!obj.id || !isUUID(obj.id)) { obj.id = makeUUID(); }
+  return obj.id;
+}
 
 // ---- NAVIGATION ----
 const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',vehicles:'Vehicles',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log',recyclebin:'Recycle Bin',contracts:'Contracts',recurring:'Managed Services'};

@@ -854,6 +854,11 @@ async function confirmConvertJob() {
   job.woId = wo.id;
   job.woNumber = wo.woNumber;
 
+  // Write-through to cloud immediately: the quote (now approved), the new job, and the new WO.
+  if (typeof _pushQuoteToCloud === 'function') _pushQuoteToCloud(q);
+  if (typeof _pushJobToCloud === 'function') _pushJobToCloud(job);
+  if (typeof _pushWOToCloud === 'function') _pushWOToCloud(wo);
+
   saveDB();
   showToast('Job '+job.num+' + Work Order '+wo.woNumber+' created ✓','success',5000);
   renderDash();

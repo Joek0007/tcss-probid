@@ -744,6 +744,7 @@ async function saveQQ() {
       var custIdEl = document.getElementById('qq-customer-id');
       if (custIdEl) custIdEl.value = cust.id;
     }
+    if (cust && typeof _pushCustomerToCloud === 'function') _pushCustomerToCloud(cust);
   }
 
   // Upsert into DB.quotes — update if exists, insert if new
@@ -755,6 +756,7 @@ async function saveQQ() {
     DB.quotes.unshift(q);
   }
 
+  if (typeof _pushQuoteToCloud === 'function') _pushQuoteToCloud(q);
   saveDB();
   clearQQDraft();
   setQQDirty(false, 'Saved');
@@ -3751,6 +3753,7 @@ function saveJob(){
   });
   if(id){const idx=DB.jobs.findIndex(function(j){return j.id==id});if(idx>=0)DB.jobs[idx]=data;else DB.jobs.push(data);}
   else DB.jobs.push(data);
+  if (typeof _pushJobToCloud === 'function') _pushJobToCloud(data);
   saveDB();closeModal('modal-job');renderJobs();renderDash();
 }
 function delJob(id) {
