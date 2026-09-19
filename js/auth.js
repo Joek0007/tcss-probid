@@ -1580,7 +1580,8 @@ async function syncAllFromCloud(silent) {
   // Save to localStorage only — do NOT call saveDB() here as it would schedule a push
   // We just pulled from Supabase so there's nothing to push back
   window._syncInProgress = false;
-  try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
+  // Persist the freshly-pulled data off the main thread (no push — data came FROM cloud).
+  try { _dbPackAsync(DB).then(function(p){ try{ localStorage.setItem(DB_KEY, p); }catch(e){} }); } catch(e) {}
   clearTimeout(window._syncTimer); // Cancel any push timer that snuck in during sync
   // Re-apply permissions after sync then render correct dashboard for role
   if (_currentUser) applyRolePermissions(_currentUser.role);
@@ -1715,7 +1716,7 @@ async function pushAllToCloud() {
       // Only confirmed cloud deletes (a row actually came back from .select) clear the
       // tombstone; blocked/no-op deletes stay tombstoned so the row never resurrects.
       DB.deletedIds = {quotes:keepQ, team:keepT, customers:keepC, contacts:keepCt, jobs:keepJ, catalog:keepCat, templates:keepTmpl, inventory:keepInv, workOrders:keepWO, purchaseOrders:keepPO, timeEntries:keepTE, contracts:keepCon, recurringContracts:keepRC, woParts:keepWP, woLabor:keepWL, woExpenses:keepWE, woChecklist:keepWCl, invoices:keepInvoices};
-      try { localStorage.setItem(DB_KEY, _dbPack(DB)); } catch(e) {}
+      try { _dbPackAsync(DB).then(function(p){ try{ localStorage.setItem(DB_KEY, p); }catch(e){} }); } catch(e) {}
     }
     // Push settings to company_settings (single row, id=1)
     _pushErr('company_settings', await _sb.from('company_settings').upsert({

@@ -41,35 +41,89 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 function _dbPack(obj){ try { return "\u0001Z"+LZString.compressToUTF16(JSON.stringify(obj)); } catch(e){ try { return JSON.stringify(obj); } catch(_){ return ""; } } }
 function _dbUnpack(raw){ if(raw==null) return null; if(raw.charAt(0)==="\u0001"){ return JSON.parse(LZString.decompressFromUTF16(raw.slice(2))); } return JSON.parse(raw); }
 
-function saveDB() {
+// ============================================================
+// OFF-MAIN-THREAD LOCAL PERSISTENCE
+// The local cache is LZString-compressed before it is written to localStorage. On a
+// large database that compression is multi-second, and run on the main thread it froze
+// the whole app on every save/sync/restore-point (measured ~14s on a 10.9MB DB). The
+// compression now runs in a Web Worker so the UI stays responsive. If the worker is
+// unavailable (old browser, blocked, or an error), we fall back to the original
+// synchronous pack — so the worst case equals prior behavior, never worse.
+// ============================================================
+var _packWorker = null, _packWorkerDead = false, _packSeq = 0, _packCbs = {};
+function _getPackWorker(){
+  if (_packWorker || _packWorkerDead) return _packWorker;
   try {
-    localStorage.setItem(DB_KEY, _dbPack(DB));
-  } catch(e) {
-    if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-      // localStorage is full — strip large WT defaults (they're re-generatable) and retry
-      try {
-        var slim = Object.assign({}, DB);
-        // Remove catalog/templates/buildingTypes — regenerated from defaults on demand
-        if (slim.wtItemCatalog && slim.wtItemCatalog.length > 0 &&
-            slim.wtItemCatalog[0].id && slim.wtItemCatalog[0].id.startsWith('itm_')) {
-          delete slim.wtItemCatalog;   // default catalog, not customized
-        }
-        if (slim.wtRoomTemplates && slim.wtRoomTemplates.length > 0 &&
-            slim.wtRoomTemplates[0].id && slim.wtRoomTemplates[0].id.startsWith('tpl_')) {
-          delete slim.wtRoomTemplates; // default templates
-        }
-        if (slim.wtBuildingTypes) delete slim.wtBuildingTypes;
-        // Also trim wizard draft from DB if somehow stored there
-        localStorage.setItem(DB_KEY, _dbPack(slim));
-        console.warn('saveDB: trimmed WT defaults to fit quota');
-      } catch(e2) {
-        console.error('saveDB: quota still exceeded after trim', e2);
-        showToast && showToast('Storage full — please clear old data or use a different browser profile','error');
-      }
-    } else {
-      console.warn('Save error', e);
-    }
+    if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) { _packWorkerDead = true; return null; }
+    var coreEl = (typeof document!=='undefined') && document.querySelector && document.querySelector('script[src*="core.js"]');
+    var lzUrl = (coreEl && coreEl.src) ? coreEl.src.replace(/core\.js/, 'lzstring.js') : 'js/lzstring.js';
+    var code = 'importScripts(' + JSON.stringify(lzUrl) + ');'
+      + 'self.onmessage=function(e){try{self.postMessage({id:e.data.id,compressed:self.LZString.compressToUTF16(e.data.json)});}'
+      + 'catch(err){self.postMessage({id:e.data.id,error:String(err&&err.message||err)});}};';
+    var blob = new Blob([code], {type:'application/javascript'});
+    _packWorker = new Worker(URL.createObjectURL(blob));
+    _packWorker.onmessage = function(e){ var d=e.data||{}; var cb=_packCbs[d.id]; if(cb){ delete _packCbs[d.id]; cb(d); } };
+    _packWorker.onerror   = function(){ _packWorkerDead = true; try{ _packWorker.terminate(); }catch(_){} _packWorker = null; };
+    return _packWorker;
+  } catch(e){ _packWorkerDead = true; return null; }
+}
+// Resolve to the packed ("\u0001Z"+compressed) string; compress in the worker, fall back
+// to the synchronous pack on any failure.
+function _dbPackAsync(obj){
+  return new Promise(function(resolve){
+    var json;
+    try { json = JSON.stringify(obj); } catch(e){ resolve(_dbPack(obj)); return; }
+    var w = _getPackWorker();
+    if (!w){ resolve(_dbPack(obj)); return; }
+    var id = ++_packSeq, settled = false;
+    _packCbs[id] = function(d){ if(settled) return; settled = true;
+      resolve((d && !d.error && d.compressed != null) ? ("\u0001Z" + d.compressed) : _dbPack(obj)); };
+    try { w.postMessage({ id:id, json:json }); }
+    catch(e){ delete _packCbs[id]; resolve(_dbPack(obj)); return; }
+    setTimeout(function(){ if(!settled && _packCbs[id]){ settled=true; delete _packCbs[id]; resolve(_dbPack(obj)); } }, 60000);
+  });
+}
+
+// Debounced, coalesced local persist. Rapid changes never queue multiple compressions.
+var _persistTimer=null, _persistPending=false, _persistInFlight=false;
+function _scheduleLocalPersist(){
+  _persistPending = true;
+  if (_persistTimer || _persistInFlight) return;
+  _persistTimer = setTimeout(_doLocalPersist, 500);
+}
+function _doLocalPersist(){
+  _persistTimer = null;
+  if (!_persistPending) return;
+  _persistPending = false; _persistInFlight = true;
+  _dbPackAsync(DB).then(function(packed){
+    try { localStorage.setItem(DB_KEY, packed); }
+    catch(e){ _persistQuotaFallback(e); }
+  }).catch(function(){}).then(function(){
+    _persistInFlight = false;
+    // If changes arrived while we were packing, persist again.
+    if (_persistPending && !_persistTimer) _persistTimer = setTimeout(_doLocalPersist, 500);
+  });
+}
+function _persistQuotaFallback(e){
+  if (e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+    try {
+      var slim = Object.assign({}, DB);
+      if (slim.wtItemCatalog && slim.wtItemCatalog.length > 0 && slim.wtItemCatalog[0].id && slim.wtItemCatalog[0].id.startsWith('itm_')) delete slim.wtItemCatalog;
+      if (slim.wtRoomTemplates && slim.wtRoomTemplates.length > 0 && slim.wtRoomTemplates[0].id && slim.wtRoomTemplates[0].id.startsWith('tpl_')) delete slim.wtRoomTemplates;
+      if (slim.wtBuildingTypes) delete slim.wtBuildingTypes;
+      _dbPackAsync(slim).then(function(p2){
+        try { localStorage.setItem(DB_KEY, p2); console.warn('saveDB: trimmed WT defaults to fit quota'); }
+        catch(e2){ console.error('saveDB: quota still exceeded after trim', e2); if (typeof showToast==='function') showToast('Storage full — please clear old data or use a different browser profile','error'); }
+      });
+    } catch(e3){ console.error('saveDB quota fallback failed', e3); }
+  } else {
+    console.warn('Save error', e);
   }
+}
+
+function saveDB() {
+  // Persist the local cache OFF the main thread (compression in a Web Worker), debounced.
+  _scheduleLocalPersist();
   // Don't schedule a push if we're in the middle of a sync pull — data just came FROM Supabase
   if (window._syncInProgress) return;
   // Debounced cloud push — no recursion
@@ -209,17 +263,24 @@ function restoreFromBackupFile(input) {
 }
 
 // Snapshot the CURRENT db to localStorage before any destructive/large change.
+// Compression runs OFF the main thread (this fires before every sync — synchronous
+// compression here was a second source of the whole-app freeze).
 function _saveRestorePoint(tag) {
-  try { localStorage.setItem(BACKUP_LASTGOOD_KEY, _dbPack({ tag: tag||'snapshot', at: new Date().toISOString(), db: DB })); }
-  catch(e) { console.warn('[Backup] restore-point skipped:', e && e.name); }
+  try {
+    _dbPackAsync({ tag: tag||'snapshot', at: new Date().toISOString(), db: DB }).then(function(packed){
+      try { localStorage.setItem(BACKUP_LASTGOOD_KEY, packed); } catch(e){ console.warn('[Backup] restore-point skipped:', e && e.name); }
+    });
+  } catch(e) { console.warn('[Backup] restore-point skipped:', e && e.name); }
 }
 
-// Once-a-day rolling local snapshot (runs on login). Quota-guarded.
+// Once-a-day rolling local snapshot (runs on login). Quota-guarded. Off-main-thread pack.
 function _saveDailySnapshot() {
   try {
     var raw = localStorage.getItem(BACKUP_DAILY_KEY);
     if (raw) { var last = _dbUnpack(raw); if (last && last.at && (new Date() - new Date(last.at)) < 20*60*60*1000) return; }
-    localStorage.setItem(BACKUP_DAILY_KEY, _dbPack({ at: new Date().toISOString(), db: DB }));
+    _dbPackAsync({ at: new Date().toISOString(), db: DB }).then(function(packed){
+      try { localStorage.setItem(BACKUP_DAILY_KEY, packed); } catch(e){ console.warn('[Backup] daily snapshot skipped:', e && e.name); }
+    });
   } catch(e) { console.warn('[Backup] daily snapshot skipped:', e && e.name); }
 }
 
