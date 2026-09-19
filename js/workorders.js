@@ -542,7 +542,14 @@ function openNewWorkOrder() {
    'wo-ref-num','wo-site-addr','wo-site-city','wo-site-state','wo-site-zip',
    'wo-internal-notes','wo-date-followup','wo-scheduled-date','wo-scheduled-time',
    'wo-created-date','wo-closed-date'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.value='';
+    var el=document.getElementById(id); if(!el) return;
+    if(el.contentEditable==='true'){
+      // Rich-text (contenteditable) fields ignore .value — clear via the RTF loader
+      if(typeof woRtfLoad==='function') woRtfLoad(id,'',false);
+      else { el.innerHTML=''; if(typeof _woRtfPlaceholder==='function') _woRtfPlaceholder(id); }
+    } else {
+      el.value='';
+    }
   });
   var reqEl=document.getElementById('wo-date-requested'); if(reqEl) reqEl.value=today;
   document.getElementById('wo-modal-title').textContent='New Work Order';
