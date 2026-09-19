@@ -2099,12 +2099,13 @@ function renderWOPartsTab(woId) {
     html +=
       '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:16px">'+
         '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin-bottom:8px">Request a Part</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 80px 1fr auto;gap:8px;align-items:end">'+
+        '<div style="display:grid;grid-template-columns:1fr 64px 96px 1fr auto;gap:8px;align-items:end">'+
           '<div><input id="wop-name" placeholder="Part name / search catalog..." list="wop-catalog-list" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box">'+
           '<datalist id="wop-catalog-list">'+
             (DB.catalog||[]).map(function(c){return '<option value="'+escHtml(c.desc||c.name||'')+'">'+escHtml(c.part||'')+'</option>';}).join('')+
           '</datalist></div>'+
           '<div><input id="wop-qty" type="number" min="1" value="1" placeholder="Qty" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
+          '<div><input id="wop-cost" type="number" min="0" step="0.01" placeholder="Unit $" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
           '<div><input id="wop-notes" placeholder="Notes / part #..." style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box"></div>'+
           '<div><button class="btn btn-primary btn-sm" onclick="addWOPart()">+ Request</button></div>'+
         '</div>'+
@@ -2125,6 +2126,14 @@ function renderWOPartsTab(woId) {
   if (!parts.length) {
     return html + '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No parts on this work order yet.</div></div>';
   }
+
+  // Parts cost total (qty × unit cost across all parts on this WO)
+  var _partsTotal = parts.reduce(function(s,p){ return s + (Number(p.unitCost)||0)*(Number(p.qty)||0); }, 0);
+  html +=
+    '<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:12px">'+
+      '<span style="font-size:12px;color:#546e7a;text-transform:uppercase;font-weight:700">Parts Total</span>'+
+      '<span style="font-size:16px;font-weight:800;color:#2e7d32">$'+_partsTotal.toFixed(2)+'</span>'+
+    '</div>';
 
   // Create PO button if there are requested parts
   if (isOffice && requested.length) {
@@ -2147,6 +2156,8 @@ function renderWOPartsTab(woId) {
       '<thead><tr style="background:#f8f9fa">'+
         '<th style="padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Part</th>'+
         '<th style="padding:7px 10px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Qty</th>'+
+        '<th style="padding:7px 10px;text-align:right;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Unit $</th>'+
+        '<th style="padding:7px 10px;text-align:right;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Total $</th>'+
         '<th style="padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">'+
           (label.includes('Received') ? 'Received By / Date' : 'Requested By')+
         '</th>'+
@@ -2168,6 +2179,12 @@ function renderWOPartsTab(woId) {
           (p.notes?'<div style="font-size:11px;color:#546e7a;font-style:italic">'+escHtml(p.notes)+'</div>':'')+
         '</td>'+
         '<td style="padding:9px 10px;text-align:center;font-weight:700">'+escHtml(String(p.qty||1))+'</td>'+
+        '<td style="padding:9px 10px;text-align:right">'+
+          (isOffice
+            ? '<input type="number" min="0" step="0.01" value="'+(p.unitCost!=null?p.unitCost:0)+'" onchange="updateWOPartCost(\''+p.id+'\',this.value)" style="width:74px;padding:4px 6px;border:1px solid #e0e7ef;border-radius:4px;font-size:12px;text-align:right">'
+            : '<span style="font-size:12px;color:#546e7a">$'+(Number(p.unitCost)||0).toFixed(2)+'</span>')+
+        '</td>'+
+        '<td style="padding:9px 10px;text-align:right;font-weight:700">$'+(((Number(p.unitCost)||0)*(Number(p.qty)||0))).toFixed(2)+'</td>'+
         '<td style="padding:9px 10px;font-size:12px;color:#546e7a">'+escHtml(receivedInfo)+'</td>'+
         (isOffice?
           '<td style="padding:9px 10px;text-align:center">'+
@@ -2198,7 +2215,9 @@ function addWOPart() {
   var name=(document.getElementById('wop-name')||{}).value||'';
   if(!name.trim()){showToast('Enter a part name','error');return;}
   if(!DB.woParts) DB.woParts=[];
-  DB.woParts.push({ id:'wop-'+Date.now(), woId:woId, name:name.trim(), qty:parseFloat((document.getElementById('wop-qty')||{}).value)||1, notes:(document.getElementById('wop-notes')||{}).value||'', status:'requested', requestedBy:(_currentUser&&_currentUser.full_name)||'Unknown', createdAt:new Date().toISOString() });
+  var _newPart={ id:'wop-'+Date.now(), woId:woId, name:name.trim(), qty:parseFloat((document.getElementById('wop-qty')||{}).value)||1, unitCost:parseFloat((document.getElementById('wop-cost')||{}).value)||0, notes:(document.getElementById('wop-notes')||{}).value||'', status:'requested', requestedBy:(_currentUser&&_currentUser.full_name)||'Unknown', createdAt:new Date().toISOString() };
+  DB.woParts.push(_newPart);
+  if (typeof _pushWOPartToCloud === 'function') _pushWOPartToCloud(_newPart);
   // Auto-update WO status to Parts Needed
   var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});
   if(wo&&(wo.status==='New'||wo.status==='Open')){wo.status='Parts Needed';var sel=document.getElementById('wo-status');if(sel)sel.value='Parts Needed';}
@@ -2208,7 +2227,17 @@ function addWOPart() {
 
 function updateWOPartStatus(id,status) {
   var part=(DB.woParts||[]).find(function(p){return p.id===id;});
-  if(part){part.status=status; saveDB(); switchWOTab('parts');}
+  if(part){part.status=status; if(typeof _pushWOPartToCloud==='function') _pushWOPartToCloud(part); saveDB(); switchWOTab('parts');}
+}
+
+function updateWOPartCost(id,val) {
+  var part=(DB.woParts||[]).find(function(p){return p.id===id;});
+  if(part){
+    part.unitCost=parseFloat(val)||0;
+    if(typeof _pushWOPartToCloud==='function') _pushWOPartToCloud(part);
+    saveDB(); switchWOTab('parts');
+    if(typeof refreshWOQuickStats==='function') refreshWOQuickStats(_woCurrentId);
+  }
 }
 
 function deleteWOPart(id) {

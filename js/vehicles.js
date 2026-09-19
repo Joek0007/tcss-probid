@@ -36,12 +36,33 @@ function _ensureVehicleRollup(force){
   }).catch(function(){ _vehRollupBusy=false; });
 }
 
+// Per-vehicle cost rollup (Parts + Expenses + Labor, plus this-year) for the fleet
+// comparison. Computed server-side by vehicle_cost_rollup() so the list can rank every
+// vehicle without loading all their line items. Same load-once pattern as the WO rollup.
+var _vehCostLoaded=false, _vehCostBusy=false;
+function _ensureVehicleCostRollup(force){
+  if (force) _vehCostLoaded=false;
+  if (_vehCostLoaded || _vehCostBusy) return;
+  if (typeof _sb==='undefined' || !_sb) return;
+  _vehCostBusy=true;
+  _sb.rpc('vehicle_cost_rollup').then(function(rr){
+    _vehCostBusy=false;
+    if (rr && !rr.error && Array.isArray(rr.data)){
+      var m={}; rr.data.forEach(function(x){ if(x&&x.vehicle_id) m[x.vehicle_id]={total:+x.total_cost||0, parts:+x.parts_total||0, expenses:+x.expense_total||0, labor:+x.labor_total||0, ytd:+x.ytd_cost||0}; });
+      DB.vehicleCostRollup=m; _vehCostLoaded=true;
+      if (document.getElementById('veh-tbl')) { try{ renderVehicles(); }catch(e){} }
+    }
+  }).catch(function(){ _vehCostBusy=false; });
+}
+
 function renderVehicles(){
   if (!DB.vehicles) DB.vehicles = [];
   if (typeof _ensureVehicleRollup==='function') _ensureVehicleRollup();
   if (typeof _ensureVehicleIssueRollup==='function') _ensureVehicleIssueRollup();
+  if (typeof _ensureVehicleCostRollup==='function') _ensureVehicleCostRollup();
   var rollup = DB.vehicleRollup || null;
   var issR = DB.vehicleIssueRollup || {};
+  var costR = DB.vehicleCostRollup || {};
 
   var search = ((document.getElementById('veh-search')||{}).value||'').trim().toLowerCase();
   var fStatus = (document.getElementById('veh-filter')||{}).value||'';
@@ -57,7 +78,14 @@ function renderVehicles(){
   });
   if (fStatus) list = list.filter(function(v){ return (v.status||'').toLowerCase()===fStatus; });
 
-  list.sort(function(a,b){ return (a.number||a.name||'').localeCompare(b.number||b.name||'', undefined, {numeric:true, sensitivity:'base'}); });
+  var sortBy = (document.getElementById('veh-sort')||{}).value||'';
+  if (sortBy==='cost'){
+    list.sort(function(a,b){ return ((costR[b.id]&&costR[b.id].total)||0) - ((costR[a.id]&&costR[a.id].total)||0); });
+  } else if (sortBy==='cost_ytd'){
+    list.sort(function(a,b){ return ((costR[b.id]&&costR[b.id].ytd)||0) - ((costR[a.id]&&costR[a.id].ytd)||0); });
+  } else {
+    list.sort(function(a,b){ return (a.number||a.name||'').localeCompare(b.number||b.name||'', undefined, {numeric:true, sensitivity:'base'}); });
+  }
 
   // Summary tiles
   var setS=function(id,val){ var el=document.getElementById(id); if(el) el.textContent=val; };
@@ -101,6 +129,12 @@ function renderVehicles(){
         (sub?'<div class="cust-card-sub">'+sub+'</div>':'')+
         (meta.length?'<div class="cust-card-sub" style="margin-top:2px">'+meta.join(' &nbsp; ')+'</div>':'')+'</div>'+
       '<div style="text-align:center"><span class="cust-bubble tot" title="Work orders" onclick="openVehicleProfile(\''+v.id+'\')">🔨 '+woCnt+'</span></div>'+
+      '<div style="text-align:center">'+(function(){
+        var c=costR[v.id];
+        if(!c){ return '<span style="font-size:12px;color:#cfd8dc">…</span>'; }
+        var tip='Total cost (Parts + Expenses + Labor): $'+Math.round(c.total).toLocaleString()+'  |  This year: $'+Math.round(c.ytd).toLocaleString()+'  (P $'+Math.round(c.parts).toLocaleString()+' · E $'+Math.round(c.expenses).toLocaleString()+' · L $'+Math.round(c.labor).toLocaleString()+')';
+        return '<span title="'+escHtml(tip)+'" onclick="openVehicleProfile(\''+v.id+'\')" style="cursor:pointer;font-weight:700;font-size:13px;color:#2e7d32">$'+Math.round(c.total).toLocaleString()+'</span>'+(c.ytd>0?'<div style="font-size:9px;color:#90a4ae">$'+Math.round(c.ytd).toLocaleString()+' this yr</div>':'');
+      })()+'</div>'+
       '<div class="cust-actions">'+
         '<button class="btn btn-primary btn-sm" onclick="openVehicleProfile(\''+v.id+'\')">Open</button>'+
         '<button class="btn btn-outline btn-sm" onclick="editVehicle(\''+v.id+'\')" title="Edit">✏</button>'+
@@ -110,7 +144,7 @@ function renderVehicles(){
   }).join('');
 
   var pager = (typeof _listPager==='function') ? _listPager(_vehPage, pages, total, start, pageItems.length, '_vehGoPage') : '';
-  el.innerHTML = '<div class="cust-col-header"><span>Vehicle</span><span style="text-align:center">Work Orders</span><span>Actions</span></div>' + rows + pager;
+  el.innerHTML = '<div class="cust-col-header"><span>Vehicle</span><span style="text-align:center">Work Orders</span><span style="text-align:center" title="Sort by total cost" onclick="(function(){var s=document.getElementById(\'veh-sort\'); if(s){ s.value=(s.value===\'cost\'?\'\':\'cost\'); setVehSort(); }})()">Cost ▾</span><span>Actions</span></div>' + rows + pager;
 }
 
 // ---- New / Edit / Save ----
@@ -224,12 +258,15 @@ function _loadVPWorkOrders(v){
     var rows=(r&&r.data)||[]; var seen={}; rows.forEach(function(w){ if(w&&w.id) seen[w.id]=1; });
     mem().forEach(function(w){ if(!w.id||!seen[w.id]){ rows.push(w); if(w.id) seen[w.id]=1; } });
     _vpWorkOrders=rows; _applyVP(forId);
-    // PERF: expenses for this vehicle's WOs may be outside the sync window — load them on
-    // demand so the Parts/Expense cost tile is exact, then refresh the overview.
-    if (typeof ensureWOExpensesForIds === 'function') {
-      var _ids = rows.map(function(w){ return w && w.id; }).filter(Boolean);
-      ensureWOExpensesForIds(_ids).then(function(){ if (_vpId===forId) _applyVP(forId); });
-    }
+    // PERF: parts/expenses/labor for this vehicle's WOs may be outside the sync window —
+    // load them all on demand so the Parts + Expenses + Labor cost tile is exact, then
+    // refresh the overview.
+    var _ids = rows.map(function(w){ return w && w.id; }).filter(Boolean);
+    var _loads = [];
+    if (typeof ensureWOExpensesForIds === 'function') _loads.push(ensureWOExpensesForIds(_ids));
+    if (typeof ensureWOPartsForIds === 'function')    _loads.push(ensureWOPartsForIds(_ids));
+    if (typeof ensureWOLaborForIds === 'function')    _loads.push(ensureWOLaborForIds(_ids));
+    if (_loads.length) Promise.all(_loads).then(function(){ if (_vpId===forId) _applyVP(forId); });
   }).catch(function(){ if(_vpId!==forId) return; _vpWorkOrders=mem(); _applyVP(forId); });
 }
 function _applyVP(forId){
@@ -240,10 +277,29 @@ function _applyVP(forId){
   else if (_vpTab==='documents'){ var c3=document.getElementById('vp-content'); if(c3) c3.innerHTML=renderVPDocuments(); } // WO receipts appear once WOs load
 }
 function _vpCost(){
-  // sum wo_expenses (in memory) for this vehicle's work orders
+  // Full cost of the vehicle = Parts (qty × unit cost) + Expenses (amount) + Labor
+  // (hours × rate) across all of this vehicle's work orders. Returns a breakdown object,
+  // or null while the WOs are still loading.
   if (!_vpWorkOrders) return null;
-  var ids={}; _vpWorkOrders.forEach(function(w){ if(w.id) ids[w.id]=1; });
-  return (DB.woExpenses||[]).reduce(function(s,e){ return (e && ids[e.woId]) ? s+(Number(e.amount)||0) : s; }, 0);
+  var ids={}, rate={};
+  _vpWorkOrders.forEach(function(w){ if(w.id){ ids[w.id]=1; rate[w.id]=(Number(w.laborRate)||125); } });
+  var exp = (DB.woExpenses||[]).reduce(function(s,e){ return (e && ids[e.woId]) ? s+(Number(e.amount)||0) : s; }, 0);
+  var parts = (DB.woParts||[]).reduce(function(s,p){ return (p && ids[p.woId]) ? s+((Number(p.unitCost)||0)*(Number(p.qty)||0)) : s; }, 0);
+  var labor = (DB.woLabor||[]).reduce(function(s,l){ if(!l||!ids[l.woId]) return s; var r=(l.rate!=null&&l.rate!=='')?Number(l.rate):(rate[l.woId]||125); return s+((Number(l.hours)||0)*(r||125)); }, 0);
+  return { parts:parts, expenses:exp, labor:labor, total:parts+exp+labor };
+}
+// Per-year cost breakdown for the open vehicle: { '2025': {parts,expenses,labor,total}, ... }
+function _vpCostByYear(){
+  if (!_vpWorkOrders) return null;
+  var ids={}, rate={};
+  _vpWorkOrders.forEach(function(w){ if(w.id){ ids[w.id]=1; rate[w.id]=(Number(w.laborRate)||125); } });
+  var years={};
+  var bucket=function(y){ if(!years[y]) years[y]={parts:0,expenses:0,labor:0,total:0}; return years[y]; };
+  var yr=function(d){ if(!d) return null; var m=String(d).match(/(\d{4})/); return m?m[1]:null; };
+  (DB.woExpenses||[]).forEach(function(e){ if(e&&ids[e.woId]){ var b=bucket(yr(e.date)||yr(e.createdAt)||'—'); var v=(Number(e.amount)||0); b.expenses+=v; b.total+=v; } });
+  (DB.woParts||[]).forEach(function(p){ if(p&&ids[p.woId]){ var b=bucket(yr(p.createdAt)||'—'); var v=((Number(p.unitCost)||0)*(Number(p.qty)||0)); b.parts+=v; b.total+=v; } });
+  (DB.woLabor||[]).forEach(function(l){ if(l&&ids[l.woId]){ var b=bucket(yr(l.clockIn)||yr(l.createdAt)||'—'); var r=(l.rate!=null&&l.rate!=='')?Number(l.rate):(rate[l.woId]||125); var v=((Number(l.hours)||0)*(r||125)); b.labor+=v; b.total+=v; } });
+  return years;
 }
 function renderVPOverview(v){
   var row=function(lbl,val){ return val?('<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f4f8"><span style="color:#90a4ae;font-size:12px">'+lbl+'</span><span style="font-size:13px;font-weight:600">'+escHtml(String(val))+'</span></div>'):''; };
@@ -269,11 +325,34 @@ function renderVPOverview(v){
     '</div>'+
     '<div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
       '<div style="text-align:center;background:#fff;border:1px solid #e0e7ef;border-radius:8px;padding:10px"><div style="font-weight:800;font-size:16px;color:#1565c0">'+woN+'</div><div style="font-size:10px;color:#90a4ae;text-transform:uppercase">Work Orders</div></div>'+
-      '<div style="text-align:center;background:#fff;border:1px solid #e0e7ef;border-radius:8px;padding:10px"><div style="font-weight:800;font-size:16px;color:#2e7d32">'+(cost==null?'…':('$'+Math.round(cost).toLocaleString()))+'</div><div style="font-size:10px;color:#90a4ae;text-transform:uppercase">Parts/Expense</div></div>'+
+      '<div style="text-align:center;background:#fff;border:1px solid #e0e7ef;border-radius:8px;padding:10px" title="Parts + Expenses + Labor across this vehicle’s work orders"><div style="font-weight:800;font-size:16px;color:#2e7d32">'+(cost==null?'…':('$'+Math.round(cost.total).toLocaleString()))+'</div><div style="font-size:10px;color:#90a4ae;text-transform:uppercase">Total Cost</div>'+(cost==null?'':'<div style="font-size:9px;color:#b0bec5;margin-top:2px">P $'+Math.round(cost.parts).toLocaleString()+' · E $'+Math.round(cost.expenses).toLocaleString()+' · L $'+Math.round(cost.labor).toLocaleString()+'</div>')+'</div>'+
     '</div></div>';
   html+='</div>';
+  html+=_renderVPCostByYear();
   if (v.notes) html+='<div style="margin-top:14px"><div class="cp-section-title">Notes</div><div style="background:#fff8e1;border-radius:8px;padding:10px 12px;font-size:13px;color:#546e7a;white-space:pre-wrap">'+escHtml(v.notes)+'</div></div>';
   return html;
+}
+function _renderVPCostByYear(){
+  var by=_vpCostByYear();
+  if (!by) return '';
+  var years=Object.keys(by).sort(function(a,b){ return String(b).localeCompare(String(a)); });
+  if (!years.length) return '';
+  var grand={parts:0,expenses:0,labor:0,total:0};
+  years.forEach(function(y){ grand.parts+=by[y].parts; grand.expenses+=by[y].expenses; grand.labor+=by[y].labor; grand.total+=by[y].total; });
+  if (grand.total<=0) return '';
+  var money=function(n){ return '$'+Math.round(n||0).toLocaleString(); };
+  var th=function(t,a){ return '<th style="padding:6px 10px;text-align:'+(a||'left')+';font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase">'+t+'</th>'; };
+  var td=function(t,a,bold){ return '<td style="padding:7px 10px;text-align:'+(a||'left')+';font-size:12px'+(bold?';font-weight:700':'')+'">'+t+'</td>'; };
+  var rows=years.map(function(y){
+    var b=by[y];
+    return '<tr style="border-bottom:1px solid #f0f4f8">'+td(y,'left',true)+td(money(b.parts),'right')+td(money(b.expenses),'right')+td(money(b.labor),'right')+td(money(b.total),'right',true)+'</tr>';
+  }).join('');
+  return '<div style="margin-top:16px"><div class="cp-section-title">Cost by Year <span style="font-weight:400;color:#90a4ae;font-size:11px">(Parts + Expenses + Labor)</span></div>'+
+    '<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">'+
+    '<thead><tr style="background:#f8f9fa">'+th('Year')+th('Parts','right')+th('Expenses','right')+th('Labor','right')+th('Total','right')+'</tr></thead>'+
+    '<tbody>'+rows+'</tbody>'+
+    '<tfoot><tr style="background:#f8f9fa;border-top:2px solid #e0e7ef">'+td('All Years','left',true)+td(money(grand.parts),'right',true)+td(money(grand.expenses),'right',true)+td(money(grand.labor),'right',true)+td(money(grand.total),'right',true)+'</tr></tfoot>'+
+    '</table></div>';
 }
 function renderVPWorkOrders(){
   if (_vpWorkOrders===null) return '<div style="color:#90a4ae;padding:20px;text-align:center">Loading work-order history…</div>';

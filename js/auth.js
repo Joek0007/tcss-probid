@@ -206,6 +206,54 @@ async function ensureWOExpensesForIds(ids){
   }
 }
 
+// On-demand loaders for a set of work orders' parts and labor — used by the vehicle
+// profile so its Parts/Expenses/Labor cost rollup is exact even for WOs outside the
+// normal sync window. Mirror ensureWOExpensesForIds exactly.
+var _ondemandPartWOIds = {};
+var _ondemandLaborWOIds = {};
+async function ensureWOPartsForIds(ids){
+  if (!_sb || !ids || !ids.length) return;
+  var pending = ids.filter(function(id){ return id && !_ondemandPartWOIds[id]; });
+  if (!pending.length) return;
+  if (!DB.woParts) DB.woParts = [];
+  var delWP = (DB.deletedIds && DB.deletedIds.woParts) || [];
+  for (var i=0; i<pending.length; i+=150) {
+    var chunk = pending.slice(i, i+150);
+    try {
+      var r = await _sb.from('wo_parts').select('*').in('wo_id', chunk);
+      if (r && !r.error && Array.isArray(r.data)) {
+        var have = {}; DB.woParts.forEach(function(p){ if(p&&p.id) have[p.id]=1; });
+        r.data.forEach(function(p){
+          if (have[p.id] || delWP.indexOf(String(p.id))>=0) return;
+          DB.woParts.push({ id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, unit:p.unit, unitCost:p.unit_cost, status:p.status, notes:p.notes, requestedBy:p.requested_by, createdAt:p.created_at });
+        });
+      }
+    } catch(e) { /* skip chunk on failure */ }
+    chunk.forEach(function(id){ _ondemandPartWOIds[id]=1; });
+  }
+}
+async function ensureWOLaborForIds(ids){
+  if (!_sb || !ids || !ids.length) return;
+  var pending = ids.filter(function(id){ return id && !_ondemandLaborWOIds[id]; });
+  if (!pending.length) return;
+  if (!DB.woLabor) DB.woLabor = [];
+  var delWL = (DB.deletedIds && DB.deletedIds.woLabor) || [];
+  for (var i=0; i<pending.length; i+=150) {
+    var chunk = pending.slice(i, i+150);
+    try {
+      var r = await _sb.from('wo_labor').select('*').in('wo_id', chunk);
+      if (r && !r.error && Array.isArray(r.data)) {
+        var have = {}; DB.woLabor.forEach(function(l){ if(l&&l.id) have[l.id]=1; });
+        r.data.forEach(function(l){
+          if (have[l.id] || delWL.indexOf(String(l.id))>=0) return;
+          DB.woLabor.push({ id:l.id, woId:l.wo_id, techName:l.tech_name, techId:l.tech_id, entryType:l.entry_type, clockIn:l.clock_in, clockOut:l.clock_out, hours:l.hours, rate:l.rate, notes:l.notes, createdAt:l.created_at });
+        });
+      }
+    } catch(e) { /* skip chunk on failure */ }
+    chunk.forEach(function(id){ _ondemandLaborWOIds[id]=1; });
+  }
+}
+
 // Single source of truth for mapping a purchase_orders row (+ nested po_line_items) to the
 // app's PO shape. Used by both the bounded sync pull and the on-demand loader so they can
 // never drift apart.
@@ -1715,6 +1763,26 @@ async function _pushWOExpenseToCloud(we) {
   } catch (e) { console.warn('[Expense Push]', e.message || e); }
 }
 
+async function _pushWOPartToCloud(wp) {
+  if (!_sb || !_currentUser || !wp || !wp.id) return;
+  try {
+    var { error } = await _sb.from('wo_parts').upsert({
+      id:           wp.id,
+      wo_id:        wp.woId||null,
+      part_name:    wp.name||null,
+      part_num:     wp.partNum||null,
+      quantity:     wp.qty||0,
+      unit:         wp.unit||null,
+      unit_cost:    (wp.unitCost!=null)?wp.unitCost:0,
+      status:       wp.status||'requested',
+      notes:        wp.notes||null,
+      requested_by: wp.requestedBy||null,
+      created_at:   wp.createdAt||new Date().toISOString()
+    }, { onConflict: 'id' });
+    if (error) console.warn('[WO Part Push]', error.message);
+  } catch (e) { console.warn('[WO Part Push]', e.message || e); }
+}
+
 async function _pushQuoteToCloud(q) {
   if (!_sb || !_currentUser || !q) return;
   try {
@@ -2460,6 +2528,7 @@ async function pushAllToCloud() {
           part_num:     wp.partNum||null,
           quantity:     wp.qty||0,
           unit:         wp.unit||null,
+          unit_cost:    (wp.unitCost!=null)?wp.unitCost:0,
           status:       wp.status||'requested',
           notes:        wp.notes||null,
           requested_by: wp.requestedBy||null,
