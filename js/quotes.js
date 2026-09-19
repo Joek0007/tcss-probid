@@ -3817,6 +3817,7 @@ function renderTeam() {
     return;
   }
   var isOwner = _currentUser && _currentUser.role === 'owner';
+  var canViewPay = (typeof _canViewPay === 'function') ? _canViewPay() : isOwner;
   tbody.innerHTML = DB.team.map(function(t) {
     var access    = t.access || t.systemRole || 'field';
     var accessLbl = _accessLabels[access] || access;
@@ -3832,7 +3833,7 @@ function renderTeam() {
       '<td style="font-size:12px;color:#546e7a">'+escHtml(t.role||'')+'</td>'+
       '<td><span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">'+escHtml(accessLbl)+'</span></td>'+
       '<td style="font-size:12px">'+escHtml(t.email||'—')+'</td>'+
-      '<td class="team-rate-col">$'+escHtml(String(t.rate||'0'))+'/hr</td>'+
+      '<td class="team-rate-col">'+(canViewPay ? '$'+escHtml(String(t.rate||'0'))+'/hr' : '—')+'</td>'+
       '<td>'+statusBadge+'</td>'+
       '<td style="white-space:nowrap">'+
         '<button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> '+
@@ -3922,11 +3923,20 @@ function newTeamMemberV2() {
   var st=document.getElementById('tm-invite-status');if(st){st.style.display='none';st.innerHTML='';}
   var rb=document.getElementById('tm-resend-btn');   if(rb)  rb.style.display='none';
   document.getElementById('team-modal-title').textContent='New Team Member';
+  _applyTeamModalPayGate();
   openModal('modal-team');
 }
 
 // Keep old name working
 function newTeamMember() { newTeamMemberV2(); }
+
+// Hide the Hourly Rate field from anyone who may not see pay (back office).
+function _applyTeamModalPayGate() {
+  var canPay = (typeof _canViewPay === 'function') ? _canViewPay()
+             : (_currentUser && _currentUser.role === 'owner');
+  var rw = document.getElementById('m-tmrate-wrap');
+  if (rw) rw.style.display = canPay ? '' : 'none';
+}
 
 function editTeamMemberV2(id) {
   var t=DB.team.find(function(x){return x.id==id;}); if(!t) return;
@@ -3960,6 +3970,7 @@ function editTeamMemberV2(id) {
   if (woViewEl) woViewEl.value = t.woViewMode||'all';
   onTmAccessChange();
   document.getElementById('team-modal-title').textContent='Edit: '+escHtml(t.name||'');
+  _applyTeamModalPayGate();
   openModal('modal-team');
 }
 

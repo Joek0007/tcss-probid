@@ -1270,7 +1270,7 @@ Object.defineProperty(window, 'ROLES', { get: function(){ return getRoles(); }, 
 Object.defineProperty(window, 'ROLE_LABELS', { get: function(){ return getRoleLabels(); }, configurable:true });
 
 var PERM_DEFS = [
-  {key:'quote.create',    label:'Create / Edit Quotes',       group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'quote.create',    label:'Create / Edit Quotes',       group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'quote.view',      label:'View Quotes',                group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'quote.delete',    label:'Delete Quotes',              group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'quote.send',      label:'Send Quote to Customer',     group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
@@ -1309,9 +1309,13 @@ var PERM_DEFS = [
   {key:'time.viewall',    label:'View All Timesheets',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'leave.request',   label:'Request Time Off',            group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
   {key:'leave.approve',   label:'Approve Time Off',            group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
-  {key:'payroll.view',    label:'View Payroll Summary',        group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
-  {key:'payroll.process', label:'Mark Payroll Processed',      group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
-  {key:'payroll.export',  label:'Export Payroll CSV',          group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  // Pay visibility (rates + paychecks) is intentionally OFF for back_office by default:
+  // ordinary office staff (Dawn, Lisa, Evan) must not see pay rates or paycheck totals.
+  // The payroll person (e.g. Victoria) gets these via a payroll-enabled role, not the
+  // generic back_office role. Owner/manager keep it.
+  {key:'payroll.view',    label:'View Payroll Summary',        group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'payroll.process', label:'Mark Payroll Processed',      group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'payroll.export',  label:'Export Payroll CSV',          group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'tool.edit',       label:'Add / Edit Tools',            group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'tool.checkout',   label:'Check Out / Return Tools',    group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
   {key:'tool.transfer',   label:'Transfer Tools',              group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
@@ -1320,7 +1324,7 @@ var PERM_DEFS = [
   {key:'rpt.jobs',        label:'Job Performance Reports',     group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'rpt.tech',        label:'Tech Performance Reports',    group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'rpt.tools',       label:'Tool Utilization Reports',    group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
-  {key:'rpt.payroll',     label:'Payroll Reports',             group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'rpt.payroll',     label:'Payroll Reports',             group:'Reports',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'settings.team',   label:'Manage Team / Users',         group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'settings.margin', label:'Set Margin Floors',           group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'settings.catalog',label:'Edit Price Catalog',          group:'Settings',       fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
@@ -1400,6 +1404,15 @@ function hasPermission(permKey) {
   var matrix = getPermMatrix();
   if (!matrix[permKey]) return false;
   return matrix[permKey][role] === true;
+}
+
+// Single gate for compensation visibility (employee pay rates + paycheck totals).
+// Anything that would reveal what a person is PAID must check this — the Team-page
+// rate column, the team-member Hourly Rate field, payroll pages/reports. It is tied
+// to payroll.view so it stays in one place: owner/manager/payroll-role = yes,
+// generic back_office (Dawn/Lisa/Evan) = no.
+function _canViewPay() {
+  return !!(typeof hasPermission === 'function' && hasPermission('payroll.view'));
 }
 
 function renderPermissionsEditor() {

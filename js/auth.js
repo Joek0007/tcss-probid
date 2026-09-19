@@ -639,6 +639,7 @@ async function loadCurrentUserProfile() {
     // Load WT notifications for this user
     setTimeout(function(){ if(typeof wtLoadNotifications==='function') wtLoadNotifications(); }, 1500);
     setTimeout(function(){ if(typeof _startNotificationChecks==='function') _startNotificationChecks(); }, 4000);
+    setTimeout(function(){ if(typeof _maybeShowBackOfficeWelcome==='function') _maybeShowBackOfficeWelcome(); }, 1800);
   } else {
     console.warn('[Profile] No profile row found. Error:', res.error);
     // Fallback: create a minimal currentUser from the auth session
@@ -673,6 +674,46 @@ function _showPendingApprovalScreen(name) {
         '<button onclick="(async function(){try{await _sb.auth.signOut();}catch(e){}location.reload();})()" style="background:none;border:1px solid #456;color:#cfd8e3;border-radius:8px;padding:10px 16px;font-size:14px;cursor:pointer">Sign out</button>'+
       '</div>'+
     '</div>';
+}
+
+// One-time friendly welcome for office (back_office) staff on their first login.
+// Keeps the very first minute from being a blank-app stare: warm greeting, a few
+// concrete things to try, and where to leave impressions. Shows once per user.
+function _maybeShowBackOfficeWelcome() {
+  try {
+    if (!_currentUser || _currentUser.role !== 'back_office') return;
+    var key = 'probid_welcome_seen_' + _currentUser.id;
+    try { if (localStorage.getItem(key)) return; } catch(e) {}
+    var first = ((_currentUser.full_name||'').split(' ')[0]) || 'there';
+    var ov = document.getElementById('bo-welcome-overlay');
+    if (!ov) { ov = document.createElement('div'); ov.id = 'bo-welcome-overlay'; document.body.appendChild(ov); }
+    ov.style.cssText = 'position:fixed;inset:0;z-index:1900000;background:rgba(13,27,42,.55);display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,Arial,sans-serif';
+    ov.innerHTML =
+      '<div style="max-width:520px;background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">'+
+        '<div style="background:#1565c0;color:#fff;padding:20px 24px">'+
+          '<div style="font-size:22px;font-weight:800;margin-bottom:2px">Welcome to ProBid, '+escHtml(first)+'! 👋</div>'+
+          '<div style="font-size:13px;opacity:.9">You\'re one of the first to take it for a spin — thank you.</div>'+
+        '</div>'+
+        '<div style="padding:22px 24px;color:#37474f;font-size:14px;line-height:1.6">'+
+          '<div style="font-weight:700;margin-bottom:8px">A few things worth trying first:</div>'+
+          '<ul style="margin:0 0 14px;padding-left:20px">'+
+            '<li>Open <strong>Work Orders</strong> and look through a real job.</li>'+
+            '<li>Browse <strong>Customers</strong> &amp; <strong>Contacts</strong> — search for one you know.</li>'+
+            '<li>Peek at <strong>Invoices</strong> and the <strong>Reports</strong> page.</li>'+
+            '<li>Try building a <strong>Quote</strong> (a manager sends it out — you draft it).</li>'+
+          '</ul>'+
+          '<div style="background:#f0f4f8;border-radius:8px;padding:12px 14px;font-size:13px">'+
+            '💬 <strong>Your impressions matter most.</strong> Jot down anything confusing, missing, '+
+            'or clunky as you go, and pass it to Joe — that\'s exactly what this first look is for.</div>'+
+        '</div>'+
+        '<div style="padding:0 24px 22px;text-align:right">'+
+          '<button id="bo-welcome-close" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer">Let’s go →</button>'+
+        '</div>'+
+      '</div>';
+    var close = function(){ try { localStorage.setItem(key,'1'); } catch(e){} if (ov && ov.parentNode) ov.parentNode.removeChild(ov); };
+    var btn = document.getElementById('bo-welcome-close'); if (btn) btn.onclick = close;
+    ov.addEventListener('click', function(e){ if (e.target === ov) close(); });
+  } catch(e) { /* never block login on the welcome */ }
 }
 
 // ── Role permission system ───────────────────────────────────────────────────
