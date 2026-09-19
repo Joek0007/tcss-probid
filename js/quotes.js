@@ -3850,6 +3850,10 @@ function renderTeam() {
 // lets the owner approve pending sign-ups, set roles, and revoke access — all via the
 // owner-only, audited RPCs. Rendered on the Team page (goPage 'team').
 var _UAP_ROLE_LABELS = { owner:'Owner', manager:'Manager', back_office:'Back Office', lead_tech:'Lead Tech', helper_tech:'Helper Tech' };
+var _uapRows = [];
+// Payroll perms are governed by the dedicated "Sees Pay" toggle, so they're excluded from
+// the general per-user editor to avoid two controls for one concept.
+var _PERM_EDITOR_EXCLUDE = { 'payroll.view':1, 'payroll.process':1, 'payroll.export':1, 'rpt.payroll':1 };
 async function renderUserAccessPanel() {
   var el = document.getElementById('user-access-panel'); if (!el) return;
   if (!(_currentUser && _currentUser.role === 'owner')) { el.innerHTML=''; el.style.display='none'; return; }
@@ -3865,6 +3869,7 @@ async function renderUserAccessPanel() {
   var body = document.getElementById('uap-body'); if (!body) return;
   if (res.error) { body.innerHTML = '<div style="color:#c62828">Could not load users: '+escHtml(res.error.message)+'</div>'; return; }
   var rows = res.data || [];
+  _uapRows = rows; // cache for the Customize Access editor
   if (!rows.length) { body.innerHTML = '<div style="color:#90a4ae">No login users yet.</div>'; return; }
   var roles = ['owner','manager','back_office','lead_tech','helper_tech'];
   var html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f0f4f8">'+
@@ -3881,6 +3886,9 @@ async function renderUserAccessPanel() {
     var sel = '<select id="uap-role-'+u.id+'" style="padding:5px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
       roles.map(function(r){ return '<option value="'+r+'"'+(u.role===r?' selected':'')+'>'+(_UAP_ROLE_LABELS[r]||r)+'</option>'; }).join('')+'</select>';
     var safeName = (u.full_name||'').replace(/["'\\]/g,'');
+    var ovCount = u.perm_overrides ? Object.keys(u.perm_overrides).length : 0;
+    var custBtn = (u.role==='owner') ? '' :
+      '<button class="btn btn-outline btn-sm" onclick="openUserPermsEditor(\''+u.id+'\')" title="Grant or restrict individual permissions">⚙ Access'+(ovCount?' <span style="background:#1565c0;color:#fff;border-radius:8px;padding:0 6px;font-size:10px">'+ovCount+'</span>':'')+'</button> ';
     var seesPay = u.can_view_pay === true;
     var payCell = (u.role==='owner')
       ? '<span style="font-size:11px;color:#90a4ae">Always</span>'
@@ -3894,6 +3902,7 @@ async function renderUserAccessPanel() {
       '<td style="padding:6px 10px">'+payCell+'</td>'+
       '<td style="padding:6px 10px;white-space:nowrap;text-align:right">'+
         '<button class="btn btn-primary btn-sm" onclick="uapSetRole(\''+u.id+'\')">'+(pending?'Approve &amp; Set Role':'Save Role')+'</button> '+
+        custBtn+
         (u.is_active ? '<button class="btn btn-danger btn-sm" onclick="uapDeactivate(\''+u.id+'\',\''+escHtml(safeName)+'\')">Revoke</button>' : '')+
       '</td></tr>';
   });
@@ -3915,6 +3924,76 @@ async function uapSetPay(uid, canPay){
   catch(e){ res = {error:{message:e.message||String(e)}}; }
   if (res && res.error) { showToast('Could not update pay visibility: '+res.error.message,'error',5000); return; }
   showToast(canPay ? 'Pay visibility turned ON ✓' : 'Pay visibility turned off','success');
+  renderUserAccessPanel();
+}
+// ---- Per-user permission overrides (owner-only "Customize Access") ----
+function openUserPermsEditor(uid){
+  var u = _uapRows.find(function(r){ return r.id===uid; });
+  if(!u){ showToast('Reopen the panel and try again','error'); return; }
+  if(typeof PERM_DEFS==='undefined'){ showToast('Permissions not loaded','error'); return; }
+  var roleLabel = (_UAP_ROLE_LABELS[u.role]||u.role);
+  var matrix = (typeof getPermMatrix==='function') ? getPermMatrix() : {};
+  var ov = u.perm_overrides || {};
+  var groups = {};
+  PERM_DEFS.forEach(function(p){
+    if(p.fixed) return;                     // structural (e.g. company settings) — not overridable here
+    if(_PERM_EDITOR_EXCLUDE[p.key]) return; // pay handled by the Sees Pay toggle
+    (groups[p.group]=groups[p.group]||[]).push(p);
+  });
+  var body='';
+  Object.keys(groups).forEach(function(g){
+    body += '<div style="font-size:11px;font-weight:800;color:#1565c0;text-transform:uppercase;letter-spacing:.4px;margin:14px 0 6px">'+escHtml(g)+'</div>';
+    groups[g].forEach(function(p){
+      var roleDef = !!(matrix[p.key] && matrix[p.key][u.role]);
+      var cur = Object.prototype.hasOwnProperty.call(ov,p.key) ? (ov[p.key]===true?'allow':'deny') : 'default';
+      var flag = (cur!=='default') ? ' <span style="color:#1565c0;font-weight:700">•</span>' : '';
+      body += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #f4f7fa">'+
+        '<div style="font-size:13px;color:#37474f">'+escHtml(p.label)+flag+'</div>'+
+        '<select data-perm="'+p.key+'" style="padding:4px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;min-width:150px">'+
+          '<option value="default"'+(cur==='default'?' selected':'')+'>Default ('+(roleDef?'Allow':'Deny')+')</option>'+
+          '<option value="allow"'+(cur==='allow'?' selected':'')+'>Allow</option>'+
+          '<option value="deny"'+(cur==='deny'?' selected':'')+'>Deny</option>'+
+        '</select></div>';
+    });
+  });
+  var o = document.getElementById('user-perms-overlay');
+  if(!o){ o=document.createElement('div'); o.id='user-perms-overlay'; document.body.appendChild(o); }
+  o.style.cssText='position:fixed;inset:0;z-index:2000000;background:rgba(13,27,42,.5);display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,Arial,sans-serif';
+  o.innerHTML='<div style="background:#fff;border-radius:12px;max-width:640px;width:100%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">'+
+      '<div style="padding:16px 20px;border-bottom:1px solid #eceff1">'+
+        '<div style="font-size:17px;font-weight:800;color:#0d1b2a">Customize Access — '+escHtml(u.full_name||'')+'</div>'+
+        '<div style="font-size:12px;color:#607d8b;margin-top:3px">Role: <strong>'+escHtml(roleLabel)+'</strong> — Allow grants beyond the role, Deny revokes below it, Default follows the role. Pay visibility is set by the “Sees Pay” toggle.</div>'+
+      '</div>'+
+      '<div id="user-perms-body" style="padding:4px 20px 12px;overflow:auto">'+body+'</div>'+
+      '<div style="padding:12px 20px;border-top:1px solid #eceff1;text-align:right">'+
+        '<button class="btn btn-ghost" onclick="closeUserPermsEditor()">Cancel</button> '+
+        '<button class="btn btn-primary" onclick="saveUserPermsEditor(\''+uid+'\')">Save Access</button>'+
+      '</div>'+
+    '</div>';
+  o.addEventListener('click', function(e){ if(e.target===o) closeUserPermsEditor(); });
+}
+function closeUserPermsEditor(){ var o=document.getElementById('user-perms-overlay'); if(o&&o.parentNode) o.parentNode.removeChild(o); }
+async function saveUserPermsEditor(uid){
+  var u = _uapRows.find(function(r){ return r.id===uid; }); if(!u) return;
+  var ov = u.perm_overrides || {};
+  var sels = document.querySelectorAll('#user-perms-body select[data-perm]');
+  var changes=[];
+  sels.forEach(function(s){
+    var key=s.getAttribute('data-perm'), val=s.value;
+    var curVal = Object.prototype.hasOwnProperty.call(ov,key) ? (ov[key]===true?'allow':'deny') : 'default';
+    if(val!==curVal) changes.push({ key:key, p_value: val==='default'?null:(val==='allow') });
+  });
+  if(!changes.length){ showToast('No changes','info'); closeUserPermsEditor(); return; }
+  var ok=0, fail=0;
+  for(var i=0;i<changes.length;i++){
+    var c=changes[i];
+    try{
+      var r=await _sb.rpc('set_user_perm_override',{ p_user_id:uid, p_key:c.key, p_value:c.p_value });
+      if(r&&r.error){ fail++; console.warn('[perm]',c.key,r.error.message); } else ok++;
+    }catch(e){ fail++; console.warn('[perm]',c.key,e.message); }
+  }
+  showToast(ok+' access change'+(ok===1?'':'s')+' saved'+(fail?(' · '+fail+' failed'):' ✓'), fail?'error':'success', 4500);
+  closeUserPermsEditor();
   renderUserAccessPanel();
 }
 async function uapDeactivate(uid, name){
