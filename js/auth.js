@@ -584,7 +584,7 @@ function enforceNavPermissions() {
       'qq':'page.qq','quotes':'page.quotes','jobs':'page.jobs',
       'dispatch':'page.dispatch','invoices':'page.invoices',
       'workorders':'page.workorders','purchaseorders':'page.purchaseorders',
-      'vendors':'page.vendors','customers':'page.customers','vehicles':'page.workorders',
+      'vendors':'page.vendors','customers':'page.customers','vehicles':'page.vehicles',
       'contacts':'page.contacts','team':'page.team','catalog':'page.catalog',
       'templates':'page.templates','reports':'page.reports','auditlog':'page.auditlog',
       'calendar':'page.calendar','inventory':'page.inventory','scanner':'page.scanner',
@@ -1334,6 +1334,10 @@ async function syncAllFromCloud(silent) {
         });
       }
     } catch(e) { errors.push('assets: '+e.message); }
+
+    // 16c. Vehicle open-issue rollup — so the office sees the Vehicles nav badge
+    // without having to open the page first.
+    try { if (typeof _ensureVehicleIssueRollup==='function') _ensureVehicleIssueRollup(true); } catch(e) {}
 
     // 20. Recurring Contracts (Managed Services)
     try {

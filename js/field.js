@@ -531,6 +531,10 @@ function renderFieldPage(){
       : '';
   }
 
+  // Vehicle-issue report card — show only to roles allowed to report
+  var viCard = document.getElementById('field-vehicle-issue-card');
+  if (viCard) viCard.style.display = ((typeof hasPermission!=='function') || hasPermission('vehicles.report_issue')) ? '' : 'none';
+
   // Offline banner
   checkOfflineStatus();
 

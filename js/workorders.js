@@ -1960,7 +1960,7 @@ function renderWOExpensesTab(woId) {
       '<div style="flex:1">'+
         '<div style="font-weight:600;font-size:13px">'+escHtml(e.category||'')+'</div>'+
         '<div style="font-size:11px;color:#546e7a">'+escHtml(e.description||'')+' · '+escHtml(e.paymentType||'')+' · '+escHtml(e.date||'')+' · '+escHtml(e.loggedBy||'')+'</div>'+
-        (e.receiptUrl?'<a href="'+escHtml(e.receiptUrl)+'" target="_blank" style="font-size:11px;color:#1565c0;font-weight:600">📎 View Receipt</a>':'')+
+        ((e.receiptUrl||e.receiptDocId)?(function(){ var rd=(DB.woDocuments||[]).find(function(d){return d.id===e.receiptDocId;}); var p=(rd&&rd.path)?rd.path:''; return '<a '+(p?'data-sp="'+escHtml(p)+'" ':'')+'href="'+escHtml(e.receiptUrl||'#')+'" target="_blank" rel="noopener" style="font-size:11px;color:#1565c0;font-weight:600">📎 View Receipt</a>'; })():'')+
       '</div>'+
       '<div style="font-weight:700;color:#1565c0;min-width:60px;text-align:right">$'+parseFloat(e.amount||0).toFixed(2)+'</div>'+
       '<button class="btn btn-danger btn-sm" onclick="deleteWOExpense(\''+e.id+'\')">✕</button>'+

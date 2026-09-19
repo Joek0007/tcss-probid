@@ -1329,6 +1329,10 @@ var PERM_DEFS = [
   {key:'docs.field.upload', label:'Upload Field Docs & Drawings',group:'Documents',      fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,project_manager:1,helper_tech:0,subcontractor:0}},
   {key:'docs.field.delete', label:'Delete Field Docs & Drawings',group:'Documents',      fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,project_manager:0,helper_tech:0,subcontractor:0}},
 
+  {key:'vehicles.manage',       label:'Manage Vehicles & Attachments', group:'Vehicles', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,project_manager:1,helper_tech:0,subcontractor:0}},
+  {key:'vehicles.report_issue', label:'Report a Vehicle Issue (field)', group:'Vehicles', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,project_manager:1,helper_tech:1,subcontractor:1}},
+  {key:'vehicles.issues.manage',label:'Manage / Resolve Vehicle Issues',group:'Vehicles', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,project_manager:1,helper_tech:0,subcontractor:0}},
+
   // ── Page Access — controls nav visibility ──────────────────────────────────
   {key:'page.qq',          label:'Quick Quote Page',      group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'page.quotes',      label:'Quotes Page',           group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
@@ -1336,6 +1340,7 @@ var PERM_DEFS = [
   {key:'page.dispatch',    label:'Dispatch Board',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'page.invoices',    label:'Invoices Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'page.workorders',  label:'Work Orders Page',      group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
+  {key:'page.vehicles',    label:'Vehicles Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'page.purchaseorders',label:'Purchase Orders Page',group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'page.vendors',     label:'Vendors Page',          group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'page.customers',   label:'Customers Page',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},

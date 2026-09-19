@@ -1416,7 +1416,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <div class="nav-group">
     <div class="nav-group-title">Contacts</div>
     <a class="nav-item" data-page="customers" href="#/customers"><span class="nav-icon">👥</span>Customers</a>
-    <a class="nav-item" data-page="vehicles" href="#/vehicles"><span class="nav-icon">🚚</span>Vehicles</a>
+    <a class="nav-item" data-page="vehicles" href="#/vehicles"><span class="nav-icon">🚚</span>Vehicles<span id="veh-nav-badge" style="display:none;background:#c62828;color:#fff;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;margin-left:auto"></span></a>
     <a class="nav-item" data-page="contacts" href="#/contacts"><span class="nav-icon">📞</span>Contacts</a>
     <a class="nav-item" data-page="team" href="#/team"><span class="nav-icon">👷</span>Team</a>
     <a class="nav-item" data-page="vendors" href="#/vendors"><span class="nav-icon">🏭</span>Vendors</a>
@@ -2643,6 +2643,13 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <div id="field-my-jobs"></div>
     </div>
 
+    <!-- Report a Vehicle Issue -->
+    <div class="clock-card" id="field-vehicle-issue-card">
+      <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">🚚 Vehicle Problem</div>
+      <div style="font-size:13px;color:#546e7a;margin-bottom:12px">Something wrong with a vehicle? Snap a photo and report it — it goes straight to the office.</div>
+      <button class="btn btn-outline btn-sm" style="width:100%;padding:14px;font-size:15px;border-radius:12px" onclick="openReportVehicleIssue()">+ Report Vehicle Issue</button>
+    </div>
+
     <!-- Offline sync banner -->
     <div id="offline-banner" style="display:none;background:#fff3e0;border:2px solid #ffcc02;border-radius:14px;padding:14px 16px;margin-bottom:14px">
       <div style="font-weight:700;font-size:14px;color:#e65100">📵 No Connection — Offline Mode</div>
@@ -3259,6 +3266,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div class="cust-summary-tile"><div class="cust-summary-val" id="vs-total">0</div><div class="cust-summary-lbl">Total Vehicles</div></div>
     <div class="cust-summary-tile green"><div class="cust-summary-val" id="vs-active">0</div><div class="cust-summary-lbl">Active</div></div>
     <div class="cust-summary-tile orange"><div class="cust-summary-val" id="vs-shop">0</div><div class="cust-summary-lbl">In Shop</div></div>
+    <div class="cust-summary-tile red" style="cursor:pointer" onclick="openFirstVehicleWithIssue()" title="Vehicles with open reported issues"><div class="cust-summary-val" id="vs-issues" style="color:#c62828">0</div><div class="cust-summary-lbl">Open Issues</div></div>
   </div>
 
   <div class="card">
@@ -6240,8 +6248,43 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div style="display:flex;gap:4px;padding:10px 16px 0;border-bottom:1px solid #e0e7ef;background:#f8f9fa">
       <button class="cp-tab active" id="vpt-overview" onclick="switchVPTab('overview')">📋 Overview</button>
       <button class="cp-tab" id="vpt-workorders" onclick="switchVPTab('workorders')">🔨 Work Orders</button>
+      <button class="cp-tab" id="vpt-issues" onclick="switchVPTab('issues')">⚠️ Issues <span id="vp-issue-badge" style="display:none;background:#c62828;color:#fff;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;margin-left:2px"></span></button>
+      <button class="cp-tab" id="vpt-photos" onclick="switchVPTab('photos')">📷 Photos</button>
+      <button class="cp-tab" id="vpt-documents" onclick="switchVPTab('documents')">📎 Documents</button>
     </div>
     <div id="vp-content" style="padding:20px 24px"></div>
+  </div>
+</div>
+
+<!-- REPORT VEHICLE ISSUE MODAL (field) -->
+<div class="modal-overlay" id="modal-vehicle-issue" data-no-backdrop-close="1">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>🚚 Report a Vehicle Issue</h3>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-vehicle-issue">Cancel</button>
+        <button class="close-btn" data-action="closeModal" data-modal="modal-vehicle-issue">×</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:#546e7a;margin-bottom:12px;padding:8px 10px;background:#e3f2fd;border-radius:7px;border-left:3px solid #1565c0">Report a problem with a vehicle right from the field — snap a photo and it goes straight to the office. No trip in, no paper request.</div>
+      <div class="form-row"><div><label>Vehicle *</label><select id="mi-vehicle"></select></div></div>
+      <div class="form-row cols2"><div><label>Severity</label><select id="mi-severity"><option value="low">Low</option><option value="normal" selected>Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></div><div><label>Short summary</label><input id="mi-title" placeholder="e.g. Brake noise, check engine light"></div></div>
+      <div class="form-row"><div><label>What's going on? *</label><textarea id="mi-desc" rows="3" placeholder="Describe the issue..."></textarea></div></div>
+      <div class="form-row"><div>
+        <label>Photo (optional)</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;color:#1565c0">📷 Camera<input type="file" id="mi-photo-cam" accept="image/*" capture="environment" style="display:none" onchange="_miPhotoSelected(this)"></label>
+          <label style="display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;color:#6a1b9a">📁 Choose<input type="file" id="mi-photo-file" accept="image/*" style="display:none" onchange="_miPhotoSelected(this)"></label>
+          <span id="mi-photo-name" style="font-size:11px;color:#2e7d32;font-style:italic"></span>
+        </div>
+      </div></div>
+      <input type="hidden" id="mi-asset-fixed">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-vehicle-issue">Cancel</button>
+      <button class="btn btn-primary" onclick="submitVehicleIssue()">⬆ Send to Office</button>
+    </div>
   </div>
 </div>
 
@@ -6509,27 +6552,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260916co with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919cp with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260916co"></script>
-<script src="js/quotes.js?v=20260916co"></script>
-<script src="js/tools.js?v=20260916co"></script>
-<script src="js/field.js?v=20260916co"></script>
-<script src="js/crm.js?v=20260916co"></script>
-<script src="js/vehicles.js?v=20260916co"></script>
-<script src="js/dispatch.js?v=20260916co"></script>
-<script src="js/permissions.js?v=20260916co"></script>
-<script src="js/worktracking.js?v=20260916co"></script>
-<script src="js/calendar.js?v=20260916co"></script>
-<script src="js/workorders.js?v=20260916co"></script>
-<script src="js/purchaseorders.js?v=20260916co"></script>
-<script src="js/inventory.js?v=20260916co"></script>
-<script src="js/reports.js?v=20260916co"></script>
-<script src="js/recyclebin.js?v=20260916co"></script>
-<script src="js/contracts.js?v=20260916co"></script>
-  <script src="js/recurring.js?v=20260916co"></script>
-  <script src="js/seed_managed.js?v=20260916co"></script>
-  <script src="js/auth.js?v=20260916co"></script>
+<script src="js/core.js?v=20260919cp"></script>
+<script src="js/quotes.js?v=20260919cp"></script>
+<script src="js/tools.js?v=20260919cp"></script>
+<script src="js/field.js?v=20260919cp"></script>
+<script src="js/crm.js?v=20260919cp"></script>
+<script src="js/vehicles.js?v=20260919cp"></script>
+<script src="js/dispatch.js?v=20260919cp"></script>
+<script src="js/permissions.js?v=20260919cp"></script>
+<script src="js/worktracking.js?v=20260919cp"></script>
+<script src="js/calendar.js?v=20260919cp"></script>
+<script src="js/workorders.js?v=20260919cp"></script>
+<script src="js/purchaseorders.js?v=20260919cp"></script>
+<script src="js/inventory.js?v=20260919cp"></script>
+<script src="js/reports.js?v=20260919cp"></script>
+<script src="js/recyclebin.js?v=20260919cp"></script>
+<script src="js/contracts.js?v=20260919cp"></script>
+  <script src="js/recurring.js?v=20260919cp"></script>
+  <script src="js/seed_managed.js?v=20260919cp"></script>
+  <script src="js/auth.js?v=20260919cp"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
