@@ -729,6 +729,20 @@ async function syncAllFromCloud(silent) {
   // Always re-enforce role permissions when sync completes
   var _syncRole = _currentUser ? _currentUser.role : null;
   if (!_sb || !_currentUser) return;
+  // PERF: if a local cache already exists (every hard refresh / re-login), never block the
+  // screen with the sync overlay. Show the cached data instantly and refresh in the
+  // background — exactly like the 15-minute auto-sync. Only a genuinely empty first load
+  // (no cache yet) shows the blocking "Syncing…" spinner.
+  if (!silent) {
+    var _haveCache = !!(DB && (
+      (DB.customers   && DB.customers.length)   ||
+      (DB.workOrders  && DB.workOrders.length)  ||
+      (DB.quotes      && DB.quotes.length)      ||
+      (DB.timeEntries && DB.timeEntries.length) ||
+      (DB.catalog     && DB.catalog.length)
+    ));
+    if (_haveCache) silent = true;
+  }
   window._syncInProgress = true;
   // Rollback safety: snapshot the pre-sync local state so a bad pull can be undone
   // (restoreLastKnownGood()). Cheap, quota-guarded, one write per pull.
