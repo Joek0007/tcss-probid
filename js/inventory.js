@@ -321,7 +321,11 @@ var _receivingLines = [];
 
 function openReceiving(poId) {
   var po = (DB.purchaseOrders||[]).find(function(p){ return p.id===poId; });
-  if (!po) return;
+  if (!po) {
+    // Open POs are always in the working set, but guard anyway: fetch on demand then retry.
+    if (typeof ensurePOLoaded==='function') { ensurePOLoaded(poId).then(function(f){ if(f) openReceiving(poId); else if(typeof showToast==='function') showToast('Purchase order not found','error'); }); }
+    return;
+  }
   _receivingPOId = poId;
   _receivingLines = (po.items||[]).map(function(li,i){
     var remaining = Math.max(0, parseFloat(li.qtyOrdered||1) - parseFloat(li.qtyReceived||0));

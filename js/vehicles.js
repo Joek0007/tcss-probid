@@ -224,6 +224,12 @@ function _loadVPWorkOrders(v){
     var rows=(r&&r.data)||[]; var seen={}; rows.forEach(function(w){ if(w&&w.id) seen[w.id]=1; });
     mem().forEach(function(w){ if(!w.id||!seen[w.id]){ rows.push(w); if(w.id) seen[w.id]=1; } });
     _vpWorkOrders=rows; _applyVP(forId);
+    // PERF: expenses for this vehicle's WOs may be outside the sync window — load them on
+    // demand so the Parts/Expense cost tile is exact, then refresh the overview.
+    if (typeof ensureWOExpensesForIds === 'function') {
+      var _ids = rows.map(function(w){ return w && w.id; }).filter(Boolean);
+      ensureWOExpensesForIds(_ids).then(function(){ if (_vpId===forId) _applyVP(forId); });
+    }
   }).catch(function(){ if(_vpId!==forId) return; _vpWorkOrders=mem(); _applyVP(forId); });
 }
 function _applyVP(forId){

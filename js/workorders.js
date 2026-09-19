@@ -720,6 +720,19 @@ function openWorkOrder(id) {
   setTimeout(function(){var cp=document.getElementById('wo-change-orders-panel');if(cp){var woId=_woCurrentId;cp.innerHTML=renderWOChangeOrders(woId);var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});if(wo&&wo.parentWoId&&wo.isChangeOrder){var par=(DB.workOrders||[]).find(function(w){return w.id===wo.parentWoId;});if(par)_renderParentWOBanner(par);}}},200);
   openModal('modal-work-order');
 
+  // PERF: older expenses may be outside the sync window — pull this WO's full set on demand,
+  // then refresh the expense views/quick stats so totals are exact for any work order.
+  if (typeof ensureWOExpensesLoaded === 'function') {
+    ensureWOExpensesLoaded(id).then(function(){
+      if (_woCurrentId !== id) return;
+      if (typeof refreshWOQuickStats === 'function') refreshWOQuickStats(id);
+      if (_woTab === 'expenses' && typeof renderWOExpensesTab === 'function') {
+        var box = document.getElementById('wo-tab-content');
+        if (box) box.innerHTML = renderWOExpensesTab(id);
+      }
+    });
+  }
+
   // Hot notes
   _checkHotNotes(wo.customerId, wo.id, false);
 
@@ -2246,6 +2259,7 @@ function deleteWOChecklistItem(id) {
 async function createWOInvoice() {
   var woId=_woCurrentId; if(!woId) return;
   var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;}); if(!wo) return;
+  if (typeof ensureWOExpensesLoaded === 'function') { try { await ensureWOExpensesLoaded(woId); } catch(e){} }
   var labor=(DB.woLabor||[]).filter(function(l){return l.woId===woId;});
   var expenses=(DB.woExpenses||[]).filter(function(e){return e.woId===woId;});
   var parts=(DB.woParts||[]).filter(function(p){return p.woId===woId;});

@@ -147,6 +147,101 @@ async function _sbSelectAll(build) {
 }
 
 // ---------------------------------------------------------------------------
+// PERF windows (load-on-demand): the sync keeps only a recent working set of the
+// big imported-history tables in memory; older rows load on demand when a specific
+// record is opened. Keeps the browser from holding (and re-compressing) tens of
+// thousands of historical rows on every refresh.
+// ---------------------------------------------------------------------------
+var WO_EXPENSE_WINDOW_DAYS = 365;
+var PO_WINDOW_DAYS         = 365;
+var PO_OPEN_STATUSES       = ['Draft','Pending Approval','Sent','Partially Received','Ready to Pay'];
+var _ondemandExpWOIds = {};   // wo ids whose full expense set we've already fetched
+var _ondemandPOIds    = {};   // po ids fetched on demand (preserve across bounded syncs)
+
+// Ensure ALL expenses for one work order are in DB.woExpenses (older ones may be
+// outside the sync window). Safe to call repeatedly; fetches each wo once per session.
+async function ensureWOExpensesLoaded(woId){
+  if (!woId || !_sb) return;
+  if (_ondemandExpWOIds[woId]) return;
+  try {
+    var r = await _sb.from('wo_expenses').select('*').eq('wo_id', woId);
+    if (r && !r.error && Array.isArray(r.data)) {
+      if (!DB.woExpenses) DB.woExpenses = [];
+      var have = {}; DB.woExpenses.forEach(function(e){ if(e&&e.id) have[e.id]=1; });
+      var delWE = (DB.deletedIds && DB.deletedIds.woExpenses) || [];
+      r.data.forEach(function(e){
+        if (have[e.id] || delWE.indexOf(String(e.id))>=0) return;
+        DB.woExpenses.push({ id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, receiptUrl:e.receipt_url, receiptDocId:e.receipt_doc_id, createdAt:e.created_at });
+      });
+      _ondemandExpWOIds[woId] = 1;
+    }
+  } catch(e) { /* leave as-is on failure */ }
+}
+
+// Ensure expenses for a set of work orders are loaded (used by the vehicle profile so
+// its cost rollup is exact). One query, chunked to keep the URL sane.
+async function ensureWOExpensesForIds(ids){
+  if (!_sb || !ids || !ids.length) return;
+  var pending = ids.filter(function(id){ return id && !_ondemandExpWOIds[id]; });
+  if (!pending.length) return;
+  if (!DB.woExpenses) DB.woExpenses = [];
+  var delWE = (DB.deletedIds && DB.deletedIds.woExpenses) || [];
+  for (var i=0; i<pending.length; i+=150) {
+    var chunk = pending.slice(i, i+150);
+    try {
+      var r = await _sb.from('wo_expenses').select('*').in('wo_id', chunk);
+      if (r && !r.error && Array.isArray(r.data)) {
+        var have = {}; DB.woExpenses.forEach(function(e){ if(e&&e.id) have[e.id]=1; });
+        r.data.forEach(function(e){
+          if (have[e.id] || delWE.indexOf(String(e.id))>=0) return;
+          DB.woExpenses.push({ id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, receiptUrl:e.receipt_url, receiptDocId:e.receipt_doc_id, createdAt:e.created_at });
+        });
+      }
+    } catch(e) { /* skip chunk on failure */ }
+    chunk.forEach(function(id){ _ondemandExpWOIds[id]=1; });
+  }
+}
+
+// Single source of truth for mapping a purchase_orders row (+ nested po_line_items) to the
+// app's PO shape. Used by both the bounded sync pull and the on-demand loader so they can
+// never drift apart.
+function _mapPORow(p){
+  return {
+    id:p.id, poNumber:p.po_number, vendorId:p.vendor_id, vendorName:p.vendor_name,
+    jobId:p.job_id, woId:p.wo_id, status:p.status, date:p.created_at?p.created_at.split('T')[0]:'',
+    dateNeeded:p.date_needed, shipName:p.ship_to_name, shipAddr:p.ship_to_address,
+    shipCity:p.ship_to_city, shipState:p.ship_to_state, shipZip:p.ship_to_zip,
+    subtotal:p.subtotal, total:p.total, notes:p.notes,
+    vendorInvNum:p.vendor_invoice_num, vendorInvAmt:p.vendor_invoice_amount,
+    readyToPay:!!p.ready_to_pay, createdBy:p.created_by, createdByName:p.created_by_name,
+    createdAt:p.created_at, updatedAt:p.updated_at,
+    items:(p.po_line_items||[]).sort(function(a,b){return (a.sort_order||0)-(b.sort_order||0);}).map(function(li){
+      return { id:li.id, desc:li.description, partNum:li.part_num, qtyOrdered:li.qty_ordered, qtyReceived:li.qty_received, unitCost:li.unit_cost };
+    })
+  };
+}
+
+// Ensure a purchase order (with its line items) is in DB.purchaseOrders. Older/closed POs
+// fall outside the bounded sync; this pulls one on demand when opened/received/printed.
+async function ensurePOLoaded(poId){
+  if (!poId || !_sb) return null;
+  var existing = (DB.purchaseOrders||[]).find(function(p){ return p.id===poId; });
+  if (existing) return existing;
+  try {
+    var r = await _sb.from('purchase_orders').select('*, po_line_items(*)').eq('id', poId).limit(1);
+    if (r && !r.error && r.data && r.data[0]) {
+      var po = _mapPORow(r.data[0]);
+      po._synced = true;
+      if (!DB.purchaseOrders) DB.purchaseOrders = [];
+      DB.purchaseOrders.unshift(po);
+      _ondemandPOIds[po.id] = 1;   // preserve across the next bounded sync
+      return po;
+    }
+  } catch(e) { /* fall through */ }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // On-demand invoice fetch (Phase-2 load-on-demand). The sync keeps only a bounded
 // working set of invoices in memory; these fetch older/historical ones straight from
 // the cloud when a screen needs them, so the browser never has to hold them all.
@@ -1280,14 +1375,25 @@ async function syncAllFromCloud(silent) {
       }
     } catch(e) { errors.push('wo_checklist: '+e.message); }
 
-    // 18. WO Expenses
+    // 18. WO Expenses — PERF: bounded to a recent window (not all history). Older expenses
+    // load on demand when a specific work order or vehicle is opened
+    // (ensureWOExpensesLoaded / the vehicle profile), and any such on-demand rows already in
+    // memory are preserved across this bounded pull so they don't blank out.
     try {
-      var { data: woExpRows, error: woee } = await _sbSelectAll(function(){ return _sb.from('wo_expenses').select('*').order('created_at', { ascending: false }); });
+      var _expCut = new Date(Date.now() - WO_EXPENSE_WINDOW_DAYS*86400000).toISOString();
+      var _prevExp = DB.woExpenses || [];
+      var { data: woExpRows, error: woee } = await _sbSelectAll(function(){ return _sb.from('wo_expenses').select('*').gte('created_at', _expCut).order('created_at', { ascending: false }); });
       if (woee) { errors.push('wo_expenses: '+woee.message); }
       else if (woExpRows) {
-        DB.woExpenses = woExpRows.filter(function(e){ return delWE.indexOf(String(e.id)) < 0; }).map(function(e){
+        var _mappedExp = woExpRows.filter(function(e){ return delWE.indexOf(String(e.id)) < 0; }).map(function(e){
           return { id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, receiptUrl:e.receipt_url, receiptDocId:e.receipt_doc_id, createdAt:e.created_at };
         });
+        var _expHave = {}; _mappedExp.forEach(function(e){ if(e&&e.id) _expHave[e.id]=1; });
+        // Keep on-demand-loaded older rows (outside the window) that this pull didn't return.
+        _prevExp.forEach(function(e){
+          if (e && e.id && !_expHave[e.id] && delWE.indexOf(String(e.id))<0 && (!e.createdAt || e.createdAt < _expCut)) _mappedExp.push(e);
+        });
+        DB.woExpenses = _mappedExp;
       }
     } catch(e) { errors.push('wo_expenses: '+e.message); }
 
@@ -1406,35 +1512,38 @@ async function syncAllFromCloud(silent) {
       }
     } catch(e) { errors.push('contracts: '+e.message); }
 
-    // 17. Purchase Orders
+    // 17. Purchase Orders — PERF: bounded to recent (last PO_WINDOW_DAYS) PLUS every still-open
+    // PO of any age (so nothing actionable is ever missing). Older CLOSED POs load on demand
+    // via ensurePOLoaded() when opened/received/printed. Two bounded queries, merged, instead
+    // of pulling all ~1,500 POs + ~7,000 line items every sync.
     try {
-      var { data: poRows, error: poe } = await _sbSelectAll(function(){ return _sb.from('purchase_orders').select('*, po_line_items(*)').order('created_at', { ascending: false }); });
+      var _poCut = new Date(Date.now() - PO_WINDOW_DAYS*86400000).toISOString();
+      var _poRecent = await _sbSelectAll(function(){ return _sb.from('purchase_orders').select('*, po_line_items(*)').gte('created_at', _poCut).order('created_at', { ascending: false }); });
+      var _poOpen   = await _sbSelectAll(function(){ return _sb.from('purchase_orders').select('*, po_line_items(*)').in('status', PO_OPEN_STATUSES).order('created_at', { ascending: false }); });
+      var poe = _poRecent.error || _poOpen.error;
       if (poe) { errors.push('purchase_orders: '+poe.message); }
-      else if (poRows) {
-        // Suppress tombstoned rows until their cloud delete confirms (RLS-silent-block guard).
-        poRows = poRows.filter(function(p){ return delPO.indexOf(String(p.id)) < 0; });
-        var cloudPOIds = new Set(poRows.map(function(p){ return String(p.id); }));
-        var poCloudComplete = poRows.length > 0 && poRows.length < 1000;
-        var localOnlyPOs = (DB.purchaseOrders||[]).filter(function(p){ return p.id && !cloudPOIds.has(String(p.id)) && delPO.indexOf(String(p.id)) < 0 && !(p._synced && poCloudComplete); });
-        var cloudPOs = poRows.map(function(p){
-          return {
-            id:p.id, poNumber:p.po_number, vendorId:p.vendor_id, vendorName:p.vendor_name,
-            jobId:p.job_id, woId:p.wo_id, status:p.status, date:p.created_at?p.created_at.split('T')[0]:'',
-            dateNeeded:p.date_needed, shipName:p.ship_to_name, shipAddr:p.ship_to_address,
-            shipCity:p.ship_to_city, shipState:p.ship_to_state, shipZip:p.ship_to_zip,
-            subtotal:p.subtotal, total:p.total, notes:p.notes,
-            vendorInvNum:p.vendor_invoice_num, vendorInvAmt:p.vendor_invoice_amount,
-            readyToPay:!!p.ready_to_pay, createdBy:p.created_by, createdByName:p.created_by_name,
-            createdAt:p.created_at, updatedAt:p.updated_at,
-            items:(p.po_line_items||[]).sort(function(a,b){return (a.sort_order||0)-(b.sort_order||0);}).map(function(li){
-              return { id:li.id, desc:li.description, partNum:li.part_num, qtyOrdered:li.qty_ordered, qtyReceived:li.qty_received, unitCost:li.unit_cost };
-            })
-          };
+      var poRows = (_poRecent.data||[]).concat(_poOpen.data||[]);
+      if (poRows) {
+        // De-dupe (a PO can match both queries) + drop tombstoned rows.
+        var _poSeen = {};
+        poRows = poRows.filter(function(p){
+          if (!p || _poSeen[p.id]) return false;
+          if (delPO.indexOf(String(p.id)) >= 0) return false;   // tombstoned — hide until delete confirms
+          _poSeen[p.id] = 1;
+          return true;
         });
-        cloudPOs.forEach(function(cp){ cp._synced = true; }); // mark as known-in-cloud
+        var cloudPOIds = new Set(poRows.map(function(p){ return String(p.id); }));
+        // Bounded pull is intentionally incomplete, so DON'T drop synced-but-unpulled POs the
+        // way a full pull would. Keep local-only (offline-created) AND on-demand-loaded POs.
+        var localOnlyPOs = (DB.purchaseOrders||[]).filter(function(p){
+          return p.id && !cloudPOIds.has(String(p.id)) && delPO.indexOf(String(p.id)) < 0 && (!p._synced || _ondemandPOIds[p.id]);
+        });
+        var cloudPOs = poRows.map(_mapPORow);
+        cloudPOs.forEach(function(cp){ cp._synced = true; });
         // Push any offline-created POs so they land in the cloud (never synced).
-        if (localOnlyPOs.length > 0 && typeof _pushPOToCloud === 'function') {
-          localOnlyPOs.forEach(function(p){ try { _pushPOToCloud(p); } catch(e){} });
+        var _reallyLocal = localOnlyPOs.filter(function(p){ return !p._synced; });
+        if (_reallyLocal.length > 0 && typeof _pushPOToCloud === 'function') {
+          _reallyLocal.forEach(function(p){ try { _pushPOToCloud(p); } catch(e){} });
         }
         DB.purchaseOrders = cloudPOs.concat(localOnlyPOs);
       }

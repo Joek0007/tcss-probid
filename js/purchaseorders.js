@@ -255,7 +255,16 @@ function newPOForVendor(vendorId) {
 
 function openPO(id) {
   var po=(DB.purchaseOrders||[]).find(function(p){return p.id===id;});
-  if(!po) return;
+  if(!po){
+    // Older/closed PO outside the bounded working set — fetch on demand, then retry.
+    if (typeof ensurePOLoaded==='function') {
+      ensurePOLoaded(id).then(function(f){
+        if (f) openPO(id);
+        else if (typeof showToast==='function') showToast('Purchase order not found','error');
+      });
+    }
+    return;
+  }
   _poCurrentId=id;
   _poItems=(po.items||[]).map(function(li,i){return Object.assign({},li,{_eid:i});});
   document.getElementById('po-modal-title').textContent='Purchase Order';
@@ -591,7 +600,10 @@ function printPO() {
 
 function printPOById(id) {
   var po=(DB.purchaseOrders||[]).find(function(p){return p.id===id;});
-  if(!po) return;
+  if(!po){
+    if (typeof ensurePOLoaded==='function') { ensurePOLoaded(id).then(function(f){ if(f) _printPOHTML(f); else if(typeof showToast==='function') showToast('Purchase order not found','error'); }); }
+    return;
+  }
   _printPOHTML(po);
 }
 
