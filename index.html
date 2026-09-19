@@ -4917,26 +4917,6 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <button class="btn btn-outline" style="margin-left:8px" onclick="testSendGridEmail()">Send Test Email</button>
   </div>
 
-  <!-- Vehicle Issue Email Alerts -->
-  <div class="card" id="vehicle-issue-alert-card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <h3 style="margin:0">🚚 Vehicle Issue Alerts</h3>
-      <span id="vehissue-email-badge" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;background:#fff3e0;color:#e65100">⏳ Off</span>
-    </div>
-    <p style="font-size:12px;color:#546e7a;margin:0 0 12px">When a tech reports a vehicle issue from the field, email the fleet manager automatically (with the photo attached). Sent through ProBid's email service — the same one that sends your proposal-approval notifications. The in-app badge on the Vehicles page always shows open issues regardless of this setting.</p>
-    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:12px">
-      <input type="checkbox" id="s-vehissue-email" onchange="_syncVehIssueEmailBadge()" style="width:18px;height:18px">
-      <span style="font-weight:600;font-size:14px">Email the fleet manager on new vehicle issues</span>
-    </label>
-    <div class="form-row">
-      <div><label>Fleet manager email(s)</label>
-        <input id="s-vehissue-email-to" placeholder="e.g. shop@tcss.com, fleet@tcss.com" type="text">
-        <p style="font-size:11px;color:#90a4ae;margin-top:4px">Separate multiple addresses with commas. Leave blank to use your default notification email.</p>
-      </div>
-    </div>
-    <button class="btn btn-primary" onclick="saveVehicleIssueAlertSettings()">Save Alert Settings</button>
-  </div>
-
   <!-- ClickSend SMS Settings -->
   <div class="card" id="sms-settings-card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -5027,6 +5007,21 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           <div class="form-row"><div><label>Also email whoever created the quote</label>
             <select id="ms-notif-rep-enabled"><option value="1">Enabled</option><option value="0">Disabled</option></select>
           </div></div>
+        </div>
+      </div>
+      <div style="grid-column:span 2">
+        <div class="card-title">🚚 Vehicle Issue Alerts</div>
+        <div class="card-body">
+          <p style="font-size:12px;color:#546e7a;margin-bottom:12px">When a tech reports a vehicle issue from the field, email the fleet manager automatically (with the photo attached). Uses your Mailgun email service — the same one that sends approval notifications. The red badge on the Vehicles page always shows open issues regardless of this setting.</p>
+          <div class="form-row">
+            <div><label>Email the fleet manager on new issues</label>
+              <select id="ms-notif-vehissue-enabled"><option value="1">Enabled</option><option value="0">Disabled</option></select>
+            </div>
+            <div><label>Fleet manager email(s)</label>
+              <input id="ms-notif-vehissue-to" type="text" placeholder="shop@tcss.com, fleet@tcss.com">
+              <div style="font-size:11px;color:#90a4ae;margin-top:4px">Comma-separated. Blank = your notification email above.</div>
+            </div>
+          </div>
         </div>
       </div>
       <div style="display:flex;justify-content:flex-start;align-items:flex-end;grid-column:span 2">
@@ -6572,27 +6567,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919cq with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919cr with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919cq"></script>
-<script src="js/quotes.js?v=20260919cq"></script>
-<script src="js/tools.js?v=20260919cq"></script>
-<script src="js/field.js?v=20260919cq"></script>
-<script src="js/crm.js?v=20260919cq"></script>
-<script src="js/vehicles.js?v=20260919cq"></script>
-<script src="js/dispatch.js?v=20260919cq"></script>
-<script src="js/permissions.js?v=20260919cq"></script>
-<script src="js/worktracking.js?v=20260919cq"></script>
-<script src="js/calendar.js?v=20260919cq"></script>
-<script src="js/workorders.js?v=20260919cq"></script>
-<script src="js/purchaseorders.js?v=20260919cq"></script>
-<script src="js/inventory.js?v=20260919cq"></script>
-<script src="js/reports.js?v=20260919cq"></script>
-<script src="js/recyclebin.js?v=20260919cq"></script>
-<script src="js/contracts.js?v=20260919cq"></script>
-  <script src="js/recurring.js?v=20260919cq"></script>
-  <script src="js/seed_managed.js?v=20260919cq"></script>
-  <script src="js/auth.js?v=20260919cq"></script>
+<script src="js/core.js?v=20260919cr"></script>
+<script src="js/quotes.js?v=20260919cr"></script>
+<script src="js/tools.js?v=20260919cr"></script>
+<script src="js/field.js?v=20260919cr"></script>
+<script src="js/crm.js?v=20260919cr"></script>
+<script src="js/vehicles.js?v=20260919cr"></script>
+<script src="js/dispatch.js?v=20260919cr"></script>
+<script src="js/permissions.js?v=20260919cr"></script>
+<script src="js/worktracking.js?v=20260919cr"></script>
+<script src="js/calendar.js?v=20260919cr"></script>
+<script src="js/workorders.js?v=20260919cr"></script>
+<script src="js/purchaseorders.js?v=20260919cr"></script>
+<script src="js/inventory.js?v=20260919cr"></script>
+<script src="js/reports.js?v=20260919cr"></script>
+<script src="js/recyclebin.js?v=20260919cr"></script>
+<script src="js/contracts.js?v=20260919cr"></script>
+  <script src="js/recurring.js?v=20260919cr"></script>
+  <script src="js/seed_managed.js?v=20260919cr"></script>
+  <script src="js/auth.js?v=20260919cr"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

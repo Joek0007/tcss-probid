@@ -7417,10 +7417,6 @@ function loadSettings() {
     if (s.sgKey) { badge.textContent = '✅ Connected'; badge.style.background='#e8f5e9'; badge.style.color='#2e7d32'; }
     else { badge.textContent = '⏳ API Key Required'; badge.style.background='#fff3e0'; badge.style.color='#e65100'; }
   }
-  // Vehicle issue email alerts
-  var vieEl = document.getElementById('s-vehissue-email'); if (vieEl) vieEl.checked = !!s.vehIssueEmailEnabled;
-  sv('s-vehissue-email-to', s.vehIssueEmailTo || '');
-  if (typeof _syncVehIssueEmailBadge === 'function') _syncVehIssueEmailBadge();
   const cb=document.getElementById('company-badge'); if(cb) cb.textContent=(s.cname||'TCSS').substring(0,12);
   loadMarginFloors();
   applyLogoEverywhere(s.logoDataUrl || null);
@@ -7483,30 +7479,6 @@ function saveSendGridSettings() {
   saveDB();
   loadSettings();
   showToast('Email settings saved','success');
-}
-
-function _syncVehIssueEmailBadge() {
-  var on = !!(document.getElementById('s-vehissue-email')||{}).checked;
-  var b = document.getElementById('vehissue-email-badge');
-  if (b) {
-    if (on) { b.textContent='✅ On'; b.style.background='#e8f5e9'; b.style.color='#2e7d32'; }
-    else { b.textContent='⏳ Off'; b.style.background='#fff3e0'; b.style.color='#e65100'; }
-  }
-}
-function saveVehicleIssueAlertSettings() {
-  DB.settings = DB.settings || {};
-  DB.settings.vehIssueEmailEnabled = !!(document.getElementById('s-vehissue-email')||{}).checked;
-  DB.settings.vehIssueEmailTo = ((document.getElementById('s-vehissue-email-to')||{}).value||'').trim();
-  if (DB.settings.vehIssueEmailEnabled && !DB.settings.vehIssueEmailTo && !(DB.settings.notifyEmail||DB.settings.uemail||DB.settings.cemail)) {
-    showToast('Add at least one fleet-manager email, or turn the toggle off','error',4000); return;
-  }
-  if (DB.settings.vehIssueEmailEnabled && !DB.settings.mgKey) {
-    showToast('Email service (Mailgun) is not set up yet — the alert will save but won\'t send until it is','info',6000);
-  }
-  saveDB();
-  if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
-  _syncVehIssueEmailBadge();
-  showToast('Vehicle alert settings saved','success');
 }
 
 // ── ClickSend SMS ────────────────────────────────────────────────────────────

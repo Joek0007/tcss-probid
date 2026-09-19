@@ -3287,6 +3287,9 @@ function saveNotificationSettings() {
     notifyApprovalOn:     ((document.getElementById('ms-notif-approval-enabled')||{}).value) !== '0',
     notifyChangesOn:      ((document.getElementById('ms-notif-changes-enabled')||{}).value) !== '0',
     notifyRep:            ((document.getElementById('ms-notif-rep-enabled')||{}).value) !== '0',
+    // Vehicle issue alerts (emailed via the notify-vehicle-issue edge function)
+    vehIssueEmailEnabled: ((document.getElementById('ms-notif-vehissue-enabled')||{}).value) === '1',
+    vehIssueEmailTo:      ((document.getElementById('ms-notif-vehissue-to')||{}).value||'').trim(),
   });
   saveDB();
   if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
@@ -3312,6 +3315,10 @@ function loadNotificationSettings() {
   if (nAppr)  nAppr.value  = s.notifyApprovalOn !== false ? '1' : '0';
   if (nChg)   nChg.value   = s.notifyChangesOn  !== false ? '1' : '0';
   if (nRep)   nRep.value   = s.notifyRep        !== false ? '1' : '0';
+  var vIssEn = document.getElementById('ms-notif-vehissue-enabled');
+  var vIssTo = document.getElementById('ms-notif-vehissue-to');
+  if (vIssEn) vIssEn.value = s.vehIssueEmailEnabled ? '1' : '0';   // default OFF
+  if (vIssTo) vIssTo.value = s.vehIssueEmailTo || '';
 }
 
 // ============================================================
