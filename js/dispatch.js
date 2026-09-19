@@ -1357,7 +1357,7 @@ var PERM_DEFS = [
   {key:'page.auditlog',    label:'Audit Log Page',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'page.calendar',    label:'Calendar Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
   {key:'page.inventory',   label:'Inventory Page',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
-  {key:'page.scanner',     label:'Scanner Page',          group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:1,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.scanner',     label:'Scanner Page',          group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'page.tools',       label:'Tools Page',            group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
   {key:'page.timeclock',   label:'Time Clock Page',       group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
   {key:'page.timesheet',   label:'Timesheets Page',       group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
