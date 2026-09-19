@@ -950,6 +950,7 @@ function dispatchAddCrewMember(jobId){
   var sel=document.getElementById('add-crew-select-'+jobId);
   var techName=sel?sel.value:''; if(!techName){showToast('Select a team member','error');return;}
   addCrewMember(job,techName,'helper');
+  _saveJobToWO(job);   // persist crew → assigned_techs + push to cloud (was missing — click-add didn't save)
   saveDB();renderDispatchBoard();openDispatchDetail(jobId);
   showToast(escHtml(techName)+' added to crew','success');
 }
