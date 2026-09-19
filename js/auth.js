@@ -228,7 +228,7 @@ async function fetchInvoiceById(id){
 // Map a work_orders DB row -> the in-memory WO object shape. Shared by the sync pull
 // and the on-demand fetchers so all three stay identical.
 function _mapWORow(w){
-  return { id:w.id, woNumber:w.wo_number, customerId:w.customer_id, customerName:w.customer_name, contactId:w.contact_id, description:w.description, workPerformed:w.work_performed, status:w.status, serviceType:w.service_type, priority:w.priority, serviceRep:w.service_rep, refNum:w.reference_num, siteAddr:w.site_address, siteCity:w.site_city, siteState:w.site_state, siteZip:w.site_zip, laborRate:w.labor_rate, taxRate:w.tax_rate, dateRequested:w.date_requested, dateFollowup:w.date_followup, dateOpened:w.date_opened, dateClosed:w.date_closed, internalNotes:w.internal_notes, invoiceId:w.invoice_id, jobId:w.job_id, quoteId:w.quote_id, assignedTechs:w.assigned_techs||[], scheduledDate:w.scheduled_date||'', scheduledTime:w.scheduled_time||'', wtProjectId:w.wt_project_id||null, parentWoId:w.parent_wo_id||null, isChangeOrder:w.is_change_order||false, changeOrderReason:w.change_order_reason||null, createdBy:w.created_by, createdByName:w.created_by_name, createdAt:w.created_at, updatedAt:w.updated_at };
+  return { id:w.id, woNumber:w.wo_number, customerId:w.customer_id, customerName:w.customer_name, vehicleId:w.vehicle_id||null, contactId:w.contact_id, description:w.description, workPerformed:w.work_performed, status:w.status, serviceType:w.service_type, priority:w.priority, serviceRep:w.service_rep, refNum:w.reference_num, siteAddr:w.site_address, siteCity:w.site_city, siteState:w.site_state, siteZip:w.site_zip, laborRate:w.labor_rate, taxRate:w.tax_rate, dateRequested:w.date_requested, dateFollowup:w.date_followup, dateOpened:w.date_opened, dateClosed:w.date_closed, internalNotes:w.internal_notes, invoiceId:w.invoice_id, jobId:w.job_id, quoteId:w.quote_id, assignedTechs:w.assigned_techs||[], scheduledDate:w.scheduled_date||'', scheduledTime:w.scheduled_time||'', wtProjectId:w.wt_project_id||null, parentWoId:w.parent_wo_id||null, isChangeOrder:w.is_change_order||false, changeOrderReason:w.change_order_reason||null, createdBy:w.created_by, createdByName:w.created_by_name, createdAt:w.created_at, updatedAt:w.updated_at };
 }
 
 // On-demand work-order fetch (Phase-2 load-on-demand). The sync keeps only a bounded
@@ -240,6 +240,7 @@ async function fetchWorkOrdersCloud(opts){
   try {
     var q = _sb.from('work_orders').select('*');
     if (opts.customerId) q = q.eq('customer_id', opts.customerId);
+    if (opts.vehicleId) q = q.eq('vehicle_id', opts.vehicleId);
     if (opts.search) {
       var s = String(opts.search).replace(/[%,]/g,' ').trim();
       if (s) q = q.or('wo_number.ilike.%'+s+'%,customer_name.ilike.%'+s+'%,description.ilike.%'+s+'%,site_address.ilike.%'+s+'%,site_city.ilike.%'+s+'%');
@@ -583,7 +584,7 @@ function enforceNavPermissions() {
       'qq':'page.qq','quotes':'page.quotes','jobs':'page.jobs',
       'dispatch':'page.dispatch','invoices':'page.invoices',
       'workorders':'page.workorders','purchaseorders':'page.purchaseorders',
-      'vendors':'page.vendors','customers':'page.customers',
+      'vendors':'page.vendors','customers':'page.customers','vehicles':'page.workorders',
       'contacts':'page.contacts','team':'page.team','catalog':'page.catalog',
       'templates':'page.templates','reports':'page.reports','auditlog':'page.auditlog',
       'calendar':'page.calendar','inventory':'page.inventory','scanner':'page.scanner',
@@ -1318,6 +1319,21 @@ async function syncAllFromCloud(silent) {
         });
       }
     } catch(e) { errors.push('vendors: '+e.message); }
+
+    // 16b. Assets (Fleet Vehicles) — office-managed, is_active-filtered pull (mirrors vendors).
+    try {
+      var { data: assetRows, error: ase } = await _sbSelectAll(function(){ return _sb.from('assets').select('*').eq('is_active', true).order('number'); });
+      if (ase) { errors.push('assets: '+ase.message); }
+      else if (assetRows) {
+        DB.vehicles = assetRows.map(function(a){
+          return { id:a.id, number:a.number, name:a.name, type:a.type, make:a.make, model:a.model, year:a.year,
+            color:a.color, vin:a.vin, plate:a.plate, status:a.status, assignedTech:a.assigned_tech, homeBase:a.home_base,
+            odometer:a.odometer, purchaseDate:a.purchase_date, purchaseCost:a.purchase_cost,
+            registrationExpires:a.registration_expires, insuranceExpires:a.insurance_expires,
+            notes:a.notes, isActive:a.is_active!==false, createdBy:a.created_by, createdAt:a.created_at };
+        });
+      }
+    } catch(e) { errors.push('assets: '+e.message); }
 
     // 20. Recurring Contracts (Managed Services)
     try {

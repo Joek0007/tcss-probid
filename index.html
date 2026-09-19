@@ -1416,6 +1416,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <div class="nav-group">
     <div class="nav-group-title">Contacts</div>
     <a class="nav-item" data-page="customers" href="#/customers"><span class="nav-icon">👥</span>Customers</a>
+    <a class="nav-item" data-page="vehicles" href="#/vehicles"><span class="nav-icon">🚚</span>Vehicles</a>
     <a class="nav-item" data-page="contacts" href="#/contacts"><span class="nav-icon">📞</span>Contacts</a>
     <a class="nav-item" data-page="team" href="#/team"><span class="nav-icon">👷</span>Team</a>
     <a class="nav-item" data-page="vendors" href="#/vendors"><span class="nav-icon">🏭</span>Vendors</a>
@@ -3244,6 +3245,34 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
     <!-- Customer cards grid -->
     <div id="cust-tbl"></div>
+  </div>
+</div>
+
+<!-- VEHICLES / FLEET -->
+<div class="page" id="page-vehicles">
+  <div class="page-header">
+    <h2>🚚 Vehicles</h2>
+    <button class="btn btn-primary" onclick="newVehicle()">+ New Vehicle</button>
+  </div>
+
+  <div class="cust-summary-strip">
+    <div class="cust-summary-tile"><div class="cust-summary-val" id="vs-total">0</div><div class="cust-summary-lbl">Total Vehicles</div></div>
+    <div class="cust-summary-tile green"><div class="cust-summary-val" id="vs-active">0</div><div class="cust-summary-lbl">Active</div></div>
+    <div class="cust-summary-tile orange"><div class="cust-summary-val" id="vs-shop">0</div><div class="cust-summary-lbl">In Shop</div></div>
+  </div>
+
+  <div class="card">
+    <div class="filter-bar" style="margin-bottom:12px">
+      <input class="search-input" id="veh-search" placeholder="🔍 Search vehicles..." oninput="_vehSearch()">
+      <select id="veh-filter" style="width:auto" onchange="setVehSort()">
+        <option value="">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="in_shop">In Shop</option>
+        <option value="sold">Sold</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
+    <div id="veh-tbl"></div>
   </div>
 </div>
 
@@ -5578,10 +5607,18 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
         <!-- Customer -->
         <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:180px">
-          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Customer *</span>
+          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Customer <span style="font-weight:400;text-transform:none">(or Vehicle)</span></span>
           <input id="wo-customer-name" placeholder="Search customer..." autocomplete="off" oninput="onWOCustomerInput(this.value)" onfocus="onWOCustomerInput(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;width:100%;min-width:180px">
           <div id="wo-customer-dropdown" style="display:none;position:absolute;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:200;max-height:200px;overflow-y:auto;min-width:280px"></div>
           <input type="hidden" id="wo-customer-id">
+        </div>
+
+        <!-- Vehicle (internal fleet work) -->
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:160px">
+          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">🚚 Vehicle</span>
+          <input id="wo-vehicle-name" placeholder="Search fleet..." autocomplete="off" oninput="onWOVehicleInput(this.value)" onfocus="onWOVehicleInput(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;width:100%;min-width:160px">
+          <div id="wo-vehicle-dropdown" style="display:none;position:absolute;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:200;max-height:200px;overflow-y:auto;min-width:260px"></div>
+          <input type="hidden" id="wo-vehicle-id">
         </div>
 
         <!-- Contact -->
@@ -6159,6 +6196,55 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   </div>
 </div>
 
+<!-- VEHICLE MODAL -->
+<div class="modal-overlay" id="modal-vehicle" data-no-backdrop-close="1">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="modal-vehicle-title">New Vehicle</h3>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-vehicle">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveVehicle()">Save</button>
+        <button class="close-btn" data-action="closeModal" data-modal="modal-vehicle">×</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="form-row cols2"><div><label>Vehicle Number / Name *</label><input id="m-vnumber" placeholder="e.g. Vehicle #20"></div><div><label>Nickname</label><input id="m-vname" placeholder="optional label"></div></div>
+      <div class="form-row cols3"><div><label>Type</label><select id="m-vtype"><option value="">—</option><option>Van</option><option>Truck</option><option>Trailer</option><option>Car</option><option>Other</option></select></div><div><label>Status</label><select id="m-vstatus"><option value="active">Active</option><option value="in_shop">In Shop</option><option value="sold">Sold</option><option value="inactive">Inactive</option></select></div><div><label>Year</label><input id="m-vyear" placeholder="2022" maxlength="4"></div></div>
+      <div class="form-row cols3"><div><label>Make</label><input id="m-vmake"></div><div><label>Model</label><input id="m-vmodel"></div><div><label>Color</label><input id="m-vcolor"></div></div>
+      <div class="form-row cols2"><div><label>VIN</label><input id="m-vvin"></div><div><label>License Plate</label><input id="m-vplate"></div></div>
+      <div class="form-row cols2"><div><label>Assigned Tech / Driver</label><input id="m-vtech"></div><div><label>Home Base</label><input id="m-vbase"></div></div>
+      <div class="form-row cols3"><div><label>Odometer (mi)</label><input id="m-vodo" placeholder="0"></div><div><label>Purchase Date</label><input id="m-vpdate" type="date"></div><div><label>Purchase Cost</label><input id="m-vpcost" placeholder="0.00"></div></div>
+      <div class="form-row cols2"><div><label>Registration Expires</label><input id="m-vreg" type="date"></div><div><label>Insurance Expires</label><input id="m-vins" type="date"></div></div>
+      <div class="form-row"><div><label>Notes</label><textarea id="m-vnotes" rows="2"></textarea></div></div>
+      <input type="hidden" id="m-vid">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-vehicle">Cancel</button>
+      <button class="btn btn-primary" onclick="saveVehicle()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- VEHICLE PROFILE OVERLAY -->
+<div id="vehicle-profile-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1300;overflow-y:auto">
+  <div style="background:#fff;max-width:900px;margin:24px auto;border-radius:14px;overflow:hidden;min-height:60vh">
+    <div style="background:linear-gradient(135deg,#0d47a1,#1565c0);color:#fff;padding:20px 24px;display:flex;align-items:center;gap:16px">
+      <div id="vp-avatar" style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:24px">🚚</div>
+      <div style="flex:1">
+        <div id="vp-name" style="font-size:20px;font-weight:800"></div>
+        <div id="vp-meta" style="font-size:13px;opacity:.85"></div>
+      </div>
+      <span id="vp-wo-count" style="font-size:13px;opacity:.9;margin-right:8px"></span>
+      <button class="close-btn" style="color:#fff" onclick="closeVehicleProfile()">×</button>
+    </div>
+    <div style="display:flex;gap:4px;padding:10px 16px 0;border-bottom:1px solid #e0e7ef;background:#f8f9fa">
+      <button class="cp-tab active" id="vpt-overview" onclick="switchVPTab('overview')">📋 Overview</button>
+      <button class="cp-tab" id="vpt-workorders" onclick="switchVPTab('workorders')">🔨 Work Orders</button>
+    </div>
+    <div id="vp-content" style="padding:20px 24px"></div>
+  </div>
+</div>
+
 <!-- CUSTOMER MODAL -->
 <div class="modal-overlay" id="modal-customer" data-no-backdrop-close="1">
   <div class="modal-box">
@@ -6423,26 +6509,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260916cn with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260916co with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260916cn"></script>
-<script src="js/quotes.js?v=20260916cn"></script>
-<script src="js/tools.js?v=20260916cn"></script>
-<script src="js/field.js?v=20260916cn"></script>
-<script src="js/crm.js?v=20260916cn"></script>
-<script src="js/dispatch.js?v=20260916cn"></script>
-<script src="js/permissions.js?v=20260916cn"></script>
-<script src="js/worktracking.js?v=20260916cn"></script>
-<script src="js/calendar.js?v=20260916cn"></script>
-<script src="js/workorders.js?v=20260916cn"></script>
-<script src="js/purchaseorders.js?v=20260916cn"></script>
-<script src="js/inventory.js?v=20260916cn"></script>
-<script src="js/reports.js?v=20260916cn"></script>
-<script src="js/recyclebin.js?v=20260916cn"></script>
-<script src="js/contracts.js?v=20260916cn"></script>
-  <script src="js/recurring.js?v=20260916cn"></script>
-  <script src="js/seed_managed.js?v=20260916cn"></script>
-  <script src="js/auth.js?v=20260916cn"></script>
+<script src="js/core.js?v=20260916co"></script>
+<script src="js/quotes.js?v=20260916co"></script>
+<script src="js/tools.js?v=20260916co"></script>
+<script src="js/field.js?v=20260916co"></script>
+<script src="js/crm.js?v=20260916co"></script>
+<script src="js/vehicles.js?v=20260916co"></script>
+<script src="js/dispatch.js?v=20260916co"></script>
+<script src="js/permissions.js?v=20260916co"></script>
+<script src="js/worktracking.js?v=20260916co"></script>
+<script src="js/calendar.js?v=20260916co"></script>
+<script src="js/workorders.js?v=20260916co"></script>
+<script src="js/purchaseorders.js?v=20260916co"></script>
+<script src="js/inventory.js?v=20260916co"></script>
+<script src="js/reports.js?v=20260916co"></script>
+<script src="js/recyclebin.js?v=20260916co"></script>
+<script src="js/contracts.js?v=20260916co"></script>
+  <script src="js/recurring.js?v=20260916co"></script>
+  <script src="js/seed_managed.js?v=20260916co"></script>
+  <script src="js/auth.js?v=20260916co"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

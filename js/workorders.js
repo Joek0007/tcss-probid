@@ -368,7 +368,7 @@ function renderWorkOrders() {
 
     return '<div class="wo-list-row" data-woid="'+escHtml(wo.id)+'" style="display:grid;grid-template-columns:'+cols+';padding:11px 16px;border-bottom:1px solid #f0f4f8;align-items:center;cursor:pointer">'
       +'<div class="wo-num-link" data-woid="'+escHtml(wo.id)+'" style="font-weight:700;color:#1565c0;font-size:13px;text-decoration:underline">'+escHtml(wo.woNumber||'')+'</div>'
-      +'<div style="overflow:hidden"><div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(wo.customerName||'—')+'</div>'+phoneLine+'</div>'
+      +'<div style="overflow:hidden"><div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(wo.vehicleId?('🚚 '+escHtml(_woVehLabel(wo.vehicleId))):escHtml(wo.customerName||'—'))+'</div>'+(wo.vehicleId?'':phoneLine)+'</div>'
       +'<div style="overflow:hidden"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(stripHtmlToText(wo.description).substring(0,60))+'</div>'+schedHtml+'</div>'
       +'<div>'+techHtml+'</div>'
       +'<div><span class="wo-status-badge" data-woid="'+escHtml(wo.id)+'" style="background:'+stColor+';color:'+_smartTextColor(stColor)+';padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;display:inline-block">'+escHtml(wo.status||'')+'</span></div>'
@@ -538,7 +538,7 @@ function openNewWorkOrder() {
   _woCurrentId = null;
   var today = getTodayISO();
   // Clear fields
-  ['wo-customer-name','wo-customer-id','wo-description','wo-work-performed',
+  ['wo-customer-name','wo-customer-id','wo-vehicle-name','wo-vehicle-id','wo-description','wo-work-performed',
    'wo-ref-num','wo-site-addr','wo-site-city','wo-site-state','wo-site-zip',
    'wo-internal-notes','wo-date-followup','wo-scheduled-date','wo-scheduled-time',
    'wo-created-date','wo-closed-date'].forEach(function(id){
@@ -676,6 +676,9 @@ function openWorkOrder(id) {
   sv('wo-service-type',   wo.serviceType||'');
   sv('wo-customer-name',  wo.customerName||'');
   sv('wo-customer-id',    wo.customerId||'');
+  var _vv=(wo.vehicleId&&(DB.vehicles||[]).find(function(x){return x.id===wo.vehicleId;}))||null;
+  sv('wo-vehicle-name',   _vv?(_vv.number||_vv.name||''):'');
+  sv('wo-vehicle-id',     wo.vehicleId||'');
   sv('wo-description',    wo.description||'');
   sv('wo-work-performed', wo.workPerformed||'');
   sv('wo-ref-num',        wo.refNum||'');
@@ -779,9 +782,10 @@ function dismissHotNotes() {
 // ---- SAVE ----
 async function saveWorkOrder() {
   var custName = (document.getElementById('wo-customer-name')||{}).value||'';
+  var vehId    = (document.getElementById('wo-vehicle-id')||{}).value||'';
   var descEl   = document.getElementById('wo-description');
   var desc     = descEl ? (descEl.contentEditable==='true' ? (typeof woRtfRead==='function' ? woRtfRead('wo-description') : descEl.innerText) : descEl.value) : '';
-  if (!custName.trim()) { showToast('Customer is required','error'); return; }
+  if (!custName.trim() && !vehId.trim()) { showToast('Pick a customer or a vehicle','error'); return; }
   if (!desc.trim())     { showToast('Work description is required','error'); return; }
 
   if (!DB.workOrders) DB.workOrders = [];
@@ -831,6 +835,7 @@ async function saveWorkOrder() {
     woNumber:     woNum,
     customerId:   gv('wo-customer-id'),
     customerName: custName,
+    vehicleId:    gv('wo-vehicle-id')||null,
     contactId:    gv('wo-contact'),
     description:  desc,
     descriptionIsHtml: (function(){ var el=document.getElementById('wo-description'); return !!(el&&el.contentEditable==='true'); })(),
@@ -997,8 +1002,47 @@ function selectWOCustomer(id, name) {
     if(zipEl&&!zipEl.value)   zipEl.value=cust.zip||'';
   }
 
+  // Selecting a customer clears any vehicle link (a WO is for a customer OR a vehicle)
+  var vN=document.getElementById('wo-vehicle-name'); if(vN) vN.value='';
+  var vI=document.getElementById('wo-vehicle-id');   if(vI) vI.value='';
+
   // Check hot notes for new WO (isNew=true for customer selection)
   if (!_woCurrentId) _checkHotNotes(id, 'new', true);
+}
+
+// ---- VEHICLE AUTOCOMPLETE (internal fleet work) ----
+function _woVehLabel(id){ var v=(DB.vehicles||[]).find(function(x){return x.id===id;}); return v?(v.number||v.name||'Vehicle'):'Vehicle'; }
+function onWOVehicleInput(val){
+  var drop=document.getElementById('wo-vehicle-dropdown');
+  if(!drop) return;
+  var v=(val||'').trim().toLowerCase();
+  var pool=(DB.vehicles||[]).filter(function(x){ return x && x.isActive!==false && !x.deleted; });
+  var matches = v
+    ? pool.filter(function(x){ return [x.number,x.name,x.plate,x.make,x.model].some(function(f){ return (f||'').toString().toLowerCase().includes(v); }); }).slice(0,10)
+    : pool.slice().sort(function(a,b){ return (a.number||a.name||'').localeCompare(b.number||b.name||'',undefined,{numeric:true}); }).slice(0,15);
+  if(!matches.length){ drop.style.display='none'; return; }
+  drop.innerHTML=matches.map(function(x){
+    var label=(x.number||x.name||'Vehicle');
+    var sub=[x.year,x.make,x.model].filter(Boolean).join(' ');
+    return '<div onmousedown="selectWOVehicle(\''+x.id+'\',\''+escHtml((label).replace(/\'/g,''))+'\')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f4f8;font-size:13px" onmouseover="this.style.background=\'#f0f4f8\'" onmouseout="this.style.background=\'\'">'+
+      '<div style="font-weight:600">'+escHtml(label)+'</div>'+(sub?'<div style="font-size:11px;color:#90a4ae">'+escHtml(sub)+'</div>':'')+
+    '</div>';
+  }).join('');
+  drop.style.display='block';
+}
+function selectWOVehicle(id, label){
+  var nameEl=document.getElementById('wo-vehicle-name'); if(nameEl) nameEl.value=label;
+  var idEl=document.getElementById('wo-vehicle-id');     if(idEl)   idEl.value=id;
+  var drop=document.getElementById('wo-vehicle-dropdown'); if(drop) drop.style.display='none';
+  // Vehicle work has no customer — clear customer fields so the WO is vehicle-only.
+  var cN=document.getElementById('wo-customer-name'); if(cN) cN.value='';
+  var cI=document.getElementById('wo-customer-id');   if(cI) cI.value='';
+  var ctN=document.getElementById('wo-contact-name'); if(ctN){ ctN.value=''; }
+  var ctI=document.getElementById('wo-contact');      if(ctI) ctI.value='';
+}
+function openNewWOForVehicle(vehicleId, label){
+  if (typeof openNewWorkOrder==='function') openNewWorkOrder();
+  setTimeout(function(){ selectWOVehicle(vehicleId, label||''); }, 60);
 }
 
 function _populateWOContacts(customerId, selectedContactId) {
@@ -1478,7 +1522,7 @@ function printWorkOrder(woId) {
       '<h2>Customer &amp; Site</h2>'+
       '<div class="grid-2">'+
         '<div>'+
-          '<div class="field-label">Customer</div><div class="field-val" style="font-weight:700">'+esc(wo.customerName||'—')+'</div>'+
+          '<div class="field-label">'+(wo.vehicleId?'Vehicle':'Customer')+'</div><div class="field-val" style="font-weight:700">'+esc(wo.vehicleId?_woVehLabel(wo.vehicleId):(wo.customerName||'—'))+'</div>'+
           (wo.serviceType?'<div class="field-val" style="margin-top:4px;color:#546e7a">'+esc(wo.serviceType)+'</div>':'')+
         '</div>'+
         '<div>'+
@@ -2343,6 +2387,7 @@ async function _pushWOToCloud(wo) {
       wo_number:     wo.woNumber,
       customer_id:   wo.customerId||null,
       customer_name: wo.customerName||null,
+      vehicle_id:    wo.vehicleId||null,
       contact_id:    wo.contactId||null,
       description:   wo.description||null,
       work_performed:wo.workPerformed||null,
