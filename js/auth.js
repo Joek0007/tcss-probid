@@ -618,6 +618,11 @@ async function loadCurrentUserProfile() {
   }
   if (res.data) {
     _currentUser = res.data;
+    // Legacy role alias: office staff were seeded with role 'office', but the permission
+    // matrix + role gates standardized on 'back_office'. Without this, an 'office' user
+    // fails every hasPermission() check and is locked out of their own job. Normalize to
+    // the canonical role so all permission checks resolve correctly.
+    if (_currentUser.role === 'office') _currentUser.role = 'back_office';
     applyRolePermissions(_currentUser.role);
     updateUserBadge(_currentUser);
     // If this boot arrived with a deep-link hash (#/invoices), land on that page
@@ -2778,10 +2783,10 @@ async function _handleAuthRedirect() {
 var TCSS_USERS = [
   { name:'Joe Kucinski',          role:'owner',     email:'joek@tcss.com',                   phone:'336-736-6507', title:'Owner / GM' },
   { name:'Jordan Davis',          role:'owner',     email:'jordand@tcss.com',                phone:'252-314-8370', title:'Owner' },
-  { name:'Dawn Brown',            role:'office',    email:'dawnb@tcss.com',                  phone:'919-214-1186', title:'Office Admin' },
-  { name:'Lisa Lammonds',         role:'office',    email:'lisam@tcss.com',                  phone:'336-257-4725', title:'Office Assistant' },
-  { name:'Victoria Davis',        role:'office',    email:'Victoriad@tcss.com',              phone:'336-302-3979', title:'Financial Manager' },
-  { name:'Evan Morris',           role:'office',    email:'evanm@tcss.com',                  phone:'336-447-8507', title:'Project Management' },
+  { name:'Dawn Brown',            role:'back_office', email:'dawnb@tcss.com',                phone:'919-214-1186', title:'Office Admin' },
+  { name:'Lisa Lammonds',         role:'back_office', email:'lisam@tcss.com',                phone:'336-257-4725', title:'Office Assistant' },
+  { name:'Victoria Davis',        role:'back_office', email:'Victoriad@tcss.com',            phone:'336-302-3979', title:'Financial Manager' },
+  { name:'Evan Morris',           role:'back_office', email:'evanm@tcss.com',                phone:'336-447-8507', title:'Project Management' },
   { name:'Chris Jackson',         role:'lead_tech', email:'chrisj@tcss.com',                 phone:'336-964-5476', title:'Lead Technician' },
   { name:'Ernie Johnson',         role:'lead_tech', email:'erniej@tcss.com',                 phone:'336-736-6490', title:'Lead Technician' },
   { name:'David Corona',          role:'field',     email:'corona.david179@icloud.com',      phone:'336-483-5677', title:'Technician' },

@@ -2878,7 +2878,7 @@ var _origRenderWOLaborTab = renderWOLaborTab;
 renderWOLaborTab = function(woId) {
   var myName = _currentUser ? _currentUser.full_name : '';
   var myRole = _currentUser ? _currentUser.role : '';
-  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager';
+  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='back_office'||myRole==='manager';
   var isLead  = myRole==='lead_tech';
 
   // Field techs see only their own entries
@@ -2900,7 +2900,7 @@ if (_origRenderWOExpensesTab) {
   renderWOExpensesTab = function(woId) {
     var myName = _currentUser ? _currentUser.full_name : '';
     var myRole = _currentUser ? _currentUser.role : '';
-    var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager';
+    var isAdmin = myRole==='owner'||myRole==='office'||myRole==='back_office'||myRole==='manager';
     var isLead  = myRole==='lead_tech';
     if (!isAdmin && !isLead && myName) {
       var origExp = DB.woExpenses;

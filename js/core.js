@@ -2763,7 +2763,7 @@ function renderAuditLog() {
   if (!el) return;
 
   var myRole = _currentUser ? _currentUser.role : '';
-  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager';
+  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='back_office'||myRole==='manager';
   if (!isAdmin) {
     el.innerHTML = '<div style="text-align:center;padding:40px;color:#90a4ae">Access restricted to owner and office.</div>';
     return;
