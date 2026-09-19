@@ -2282,15 +2282,16 @@ function addWOChecklistItem() {
   var newCl = {id:'wocl-'+Date.now(),woId:woId,item:item.trim(),completed:false,createdAt:new Date().toISOString()};
   DB.woChecklist.push(newCl);
   saveDB();
-  if (typeof _sb!=='undefined'&&_sb) {
-    _sb.from('wo_checklist').insert({id:newCl.id,wo_id:woId,item:newCl.item,completed:false,created_at:newCl.createdAt}).then(function(){});
-  }
+  if (typeof _pushWOChecklistToCloud==='function') _pushWOChecklistToCloud(newCl);
   switchWOTab('checklist');
 }
 
 function toggleWOChecklistItem(id,checked) {
   var item=(DB.woChecklist||[]).find(function(c){return c.id===id;});
-  if(item){item.completed=checked;item.completedBy=checked?((_currentUser&&_currentUser.full_name)||'Unknown'):null;item.completedAt=checked?new Date().toISOString():null;}
+  if(item){
+    item.completed=checked;item.completedBy=checked?((_currentUser&&_currentUser.full_name)||'Unknown'):null;item.completedAt=checked?new Date().toISOString():null;
+    if(typeof _pushWOChecklistToCloud==='function') _pushWOChecklistToCloud(item);
+  }
   saveDB(); switchWOTab('checklist');
 }
 

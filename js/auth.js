@@ -1763,6 +1763,22 @@ async function _pushWOExpenseToCloud(we) {
   } catch (e) { console.warn('[Expense Push]', e.message || e); }
 }
 
+async function _pushWOChecklistToCloud(wc) {
+  if (!_sb || !_currentUser || !wc || !wc.id) return;
+  try {
+    var { error } = await _sb.from('wo_checklist').upsert({
+      id:           wc.id,
+      wo_id:        wc.woId||null,
+      item:         wc.item||null,
+      completed:    !!wc.completed,
+      completed_by: wc.completedBy||null,
+      completed_at: wc.completedAt||null,
+      created_at:   wc.createdAt||new Date().toISOString()
+    }, { onConflict: 'id' });
+    if (error) console.warn('[WO Checklist Push]', error.message);
+  } catch (e) { console.warn('[WO Checklist Push]', e.message || e); }
+}
+
 async function _pushWOPartToCloud(wp) {
   if (!_sb || !_currentUser || !wp || !wp.id) return;
   try {

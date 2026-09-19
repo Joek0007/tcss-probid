@@ -1768,8 +1768,20 @@ function viewQuote(id) {
 }
 
 // ---- MODAL HELPERS ----
-function openModal(id) { const m=document.getElementById(id); if(m){ m.classList.add('open'); const box=m.querySelector('.modal-box'); if(box) box.scrollTop=0; const body=m.querySelector('.modal-body'); if(body) body.scrollTop=0; m.scrollTop=0; } }
-function closeModal(id) { const m=document.getElementById(id); if(m) m.classList.remove('open');
+function openModal(id) { const m=document.getElementById(id); if(m){
+    // Stack this modal above any modal already open, so a modal launched from
+    // within another modal (e.g. Add Manual Entry / Assign Techs from a work order)
+    // isn't hidden behind it — all overlays share z-index 1500 by default.
+    try {
+      var others = [].slice.call(document.querySelectorAll('.modal-overlay.open')).filter(function(o){ return o!==m; });
+      if (others.length) {
+        var maxZ = 1500;
+        others.forEach(function(o){ var z=parseInt(getComputedStyle(o).zIndex,10); if(!isNaN(z)&&z>maxZ) maxZ=z; });
+        m.style.zIndex = (maxZ+10);
+      } else { m.style.zIndex=''; }
+    } catch(e){}
+    m.classList.add('open'); const box=m.querySelector('.modal-box'); if(box) box.scrollTop=0; const body=m.querySelector('.modal-body'); if(body) body.scrollTop=0; m.scrollTop=0; } }
+function closeModal(id) { const m=document.getElementById(id); if(m){ m.classList.remove('open'); m.style.zIndex=''; }
   // Hide the document prev/next arrows when a document modal closes
   if (typeof hideDocNav === 'function' && ['modal-view-quote','modal-work-order','modal-invoice','modal-contract'].indexOf(id) >= 0) hideDocNav();
 }
