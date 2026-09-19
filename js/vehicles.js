@@ -639,6 +639,10 @@ async function submitVehicleIssue(){
     if(ins.error) throw ins.error;
     if(typeof auditLog==='function') auditLog('issue_reported','asset',assetId,{note:(title||desc).slice(0,80)});
     if(typeof addNotification==='function') addNotification('message','Vehicle issue reported', (row.reporter_name)+' reported an issue'+(title?': '+title:''));
+    // Email the fleet manager (best-effort, server-side via Mailgun edge fn; no-op if toggle off / not configured)
+    if ((DB.settings||{}).vehIssueEmailEnabled) {
+      try { _sb.functions.invoke('notify-vehicle-issue', { body:{ id: issueId } }).then(function(){}).catch(function(){}); } catch(e){}
+    }
     _ensureVehicleIssueRollup(true);
     if(_vpId===assetId){ _vpIssues=null; var vv=(DB.vehicles||[]).find(function(x){return x.id===assetId;}); if(vv) _loadVPIssues(vv); }
     if(typeof closeModal==='function') closeModal('modal-vehicle-issue');
