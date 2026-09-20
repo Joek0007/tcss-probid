@@ -5884,9 +5884,6 @@ function submitAbsence() {
   DB.absences.push(record);
   saveDB();
 
-  // SEND ALERTS — stubbed (not yet wired; see sendAbsenceAlert)
-  sendAbsenceAlert(record);
-
   closeModal('modal-absence');
 
   // Show confirmation on field page
@@ -5899,20 +5896,54 @@ function submitAbsence() {
       '</div>';
   }
 
-  showToast('Absence reported — your manager has been notified','success',5000);
+  showToast('Absence reported','success',4000);
+
+  // Notify the office by text (ClickSend) if alerts are configured. Only tell the tech their
+  // manager was notified when a text actually went out — never promise a send that didn't happen.
+  sendAbsenceAlert(record).then(function(sent){
+    if (sent) {
+      record.alertSent = true; saveDB();
+      showToast('Your manager has been notified ✓','success',4000);
+    }
+  }).catch(function(){});
 }
 
-function sendAbsenceAlert(record) {
-  // STUB — absence alerts are NOT wired yet. When built, this should notify the office via
-  // the app's live channels: SMS through ClickSend sendSMS() and email through Mailgun (the
-  // same paths used elsewhere) — NOT Twilio. Intended behavior:
-  //   1. SMS the critical list (Joe + dispatcher)
-  //   2. Email Joe + others
-  // Message format:
-  //   TCSS [LATE NOTICE if late] — HH:MMam
-  //   {name} is OUT today — {reason}
-  //   Duration: {duration} · Coverage: {coverage} · Notes: {details if any} · Submitted: {time}
-  console.log('[ABSENCE ALERT STUB] Would notify office for:', record.techName, record.reasonLabel, record.isLate?'LATE':'on time');
+// Builds the office call-out text in the format spec'd for absences.
+function _absenceAlertMessage(record) {
+  var t = record.submittedAt ? new Date(record.submittedAt) : new Date();
+  var tm = t.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+  var lines = [];
+  lines.push('TCSS' + (record.isLate ? ' LATE NOTICE' : '') + ' — ' + tm);
+  lines.push((record.techName || 'A tech') + ' is OUT' + (record.isLate ? ' (late)' : ' today') +
+             (record.reasonLabel ? ' — ' + record.reasonLabel : ''));
+  if (record.duration)     lines.push('Duration: ' + record.duration + (record.durationDetail ? ' (' + record.durationDetail + ')' : ''));
+  if (record.coverage)     lines.push('Coverage: ' + record.coverage);
+  if (record.details)      lines.push('Notes: ' + record.details);
+  return lines.join('\n');
+}
+
+// Texts the office (via ClickSend sendSMS) when a tech reports a call-out — IF the owner has
+// enabled + configured recipients in Settings → Notifications. Returns true only if at least
+// one text was actually accepted, so the caller never claims a notification that didn't happen.
+// (Off by default; nothing is sent until configured. Email alerts can be added later via a
+// Mailgun edge function, the way vehicle-issue alerts work.)
+async function sendAbsenceAlert(record) {
+  var s = DB.settings || {};
+  if (!s.absenceAlertEnabled) {
+    console.log('[Absence] alerts disabled — not sending for', record && record.techName);
+    return false;
+  }
+  var toRaw = (s.absenceAlertSmsTo || '').trim();
+  var recips = toRaw.split(/[,;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+  if (!recips.length) { console.warn('[Absence] no recipient phone(s) configured'); return false; }
+  if (typeof sendSMS !== 'function') { console.warn('[Absence] SMS unavailable'); return false; }
+  var msg = _absenceAlertMessage(record);
+  var anySent = false;
+  for (var i = 0; i < recips.length; i++) {
+    try { if (await sendSMS(recips[i], msg)) anySent = true; }
+    catch (e) { console.warn('[Absence] send failed to', recips[i], e && e.message); }
+  }
+  return anySent;
 }
 
 // ---- ABSENCE DASHBOARD (back office) ----

@@ -3408,6 +3408,9 @@ function saveNotificationSettings() {
     // Vehicle issue alerts (emailed via the notify-vehicle-issue edge function)
     vehIssueEmailEnabled: ((document.getElementById('ms-notif-vehissue-enabled')||{}).value) === '1',
     vehIssueEmailTo:      ((document.getElementById('ms-notif-vehissue-to')||{}).value||'').trim(),
+    // Absence / call-out alerts (texted to the office via ClickSend — see sendAbsenceAlert)
+    absenceAlertEnabled:  ((document.getElementById('ms-notif-absence-enabled')||{}).value) === '1',
+    absenceAlertSmsTo:    ((document.getElementById('ms-notif-absence-sms-to')||{}).value||'').trim(),
   });
   saveDB();
   if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
@@ -3437,6 +3440,10 @@ function loadNotificationSettings() {
   var vIssTo = document.getElementById('ms-notif-vehissue-to');
   if (vIssEn) vIssEn.value = s.vehIssueEmailEnabled ? '1' : '0';   // default OFF
   if (vIssTo) vIssTo.value = s.vehIssueEmailTo || '';
+  var absEn = document.getElementById('ms-notif-absence-enabled');
+  var absTo = document.getElementById('ms-notif-absence-sms-to');
+  if (absEn) absEn.value = s.absenceAlertEnabled ? '1' : '0';      // default OFF
+  if (absTo) absTo.value = s.absenceAlertSmsTo || '';
 }
 
 // ============================================================
