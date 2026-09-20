@@ -655,6 +655,12 @@ function saveContact() {
     window._qqEditingContactId = null;
     setTimeout(function(){ selectContact(wasEditing); }, 100);
   }
+  // If we ADDED a new contact from the quote's contact dropdown, link it into the quote.
+  if (window._qqAddingContact && typeof selectContact === 'function') {
+    window._qqAddingContact = false;
+    var _qqNewId = newId;
+    setTimeout(function(){ selectContact(_qqNewId); }, 100);
+  }
   // If we were editing from the WO contact dropdown, re-populate it
   if (window._woEditingContactId) {
     var woWasEditing = window._woEditingContactId;
