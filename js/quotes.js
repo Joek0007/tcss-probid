@@ -2943,6 +2943,11 @@ function renderCustomers() {
   var el = document.getElementById('cust-tbl');
   if (!el) return;
 
+  // Content gate: cust.view is a finer gate beneath the page toggle (page.customers).
+  if (typeof hasPermission==='function' && !hasPermission('cust.view')) {
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#90a4ae">You do not have permission to view customers.</div>';
+    return;
+  }
   if (!customers.length) {
     el.innerHTML = '<div style="padding:40px;text-align:center;color:#90a4ae">'+(search||filter?'No customers match your search.':'No customers yet. Click + New Customer to add one.')+'</div>';
     return;
@@ -3830,6 +3835,10 @@ function renderTeam() {
   }
   var isOwner = _currentUser && _currentUser.role === 'owner';
   var canViewPay = (typeof _canViewPay === 'function') ? _canViewPay() : isOwner;
+  var canManageTeam = (typeof hasPermission!=='function') || hasPermission('settings.team');
+  // Hide the add/invite header buttons unless the user may manage team members.
+  var _tAdd = document.getElementById('team-add-btn'); if (_tAdd) _tAdd.style.display = canManageTeam ? '' : 'none';
+  var _tInv = document.getElementById('team-invite-btn'); if (_tInv) _tInv.style.display = canManageTeam ? '' : 'none';
   tbody.innerHTML = DB.team.map(function(t) {
     // Access = the login/permission role. Seeded team rows carry `role` but not
     // access/systemRole, so fall back to `role` before defaulting to field — otherwise
@@ -3851,7 +3860,7 @@ function renderTeam() {
       '<td class="team-rate-col">'+(canViewPay ? '$'+escHtml(String(t.rate||'0'))+'/hr' : '—')+'</td>'+
       '<td>'+statusBadge+'</td>'+
       '<td style="white-space:nowrap">'+
-        '<button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> '+
+        (canManageTeam ? '<button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> ' : '')+
         '<button class="btn btn-outline btn-sm" onclick="openTechJournalView(\''+escHtml(t.name)+'\')" style="color:#1565c0">📋 Journal</button> '+
         '<button class="btn btn-outline btn-sm" onclick="openQuarterlyReview(\''+escHtml(t.name)+'\')" style="color:#7b1fa2">📊 Review</button> '+
         (!hasLogin && t.email ? '<button class="btn btn-outline btn-sm" data-action="inviteTeamMember" data-id="'+t.id+'">✉ Invite</button> ' : '')+
@@ -4022,6 +4031,7 @@ async function uapDeactivate(uid, name){
 }
 
 function newTeamMemberV2() {
+  if (typeof hasPermission==='function' && !hasPermission('settings.team')) { showToast('You do not have permission to add team members','error'); return; }
   ['m-tmname','m-tmrole','m-tmph','m-tmem','m-tmid','m-tmhire','m-tm-invited'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.value='';
   });
@@ -4049,6 +4059,7 @@ function _applyTeamModalPayGate() {
 }
 
 function editTeamMemberV2(id) {
+  if (typeof hasPermission==='function' && !hasPermission('settings.team')) { showToast('You do not have permission to edit team members','error'); return; }
   var t=DB.team.find(function(x){return x.id==id;}); if(!t) return;
   function sv(eid,v){var el=document.getElementById(eid);if(el)el.value=v||'';}
   sv('m-tmname',t.name); sv('m-tmrole',t.role); sv('m-tmph',t.phone||''); sv('m-tmem',t.email||'');
@@ -4113,6 +4124,7 @@ function _buildTeamMemberData() {
 }
 
 function saveTeamMemberV2() {
+  if (typeof hasPermission==='function' && !hasPermission('settings.team')) { showToast('You do not have permission to add or edit team members','error'); return; }
   if (typeof probidCheckContactFields==='function' && !probidCheckContactFields('modal-team')) return;
   var data = _buildTeamMemberData(); if(!data) return;
   _upsertTeamMember(data);

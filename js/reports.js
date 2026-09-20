@@ -560,6 +560,11 @@ function renderQuotes() {
 
   const tbody = document.getElementById('quotes-tbl');
   if (!tbody) return;
+  // Content gate: quote.view is a finer gate beneath the page toggle (page.quotes).
+  if (typeof hasPermission==='function' && !hasPermission('quote.view')) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><p>You do not have permission to view quotes.</p></td></tr>';
+    return;
+  }
   if (list.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><p>No quotes found.</p></td></tr>';
     return;

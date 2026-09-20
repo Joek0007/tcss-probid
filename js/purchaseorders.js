@@ -213,7 +213,7 @@ function renderPOList() {
           ? '<button class="btn btn-success btn-sm" onclick="openReceiving(\''+po.id+'\')">📥 Receive</button>'
           : '<button class="btn btn-success btn-sm" style="visibility:hidden;pointer-events:none" tabindex="-1" aria-hidden="true">📥 Receive</button>')+
         '<button class="btn btn-outline btn-sm" onclick="printPOById(\''+po.id+'\')">🖨</button>'+
-        ((_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?'<button class="btn btn-danger btn-sm" onclick="deletePO(\''+po.id+'\')">✕</button>':'')+
+        ((typeof _canDeleteOfficeRecords==='function' ? _canDeleteOfficeRecords() : (_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'<button class="btn btn-danger btn-sm" onclick="deletePO(\''+po.id+'\')">✕</button>':'')+
       '</div>'+
     '</div>';
   }).join('');

@@ -1022,7 +1022,10 @@ function openEditTimeEntry(entryId) {
   // team time, which is time.clockteam). A lead may clock the crew in/out but not
   // retroactively correct records unless the owner grants time.correct.
   if (typeof hasPermission==='function' && !hasPermission('time.correct')) { showToast('You do not have permission to correct time entries','error'); return; }
-  var canDelete = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
+  // Delete follows the same correction permission (not a separate hardcoded role list),
+  // so an owner can grant/revoke it per role like every other toggle.
+  var canDelete = (typeof hasPermission==='function') ? hasPermission('time.correct')
+    : (_currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager'));
   var entry = (DB.timeEntries||[]).find(function(e){ return e.id===entryId; });
   if (!entry) { showToast('Entry not found','error'); return; }
 
@@ -1251,7 +1254,8 @@ function saveManualTimeEntry() {
 function deleteTimeEntry() {
   var editId = (document.getElementById('te-edit-id')||{}).value||'';
   if (!editId) return;
-  var canDelete = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
+  var canDelete = (typeof hasPermission==='function') ? hasPermission('time.correct')
+    : (_currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager'));
   if (!canDelete) { showToast('Permission denied','error'); return; }
   if (!confirm('Delete this time entry? This is logged in the audit trail.')) return;
 

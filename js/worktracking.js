@@ -6421,6 +6421,9 @@ function renderPayrollTab() {
     ? _canViewPay()
     : (_currentUser && ['owner','manager'].indexOf(_currentUser.role)>=0);
   if (!_canViewPayroll) { el.innerHTML='<div style="color:#90a4ae;padding:20px;text-align:center">You do not have permission to view payroll.</div>'; return; }
+  // Finer toggle: hide the Export CSV button unless payroll.export is granted (body also enforces).
+  var _pxBtn = document.getElementById('ts-payroll-export-btn');
+  if (_pxBtn) _pxBtn.style.display = (typeof hasPermission!=='function' || hasPermission('payroll.export')) ? '' : 'none';
 
   var offsetSel = document.getElementById('payroll-period-select');
   var offset = offsetSel ? {current:0,prev1:1,prev2:2}[offsetSel.value]||0 : 0;
@@ -6490,13 +6493,14 @@ function renderPayrollTab() {
           (t.ptoMins?'<span>PTO: $'+(t.ptoMins/60*t.rate).toFixed(2)+'</span>':'')+
           (t.holidayMins?'<span>Hol: $'+(t.holidayMins/60*t.rate).toFixed(2)+'</span>':'')+
         '</div>'+
-        (!hasFlags?'<button class="btn btn-success btn-sm" style="margin-top:10px" onclick="markPayrollProcessed(\''+escHtml(t.name)+'\',\''+ppStart+'\',\''+ppEnd+'\')">✓ Mark Processed</button>':'')+
+        ((!hasFlags && (typeof hasPermission!=='function' || hasPermission('payroll.process')))?'<button class="btn btn-success btn-sm" style="margin-top:10px" onclick="markPayrollProcessed(\''+escHtml(t.name)+'\',\''+ppStart+'\',\''+ppEnd+'\')">✓ Mark Processed</button>':'')+
       '</div>';
     }).join('');
 }
 
 function markPayrollProcessed(techName, ppStart, ppEnd) {
   if (typeof _canViewPay==='function' && !_canViewPay()) { showToast('You do not have permission to process payroll','error'); return; }
+  if (typeof hasPermission==='function' && !hasPermission('payroll.process')) { showToast('You do not have permission to mark payroll processed','error'); return; }
   if (!DB.payrollLog) DB.payrollLog=[];
   DB.payrollLog.push({tech:techName,ppStart:ppStart,ppEnd:ppEnd,processedAt:new Date().toISOString(),processedBy:_currentUser?_currentUser.full_name:'Admin'});
   saveDB();
@@ -6505,6 +6509,7 @@ function markPayrollProcessed(techName, ppStart, ppEnd) {
 
 function exportPayrollCSV() {
   if (typeof _canViewPay==='function' && !_canViewPay()) { showToast('You do not have permission to export payroll','error'); return; }
+  if (typeof hasPermission==='function' && !hasPermission('payroll.export')) { showToast('You do not have permission to export payroll','error'); return; }
   var offsetSel=document.getElementById('payroll-period-select');
   var offset={current:0,prev1:1,prev2:2}[(offsetSel&&offsetSel.value)||'current']||0;
   var pp=getPayPeriodByOffset(offset);

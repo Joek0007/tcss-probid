@@ -3096,6 +3096,9 @@ async function uploadWODocument(file, woId, label, docType) {
 }
 
 function renderWODocsTab(woId) {
+  if (typeof hasPermission==='function' && !hasPermission('docs.view')) {
+    return '<div style="color:#90a4ae;padding:20px;text-align:center">You do not have permission to view documents.</div>';
+  }
   var allDocs   = (DB.woDocuments||[]).filter(function(d){ return d.woId===woId && !d.deleted; });
   var fieldDocs = allDocs.filter(function(d){ return d.docType==='field'; });
   var officeDocs= allDocs.filter(function(d){ return d.docType!=='field'; });
