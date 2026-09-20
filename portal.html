@@ -302,13 +302,15 @@ async function loadPortal() {
       return;
     }
 
-    // Check company settings for branding. Read the company_name column, then fall back to
-    // settings_json.cname / cabbr (where the app actually stores the name) — so the portal is
-    // tenant-safe and shows THIS company, never a hard-coded "TCSS".
-    var { data: settings } = await sb.from('company_settings').select('*').eq('id', 1).single();
-    var sj = (settings && settings.settings_json) || {};
-    var full = (settings && settings.company_name) || sj.cname || sj.cabbr || '';
-    var abbr = sj.cabbr || full;
+    // Company branding for the public page. company_settings is RLS-locked (it holds API
+    // keys/secrets) so the anon portal can't read it directly — instead we call a small
+    // SECURITY DEFINER function that returns ONLY safe branding (name/logo/abbr). Tenant-safe;
+    // shows THIS company, never a hard-coded "TCSS".
+    var brandRows = null;
+    try { var _b = await sb.rpc('get_company_brand'); brandRows = _b && _b.data; } catch(_e) {}
+    var brand = (brandRows && brandRows[0]) || {};
+    var full = brand.company_name || brand.cabbr || '';
+    var abbr = brand.cabbr || full;
     companyName = full;
     if (full) {
       setText('hdr-company', full);
