@@ -3826,6 +3826,38 @@ var _accessLabels = {
   estimator:'Estimator',project_manager:'Project Manager',subcontractor:'Subcontractor'
 };
 
+// Short helper text shown next to the built-in roles in the access dropdown.
+// Custom roles have no description (just their label).
+var _ROLE_DESCRIPTIONS = {
+  owner:'Full access',
+  manager:'Everything except company settings',
+  back_office:'Office admin — no payroll or company settings',
+  estimator:'Quoting only',
+  lead_tech:'Field + customers, reports, catalog',
+  project_manager:'Jobs, WOs, dispatch — no financials',
+  helper_tech:'Time clock, jobs, work tracking only',
+  subcontractor:'Field check-off — most restricted'
+};
+
+// Build the Access Level <select> (#m-tmaccess) from ALL roles — built-ins plus any
+// custom role the owner added in Settings → Roles (getRoles() reads DB.settings.customRoles).
+// Any new role appears here automatically; no hardcoded list to maintain.
+function _populateAccessDropdown(selectedVal) {
+  var sel = document.getElementById('m-tmaccess');
+  if (!sel) return;
+  var roleIds = (typeof getRoles==='function') ? getRoles() : Object.keys(_accessLabels);
+  var labelOf = (typeof getRoleLabel==='function') ? getRoleLabel : function(r){ return _accessLabels[r]||r; };
+  // Preserve an existing member's legacy value (e.g. 'field'/'office') if it isn't a current role id.
+  if (selectedVal && roleIds.indexOf(selectedVal) < 0) roleIds = roleIds.concat([selectedVal]);
+  sel.innerHTML = roleIds.map(function(r){
+    var label = labelOf(r);
+    var desc  = _ROLE_DESCRIPTIONS[r];
+    var text  = desc ? (label + ' — ' + desc) : label;
+    return '<option value="'+escHtml(r)+'"'+(r===selectedVal?' selected':'')+'>'+escHtml(text)+'</option>';
+  }).join('');
+  if (selectedVal) sel.value = selectedVal;
+}
+
 function renderTeam() {
   var tbody = document.getElementById('team-tbl');
   if (!tbody) return;
@@ -3895,7 +3927,7 @@ async function renderUserAccessPanel() {
   var rows = res.data || [];
   _uapRows = rows; // cache for the Customize Access editor
   if (!rows.length) { body.innerHTML = '<div style="color:#90a4ae">No login users yet.</div>'; return; }
-  var roles = ['owner','manager','back_office','lead_tech','helper_tech'];
+  var roles = (typeof getRoles==='function') ? getRoles() : ['owner','manager','back_office','lead_tech','helper_tech'];
   var html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f0f4f8">'+
     '<th style="text-align:left;padding:8px 10px;font-size:11px;color:#546e7a;text-transform:uppercase">Name</th>'+
     '<th style="text-align:left;padding:8px 10px;font-size:11px;color:#546e7a;text-transform:uppercase">Status</th>'+
@@ -3908,7 +3940,7 @@ async function renderUserAccessPanel() {
       ? '<span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⏳ Pending</span>'
       : '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✓ Active</span>';
     var sel = '<select id="uap-role-'+u.id+'" style="padding:5px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
-      roles.map(function(r){ return '<option value="'+r+'"'+(u.role===r?' selected':'')+'>'+(_UAP_ROLE_LABELS[r]||r)+'</option>'; }).join('')+'</select>';
+      roles.map(function(r){ var lbl=(typeof getRoleLabel==='function')?getRoleLabel(r):(_UAP_ROLE_LABELS[r]||r); return '<option value="'+escHtml(r)+'"'+(u.role===r?' selected':'')+'>'+escHtml(lbl)+'</option>'; }).join('')+'</select>';
     var safeName = (u.full_name||'').replace(/["'\\]/g,'');
     var ovCount = u.perm_overrides ? Object.keys(u.perm_overrides).length : 0;
     var custBtn = (u.role==='owner') ? '' :
@@ -4036,7 +4068,7 @@ function newTeamMemberV2() {
     var el=document.getElementById(id); if(el) el.value='';
   });
   var el=document.getElementById('m-tmrate');        if(el)  el.value=65;
-  var ac=document.getElementById('m-tmaccess');      if(ac)  ac.value='field';
+  _populateAccessDropdown('helper_tech');
   var sv=document.getElementById('m-tm-show-vacation');if(sv)sv.checked=false;
   var sp=document.getElementById('m-tm-show-pto');   if(sp)  sp.checked=false;
   var sms=document.getElementById('m-tm-sms-enabled'); if(sms) sms.checked=true;
@@ -4065,7 +4097,7 @@ function editTeamMemberV2(id) {
   sv('m-tmname',t.name); sv('m-tmrole',t.role); sv('m-tmph',t.phone||''); sv('m-tmem',t.email||'');
   sv('m-tmrate',t.rate||65); sv('m-tmid',t.id); sv('m-tmhire',t.hireDate||'');
   sv('m-tm-invited',t.invitedAt||'');
-  var ac=document.getElementById('m-tmaccess'); if(ac) ac.value=t.access||t.systemRole||'field';
+  _populateAccessDropdown(t.access||t.systemRole||'helper_tech');
   var sv2=document.getElementById('m-tm-show-vacation'); if(sv2) sv2.checked=!!t.showVacation;
   var sp=document.getElementById('m-tm-show-pto');       if(sp)  sp.checked=!!t.showPTO;
   var sms2=document.getElementById('m-tm-sms-enabled'); if(sms2) sms2.checked=(t.smsEnabled!==false);
