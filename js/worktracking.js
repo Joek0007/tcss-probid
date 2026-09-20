@@ -4996,7 +4996,7 @@ function wtRenderProjectList() {
         '<span id="wt-online-badge" style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;background:#f5f5f5"></span>'+
         (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtOpenCatalogManager()">🔌 Item Catalog</button>' : '')+
         (!wtIsFieldTech() ? '<button class="btn btn-outline btn-sm" onclick="wtOpenTemplateManager()">📋 Room Templates</button>' : '')+
-        '<button class="btn btn-primary" onclick="openNewProjectWizard()">+ New Project</button>'+
+        ((typeof hasPermission!=='function' || hasPermission('wt.create')) ? '<button class="btn btn-primary" onclick="openNewProjectWizard()">+ New Project</button>' : '')+
       '</div>'+
     '</div>'+
     (!projects.length
