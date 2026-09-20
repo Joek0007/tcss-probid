@@ -668,6 +668,9 @@ function convertIssueToWO(id){
   closeVehicleProfile();
   if(typeof openNewWOForVehicle==='function'){
     openNewWOForVehicle(_vpId||i.assetId, label);
+    // F6: remember which issue this WO came from so saveWorkOrder() stamps wo_id back onto it.
+    // Set AFTER openNewWOForVehicle (which calls openNewWorkOrder and clears the flag).
+    window._convertingIssueId = id;
     var text=(i.title?(i.title+' — '):'')+(i.description||'');
     setTimeout(function(){
       var el=document.getElementById('wo-description');

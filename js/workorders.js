@@ -536,6 +536,7 @@ function _wireWOListEvents() {
 // ---- OPEN / NEW ----
 function openNewWorkOrder() {
   _woCurrentId = null;
+  window._convertingIssueId = null; // clear any stale vehicle-issue conversion link
   var today = getTodayISO();
   // Clear fields
   ['wo-customer-name','wo-customer-id','wo-vehicle-name','wo-vehicle-id','wo-description','wo-work-performed',
@@ -639,6 +640,7 @@ async function woNavWarnSave(){
 }
 
 function openWorkOrder(id) {
+  window._convertingIssueId = null; // opening an existing WO is never a fresh issue-conversion
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===id; });
   if (!wo) {
     // Historical work order outside the working set — fetch it on demand, then retry.
@@ -926,6 +928,16 @@ async function saveWorkOrder() {
   // Push to Supabase
   _pushWOToCloud(data);
   saveDB();
+  // F6: if this WO was started from a vehicle issue ("Convert to Work Order"), stamp the new
+  // WO id back onto the originating issue so the vehicle profile shows the linked WO.
+  if (isNew && window._convertingIssueId) {
+    var _issId = window._convertingIssueId;
+    window._convertingIssueId = null;
+    try {
+      if (_sb) _sb.from('asset_issues').update({ wo_id: id, status:'in_progress', updated_at:new Date().toISOString() }).eq('id', _issId).then(function(){});
+      if (typeof _vpIssues !== 'undefined' && _vpIssues) { var _it=_vpIssues.find(function(x){ return x.id===_issId; }); if(_it){ _it.woId=id; _it.status='in_progress'; } }
+    } catch(e) { console.warn('[Issue→WO link]', e && e.message); }
+  }
   renderWorkOrders();
   showToast('Work Order '+woNum+' saved ✓','success');
   document.getElementById('wo-modal-num').textContent=woNum;
