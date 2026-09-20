@@ -5026,12 +5026,20 @@ function wtRenderProjectList() {
       '</div>'+
     '</div>'+
     (!projects.length
-      ? '<div class="card" style="text-align:center;padding:60px 20px;color:#90a4ae">'+
-          '<div style="font-size:48px;margin-bottom:16px">🏗</div>'+
-          '<div style="font-size:18px;font-weight:700;margin-bottom:8px">No projects yet</div>'+
-          '<div style="font-size:14px;margin-bottom:24px">Build your first project with the guided wizard — it generates every room and item automatically.</div>'+
-          '<button class="btn btn-primary" onclick="openNewProjectWizard()">+ Create First Project</button>'+
-        '</div>'
+      ? ((typeof hasPermission!=='function' || hasPermission('wt.create'))
+          // Can create → invite them to build the first project.
+          ? '<div class="card" style="text-align:center;padding:60px 20px;color:#90a4ae">'+
+              '<div style="font-size:48px;margin-bottom:16px">🏗</div>'+
+              '<div style="font-size:18px;font-weight:700;margin-bottom:8px">No projects yet</div>'+
+              '<div style="font-size:14px;margin-bottom:24px">Build your first project with the guided wizard — it generates every room and item automatically.</div>'+
+              '<button class="btn btn-primary" onclick="openNewProjectWizard()">+ Create First Project</button>'+
+            '</div>'
+          // Field tech with nothing assigned → explain, no create button.
+          : '<div class="card" style="text-align:center;padding:60px 20px;color:#90a4ae">'+
+              '<div style="font-size:48px;margin-bottom:16px">📋</div>'+
+              '<div style="font-size:18px;font-weight:700;margin-bottom:8px">No projects assigned to you</div>'+
+              '<div style="font-size:14px">Projects appear here once you\'re assigned to their work order. Check with your office if you expected to see one.</div>'+
+            '</div>')
       : '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">'+
           projects.map(wtProjectCard).join('')+
         '</div>'
