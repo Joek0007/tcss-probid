@@ -3423,6 +3423,9 @@ function saveNotificationSettings() {
     // Absence / call-out alerts (texted to the office via ClickSend — see sendAbsenceAlert)
     absenceAlertEnabled:  ((document.getElementById('ms-notif-absence-enabled')||{}).value) === '1',
     absenceAlertSmsTo:    ((document.getElementById('ms-notif-absence-sms-to')||{}).value||'').trim(),
+    // Urgent work order alerts (texted via ClickSend — see sendUrgentWOSMS)
+    urgentWOAlertEnabled: ((document.getElementById('ms-notif-urgentwo-enabled')||{}).value) === '1',
+    urgentWOAlertSmsTo:   ((document.getElementById('ms-notif-urgentwo-sms-to')||{}).value||'').trim(),
   });
   saveDB();
   if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
@@ -3456,6 +3459,10 @@ function loadNotificationSettings() {
   var absTo = document.getElementById('ms-notif-absence-sms-to');
   if (absEn) absEn.value = s.absenceAlertEnabled ? '1' : '0';      // default OFF
   if (absTo) absTo.value = s.absenceAlertSmsTo || '';
+  var uwEn = document.getElementById('ms-notif-urgentwo-enabled');
+  var uwTo = document.getElementById('ms-notif-urgentwo-sms-to');
+  if (uwEn) uwEn.value = s.urgentWOAlertEnabled ? '1' : '0';       // default OFF
+  if (uwTo) uwTo.value = s.urgentWOAlertSmsTo || '';
 }
 
 // ============================================================

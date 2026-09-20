@@ -966,9 +966,37 @@ function _triggerUrgentAlert(wo) {
   var countEl = document.getElementById('notif-count');
   if (countEl) { countEl.textContent=count; countEl.style.display=''; }
   showToast('🚨 URGENT Work Order: '+escHtml(wo.customerName||'')+' — '+escHtml(stripHtmlToText(wo.description).substring(0,50)), 'error', 8000);
-  // Optional urgent-WO SMS hook (dormant — no sendUrgentWOSMS is defined yet). SMS in
-  // this app goes through ClickSend via sendSMS() (worktracking.js), not Twilio.
+  // Text the configured list via ClickSend (if enabled in Settings → Notifications).
   if (typeof sendUrgentWOSMS === 'function') sendUrgentWOSMS(wo);
+}
+
+// Texts a configured recipient list when a work order is marked Urgent — IF the owner has
+// enabled + configured recipients in Settings → Notifications. Off by default; company name
+// comes from settings (coLabel), so it's tenant-safe. De-duped via wo.urgentSmsNotified so a
+// re-saved Urgent WO doesn't re-text. Returns true only if a text was actually accepted.
+async function sendUrgentWOSMS(wo) {
+  var s = DB.settings || {};
+  if (!s.urgentWOAlertEnabled || !wo) return false;
+  if (wo.urgentSmsNotified) return false;   // already texted for this WO
+  var recips = String(s.urgentWOAlertSmsTo || '').split(/[,;]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+  if (!recips.length) { console.warn('[UrgentWO] no recipient phone(s) configured'); return false; }
+  if (typeof sendSMS !== 'function') return false;
+  // Claim before the async send to avoid a double-text on a rapid re-save.
+  wo.urgentSmsNotified = true;
+  if (typeof saveDB === 'function') saveDB();
+  var co = (typeof coLabel === 'function' ? coLabel() : '');
+  var msg = (co ? co + ' ' : '') + '🚨 URGENT WO: ' + (wo.woNumber || 'Work Order') + (wo.customerName ? ' | ' + wo.customerName : '');
+  var desc = wo.description ? (typeof stripHtmlToText === 'function' ? stripHtmlToText(wo.description) : wo.description) : '';
+  if (desc) msg += '\n' + desc.substring(0, 80);
+  if (wo.scheduledDate) msg += '\nScheduled: ' + wo.scheduledDate;
+  if (wo.siteAddr) msg += '\n' + wo.siteAddr + (wo.siteCity ? ', ' + wo.siteCity : '');
+  var anySent = false;
+  for (var i = 0; i < recips.length; i++) {
+    try { if (await sendSMS(recips[i], msg)) anySent = true; }
+    catch (e) { console.warn('[UrgentWO] send failed to', recips[i], e && e.message); }
+  }
+  if (!anySent) { wo.urgentSmsNotified = false; if (typeof saveDB === 'function') saveDB(); }
+  return anySent;
 }
 
 function deleteWorkOrder(id) {

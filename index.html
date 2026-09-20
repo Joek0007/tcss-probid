@@ -5035,6 +5035,21 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           </div>
         </div>
       </div>
+      <div style="grid-column:span 2">
+        <div class="card-title">🚨 Urgent Work Order Alerts</div>
+        <div class="card-body">
+          <p style="font-size:12px;color:#546e7a;margin-bottom:12px">When a work order is saved with <b>Urgent</b> priority, text the chosen people so it doesn't sit unseen. Sent once per work order via ClickSend. Leave off until you're ready.</p>
+          <div class="form-row">
+            <div><label>Text on new Urgent work orders</label>
+              <select id="ms-notif-urgentwo-enabled"><option value="0">Disabled</option><option value="1">Enabled</option></select>
+            </div>
+            <div><label>Alert phone number(s)</label>
+              <input id="ms-notif-urgentwo-sms-to" type="text" placeholder="(336) 555-0100, (336) 555-0101">
+              <div style="font-size:11px;color:#90a4ae;margin-top:4px">Comma-separated. Who should get the "urgent WO" text (you, dispatch, etc.). Uses your ClickSend SMS.</div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div style="display:flex;justify-content:flex-start;align-items:flex-end;grid-column:span 2">
         <button class="btn btn-primary" onclick="saveNotificationSettings()">💾 Save Notification Settings</button>
       </div>
@@ -6578,27 +6593,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919dv with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919dw with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919dv"></script>
-<script src="js/quotes.js?v=20260919dv"></script>
-<script src="js/tools.js?v=20260919dv"></script>
-<script src="js/field.js?v=20260919dv"></script>
-<script src="js/crm.js?v=20260919dv"></script>
-<script src="js/vehicles.js?v=20260919dv"></script>
-<script src="js/dispatch.js?v=20260919dv"></script>
-<script src="js/permissions.js?v=20260919dv"></script>
-<script src="js/worktracking.js?v=20260919dv"></script>
-<script src="js/calendar.js?v=20260919dv"></script>
-<script src="js/workorders.js?v=20260919dv"></script>
-<script src="js/purchaseorders.js?v=20260919dv"></script>
-<script src="js/inventory.js?v=20260919dv"></script>
-<script src="js/reports.js?v=20260919dv"></script>
-<script src="js/recyclebin.js?v=20260919dv"></script>
-<script src="js/contracts.js?v=20260919dv"></script>
-  <script src="js/recurring.js?v=20260919dv"></script>
-  <script src="js/seed_managed.js?v=20260919dv"></script>
-  <script src="js/auth.js?v=20260919dv"></script>
+<script src="js/core.js?v=20260919dw"></script>
+<script src="js/quotes.js?v=20260919dw"></script>
+<script src="js/tools.js?v=20260919dw"></script>
+<script src="js/field.js?v=20260919dw"></script>
+<script src="js/crm.js?v=20260919dw"></script>
+<script src="js/vehicles.js?v=20260919dw"></script>
+<script src="js/dispatch.js?v=20260919dw"></script>
+<script src="js/permissions.js?v=20260919dw"></script>
+<script src="js/worktracking.js?v=20260919dw"></script>
+<script src="js/calendar.js?v=20260919dw"></script>
+<script src="js/workorders.js?v=20260919dw"></script>
+<script src="js/purchaseorders.js?v=20260919dw"></script>
+<script src="js/inventory.js?v=20260919dw"></script>
+<script src="js/reports.js?v=20260919dw"></script>
+<script src="js/recyclebin.js?v=20260919dw"></script>
+<script src="js/contracts.js?v=20260919dw"></script>
+  <script src="js/recurring.js?v=20260919dw"></script>
+  <script src="js/seed_managed.js?v=20260919dw"></script>
+  <script src="js/auth.js?v=20260919dw"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
