@@ -1064,13 +1064,16 @@ function onTeTypeChange() {
     var myName2  = (document.getElementById('te-tech')||{}).value || '';
     var isAdmin2 = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager'||_currentUser.role==='back_office');
 
-    // Get open statuses from settings or defaults
+    // Get open statuses from settings or defaults. Compare case-insensitively — legacy
+    // imports use "Open" (title case) while the configured id is "OPEN", so a case-sensitive
+    // match silently dropped 27+ open WOs (e.g. #105798) from this dropdown. (Unknown/closed
+    // statuses like "Invoiced"/"Completed" are still excluded — they aren't in this list.)
     var openStatuses = ((DB.woSettings&&DB.woSettings.statuses)||WO_STATUSES)
       .filter(function(s){ return s.open!==false; })
-      .map(function(s){ return s.id; });
+      .map(function(s){ return String(s.id).toLowerCase(); });
 
     var availableWOs = (DB.workOrders||[]).filter(function(w){
-      var isOpen = openStatuses.indexOf(w.status) >= 0;
+      var isOpen = openStatuses.indexOf(String(w.status||'').toLowerCase()) >= 0;
       if (!isOpen) return false;
       // If tech selected and not admin, only show WOs they're assigned to
       if (myName2 && !isAdmin2) return _isTechAssignedToWO(myName2, w);
