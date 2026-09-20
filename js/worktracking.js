@@ -5912,10 +5912,12 @@ function submitAbsence() {
 function _absenceAlertMessage(record) {
   var t = record.submittedAt ? new Date(record.submittedAt) : new Date();
   var tm = t.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+  // Company short-name pulled from settings so alerts are tenant-specific, not hard-coded.
+  var co = (((DB.settings||{}).cabbr) || ((DB.settings||{}).cname) || ((DB.settings||{}).csFrom) || '').trim();
+  var heading = (co ? co + ' ' : '') + (record.isLate ? 'LATE - Notice' : 'ABSENCE - Out');
   var lines = [];
-  lines.push('TCSS' + (record.isLate ? ' LATE NOTICE' : '') + ' — ' + tm);
-  lines.push((record.techName || 'A tech') + ' is OUT' + (record.isLate ? ' (late)' : ' today') +
-             (record.reasonLabel ? ' — ' + record.reasonLabel : ''));
+  lines.push(heading + ' · ' + tm);
+  lines.push((record.techName || 'A tech') + (record.reasonLabel ? ' — ' + record.reasonLabel : ''));
   if (record.duration)     lines.push('Duration: ' + record.duration + (record.durationDetail ? ' (' + record.durationDetail + ')' : ''));
   if (record.coverage)     lines.push('Coverage: ' + record.coverage);
   if (record.details)      lines.push('Notes: ' + record.details);
@@ -7525,7 +7527,8 @@ async function sendSMSToTech(techName, message) {
 
 // Send assignment notification SMS
 async function sendAssignmentSMS(techName, projectOrWOName, scheduledDate) {
-  var msg = 'TCSS: You have been assigned to ' + projectOrWOName;
+  var _coAsg = (typeof coLabel==='function' ? coLabel() : '');
+  var msg = (_coAsg ? _coAsg+': ' : '') + 'You have been assigned to ' + projectOrWOName;
   if (scheduledDate) msg += ' — starting ' + scheduledDate;
   msg += '. Open the ProBid app for details.';
   return sendSMSToTech(techName, msg);
@@ -7548,7 +7551,8 @@ async function testClickSendSMS() {
   var phone = prompt('Enter a phone number to send a test SMS to (10 digits):');
   if (!phone) return;
   showToast('Sending test SMS...','info',2000);
-  var ok = await sendSMS(phone, 'TCSS ProBid: SMS notifications are working correctly.');
+  var _coT = (typeof coLabel==='function' ? coLabel() : '');
+  var ok = await sendSMS(phone, (_coT ? _coT+': ' : '') + 'SMS notifications are working correctly.');
   if (ok) {
     showToast('Test SMS sent successfully!','success',4000);
   } else {

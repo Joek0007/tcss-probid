@@ -97,13 +97,18 @@ async function emailInvoiceDirect() {
     }
 
     var pdfBlob = pdf.output('blob');
-    var pdfName = 'TCSS-'+invNum+'.pdf';
+    var _coInv = (typeof coFullName==='function' ? coFullName() : '');
+    var _coInvS = (typeof coLabel==='function' ? coLabel() : '');
+    var pdfName = (_coInvS||'Invoice')+'-'+invNum+'.pdf';
 
-    // Send via Mailgun with PDF attachment
+    // Send via Mailgun with PDF attachment.
+    // NOTE: the FROM address below is tied to the tcss.com Mailgun domain. Making this
+    // per-tenant is part of the email-infrastructure layer (each company needs its own
+    // verified sending domain + settings_json.mgFrom/mgDomain) — flagged, not string-swapped.
     var fd = new FormData();
-    fd.append('from', 'TCSS Invoicing <invoicing@tcss.com>');
+    fd.append('from', ((DB.settings||{}).mgFrom) || 'TCSS Invoicing <invoicing@tcss.com>');
     fd.append('to', toEmail);
-    fd.append('subject', 'Invoice '+invNum+' from Total Communications Systems & Solutions, Inc.');
+    fd.append('subject', 'Invoice '+invNum+' from '+(_coInv||'us'));
     fd.append('html', invoiceHTML);
     fd.append('attachment', new File([pdfBlob], pdfName, {type:'application/pdf'}));
 
@@ -1664,7 +1669,8 @@ function fireEmailQuote(q) {
   }
   var toEmail = _quoteRecipientEmail(q);
   var toName  = q.contactName || q.cn || '';
-  var subjectTpl = (DB.settings.sgSubject || 'Your Proposal from TCSS - {quote_num}');
+  var _coQ = (typeof coLabel==='function' ? coLabel() : '');
+  var subjectTpl = (DB.settings.sgSubject || ('Your Proposal from '+(_coQ||'us')+' - {quote_num}'));
   var bodyTpl    = (DB.settings.sgBody    || 'Please find your proposal attached for {job_name}. We appreciate the opportunity.');
   var subject  = subjectTpl.replace('{quote_num}',q.num||'').replace('{job_name}',q.jn||'Project Quote').replace('{customer}',q.cn||'');
   var bodyText = bodyTpl.replace('{quote_num}',q.num||'').replace('{job_name}',q.jn||'Project Quote').replace('{customer}',q.cn||'');

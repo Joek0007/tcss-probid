@@ -123,7 +123,8 @@ function _saveJobToWO(job) {
       wo.smsNotified.push(c.techName);
       saveDB();
       // Build a rich message
-      var msg = 'TCSS Dispatch: ' + (wo.woNumber||'Work Order');
+      var _coD = (typeof coLabel==='function' ? coLabel() : '');
+      var msg = (_coD ? _coD+' ' : '') + 'Dispatch: ' + (wo.woNumber||'Work Order');
       msg += ' | ' + (wo.customerName||'');
       if (wo.description) msg += '\n' + stripHtmlToText(wo.description).substring(0,80);
       if (wo.scheduledDate) {
@@ -206,7 +207,8 @@ function dispatchPoolCardDrop(e, woId) {
       if (member && member.phone && member.smsEnabled !== false) {
         wo.smsNotified.push(techName);
         saveDB();
-        var assignMsg = 'TCSS: You have been assigned to ' + (wo.woNumber||wo.description||'Work Order');
+        var _coA = (typeof coLabel==='function' ? coLabel() : '');
+        var assignMsg = (_coA ? _coA+': ' : '') + 'You have been assigned to ' + (wo.woNumber||wo.description||'Work Order');
         if (wo.scheduledDate) assignMsg += ' — starting ' + wo.scheduledDate;
         assignMsg += '. Open the ProBid app for details.';
         sendSMS(member.phone, assignMsg).then(function(ok){
@@ -1221,7 +1223,8 @@ function dispatchSendSMS(techName, jobId) {
     return;
   }
 
-  var msg = 'TCSS Dispatch: You\'ve been assigned to '+
+  var _coM = (typeof coLabel==='function' ? coLabel() : '');
+  var msg = (_coM ? _coM+' ' : '') + 'Dispatch: You\'ve been assigned to '+
     (job.name||'a job')+
     (job.customer?' for '+job.customer:'')+
     (job.address?' at '+job.address:'')+

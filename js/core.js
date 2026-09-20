@@ -2323,6 +2323,18 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// Company identity for OUTBOUND messages (texts, emails, printed docs) so nothing is
+// hard-coded to one tenant. coLabel() = short name for SMS/prefixes; coFullName() = full
+// legal name for documents. Both fall back gracefully and never return "TCSS" literally.
+function coLabel() {
+  var s = (typeof DB !== 'undefined' && DB.settings) ? DB.settings : {};
+  return String(s.cabbr || s.cname || s.csFrom || '').trim();
+}
+function coFullName() {
+  var s = (typeof DB !== 'undefined' && DB.settings) ? DB.settings : {};
+  return String(s.cname || s.cabbr || s.csFrom || '').trim();
+}
+
 // In-app confirmation modal (styled, matches the app) — a Promise-based replacement
 // for the native browser confirm(). Resolves true on the primary button, false on
 // Cancel / X / Esc / backdrop. Usage: if (!(await showConfirm('Message', {title, okLabel}))) return;

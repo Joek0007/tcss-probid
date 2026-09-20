@@ -666,15 +666,16 @@ function emailPO() {
   var vendor=(DB.vendors||[]).find(function(v){return v.id===po.vendorId;})||{};
   var toEmail=vendor.email||'';
   if(!toEmail){showToast('No email on file for this vendor — add it to the vendor record','error');return;}
+  var _coPO = (typeof coFullName==='function' ? coFullName() : '') || 'us';
   if((DB.settings||{}).sgKey){
     showToast('Sending PO to '+toEmail+'...','info',2000);
-    var subject='Purchase Order '+escHtml(po.poNumber)+' from TCSS';
-    var body='Please find attached Purchase Order '+po.poNumber+' from Total Communications Systems & Solutions.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2)+'\n'+(po.dateNeeded?'Date Needed: '+po.dateNeeded+'\n':'')+(po.notes?'\nNotes: '+(typeof stripHtmlToText==='function'?stripHtmlToText(po.notes):po.notes):'');
+    var subject='Purchase Order '+escHtml(po.poNumber)+' from '+_coPO;
+    var body='Please find attached Purchase Order '+po.poNumber+' from '+_coPO+'.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2)+'\n'+(po.dateNeeded?'Date Needed: '+po.dateNeeded+'\n':'')+(po.notes?'\nNotes: '+(typeof stripHtmlToText==='function'?stripHtmlToText(po.notes):po.notes):'');
     sendViaSendGrid(toEmail,vendor.name||'',subject,body,null).then(function(ok){
       if(ok){po.status='Sent';saveDB();renderPOList();showToast('PO emailed to '+toEmail+' ✓','success',4000);}
     });
   } else {
-    window.location.href='mailto:'+encodeURIComponent(toEmail)+'?subject='+encodeURIComponent('Purchase Order '+po.poNumber+' from TCSS')+'&body='+encodeURIComponent('Please find attached Purchase Order '+po.poNumber+'.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2));
+    window.location.href='mailto:'+encodeURIComponent(toEmail)+'?subject='+encodeURIComponent('Purchase Order '+po.poNumber+' from '+_coPO)+'&body='+encodeURIComponent('Please find attached Purchase Order '+po.poNumber+'.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2));
     po.status='Sent';
     saveDB();
     renderPOList();
