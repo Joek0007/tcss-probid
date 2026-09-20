@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Proposal Review — TCSS</title>
+<title>Proposal Review</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -112,9 +112,9 @@
 <body>
 
 <div class="portal-header">
-  <div class="portal-logo-circle" id="hdr-logo">TC</div>
+  <div class="portal-logo-circle" id="hdr-logo"></div>
   <div>
-    <div class="company-name" id="hdr-company">TCSS</div>
+    <div class="company-name" id="hdr-company"></div>
     <div class="tagline">Proposal Review &amp; Approval</div>
   </div>
 </div>
@@ -135,7 +135,7 @@
   <div class="center-state" id="state-error" style="display:none">
     <div class="error-icon">⚠️</div>
     <div class="error-title" id="error-title">Proposal Not Found</div>
-    <div class="error-sub" id="error-sub">This link may be invalid or expired. Please contact TCSS for assistance.</div>
+    <div class="error-sub" id="error-sub">This link may be invalid or expired. Please contact the sender for assistance.</div>
   </div>
 
   <!-- Approved already state -->
@@ -195,7 +195,7 @@
     <!-- Approval section -->
     <div class="approval-section" id="approval-section">
       <h3>✍️ Approve This Proposal</h3>
-      <p>By signing below, you authorize TCSS to proceed with the work described in this proposal under the stated terms and pricing.</p>
+      <p>By signing below, you authorize <span id="authorize-company">us</span> to proceed with the work described in this proposal under the stated terms and pricing.</p>
       <label class="sig-label" for="sig-input">Type your full name as your signature *</label>
       <input type="text" id="sig-input" class="sig-input" placeholder="Your full name here..." autocomplete="name">
       <button class="btn-approve" id="btn-approve" onclick="approveQuote()">✅ Approve This Proposal</button>
@@ -211,21 +211,21 @@
     <div class="card success-card" id="state-approved" style="display:none">
       <div class="success-icon">🎉</div>
       <div class="success-title">Proposal Approved!</div>
-      <div class="success-sub">Thank you, <strong id="approved-by-name"></strong>. Your approval has been recorded.<br>A member of the TCSS team will be in touch shortly to confirm next steps.</div>
+      <div class="success-sub">Thank you, <strong id="approved-by-name"></strong>. Your approval has been recorded.<br>A member of the <span id="success-company">team</span> will be in touch shortly to confirm next steps.</div>
     </div>
 
     <!-- Changes sent state -->
     <div class="card changes-sent-card" id="state-changes-sent" style="display:none">
       <div class="changes-sent-icon">📩</div>
       <div class="changes-sent-title">Change Request Sent</div>
-      <div class="success-sub">Your request has been sent to the TCSS team. We'll review it and follow up with you shortly.</div>
+      <div class="success-sub">Your request has been sent to the <span id="changes-company">team</span>. We'll review it and follow up with you shortly.</div>
     </div>
 
   </div><!-- end state-proposal -->
 </div><!-- end portal-wrap -->
 
 <div class="portal-footer">
-  Powered by TCSS ProBid &nbsp;|&nbsp; &copy; <span id="footer-year"></span> Total Communications Systems & Solutions
+  Powered by ProBid &nbsp;|&nbsp; &copy; <span id="footer-year"></span> <span id="footer-company"></span>
 </div>
 
 <script>
@@ -236,6 +236,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 document.getElementById('footer-year').textContent = new Date().getFullYear();
 
 var _quoteData = null;
+var companyName = '';   // resolved from company settings on load (tenant-safe branding)
 
 function fmt(n) {
   return '$' + (parseFloat(n)||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -275,7 +276,7 @@ async function loadPortal() {
   var token  = params.get('token');
 
   if (!token) {
-    showError('Invalid Link', 'This approval link is missing a token. Please check the link and try again, or contact TCSS.');
+    showError('Invalid Link', 'This approval link is missing a token. Please check the link and try again, or contact the sender.');
     return;
   }
 
@@ -287,7 +288,7 @@ async function loadPortal() {
       .single();
 
     if (error || !data) {
-      showError('Proposal Not Found', 'This link may be invalid or has already expired. Please contact TCSS for assistance.');
+      showError('Proposal Not Found', 'This link may be invalid or has already expired. Please contact the sender for assistance.');
       return;
     }
 
@@ -301,13 +302,26 @@ async function loadPortal() {
       return;
     }
 
-    // Check company settings for branding
+    // Check company settings for branding. Read the company_name column, then fall back to
+    // settings_json.cname / cabbr (where the app actually stores the name) — so the portal is
+    // tenant-safe and shows THIS company, never a hard-coded "TCSS".
     var { data: settings } = await sb.from('company_settings').select('*').eq('id', 1).single();
-    if (settings) {
-      var cname = settings.company_name || 'TCSS';
-      setText('hdr-company', cname);
-      setText('hdr-logo', cname.substring(0,2).toUpperCase());
-      document.title = 'Proposal Review — ' + cname;
+    var sj = (settings && settings.settings_json) || {};
+    var full = (settings && settings.company_name) || sj.cname || sj.cabbr || '';
+    var abbr = sj.cabbr || full;
+    companyName = full;
+    if (full) {
+      setText('hdr-company', full);
+      setText('hdr-logo', String(abbr).substring(0,2).toUpperCase());
+      document.title = 'Proposal Review — ' + full;
+      setText('footer-company', full);
+      setText('authorize-company', full);
+      setText('success-company', full + ' team');
+      setText('changes-company', full + ' team');
+    } else {
+      // No company name configured — keep everything tenant-neutral.
+      setText('success-company', 'team');
+      setText('changes-company', 'team');
     }
 
     // Populate quote fields
@@ -316,7 +330,7 @@ async function loadPortal() {
     setText('q-customer', data.customer_name || '');
     setText('q-date', fmtDate(data.quote_date));
     setText('q-valid', fmtDate(data.valid_until));
-    setText('q-rep', data.sales_rep_name || 'TCSS Team');
+    setText('q-rep', data.sales_rep_name || (companyName ? companyName + ' Team' : 'Sales Team'));
 
     // Scope
     var scopePlain = notesToPlainText(data.scope_notes);
@@ -340,10 +354,10 @@ async function loadPortal() {
       if (today > vu) {
         isExpired = true;
         var daysAgo = Math.round((today - vu) / 86400000);
-        setText('expiry-msg', 'This proposal expired ' + daysAgo + ' day' + (daysAgo===1?'':'s') + ' ago. Please contact TCSS for an updated proposal.');
+        setText('expiry-msg', 'This proposal expired ' + daysAgo + ' day' + (daysAgo===1?'':'s') + ' ago. Please contact ' + (companyName || 'us') + ' for an updated proposal.');
         show('expiry-banner');
         document.getElementById('btn-approve').disabled = true;
-        document.getElementById('btn-approve').textContent = '⛔ Proposal Expired — Contact TCSS';
+        document.getElementById('btn-approve').textContent = '⛔ Proposal Expired — Contact Us';
       }
     }
 
@@ -393,7 +407,7 @@ async function loadPortal() {
 
   } catch(e) {
     console.error('Portal error:', e);
-    showError('Something went wrong', 'We encountered an error loading this proposal. Please try again or contact TCSS directly.');
+    showError('Something went wrong', 'We encountered an error loading this proposal. Please try again or contact ' + (companyName || 'the sender') + ' directly.');
   }
 }
 
@@ -445,7 +459,7 @@ async function approveQuote() {
     console.error('Approval error:', e);
     btn.disabled = false;
     btn.textContent = '✅ Approve This Proposal';
-    alert('There was an error saving your approval. Please try again or contact TCSS directly.');
+    alert('There was an error saving your approval. Please try again or contact ' + (companyName || 'the sender') + ' directly.');
   }
 }
 
@@ -472,7 +486,7 @@ async function sendChangesRequest() {
 
   } catch(e) {
     console.error('Changes request error:', e);
-    alert('There was an error sending your request. Please contact TCSS directly.');
+    alert('There was an error sending your request. Please contact ' + (companyName || 'the sender') + ' directly.');
   }
 }
 
