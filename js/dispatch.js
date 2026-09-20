@@ -1201,12 +1201,23 @@ function _cleanTouchDrag() {
 }
 
 // ── DISPATCH SMS ──
-// Called when assigning a tech — optionally sends them a text via Twilio Edge Function
+// Manual "send/resend dispatch text" button on a job card. Sends via ClickSend —
+// the same working path as the automatic assignment alerts (see sendSMS() in
+// worktracking.js). This deliberately does NOT consult wo.smsNotified, because
+// the user is explicitly asking to (re)send this text right now.
 function dispatchSendSMS(techName, jobId) {
   var job = (typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;}));
   var tech = (DB.team||[]).find(function(m){return m.name===techName;});
   if (!job||!tech||!tech.phone) {
     showToast('No phone number on file for '+techName,'warning');
+    return;
+  }
+  if (tech.smsEnabled === false) {
+    showToast(techName+' has SMS notifications turned off','warning');
+    return;
+  }
+  if (typeof sendSMS !== 'function') {
+    showToast('SMS not available — check ClickSend settings','warning');
     return;
   }
 
@@ -1216,21 +1227,17 @@ function dispatchSendSMS(techName, jobId) {
     (job.address?' at '+job.address:'')+
     (job.scheduledDate?' on '+job.scheduledDate:'')+
     (job.scheduledTime?' at '+job.scheduledTime:'')+'.'+
-    (job.dispatchNotes?' Note: '+job.dispatchNotes:'');
+    (job.dispatchNotes?' Note: '+job.dispatchNotes:'')+
+    '\nReply STOP to opt out.';
 
   if (!confirm('Send dispatch SMS to '+techName+' ('+tech.phone+')?\n\n"'+msg+'"')) return;
 
-  // Call Twilio via Supabase Edge Function (same pattern as absence alerts)
-  if (_sb && _currentUser) {
-    _sb.functions.invoke('send-sms', {
-      body: { to: tech.phone, message: msg }
-    }).then(function(r){
-      if (r.error) { console.warn('[SMS]', r.error); showToast('SMS failed — check Twilio setup','error'); }
-      else showToast('SMS sent to '+techName,'success');
-    });
-  } else {
-    showToast('SMS requires Supabase connection','warning');
-  }
+  // Send via ClickSend (same working path as assignment alerts)
+  showToast('Sending SMS to '+techName+'…','info',2000);
+  sendSMS(tech.phone, msg).then(function(ok){
+    if (ok) showToast('SMS sent to '+techName,'success',3000);
+    else showToast('SMS failed — check ClickSend settings','error',5000);
+  });
 }
 
 // ---- ROLE SYSTEM — dynamic, owner-editable ----

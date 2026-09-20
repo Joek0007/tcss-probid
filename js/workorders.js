@@ -105,11 +105,17 @@ function _getWOStatuses() {
     ? DB.woSettings.statuses : WO_STATUSES;
 }
 function _getWOStatusDef(statusId) {
+  // Empty status = a brand-new WO still being created → treat as open.
   if (!statusId) return {color:'#e0e0e0',open:true};
   var list = _getWOStatuses();
+  // A status NOT in the configured list is treated as CLOSED. Legacy imports from the old
+  // CRM's invoicing module carry statuses like "Invoiced"/"Completed" (7,000+ finished WOs)
+  // that aren't in the current status list; defaulting unknown→open mislabeled them as open.
+  // Every genuinely-open status (Open/OPEN/NEW) IS in the list (matched case-insensitively),
+  // so unknown→closed cannot hide a real open WO.
   return list.find(function(s){
     return s.id===statusId || s.id.toLowerCase()===statusId.toLowerCase();
-  }) || {color:'#e0e0e0',open:true};
+  }) || {color:'#e0e0e0',open:false};
 }
 
 var WO_SERVICE_TYPES = [
