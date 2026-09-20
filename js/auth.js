@@ -1995,7 +1995,12 @@ async function _pushJobToCloud(jb) {
     if (jbRes.error && jbRes.error.message && jbRes.error.message.includes('column')) {
       await _sb.from('jobs').upsert(jbBase);
     } else if (jbRes.error) {
-      console.warn('[Job Push]', jbRes.error.message);
+      var _jmsg2 = jbRes.error.message || '';
+      // Benign duplicate job_number (imported-history job under a different id) — already in
+      // cloud, skip quietly. See the full-sync loop for the full rationale.
+      if (!(_jmsg2.indexOf('jobs_job_number_key') >= 0 || (/duplicate key/i.test(_jmsg2) && /job_number/i.test(_jmsg2)))) {
+        console.warn('[Job Push]', jbRes.error.message);
+      }
     }
   } catch (e) { console.warn('[Job Push]', e.message || e); }
 }
@@ -2584,10 +2589,20 @@ async function pushAllToCloud() {
           var jbRes2 = await _sb.from('jobs').upsert(jbBase);
           if (jbRes2.error) { console.warn('[Push] Job base error for', jb.name, jbRes2.error.message); _pushErrors.push('job '+(jb.name)+': '+jbRes2.error.message); }
         } else if (jbRes.error) {
-          console.warn('[Push] Job error for', jb.name, jbRes.error.message);
-          if (jbRes.error.details) console.warn('[Push] Job details:', jbRes.error.details);
-          if (jbRes.error.hint) console.warn('[Push] Job hint:', jbRes.error.hint);
-          _pushErrors.push('job '+(jb.name)+': '+jbRes.error.message);
+          var _jmsg = jbRes.error.message || '';
+          // Benign: a job with this number already exists in the cloud (imported-history job
+          // held under a different id). Upsert keys on id, so the unique job_number constraint
+          // trips for these — the record is already there, nothing is lost. Skip quietly instead
+          // of spamming the console + error list on every full sync. Normal same-id edits still
+          // update correctly (they don't collide). Real errors still surface below.
+          if (_jmsg.indexOf('jobs_job_number_key') >= 0 || (/duplicate key/i.test(_jmsg) && /job_number/i.test(_jmsg))) {
+            /* already in cloud — no-op */
+          } else {
+            console.warn('[Push] Job error for', jb.name, jbRes.error.message);
+            if (jbRes.error.details) console.warn('[Push] Job details:', jbRes.error.details);
+            if (jbRes.error.hint) console.warn('[Push] Job hint:', jbRes.error.hint);
+            _pushErrors.push('job '+(jb.name)+': '+jbRes.error.message);
+          }
         }
       } catch(jbErr) {
         console.warn('[Push] Job error for', jb.name, jbErr.message || jbErr);

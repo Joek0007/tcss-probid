@@ -5877,14 +5877,14 @@ function submitAbsence() {
     submittedAt:  _absenceData.submittedAt||new Date().toISOString(),
     date:         new Date().toISOString().split('T')[0],
     status:       'reported',
-    alertSent:    false  // will be true once Twilio is wired
+    alertSent:    false  // set true once absence alerts are actually wired (see sendAbsenceAlert)
   };
 
   if (!DB.absences) DB.absences=[];
   DB.absences.push(record);
   saveDB();
 
-  // SEND ALERTS — stubbed, ready for Twilio wiring
+  // SEND ALERTS — stubbed (not yet wired; see sendAbsenceAlert)
   sendAbsenceAlert(record);
 
   closeModal('modal-absence');
@@ -5903,20 +5903,16 @@ function submitAbsence() {
 }
 
 function sendAbsenceAlert(record) {
-  // TWILIO STUB — replace with Supabase Edge Function call when ready
-  // The edge function will:
-  //   1. Send SMS to critical list (Joe + dispatcher)
-  //   2. Send email to Joe + 4 others
+  // STUB — absence alerts are NOT wired yet. When built, this should notify the office via
+  // the app's live channels: SMS through ClickSend sendSMS() and email through Mailgun (the
+  // same paths used elsewhere) — NOT Twilio. Intended behavior:
+  //   1. SMS the critical list (Joe + dispatcher)
+  //   2. Email Joe + others
   // Message format:
   //   TCSS [LATE NOTICE if late] — HH:MMam
   //   {name} is OUT today — {reason}
-  //   Duration: {duration}
-  //   Coverage: {coverage}
-  //   Notes: {details if any}
-  //   Submitted: {time}
-  console.log('[ABSENCE ALERT STUB] Would send SMS+email for:', record.techName, record.reasonLabel, record.isLate?'LATE':'on time');
-  // When Twilio is ready, call:
-  // await supabase.functions.invoke('send-absence-alert', { body: record });
+  //   Duration: {duration} · Coverage: {coverage} · Notes: {details if any} · Submitted: {time}
+  console.log('[ABSENCE ALERT STUB] Would notify office for:', record.techName, record.reasonLabel, record.isLate?'LATE':'on time');
 }
 
 // ---- ABSENCE DASHBOARD (back office) ----

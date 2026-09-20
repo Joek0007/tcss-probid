@@ -966,7 +966,8 @@ function _triggerUrgentAlert(wo) {
   var countEl = document.getElementById('notif-count');
   if (countEl) { countEl.textContent=count; countEl.style.display=''; }
   showToast('🚨 URGENT Work Order: '+escHtml(wo.customerName||'')+' — '+escHtml(stripHtmlToText(wo.description).substring(0,50)), 'error', 8000);
-  // SMS via Twilio — queued for when Twilio is wired
+  // Optional urgent-WO SMS hook (dormant — no sendUrgentWOSMS is defined yet). SMS in
+  // this app goes through ClickSend via sendSMS() (worktracking.js), not Twilio.
   if (typeof sendUrgentWOSMS === 'function') sendUrgentWOSMS(wo);
 }
 
@@ -2359,9 +2360,10 @@ async function createWOInvoice() {
   var subtotal=laborAmt+expAmt;
   if (subtotal <= 0) {
     var partsNote = parts.length ? ' There are '+parts.length+' part(s) listed, but parts are not auto-priced into invoices yet.' : '';
-    if (!confirm('No labor hours or expenses are logged on this work order yet, so this invoice will total $0.00.'+partsNote+'\n\nCreate the $0 draft anyway?')) {
-      return;
-    }
+    var _ok0 = (typeof showConfirm === 'function')
+      ? await showConfirm('No labor hours or expenses are logged on this work order yet, so this invoice will total $0.00.'+partsNote+'\n\nCreate the $0 draft anyway?', { title:'Create a $0 invoice?', okLabel:'Create $0 Draft', cancelLabel:'Cancel' })
+      : confirm('No labor hours or expenses are logged on this work order yet, so this invoice will total $0.00.'+partsNote+'\n\nCreate the $0 draft anyway?');
+    if (!_ok0) return;
   }
   var taxRate=parseFloat(wo.taxRate)||0;
   var taxAmt=subtotal*(taxRate/100);

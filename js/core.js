@@ -2323,6 +2323,50 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// In-app confirmation modal (styled, matches the app) — a Promise-based replacement
+// for the native browser confirm(). Resolves true on the primary button, false on
+// Cancel / X / Esc / backdrop. Usage: if (!(await showConfirm('Message', {title, okLabel}))) return;
+function showConfirm(message, opts) {
+  opts = opts || {};
+  return new Promise(function(resolve){
+    var id = 'app-confirm-modal';
+    var prev = document.getElementById(id); if (prev) prev.remove();
+    var title      = opts.title      || 'Please confirm';
+    var okLabel    = opts.okLabel    || 'OK';
+    var cancelLabel= opts.cancelLabel|| 'Cancel';
+    var okClass    = opts.danger ? 'btn-danger' : 'btn-primary';
+    var safeMsg = String(message == null ? '' : message)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    var html =
+      '<div class="modal-overlay open" id="'+id+'" style="z-index:100000" data-no-backdrop-close="1">'+
+        '<div class="modal-box" style="max-width:440px">'+
+          '<div class="modal-head"><h3>'+escHtml(title)+'</h3>'+
+            '<button class="btn-icon" data-ac="cancel" aria-label="Close">&#x2715;</button></div>'+
+          '<div class="modal-body">'+
+            '<div style="font-size:14px;color:#334155;line-height:1.5">'+safeMsg+'</div>'+
+            '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:22px">'+
+              '<button class="btn btn-outline" data-ac="cancel">'+escHtml(cancelLabel)+'</button>'+
+              '<button class="btn '+okClass+'" data-ac="ok">'+escHtml(okLabel)+'</button>'+
+            '</div>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+    var el = document.getElementById(id);
+    var settled = false;
+    function done(v){ if (settled) return; settled = true; document.removeEventListener('keydown', onKey, true); if (el) el.remove(); resolve(v); }
+    function onKey(e){ if (e.key === 'Escape') { e.stopPropagation(); done(false); } else if (e.key === 'Enter') { e.stopPropagation(); done(true); } }
+    if (el) {
+      el.addEventListener('click', function(e){
+        var b = e.target.closest ? e.target.closest('[data-ac]') : null;
+        if (b) { done(b.getAttribute('data-ac') === 'ok'); }
+      });
+      document.addEventListener('keydown', onKey, true);
+      setTimeout(function(){ var ok = el.querySelector('[data-ac="ok"]'); if (ok) ok.focus(); }, 40);
+    } else { resolve(false); }
+  });
+}
+
 // Convert rich-text/HTML (from the WO & quote editors) into clean plain text for
 // list/summary previews. Strips tags, turns block breaks into spaces, decodes the
 // common entities, and collapses whitespace. Use this — NOT escHtml — whenever a
