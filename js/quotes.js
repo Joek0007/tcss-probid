@@ -2305,6 +2305,7 @@ function deleteInvoice(invId) {
 // ============================================================
 
 function exportCSV() {
+  if (typeof hasPermission==='function' && !hasPermission('quote.export')) { showToast('You do not have permission to export quotes','error'); return; }
   const rows = [['Quote#','Customer','Job Name','Environment','Total','Target Margin','Achieved Margin','Health','Status','Date']];
   DB.quotes.forEach(function(q){
     const envLabel = q.envLabel || (ENV_PRESETS[q.env] ? ENV_PRESETS[q.env].label : q.env||'');
@@ -3733,6 +3734,7 @@ function delContact(id) {
   showToast('Contact deleted (recoverable)','info');
 }
 function newJob(){
+  if (typeof hasPermission==='function' && !hasPermission('job.create')) { showToast('You do not have permission to create jobs','error'); return; }
   ['m-jname','m-jcust','m-jqnum','m-jnotes','m-jid','m-jassign'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});
   const lh=document.getElementById('m-jlh');if(lh)lh.value=0;
   const act=document.getElementById('m-jactual');if(act)act.value=0;
@@ -3741,6 +3743,7 @@ function newJob(){
   openModal('modal-job');
 }
 function editJob(id){
+  if (typeof hasPermission==='function' && !hasPermission('job.create')) { showToast('You do not have permission to edit jobs','error'); return; }
   const j=DB.jobs.find(function(x){return x.id==id});
   if(!j)return;
   function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v!==undefined&&v!==null?v:'';}
@@ -3752,6 +3755,7 @@ function editJob(id){
   openModal('modal-job');
 }
 function saveJob(){
+  if (typeof hasPermission==='function' && !hasPermission('job.create')) { showToast('You do not have permission to add or edit jobs','error'); return; }
   const id=document.getElementById('m-jid').value;
   const name=document.getElementById('m-jname').value;
   if(!name.trim()){showToast('Job name required.','error'); return;}

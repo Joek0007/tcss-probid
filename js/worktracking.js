@@ -4573,27 +4573,53 @@ async function wtLoadAssignments(projId) {
   }
 }
 
-// ── Check if current user is assigned to a project ───────────────────────────
-function wtIsAssigned(projId) {
-  // Owners, managers, back_office see everything regardless
-  var r = _currentUser ? _currentUser.role : '';
-  if (r === 'owner' || r === 'manager' || r === 'back_office' || r === 'lead_tech') return true;
-
-  var d = WT.data[projId];
-  if (!d || !d.assignments || !d.assignments.length) return true; // no assignments set yet — open access
-  var myName = wtCurrentUserName().toLowerCase();
-  var myId   = wtCurrentUserId();
-  return d.assignments.some(function(a){
-    return a.assigned_to === myId ||
-           (a.assigned_to_name||'').toLowerCase() === myName;
+// ── Is the current user assigned to the work order that backs a WT project? ────
+// Joe's access model: a WT project is linked to a work order (project.jobId ===
+// work order id). If an employee is assigned to that WO, they get the project.
+// Office/PM roles get a blanket toggle (wt.viewall) instead of per-WO linkage.
+function _wtWOAssignedToMe(woId) {
+  if (!woId) return false;
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId || w.woId===woId; });
+  if (!wo) return false;
+  var at = wo.assignedTechs || [];
+  if (!at.length) return false;
+  var me = String((_currentUser && (_currentUser.full_name||_currentUser.name))||'').trim().toLowerCase();
+  if (!me) return false;
+  return at.some(function(t){
+    var nm = (typeof t==='string' ? t : (t && (t.name||t.techName) || '')).trim().toLowerCase();
+    return nm && nm===me;
   });
 }
 
-// ── Project list — filter for field techs ────────────────────────────────────
+// ── Check if current user may access a project ───────────────────────────────
+function wtIsAssigned(projId) {
+  // Blanket access via toggle — owners, and any role granted "View All WT Projects".
+  if (_currentUser && _currentUser.role === 'owner') return true;
+  if (typeof hasPermission==='function' && hasPermission('wt.viewall')) return true;
+
+  var proj = (DB.wtProjects||[]).find(function(p){ return p.id===projId; });
+  // Access flows from the linked work order: assigned to that WO ⇒ access the project.
+  if (proj && _wtWOAssignedToMe(proj.jobId)) return true;
+
+  // Fallback: directly assigned on the WT project itself.
+  var d = WT.data[projId];
+  if (d && d.assignments && d.assignments.length) {
+    var myName = wtCurrentUserName().toLowerCase();
+    var myId   = wtCurrentUserId();
+    if (d.assignments.some(function(a){
+      return a.assigned_to === myId || (a.assigned_to_name||'').toLowerCase() === myName;
+    })) return true;
+  }
+  return false;
+}
+
+// ── Project list — filter to what this user may access ───────────────────────
 function wtGetVisibleProjects() {
   var all = DB.wtProjects || [];
-  if (!wtIsFieldTech()) return all;
-  // Field techs only see projects they're assigned to
+  // Blanket-access roles (owner + wt.viewall holders) see everything.
+  if (_currentUser && _currentUser.role === 'owner') return all;
+  if (typeof hasPermission==='function' && hasPermission('wt.viewall')) return all;
+  // Everyone else: only projects whose linked WO they're on, or they're assigned to.
   return all.filter(function(p){ return wtIsAssigned(p.id); });
 }
 
@@ -4988,7 +5014,7 @@ async function wtDeleteItem(itemId) {
 // ─── PROJECT LIST — UPDATED (adds Catalog + Template buttons) ─────────────────
 function wtRenderProjectList() {
   var el = document.getElementById('wt-main'); if (!el) return;
-  var projects = DB.wtProjects || [];
+  var projects = (typeof wtGetVisibleProjects==='function') ? wtGetVisibleProjects() : (DB.wtProjects || []);
   el.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">'+
       '<h2 style="margin:0;font-size:22px;font-weight:800;color:#0d1b2a">✅ Work Tracking</h2>'+
@@ -7265,6 +7291,7 @@ function setDifficulty(n) {
 }
 
 function openCloseout(jobId) {
+  if (typeof hasPermission==='function' && !hasPermission('job.closeout')) { showToast('You do not have permission to close out jobs','error'); return; }
   var job = (typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id==jobId;}));
   if (!job) return;
 
@@ -7320,6 +7347,7 @@ function updateCloseoutVariance() {
 }
 
 function saveCloseout() {
+  if (typeof hasPermission==='function' && !hasPermission('job.closeout')) { showToast('You do not have permission to close out jobs','error'); return; }
   var jobId  = document.getElementById('co-job-id').value;
   var job    = (typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id==jobId;}));
   if (!job) return;
@@ -8365,6 +8393,8 @@ function openConvertToJob(qid) {
 // V6 PHASE 2: JOBS PAGE - CARD VIEW
 // =============================================
 function renderJobs() {
+  var _jobAddBtn = document.getElementById('job-add-btn');
+  if (_jobAddBtn) _jobAddBtn.style.display = (typeof hasPermission!=='function' || hasPermission('job.create')) ? '' : 'none';
   var search = ((document.getElementById('job-search')||{}).value||'').toLowerCase();
   var filter = (document.getElementById('job-filter-status')||{}).value||'';
   var sort   = (document.getElementById('job-sort')||{}).value||'date-desc';
@@ -8506,9 +8536,9 @@ function renderJobs() {
         '<button class="btn btn-outline btn-sm" onclick="openDispatchDetail(\''+j.id+'\')" title="Dispatch Board">🗂</button>'+
         (wtProj?'<button class="btn btn-outline btn-sm" onclick="loadWTProject(\''+wtProj.id+'\');goPage(\'worktracking\')" title="Work Tracking">✅</button>':'')+
         '<button class="btn btn-sm" onclick="var _j=typeof _findJobOrWO==="function"?_findJobOrWO(\''+j.id+'\'):(DB.jobs||[]).find(function(x){return x.id===\''+j.id+'\'});;if(_j)openInvoiceModal(_j);" style="background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;font-weight:700" title="Generate Invoice">🧾 Invoice</button>'+
-        '<button class="btn btn-outline btn-sm" data-action="editJob" data-id="'+j.id+'" title="Edit">✏</button>'+
+        ((typeof hasPermission!=='function' || hasPermission('job.create')) ? '<button class="btn btn-outline btn-sm" data-action="editJob" data-id="'+j.id+'" title="Edit">✏</button>' : '')+
         ((typeof hasPermission!=='function' || hasPermission('job.delete')) ? '<button class="btn btn-danger btn-sm" data-action="delJob" data-id="'+j.id+'" title="Delete">✕</button>' : '')+
-        (j.status==='Complete'||j.status==='Closed'?
+        ((j.status==='Complete'||j.status==='Closed') && (typeof hasPermission!=='function' || hasPermission('job.closeout'))?
           '<button class="btn btn-outline btn-sm" data-action="openCloseout" data-id="'+j.id+'" title="Closeout">📋</button>':'')
       +'</div>'+
     '</div>';

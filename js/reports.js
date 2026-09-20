@@ -505,6 +505,10 @@ function setSortQuotes(sortVal) {
 }
 
 function renderQuotes() {
+  var _qExp = document.getElementById('quote-export-btn');
+  if (_qExp) _qExp.style.display = (typeof hasPermission!=='function' || hasPermission('quote.export')) ? '' : 'none';
+  var _qAdd = document.getElementById('quote-add-btn');
+  if (_qAdd) _qAdd.style.display = (typeof hasPermission!=='function' || hasPermission('quote.create')) ? '' : 'none';
   const search = (document.getElementById('q-search')||{}).value || '';
   const filter = (document.getElementById('q-filter')||{}).value || '';
   const sort   = (document.getElementById('q-sort')||{}).value || 'priority';

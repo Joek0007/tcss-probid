@@ -1306,6 +1306,7 @@ var PERM_DEFS = [
   {key:'wo.settings',      label:'Access WO Settings',         group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'wo.view_assigned_only',label:'See Only Assigned WOs',  group:'Work Orders',    fixed:false, defaults:{owner:0,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:1,project_manager:0,subcontractor:1}},
   {key:'wt.create',       label:'Create WT Projects',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wt.viewall',      label:'View All WT Projects',       group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wt.checkoff',     label:'Field Check-off Items',      group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
   {key:'wt.confirm',      label:'Confirm Check-offs',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wt.reopen',       label:'Reopen Check-offs',          group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
@@ -1625,7 +1626,33 @@ function exportPermissionsDoc() {
 // MASTER SETTINGS
 // ============================================================
 
+// Settings sub-tabs that require a finer permission than merely reaching the
+// Settings page (page.settings). Tabs not listed here are governed only by page
+// access. Company + Roles/Permissions are company-admin functions (owner-only by
+// default, customizable per tenant); Quoting margin floors need settings.margin.
+var _MS_TAB_PERM = { company:'settings.company', roles:'settings.company', quoting:'settings.margin' };
+
+// Hide settings sub-tab buttons the current user can't use, and return the first
+// tab they ARE allowed to open (so we never land them on a forbidden default).
+function _applyMsTabPerms() {
+  var first = null;
+  document.querySelectorAll('.ms-tab').forEach(function(b){
+    var t = b.getAttribute('data-tab');
+    var perm = _MS_TAB_PERM[t];
+    var ok = !perm || typeof hasPermission!=='function' || hasPermission(perm);
+    b.style.display = ok ? '' : 'none';
+    if (ok && !first) first = t;
+  });
+  return first || 'company';
+}
+
 function switchMsTab(tab) {
+  // Guard: block switching to a settings section this user can't access.
+  var _perm = _MS_TAB_PERM[tab];
+  if (_perm && typeof hasPermission==='function' && !hasPermission(_perm)) {
+    if (typeof showToast==='function') showToast('You do not have access to that settings section','error');
+    return;
+  }
   document.querySelectorAll('.ms-tab').forEach(function(b){
     b.classList.toggle('active', b.getAttribute('data-tab')===tab);
   });

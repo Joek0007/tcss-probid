@@ -2265,8 +2265,8 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <div class="page" id="page-quotes">
   <div class="page-header"><h2>📋 Quotes</h2><button class="page-settings-btn" onclick="openSettingsDrawer('quotes')">⚙️ Settings</button>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-outline btn-sm" data-action="exportCSV">📥 Export CSV</button>
-      <button class="btn btn-primary" data-action="newQuote">+ New Quote</button>
+      <button class="btn btn-outline btn-sm" id="quote-export-btn" data-action="exportCSV">📥 Export CSV</button>
+      <button class="btn btn-primary" id="quote-add-btn" data-action="newQuote">+ New Quote</button>
     </div>
   </div>
   <div class="card">
@@ -2317,7 +2317,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <div class="page" id="page-jobs">
   <div class="page-header">
     <h2>🔧 Active Jobs</h2>
-    <button class="btn btn-primary" data-action="newJob">+ New Job</button>
+    <button class="btn btn-primary" id="job-add-btn" data-action="newJob">+ New Job</button>
   </div>
 
   <!-- Summary strip -->
@@ -3075,8 +3075,8 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <button class="inv-tab active" onclick="switchTsTab('my-hours')">👤 My Hours</button>
     <button class="inv-tab" onclick="switchTsTab('pay-period')">💰 Pay Period</button>
     <button class="inv-tab" onclick="switchTsTab('time-off')">🏖 Time Off</button>
-    <button class="inv-tab" onclick="switchTsTab('all-timesheets')">📋 All Timesheets</button>
-    <button class="inv-tab" onclick="switchTsTab('payroll')">💵 Payroll</button>
+    <button class="inv-tab" id="ts-tab-all" onclick="switchTsTab('all-timesheets')">📋 All Timesheets</button>
+    <button class="inv-tab" id="ts-tab-payroll" onclick="switchTsTab('payroll')">💵 Payroll</button>
     <button class="inv-tab" onclick="switchTsTab('flags')">⚠ Flags</button>
   </div>
 
@@ -6593,27 +6593,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919dy with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919dz with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919dy"></script>
-<script src="js/quotes.js?v=20260919dy"></script>
-<script src="js/tools.js?v=20260919dy"></script>
-<script src="js/field.js?v=20260919dy"></script>
-<script src="js/crm.js?v=20260919dy"></script>
-<script src="js/vehicles.js?v=20260919dy"></script>
-<script src="js/dispatch.js?v=20260919dy"></script>
-<script src="js/permissions.js?v=20260919dy"></script>
-<script src="js/worktracking.js?v=20260919dy"></script>
-<script src="js/calendar.js?v=20260919dy"></script>
-<script src="js/workorders.js?v=20260919dy"></script>
-<script src="js/purchaseorders.js?v=20260919dy"></script>
-<script src="js/inventory.js?v=20260919dy"></script>
-<script src="js/reports.js?v=20260919dy"></script>
-<script src="js/recyclebin.js?v=20260919dy"></script>
-<script src="js/contracts.js?v=20260919dy"></script>
-  <script src="js/recurring.js?v=20260919dy"></script>
-  <script src="js/seed_managed.js?v=20260919dy"></script>
-  <script src="js/auth.js?v=20260919dy"></script>
+<script src="js/core.js?v=20260919dz"></script>
+<script src="js/quotes.js?v=20260919dz"></script>
+<script src="js/tools.js?v=20260919dz"></script>
+<script src="js/field.js?v=20260919dz"></script>
+<script src="js/crm.js?v=20260919dz"></script>
+<script src="js/vehicles.js?v=20260919dz"></script>
+<script src="js/dispatch.js?v=20260919dz"></script>
+<script src="js/permissions.js?v=20260919dz"></script>
+<script src="js/worktracking.js?v=20260919dz"></script>
+<script src="js/calendar.js?v=20260919dz"></script>
+<script src="js/workorders.js?v=20260919dz"></script>
+<script src="js/purchaseorders.js?v=20260919dz"></script>
+<script src="js/inventory.js?v=20260919dz"></script>
+<script src="js/reports.js?v=20260919dz"></script>
+<script src="js/recyclebin.js?v=20260919dz"></script>
+<script src="js/contracts.js?v=20260919dz"></script>
+  <script src="js/recurring.js?v=20260919dz"></script>
+  <script src="js/seed_managed.js?v=20260919dz"></script>
+  <script src="js/auth.js?v=20260919dz"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

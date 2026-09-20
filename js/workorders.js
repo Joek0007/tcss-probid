@@ -326,7 +326,11 @@ function renderWorkOrders() {
 
   // Column layout
   var cols = '90px 160px 1fr 120px 130px 90px 36px';
-  var isRole = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='lead_tech');
+  // Row menu (Edit / Delete) is driven by the actual permissions so the toggles govern it
+  // per company — not a hardcoded role list.
+  var _canEditWO = (typeof hasPermission==='function') ? hasPermission('wo.edit')   : false;
+  var _canDelWO  = (typeof hasPermission==='function') ? hasPermission('wo.delete') : false;
+  var isRole = _canEditWO || _canDelWO;
 
   var header = '<div style="display:grid;grid-template-columns:'+cols+';padding:9px 16px;background:#f5f7fa;border-bottom:2px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'
     +'<span class="wo-sort-hdr" data-field="woNumber" style="cursor:pointer">WO # ⇅</span>'
@@ -381,8 +385,8 @@ function renderWorkOrders() {
       ? '<div class="wo-menu-wrap" style="position:relative">'
           +'<div class="wo-menu-btn" data-woid="'+escHtml(wo.id)+'" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#90a4ae;border:1px solid #e0e7ef;background:#fff;cursor:pointer">&#8942;</div>'
           +'<div id="womenu-'+escHtml(wo.id)+'" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:100;min-width:140px">'
-            +'<div class="wo-menu-item" data-action="edit" data-woid="'+escHtml(wo.id)+'" style="padding:9px 14px;font-size:12px;cursor:pointer">&#9999;&#65039; Edit WO</div>'
-            +'<div class="wo-menu-item" data-action="delete" data-woid="'+escHtml(wo.id)+'" style="padding:9px 14px;font-size:12px;cursor:pointer;color:#c62828">&#128465; Delete</div>'
+            +(_canEditWO ? '<div class="wo-menu-item" data-action="edit" data-woid="'+escHtml(wo.id)+'" style="padding:9px 14px;font-size:12px;cursor:pointer">&#9999;&#65039; Edit WO</div>' : '')
+            +(_canDelWO ? '<div class="wo-menu-item" data-action="delete" data-woid="'+escHtml(wo.id)+'" style="padding:9px 14px;font-size:12px;cursor:pointer;color:#c62828">&#128465; Delete</div>' : '')
           +'</div>'
         +'</div>'
       : '';
@@ -482,6 +486,7 @@ function toggleWOMenu(woId) {
 }
 
 function cycleWOStatus(woId) {
+  if (typeof hasPermission==='function' && !hasPermission('wo.change_status')) { showToast('You do not have permission to change work order status','error'); return; }
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
   if (!wo) return;
   var statuses = _getWOStatuses();
@@ -1015,7 +1020,7 @@ async function sendUrgentWOSMS(wo) {
 }
 
 function deleteWorkOrder(id) {
-  if (typeof _canDeleteOfficeRecords==='function' && !_canDeleteOfficeRecords()) { showToast('Only owner, manager, or office staff can delete work orders','error'); return; }
+  if (typeof hasPermission==='function' && !hasPermission('wo.delete')) { showToast('You do not have permission to delete work orders','error'); return; }
   if (!confirm('Delete this work order? This cannot be undone.')) return;
   DB.workOrders = (DB.workOrders||[]).filter(function(w){ return w.id!==id; });
   // Single-writer delete: only tombstone here, then hand off to pushAllToCloud, which

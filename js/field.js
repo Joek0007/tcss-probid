@@ -629,6 +629,13 @@ async function loadTimesheets() {
   var workDays = DB.workDays || [];
   var today = dateStr(new Date());
 
+  // Hide admin-only timesheet tabs the current user can't use (nav-level; the tab
+  // bodies also enforce independently so a forced tab still shows an access notice).
+  var _tabAll = document.getElementById('ts-tab-all');
+  if (_tabAll) _tabAll.style.display = (typeof hasPermission!=='function' || hasPermission('time.viewall')) ? '' : 'none';
+  var _tabPay = document.getElementById('ts-tab-payroll');
+  if (_tabPay) { var _payOk = (typeof _canViewPay==='function') ? _canViewPay() : true; _tabPay.style.display = _payOk ? '' : 'none'; }
+
   // ---- MY HOURS TAB ----
   var myDays = workDays.filter(function(d){ return d.techName === myName; }).sort(function(a,b){ return b.date.localeCompare(a.date); });
 
@@ -780,9 +787,9 @@ async function loadTimesheets() {
   var allEl = document.getElementById('ts-all-content');
   var liveEl = document.getElementById('live-activity');
   if (allEl) {
-    var isAdmin = myRole==='owner'||myRole==='manager'||myRole==='back_office';
+    var isAdmin = (typeof hasPermission==='function') ? hasPermission('time.viewall') : (myRole==='owner'||myRole==='manager'||myRole==='back_office');
     if (!isAdmin) {
-      allEl.innerHTML='<div style="color:#90a4ae;padding:20px;text-align:center">Admin access required to view all timesheets.</div>';
+      allEl.innerHTML='<div style="color:#90a4ae;padding:20px;text-align:center">You do not have permission to view all timesheets.</div>';
     } else {
       var filterDate = (document.getElementById('ts-date-filter')||{}).value || today;
       var filterTech = (document.getElementById('ts-tech-filter')||{}).value || '';
