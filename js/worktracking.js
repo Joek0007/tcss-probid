@@ -7027,68 +7027,28 @@ function selectContact(id) {
 
 function createContactFromQuote(name) {
   closeContactDropdown();
-  // Pre-fill the name field with whatever was typed
-  var nameEl = document.getElementById('nc-name');
-  var titleEl = document.getElementById('nc-title');
-  var phoneEl = document.getElementById('nc-phone');
-  var emailEl = document.getElementById('nc-email');
-  if (nameEl)  nameEl.value  = name.trim();
-  if (titleEl) titleEl.value = (document.getElementById('qq-contact-title')||{}).value||'';
-  if (phoneEl) phoneEl.value = '';
-  if (emailEl) emailEl.value = '';
-  // Show the panel
-  var panel = document.getElementById('qq-new-contact-panel');
-  if (panel) { panel.style.display='block'; if(nameEl) nameEl.focus(); }
-}
-
-function saveNewContactFromQuote() {
-  var name  = ((document.getElementById('nc-name')||{}).value||'').trim();
-  var title = (document.getElementById('nc-title')||{}).value||'';
-  var phone = (document.getElementById('nc-phone')||{}).value||'';
-  var email = (document.getElementById('nc-email')||{}).value||'';
-  if (!name) { showToast('Contact name is required','error'); return; }
-  if (typeof probidCheckEmailField==='function' && !probidCheckEmailField('nc-email')) return;
-  if (typeof formatPhone==='function') phone = formatPhone(phone);
-  email = (email||'').trim().toLowerCase();
-
+  // Use the SAME full contact modal as everywhere else (dual phone, type/pref, address) —
+  // not the old single-phone inline panel. Pre-fill name + link to the quote's customer,
+  // and flag so saveContact links the new contact back into the quote.
+  if (typeof newContact !== 'function') return;
+  newContact();
+  window._qqAddingContact = true;
   var custId   = (document.getElementById('qq-customer-id')||{}).value||'';
   var custName = (document.getElementById('qq-cn')||{}).value||'';
-
-  var newContact = {
-    id:         typeof makeUUID==='function' ? makeUUID() : 'ct-'+Date.now(),
-    name:       name,
-    company:    custName,
-    customerId: custId,
-    phone:      phone,
-    email:      email,
-    role:       title,
-    title:      title,
-    createdAt:  new Date().toISOString()
-  };
-  if (!DB.contacts) DB.contacts = [];
-  DB.contacts.push(newContact);
-  saveDB();
-
-  // Fill contact into the quote form
-  selectContact(newContact.id);
-
-  // Update title field in case it was set
-  var titEl = document.getElementById('qq-contact-title');
-  if (titEl && title) titEl.value = title;
-
-  // Hide panel
-  cancelNewContactFromQuote();
-  showToast('Contact "'+name+'" saved and linked to quote','success');
+  var qTitle   = (document.getElementById('qq-contact-title')||{}).value||'';
+  setTimeout(function(){
+    var nm = document.getElementById('m-ctname'); if (nm) nm.value = (name||'').trim();
+    var custSel = document.getElementById('m-ct-custid'); if (custSel && custId) custSel.value = custId;
+    var co = document.getElementById('m-ctco'); if (co && custName) co.value = custName;
+    var tit = document.getElementById('m-ctrole'); if (tit && qTitle) tit.value = qTitle;
+    if (typeof populateDynamicSelects === 'function') populateDynamicSelects();
+    if (nm) nm.focus();
+  }, 120);
 }
 
-function cancelNewContactFromQuote() {
-  var panel = document.getElementById('qq-new-contact-panel');
-  if (panel) panel.style.display='none';
-  // Clear panel fields
-  ['nc-name','nc-title','nc-phone','nc-email'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.value='';
-  });
-}
+// (Removed) saveNewContactFromQuote / cancelNewContactFromQuote — the legacy single-phone
+// quick-add panel they drove is gone. Adding a contact from a quote now goes through
+// createContactFromQuote() -> newContact() (the full dual-phone contact modal).
 
 function closeContactDropdown() {
   var d=document.getElementById('contact-dropdown'); if(d) d.style.display='none';

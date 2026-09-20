@@ -334,7 +334,7 @@ function clearQQ(skipConfirm) {
   // Clear hidden ID fields and hide new contact panel
   var cidEl=document.getElementById('qq-customer-id'); if(cidEl) cidEl.value='';
   var ctidEl=document.getElementById('qq-contact-id'); if(ctidEl) ctidEl.value='';
-  cancelNewContactFromQuote();
+  // (legacy quick-add contact panel removed — nothing to cancel here anymore)
   cancelNewCustomerFromQuote();
   const lr = document.getElementById('qq-lr'); if(lr) lr.value = DB.settings.laborRate || 100;
   const mk = document.getElementById('qq-mk'); if(mk) mk.value = (DB.settings.targetMargin!==undefined && DB.settings.targetMargin!==null) ? DB.settings.targetMargin : 35;

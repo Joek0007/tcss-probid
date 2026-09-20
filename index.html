@@ -1754,22 +1754,8 @@ body.role-lead-tech .page-settings-btn{display:none!important}
             <div id="contact-dropdown" class="autocomplete-dropdown" style="display:none"></div>
             <input type="hidden" id="qq-contact-id">
           </div>
-          <!-- Quick-add contact panel — slides in when creating a new contact -->
-          <div id="qq-new-contact-panel" style="display:none;background:#f0f6ff;border:2px solid #90caf9;border-radius:10px;padding:12px;margin-top:6px">
-            <div style="font-size:12px;font-weight:700;color:#1565c0;margin-bottom:10px">✚ New Contact Details</div>
-            <div class="form-row cols2">
-              <div><label style="font-size:11px">Name *</label><input id="nc-name" placeholder="Full name"></div>
-              <div><label style="font-size:11px">Title / Role</label><input id="nc-title" placeholder="e.g. Facilities Manager"></div>
-            </div>
-            <div class="form-row cols2">
-              <div><label style="font-size:11px">Phone</label><input id="nc-phone" placeholder="Phone number" type="tel"></div>
-              <div><label style="font-size:11px">Email</label><input id="nc-email" placeholder="Email address" type="email"></div>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:8px">
-              <button type="button" class="btn btn-primary btn-sm" onclick="saveNewContactFromQuote()">✓ Save Contact</button>
-              <button type="button" class="btn btn-ghost btn-sm" onclick="cancelNewContactFromQuote()">Cancel</button>
-            </div>
-          </div>
+          <!-- (Removed) legacy single-phone quick-add contact panel — adding a contact from a
+               quote now opens the full contact modal (dual phone, type/pref, address). -->
         </div>
         <div class="form-row cols3">
           <div><label>Contact Phone</label><input id="qq-ph" placeholder="(555) 000-0000"></div>
@@ -6577,27 +6563,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919dk with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919dl with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919dk"></script>
-<script src="js/quotes.js?v=20260919dk"></script>
-<script src="js/tools.js?v=20260919dk"></script>
-<script src="js/field.js?v=20260919dk"></script>
-<script src="js/crm.js?v=20260919dk"></script>
-<script src="js/vehicles.js?v=20260919dk"></script>
-<script src="js/dispatch.js?v=20260919dk"></script>
-<script src="js/permissions.js?v=20260919dk"></script>
-<script src="js/worktracking.js?v=20260919dk"></script>
-<script src="js/calendar.js?v=20260919dk"></script>
-<script src="js/workorders.js?v=20260919dk"></script>
-<script src="js/purchaseorders.js?v=20260919dk"></script>
-<script src="js/inventory.js?v=20260919dk"></script>
-<script src="js/reports.js?v=20260919dk"></script>
-<script src="js/recyclebin.js?v=20260919dk"></script>
-<script src="js/contracts.js?v=20260919dk"></script>
-  <script src="js/recurring.js?v=20260919dk"></script>
-  <script src="js/seed_managed.js?v=20260919dk"></script>
-  <script src="js/auth.js?v=20260919dk"></script>
+<script src="js/core.js?v=20260919dl"></script>
+<script src="js/quotes.js?v=20260919dl"></script>
+<script src="js/tools.js?v=20260919dl"></script>
+<script src="js/field.js?v=20260919dl"></script>
+<script src="js/crm.js?v=20260919dl"></script>
+<script src="js/vehicles.js?v=20260919dl"></script>
+<script src="js/dispatch.js?v=20260919dl"></script>
+<script src="js/permissions.js?v=20260919dl"></script>
+<script src="js/worktracking.js?v=20260919dl"></script>
+<script src="js/calendar.js?v=20260919dl"></script>
+<script src="js/workorders.js?v=20260919dl"></script>
+<script src="js/purchaseorders.js?v=20260919dl"></script>
+<script src="js/inventory.js?v=20260919dl"></script>
+<script src="js/reports.js?v=20260919dl"></script>
+<script src="js/recyclebin.js?v=20260919dl"></script>
+<script src="js/contracts.js?v=20260919dl"></script>
+  <script src="js/recurring.js?v=20260919dl"></script>
+  <script src="js/seed_managed.js?v=20260919dl"></script>
+  <script src="js/auth.js?v=20260919dl"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
