@@ -220,6 +220,21 @@ function renderWorkOrders() {
     _woCloudRows.forEach(function(c){ if(c.id && !_haveWO[c.id]) list.push(c); });
   }
 
+  // Enforce "See Only Assigned WOs" (wo.view_assigned_only) — field roles (helper_tech,
+  // subcontractor) must see only work orders they're assigned to, not every customer's jobs.
+  if (typeof hasPermission === 'function' && hasPermission('wo.view_assigned_only')
+      && _currentUser && _currentUser.role !== 'owner') {
+    var _meName = String((_currentUser.full_name || _currentUser.name || '')).trim().toLowerCase();
+    list = list.filter(function(w){
+      var at = w.assignedTechs || [];
+      if (!at.length) return false;
+      return at.some(function(t){
+        var nm = (typeof t === 'string' ? t : (t && (t.name || t.techName) || '')).trim().toLowerCase();
+        return nm && _meName && nm === _meName;
+      });
+    });
+  }
+
   // ---- ASSIGNMENT FILTER — role-based, owner always sees all ----
   var myName  = _currentUser ? _currentUser.full_name : '';
   var myRole  = _currentUser ? _currentUser.role : '';

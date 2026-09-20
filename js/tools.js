@@ -40,6 +40,9 @@ function renderTools() {
   }
 }
 function _renderToolsInner() {
+  // Hide the "+ Add Tool" button for roles without tool.edit (field techs check out/in only).
+  var _addBtn = document.getElementById('tool-add-btn');
+  if (_addBtn) _addBtn.style.display = (typeof hasPermission!=='function' || hasPermission('tool.edit')) ? '' : 'none';
   var search   = ((document.getElementById('tool-search')||{}).value||'').toLowerCase();
   var catF     = (document.getElementById('tool-cat-filter')||{}).value||'';
   var tools    = getTools().slice();
@@ -125,8 +128,12 @@ function _renderToolsInner() {
     } else {
       actions = '<button class="btn btn-outline btn-sm" data-action="checkoutTool" data-id="'+t.id+'">Check Out</button> ';
     }
-    actions += '<button class="btn btn-outline btn-sm" data-action="editTool" data-id="'+t.id+'">Edit</button> '+
-               '<button class="btn btn-danger btn-sm" data-action="delTool" data-id="'+t.id+'">Del</button>';
+    // Edit/Delete only for roles that can manage tools (tool.edit). Field techs get
+    // Check Out / Return / Transfer only — not create/edit/delete.
+    if (typeof hasPermission !== 'function' || hasPermission('tool.edit')) {
+      actions += '<button class="btn btn-outline btn-sm" data-action="editTool" data-id="'+t.id+'">Edit</button> '+
+                 '<button class="btn btn-danger btn-sm" data-action="delTool" data-id="'+t.id+'">Del</button>';
+    }
 
     return '<tr>'+
       '<td><span class="asset-tag-badge">'+escHtml(t.tag||'—')+'</span></td>'+
@@ -317,6 +324,7 @@ function renderToolHistory() {
 
 // ---- NEW / EDIT / SAVE / DELETE TOOL ----
 function newToolItem() {
+  if (typeof hasPermission==='function' && !hasPermission('tool.edit')) { showToast('You do not have permission to add tools','error'); return; }
   var title = document.getElementById('tool-modal-title');
   if (title) title.textContent = 'New Tool / Asset';
   ['tool-name','tool-tag','tool-serial','tool-notes','tool-id','tool-photo-url'].forEach(function(id){
@@ -431,6 +439,7 @@ function saveToolItem() {
 }
 
 function delTool(id) {
+  if (typeof hasPermission==='function' && !hasPermission('tool.edit')) { showToast('You do not have permission to delete tools','error'); return; }
   var t=(DB.tools||[]).find(function(x){return x.id==id}); if(!t) return;
   var active=(DB.toolCheckouts||[]).find(function(c){ return c.toolId===id && !c.returnedAt; });
   if(active){showToast('Cannot delete — checked out to '+active.toName+'. Return it first.','error');return;}
@@ -1683,7 +1692,7 @@ function lookupBarcode(val) {
     (co
       ? '<br><button class="btn btn-success btn-sm" onclick="checkinTool(\''+co.id+'\');closeBarcodeScanner()">✓ Return Now</button>'
       : '<br><button class="btn btn-primary btn-sm" onclick="checkoutTool(\''+tool.id+'\')">Check Out</button>')+
-    ' <button class="btn btn-outline btn-sm" onclick="editTool(\''+tool.id+'\')">Edit</button>'+
+    ((typeof hasPermission!=='function' || hasPermission('tool.edit')) ? ' <button class="btn btn-outline btn-sm" onclick="editTool(\''+tool.id+'\')">Edit</button>' : '')+
   '</div>';
 }
 

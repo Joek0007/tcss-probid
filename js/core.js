@@ -763,7 +763,36 @@ function docNavGo(dir){
   if (typeof openFn === 'function') openFn(targetId); // opener calls showDocNav again → index updates
 }
 
+// Page → permission key map (mirrors enforceNavPermissions' pageMap). Used to BLOCK direct
+// navigation, not just hide the nav item — typed hash, Back/Forward, deep links and quick-adds
+// all funnel through goPage, so gating here is the real access control.
+var _PAGE_PERM_MAP = {
+  'qq':'page.qq','quotes':'page.quotes','jobs':'page.jobs','dispatch':'page.dispatch',
+  'invoices':'page.invoices','workorders':'page.workorders','purchaseorders':'page.purchaseorders',
+  'vendors':'page.vendors','customers':'page.customers','vehicles':'page.vehicles',
+  'contacts':'page.contacts','team':'page.team','catalog':'page.catalog','templates':'page.templates',
+  'reports':'page.reports','auditlog':'page.auditlog','calendar':'page.calendar','inventory':'page.inventory',
+  'scanner':'page.scanner','tools':'page.tools','field':'page.timeclock','timesheet':'page.timesheet',
+  'worktracking':'page.worktracking','settings':'page.settings','contracts':'page.contracts','recurring':'page.recurring'
+};
+function _canAccessPage(id) {
+  if (id === 'dash') return true;                                   // dashboard always allowed
+  if (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.role === 'owner') return true;
+  var key = _PAGE_PERM_MAP[id];
+  if (!key) return false;                                           // unmapped (recyclebin, etc.) — deny non-owner, matches nav hiding
+  return (typeof hasPermission === 'function') ? hasPermission(key) : false;
+}
+
 function goPage(id) {
+  // ACCESS GUARD — block navigation to a page this role/user can't access (hiding the nav
+  // item is not enough; the page is still reachable by hash, Back/Forward, deep link or a
+  // stray link). Redirect to the dashboard instead of rendering restricted content.
+  if (!_canAccessPage(id)) {
+    if (typeof showToast === 'function') showToast('You don’t have access to that page', 'error', 3000);
+    if (typeof _routeRevert === 'function') _routeRevert();
+    if (id !== 'dash') { goPage('dash'); }
+    return;
+  }
   // Warn if leaving Work Tracking while inside a project or wizard
   var wtPage = document.getElementById('page-worktracking');
   var wtActive = wtPage && wtPage.classList.contains('active');
@@ -1058,24 +1087,29 @@ function saveUiPrefs() {
 // "+" on a menu item jumps straight into creating that record. Quotes routes to the Quick
 // Quote page (which IS the new-quote flow); the rest open the entity's "new" form/modal.
 var QUICK_ADD = {
-  quotes:         { go: 'qq' },
-  workorders:     { go: 'workorders',     fn: 'openNewWorkOrder', title: 'New work order' },
-  customers:      { go: 'customers',      fn: 'newCustomer',      title: 'New customer' },
-  contacts:       { go: 'contacts',       fn: 'newContact',       title: 'New contact' },
-  vendors:        { go: 'vendors',        fn: 'openNewVendor',    title: 'New vendor' },
-  purchaseorders: { go: 'purchaseorders', fn: 'openNewPO',        title: 'New purchase order' },
-  contracts:      { go: 'contracts',      fn: 'openNewContract',  title: 'New contract' },
-  recurring:      { go: 'recurring',      fn: 'openNewRC',        title: 'New managed service' },
-  catalog:        { go: 'catalog',        fn: 'newCatalogItem',   title: 'New catalog item' },
-  templates:      { go: 'templates',      fn: 'newTemplate',      title: 'New template' },
-  inventory:      { go: 'inventory',      fn: 'newInventoryItem', title: 'New inventory item' },
-  tools:          { go: 'tools',          fn: 'newToolItem',      title: 'New tool' },
-  team:           { go: 'team',           fn: 'openTeamModal',    title: 'Add team member' }
+  quotes:         { go: 'qq',                                     title: 'New quote',          perm: 'quote.create' },
+  workorders:     { go: 'workorders',     fn: 'openNewWorkOrder', title: 'New work order',     perm: 'wo.create' },
+  customers:      { go: 'customers',      fn: 'newCustomer',      title: 'New customer',       perm: 'cust.edit' },
+  contacts:       { go: 'contacts',       fn: 'newContact',       title: 'New contact',        perm: 'contact.edit' },
+  vendors:        { go: 'vendors',        fn: 'openNewVendor',    title: 'New vendor',         perm: 'page.vendors' },
+  purchaseorders: { go: 'purchaseorders', fn: 'openNewPO',        title: 'New purchase order', perm: 'page.purchaseorders' },
+  contracts:      { go: 'contracts',      fn: 'openNewContract',  title: 'New contract',       perm: 'page.contracts' },
+  recurring:      { go: 'recurring',      fn: 'openNewRC',        title: 'New managed service', perm: 'page.recurring' },
+  catalog:        { go: 'catalog',        fn: 'newCatalogItem',   title: 'New catalog item',   perm: 'settings.catalog' },
+  templates:      { go: 'templates',      fn: 'newTemplate',      title: 'New template',       perm: 'page.templates' },
+  inventory:      { go: 'inventory',      fn: 'newInventoryItem', title: 'New inventory item', perm: 'page.inventory' },
+  tools:          { go: 'tools',          fn: 'newToolItem',      title: 'New tool',           perm: 'tool.edit' },
+  team:           { go: 'team',           fn: 'openTeamModal',    title: 'Add team member',    perm: 'settings.team' }
 };
 
 // Fired by a menu item's "+". Navigates to the entity's page, then opens its add form.
 function quickAdd(page) {
   var m = QUICK_ADD[page]; if (!m) return;
+  // Permission guard — don't let a "+" (or a stray call) create a record the role can't.
+  if (m.perm && typeof hasPermission === 'function' && !hasPermission(m.perm)) {
+    if (typeof showToast === 'function') showToast('You don’t have permission to add that', 'error', 3000);
+    return;
+  }
   try { if (typeof goPage === 'function' && m.go) goPage(m.go); } catch (e) {}
   if (m.fn) setTimeout(function () { try { if (typeof window[m.fn] === 'function') window[m.fn](); } catch (e) {} }, 200);
 }
@@ -1129,6 +1163,8 @@ function initMenuChrome() {
     // Quick-add "+" for pages that can create a record. Inline onclick so it survives the
     // cloneNode used to build the Favorites group; stopPropagation keeps it from navigating.
     var qa = QUICK_ADD[el.getAttribute('data-page')];
+    // Only show the "+" if the user actually has the create permission for it.
+    if (qa && qa.perm && typeof hasPermission === 'function' && !hasPermission(qa.perm)) qa = null;
     if (qa && !el.querySelector('.nav-add')) {
       var a = document.createElement('span');
       a.className = 'nav-add';
