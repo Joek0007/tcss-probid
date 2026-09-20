@@ -3806,7 +3806,9 @@ function onTmAccessChange() {
 }
 
 var _accessLabels = {
-  owner:'Owner',lead_tech:'Lead Tech',office:'Office',field:'Field Tech',estimator:'Estimator'
+  owner:'Owner',manager:'Manager',back_office:'Back Office',office:'Office',
+  lead_tech:'Lead Tech',helper_tech:'Helper Tech',field:'Field Tech',
+  estimator:'Estimator',project_manager:'Project Manager',subcontractor:'Subcontractor'
 };
 
 function renderTeam() {
@@ -3819,7 +3821,10 @@ function renderTeam() {
   var isOwner = _currentUser && _currentUser.role === 'owner';
   var canViewPay = (typeof _canViewPay === 'function') ? _canViewPay() : isOwner;
   tbody.innerHTML = DB.team.map(function(t) {
-    var access    = t.access || t.systemRole || 'field';
+    // Access = the login/permission role. Seeded team rows carry `role` but not
+    // access/systemRole, so fall back to `role` before defaulting to field — otherwise
+    // everyone (even the owner) mislabels as "Field Tech".
+    var access    = t.access || t.systemRole || t.role || 'field';
     var accessLbl = _accessLabels[access] || access;
     var invited   = !!t.invitedAt;
     var hasLogin  = !!t.authUserId;
