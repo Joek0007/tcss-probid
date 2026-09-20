@@ -3826,22 +3826,9 @@ var _accessLabels = {
   estimator:'Estimator',project_manager:'Project Manager',subcontractor:'Subcontractor'
 };
 
-// Short helper text shown next to the built-in roles in the access dropdown.
-// Custom roles have no description (just their label).
-var _ROLE_DESCRIPTIONS = {
-  owner:'Full access',
-  manager:'Everything except company settings',
-  back_office:'Office admin — no payroll or company settings',
-  estimator:'Quoting only',
-  lead_tech:'Field + customers, reports, catalog',
-  project_manager:'Jobs, WOs, dispatch — no financials',
-  helper_tech:'Time clock, jobs, work tracking only',
-  subcontractor:'Field check-off — most restricted'
-};
-
 // Build the Access Level <select> (#m-tmaccess) from ALL roles — built-ins plus any
 // custom role the owner added in Settings → Roles (getRoles() reads DB.settings.customRoles).
-// Any new role appears here automatically; no hardcoded list to maintain.
+// Any new role appears here automatically; no hardcoded list to maintain. Names only.
 function _populateAccessDropdown(selectedVal) {
   var sel = document.getElementById('m-tmaccess');
   if (!sel) return;
@@ -3850,10 +3837,7 @@ function _populateAccessDropdown(selectedVal) {
   // Preserve an existing member's legacy value (e.g. 'field'/'office') if it isn't a current role id.
   if (selectedVal && roleIds.indexOf(selectedVal) < 0) roleIds = roleIds.concat([selectedVal]);
   sel.innerHTML = roleIds.map(function(r){
-    var label = labelOf(r);
-    var desc  = _ROLE_DESCRIPTIONS[r];
-    var text  = desc ? (label + ' — ' + desc) : label;
-    return '<option value="'+escHtml(r)+'"'+(r===selectedVal?' selected':'')+'>'+escHtml(text)+'</option>';
+    return '<option value="'+escHtml(r)+'"'+(r===selectedVal?' selected':'')+'>'+escHtml(labelOf(r))+'</option>';
   }).join('');
   if (selectedVal) sel.value = selectedVal;
 }
