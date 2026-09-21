@@ -640,6 +640,9 @@ async function loadCurrentUserProfile() {
     setTimeout(function(){ if(typeof wtLoadNotifications==='function') wtLoadNotifications(); }, 1500);
     setTimeout(function(){ if(typeof _startNotificationChecks==='function') _startNotificationChecks(); }, 4000);
     setTimeout(function(){ if(typeof _maybeShowBackOfficeWelcome==='function') _maybeShowBackOfficeWelcome(); }, 1800);
+    // Live permission refresh: pick up role / access changes made by an admin in
+    // another session WITHOUT requiring this user to reload (see startPermRefresh).
+    if (typeof startPermRefresh === 'function') startPermRefresh();
   } else {
     console.warn('[Profile] No profile row found. Error:', res.error);
     // Fallback: create a minimal currentUser from the auth session
@@ -3072,6 +3075,89 @@ function startAutoSync() {
 function stopAutoSync() {
   clearInterval(_autoSyncTimer);
   _autoSyncTimer = null;
+}
+
+// ============================================================
+// LIVE PERMISSION REFRESH
+// Picks up a role / per-user-override / pay-visibility / active-status change made
+// by an admin in another session and applies it to THIS open session without a
+// reload. Polls the current user's profile row on a short interval, and also on
+// tab focus for a near-instant update. Server-side RLS is still the hard floor;
+// this just keeps the UI honest live.
+// ============================================================
+var _permRefreshTimer = null;
+var _permSig = null;               // signature of the last-known role/overrides/pay/active
+var _permRefreshListenersBound = false;
+var PERM_REFRESH_INTERVAL = 30000; // 30s safety net (focus/visibility make it feel instant)
+
+function _profileSig(p) {
+  if (!p) return '';
+  var role = (p.role === 'office') ? 'back_office' : (p.role || '');
+  return [role, p.can_view_pay ? 1 : 0, (p.is_active === false) ? 0 : 1,
+          JSON.stringify(p.perm_overrides || {})].join('|');
+}
+
+async function refreshCurrentUserPermissions() {
+  // Never refresh while previewing someone else (View As), while signed out, or mid-edit.
+  if (!_sb || !_currentUser || !_currentUser.id) return;
+  if (typeof _viewAsActive !== 'undefined' && _viewAsActive) return;
+  try {
+    var res = await _sb.from('profiles').select('*').eq('id', _currentUser.id).single();
+    if (res.error || !res.data) return;
+    var p = res.data;
+    if (p.role === 'office') p.role = 'back_office';   // same legacy alias as load
+    var sig = _profileSig(p);
+    if (_permSig === null) { _permSig = sig; return; } // first observation: baseline only
+    if (sig === _permSig) return;                      // nothing changed
+    _permSig = sig;
+
+    // Deactivated mid-session → block access immediately.
+    if (p.is_active === false) {
+      _currentUser = null;
+      clearInterval(_permRefreshTimer);
+      if (typeof _showPendingApprovalScreen === 'function') _showPendingApprovalScreen(p.full_name || '');
+      return;
+    }
+
+    // Apply the new role / overrides / pay flag live.
+    _currentUser = p;
+    if (typeof applyRolePermissions === 'function') applyRolePermissions(_currentUser.role);
+    if (typeof enforceNavPermissions === 'function') enforceNavPermissions();
+    if (typeof updateUserBadge === 'function') updateUserBadge(_currentUser);
+    if (typeof loadUiPrefs === 'function') loadUiPrefs();
+
+    // Re-render the page they're on so its controls reflect the new access. If they
+    // lost access to the current page, bounce to the Dashboard.
+    try {
+      var active = document.querySelector('.page.active');
+      var pid = active ? active.id.replace(/^page-/, '') : 'dash';
+      if (typeof _canAccessPage === 'function' && !_canAccessPage(pid)) {
+        if (typeof goPage === 'function') goPage('dash');
+      } else if (typeof goPage === 'function') {
+        goPage(pid);
+      }
+    } catch (e) {}
+
+    if (typeof showToast === 'function') showToast('Your access level was updated','info',5000);
+  } catch (e) { /* silent — retry next tick */ }
+}
+
+function startPermRefresh() {
+  clearInterval(_permRefreshTimer);
+  _permSig = _profileSig(_currentUser);   // baseline from the just-loaded profile
+  _permRefreshTimer = setInterval(function() {
+    if (_currentUser && _sb) refreshCurrentUserPermissions();
+    else clearInterval(_permRefreshTimer);
+  }, PERM_REFRESH_INTERVAL);
+
+  // Near-instant when the user returns to the tab (bind once).
+  if (!_permRefreshListenersBound) {
+    _permRefreshListenersBound = true;
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') refreshCurrentUserPermissions();
+    });
+    window.addEventListener('focus', function() { refreshCurrentUserPermissions(); });
+  }
 }
 
 // ---- INIT ----
