@@ -3840,6 +3840,11 @@ function _populateAccessDropdown(selectedVal) {
     return '<option value="'+escHtml(r)+'"'+(r===selectedVal?' selected':'')+'>'+escHtml(labelOf(r))+'</option>';
   }).join('');
   if (selectedVal) sel.value = selectedVal;
+  // Changing a person's ROLE is an owner-only action (it moves their login access).
+  // Non-owners with settings.team can still edit other details, but not the role.
+  var isOwner = (typeof _currentUser!=='undefined' && _currentUser && _currentUser.role==='owner');
+  sel.disabled = !isOwner;
+  sel.title = isOwner ? '' : 'Only the owner can change a team member’s role';
 }
 
 function renderTeam() {
@@ -3955,6 +3960,18 @@ async function uapSetRole(uid){
   try { res = await _sb.rpc('set_user_role', { p_user_id: uid, p_role: sel.value, p_active: true }); }
   catch(e){ res = {error:{message:e.message||String(e)}}; }
   if (res && res.error) { showToast('Could not update access: '+res.error.message,'error',5000); return; }
+  // Mirror onto the local Team roster so the Team page reflects it immediately
+  // (the RPC already updated team.role server-side; this keeps the in-memory copy honest).
+  try {
+    var urow = (_uapRows||[]).find(function(r){ return r.id===uid; });
+    var em = urow && urow.email;
+    if (em) {
+      (DB.team||[]).forEach(function(t){
+        if ((t.email||'').toLowerCase() === em.toLowerCase()) { t.access=sel.value; t.systemRole=sel.value; t.role=sel.value; }
+      });
+      if (typeof renderTeam==='function') renderTeam();
+    }
+  } catch(e){}
   showToast('Access updated ✓','success');
   renderUserAccessPanel();
 }
@@ -4146,6 +4163,27 @@ function saveTeamMemberV2() {
   _upsertTeamMember(data);
   saveDB(); closeModal('modal-team'); renderTeam();
   showToast(data.name+' saved ✓','success');
+  _syncLoginRoleFromTeam(data);   // owner-only: push the role onto their login profile too
+}
+
+// When the owner sets a team member's Access Level, mirror it onto their LOGIN role
+// (profiles) via set_role_by_email so the roster and login can never disagree. No-op
+// for non-owners, roster-only members (no email), and custom/legacy roles that aren't
+// login roles. The server keeps team.role in sync as well.
+var _LOGIN_ROLES = (typeof BUILT_IN_ROLES!=='undefined') ? BUILT_IN_ROLES
+  : ['owner','manager','back_office','estimator','lead_tech','project_manager','helper_tech','subcontractor'];
+async function _syncLoginRoleFromTeam(data) {
+  try {
+    if (!_sb || !data || !data.email) return;
+    if (!(_currentUser && _currentUser.role==='owner')) return;      // role change is owner-only
+    var role = data.access || data.systemRole;
+    if (_LOGIN_ROLES.indexOf(role) < 0) return;                       // custom/legacy: roster only
+    var res = await _sb.rpc('set_role_by_email', { p_email: data.email, p_role: role });
+    if (res && res.error) { console.warn('[RoleSync]', res.error.message); return; }
+    if (typeof res.data === 'number' && res.data > 0) {
+      showToast(data.name+"'s login access set to "+((typeof getRoleLabel==='function')?getRoleLabel(role):role),'success',4000);
+    }
+  } catch(e) { console.warn('[RoleSync]', e.message||e); }
 }
 
 // Keep old name working
