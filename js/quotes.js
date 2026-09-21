@@ -1364,6 +1364,26 @@ function _updateSummaryBadge(q) {
   if (resetBtn) resetBtn.style.display = hasCustom ? 'inline-flex' : 'none';
 }
 
+// Returns the AUTO-generated executive summary for a quote (what prints when there is
+// no custom override), by rendering the proposal with the override blanked and reading
+// the exec box — so the editors can show exactly what the print preview shows.
+function _autoExecSummaryFor(q) {
+  try {
+    var qq = Object.assign({}, q || {}, { execSummary: '' });
+    var html = buildPrintHTML(qq, '_bodyonly');
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var box = tmp.querySelector('#prop-exec-box');
+    if (box) {
+      var ps = box.querySelectorAll('p');
+      return ps.length
+        ? Array.from(ps).map(function(p){ return p.textContent; }).join('\n\n')
+        : box.textContent;
+    }
+  } catch (e) {}
+  return '';
+}
+
 // ---- EXECUTIVE SUMMARY EDITOR ----
 function startEditSummary() {
   var editor   = document.getElementById('summary-editor-wrap');
@@ -1403,14 +1423,19 @@ function applySummary() {
   const newText = textarea.value.trim();
   if (!newText) { showToast('Summary cannot be empty.','error'); return; }
 
+  // If the text is unchanged from the auto-generated summary, store nothing so it keeps
+  // auto-generating (matches the builder editor); only persist a real override when it differs.
+  const _autoText = _autoExecSummaryFor(_previewQuoteData || {}).trim();
+  const _override = (newText === _autoText) ? '' : newText;
+
   // Save to current preview quote data
   if (_previewQuoteData) {
-    _previewQuoteData.execSummary = newText;
+    _previewQuoteData.execSummary = _override;
 
     // If this is a saved quote, persist it
     if (_previewQuoteData.id) {
       const saved = DB.quotes.find(function(q){ return q.id === _previewQuoteData.id; });
-      if (saved) { saved.execSummary = newText; saveDB(); }
+      if (saved) { saved.execSummary = _override; saveDB(); }
     }
 
     // Re-render the preview with the new summary
@@ -1809,8 +1834,11 @@ function openSectionEditor(kind) {
   if (kind === 'exec') {
     titleEl.textContent = '📝 Executive Summary';
     scopeEl.textContent = 'This quote only';
-    hintEl.textContent  = 'Custom opening summary for this proposal. Leave blank to auto-generate one from the line items.';
-    ta.value = (document.getElementById('qq-exec-summary')||{}).value || '';
+    hintEl.textContent  = 'This is what prints. Edit it to override for this quote; clear it (or leave it unchanged) to keep auto-generating from the line items.';
+    // Pre-fill with the custom override if there is one, otherwise the SAME auto-generated
+    // summary that shows in print preview — so "Edit" never opens blank.
+    var _customExec = ((document.getElementById('qq-exec-summary')||{}).value || '').trim();
+    ta.value = _customExec ? _customExec : _autoExecSummaryFor(getQData());
     ta.placeholder = 'Leave blank to auto-generate a summary from the equipment on this quote…';
   } else if (kind === 'terms') {
     // Terms is now a full rich editor inline — jump to it instead of the plain popup.
@@ -1843,7 +1871,12 @@ function saveSectionEditor() {
   if (!ta) { closeModal('modal-section-editor'); return; }
   var val = ta.value;
   if (kind === 'exec') {
-    var h = document.getElementById('qq-exec-summary'); if (h) h.value = val.trim();
+    // Keep "blank = auto": if the text matches the auto-generated summary (unchanged),
+    // store nothing so it keeps regenerating; only save a real override when it differs.
+    var _auto = _autoExecSummaryFor(getQData());
+    var _v = val.trim();
+    var h = document.getElementById('qq-exec-summary');
+    if (h) h.value = (_v && _v !== _auto.trim()) ? _v : '';
     if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
   } else if (kind === 'terms') {
     var t = document.getElementById('qq-tc'); if (t) t.value = val;
