@@ -1736,13 +1736,13 @@ function buildEmailBodyHTML(q){
   var coBlock = '<div style="font-weight:bold;color:#0D2B4E;font-size:12px;letter-spacing:.4px;font-family:Arial,Helvetica,sans-serif">'+_emEsc((cname||'').toUpperCase())+'</div>'
     + (caddr ? '<div style="color:#5b6675;font-size:11px;line-height:1.5;margin-top:3px;font-family:Arial,Helvetica,sans-serif">'+_emEsc(caddr)+'</div>' : '')
     + '<div style="color:#5b6675;font-size:11px;margin-top:2px;font-family:Arial,Helvetica,sans-serif">'
-    + (cphone?_emEsc(cphone):'')
+    + (cphone?'<span style="white-space:nowrap">'+_emEsc(cphone)+'</span>':'')
     + (cphone && webHref?' &nbsp;&middot;&nbsp; ':'')
     + (webHref?'<a href="'+_emEsc(webHref)+'" style="color:#1565C0;text-decoration:none;font-weight:bold">'+_emEsc(cweb)+'</a>':'')
     + '</div>';
 
   var footWeb = webHref ? ' &middot; <a href="'+_emEsc(webHref)+'" style="color:#9fb3cc;text-decoration:none;font-weight:bold">'+_emEsc(cweb)+'</a>' : '';
-  var footPhone = cphone ? ' or call <a href="tel:'+_emEsc(cphone.replace(/[^0-9+]/g,''))+'" style="color:#ffffff;text-decoration:none;font-weight:bold">'+_emEsc(cphone)+'</a>' : '';
+  var footPhone = cphone ? ' or call <a href="tel:'+_emEsc(cphone.replace(/[^0-9+]/g,''))+'" style="color:#ffffff;text-decoration:none;font-weight:bold;white-space:nowrap">'+_emEsc(cphone)+'</a>' : '';
 
   var html =
 '<div style="background:#e9edf2;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">'
