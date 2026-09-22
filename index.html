@@ -5569,6 +5569,44 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     </div>
   </div>
 </div>
+<!-- REVIEW & SEND PROPOSAL EMAIL MODAL -->
+<div id="modal-email-quote" style="display:none;position:fixed;inset:0;background:rgba(13,27,42,.55);z-index:100001;align-items:center;justify-content:center;padding:18px;box-sizing:border-box">
+  <div style="background:#fff;border-radius:16px;max-width:940px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,.28);overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid #e6eaf0">
+      <h3 style="margin:0;font-size:17px;font-weight:800;color:#0D2B4E">Review &amp; Send Proposal</h3>
+      <button onclick="closeEmailQuoteModal()" style="background:none;border:none;font-size:24px;line-height:1;color:#90a4ae;cursor:pointer">&times;</button>
+    </div>
+    <div style="display:flex;gap:0;flex:1;min-height:0;flex-wrap:wrap">
+      <!-- left: recipients -->
+      <div style="flex:1 1 320px;min-width:280px;padding:18px 22px;border-right:1px solid #eef1f6;overflow:auto">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#90a4ae;margin-bottom:4px">From</div>
+        <div id="eq-from" style="font-size:13px;color:#37474f;font-weight:700;margin-bottom:14px;padding:9px 11px;background:#f6f8fb;border-radius:8px;border:1px solid #eef1f6">&nbsp;</div>
+
+        <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#0D2B4E;margin-bottom:4px">To <span style="color:#90a4ae;font-weight:600;text-transform:none;letter-spacing:0">(separate multiple with commas)</span></label>
+        <input id="eq-to" type="text" placeholder="customer@example.com, another@example.com" style="width:100%;box-sizing:border-box;padding:10px 11px;border:1px solid #cfd8e3;border-radius:8px;font-size:14px;margin-bottom:14px">
+
+        <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#0D2B4E;margin-bottom:4px">CC <span style="color:#90a4ae;font-weight:600;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <input id="eq-cc" type="text" placeholder="cc@example.com" style="width:100%;box-sizing:border-box;padding:10px 11px;border:1px solid #cfd8e3;border-radius:8px;font-size:14px;margin-bottom:14px">
+
+        <label style="display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#0D2B4E;margin-bottom:4px">Subject</label>
+        <input id="eq-subject" type="text" style="width:100%;box-sizing:border-box;padding:10px 11px;border:1px solid #cfd8e3;border-radius:8px;font-size:14px;margin-bottom:14px">
+
+        <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#546e7a;background:#eef6ff;border:1px solid #cfe4ff;border-radius:8px;padding:10px 12px">
+          <span style="font-size:15px">📎</span><span>The full proposal PDF is attached automatically.</span>
+        </div>
+      </div>
+      <!-- right: live preview -->
+      <div style="flex:1 1 380px;min-width:300px;display:flex;flex-direction:column;background:#eef1f5;min-height:0">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#90a4ae;padding:12px 18px 6px">Preview &mdash; what the customer sees</div>
+        <iframe id="eq-preview" title="Email preview" style="flex:1;width:100%;border:none;background:#eef1f5;min-height:340px"></iframe>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid #e6eaf0;background:#fafbfc">
+      <button class="btn btn-ghost btn-sm" onclick="closeEmailQuoteModal()">Cancel</button>
+      <button id="eq-send-btn" class="btn btn-primary" onclick="sendQuoteConfirmed()">Send Proposal</button>
+    </div>
+  </div>
+</div>
 <div id="hot-notes-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99990;align-items:center;justify-content:center;cursor:pointer" onclick="dismissHotNotes()">
   <div style="background:#fff;border-radius:16px;max-width:480px;width:90%;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.2);cursor:default" onclick="event.stopPropagation()">
     <div id="hot-notes-icon" style="font-size:32px;margin-bottom:8px;text-align:center">⚡</div>
@@ -6593,27 +6631,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919eh with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919ei with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919eh"></script>
-<script src="js/quotes.js?v=20260919eh"></script>
-<script src="js/tools.js?v=20260919eh"></script>
-<script src="js/field.js?v=20260919eh"></script>
-<script src="js/crm.js?v=20260919eh"></script>
-<script src="js/vehicles.js?v=20260919eh"></script>
-<script src="js/dispatch.js?v=20260919eh"></script>
-<script src="js/permissions.js?v=20260919eh"></script>
-<script src="js/worktracking.js?v=20260919eh"></script>
-<script src="js/calendar.js?v=20260919eh"></script>
-<script src="js/workorders.js?v=20260919eh"></script>
-<script src="js/purchaseorders.js?v=20260919eh"></script>
-<script src="js/inventory.js?v=20260919eh"></script>
-<script src="js/reports.js?v=20260919eh"></script>
-<script src="js/recyclebin.js?v=20260919eh"></script>
-<script src="js/contracts.js?v=20260919eh"></script>
-  <script src="js/recurring.js?v=20260919eh"></script>
-  <script src="js/seed_managed.js?v=20260919eh"></script>
-  <script src="js/auth.js?v=20260919eh"></script>
+<script src="js/core.js?v=20260919ei"></script>
+<script src="js/quotes.js?v=20260919ei"></script>
+<script src="js/tools.js?v=20260919ei"></script>
+<script src="js/field.js?v=20260919ei"></script>
+<script src="js/crm.js?v=20260919ei"></script>
+<script src="js/vehicles.js?v=20260919ei"></script>
+<script src="js/dispatch.js?v=20260919ei"></script>
+<script src="js/permissions.js?v=20260919ei"></script>
+<script src="js/worktracking.js?v=20260919ei"></script>
+<script src="js/calendar.js?v=20260919ei"></script>
+<script src="js/workorders.js?v=20260919ei"></script>
+<script src="js/purchaseorders.js?v=20260919ei"></script>
+<script src="js/inventory.js?v=20260919ei"></script>
+<script src="js/reports.js?v=20260919ei"></script>
+<script src="js/recyclebin.js?v=20260919ei"></script>
+<script src="js/contracts.js?v=20260919ei"></script>
+  <script src="js/recurring.js?v=20260919ei"></script>
+  <script src="js/seed_managed.js?v=20260919ei"></script>
+  <script src="js/auth.js?v=20260919ei"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

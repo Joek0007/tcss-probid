@@ -1666,6 +1666,135 @@ function buildEmailBody(q) {
   return lines.join('\n');
 }
 
+// =============================================
+// V9: EMAIL QUOTE — HTML proposal email + Review & Send + Mailgun
+// =============================================
+// Currency + escape helpers (email builder)
+function _emMoney(n){ return '$'+(Number(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+function _emEsc(x){ return (x==null?'':String(x)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Build the branded, email-safe HTML body (table layout + inline styles for Outlook/Gmail).
+// Logo is loaded from the app's own hosted /assets/email-logo.png (data URLs don't render in email).
+function buildEmailBodyHTML(q){
+  var s = DB.settings || {};
+  var cname  = s.cname  || 'Total Communications, Inc.';
+  var caddr  = s.caddr  || '';
+  var cphone = s.cphone || '';
+  var cwebRaw= (s.cweb || '').trim();
+  var cweb   = cwebRaw.replace(/^https?:\/\//,'').replace(/\/$/,'');
+  var webHref= cwebRaw ? (/^https?:/i.test(cwebRaw)?cwebRaw:('https://'+cweb)) : '';
+  var uname  = s.uname  || q.rep || '';
+  var utitle = s.utitle || '';
+
+  var validUntil = q.vu
+    ? new Date(q.vu).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})
+    : '30 days from quote date';
+  var quoteDate = q.dt
+    ? new Date(q.dt).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})
+    : new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  var greet = q.contactName ? q.contactName.split(' ')[0] : (q.cn || 'there');
+
+  var baseUrl = window.location.origin + window.location.pathname.replace('index.html','').replace(/\/$/,'');
+  var logoUrl = baseUrl + '/assets/email-logo.png';
+
+  // --- Proposal Details rows ---
+  function drow(k,v){
+    return '<tr><td style="padding:6px 0;color:#6b7686;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif;width:150px;vertical-align:top">'+k+'</td>'
+      +'<td style="padding:6px 0;color:#1f2733;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif;vertical-align:top">'+v+'</td></tr>';
+  }
+  var details = '';
+  details += drow('Quote Number', _emEsc(q.num||''));
+  if (q.jn) details += drow('Project', _emEsc(q.jn));
+  if (q.jt) details += drow('Job Type', _emEsc(q.jt));
+  if (q.ad) details += drow('Location', _emEsc(q.ad));
+  details += drow('Quote Date', quoteDate);
+  details += drow('Valid Until', validUntil);
+
+  // --- Investment rows ---
+  function irow(k,v){
+    return '<tr><td style="padding:6px 0;color:#6b7686;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif">'+k+'</td>'
+      +'<td align="right" style="padding:6px 0;color:#1f2733;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif">'+v+'</td></tr>';
+  }
+  var inv = '';
+  if (q.lumpSum && q.lumpSum.enabled){
+    if (q.lumpSum.label) inv += irow(_emEsc(q.lumpSum.label), '');
+  } else {
+    if (q.sellBeforeTax) inv += irow('Subtotal', _emMoney(q.sellBeforeTax));
+    if (q.taxAmt > 0)    inv += irow('Tax', _emMoney(q.taxAmt));
+    if (q.discount > 0)  inv += irow('Discount', '-'+_emMoney(q.discount));
+  }
+  // total row (navy top border)
+  inv += '<tr><td colspan="2" style="border-top:2px solid #0D2B4E;font-size:0;line-height:0;padding:0">&nbsp;</td></tr>'
+       + '<tr><td style="padding:9px 0 2px;color:#0D2B4E;font-weight:bold;font-size:15px;font-family:Arial,Helvetica,sans-serif">Total Investment</td>'
+       + '<td align="right" style="padding:9px 0 2px;color:#0D2B4E;font-weight:bold;font-size:15px;font-family:Arial,Helvetica,sans-serif">'+_emMoney(q.total)+'</td></tr>';
+
+  var terms = q.pt
+    ? '<p style="margin:14px 0 0;font-size:13px;color:#6b7686;font-family:Arial,Helvetica,sans-serif"><strong style="color:#1f2733">Payment Terms:</strong> '+_emEsc(q.pt)+'</p>'
+    : '';
+
+  // company block (header right)
+  var coBlock = '<div style="font-weight:bold;color:#0D2B4E;font-size:12px;letter-spacing:.4px;font-family:Arial,Helvetica,sans-serif">'+_emEsc((cname||'').toUpperCase())+'</div>'
+    + (caddr ? '<div style="color:#5b6675;font-size:11px;line-height:1.5;margin-top:3px;font-family:Arial,Helvetica,sans-serif">'+_emEsc(caddr)+'</div>' : '')
+    + '<div style="color:#5b6675;font-size:11px;margin-top:2px;font-family:Arial,Helvetica,sans-serif">'
+    + (cphone?_emEsc(cphone):'')
+    + (cphone && webHref?' &nbsp;&middot;&nbsp; ':'')
+    + (webHref?'<a href="'+_emEsc(webHref)+'" style="color:#1565C0;text-decoration:none;font-weight:bold">'+_emEsc(cweb)+'</a>':'')
+    + '</div>';
+
+  var footWeb = webHref ? ' &middot; <a href="'+_emEsc(webHref)+'" style="color:#9fb3cc;text-decoration:none;font-weight:bold">'+_emEsc(cweb)+'</a>' : '';
+  var footPhone = cphone ? ' or call <a href="tel:'+_emEsc(cphone.replace(/[^0-9+]/g,''))+'" style="color:#ffffff;text-decoration:none;font-weight:bold">'+_emEsc(cphone)+'</a>' : '';
+
+  var html =
+'<div style="background:#e9edf2;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">'
++'<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center" style="max-width:600px;width:100%;margin:0 auto;background:#ffffff;border:1px solid #e6eaf0;border-radius:14px;overflow:hidden">'
+  // header
+  +'<tr><td style="padding:22px 32px 16px">'
+    +'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+      +'<td valign="middle" style="width:170px"><img src="'+logoUrl+'" width="150" alt="'+_emEsc(cname)+'" style="display:block;width:150px;max-width:150px;height:auto;border:0"></td>'
+      +'<td valign="middle" align="right">'+coBlock+'</td>'
+    +'</tr></table>'
+  +'</td></tr>'
+  // navy accent + red tab
+  +'<tr><td style="padding:0 32px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:3px solid #0D2B4E;font-size:0;line-height:0">&nbsp;</td></tr></table>'
+    +'<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td width="60" style="border-top:3px solid #C8102E;font-size:0;line-height:0">&nbsp;</td></tr></table>'
+  +'</td></tr>'
+  // body
+  +'<tr><td style="padding:22px 32px 4px">'
+    +'<div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#C8102E;font-weight:bold;font-family:Arial,Helvetica,sans-serif">Proposal Enclosed</div>'
+    +'<div style="margin:8px 0 16px;font-size:19px;color:#0D2B4E;font-weight:bold;line-height:1.3;font-family:Georgia,\'Times New Roman\',serif">'+_emEsc(q.jn||'Your Proposal')+'</div>'
+    +'<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#1f2733;font-family:Arial,Helvetica,sans-serif">Hi '+_emEsc(greet)+',</p>'
+    +'<p style="margin:0 0 4px;font-size:15px;line-height:1.6;color:#1f2733;font-family:Arial,Helvetica,sans-serif">Thank you for the opportunity to work with '+_emEsc(q.cn||'your organization')+'. Your detailed proposal is attached as a PDF for your review &mdash; a summary is below.</p>'
+  +'</td></tr>'
+  // proposal details
+  +'<tr><td style="padding:16px 32px 0">'
+    +'<div style="font-size:12px;letter-spacing:1.3px;text-transform:uppercase;color:#0D2B4E;font-weight:bold;border-bottom:2px solid #eef1f6;padding-bottom:7px;font-family:Arial,Helvetica,sans-serif">Proposal Details</div>'
+    +'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px">'+details+'</table>'
+  +'</td></tr>'
+  // investment summary
+  +'<tr><td style="padding:18px 32px 0">'
+    +'<div style="font-size:12px;letter-spacing:1.3px;text-transform:uppercase;color:#0D2B4E;font-weight:bold;border-bottom:2px solid #eef1f6;padding-bottom:7px;font-family:Arial,Helvetica,sans-serif">Investment Summary</div>'
+    +'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px">'+inv+'</table>'
+    +terms
+  +'</td></tr>'
+  // signature
+  +'<tr><td style="padding:24px 32px 4px">'
+    +'<p style="margin:0;font-size:15px;color:#1f2733;font-family:Arial,Helvetica,sans-serif">Respectfully,</p>'
+    +'<div style="margin:5px 0 0;font-size:22px;color:#0D2B4E;font-family:\'Segoe Script\',\'Brush Script MT\',cursive">'+_emEsc(uname||cname)+'</div>'
+    +'<div style="margin-top:3px;font-size:12px;color:#6b7686;font-family:Arial,Helvetica,sans-serif">'+_emEsc(utitle?(utitle+', '+cname):cname)+'</div>'
+  +'</td></tr>'
+  // footer
+  +'<tr><td style="padding:22px 32px 0">'
+    +'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#0D2B4E;border-radius:10px;padding:16px 22px;text-align:center">'
+      +'<div style="color:#c9d6e6;font-size:11.5px;line-height:1.6;font-family:Arial,Helvetica,sans-serif">This proposal is valid until '+validUntil+'. &nbsp;Questions? Reply to this email'+footPhone+'.</div>'
+      +'<div style="color:#7f93ad;font-size:11px;margin-top:5px;font-family:Arial,Helvetica,sans-serif">'+_emEsc(cname)+(caddr?' &middot; '+_emEsc(caddr.split(',').slice(-2).join(',').trim()||caddr):'')+footWeb+'</div>'
+    +'</td></tr></table>'
+  +'</td></tr>'
+  +'<tr><td style="height:14px;font-size:0;line-height:0">&nbsp;</td></tr>'
++'</table>'
++'</div>';
+  return html;
+}
+
 // Resolve who a proposal / approval email should go to. The quote's own email wins; if it's
 // blank (common on older quotes), fall back to the linked customer record's invoicing email,
 // then their main email. So setting a customer's invoicing email now actually takes effect.
@@ -1679,37 +1808,154 @@ function _quoteRecipientEmail(q) {
   return '';
 }
 
+// Basic email validation + splitter (comma / semicolon / whitespace separated)
+function _parseEmails(str){
+  return (str||'').split(/[,;\s]+/).map(function(x){return x.trim();}).filter(Boolean);
+}
+function _validEmail(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
+
+// Entry point (called by emailQuote / emailQuoteQQ / emailSavedQuote): opens the Review & Send modal.
+var _emailQuoteData = null;
 function fireEmailQuote(q) {
   if (!q) return;
-  if (q.status === 'draft' || !q.status) {
-    q.status = 'sent';
-    if (!q.sentDate) q.sentDate = getTodayISO();
-    if (q.id) {
-      var saved = DB.quotes.find(function(x){ return x.id===q.id; });
-      if (saved) { saved.status='sent'; if(!saved.sentDate) saved.sentDate=getTodayISO(); saveDB(); renderQuotes && renderQuotes(); renderDash(); }
-    }
-    var stEl = document.getElementById('qq-status');
-    if (stEl && stEl.value==='draft') stEl.value='sent';
-    showToast('Status updated to Sent', 'success', 2000);
-  }
+  _emailQuoteData = q;
+  openEmailQuoteModal(q);
+}
+
+function openEmailQuoteModal(q){
+  var modal = document.getElementById('modal-email-quote');
+  if (!modal) { showToast('Email dialog missing','error'); return; }
+  var s = DB.settings || {};
   var toEmail = _quoteRecipientEmail(q);
-  var toName  = q.contactName || q.cn || '';
-  var _coQ = (typeof coLabel==='function' ? coLabel() : '');
-  var subjectTpl = (DB.settings.sgSubject || ('Your Proposal from '+(_coQ||'us')+' - {quote_num}'));
-  var bodyTpl    = (DB.settings.sgBody    || 'Please find your proposal attached for {job_name}. We appreciate the opportunity.');
-  var subject  = subjectTpl.replace('{quote_num}',q.num||'').replace('{job_name}',q.jn||'Project Quote').replace('{customer}',q.cn||'');
-  var bodyText = bodyTpl.replace('{quote_num}',q.num||'').replace('{job_name}',q.jn||'Project Quote').replace('{customer}',q.cn||'');
-  bodyText += '\n\n' + buildEmailBody(q);
-  if ((DB.settings||{}).sgKey) {
-    if (!toEmail) { showToast('No customer email on file','error'); return; }
-    showToast('Sending email...','info',2000);
-    sendViaSendGrid(toEmail, toName, subject, bodyText, null).then(function(ok){
-      if (ok) showToast('Quote emailed to ' + toEmail + ' - sent','success',4000);
+  var _co = (typeof coLabel==='function' ? coLabel() : (s.cname||'us'));
+  var subjectTpl = (s.sgSubject || ('Your Proposal from '+(_co||'us')+' - {quote_num}'));
+  var subject = subjectTpl.replace('{quote_num}',q.num||'').replace('{job_name}',q.jn||'Project Quote').replace('{customer}',q.cn||'');
+
+  var toEl = document.getElementById('eq-to');
+  var ccEl = document.getElementById('eq-cc');
+  var subEl = document.getElementById('eq-subject');
+  var fromEl = document.getElementById('eq-from');
+  if (toEl) toEl.value = toEmail || '';
+  if (ccEl) ccEl.value = '';
+  if (subEl) subEl.value = subject;
+  var fromAddr = (s.uemail && /@tcss\.com$/i.test(s.uemail.trim())) ? s.uemail.trim()
+               : (s.mgFrom || 'quotes@tcss.com');
+  var fromName = s.uname || s.cname || 'TCSS';
+  if (fromEl) fromEl.textContent = fromName + ' <' + fromAddr + '>';
+
+  // live preview
+  var frame = document.getElementById('eq-preview');
+  if (frame) {
+    try { frame.srcdoc = buildEmailBodyHTML(q); } catch(e){ frame.srcdoc = '<p style="font-family:sans-serif;padding:20px;color:#c00">Preview error: '+e.message+'</p>'; }
+  }
+  modal.style.display = 'flex';
+}
+
+function closeEmailQuoteModal(){
+  var modal = document.getElementById('modal-email-quote');
+  if (modal) modal.style.display = 'none';
+}
+
+async function sendQuoteConfirmed(){
+  var q = _emailQuoteData;
+  if (!q) { showToast('No quote loaded','error'); return; }
+  var s = DB.settings || {};
+  if (!s.mgKey) { showToast('Mailgun API key not set — go to Settings → Email Settings','error',5000); return; }
+
+  var toList = _parseEmails((document.getElementById('eq-to')||{}).value);
+  var ccList = _parseEmails((document.getElementById('eq-cc')||{}).value);
+  var subject = ((document.getElementById('eq-subject')||{}).value||'').trim();
+
+  if (!toList.length) { showToast('Add at least one recipient','error'); return; }
+  var bad = toList.concat(ccList).filter(function(e){ return !_validEmail(e); });
+  if (bad.length) { showToast('Invalid email: '+bad[0],'error',4000); return; }
+  if (!subject) { showToast('Add a subject','error'); return; }
+
+  var sendBtn = document.getElementById('eq-send-btn');
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Sending...'; }
+  showToast('Generating PDF and sending...','info',4000);
+
+  try {
+    // Load html2canvas + jsPDF if needed
+    if (typeof html2canvas === 'undefined') {
+      await new Promise(function(res,rej){ var el=document.createElement('script'); el.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; el.onload=res; el.onerror=rej; document.head.appendChild(el); });
+    }
+    if (typeof window.jspdf === 'undefined') {
+      await new Promise(function(res,rej){ var el=document.createElement('script'); el.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; el.onload=res; el.onerror=rej; document.head.appendChild(el); });
+    }
+
+    // Render the proposal PDF (reuse the client print layout)
+    var proposalHTML = buildPrintHTML(q, 'client');
+    var div = document.createElement('div');
+    div.style.cssText = 'position:fixed;left:-9999px;top:0;width:700px;background:#fff';
+    div.innerHTML = proposalHTML;
+    document.body.appendChild(div);
+    var canvas = await html2canvas(div, { scale:2, useCORS:true, backgroundColor:'#ffffff' });
+    document.body.removeChild(div);
+
+    var jspdf = window.jspdf || window.jsPDF;
+    var pdf = new (jspdf.jsPDF||jspdf)({ orientation:'p', unit:'px', format:'a4' });
+    var pageW = pdf.internal.pageSize.getWidth();
+    var pageH = pdf.internal.pageSize.getHeight();
+    var imgH = (canvas.height * pageW) / canvas.width;
+    var y = 0;
+    while (y < imgH) { if (y>0) pdf.addPage(); pdf.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',0,-y,pageW,imgH); y += pageH; }
+    var pdfBlob = pdf.output('blob');
+    var _coS = (typeof coLabel==='function' ? coLabel() : 'Proposal');
+    var pdfName = (_coS||'Proposal')+'-'+(q.num||'')+'.pdf';
+
+    // From = logged-in user's @tcss.com (falls back to mgFrom)
+    var fromAddr = (s.uemail && /@tcss\.com$/i.test(s.uemail.trim())) ? s.uemail.trim() : ((s.mgFrom||'').match(/<([^>]+)>/) ? (s.mgFrom||'').match(/<([^>]+)>/)[1] : (s.mgFrom||'quotes@tcss.com'));
+    var fromName = s.uname || s.cname || 'TCSS';
+    var fromHdr  = fromName + ' <' + fromAddr + '>';
+
+    var htmlBody = buildEmailBodyHTML(q);
+    var textBody = buildEmailBody(q);
+
+    var fd = new FormData();
+    fd.append('from', fromHdr);
+    fd.append('to', toList.join(','));
+    if (ccList.length) fd.append('cc', ccList.join(','));
+    fd.append('h:Reply-To', fromAddr);
+    fd.append('subject', subject);
+    fd.append('html', htmlBody);
+    fd.append('text', textBody);
+    fd.append('attachment', new File([pdfBlob], pdfName, {type:'application/pdf'}));
+
+    var mgDomain = s.mgDomain || 'tcss.com';
+    var res = await fetch('https://api.mailgun.net/v3/'+mgDomain+'/messages', {
+      method:'POST',
+      headers:{ 'Authorization':'Basic '+btoa('api:'+s.mgKey) },
+      body: fd
     });
-  } else {
-    if (!toEmail) { if (!confirm('No customer email on file.\nOpen email client anyway?')) return; }
-    showToast('Opening email client - attach the PDF manually','info',5000);
-    window.location.href = 'mailto:' + encodeURIComponent(toEmail) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(bodyText);
+    var data = await res.json().catch(function(){ return {}; });
+
+    if (res.ok) {
+      var allTo = toList.concat(ccList).join(', ');
+      showToast('✅ Proposal emailed to '+allTo,'success',5000);
+      // mark quote sent (only after a successful send)
+      var saved = q.id ? DB.quotes.find(function(x){ return x.id===q.id; }) : null;
+      if (saved) {
+        if (saved.status==='draft' || !saved.status) saved.status='sent';
+        if (!saved.sentDate) saved.sentDate = getTodayISO();
+        saved.emailedTo = allTo; saved.emailedAt = new Date().toISOString();
+        saveDB(); renderQuotes && renderQuotes(); renderDash && renderDash();
+      } else {
+        if (q.status==='draft' || !q.status) q.status='sent';
+        if (!q.sentDate) q.sentDate = getTodayISO();
+      }
+      var stEl = document.getElementById('qq-status');
+      if (stEl && stEl.value==='draft') stEl.value='sent';
+      closeEmailQuoteModal();
+    } else {
+      showToast('Mailgun error: '+(data.message||('Status '+res.status)),'error',6000);
+      console.error('[Mailgun quote]',data);
+    }
+  } catch(e) {
+    showToast('Failed to send: '+e.message,'error',5000);
+    console.error('[Email Quote]',e);
+  } finally {
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send Proposal'; }
   }
 }
 
