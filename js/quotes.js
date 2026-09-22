@@ -1733,8 +1733,13 @@ function buildEmailBodyHTML(q){
     : '';
 
   // company block (header right)
+  // Format address as two clean lines: street on line 1, "City, ST ZIP" (kept together) on line 2
+  var _addrParts = (caddr||'').split(',').map(function(x){return x.trim();}).filter(Boolean);
+  var _addrHtml = _addrParts.length>1
+    ? (_emEsc(_addrParts[0])+'<br><span style="white-space:nowrap">'+_emEsc(_addrParts.slice(1).join(', '))+'</span>')
+    : _emEsc(caddr);
   var coBlock = '<div style="font-weight:bold;color:#0D2B4E;font-size:12px;letter-spacing:.4px;font-family:Arial,Helvetica,sans-serif">'+_emEsc((cname||'').toUpperCase())+'</div>'
-    + (caddr ? '<div style="color:#5b6675;font-size:11px;line-height:1.5;margin-top:3px;font-family:Arial,Helvetica,sans-serif">'+_emEsc(caddr)+'</div>' : '')
+    + (caddr ? '<div style="color:#5b6675;font-size:11px;line-height:1.55;margin-top:3px;font-family:Arial,Helvetica,sans-serif">'+_addrHtml+'</div>' : '')
     + '<div style="color:#5b6675;font-size:11px;margin-top:2px;font-family:Arial,Helvetica,sans-serif">'
     + (cphone?'<span style="white-space:nowrap">'+_emEsc(cphone)+'</span>':'')
     + (cphone && webHref?' &nbsp;&middot;&nbsp; ':'')
