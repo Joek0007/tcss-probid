@@ -1755,7 +1755,32 @@ async function dupQuote(id) {
   nq.id = typeof makeUUID==='function' ? makeUUID() : Date.now().toString();
   nq.num = await nextQNum();
   nq.status = 'draft';
-  nq.createdAt = new Date().toISOString();
+
+  // A duplicate is a brand-new draft — it must AGE FROM TODAY, not inherit the
+  // original's dates (which made the copy show up already expired / stale).
+  const today = (typeof getTodayISO==='function') ? getTodayISO() : new Date().toISOString().split('T')[0];
+  nq.createdAt   = new Date().toISOString();
+  nq.updatedAt   = nq.createdAt;
+  nq.dt          = today;   // quote date → today (drives the Age column)
+  nq.createdDate = today;
+  nq.sentDate    = null;    // never sent
+  nq.wonDate     = null;
+  nq.followupDate = '';     // editQuote recomputes a fresh follow-up from today
+
+  // Valid Until → recompute from today, preserving the original validity window
+  // (Valid Until − Quote Date) when it can be read, otherwise the company default.
+  var validDays = 0;
+  if (q.vu && (q.dt || q.createdDate)) {
+    validDays = Math.round((new Date(q.vu) - new Date(q.dt || q.createdDate)) / 86400000);
+  }
+  if (!(validDays > 0)) validDays = (DB.settings && DB.settings.validDays) || 30;
+  nq.vu = new Date(new Date(today).getTime() + validDays * 86400000).toISOString().split('T')[0];
+
+  // Never inherit the original's approval or its approval link — the token is unique
+  // per quote, so copying it would point the customer portal at the wrong quote.
+  nq.approval = null;
+  nq.approvalToken = null;
+
   // Re-assign fresh _id to every line item to prevent cross-item edit bugs
   if (nq.items) nq.items = nq.items.map(function(item){ return Object.assign({},item,{_id:nextLiId()}); });
   DB.quotes.unshift(nq);
