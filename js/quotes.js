@@ -1619,7 +1619,7 @@ function buildEmailBody(q) {
   const lines = [];
   lines.push('Dear ' + contactGreeting + ',');
   lines.push('');
-  lines.push('Thank you for the opportunity to work with ' + (q.cn||'your organization') + '. Attached to this email is our proposal for your review.');
+  lines.push('Thank you for the opportunity to work with ' + ((q.cn||'your organization').replace(/\.+$/,'')) + '. Attached to this email is our proposal for your review.');
   lines.push('');
   lines.push('PROPOSAL DETAILS');
   lines.push('─────────────────────────────────────────');
@@ -1733,11 +1733,31 @@ function buildEmailBodyHTML(q){
     : '';
 
   // company block (header right)
-  // Format address as two clean lines: street on line 1, "City, ST ZIP" (kept together) on line 2
-  var _addrParts = (caddr||'').split(',').map(function(x){return x.trim();}).filter(Boolean);
-  var _addrHtml = _addrParts.length>1
-    ? (_emEsc(_addrParts[0])+'<br><span style="white-space:nowrap">'+_emEsc(_addrParts.slice(1).join(', '))+'</span>')
-    : _emEsc(caddr);
+  // Format address as two clean lines: street on line 1, "City, ST ZIP" (kept together)
+  // on line 2. Works whether or not there's a comma between the street and the city.
+  var _addrHtml;
+  (function(){
+    var a = (caddr||'').trim();
+    if (!a) { _addrHtml = ''; return; }
+    function oneLine(x){ return '<span style="white-space:nowrap">'+_emEsc(x)+'</span>'; }
+    // Find the trailing "ST ZIP" (state + 5/9-digit zip), optionally preceded by a comma.
+    var m = a.match(/^(.*?)[,\s]+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/);
+    if (!m || !m[1].trim()) { _addrHtml = oneLine(a); return; }
+    var head  = m[1].trim().replace(/,+\s*$/,'').trim();  // street + city
+    var stzip = m[2] + ' ' + m[3];
+    var street, city;
+    if (head.indexOf(',') >= 0) {                          // "...street, City"
+      var idx = head.lastIndexOf(',');
+      street = head.slice(0, idx).trim();
+      city   = head.slice(idx+1).trim();
+    } else {                                               // "...street City" (no comma) → city = last word
+      var parts = head.split(/\s+/);
+      city   = parts.pop();
+      street = parts.join(' ');
+    }
+    if (!street || !city) { _addrHtml = oneLine(head + ', ' + stzip); return; }
+    _addrHtml = _emEsc(street) + '<br><span style="white-space:nowrap">' + _emEsc(city + ', ' + stzip) + '</span>';
+  })();
   var coBlock = '<div style="font-weight:bold;color:#0D2B4E;font-size:12px;letter-spacing:.4px;font-family:Arial,Helvetica,sans-serif">'+_emEsc((cname||'').toUpperCase())+'</div>'
     + (caddr ? '<div style="color:#5b6675;font-size:11px;line-height:1.55;margin-top:3px;font-family:Arial,Helvetica,sans-serif">'+_addrHtml+'</div>' : '')
     + '<div style="color:#5b6675;font-size:11px;margin-top:2px;font-family:Arial,Helvetica,sans-serif">'
@@ -1768,7 +1788,7 @@ function buildEmailBodyHTML(q){
     +'<div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#C8102E;font-weight:bold;font-family:Arial,Helvetica,sans-serif">Proposal Enclosed</div>'
     +'<div style="margin:8px 0 16px;font-size:19px;color:#0D2B4E;font-weight:bold;line-height:1.3;font-family:Georgia,\'Times New Roman\',serif">'+_emEsc(q.jn||'Your Proposal')+'</div>'
     +'<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#1f2733;font-family:Arial,Helvetica,sans-serif">Hi '+_emEsc(greet)+',</p>'
-    +'<p style="margin:0 0 4px;font-size:15px;line-height:1.6;color:#1f2733;font-family:Arial,Helvetica,sans-serif">Thank you for the opportunity to work with '+_emEsc(q.cn||'your organization')+'. Your detailed proposal is attached as a PDF for your review &mdash; a summary is below.</p>'
+    +'<p style="margin:0 0 4px;font-size:15px;line-height:1.6;color:#1f2733;font-family:Arial,Helvetica,sans-serif">Thank you for the opportunity to work with '+_emEsc((q.cn||'your organization').replace(/\.+$/,''))+'. Your detailed proposal is attached as a PDF for your review &mdash; a summary is below.</p>'
   +'</td></tr>'
   // proposal details
   +'<tr><td style="padding:16px 32px 0">'
