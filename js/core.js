@@ -907,8 +907,25 @@ qqStage4Init();
     if (sidebar) { sidebar.classList.remove('mobile-open'); sidebar.style.transform='translateX(-220px)'; sidebar.style.boxShadow='none'; }
     if (overlay) overlay.classList.remove('visible');
   }
+  // Every page opens scrolled to the absolute top — run now and again after any
+  // async render settles (some pages render on a short timeout).
+  _scrollPageTop(id);
+  if (window.requestAnimationFrame) requestAnimationFrame(function(){ _scrollPageTop(id); });
+  setTimeout(function(){ _scrollPageTop(id); }, 90);
   // Reflect the page we landed on in the URL (enables Back/Forward + deep links)
   _syncHash(id);
+}
+
+// Scroll a freshly-opened page to the very top. Any of these can be the scroll
+// container depending on the page/screen size, so reset them all defensively.
+function _scrollPageTop(id){
+  try { window.scrollTo(0, 0); } catch(e){}
+  try { if (document.scrollingElement) document.scrollingElement.scrollTop = 0; } catch(e){}
+  ['content', 'page-'+id].forEach(function(cid){
+    var el = document.getElementById(cid); if (el) el.scrollTop = 0;
+  });
+  var main = document.querySelector('.main, .main-content, main');
+  if (main) main.scrollTop = 0;
 }
 
 // ============================================================
