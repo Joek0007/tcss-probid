@@ -3448,11 +3448,15 @@ function saveNotificationSettings() {
     notifExpenseEnabled:  expenseEnabled !== '0',
     invLowStockWarn:      invEnabled !== '0',
     invLowStockDaily:     invEnabled !== '0',
-    // Client approval notifications (read by the notify-quote-approval edge function too)
-    notifyEmail:          ((document.getElementById('ms-notif-email')||{}).value||'').trim(),
+    // Client approval / changes notifications (read by the notify-quote-approval edge function)
     notifyApprovalOn:     ((document.getElementById('ms-notif-approval-enabled')||{}).value) !== '0',
     notifyChangesOn:      ((document.getElementById('ms-notif-changes-enabled')||{}).value) !== '0',
-    notifyRep:            ((document.getElementById('ms-notif-rep-enabled')||{}).value) !== '0',
+    notifyQuoterOn:       ((document.getElementById('ms-notif-quoter-enabled')||{}).value) !== '0',
+    notifyQuoterEmail:    !!((document.getElementById('ms-notif-quoter-email')||{}).checked),
+    notifyQuoterSms:      !!((document.getElementById('ms-notif-quoter-sms')||{}).checked),
+    notifyRep:            ((document.getElementById('ms-notif-quoter-enabled')||{}).value) !== '0', // back-compat alias
+    notifyRecipients:     (typeof _readNotifyRecips==='function' ? _readNotifyRecips() : (DB.settings.notifyRecipients||[])),
+    notifyEmail:          '', // migrated into notifyRecipients
     // Vehicle issue alerts (emailed via the notify-vehicle-issue edge function)
     vehIssueEmailEnabled: ((document.getElementById('ms-notif-vehissue-enabled')||{}).value) === '1',
     vehIssueEmailTo:      ((document.getElementById('ms-notif-vehissue-to')||{}).value||'').trim(),
@@ -3479,14 +3483,24 @@ function loadNotificationSettings() {
   if (clockTime)  clockTime.value  = s.notifClockInTime || '07:00';
   if (expenseEl)  expenseEl.value  = s.notifExpenseEnabled  !== false ? '1' : '0';
   if (invEl)      invEl.value      = (s.invLowStockWarn !== false)    ? '1' : '0';
-  var nEmail = document.getElementById('ms-notif-email');
-  var nAppr  = document.getElementById('ms-notif-approval-enabled');
-  var nChg   = document.getElementById('ms-notif-changes-enabled');
-  var nRep   = document.getElementById('ms-notif-rep-enabled');
-  if (nEmail) nEmail.value = s.notifyEmail || s.uemail || s.cemail || '';
+  var nAppr   = document.getElementById('ms-notif-approval-enabled');
+  var nChg    = document.getElementById('ms-notif-changes-enabled');
+  var nQuoter = document.getElementById('ms-notif-quoter-enabled');
+  var nQEm    = document.getElementById('ms-notif-quoter-email');
+  var nQSms   = document.getElementById('ms-notif-quoter-sms');
   if (nAppr)  nAppr.value  = s.notifyApprovalOn !== false ? '1' : '0';
   if (nChg)   nChg.value   = s.notifyChangesOn  !== false ? '1' : '0';
-  if (nRep)   nRep.value   = s.notifyRep        !== false ? '1' : '0';
+  var _quoterOn = (s.notifyQuoterOn !== undefined) ? !!s.notifyQuoterOn : (s.notifyRep !== false);
+  if (nQuoter) nQuoter.value = _quoterOn ? '1' : '0';
+  if (nQEm)   nQEm.checked  = s.notifyQuoterEmail !== false;
+  if (nQSms)  nQSms.checked  = s.notifyQuoterSms   !== false;
+  // Recipients list (migrate a legacy single notifyEmail into the list if the list is empty)
+  if (typeof _renderNotifyRecips === 'function') {
+    var _recs = Array.isArray(s.notifyRecipients) ? s.notifyRecipients.slice() : [];
+    if (!_recs.length && s.notifyEmail) _recs = [{ name:'', email:s.notifyEmail, phone:'', sendEmail:true, sendSms:false }];
+    _renderNotifyRecips(_recs);
+    _fillNotifyTeamPicker();
+  }
   var vIssEn = document.getElementById('ms-notif-vehissue-enabled');
   var vIssTo = document.getElementById('ms-notif-vehissue-to');
   if (vIssEn) vIssEn.value = s.vehIssueEmailEnabled ? '1' : '0';   // default OFF
@@ -3499,6 +3513,71 @@ function loadNotificationSettings() {
   var uwTo = document.getElementById('ms-notif-urgentwo-sms-to');
   if (uwEn) uwEn.value = s.urgentWOAlertEnabled ? '1' : '0';       // default OFF
   if (uwTo) uwTo.value = s.urgentWOAlertSmsTo || '';
+}
+
+// ============================================================
+// PROPOSAL RESPONSE ALERTS — recipient list editor
+// Rows live directly in the DOM (#ms-notif-recips); saved into
+// DB.settings.notifyRecipients [{name,email,phone,sendEmail,sendSms}].
+// ============================================================
+function _nEsc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _notifyRecipRow(r){
+  r = r || {};
+  var em = r.sendEmail !== false;   // email defaults on
+  var sm = !!r.sendSms;             // text defaults off unless a phone was provided
+  return '<div class="ms-recip-row" style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">'
+    + '<input class="ms-recip-name" placeholder="Name" value="'+_nEsc(r.name)+'" style="flex:1 1 110px;min-width:90px">'
+    + '<input class="ms-recip-email" placeholder="email@company.com" value="'+_nEsc(r.email)+'" style="flex:1 1 160px;min-width:130px">'
+    + '<input class="ms-recip-phone" placeholder="Cell #" value="'+_nEsc(r.phone)+'" style="flex:1 1 100px;min-width:90px">'
+    + '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:400;margin:0"><input type="checkbox" class="ms-recip-email-on"'+(em?' checked':'')+'> Email</label>'
+    + '<label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:400;margin:0"><input type="checkbox" class="ms-recip-sms-on"'+(sm?' checked':'')+'> Text</label>'
+    + '<button type="button" onclick="removeNotifyRecip(this)" title="Remove" style="border:none;background:#f5f7fa;color:#c62828;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:15px;line-height:1">×</button>'
+    + '</div>';
+}
+function _renderNotifyRecips(list){
+  var box = document.getElementById('ms-notif-recips'); if (!box) return;
+  list = list || [];
+  box.innerHTML = list.map(_notifyRecipRow).join('');
+}
+function addNotifyRecip(prefill){
+  var box = document.getElementById('ms-notif-recips'); if (!box) return;
+  box.insertAdjacentHTML('beforeend', _notifyRecipRow(prefill || { name:'', email:'', phone:'', sendEmail:true, sendSms:false }));
+}
+function addNotifyRecipFromTeam(id){
+  var picker = document.getElementById('ms-notif-team-pick');
+  if (picker) picker.value = '';
+  if (!id) return;
+  var m = (DB.team || []).find(function(x){ return String(x.id) === String(id); });
+  if (!m) return;
+  addNotifyRecip({ name:m.name||'', email:m.email||'', phone:m.phone||'', sendEmail: !!(m.email), sendSms: !!(m.phone) });
+}
+function removeNotifyRecip(btn){
+  var row = btn && btn.closest ? btn.closest('.ms-recip-row') : null;
+  if (row) row.remove();
+}
+function _readNotifyRecips(){
+  var out = [];
+  var rows = document.querySelectorAll('#ms-notif-recips .ms-recip-row');
+  rows.forEach(function(row){
+    var name  = ((row.querySelector('.ms-recip-name')||{}).value  || '').trim();
+    var email = ((row.querySelector('.ms-recip-email')||{}).value || '').trim();
+    var phone = ((row.querySelector('.ms-recip-phone')||{}).value || '').trim();
+    var em = !!((row.querySelector('.ms-recip-email-on')||{}).checked);
+    var sm = !!((row.querySelector('.ms-recip-sms-on')||{}).checked);
+    if (!email && !phone) return; // skip fully-empty rows
+    out.push({ name:name, email:email, phone:phone, sendEmail:em, sendSms:sm });
+  });
+  return out;
+}
+function _fillNotifyTeamPicker(){
+  var sel = document.getElementById('ms-notif-team-pick'); if (!sel) return;
+  var team = (DB.team || []).slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+  var html = '<option value="">+ Add from Team…</option>';
+  team.forEach(function(m){
+    if (!m || !m.name) return;
+    html += '<option value="'+_nEsc(m.id)+'">'+_nEsc(m.name)+(m.phone?(' — '+_nEsc(m.phone)):'')+'</option>';
+  });
+  sel.innerHTML = html;
 }
 
 // ============================================================
