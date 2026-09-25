@@ -53,6 +53,17 @@ function init() {
   checkMobileMode();
   window.addEventListener('resize', checkMobileMode);
 
+  // Capture a magic-link / recovery ARRIVAL synchronously, BEFORE Supabase's
+  // detectSessionInUrl consumes and strips the URL hash. Without this the
+  // mandatory set-password gate never fires on the invite flow: the client
+  // auto-establishes the session and the app loads straight in, bypassing the
+  // manual-login path the gate used to hang off of.
+  try {
+    var _arrHash = String(window.location.hash || '');
+    window.__pbAuthArrival  = /access_token=|refresh_token=|type=recovery|type=magiclink|type=invite|type=signup/.test(_arrHash);
+    window.__pbAuthRecovery = /type=recovery/.test(_arrHash);
+  } catch(e) { window.__pbAuthArrival = false; window.__pbAuthRecovery = false; }
+
   // Initialize Supabase and check session
   if (initSupabase()) {
     // file:// protocol can't handle Supabase auth redirects
@@ -62,7 +73,8 @@ function init() {
       // Still try to restore session from localStorage
       _sb.auth.getSession().then(function(result) {
         if (result.data && result.data.session) {
-          loadCurrentUserProfile().then(function(){ syncAllFromCloud(); restoreClockSession(); });
+          if (window.__pbAuthArrival && !window.__pbArrivalHandled) { window.__pbArrivalHandled = true; _handleAuthRedirect(); }
+          else { loadCurrentUserProfile().then(function(){ syncAllFromCloud(); restoreClockSession(); }); }
         } else {
           showAuthModal();
         }
@@ -70,7 +82,8 @@ function init() {
     } else {
       _sb.auth.getSession().then(function(result) {
         if (result.data && result.data.session) {
-          loadCurrentUserProfile().then(function(){ syncAllFromCloud(); restoreClockSession(); });
+          if (window.__pbAuthArrival && !window.__pbArrivalHandled) { window.__pbArrivalHandled = true; _handleAuthRedirect(); }
+          else { loadCurrentUserProfile().then(function(){ syncAllFromCloud(); restoreClockSession(); }); }
         } else {
           showAuthModal();
         }
@@ -83,13 +96,24 @@ function init() {
       }
       if (event === 'SIGNED_IN') {
         hideAuthModal();
+        // Magic-link / recovery arrival: route through the redirect handler so the
+        // mandatory set-password gate can fire before the app loads.
+        if (window.__pbAuthArrival && !window.__pbArrivalHandled) {
+          window.__pbArrivalHandled = true;
+          _handleAuthRedirect();
+        }
         // Guard: skip if getSession() already kicked off a sync (avoids double-push race on line items)
-        if (!_currentUser && !window._syncInProgress) {
+        else if (!_currentUser && !window._syncInProgress) {
           loadCurrentUserProfile().then(function() {
             showToast('Welcome back, ' + (_currentUser ? _currentUser.full_name.split(' ')[0] : '') + '!', 'success');
             syncAllFromCloud();
           });
         }
+      }
+      // Supabase fires a dedicated event for recovery links — treat it as an arrival too.
+      if (event === 'PASSWORD_RECOVERY') {
+        window.__pbAuthArrival = true; window.__pbAuthRecovery = true;
+        if (!window.__pbArrivalHandled) { window.__pbArrivalHandled = true; hideAuthModal(); _handleAuthRedirect(); }
       }
       // TOKEN_REFRESHED — update session silently, no re-sync
       if (event === 'TOKEN_REFRESHED') {
@@ -2790,9 +2814,12 @@ function showAuthModal() {
   var modal = document.getElementById('modal-auth');
   if (modal) modal.style.display = 'flex';
   showSignIn();
-  // Handle magic link / password reset redirect
+  // Handle magic link / password reset redirect. Use the arrival flag captured at
+  // boot (the URL hash may already be stripped by detectSessionInUrl by now).
   var hash = window.location.hash;
-  if (hash && (hash.includes('access_token') || hash.includes('type=recovery'))) {
+  var arrived = (window.__pbAuthArrival) || (hash && (hash.includes('access_token') || hash.includes('type=recovery')));
+  if (arrived && !window.__pbArrivalHandled) {
+    window.__pbArrivalHandled = true;
     _handleAuthRedirect();
   }
 }
@@ -2849,11 +2876,11 @@ async function doPasswordReset() {
 
 async function _handleAuthRedirect() {
   if (!_sb) return;
-  // Capture the redirect TYPE from the URL hash before any client library clears it.
-  // Supabase tags recovery links with type=recovery; invite/magic links carry an
-  // access_token without it.
+  // Recovery vs invite: prefer the flag captured at boot (the URL hash is usually
+  // already stripped by detectSessionInUrl by the time this runs), falling back to
+  // whatever is still on the hash.
   var _hash = String(window.location.hash || '');
-  var _isRecovery = /type=recovery/.test(_hash);
+  var _isRecovery = !!window.__pbAuthRecovery || /type=recovery/.test(_hash);
   var { data, error } = await _sb.auth.getSession();
   if (data && data.session) {
     hideAuthModal();
