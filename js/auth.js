@@ -1169,7 +1169,7 @@ async function syncAllFromCloud(silent) {
       if (cate) { errors.push('catalog: '+cate.message); }
       else if (cat && cat.length) {
         DB.catalog = cat.filter(function(item){ return delCat.indexOf(String(item.id)) < 0; }).map(function(item) {
-          return { id:item.id, name:item.name, desc:item.description, cat:item.category, unit:item.unit, cost:item.default_cost, hours:item.default_hours, notes:item.notes, active:item.is_active };
+          return { id:item.id, name:item.name, desc:item.description, cat:item.category, unit:item.unit, mc:item.default_cost, lh:item.default_hours, cost:item.default_cost, hours:item.default_hours, notes:item.notes, active:item.is_active };
         });
       }
     } catch(e) { errors.push('catalog: '+e.message); }
@@ -2386,8 +2386,8 @@ async function pushAllToCloud() {
           description: item.desc || null,
           category: item.cat || null,
           unit: item.unit || 'ea',
-          default_cost: item.cost || 0,
-          default_hours: item.hours || 0,
+          default_cost: (item.mc != null ? item.mc : (item.cost || 0)),
+          default_hours: (item.lh != null ? item.lh : (item.hours || 0)),
           notes: item.notes || null,
           is_active: item.active !== false
         }));
