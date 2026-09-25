@@ -2849,15 +2849,104 @@ async function doPasswordReset() {
 
 async function _handleAuthRedirect() {
   if (!_sb) return;
+  // Capture the redirect TYPE from the URL hash before any client library clears it.
+  // Supabase tags recovery links with type=recovery; invite/magic links carry an
+  // access_token without it.
+  var _hash = String(window.location.hash || '');
+  var _isRecovery = /type=recovery/.test(_hash);
   var { data, error } = await _sb.auth.getSession();
   if (data && data.session) {
     hideAuthModal();
+    var u = (data.session.user) || {};
+    var meta = u.user_metadata || {};
+    // MANDATORY set-password gate. A new member onboards via a passwordless magic-link
+    // invite (signInWithOtp) and would otherwise never have a real password — leaving
+    // magic links as the only way in. Force them to choose one now. A recovery link
+    // (Forgot password) also lands here and must let them set the new password.
+    var needsPassword = _isRecovery || (meta.password_set !== true);
+    if (needsPassword) {
+      // Strip the tokens from the URL right away while the gate is up.
+      history.replaceState(null, '', window.location.pathname);
+      _showSetPasswordGate({ recovery: _isRecovery, name: (u.email || '') });
+      return; // The gate drives the rest of onboarding once a password is saved.
+    }
     await loadCurrentUserProfile();
     syncAllFromCloud();
     // Clear hash from URL
     history.replaceState(null, '', window.location.pathname);
-    showToast('Welcome to ProBid! Please set a permanent password in Settings.','info',6000);
   }
+}
+
+// MANDATORY set-password gate (full-screen, blocking). Shown when a member arrives
+// via a magic-link invite (no password chosen yet, user_metadata.password_set!==true)
+// or a password-recovery link. The app stays locked behind this until a permanent
+// password is saved via _sb.auth.updateUser(). We stamp user_metadata.password_set=true
+// so returning members go straight through and only ever see this once.
+// Onboarding order: password first (here) -> loadCurrentUserProfile(), which then shows
+// the pending-approval screen if an admin hasn't activated the account yet.
+function _showSetPasswordGate(opts) {
+  opts = opts || {};
+  var recovery = !!opts.recovery;
+  var ov = document.getElementById('set-password-overlay');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'set-password-overlay'; document.body.appendChild(ov); }
+  ov.style.cssText = 'position:fixed;inset:0;z-index:2100000;background:#0d1b2a;color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:system-ui,Arial,sans-serif';
+  var title = recovery ? 'Set a New Password' : 'Set Your Password';
+  var lead = recovery
+    ? 'Choose a new password for your ProBid account. You’ll use it to sign in from now on.'
+    : 'Welcome to ProBid! Before you continue, choose a password for your account. From now on you’ll sign in with your email and this password.';
+  ov.innerHTML =
+    '<div style="max-width:420px;width:100%">'+
+      '<div style="font-size:44px;margin-bottom:10px">🔐</div>'+
+      '<h2 style="margin:0 0 10px;font-size:22px">'+title+'</h2>'+
+      '<p style="font-size:14px;line-height:1.6;color:#cfd8e3">'+lead+'</p>'+
+      '<div style="margin-top:18px;text-align:left">'+
+        '<input id="spg-pw1" type="password" autocomplete="new-password" placeholder="New password (min 8 characters)" style="width:100%;box-sizing:border-box;padding:12px 14px;border-radius:8px;border:1px solid #456;background:#12263a;color:#fff;font-size:15px;margin-bottom:10px">'+
+        '<input id="spg-pw2" type="password" autocomplete="new-password" placeholder="Confirm password" style="width:100%;box-sizing:border-box;padding:12px 14px;border-radius:8px;border:1px solid #456;background:#12263a;color:#fff;font-size:15px">'+
+        '<div id="spg-err" style="display:none;color:#ff8a80;font-size:13px;margin-top:10px"></div>'+
+      '</div>'+
+      '<div style="margin-top:18px">'+
+        '<button id="spg-save" style="background:#1565c0;color:#fff;border:none;border-radius:8px;padding:12px 24px;font-size:15px;font-weight:700;cursor:pointer;width:100%">Save Password &amp; Continue</button>'+
+      '</div>'+
+      '<div style="margin-top:14px">'+
+        '<button id="spg-signout" style="background:none;border:none;color:#90a4ae;font-size:13px;cursor:pointer;text-decoration:underline">Sign out</button>'+
+      '</div>'+
+    '</div>';
+  var errEl = document.getElementById('spg-err');
+  var showErr = function(m){ if(errEl){ errEl.style.display=''; errEl.textContent=m; } };
+  var btn = document.getElementById('spg-save');
+  var submit = async function(){
+    var p1 = ((document.getElementById('spg-pw1')||{}).value) || '';
+    var p2 = ((document.getElementById('spg-pw2')||{}).value) || '';
+    if (p1.length < 8) { showErr('Password must be at least 8 characters.'); return; }
+    if (p1 !== p2) { showErr('Passwords don’t match — please re-type them.'); return; }
+    if (errEl) errEl.style.display = 'none';
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    try {
+      var r = await _sb.auth.updateUser({ password: p1, data: { password_set: true } });
+      if (r && r.error) {
+        showErr(r.error.message || 'Could not save password.');
+        if (btn) { btn.disabled = false; btn.textContent = 'Save Password & Continue'; }
+        return;
+      }
+    } catch(e) {
+      showErr('Could not save password — please try again.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Save Password & Continue'; }
+      return;
+    }
+    // Saved. Tear down the gate and finish onboarding (pending-approval screen next
+    // if the account still isn't active).
+    if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+    try { showToast('✓ Password set — use your email and this password to sign in next time.','success',5000); } catch(e){}
+    await loadCurrentUserProfile();
+    syncAllFromCloud();
+  };
+  if (btn) btn.onclick = submit;
+  var signout = document.getElementById('spg-signout');
+  if (signout) signout.onclick = async function(){ try { await _sb.auth.signOut(); } catch(e){} location.reload(); };
+  var pw2 = document.getElementById('spg-pw2');
+  if (pw2) pw2.addEventListener('keydown', function(e){ if (e.key === 'Enter') submit(); });
+  var pw1 = document.getElementById('spg-pw1');
+  if (pw1) setTimeout(function(){ try { pw1.focus(); } catch(e){} }, 60);
 }
 
 // ---- USER MANAGEMENT (Owners only) ----
