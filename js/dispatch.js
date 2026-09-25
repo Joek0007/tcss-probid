@@ -1665,7 +1665,7 @@ function switchMsTab(tab) {
   window.scrollTo(0,0);
   // Render tab content on first open
   if (tab==='workorders')      renderMsWOSettings();
-  if (tab==='roles')           renderMsRolesTab();
+  if (tab==='roles')           { renderMsRolesTab(); if (typeof loadAccessPolicy === 'function') loadAccessPolicy(); }
   if (tab==='quoting')         { setTimeout(function(){ renderMarginFloorsEditor(); renderMsPaymentTerms(); }, 50); }
   if (tab==='defaults')        renderMsDefaults();
   if (tab==='inventory')       typeof renderLocationSettings === 'function' && renderLocationSettings();

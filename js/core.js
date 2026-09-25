@@ -3489,6 +3489,34 @@ function saveNotificationSettings() {
   showToast('Notification settings saved ✓', 'success');
 }
 
+// ============================================================
+// NEW-USER ACCESS POLICY (per-company, stored in company_settings)
+// joinPolicy: 'invite_only' (default) | 'open_request'
+// This is a stored company policy. Enforcement of 'open_request'
+// self-registration ships with the multi-company onboarding build;
+// today the app is invite-only regardless (no public sign-up form).
+// The pending-approval gate applies in BOTH modes — a new user never
+// gets access until an owner activates them.
+// ============================================================
+function saveAccessPolicy() {
+  if (!(typeof _currentUser === 'object' && _currentUser && _currentUser.role === 'owner')) {
+    showToast('Only an owner can change the access policy', 'error');
+    return;
+  }
+  var sel = document.getElementById('ms-access-joinpolicy');
+  var val = (sel && sel.value === 'open_request') ? 'open_request' : 'invite_only';
+  DB.settings = Object.assign({}, DB.settings, { joinPolicy: val });
+  saveDB();
+  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
+  showToast('Access policy saved ✓', 'success');
+}
+function loadAccessPolicy() {
+  var sel = document.getElementById('ms-access-joinpolicy');
+  if (!sel) return;
+  var v = (DB.settings && DB.settings.joinPolicy) || 'invite_only';
+  sel.value = (v === 'open_request') ? 'open_request' : 'invite_only';
+}
+
 // Load notification settings into Master Settings page
 function loadNotificationSettings() {
   var s = DB.settings || {};
