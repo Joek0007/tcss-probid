@@ -6076,9 +6076,9 @@ let _invActiveTab = 'items';
 
 function switchInvTab(tab) {
   _invActiveTab = tab;
-  document.querySelectorAll('.inv-tab').forEach(function(b,i){
-    const tabs = ['items','checkout','lowstock'];
-    b.classList.toggle('active', tabs[i] === tab);
+  // Highlight the button whose data-tab matches (robust to tab count changing).
+  document.querySelectorAll('.inv-tab').forEach(function(b){
+    b.classList.toggle('active', (b.getAttribute('data-tab')||'') === tab);
   });
   document.querySelectorAll('.inv-section').forEach(function(s){
     s.classList.toggle('active', s.id === 'inv-' + tab);
@@ -6113,10 +6113,13 @@ function renderInventory() {
   if (catSel) { const cv=catSel.value; catSel.innerHTML='<option value="">All Categories</option>'+cats.map(function(c){return '<option value="'+escHtml(c)+'"'+( c===cv?' selected':'')+'>'+escHtml(c)+'</option>';}).join(''); }
   if (locSel) { const lv=locSel.value; locSel.innerHTML='<option value="">All Locations</option>'+locs.map(function(l){return '<option value="'+escHtml(l)+'"'+(l===lv?' selected':'')+'>'+escHtml(l)+'</option>';}).join(''); }
 
-  // Stats
+  // Stats — reorder count is par-aware (Wave 2a): number of distinct items on the Buy List.
   const totalItems  = DB.inventory.length;
   const coItems     = DB.checkoutLog.filter(function(c){ return !c.returnDate; }).length;
-  const lowItems    = DB.inventory.filter(function(i){ return (i.qty||0) <= (i.minQty||1) && (i.qty||0) >= 0; }).length;
+  const reorderRows = (typeof getReorderList === 'function') ? getReorderList() : [];
+  const lowItems    = reorderRows.length
+        ? new Set(reorderRows.map(function(r){ return r.itemId; })).size
+        : DB.inventory.filter(function(i){ return (i.qty||0) <= (i.minQty||1) && (i.qty||0) >= 0; }).length;
   const uniqueCats  = new Set(DB.inventory.map(function(i){ return i.cat||'General'; })).size;
   function setT(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
   setT('inv-total', totalItems);
@@ -6124,11 +6127,11 @@ function renderInventory() {
   setT('inv-low-count', lowItems);
   setT('inv-categories', uniqueCats);
 
-  // Low stock warning bar
+  // Low stock warning bar — driven off the par-aware Buy List.
   const lowWarn = document.getElementById('inv-low-warn');
   if (lowWarn) {
-    const lowNames = DB.inventory.filter(function(i){ return (i.qty||0) <= (i.minQty||1); }).map(function(i){ return escHtml(i.name); }).slice(0,5);
-    if (lowNames.length > 0) { lowWarn.classList.add('visible'); lowWarn.innerHTML = '⚠️ Low/out of stock: <strong>' + lowNames.join(', ') + (DB.inventory.filter(function(i){return (i.qty||0)<=(i.minQty||1);}).length>5?' + more...':'') + '</strong>'; }
+    const lowNames = [...new Set(reorderRows.map(function(r){ return r.name; }))].slice(0,5).map(escHtml);
+    if (lowNames.length > 0) { lowWarn.classList.add('visible'); lowWarn.innerHTML = '🛒 Below reorder point: <strong>' + lowNames.join(', ') + (lowItems>5?' + '+(lowItems-5)+' more...':'') + '</strong>'; }
     else lowWarn.classList.remove('visible');
   }
 
@@ -6203,23 +6206,9 @@ function renderInventory() {
     }).join('') : '<tr><td colspan="6" class="empty-state"><p>No checkout history.</p></td></tr>';
   }
 
-  // ---- LOW STOCK TAB ----
+  // ---- BUY LIST TAB (Wave 2a) — par-aware reorder list, grouped by vendor ----
   if (tab === 'lowstock') {
-    const lowList = DB.inventory.filter(function(i){ return (i.qty||0) <= (i.minQty||1); });
-    const lowTbl  = document.getElementById('inv-low-tbl');
-    if (lowTbl) lowTbl.innerHTML = lowList.length>0 ? lowList.map(function(item){
-      const gap = Math.max(0, (item.minQty||1) - (item.qty||0));
-      const qtyClass = (item.qty||0)===0 ? 'inv-qty-out' : 'inv-qty-low';
-      return '<tr>'+
-        '<td><span class="asset-tag">'+escHtml(item.tag||'—')+'</span></td>'+
-        '<td style="font-weight:700">'+escHtml(item.name||'')+'</td>'+
-        '<td style="font-size:12px">'+escHtml(item.cat||'General')+'</td>'+
-        '<td><span class="inv-qty-badge '+qtyClass+'">'+(item.qty||0)+'</span></td>'+
-        '<td>'+( item.minQty||1)+'</td>'+
-        '<td style="font-weight:700;color:#c62828">Need '+gap+' more</td>'+
-        '<td><button class="btn btn-outline btn-sm" data-action="editInventoryItem" data-id="'+item.id+'">Restock</button></td>'+
-      '</tr>';
-    }).join('') : '<tr><td colspan="7" class="empty-state"><p>✅ All items above minimum stock levels!</p></td></tr>';
+    if (typeof renderBuyList === 'function') renderBuyList();
   }
 }
 
@@ -6230,7 +6219,8 @@ function newInventoryItem() {
   ['inv-name','inv-cat','inv-item-notes','inv-id','inv-part-num','inv-barcode','inv-mfr','inv-mfr-part','inv-vendor','inv-photo-url','inv-tag','inv-loc']
     .forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
   const setv=function(id,v){ const el=document.getElementById(id); if(el) el.value=v; };
-  setv('inv-qty-shop',0); setv('inv-min',1); setv('inv-cost',0); setv('inv-uom','EA');
+  setv('inv-qty-shop',0); setv('inv-min',1); setv('inv-reorder-max',0); setv('inv-cost',0); setv('inv-uom','EA');
+  if (typeof _renderInvLocParsEditor==='function') _renderInvLocParsEditor({});
   const typeEl=document.getElementById('inv-type'); if(typeEl) typeEl.value='stock';
   const retEl=document.getElementById('inv-returnable'); if(retEl) retEl.checked=false;
   const actEl=document.getElementById('inv-active'); if(actEl) actEl.checked=true;

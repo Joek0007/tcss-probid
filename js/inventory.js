@@ -695,28 +695,220 @@ function deleteLocation(id) {
   renderLocationSettings();
 }
 
-// ---- REORDER DASHBOARD ALERTS ----
+// ---- REORDER / BUY LIST (Wave 2a) ----
+// Par-aware reorder engine. Each item can carry per-location par levels (locPars: {locId:{min,max}})
+// or fall back to a global reorder point (minQty) + par (reorderMax). Reorder math runs off
+// AVAILABLE (on-hand − reserved); reserved is 0 until Wave 2c wires committed stock, so this
+// auto-refines when reservations land — no rework here.
 
-function getLowStockItems() {
-  return (DB.inventory||[]).filter(function(item){
-    return getTotalQty(item) <= (item.minQty||0) && (item.minQty||0) > 0;
+// Reserved (committed to a WO) at a location. Wave 2c fills _reservedStockAt(); until then, 0.
+function _reservedAtLocation(itemId, locId) {
+  if (typeof _reservedStockAt === 'function') return parseFloat(_reservedStockAt(itemId, locId)) || 0;
+  return 0;
+}
+function _availableAtLocation(item, locId) {
+  return getItemQtyAtLocation(item, locId) - _reservedAtLocation(item.id, locId);
+}
+function _availableTotal(item) {
+  var loc = item.locations || {};
+  return Object.keys(loc).reduce(function(s,k){ return s + _availableAtLocation(item, k); }, 0);
+}
+
+// Resolve the item master (catalog row) for a derived inventory row or id — the master carries
+// locPars / reorderMax / vendor, which the lightweight DB.inventory row does not.
+function _itemMaster(idOrItem) {
+  var id = (idOrItem && idOrItem.id != null) ? idOrItem.id : idOrItem;
+  return (DB.catalog||[]).find(function(c){ return String(c.id) === String(id); });
+}
+
+// Build the reorder list. Returns one row per shortfall:
+//   {itemId,name,cat,vendor,cost,partNum,scope('total'|locId),locName,onHand,available,
+//    reorderPoint,par,onOrder,suggested}
+function getReorderList() {
+  var rows = [];
+  (DB.catalog||[]).forEach(function(m){
+    if (!m || !m.tracked || m.active === false) return;
+    var vendor  = m.vendor || '';
+    var cost    = (m.mc != null ? m.mc : (m.cost || 0));
+    var onOrder = (typeof _invOnOrder === 'function') ? _invOnOrder(m) : 0;
+    var pars    = m.locPars || {};
+    var parLocs = Object.keys(pars).filter(function(k){ var p=pars[k]||{}; return (parseFloat(p.min)||0) > 0 || (parseFloat(p.max)||0) > 0; });
+
+    if (parLocs.length) {
+      // Per-location evaluation: each location with a par is checked independently.
+      parLocs.forEach(function(locId){
+        var p    = pars[locId] || {};
+        var min  = parseFloat(p.min) || 0;
+        var par  = parseFloat(p.max) || 0;
+        var avail= _availableAtLocation(m, locId);
+        var trip = (par > 0 ? par : min);           // reorder when at/below the reorder point
+        if (avail <= min && trip > avail) {
+          rows.push({ itemId:m.id, name:m.name||'', cat:m.cat||'General', vendor:vendor, cost:cost,
+            partNum:m.partNum||m.part||'', scope:locId, locName:getLocationName(locId),
+            onHand:getItemQtyAtLocation(m, locId), available:avail, reorderPoint:min, par:trip,
+            onOrder:onOrder, suggested:Math.max(0, Math.round((trip - avail) * 100) / 100) });
+        }
+      });
+    } else {
+      // Total (all-locations) evaluation against the global reorder point.
+      var min = parseFloat(m.minQty) || 0;
+      if (min <= 0) return;
+      var avail = _availableTotal(m);
+      if (avail <= min) {
+        var par  = (parseFloat(m.reorderMax) || 0) > 0 ? parseFloat(m.reorderMax) : min;
+        var need = Math.max(0, par - avail - onOrder);   // don't re-order what's already on a PO
+        rows.push({ itemId:m.id, name:m.name||'', cat:m.cat||'General', vendor:vendor, cost:cost,
+          partNum:m.partNum||m.part||'', scope:'total', locName:'All locations',
+          onHand:getTotalQty(m), available:avail, reorderPoint:min, par:par,
+          onOrder:onOrder, suggested:Math.round(need * 100) / 100 });
+      }
+    }
   });
+  return rows;
+}
+
+// Legacy name kept for callers (dashboard etc.): distinct items needing reorder.
+function getLowStockItems() {
+  var ids = {}; var out = [];
+  getReorderList().forEach(function(r){ if (!ids[r.itemId]) { ids[r.itemId]=1; var m=_itemMaster(r.itemId); if(m) out.push(m); } });
+  return out;
 }
 
 function renderDashReorderAlert() {
-  var lowItems = getLowStockItems();
+  var rows = getReorderList();
   var el = document.getElementById('dash-reorder-alert');
   if (!el) return;
-  if (!lowItems.length) { el.style.display='none'; return; }
+  var names = [...new Set(rows.map(function(r){ return r.name; }))];
+  if (!names.length) { el.style.display='none'; return; }
   el.style.display = '';
   el.innerHTML =
-    '<div style="background:#fff3e0;border:1px solid #ffe082;border-radius:10px;padding:14px 18px;cursor:pointer" onclick="goPage(\'inventory\')">'+
-      '<div style="font-weight:700;color:#e65100;margin-bottom:6px">⚠️ '+lowItems.length+' Item'+(lowItems.length!==1?'s':'')+' Below Reorder Point</div>'+
+    '<div style="background:#fff3e0;border:1px solid #ffe082;border-radius:10px;padding:14px 18px;cursor:pointer" onclick="goPage(\'inventory\');if(typeof switchInvTab===\'function\')switchInvTab(\'lowstock\')">'+
+      '<div style="font-weight:700;color:#e65100;margin-bottom:6px">🛒 '+names.length+' Item'+(names.length!==1?'s':'')+' Below Reorder Point</div>'+
       '<div style="font-size:12px;color:#546e7a">'+
-        lowItems.slice(0,5).map(function(i){ return escHtml(i.name)+' ('+getTotalQty(i)+' left)'; }).join(' · ')+
-        (lowItems.length>5?' + '+(lowItems.length-5)+' more...':'')+
+        names.slice(0,5).map(function(n){ return escHtml(n); }).join(' · ')+
+        (names.length>5?' + '+(names.length-5)+' more...':'')+
       '</div>'+
     '</div>';
+}
+
+// ---- BUY LIST VIEW (inventory "Buy List" tab) ----
+function renderBuyList() {
+  var host = document.getElementById('inv-buylist');
+  if (!host) return;
+  var rows = getReorderList();
+  if (!rows.length) {
+    host.innerHTML = '<div class="card"><div class="empty-state" style="padding:40px"><p style="font-size:15px">✅ Everything is at or above its reorder point.</p><p style="font-size:12px;color:#90a4ae">Set a reorder point (and optional par) on an item, or per-location levels for trucks, to have it show up here when it runs low.</p></div></div>';
+    return;
+  }
+  // Group by vendor (blank vendor → "Unassigned").
+  var groups = {};
+  rows.forEach(function(r){ var v = r.vendor || '— No preferred vendor —'; (groups[v]=groups[v]||[]).push(r); });
+  var vendorNames = Object.keys(groups).sort(function(a,b){ return a.localeCompare(b); });
+  var totalItems = new Set(rows.map(function(r){ return r.itemId; })).size;
+  var estCost = rows.reduce(function(s,r){ return s + (r.suggested * r.cost); }, 0);
+
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">'+
+      '<div style="font-size:13px;color:#546e7a">'+totalItems+' item'+(totalItems!==1?'s':'')+' to reorder across '+vendorNames.length+' vendor group'+(vendorNames.length!==1?'s':'')+' · est. <strong>$'+estCost.toFixed(2)+'</strong></div>'+
+    '</div>';
+
+  vendorNames.forEach(function(vname){
+    var list = groups[vname];
+    var vendorCost = list.reduce(function(s,r){ return s + (r.suggested*r.cost); }, 0);
+    var hasVendor = vname !== '— No preferred vendor —';
+    html += '<div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#f7f9fc;border-bottom:1px solid #eceff1">'+
+        '<div style="font-weight:700;font-size:13px">'+escHtml(vname)+' <span style="color:#90a4ae;font-weight:400">· '+list.length+' line'+(list.length!==1?'s':'')+' · $'+vendorCost.toFixed(2)+'</span></div>'+
+        (hasVendor ? '<button class="btn btn-primary btn-sm" onclick="createPOFromBuyList('+JSON.stringify(vname).replace(/"/g,'&quot;')+')">➜ Create Draft PO</button>' : '')+
+      '</div>'+
+      '<table><thead><tr>'+
+        '<th>Item</th><th>Location</th><th>Avail</th><th>Reorder&nbsp;pt</th><th>Par</th><th>On&nbsp;order</th><th>Suggest&nbsp;order</th><th></th>'+
+      '</tr></thead><tbody>'+
+      list.map(function(r){
+        return '<tr>'+
+          '<td><div style="font-weight:700;font-size:13px">'+escHtml(r.name)+'</div>'+(r.partNum?'<div style="font-size:11px;color:#90a4ae">'+escHtml(r.partNum)+'</div>':'')+'</td>'+
+          '<td style="font-size:12px">'+escHtml(r.locName)+'</td>'+
+          '<td><span class="inv-qty-badge '+(r.available<=0?'inv-qty-out':'inv-qty-low')+'">'+r.available+'</span></td>'+
+          '<td style="font-size:12px">'+r.reorderPoint+'</td>'+
+          '<td style="font-size:12px">'+r.par+'</td>'+
+          '<td style="font-size:12px;color:'+(r.onOrder>0?'#1565c0':'#b0bec5')+'">'+(r.onOrder>0?r.onOrder:'—')+'</td>'+
+          '<td style="font-weight:700;color:#2e7d32">'+r.suggested+'</td>'+
+          '<td><button class="btn btn-ghost btn-sm" data-action="editInventoryItem" data-id="'+r.itemId+'">Edit</button></td>'+
+        '</tr>';
+      }).join('')+
+      '</tbody></table>'+
+    '</div>';
+  });
+  host.innerHTML = html;
+}
+
+// Spin up a Draft PO pre-filled with a vendor group's suggested lines, reusing the PO module.
+function createPOFromBuyList(vendorName) {
+  if (typeof openNewPO !== 'function') { showToast('Purchase orders unavailable','error'); return; }
+  var rows = getReorderList().filter(function(r){ return (r.vendor||'') === vendorName; });
+  if (!rows.length) { showToast('Nothing to order for this vendor','error'); return; }
+  openNewPO();
+  // Match a saved vendor by name to preselect the dropdown (item vendor is a free-text name).
+  var v = (DB.vendors||[]).find(function(x){ return (x.name||'').trim().toLowerCase() === vendorName.trim().toLowerCase() && x.active!==false; });
+  var vSel = document.getElementById('po-vendor');
+  if (v && vSel) { vSel.value = v.id; if (typeof onPOVendorChange==='function') onPOVendorChange(v.id); }
+  // Collapse multiple location shortfalls for the same item into one PO line.
+  var byItem = {};
+  rows.forEach(function(r){
+    var e = byItem[r.itemId] || (byItem[r.itemId] = { desc:r.name, partNum:r.partNum, qtyOrdered:0, qtyReceived:0, unitCost:r.cost });
+    e.qtyOrdered += r.suggested;
+  });
+  if (typeof _poItems === 'undefined') { window._poItems = []; }
+  _poItems = Object.keys(byItem).map(function(id, i){ var e=byItem[id]; e._eid=i; e.qtyOrdered=Math.round(e.qtyOrdered*100)/100; return e; });
+  if (typeof renderPOItems === 'function') renderPOItems();
+  if (typeof refreshPOTotals === 'function') refreshPOTotals();
+  showToast(_poItems.length+' line'+(_poItems.length!==1?'s':'')+' added — review & save the PO','success');
+}
+
+// ---- PER-LOCATION REORDER LEVELS (item modal, Wave 2a) ----
+function toggleInvLocPars() {
+  var panel = document.getElementById('inv-locpars-panel');
+  var btn = document.getElementById('inv-locpars-toggle');
+  if (!panel) return;
+  var isHidden = (panel.style.display === 'none' || panel.style.display === '');
+  panel.style.display = isHidden ? 'block' : 'none';
+  if (btn) btn.textContent = (isHidden ? '▾' : '▸') + ' Per-location reorder levels (trucks)';
+}
+
+// Render the per-location min/par editor. Shows every location; pre-fills saved overrides.
+function _renderInvLocParsEditor(pars) {
+  var panel = document.getElementById('inv-locpars-panel');
+  var btn = document.getElementById('inv-locpars-toggle');
+  if (!panel) return;
+  pars = pars || {};
+  panel.style.display = 'none';                 // always collapsed on open — keeps the quick path clean
+  if (btn) btn.textContent = '▸ Per-location reorder levels (trucks)';
+  var locs = getLocations();
+  panel.innerHTML =
+    '<div style="font-size:11px;color:#90a4ae;margin-bottom:6px">Optional. Set a reorder point and par (bring-to level) for specific trucks/locations. Leave blank to use the global reorder point above. Truck replenishment restocks to par.</div>'+
+    '<table style="width:100%;font-size:12px"><thead><tr style="color:#607d8b;text-align:left">'+
+      '<th style="padding:2px 6px">Location</th><th style="padding:2px 6px;width:90px">Reorder at</th><th style="padding:2px 6px;width:90px">Par (max)</th></tr></thead><tbody>'+
+    locs.map(function(l){
+      var p = pars[l.id] || {};
+      return '<tr>'+
+        '<td style="padding:2px 6px">'+escHtml(l.name)+'</td>'+
+        '<td style="padding:2px 6px"><input type="number" min="0" step="0.01" id="inv-locpar-min-'+escHtml(l.id)+'" value="'+(p.min!=null&&p.min!==0?p.min:'')+'" placeholder="—" style="width:80px;padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px"></td>'+
+        '<td style="padding:2px 6px"><input type="number" min="0" step="0.01" id="inv-locpar-max-'+escHtml(l.id)+'" value="'+(p.max!=null&&p.max!==0?p.max:'')+'" placeholder="—" style="width:80px;padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px"></td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table>';
+}
+
+// Read the per-location editor back into a locPars map. Only keeps locations with a min or par set.
+function _readInvLocParsFromForm() {
+  var out = {};
+  getLocations().forEach(function(l){
+    var minEl = document.getElementById('inv-locpar-min-'+l.id);
+    var maxEl = document.getElementById('inv-locpar-max-'+l.id);
+    var min = minEl ? (parseFloat(minEl.value)||0) : 0;
+    var max = maxEl ? (parseFloat(maxEl.value)||0) : 0;
+    if (min > 0 || max > 0) out[l.id] = { min:min, max:max };
+  });
+  return out;
 }
 
 // ---- HOOK INTO EXISTING renderInventory TO ADD LOCATION COLUMNS ----
@@ -779,7 +971,9 @@ function saveInventoryItemV2() {
   master.barcode      = gv('inv-barcode');
   master.returnable   = isStock && !!(document.getElementById('inv-returnable')||{}).checked;
   master.locations    = locations;
-  master.minQty       = isStock ? (parseInt((document.getElementById('inv-min')||{}).value)||0) : 0;
+  master.minQty       = isStock ? (parseFloat((document.getElementById('inv-min')||{}).value)||0) : 0;
+  master.reorderMax   = isStock ? (parseFloat((document.getElementById('inv-reorder-max')||{}).value)||0) : 0;
+  master.locPars      = isStock ? _readInvLocParsFromForm() : {};
   master.mc           = parseFloat((document.getElementById('inv-cost')||{}).value)||0;
   master.cost         = master.mc;
   master.notes        = gv('inv-item-notes');
@@ -791,7 +985,8 @@ function saveInventoryItemV2() {
     _pushInventoryToCloud({ id:master.id, name:master.name, cat:master.cat, unit:master.unit,
       partNum:master.partNum, barcode:master.barcode, manufacturer:master.manufacturer, mfrPart:master.mfrPart,
       vendor:master.vendor, photoUrl:master.photoUrl, returnable:master.returnable, locations:master.locations,
-      minQty:master.minQty, cost:master.mc, notes:master.notes, itemType:master.itemType,
+      minQty:master.minQty, reorderMax:master.reorderMax, locPars:master.locPars,
+      cost:master.mc, notes:master.notes, itemType:master.itemType,
       tracked:master.tracked, active:master.active });
   }
   closeModal('modal-inv-item');
@@ -820,6 +1015,7 @@ function editInventoryItem(id) {
   sv('inv-barcode', m.barcode||'');
   sv('inv-qty-shop',getItemQtyAtLocation(m,'loc-shop'));
   sv('inv-min',     m.minQty||0);
+  sv('inv-reorder-max', m.reorderMax||0);
   sv('inv-cost',    (m.mc!=null?m.mc:(m.cost||0)));
   sv('inv-item-notes',m.notes||'');
   sv('inv-id',      m.id);
@@ -832,6 +1028,7 @@ function editInventoryItem(id) {
   if (typeof _populateInvVendorList === 'function') _populateInvVendorList();
   if (typeof invTypeChanged === 'function') invTypeChanged();
   _renderInvOnOrder(m);
+  _renderInvLocParsEditor(m.locPars || {});   // reset panel collapsed, populated from saved pars
   openModal('modal-inv-item');
 }
 
