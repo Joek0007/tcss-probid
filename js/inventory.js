@@ -363,8 +363,14 @@ function renderReceivingModal(po) {
   else if (po.jobId) { var j=(typeof _findJobOrWO==="function"?_findJobOrWO(po.jobId):(DB.jobs||[]).find(function(x){return x.id===po.jobId;})); if(j) woLabel=j.num||''; }
 
   var rows = _receivingLines.map(function(rl,i){
+    // Wave 2d: if this item buys in a different unit than it stocks, show the conversion so the receiver
+    // knows the entered (purchase-unit) qty becomes qty×factor in stock.
+    var _rlItem = (DB.inventory||[]).find(function(inv){ return (inv.name||'').toLowerCase()===(rl.desc||'').toLowerCase() || (inv.tag&&inv.tag===(rl.partNum||'')); });
+    var _rlM = _rlItem ? _itemMaster(_rlItem.id) : null;
+    var _rlF = (_rlM && parseFloat(_rlM.conversionFactor) > 0) ? parseFloat(_rlM.conversionFactor) : 1;
+    var _convNote = (_rlF > 1 && _rlM) ? '<br><span style="font-size:11px;color:#2e7d32;font-weight:600">1 '+escHtml(_rlM.purchaseUnit||'unit')+' = '+_rlF+' '+escHtml(_rlM.unit||'ea')+' → stock gets qty × '+_rlF+'</span>' : '';
     return '<tr>'+
-      '<td style="padding:10px 12px;font-size:13px;font-weight:600">'+escHtml(rl.desc)+'<br><span style="font-size:11px;color:#90a4ae">'+escHtml(rl.partNum)+'</span></td>'+
+      '<td style="padding:10px 12px;font-size:13px;font-weight:600">'+escHtml(rl.desc)+'<br><span style="font-size:11px;color:#90a4ae">'+escHtml(rl.partNum)+'</span>'+_convNote+'</td>'+
       '<td style="padding:10px 12px;text-align:center;font-size:13px">'+rl.qtyOrdered+'</td>'+
       '<td style="padding:10px 12px;text-align:center">'+
         '<input type="number" value="'+rl.arriving+'" min="0" max="'+(rl.qtyOrdered-rl.qtyReceived)+'" step="1" '+
@@ -440,15 +446,20 @@ function confirmReceiving() {
              (inv.tag&&inv.tag===(rl.partNum||''));
     });
 
+    // Wave 2d: UoM conversion. Received quantities are in PURCHASE units; convert to STOCK units by the
+    // item's conversion factor (1 = no conversion). Buy a box, stock/issue by the foot.
+    var _master = invItem ? _itemMaster(invItem.id) : null;
+    var _factor = (_master && parseFloat(_master.conversionFactor) > 0) ? parseFloat(_master.conversionFactor) : 1;
+
     // Add to stock location (adjustItemQty write-through pushes the item to the cloud)
     if (rl.toStock > 0) {
       if (invItem) {
-        adjustItemQty(invItem.id, rl.stockLocId, rl.toStock);
+        adjustItemQty(invItem.id, rl.stockLocId, rl.toStock * _factor);
       }
       // Note: if no matching inv item, stock goes untracked — user should add item first
     }
 
-    // Add to WO
+    // Add to WO (also in stock/issue units)
     if (rl.toWO > 0 && (po.woId || po.jobId)) {
       var woId = po.woId || (po.jobId && (typeof _findJobOrWO==="function"?_findJobOrWO(po.jobId):(DB.jobs||[]).find(function(j){return j.id===po.jobId;}))||{}).woId;
       if (woId) {
@@ -458,7 +469,8 @@ function confirmReceiving() {
           woId:        woId,
           name:        rl.desc||'',
           partNum:     rl.partNum||'',
-          qty:         rl.toWO,
+          qty:         rl.toWO * _factor,
+          unitCost:    (_factor>1 && _master) ? ((parseFloat(_master.mc)||0)) : (rl.unitCost||undefined),
           status:      'received',
           requestedBy: 'PO '+po.poNumber,
           poId:        po.id,
@@ -1149,6 +1161,11 @@ function saveInventoryItemV2() {
   master.minQty       = isStock ? (parseFloat((document.getElementById('inv-min')||{}).value)||0) : 0;
   master.reorderMax   = isStock ? (parseFloat((document.getElementById('inv-reorder-max')||{}).value)||0) : 0;
   master.locPars      = isStock ? _readInvLocParsFromForm() : {};
+  // Wave 2d: UoM purchase→stock conversion. purchaseUnit = how you buy; unit (above) = stock/issue unit;
+  // conversionFactor = stock units per one purchase unit (1 = buy & stock the same).
+  master.purchaseUnit     = isStock ? gv('inv-purchase-unit') : '';
+  master.conversionFactor = isStock ? (parseFloat((document.getElementById('inv-conv-factor')||{}).value)||1) : 1;
+  if (!(master.conversionFactor > 0)) master.conversionFactor = 1;
   master.mc           = parseFloat((document.getElementById('inv-cost')||{}).value)||0;
   master.cost         = master.mc;
   master.notes        = gv('inv-item-notes');
@@ -1161,6 +1178,7 @@ function saveInventoryItemV2() {
       partNum:master.partNum, barcode:master.barcode, manufacturer:master.manufacturer, mfrPart:master.mfrPart,
       vendor:master.vendor, photoUrl:master.photoUrl, returnable:master.returnable, locations:master.locations,
       minQty:master.minQty, reorderMax:master.reorderMax, locPars:master.locPars,
+      purchaseUnit:master.purchaseUnit, conversionFactor:master.conversionFactor,
       cost:master.mc, notes:master.notes, itemType:master.itemType,
       tracked:master.tracked, active:master.active });
   }
@@ -1191,6 +1209,8 @@ function editInventoryItem(id) {
   sv('inv-qty-shop',getItemQtyAtLocation(m,'loc-shop'));
   sv('inv-min',     m.minQty||0);
   sv('inv-reorder-max', m.reorderMax||0);
+  sv('inv-purchase-unit', m.purchaseUnit||'');
+  sv('inv-conv-factor', (m.conversionFactor!=null?m.conversionFactor:1));
   sv('inv-cost',    (m.mc!=null?m.mc:(m.cost||0)));
   sv('inv-item-notes',m.notes||'');
   sv('inv-id',      m.id);
@@ -1204,7 +1224,21 @@ function editInventoryItem(id) {
   if (typeof invTypeChanged === 'function') invTypeChanged();
   _renderInvOnOrder(m);
   _renderInvLocParsEditor(m.locPars || {});   // reset panel collapsed, populated from saved pars
+  if (typeof _updateConvHint === 'function') _updateConvHint();
   openModal('modal-inv-item');
+}
+
+// Wave 2d: live conversion hint in the item modal, e.g. "1 Box = 100 ft".
+function _updateConvHint() {
+  var hint = document.getElementById('inv-conv-hint'); if (!hint) return;
+  var pu = ((document.getElementById('inv-purchase-unit')||{}).value||'').trim();
+  var f  = parseFloat((document.getElementById('inv-conv-factor')||{}).value)||1;
+  var su = ((document.getElementById('inv-uom')||{}).value||'ea').trim() || 'ea';
+  if (pu && f > 0 && (f !== 1 || pu.toLowerCase() !== su.toLowerCase())) {
+    hint.textContent = '1 ' + pu + ' = ' + f + ' ' + su;
+  } else {
+    hint.textContent = '';
+  }
 }
 
 // Show/hide the stock-only fields based on the selected item type.

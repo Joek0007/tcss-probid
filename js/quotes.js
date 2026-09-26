@@ -6221,7 +6221,9 @@ function newInventoryItem() {
     .forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
   const setv=function(id,v){ const el=document.getElementById(id); if(el) el.value=v; };
   setv('inv-qty-shop',0); setv('inv-min',1); setv('inv-reorder-max',0); setv('inv-cost',0); setv('inv-uom','EA');
+  setv('inv-purchase-unit',''); setv('inv-conv-factor',1);
   if (typeof _renderInvLocParsEditor==='function') _renderInvLocParsEditor({});
+  if (typeof _updateConvHint==='function') _updateConvHint();
   const typeEl=document.getElementById('inv-type'); if(typeEl) typeEl.value='stock';
   const retEl=document.getElementById('inv-returnable'); if(retEl) retEl.checked=false;
   const actEl=document.getElementById('inv-active'); if(actEl) actEl.checked=true;
