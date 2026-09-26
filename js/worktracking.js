@@ -8149,6 +8149,7 @@ document.addEventListener('click', function(e) {
     case 'editInventoryItem':  editInventoryItem(id); break;
     case 'saveInventoryItem':  saveInventoryItem(); break;
     case 'delInventoryItem':   delInventoryItem(id); break;
+    case 'openAdjustQty':      openAdjustQty(id); break;
     case 'checkoutItem':       checkoutItem(id); break;
     case 'confirmCheckout':    confirmCheckout(); break;
     case 'checkinItem':        checkinItem(id); break;

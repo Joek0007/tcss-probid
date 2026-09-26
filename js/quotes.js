@@ -6110,6 +6110,7 @@ function renderInventory() {
     if (!tbl) return;
     if (!list.length) { tbl.innerHTML='<tr><td colspan="7" class="empty-state"><p>'+(DB.inventory.length?'No items match filter.':'No items yet. Click + Add Item to get started.')+'</p></td></tr>'; return; }
 
+    const canAdjust = (typeof hasPermission==='function') ? hasPermission('inv.adjust') : true;
     tbl.innerHTML = list.map(function(item){
       const qty      = item.qty||0;
       const min      = item.minQty||1;
@@ -6125,6 +6126,7 @@ function renderInventory() {
         '<td>'+(activeCoCount>0?'<span class="checkout-badge co-out">'+activeCoCount+' Out</span>':'<span class="checkout-badge co-in">Available</span>')+'</td>' +
         '<td style="white-space:nowrap">' +
           '<button class="btn btn-outline btn-sm" data-action="checkoutItem" data-id="'+item.id+'" title="Check Out">↗ Out</button> ' +
+          (canAdjust ? '<button class="btn btn-outline btn-sm" data-action="openAdjustQty" data-id="'+item.id+'" title="Correct on-hand quantity">± Adjust</button> ' : '') +
           '<button class="btn btn-ghost btn-sm" data-action="editInventoryItem" data-id="'+item.id+'">Edit</button> ' +
           '<button class="btn btn-danger btn-sm" data-action="delInventoryItem" data-id="'+item.id+'">Del</button>' +
         '</td></tr>';

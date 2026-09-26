@@ -1349,6 +1349,10 @@ var PERM_DEFS = [
   {key:'vehicles.report_issue', label:'Report a Vehicle Issue (field)', group:'Vehicles', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,project_manager:1,helper_tech:1,subcontractor:1}},
   {key:'vehicles.issues.manage',label:'Manage / Resolve Vehicle Issues',group:'Vehicles', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,project_manager:1,helper_tech:0,subcontractor:0}},
 
+  // ── Inventory ───────────────────────────────────────────────────────────────
+  {key:'inv.adjust',      label:'Adjust / Correct Stock Counts', group:'Inventory', fixed:false, defaults:{owner:1,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'invoice.adjustmarkup', label:'Change Parts Markup at Invoice', group:'Inventory', fixed:false, defaults:{owner:1,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+
   // ── Page Access — controls nav visibility ──────────────────────────────────
   {key:'page.qq',          label:'Quick Quote Page',      group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'page.quotes',      label:'Quotes Page',           group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},

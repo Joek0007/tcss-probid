@@ -4197,6 +4197,38 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   </div>
 </div>
 
+<!-- QUANTITY CORRECTION MODAL (Wave 1a) -->
+<div class="modal-overlay" id="modal-inv-adjust" data-no-backdrop-close>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="inv-adjust-title">Adjust Quantity</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-inv-adjust">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="inv-adjust-sub" style="color:#607d8b;font-size:13px;margin-bottom:14px"></div>
+      <div class="form-row"><div>
+        <label>Reason *</label>
+        <select id="inv-adjust-reason">
+          <option value="Count correction">Count correction (physical count)</option>
+          <option value="Damaged">Damaged</option>
+          <option value="Lost / Shrinkage">Lost / Shrinkage</option>
+          <option value="Found">Found</option>
+          <option value="Initial stock">Initial stock</option>
+          <option value="Returned to stock">Returned to stock</option>
+          <option value="Other">Other</option>
+        </select>
+      </div></div>
+      <div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin:14px 0 6px">Quantity by location</div>
+      <div id="inv-adjust-rows"></div>
+      <input type="hidden" id="inv-adjust-id">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-inv-adjust">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAdjustQty()">Save Adjustment</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOOL ITEM MODAL -->
 <div class="modal-overlay" id="modal-tool-item">
   <div class="modal-box">
@@ -6668,27 +6700,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919ey with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919ez with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919ey"></script>
-<script src="js/quotes.js?v=20260919ey"></script>
-<script src="js/tools.js?v=20260919ey"></script>
-<script src="js/field.js?v=20260919ey"></script>
-<script src="js/crm.js?v=20260919ey"></script>
-<script src="js/vehicles.js?v=20260919ey"></script>
-<script src="js/dispatch.js?v=20260919ey"></script>
-<script src="js/permissions.js?v=20260919ey"></script>
-<script src="js/worktracking.js?v=20260919ey"></script>
-<script src="js/calendar.js?v=20260919ey"></script>
-<script src="js/workorders.js?v=20260919ey"></script>
-<script src="js/purchaseorders.js?v=20260919ey"></script>
-<script src="js/inventory.js?v=20260919ey"></script>
-<script src="js/reports.js?v=20260919ey"></script>
-<script src="js/recyclebin.js?v=20260919ey"></script>
-<script src="js/contracts.js?v=20260919ey"></script>
-  <script src="js/recurring.js?v=20260919ey"></script>
-  <script src="js/seed_managed.js?v=20260919ey"></script>
-  <script src="js/auth.js?v=20260919ey"></script>
+<script src="js/core.js?v=20260919ez"></script>
+<script src="js/quotes.js?v=20260919ez"></script>
+<script src="js/tools.js?v=20260919ez"></script>
+<script src="js/field.js?v=20260919ez"></script>
+<script src="js/crm.js?v=20260919ez"></script>
+<script src="js/vehicles.js?v=20260919ez"></script>
+<script src="js/dispatch.js?v=20260919ez"></script>
+<script src="js/permissions.js?v=20260919ez"></script>
+<script src="js/worktracking.js?v=20260919ez"></script>
+<script src="js/calendar.js?v=20260919ez"></script>
+<script src="js/workorders.js?v=20260919ez"></script>
+<script src="js/purchaseorders.js?v=20260919ez"></script>
+<script src="js/inventory.js?v=20260919ez"></script>
+<script src="js/reports.js?v=20260919ez"></script>
+<script src="js/recyclebin.js?v=20260919ez"></script>
+<script src="js/contracts.js?v=20260919ez"></script>
+  <script src="js/recurring.js?v=20260919ez"></script>
+  <script src="js/seed_managed.js?v=20260919ez"></script>
+  <script src="js/auth.js?v=20260919ez"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

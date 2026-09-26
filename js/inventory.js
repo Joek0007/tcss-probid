@@ -817,3 +817,87 @@ parseImportCSV = function(text) {
 
 // Add "Receive Items" button to PO list rows — hook into renderPOList
 var _origRenderPOList = typeof renderPOList !== 'undefined' ? renderPOList : null;
+
+// ============================================================
+// Wave 1a — Quantity Correction modal (dedicated stock adjust)
+// ============================================================
+// Corrects on-hand at ANY location with a required reason, writes an audit trail, and syncs via the
+// record_stock_adjustment RPC (active-user-safe; the button itself is gated by the inv.adjust
+// permission — owner auto, others grantable in Settings → Customize Access).
+
+function openAdjustQty(itemId) {
+  if (typeof hasPermission === 'function' && !hasPermission('inv.adjust')) {
+    showToast('You don’t have permission to adjust stock counts.', 'error'); return;
+  }
+  var m = (DB.catalog || []).find(function(c){ return String(c.id) === String(itemId); });
+  if (!m) { showToast('Item not found', 'error'); return; }
+  var titleEl = document.getElementById('inv-adjust-title');
+  var subEl   = document.getElementById('inv-adjust-sub');
+  if (titleEl) titleEl.textContent = 'Adjust Quantity';
+  if (subEl)   subEl.innerHTML = '<strong>' + escHtml(m.name || '') + '</strong>' +
+    (m.partNum ? ' <span style="color:#90a4ae">· ' + escHtml(m.partNum) + '</span>' : '');
+  var idEl = document.getElementById('inv-adjust-id'); if (idEl) idEl.value = m.id;
+  var reasonEl = document.getElementById('inv-adjust-reason'); if (reasonEl) reasonEl.value = 'Count correction';
+
+  var locs = getLocations();
+  var rowsEl = document.getElementById('inv-adjust-rows');
+  if (rowsEl) rowsEl.innerHTML = locs.map(function(l){
+    var cur = getItemQtyAtLocation(m, l.id);
+    return '<div style="display:grid;grid-template-columns:1fr 90px 110px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid #f0f4f8">' +
+      '<div style="font-size:13px">' + escHtml(l.name) + '</div>' +
+      '<div style="font-size:12px;color:#607d8b;text-align:right">on hand: <strong>' + cur + '</strong></div>' +
+      '<div><input type="number" step="any" min="0" value="' + cur + '" ' +
+        'id="adj-' + escHtml(l.id) + '" data-loc="' + escHtml(l.id) + '" data-old="' + cur + '" ' +
+        'style="width:100%;padding:6px;border:1px solid #e0e7ef;border-radius:6px;text-align:right;font-size:13px"></div>' +
+    '</div>';
+  }).join('');
+  openModal('modal-inv-adjust');
+}
+
+async function saveAdjustQty() {
+  var id = (document.getElementById('inv-adjust-id') || {}).value || '';
+  var m  = (DB.catalog || []).find(function(c){ return String(c.id) === String(id); });
+  if (!m) { showToast('Item not found', 'error'); return; }
+  if (typeof hasPermission === 'function' && !hasPermission('inv.adjust')) {
+    showToast('You don’t have permission to adjust stock counts.', 'error'); return;
+  }
+  var reason = (document.getElementById('inv-adjust-reason') || {}).value || 'Count correction';
+  var locs = getLocations();
+  var locName = {}; locs.forEach(function(l){ locName[l.id] = l.name; });
+
+  var newLocations = Object.assign({}, m.locations || {});
+  var lines = [];
+  var inputs = document.querySelectorAll('#inv-adjust-rows input[data-loc]');
+  inputs.forEach(function(inp){
+    var locId = inp.getAttribute('data-loc');
+    var oldVal = parseFloat(inp.getAttribute('data-old')) || 0;
+    var newVal = parseFloat(inp.value);
+    if (isNaN(newVal) || newVal < 0) newVal = 0;
+    newLocations[locId] = newVal;
+    if (newVal !== oldVal) {
+      lines.push({ location: locId, location_name: locName[locId] || locId,
+                   old: oldVal, new: newVal, delta: (newVal - oldVal) });
+    }
+  });
+
+  if (!lines.length) { showToast('No changes to save', 'info'); return; }
+
+  // Update the master + re-derive locally.
+  m.locations = newLocations; m.tracked = true;
+  saveDB();
+  if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
+
+  // Persist through the audited RPC.
+  if (_sb && _currentUser) {
+    try {
+      var byName = (_currentUser && (_currentUser.full_name || _currentUser.name)) || 'Unknown';
+      var r = await _sb.rpc('record_stock_adjustment', {
+        p_id: id, p_locations: newLocations, p_reason: reason, p_by_name: byName, p_lines: lines
+      });
+      if (r && r.error) { showToast('Saved locally, cloud sync failed: ' + r.error.message, 'error', 6000); }
+    } catch (e) { showToast('Saved locally, cloud sync failed: ' + (e.message || e), 'error', 6000); }
+  }
+  closeModal('modal-inv-adjust');
+  if (typeof renderInventory === 'function') renderInventory();
+  showToast('Stock adjusted ✓', 'success');
+}
