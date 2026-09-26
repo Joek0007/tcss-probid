@@ -3757,8 +3757,61 @@ function _checkQuoteApprovals() {
   try { localStorage.setItem('tcss_approval_seen', JSON.stringify(seen)); } catch (e) {}
 }
 
+// Vehicle registration / insurance expiration — shared helper.
+// Returns {days, level, label} where level is 'expired' | 'soon' | null.
+// days = whole days until expiry (negative if already past). thresholdDays default 30.
+function _vehExpiryInfo(dateStr, thresholdDays) {
+  if (!dateStr) return { days:null, level:null, label:'' };
+  var thr = (thresholdDays!=null ? thresholdDays : ((DB.settings && DB.settings.vehExpiryDays) || 30));
+  var d = new Date(dateStr + (String(dateStr).length<=10 ? 'T00:00:00' : ''));
+  if (isNaN(d.getTime())) return { days:null, level:null, label:'' };
+  var today = new Date(); today.setHours(0,0,0,0);
+  var days = Math.round((d - today) / 86400000);
+  if (days < 0)  return { days:days, level:'expired', label:'EXPIRED ' + Math.abs(days) + 'd ago' };
+  if (days <= thr) return { days:days, level:'soon', label:(days===0?'expires today':'in ' + days + 'd') };
+  return { days:days, level:null, label:'in ' + days + 'd' };
+}
+
+// Vehicle registration/insurance expiration alerts — office-only in-app bell notification.
+// Fires once per vehicle+field+expiry-date via a localStorage seen-map (so a given
+// expiration only notifies once, not every cycle). Mirrors _checkClockInAnomalies.
+function _checkVehicleExpirations() {
+  if (DB.settings && DB.settings.vehExpiryAlertsEnabled === false) return;
+  var isOffice = typeof _currentUser !== 'undefined' && _currentUser &&
+    ['owner','manager','back_office'].includes(_currentUser.role);
+  if (!isOffice) return;
+  var seen = {};
+  try { seen = JSON.parse(localStorage.getItem('tcss_vehexp_seen') || '{}') || {}; } catch (e) { seen = {}; }
+  var fields = [['registrationExpires','Registration'], ['insuranceExpires','Insurance']];
+  var fired = 0;
+  (DB.vehicles || []).forEach(function(v) {
+    if (!v || v.deleted || v.isActive === false || (v.status||'').toLowerCase()==='sold') return;
+    fields.forEach(function(f) {
+      var dateStr = v[f[0]]; if (!dateStr) return;
+      var info = _vehExpiryInfo(dateStr);
+      if (info.level !== 'expired' && info.level !== 'soon') return;
+      var key = v.id + '|' + f[0] + '|' + dateStr;   // date in key → re-alerts when the date is renewed
+      if (seen[key]) return;
+      seen[key] = 1; fired++;
+      if (typeof addNotification === 'function') {
+        var label = v.number || v.name || 'Vehicle';
+        addNotification(
+          'veh_expiry',
+          (info.level==='expired'?'⛔ ':'📅 ') + f[1] + ' ' + (info.level==='expired'?'expired':'expiring') + ' — ' + label,
+          f[1] + ' for ' + label + ' ' + info.label + ' (' + dateStr + ').',
+          'vehicles'
+        );
+      }
+    });
+  });
+  if (fired) { try { localStorage.setItem('tcss_vehexp_seen', JSON.stringify(seen)); } catch (e) {} }
+}
+
 // Start the clock-in anomaly check interval — runs every 5 min
 function _startNotificationChecks() {
+  // Vehicle registration/insurance expiration alerts — on load + every 6 hours
+  setTimeout(_checkVehicleExpirations, 6000);
+  setInterval(_checkVehicleExpirations, 6*60*60*1000);
   // Run daily low stock check on load
   setTimeout(_checkLowStockDaily, 3000);
   // Run clock-in anomaly check every 5 minutes

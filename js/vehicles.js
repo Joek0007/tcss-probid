@@ -18,6 +18,13 @@ function setVehSort(){ _vehPage = 1; renderVehicles(); }
 var VEH_STATUS_COLORS = { active:'#2e7d32', in_shop:'#e65100', sold:'#546e7a', inactive:'#90a4ae' };
 function _vehStatusColor(s){ return VEH_STATUS_COLORS[(s||'').toLowerCase()] || '#546e7a'; }
 function _vehStatusLabel(s){ s=(s||'').toLowerCase(); return s==='in_shop'?'In Shop':(s?s.charAt(0).toUpperCase()+s.slice(1):'—'); }
+// Profile-row value for an expiry date: appends a plain-text status the row() helper can escape.
+function _vehExpDisplay(dateStr){
+  if(!dateStr) return '';
+  if(typeof _vehExpiryInfo!=='function') return dateStr;
+  var info=_vehExpiryInfo(dateStr);
+  return info.label ? (dateStr+' — '+info.label) : dateStr;
+}
 
 // Per-vehicle WO count for the list card (load-on-demand: WOs aren't all in memory).
 var _vehRollupLoaded=false, _vehRollupBusy=false;
@@ -96,6 +103,13 @@ function renderVehicles(){
   // Open reported-issue counts (nav badge + summary tile)
   var totalOpenIssues = Object.keys(issR).reduce(function(s,k){ return s+(+((issR[k]&&issR[k].cnt)||0)); }, 0);
   setS('vs-issues', totalOpenIssues);
+  // Registration/insurance expiring-soon or expired count (uses the shared _vehExpiryInfo helper)
+  var expCount = all.filter(function(v){
+    var r=(typeof _vehExpiryInfo==='function')?_vehExpiryInfo(v.registrationExpires):{level:null};
+    var i=(typeof _vehExpiryInfo==='function')?_vehExpiryInfo(v.insuranceExpires):{level:null};
+    return r.level==='soon'||r.level==='expired'||i.level==='soon'||i.level==='expired';
+  }).length;
+  setS('vs-expiring', expCount);
   var navB = document.getElementById('veh-nav-badge');
   if (navB){ if (totalOpenIssues>0){ navB.style.display='inline-block'; navB.textContent = totalOpenIssues>99?'99+':String(totalOpenIssues); } else navB.style.display='none'; }
 
@@ -123,9 +137,17 @@ function renderVehicles(){
     if (v.odometer!=null && v.odometer!=='') meta.push('⏱ '+escHtml(Number(v.odometer).toLocaleString())+' mi');
     var openIss = issR && issR[v.id] ? (+issR[v.id].cnt||0) : 0;
     var issBadge = openIss>0 ? ' <span style="background:#ffebee;color:#c62828;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700" title="Open reported issues">⚠️ '+openIss+'</span>' : '';
+    // Registration / insurance expiry badges (amber = expiring soon, red = expired)
+    var _ebFn = function(info,lbl){
+      if(!info) return '';
+      if(info.level==='expired') return ' <span style="background:#ffebee;color:#c62828;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700" title="'+lbl+' expired ('+escHtml(info.label)+')">⛔ '+lbl+'</span>';
+      if(info.level==='soon')    return ' <span style="background:#fff8e1;color:#f57f17;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700" title="'+lbl+' '+escHtml(info.label)+'">📅 '+lbl+' '+escHtml(info.label)+'</span>';
+      return '';
+    };
+    var expBadge = (typeof _vehExpiryInfo==='function') ? (_ebFn(_vehExpiryInfo(v.registrationExpires),'Reg')+_ebFn(_vehExpiryInfo(v.insuranceExpires),'Ins')) : '';
     return '<div class="cust-card">'+
       '<div><div class="cust-card-name" onclick="openVehicleProfile(\''+v.id+'\')">'+title+
-        ' <span style="background:'+sc+'20;color:'+sc+';border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">'+escHtml(_vehStatusLabel(v.status))+'</span>'+issBadge+'</div>'+
+        ' <span style="background:'+sc+'20;color:'+sc+';border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">'+escHtml(_vehStatusLabel(v.status))+'</span>'+issBadge+expBadge+'</div>'+
         (sub?'<div class="cust-card-sub">'+sub+'</div>':'')+
         (meta.length?'<div class="cust-card-sub" style="margin-top:2px">'+meta.join(' &nbsp; ')+'</div>':'')+'</div>'+
       '<div style="text-align:center"><span class="cust-bubble tot" title="Work orders" onclick="openVehicleProfile(\''+v.id+'\')">🔨 '+woCnt+'</span></div>'+
@@ -321,7 +343,7 @@ function renderVPOverview(v){
     row('Assigned Tech', v.assignedTech)+row('Home Base', v.homeBase)+
     row('Odometer', (v.odometer!=null&&v.odometer!=='')?(Number(v.odometer).toLocaleString()+' mi'):'')+
     row('Purchased', v.purchaseDate)+row('Purchase Cost', (v.purchaseCost!=null&&v.purchaseCost!=='')?('$'+Number(v.purchaseCost).toLocaleString()):'')+
-    row('Registration Exp', v.registrationExpires)+row('Insurance Exp', v.insuranceExpires)+
+    row('Registration Exp', _vehExpDisplay(v.registrationExpires))+row('Insurance Exp', _vehExpDisplay(v.insuranceExpires))+
     '</div>'+
     '<div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
       '<div style="text-align:center;background:#fff;border:1px solid #e0e7ef;border-radius:8px;padding:10px"><div style="font-weight:800;font-size:16px;color:#1565c0">'+woN+'</div><div style="font-size:10px;color:#90a4ae;text-transform:uppercase">Work Orders</div></div>'+
