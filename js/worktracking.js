@@ -7419,6 +7419,7 @@ function loadSettings() {
   var sNoM=document.getElementById('s-nomargin'); if(sNoM) sNoM.checked = !!s.defaultNoMargin; // No Margin (price at cost) company default
   sv('s-followup-days', s.followupDays||7);
   sv('s-perdiem-markup', s.perDiemMarkup!==undefined ? s.perDiemMarkup : 15);
+  sv('s-parts-markup', s.partsMarkupPct!==undefined ? s.partsMarkupPct : 0); // Wave 1c: WO-invoice parts markup default
   sv('s-fiscal-month', s.fiscalYearStartMonth||1);
   sv('s-uname',s.uname);sv('s-utitle',s.utitle);sv('s-uphone',s.uphone);sv('s-uemail',s.uemail);
   // Geofence settings
@@ -7495,6 +7496,7 @@ function saveSettings() {
     defaultNoMargin: !!(document.getElementById('s-nomargin')||{}).checked, // No Margin (price at cost) company default
     followupDays:parseInt(gv('s-followup-days'))||7,
     perDiemMarkup:parseFloat(gv('s-perdiem-markup'))||0,
+    partsMarkupPct:parseFloat(gv('s-parts-markup'))||0, // Wave 1c: WO-invoice parts markup default
     fiscalYearStartMonth:parseInt(gv('s-fiscal-month'))||1,
     uname:gv('s-uname'),utitle:gv('s-utitle'),uphone:gv('s-uphone'),uemail:gv('s-uemail')
   });

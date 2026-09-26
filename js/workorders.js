@@ -2383,6 +2383,18 @@ function deleteWOChecklistItem(id) {
   if(_sb&&_currentUser&&typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
 }
 
+// Wave 1c: per-unit sell price = cost + markup% (rounded to cents).
+function _sellUnit(cost, pct) {
+  return Math.round((parseFloat(cost || 0) * (1 + (parseFloat(pct || 0) / 100))) * 100) / 100;
+}
+// Resolve the parts markup % for a customer: customer override -> global default -> 0.
+function _partsMarkupFor(customerId) {
+  var c = (DB.customers || []).find(function(x){ return x.id === customerId; });
+  if (c && c.partsMarkupPct != null && c.partsMarkupPct !== '') { var v = parseFloat(c.partsMarkupPct); if (!isNaN(v)) return v; }
+  if (DB.settings && DB.settings.partsMarkupPct != null && DB.settings.partsMarkupPct !== '') { var g = parseFloat(DB.settings.partsMarkupPct); if (!isNaN(g)) return g; }
+  return 0;
+}
+
 // ---- CREATE INVOICE FROM WO ----
 async function createWOInvoice() {
   var woId=_woCurrentId; if(!woId) return;
@@ -2413,9 +2425,15 @@ async function createWOInvoice() {
   var laborAmt=totalHrs*rate;
 
   var expAmt=expenses.reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
-  var subtotal=laborAmt+expAmt;
+  // Wave 1c: parts now bill. Issued/received parts (not still 'requested'/'ordered') bill at
+  // cost + markup; markup = customer override else global default else 0.
+  var _mkPct = _partsMarkupFor(wo.customerId);
+  var billableParts = parts.filter(function(p){ var s=(p.status||''); return s!=='requested' && s!=='ordered'; });
+  var partsCost = billableParts.reduce(function(s,p){ return s + (parseFloat(p.qty||0)*parseFloat(p.unitCost||0)); },0);
+  var partsAmt  = billableParts.reduce(function(s,p){ return s + (parseFloat(p.qty||0)*_sellUnit(p.unitCost,_mkPct)); },0);
+  var subtotal=laborAmt+expAmt+partsAmt;
   if (subtotal <= 0) {
-    var partsNote = parts.length ? ' There are '+parts.length+' part(s) listed, but parts are not auto-priced into invoices yet.' : '';
+    var partsNote = parts.length ? ' There are '+parts.length+' part(s) listed (requested/ordered parts do not bill until received/used).' : '';
     var _ok0 = (typeof showConfirm === 'function')
       ? await showConfirm('No labor hours or expenses are logged on this work order yet, so this invoice will total $0.00.'+partsNote+'\n\nCreate the $0 draft anyway?', { title:'Create a $0 invoice?', okLabel:'Create $0 Draft', cancelLabel:'Cancel' })
       : confirm('No labor hours or expenses are logged on this work order yet, so this invoice will total $0.00.'+partsNote+'\n\nCreate the $0 draft anyway?');
@@ -2443,6 +2461,9 @@ async function createWOInvoice() {
     subtotal:subtotal,
     laborAmt:laborAmt,
     expAmt:expAmt,
+    partsAmt:partsAmt,
+    partsCost:partsCost,
+    partsMarkupPct:_mkPct,
     taxAmt:taxAmt,
     taxRate:taxRate,
     notes:'Labor: '+totalHrs.toFixed(2)+' hrs @ $'+rate+'/hr'+(clockedHrs>0?' ('+manualHrs.toFixed(2)+' manual + '+clockedHrs.toFixed(2)+' clocked)':'')+'\n'+
@@ -2455,6 +2476,13 @@ async function createWOInvoice() {
   if(totalHrs>0) inv.items.push({_id:'woi-l',desc:'Labor ('+totalHrs.toFixed(2)+' hrs @ $'+rate+'/hr)',cat:'Labor',qty:totalHrs,unit:'hr',mc:rate,lh:0});
   // Add expenses as items
   expenses.forEach(function(e){ inv.items.push({_id:'woi-e-'+e.id,desc:escHtml(e.category||'Expense')+(e.description?' — '+e.description:''),cat:'Expense',qty:1,unit:'EA',mc:e.amount,lh:0}); });
+  // Wave 1c: add billable parts as line items priced cost + markup. Each carries cost + _part so the
+  // invoice editor's gated "Parts markup %" control can re-price them later.
+  billableParts.forEach(function(p){
+    var sell=_sellUnit(p.unitCost,_mkPct);
+    inv.items.push({ _id:'woi-p-'+p.id, desc:(p.name||'Part')+(p.partNum?' ('+p.partNum+')':''), cat:'Material',
+      qty:parseFloat(p.qty||1), unit:p.unit||'ea', unitPrice:sell, mc:sell, cost:parseFloat(p.unitCost||0), _part:true });
+  });
   DB.invoices.push(inv);
   // Update WO status
   wo.status='Open — Partial Invoice (Please Create)';

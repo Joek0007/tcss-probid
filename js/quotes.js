@@ -2685,7 +2685,7 @@ function renderInvItemsEditor() {
     rows.innerHTML = '<div style="padding:16px;text-align:center;color:#90a4ae;font-size:13px">No line items yet — click + Add Line Item</div>';
     return;
   }
-  rows.innerHTML = _invItems.map(function(li,i) {
+  var _itemRows = _invItems.map(function(li,i) {
     var lineTotal = (parseFloat(li.unitPrice||li.mc||0)) * (parseFloat(li.qty||1));
     return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 70px 36px;gap:4px;padding:8px 12px;border-top:1px solid #f0f4f8;align-items:center">'+
       // Description with catalog autocomplete
@@ -2712,6 +2712,37 @@ function renderInvItemsEditor() {
       '<button onclick="removeInvItem('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:18px;padding:0 4px;line-height:1">×</button>'+
     '</div>';
   }).join('');
+  rows.innerHTML = _invPartsMarkupControl() + _itemRows;
+}
+
+// Wave 1c: a gated "Parts markup %" control shown above the line items whenever the invoice has
+// part lines (cat Material with a cost). Permitted users can re-price all part lines from cost;
+// others see the current markup read-only. Anyone can still hand-edit a single line's unit price.
+function _invPartsMarkupControl() {
+  var partLines = (_invItems||[]).filter(function(li){ return li._part && parseFloat(li.cost) >= 0; });
+  if (!partLines.length) return '';
+  var canMk = (typeof hasPermission!=='function') || hasPermission('invoice.adjustmarkup');
+  var cur = 0, pl0 = partLines[0];
+  if (pl0 && parseFloat(pl0.cost) > 0) cur = Math.round(((parseFloat(pl0.unitPrice||pl0.mc||0)/parseFloat(pl0.cost)) - 1) * 1000) / 10;
+  return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f1f8e9;border-top:1px solid #f0f4f8;font-size:12px;flex-wrap:wrap">'+
+    '<span style="font-weight:700;color:#33691e">Parts markup</span>'+
+    (canMk
+      ? '<input type="number" id="inv-parts-markup" value="'+cur+'" step="1" style="width:78px;padding:4px 6px;border:1px solid #cfd8dc;border-radius:4px;text-align:right"> %'+
+        ' <button class="btn btn-outline btn-sm" onclick="applyInvPartsMarkup()">Apply to parts</button>'+
+        '<span style="color:#90a4ae">re-prices '+partLines.length+' part line'+(partLines.length!==1?'s':'')+' from cost</span>'
+      : '<span style="color:#607d8b">'+cur+'% (no permission to change)</span>')+
+  '</div>';
+}
+
+function applyInvPartsMarkup() {
+  if (typeof hasPermission==='function' && !hasPermission('invoice.adjustmarkup')) { showToast('You don’t have permission to change parts markup','error'); return; }
+  var pct = parseFloat((document.getElementById('inv-parts-markup')||{}).value); if (isNaN(pct)) pct = 0;
+  (_invItems||[]).forEach(function(li){
+    if (li._part && parseFloat(li.cost) >= 0) { var sell = Math.round((parseFloat(li.cost||0)*(1+pct/100))*100)/100; li.unitPrice = sell; li.mc = sell; }
+  });
+  renderInvItemsEditor();
+  refreshInvTotals();
+  showToast('Parts re-priced at '+pct+'% markup', 'success', 2000);
 }
 
 function updateInvItem(idx, field, val) {
@@ -3360,7 +3391,7 @@ function setCustSort(val) {
   if (sel) sel.value = val;
   renderCustomers();
 }
-function _custFieldIds() { return ['m-cname','m-cphone','m-cemail','m-cinvoicing-contact','m-cinvoicing-email','m-cstreet','m-ccity','m-cstate','m-czip','m-cnotes','m-cid']; }
+function _custFieldIds() { return ['m-cname','m-cphone','m-cemail','m-cinvoicing-contact','m-cinvoicing-email','m-cparts-markup','m-cstreet','m-ccity','m-cstate','m-czip','m-cnotes','m-cid']; }
 function _custAddress(c) {
   // Build combined address from split fields for backward compat (quotes display, Supabase, etc)
   var parts = [c.street, c.city && c.state ? c.city+', '+c.state : (c.city||c.state||''), c.zip].filter(Boolean);
@@ -3659,6 +3690,7 @@ function editCustomer(id) {
   function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v||'';}
   sv('m-cname',c.name); sv('m-cphone',c.phone); sv('m-cemail',c.email);
   sv('m-cinvoicing-contact',c.invoicingContact); sv('m-cinvoicing-email',c.invoicingEmail);
+  var _pmEl=document.getElementById('m-cparts-markup'); if(_pmEl) _pmEl.value=(c.partsMarkupPct!=null?c.partsMarkupPct:'');
   sv('m-cstreet',c.street||(c.address&&!c.city?c.address:'')); sv('m-ccity',c.city||''); sv('m-cstate',c.state||''); sv('m-czip',c.zip||'');
   sv('m-cnotes',c.notes); sv('m-cid',c.id);
   var sel=document.getElementById('m-cterms'); if(sel) sel.value=c.defaultTerms||'Due on Receipt';
@@ -3693,6 +3725,7 @@ function _buildCustomerData(id) {
     hotNoteOffice:    (document.getElementById('m-c-hotnote-office')||{}).value||'',
     invoicingContact: gv('m-cinvoicing-contact'),
     invoicingEmail:   gv('m-cinvoicing-email'),
+    partsMarkupPct:   (function(){ var v=gv('m-cparts-markup'); return (v!=='' && !isNaN(parseFloat(v))) ? parseFloat(v) : null; })(),
     officeAlertScope: {
       quotes:      !!((document.getElementById('m-calert-quotes')||{}).checked),
       workorders:  !!((document.getElementById('m-calert-workorders')||{}).checked),
