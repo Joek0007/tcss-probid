@@ -918,6 +918,152 @@ function _readInvLocParsFromForm() {
   return out;
 }
 
+// ---- TRUCK REPLENISHMENT "TO PAR" (Wave 2b) ----
+// Restock a truck to its per-location par using shop stock. Anything the shop can't cover is flagged
+// short (and can seed a draft PO). Builds directly on 2a's loc_pars.
+var _replenishRows = [];
+
+// Pure planner: for the given truck, one row per item whose truck par exceeds its on-truck qty.
+// protectShop=true keeps the shop from being drained below its own reorder point (per-location shop
+// min, else the global minQty).
+function _replenishPlan(truckId, protectShop) {
+  var rows = [];
+  (DB.catalog||[]).forEach(function(m){
+    if (!m || !m.tracked || m.active === false) return;
+    var pars = m.locPars || {};
+    var p = pars[truckId];
+    if (!p) return;
+    var par = parseFloat(p.max) || 0;
+    if (par <= 0) return;
+    var onTruck = getItemQtyAtLocation(m, truckId);
+    var need = par - onTruck;
+    if (need <= 0) return;
+    var shopAvail = _availableAtLocation(m, 'loc-shop');
+    var shopFloor = 0;
+    if (protectShop) {
+      var sp = pars['loc-shop'] || {};
+      shopFloor = parseFloat(sp.min) || parseFloat(m.minQty) || 0;
+    }
+    var spare = Math.max(0, shopAvail - shopFloor);
+    var transfer = Math.min(need, spare);
+    transfer = Math.round(transfer * 100) / 100;
+    need = Math.round(need * 100) / 100;
+    rows.push({ itemId:m.id, name:m.name||'', partNum:m.partNum||m.part||'', vendor:m.vendor||'',
+      cost:(m.mc!=null?m.mc:(m.cost||0)), onTruck:onTruck, par:par, need:need, shopAvail:shopAvail,
+      transfer:transfer, short:Math.round((need-transfer)*100)/100 });
+  });
+  return rows;
+}
+
+function openReplenish() {
+  var sel = document.getElementById('replenish-loc');
+  if (!sel) return;
+  var trucks = getLocations().filter(function(l){ return l.id !== 'loc-shop'; });
+  sel.innerHTML = trucks.map(function(l){ return '<option value="'+escHtml(l.id)+'">'+escHtml(l.name)+'</option>'; }).join('');
+  var mk = document.getElementById('replenish-make-po'); if (mk) mk.checked = false;
+  var ps = document.getElementById('replenish-protect-shop'); if (ps) ps.checked = true;
+  renderReplenishPlan();
+  if (typeof openModal === 'function') openModal('modal-replenish');
+}
+
+function renderReplenishPlan() {
+  var host = document.getElementById('replenish-plan');
+  if (!host) return;
+  var truckId = (document.getElementById('replenish-loc')||{}).value || '';
+  var protect = !!(document.getElementById('replenish-protect-shop')||{}).checked;
+  var btn = document.getElementById('replenish-commit-btn');
+  if (!truckId) { host.innerHTML = ''; return; }
+  var rows = _replenishPlan(truckId, protect);
+  _replenishRows = rows;
+  if (!rows.length) {
+    host.innerHTML = '<div class="empty-state" style="padding:24px"><p>✅ '+escHtml(getLocationName(truckId))+' is at par for every item that has a truck par set.</p><p style="font-size:12px;color:#90a4ae">No par levels for this truck yet? Set them on an item under Edit → Per-location reorder levels.</p></div>';
+    if (btn) btn.disabled = true;
+    return;
+  }
+  if (btn) btn.disabled = false;
+  var anyShort = rows.some(function(r){ return r.short > 0; });
+  host.innerHTML =
+    '<table style="width:100%;font-size:12px"><thead><tr style="text-align:left;color:#607d8b">'+
+      '<th style="padding:4px 6px">Item</th><th style="padding:4px 6px">On truck</th><th style="padding:4px 6px">Par</th><th style="padding:4px 6px">Shop avail</th><th style="padding:4px 6px;width:92px">Transfer</th><th style="padding:4px 6px">Still short</th></tr></thead><tbody>'+
+    rows.map(function(r,i){
+      return '<tr>'+
+        '<td style="padding:4px 6px"><div style="font-weight:700">'+escHtml(r.name)+'</div>'+(r.partNum?'<div style="font-size:10px;color:#90a4ae">'+escHtml(r.partNum)+'</div>':'')+'</td>'+
+        '<td style="padding:4px 6px">'+r.onTruck+'</td>'+
+        '<td style="padding:4px 6px">'+r.par+'</td>'+
+        '<td style="padding:4px 6px">'+r.shopAvail+'</td>'+
+        '<td style="padding:4px 6px"><input type="number" min="0" step="0.01" value="'+r.transfer+'" oninput="_onReplenishTransferEdit('+i+',this.value)" style="width:80px;padding:4px;border:1px solid #e0e7ef;border-radius:4px"></td>'+
+        '<td style="padding:4px 6px;font-weight:700;color:'+(r.short>0?'#c62828':'#90a4ae')+'">'+(r.short>0?r.short:'—')+'</td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table>'+
+    (anyShort ? '<div style="font-size:12px;color:#c62828;margin-top:8px">⚠️ Some items need more than the shop has on hand — tick "start a draft PO" below to order the shortfall, or restock the shop first.</div>' : '');
+}
+
+function _onReplenishTransferEdit(i, val) {
+  if (!_replenishRows[i]) return;
+  var t = Math.max(0, parseFloat(val) || 0);
+  t = Math.min(t, _replenishRows[i].need);           // never transfer past par
+  _replenishRows[i].transfer = Math.round(t * 100) / 100;
+  _replenishRows[i].short = Math.round((_replenishRows[i].need - _replenishRows[i].transfer) * 100) / 100;
+  var tr = document.querySelectorAll('#replenish-plan tbody tr')[i];
+  if (tr && tr.children[5]) {
+    tr.children[5].textContent = _replenishRows[i].short > 0 ? _replenishRows[i].short : '—';
+    tr.children[5].style.color = _replenishRows[i].short > 0 ? '#c62828' : '#90a4ae';
+  }
+}
+
+function commitReplenish() {
+  var truckId = (document.getElementById('replenish-loc')||{}).value || '';
+  if (!truckId || !_replenishRows || !_replenishRows.length) { showToast('Nothing to replenish','error'); return; }
+  var allowNeg = !!(DB.settings && DB.settings.allowNegativeStock);
+  var movedItems = 0, movedUnits = 0, shortRows = [];
+  _replenishRows.forEach(function(r){
+    var m = (DB.catalog||[]).find(function(c){ return String(c.id) === String(r.itemId); });
+    if (!m) return;
+    var shopNow = getItemQtyAtLocation(m, 'loc-shop');
+    var xfer = r.transfer;
+    // Don't let the truck gain more than the shop can give (would otherwise create phantom stock,
+    // since adjustItemQty floors the shop at 0 when negative stock is off).
+    if (!allowNeg) xfer = Math.min(xfer, shopNow);
+    xfer = Math.round(xfer * 100) / 100;
+    if (xfer > 0) {
+      adjustItemQty(m.id, 'loc-shop', -xfer);
+      adjustItemQty(m.id, truckId, xfer);
+      if (!DB.invTransfers) DB.invTransfers = [];
+      DB.invTransfers.push({ id:'tr-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), itemId:m.id,
+        itemName:m.name, qty:xfer, fromLoc:'loc-shop', toLoc:truckId, date:getTodayISO(),
+        by:(_currentUser&&_currentUser.full_name)||'Replenish', reason:'Replenish to par',
+        createdAt:new Date().toISOString() });
+      movedItems++; movedUnits += xfer;
+    }
+    var actualShort = Math.round((r.need - xfer) * 100) / 100;
+    if (actualShort > 0) shortRows.push(Object.assign({}, r, { short:actualShort }));
+  });
+  saveDB();
+  var makePO = !!(document.getElementById('replenish-make-po')||{}).checked;
+  var truckName = getLocationName(truckId);
+  if (typeof closeModal === 'function') closeModal('modal-replenish');
+  if (typeof renderInventory === 'function') renderInventory();
+  showToast(movedItems ? ('Transferred '+movedItems+' item'+(movedItems!==1?'s':'')+' ('+(Math.round(movedUnits*100)/100)+' units) to '+truckName) : 'No transfers made','success');
+
+  if (makePO && shortRows.length && typeof openNewPO === 'function') {
+    openNewPO();
+    var vn = (shortRows[0].vendor||'').trim().toLowerCase();
+    if (vn) {
+      var actives = (DB.vendors||[]).filter(function(x){ return x.active!==false; });
+      var v = actives.find(function(x){ return (x.name||'').trim().toLowerCase() === vn; });
+      if (!v && vn.length >= 3) v = actives.find(function(x){ var n=(x.name||'').trim().toLowerCase(); return n && (n.indexOf(vn)>=0 || vn.indexOf(n)>=0); });
+      var vSel = document.getElementById('po-vendor');
+      if (v && vSel) { vSel.value = v.id; if (typeof onPOVendorChange==='function') onPOVendorChange(v.id); }
+    }
+    if (typeof _poItems === 'undefined') { window._poItems = []; }
+    _poItems = shortRows.map(function(r,i){ return { _eid:i, desc:r.name, partNum:r.partNum, qtyOrdered:r.short, qtyReceived:0, unitCost:r.cost }; });
+    if (typeof renderPOItems === 'function') renderPOItems();
+    if (typeof refreshPOTotals === 'function') refreshPOTotals();
+    showToast(shortRows.length+' shortfall line'+(shortRows.length!==1?'s':'')+' added to a draft PO — review & save','success');
+  }
+}
+
 // ---- HOOK INTO EXISTING renderInventory TO ADD LOCATION COLUMNS ----
 // Override the items table rendering to show qty-by-location
 

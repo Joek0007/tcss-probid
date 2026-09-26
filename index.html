@@ -3701,6 +3701,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <button class="page-settings-btn" onclick="openSettingsDrawer('inventory')">⚙️ Settings</button>
       <button class="btn btn-outline btn-sm" onclick="openPriceBookImport()">📥 Import Price Book</button>
       <button class="btn btn-outline btn-sm" onclick="goPage('scanner')">📷 Scanner</button>
+      <button class="btn btn-outline btn-sm" onclick="openReplenish()">🚚 Replenish Truck</button>
       <button class="btn btn-outline btn-sm" data-action="newInventoryItem">+ Add Item</button>
       <button class="btn btn-export btn-sm" data-action="exportInventoryCSV">⬇ Export</button>
     </div>
@@ -4246,6 +4247,30 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-inv-adjust">Cancel</button>
       <button class="btn btn-primary" onclick="saveAdjustQty()">Save Adjustment</button>
+    </div>
+  </div>
+</div>
+
+<!-- TRUCK REPLENISHMENT MODAL (Wave 2b) -->
+<div class="modal-overlay" id="modal-replenish" data-no-backdrop-close>
+  <div class="modal-box" style="max-width:820px">
+    <div class="modal-head">
+      <h3>🚚 Replenish Truck to Par</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-replenish">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:14px;align-items:end;flex-wrap:wrap;margin-bottom:10px">
+        <div><label style="font-size:12px;color:#546e7a">Truck / location</label><br>
+          <select id="replenish-loc" onchange="renderReplenishPlan()" style="padding:8px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px;min-width:200px"></select></div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#546e7a;padding-bottom:8px"><input type="checkbox" id="replenish-protect-shop" checked onchange="renderReplenishPlan()"> Don't drain shop below its own reorder point</label>
+      </div>
+      <div style="font-size:11px;color:#90a4ae;margin-bottom:8px">Brings each item up to its par level on this truck using shop stock. Set truck par levels on an item (Edit → Per-location reorder levels). Anything the shop can't cover is flagged to order.</div>
+      <div id="replenish-plan"></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#546e7a;margin-top:10px"><input type="checkbox" id="replenish-make-po"> Also start a draft PO for what the shop can't cover</label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-replenish">Cancel</button>
+      <button class="btn btn-primary" id="replenish-commit-btn" onclick="commitReplenish()">Transfer to Truck</button>
     </div>
   </div>
 </div>
@@ -6765,27 +6790,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919ff with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919fg with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919ff"></script>
-<script src="js/quotes.js?v=20260919ff"></script>
-<script src="js/tools.js?v=20260919ff"></script>
-<script src="js/field.js?v=20260919ff"></script>
-<script src="js/crm.js?v=20260919ff"></script>
-<script src="js/vehicles.js?v=20260919ff"></script>
-<script src="js/dispatch.js?v=20260919ff"></script>
-<script src="js/permissions.js?v=20260919ff"></script>
-<script src="js/worktracking.js?v=20260919ff"></script>
-<script src="js/calendar.js?v=20260919ff"></script>
-<script src="js/workorders.js?v=20260919ff"></script>
-<script src="js/purchaseorders.js?v=20260919ff"></script>
-<script src="js/inventory.js?v=20260919ff"></script>
-<script src="js/reports.js?v=20260919ff"></script>
-<script src="js/recyclebin.js?v=20260919ff"></script>
-<script src="js/contracts.js?v=20260919ff"></script>
-  <script src="js/recurring.js?v=20260919ff"></script>
-  <script src="js/seed_managed.js?v=20260919ff"></script>
-  <script src="js/auth.js?v=20260919ff"></script>
+<script src="js/core.js?v=20260919fg"></script>
+<script src="js/quotes.js?v=20260919fg"></script>
+<script src="js/tools.js?v=20260919fg"></script>
+<script src="js/field.js?v=20260919fg"></script>
+<script src="js/crm.js?v=20260919fg"></script>
+<script src="js/vehicles.js?v=20260919fg"></script>
+<script src="js/dispatch.js?v=20260919fg"></script>
+<script src="js/permissions.js?v=20260919fg"></script>
+<script src="js/worktracking.js?v=20260919fg"></script>
+<script src="js/calendar.js?v=20260919fg"></script>
+<script src="js/workorders.js?v=20260919fg"></script>
+<script src="js/purchaseorders.js?v=20260919fg"></script>
+<script src="js/inventory.js?v=20260919fg"></script>
+<script src="js/reports.js?v=20260919fg"></script>
+<script src="js/recyclebin.js?v=20260919fg"></script>
+<script src="js/contracts.js?v=20260919fg"></script>
+  <script src="js/recurring.js?v=20260919fg"></script>
+  <script src="js/seed_managed.js?v=20260919fg"></script>
+  <script src="js/auth.js?v=20260919fg"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
