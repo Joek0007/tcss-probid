@@ -61,13 +61,11 @@ function adjustItemQty(itemId, locId, delta) {
   m.tracked = true;
   saveDB();
   if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
-  // Write-through so quantity changes (receiving, scanner check-in/out, transfers) reach the
-  // cloud immediately rather than waiting on the next full sync.
-  if (typeof _pushInventoryToCloud === 'function') {
-    _pushInventoryToCloud({ id:m.id, name:m.name, cat:m.cat, partNum:m.partNum||m.part, barcode:m.barcode,
-      returnable:m.returnable, locations:m.locations, minQty:m.minQty,
-      cost:(m.mc!=null?m.mc:m.cost), tag:m.tag, notes:m.notes });
-  }
+  // Write-through so quantity changes (receiving, scanner check-in/out, transfers) reach the cloud
+  // immediately. Uses the adjust_item_stock RPC (not a full catalog upsert) so FIELD TECHS can move
+  // stock — catalog writes are owner/back_office-only, but the RPC lets any active user change ONLY
+  // the stock columns, never price. (A full item edit still goes through the office-gated save.)
+  if (typeof _pushStockQtyToCloud === 'function') _pushStockQtyToCloud(m.id, m.locations);
 }
 
 // ---- SCANNER PAGE ----

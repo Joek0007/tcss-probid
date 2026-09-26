@@ -1898,6 +1898,20 @@ function _deriveInventoryFromCatalog() {
   });
 }
 
+// Stock-quantity write-through for check-out/in/transfer/receiving. Goes through the
+// adjust_item_stock RPC (SECURITY DEFINER) so ANY active user — including field techs, who cannot
+// write the catalog master directly — can move stock, while price-book fields stay office-only.
+async function _pushStockQtyToCloud(id, locations) {
+  if (!_sb || !_currentUser || !id) return;
+  var m = (DB.catalog || []).find(function(c){ return String(c.id) === String(id); });
+  if (m) { m.locations = locations || {}; m.tracked = true;
+           if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog(); }
+  try {
+    var { error } = await _sb.rpc('adjust_item_stock', { p_id: id, p_locations: locations || {} });
+    if (error) console.warn('[Stock adjust]', error.message);
+  } catch (e) { console.warn('[Stock adjust]', e.message || e); }
+}
+
 // Write a stock item through to the unified master (catalog table). Sets tracked=true and the
 // stock columns; OMITS price-book columns (description/unit/default_hours) so a PostgREST upsert
 // preserves them on update. Also updates the in-memory DB.catalog master + re-derives inventory.
