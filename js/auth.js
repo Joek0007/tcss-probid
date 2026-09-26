@@ -3135,8 +3135,8 @@ function continueOffline() {
 // ============================================================
 var _sessionTimer    = null;
 var _sessionWarned   = false;
-var SESSION_TIMEOUT  = 30 * 60 * 1000;  // 30 minutes
-var SESSION_WARN     = 29 * 60 * 1000;  // warn at 29 minutes
+var SESSION_TIMEOUT  = 8 * 60 * 60 * 1000;        // 8 hours (a workday) — overnight safety cutoff, not a nuisance
+var SESSION_WARN     = (8 * 60 * 60 - 60) * 1000; // warn 1 minute before (at 7h59m)
 
 function startSessionTimeout() {
   clearTimeout(_sessionTimer);
