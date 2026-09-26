@@ -6113,13 +6113,13 @@ function renderInventory() {
   if (catSel) { const cv=catSel.value; catSel.innerHTML='<option value="">All Categories</option>'+cats.map(function(c){return '<option value="'+escHtml(c)+'"'+( c===cv?' selected':'')+'>'+escHtml(c)+'</option>';}).join(''); }
   if (locSel) { const lv=locSel.value; locSel.innerHTML='<option value="">All Locations</option>'+locs.map(function(l){return '<option value="'+escHtml(l)+'"'+(l===lv?' selected':'')+'>'+escHtml(l)+'</option>';}).join(''); }
 
-  // Stats — reorder count is par-aware (Wave 2a): number of distinct items on the Buy List.
+  // Stats — reorder count is par-aware (Wave 2a): distinct items on the Buy List. No fallback to
+  // the old "qty <= min||1" heuristic — an item with NO reorder point set is not "low", it's just
+  // untracked for reordering, so it must not inflate this count (that was pure noise before).
   const totalItems  = DB.inventory.length;
   const coItems     = DB.checkoutLog.filter(function(c){ return !c.returnDate; }).length;
   const reorderRows = (typeof getReorderList === 'function') ? getReorderList() : [];
-  const lowItems    = reorderRows.length
-        ? new Set(reorderRows.map(function(r){ return r.itemId; })).size
-        : DB.inventory.filter(function(i){ return (i.qty||0) <= (i.minQty||1) && (i.qty||0) >= 0; }).length;
+  const lowItems    = new Set(reorderRows.map(function(r){ return r.itemId; })).size;
   const uniqueCats  = new Set(DB.inventory.map(function(i){ return i.cat||'General'; })).size;
   function setT(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
   setT('inv-total', totalItems);

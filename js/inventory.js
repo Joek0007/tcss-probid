@@ -847,8 +847,15 @@ function createPOFromBuyList(vendorName) {
   var rows = getReorderList().filter(function(r){ return (r.vendor||'') === vendorName; });
   if (!rows.length) { showToast('Nothing to order for this vendor','error'); return; }
   openNewPO();
-  // Match a saved vendor by name to preselect the dropdown (item vendor is a free-text name).
-  var v = (DB.vendors||[]).find(function(x){ return (x.name||'').trim().toLowerCase() === vendorName.trim().toLowerCase() && x.active!==false; });
+  // Match a saved vendor to preselect the dropdown. Item vendor is a free-text name (e.g. "Graybar")
+  // that may not equal the vendor record ("Graybar Electric"), so try exact (case-insensitive) first,
+  // then a contains match either direction (guarded to 3+ chars so short names don't cross-match).
+  var _vn = vendorName.trim().toLowerCase();
+  var actives = (DB.vendors||[]).filter(function(x){ return x.active!==false; });
+  var v = actives.find(function(x){ return (x.name||'').trim().toLowerCase() === _vn; });
+  if (!v && _vn.length >= 3) {
+    v = actives.find(function(x){ var n=(x.name||'').trim().toLowerCase(); return n && (n.indexOf(_vn)>=0 || _vn.indexOf(n)>=0); });
+  }
   var vSel = document.getElementById('po-vendor');
   if (v && vSel) { vSel.value = v.id; if (typeof onPOVendorChange==='function') onPOVendorChange(v.id); }
   // Collapse multiple location shortfalls for the same item into one PO line.
