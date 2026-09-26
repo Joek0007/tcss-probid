@@ -2278,6 +2278,9 @@ function renderWOPartsTab(woId) {
   html += renderGroup('Ordered — In Transit',       '⏳', ordered,   '#1565c0', '#e3f2fd');
   html += renderGroup('Partially Received',          '🔶', partial,   '#e65100', '#fff3e0');
   html += renderGroup('Received — On Hand',          '✅', received,  '#2e7d32', '#e8f5e9');
+  // Wave 2c: reserved/committed stock — held for this job, not yet consumed.
+  var reserved = parts.filter(function(p){ return p.status==='reserved'; });
+  html += renderReservedGroup(reserved, isOffice);
   // Wave 1b: items issued from stock / non-stock / one-off land as status 'used' and now have a home.
   var used = parts.filter(function(p){ return p.status==='used'; });
   html += renderGroup('Used / On This Job',           '🔧', used,     '#00695c', '#e0f2f1');
@@ -2326,6 +2329,65 @@ function deleteWOPart(id) {
   if(!DB.deletedIds.woParts)DB.deletedIds.woParts=[];
   if(DB.deletedIds.woParts.indexOf(id)<0)DB.deletedIds.woParts.push(id);
   saveDB(); switchWOTab('parts');
+  if(_sb&&_currentUser&&typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
+}
+
+// ---- Wave 2c: reserved/committed stock group + actions ----
+function renderReservedGroup(groupParts, isOffice) {
+  if (!groupParts.length) return '';
+  var color='#6a1b9a', bg='#f3e5f5';
+  var out = '<div style="margin-bottom:16px">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+      '<span style="font-size:15px">◷</span>'+
+      '<span style="font-weight:700;font-size:13px;color:'+color+'">Reserved — Committed to this job</span>'+
+      '<span style="background:'+bg+';color:'+color+';padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700">'+groupParts.length+'</span>'+
+    '</div>'+
+    '<div style="font-size:11px;color:#90a4ae;margin-bottom:6px">Held in stock (not consumed yet) — lowers Available but stays on hand. Mark <strong>Use</strong> when installed (decrements stock), or <strong>Release</strong> to free it.</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f8f9fa">'+
+      '<th style="padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Part</th>'+
+      '<th style="padding:7px 10px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Qty</th>'+
+      '<th style="padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">From</th>'+
+      '<th style="padding:7px 10px;text-align:right;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Unit $</th>'+
+      (isOffice?'<th style="padding:7px 10px;width:170px"></th>':'')+
+    '</tr></thead><tbody>';
+  groupParts.forEach(function(p){
+    var locName = (typeof getLocationName==='function') ? getLocationName(p.fromLocation||'loc-shop') : (p.fromLocation||'');
+    out += '<tr style="border-bottom:1px solid #f0f4f8">'+
+      '<td style="padding:9px 10px"><div style="font-weight:600">'+escHtml(p.name||'')+'</div>'+(p.partNum?'<div style="font-size:11px;color:#90a4ae">'+escHtml(p.partNum)+'</div>':'')+'</td>'+
+      '<td style="padding:9px 10px;text-align:center;font-weight:700">'+escHtml(String(p.qty||1))+'</td>'+
+      '<td style="padding:9px 10px;font-size:12px;color:#546e7a">'+escHtml(locName)+'</td>'+
+      '<td style="padding:9px 10px;text-align:right">$'+(Number(p.unitCost)||0).toFixed(2)+'</td>'+
+      (isOffice?'<td style="padding:9px 10px;text-align:center;white-space:nowrap">'+
+        '<button class="btn btn-primary btn-sm" onclick="useReservedPart(\''+p.id+'\')" title="Consume from stock now">✓ Use</button> '+
+        '<button class="btn btn-ghost btn-sm" onclick="releaseReservedPart(\''+p.id+'\')" title="Free the reservation">✕ Release</button>'+
+      '</td>':'')+
+    '</tr>';
+  });
+  out += '</tbody></table></div>';
+  return out;
+}
+
+function useReservedPart(id) {
+  var p=(DB.woParts||[]).find(function(x){return x.id===id;});
+  if(!p || p.status!=='reserved') return;
+  // Consume the reserved stock now: decrement on-hand at the reserved location, flip to used.
+  if(p.itemId && typeof adjustItemQty==='function') adjustItemQty(p.itemId, p.fromLocation||'loc-shop', -(parseFloat(p.qty)||0));
+  p.status='used';
+  if(typeof _pushWOPartToCloud==='function') _pushWOPartToCloud(p);
+  saveDB(); switchWOTab('parts');
+  if(typeof showToast==='function') showToast((parseFloat(p.qty)||0)+' × '+p.name+' used — stock decremented','success');
+}
+
+function releaseReservedPart(id) {
+  var p=(DB.woParts||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+  if(!confirm('Release this reservation? The stock stays on hand and becomes available again.')) return;
+  DB.woParts=(DB.woParts||[]).filter(function(x){return x.id!==id;});
+  if(!DB.deletedIds)DB.deletedIds={};
+  if(!DB.deletedIds.woParts)DB.deletedIds.woParts=[];
+  if(DB.deletedIds.woParts.indexOf(id)<0)DB.deletedIds.woParts.push(id);
+  saveDB(); switchWOTab('parts');
+  if(typeof showToast==='function') showToast('Reservation released','success');
   if(_sb&&_currentUser&&typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
 }
 
@@ -2428,7 +2490,8 @@ async function createWOInvoice() {
   // Wave 1c: parts now bill. Issued/received parts (not still 'requested'/'ordered') bill at
   // cost + markup; markup = customer override else global default else 0.
   var _mkPct = _partsMarkupFor(wo.customerId);
-  var billableParts = parts.filter(function(p){ var s=(p.status||''); return s!=='requested' && s!=='ordered'; });
+  // Wave 2c: reserved parts are committed but not yet consumed — don't bill them until Used.
+  var billableParts = parts.filter(function(p){ var s=(p.status||''); return s!=='requested' && s!=='ordered' && s!=='reserved'; });
   var partsCost = billableParts.reduce(function(s,p){ return s + (parseFloat(p.qty||0)*parseFloat(p.unitCost||0)); },0);
   var partsAmt  = billableParts.reduce(function(s,p){ return s + (parseFloat(p.qty||0)*_sellUnit(p.unitCost,_mkPct)); },0);
   var subtotal=laborAmt+expAmt+partsAmt;

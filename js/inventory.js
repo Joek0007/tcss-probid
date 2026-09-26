@@ -706,6 +706,28 @@ function _reservedAtLocation(itemId, locId) {
   if (typeof _reservedStockAt === 'function') return parseFloat(_reservedStockAt(itemId, locId)) || 0;
   return 0;
 }
+
+// Wave 2c: reserved/committed stock. A wo_part with source 'stock' + status 'reserved' holds physical
+// stock for a job WITHOUT decrementing on-hand — it lowers AVAILABLE (on-hand − reserved). Only counts
+// reservations on OPEN work orders (a billed/void/cancelled WO no longer holds stock).
+function _woIsClosed(woId) {
+  var w = (DB.workOrders||[]).find(function(x){ return x.id === woId; });
+  return w ? /billed|void|cancel/i.test(w.status||'') : false;
+}
+function _reservedStockAt(itemId, locId) {
+  if (!DB.woParts) return 0;
+  return DB.woParts.reduce(function(s,p){
+    if (p && p.source === 'stock' && p.status === 'reserved' &&
+        String(p.itemId) === String(itemId) && (p.fromLocation||'loc-shop') === locId &&
+        !_woIsClosed(p.woId)) {
+      return s + (parseFloat(p.qty) || 0);
+    }
+    return s;
+  }, 0);
+}
+function _reservedTotal(itemId) {
+  return getLocations().reduce(function(s,l){ return s + _reservedStockAt(itemId, l.id); }, 0);
+}
 function _availableAtLocation(item, locId) {
   return getItemQtyAtLocation(item, locId) - _reservedAtLocation(item.id, locId);
 }
@@ -1418,11 +1440,16 @@ function selectWOAIItem(id) {
   var d = document.getElementById('wo-ai-detail'); if (!d) return;
   var locs = getLocations();
   var chips = c.tracked ? locs.map(function(l){ var q = getItemQtyAtLocation(c, l.id); return q > 0 ? '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 8px;border-radius:10px;font-size:11px;margin:2px 3px 0 0;display:inline-block">' + escHtml(l.name) + ': ' + q + '</span>' : ''; }).join('') : '';
-  var locOpts = locs.map(function(l){ return '<option value="' + escHtml(l.id) + '">' + escHtml(l.name) + ' (' + getItemQtyAtLocation(c, l.id) + ')</option>'; }).join('');
+  var locOpts = locs.map(function(l){ var oh=getItemQtyAtLocation(c,l.id); var av=_availableAtLocation(c,l.id); return '<option value="' + escHtml(l.id) + '">' + escHtml(l.name) + ' (' + av + ' avail' + (av!==oh?(' / '+oh+' on hand'):'') + ')</option>'; }).join('');
+  var _oh = c.tracked ? (_woItemOnHand(c)||0) : 0;
+  var _res = c.tracked ? _reservedTotal(c.id) : 0;
+  var _stockLabel = c.tracked
+    ? '<span style="color:#2e7d32">stock item</span> · ' + (_oh - _res) + ' available' + (_res>0 ? ' <span style="color:#e65100">('+_res+' reserved of '+_oh+')</span>' : ' of ' + _oh)
+    : '<span style="color:#e65100">non-stock</span>';
   d.style.display = '';
   d.innerHTML =
     '<div style="font-weight:700;font-size:14px;margin-bottom:2px">' + escHtml(c.name || '') + '</div>' +
-    '<div style="font-size:12px;color:#607d8b;margin-bottom:8px">' + escHtml(c.partNum || c.part || '') + ' · $' + Number(_woItemCost(c)).toFixed(2) + ' · ' + (c.tracked ? '<span style="color:#2e7d32">stock item</span>' : '<span style="color:#e65100">non-stock</span>') + '</div>' +
+    '<div style="font-size:12px;color:#607d8b;margin-bottom:8px">' + escHtml(c.partNum || c.part || '') + ' · $' + Number(_woItemCost(c)).toFixed(2) + ' · ' + _stockLabel + '</div>' +
     (chips ? '<div style="margin-bottom:8px">' + chips + '</div>' : '') +
     '<div style="display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;margin-bottom:10px">' +
       '<label style="font-size:12px;font-weight:700;color:#546e7a">Qty</label>' +
@@ -1431,6 +1458,7 @@ function selectWOAIItem(id) {
     '</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
       (c.tracked ? '<button class="btn btn-primary btn-sm" onclick="addPickedItemToWO(\'stock\')">↓ Add from Stock</button>' : '') +
+      (c.tracked ? '<button class="btn btn-outline btn-sm" onclick="addPickedItemToWO(\'reserve\')" title="Hold this stock for the job without using it yet">◷ Reserve</button>' : '') +
       '<button class="btn btn-outline btn-sm" onclick="addPickedItemToWO(\'order\')">Request for PO</button>' +
       '<button class="btn btn-outline btn-sm" onclick="addPickedItemToWO(\'nonstock\')">Add as Non-stock</button>' +
     '</div>';
@@ -1447,15 +1475,29 @@ function addPickedItemToWO(mode) {
 
   if (mode === 'stock') {
     var fromLoc = (document.getElementById('wo-ai-loc') || {}).value || 'loc-shop';
-    var avail = getItemQtyAtLocation(c, fromLoc);
+    // Wave 2c: issue against AVAILABLE (on-hand − reserved), so stock committed to other jobs isn't
+    // double-issued.
+    var avail = _availableAtLocation(c, fromLoc);
     var allowNeg = !!(DB.settings && DB.settings.allowNegativeStock);
     if (qty > avail && !allowNeg) {
-      showToast('Only ' + avail + ' at ' + getLocationName(fromLoc) + '. Enable "Allow negative stock" in Inventory settings, or use Request for PO / Non-stock.', 'error', 7000);
+      showToast('Only ' + avail + ' available at ' + getLocationName(fromLoc) + (avail<getItemQtyAtLocation(c,fromLoc)?' (some is reserved)':'') + '. Enable "Allow negative stock", or use Reserve / Request for PO / Non-stock.', 'error', 7000);
       return;
     }
     adjustItemQty(c.id, fromLoc, -qty); // RPC-backed decrement + re-derive
     _addWOPartRecord(Object.assign({}, base, { status: 'used', source: 'stock', fromLocation: fromLoc }));
     showToast(qty + ' × ' + c.name + ' issued from ' + getLocationName(fromLoc) + ' ✓', 'success');
+  } else if (mode === 'reserve') {
+    // Wave 2c: hold stock for the job without consuming it. No decrement; it lowers AVAILABLE until the
+    // part is Used (which then decrements) or Released.
+    var rLoc = (document.getElementById('wo-ai-loc') || {}).value || 'loc-shop';
+    var rAvail = _availableAtLocation(c, rLoc);
+    var rAllowNeg = !!(DB.settings && DB.settings.allowNegativeStock);
+    if (qty > rAvail && !rAllowNeg) {
+      showToast('Only ' + rAvail + ' available to reserve at ' + getLocationName(rLoc) + '. Enable "Allow negative stock", or reserve less.', 'error', 7000);
+      return;
+    }
+    _addWOPartRecord(Object.assign({}, base, { status: 'reserved', source: 'stock', fromLocation: rLoc }));
+    showToast(qty + ' × ' + c.name + ' reserved from ' + getLocationName(rLoc) + ' ◷', 'success');
   } else if (mode === 'order') {
     _addWOPartRecord(Object.assign({}, base, { status: 'requested', source: 'order' }));
     showToast(c.name + ' added to parts to order', 'success');

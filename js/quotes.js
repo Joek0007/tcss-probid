@@ -6152,13 +6152,14 @@ function renderInventory() {
       const min      = item.minQty||1;
       const qtyClass = qty===0?'inv-qty-out':qty<=min?'inv-qty-low':'inv-qty-ok';
       const qtyLabel = qty===0?'Out':qty<=min?'Low':'In Stock';
+      const reservedQty = (typeof _reservedTotal==='function') ? _reservedTotal(item.id) : 0;
       const activeCoCount = DB.checkoutLog.filter(function(c){ return c.itemId===item.id && !c.returnDate; }).length;
       return '<tr>' +
         '<td><span class="asset-tag">'+escHtml(item.tag||'—')+'</span></td>' +
         '<td><div style="font-weight:700;font-size:13px">'+escHtml(item.name||'')+'</div>'+(item.notes?'<div style="font-size:11px;color:#90a4ae">'+escHtml((typeof stripHtmlToText==='function'?stripHtmlToText(item.notes):item.notes).substring(0,60))+'</div>':'')+'</td>' +
         '<td style="font-size:12px">'+escHtml(item.cat||'General')+'</td>' +
         '<td style="font-size:12px">'+escHtml(item.location||'—')+'</td>' +
-        '<td><span class="inv-qty-badge '+qtyClass+'">'+qty+' — '+qtyLabel+'</span></td>' +
+        '<td><span class="inv-qty-badge '+qtyClass+'">'+qty+' — '+qtyLabel+'</span>'+(reservedQty>0?'<div style="font-size:10px;color:#6a1b9a;margin-top:2px">'+reservedQty+' reserved · '+(qty-reservedQty)+' avail</div>':'')+'</td>' +
         '<td>'+(activeCoCount>0?'<span class="checkout-badge co-out">'+activeCoCount+' Out</span>':'<span class="checkout-badge co-in">Available</span>')+'</td>' +
         '<td style="white-space:nowrap">' +
           '<button class="btn btn-ghost btn-sm" onclick="toggleInvFavorite(\''+item.id+'\',event)" title="Favorite (surfaces at top of Add-Item picker)" style="font-size:15px;padding:2px 6px;color:'+(_isInvFav(item.id)?'#f9a825':'#cfd8dc')+'">'+(_isInvFav(item.id)?'★':'☆')+'</button> ' +
