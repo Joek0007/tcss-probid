@@ -51,20 +51,23 @@ function getTotalQty(item) {
 }
 
 function adjustItemQty(itemId, locId, delta) {
-  var item = (DB.inventory||[]).find(function(i){ return i.id===itemId; });
-  if (!item) return;
-  if (!item.locations) {
-    // Migrate old single-qty to locations
-    item.locations = {};
-    item.locations['loc-shop'] = parseFloat(item.qty||0);
-  }
-  if (!item.locations[locId]) item.locations[locId] = 0;
-  item.locations[locId] = Math.max(0, parseFloat(item.locations[locId]) + delta);
-  item.qty = getTotalQty(item);
+  // Unified item master (Step 0): operate on the catalog master row (the single source of truth),
+  // then re-derive the DB.inventory working array. Stock items are catalog rows with tracked=true.
+  var m = (DB.catalog||[]).find(function(c){ return String(c.id)===String(itemId); });
+  if (!m) return;
+  if (!m.locations || typeof m.locations !== 'object') m.locations = {};
+  if (m.locations[locId] == null) m.locations[locId] = 0;
+  m.locations[locId] = Math.max(0, parseFloat(m.locations[locId]) + delta);
+  m.tracked = true;
   saveDB();
+  if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
   // Write-through so quantity changes (receiving, scanner check-in/out, transfers) reach the
   // cloud immediately rather than waiting on the next full sync.
-  if (typeof _pushInventoryToCloud === 'function') _pushInventoryToCloud(item);
+  if (typeof _pushInventoryToCloud === 'function') {
+    _pushInventoryToCloud({ id:m.id, name:m.name, cat:m.cat, partNum:m.partNum||m.part, barcode:m.barcode,
+      returnable:m.returnable, locations:m.locations, minQty:m.minQty,
+      cost:(m.mc!=null?m.mc:m.cost), tag:m.tag, notes:m.notes });
+  }
 }
 
 // ---- SCANNER PAGE ----
@@ -737,41 +740,46 @@ function saveInventoryItemV2() {
 
   function gv(eid){ var el=document.getElementById(eid); return el?el.value.trim():''; }
 
-  var existing = id ? (DB.inventory||[]).find(function(i){ return i.id==id; }) : null;
+  // Unified item master (Step 0): a stock item IS a catalog master row with tracked=true. Find the
+  // master by id (edit) or create a new one (new stock item). We no longer keep a separate inventory list.
+  if (!DB.catalog) DB.catalog = [];
+  var master = id ? (DB.catalog||[]).find(function(c){ return String(c.id)==String(id); }) : null;
   var shopQty  = parseFloat((document.getElementById('inv-qty-shop')||{}).value)||0;
-
-  // Build locations — preserve existing, update shop qty
-  var locations = existing && existing.locations ? Object.assign({},existing.locations) : {};
+  var locations = master && master.locations ? Object.assign({}, master.locations) : {};
   locations['loc-shop'] = shopQty;
 
-  var data = {
-    // inventory.id is a UUID column in the cloud — new items must use a real UUID or the
-    // sync upsert is rejected. (Legacy local 'inv-...' ids predate cloud sync.)
-    id:         id || (window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'inv-'+Date.now()),
-    name:       name,
-    tag:        gv('inv-tag') || (existing&&existing.tag) || nextAssetTag(),
-    cat:        gv('inv-cat') || 'General',
-    partNum:    gv('inv-part-num'),
-    barcode:    gv('inv-barcode'),
-    returnable: !!(document.getElementById('inv-returnable')||{}).checked,
-    locations:  locations,
-    qty:        Object.values(locations).reduce(function(s,v){return s+parseFloat(v||0);},0),
-    minQty:     parseInt((document.getElementById('inv-min')||{}).value)||0,
-    cost:       parseFloat((document.getElementById('inv-cost')||{}).value)||0,
-    notes:      gv('inv-item-notes'),
-    location:   'Main Shop',
-    createdAt:  existing ? existing.createdAt : new Date().toISOString()
-  };
-
-  if (!DB.inventory) DB.inventory = [];
-  if (id) {
-    var idx = DB.inventory.findIndex(function(i){ return i.id==id; });
-    if (idx>=0) DB.inventory[idx]=data; else DB.inventory.push(data);
-  } else {
-    DB.inventory.push(data);
+  if (!master) {
+    master = {
+      // catalog.id is a UUID column — new items must use a real UUID or the sync upsert is rejected.
+      id:        (window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'inv-'+Date.now()),
+      active:    true, unit: 'ea', lh: 0, hours: 0,
+      createdAt: new Date().toISOString()
+    };
+    DB.catalog.push(master);
   }
+  master.name       = name;
+  master.tracked    = true;
+  master.itemType   = 'stock';
+  master.cat        = gv('inv-cat') || master.cat || 'General';
+  master.partNum    = gv('inv-part-num'); master.part = master.partNum;
+  master.barcode    = gv('inv-barcode');
+  master.returnable = !!(document.getElementById('inv-returnable')||{}).checked;
+  master.locations  = locations;
+  master.minQty     = parseInt((document.getElementById('inv-min')||{}).value)||0;
+  master.mc         = parseFloat((document.getElementById('inv-cost')||{}).value)||0;
+  master.cost       = master.mc;
+  master.notes      = gv('inv-item-notes');
+  // Tag is respected only if the user typed one — we no longer auto-assign an asset tag to bulk
+  // consumables (asset tags belong to serialized tools/assets, not stock).
+  if (gv('inv-tag')) master.tag = gv('inv-tag');
+
   saveDB();
-  if (typeof _pushInventoryToCloud === 'function') _pushInventoryToCloud(data); // instant write-through
+  if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
+  if (typeof _pushInventoryToCloud === 'function') {
+    _pushInventoryToCloud({ id:master.id, name:master.name, cat:master.cat, partNum:master.partNum,
+      barcode:master.barcode, returnable:master.returnable, locations:master.locations,
+      minQty:master.minQty, cost:master.mc, tag:master.tag, notes:master.notes });
+  }
   closeModal('modal-inv-item');
   renderInventory();
   showToast('"'+name+'" saved ✓','success');

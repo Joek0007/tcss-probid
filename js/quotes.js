@@ -6209,48 +6209,19 @@ function populateInvDataLists() {
 }
 
 function saveInventoryItem() {
-  const id   = document.getElementById('inv-id').value;
-  const name = document.getElementById('inv-name').value.trim();
-  if (!name) { showToast('Item name is required.','error'); return; }
-
-  let tag = document.getElementById('inv-tag').value.trim();
-  if (!tag) { tag = nextAssetTag(); } // custom tags are respected as-is; nextAssetTag self-heals from existing tags
-
-  const data = {
-    id:       id || Date.now().toString(),
-    name:     name,
-    tag:      tag,
-    cat:      document.getElementById('inv-cat').value.trim() || 'General',
-    location: document.getElementById('inv-loc').value.trim() || '',
-    qty:      parseInt(document.getElementById('inv-qty').value) || 0,
-    minQty:   parseInt(document.getElementById('inv-min').value) || 1,
-    cost:     parseFloat(document.getElementById('inv-cost').value) || 0,
-    notes:    document.getElementById('inv-item-notes').value.trim(),
-    createdAt: id ? undefined : new Date().toISOString()
-  };
-  if (!id) data.createdAt = new Date().toISOString();
-
-  if (id) {
-    const idx = DB.inventory.findIndex(function(i){ return i.id==id; });
-    if (idx>=0) DB.inventory[idx] = data; else DB.inventory.push(data);
-  } else {
-    DB.inventory.push(data);
-  }
-  saveDB();
-  closeModal('modal-inv-item');
-  // Reset tag to readonly
-  const tagEl=document.getElementById('inv-tag'); if(tagEl) tagEl.setAttribute('readonly','readonly');
-  renderInventory();
+  // Legacy alias — the inventory modal now saves through the unified item master.
+  if (typeof saveInventoryItemV2 === 'function') return saveInventoryItemV2();
 }
 
 function delInventoryItem(id) {
-  if (!confirm('Delete this inventory item? Checkout history will be preserved.')) return;
-  DB.inventory = DB.inventory.filter(function(i){ return i.id!=id; });
-  if(!DB.deletedIds)DB.deletedIds={};
-  if(!DB.deletedIds.inventory)DB.deletedIds.inventory=[];
-  if(DB.deletedIds.inventory.indexOf(id)<0)DB.deletedIds.inventory.push(id);
+  // Unified item master (Step 0): removing an item from inventory UNTRACKS it (stops stock
+  // tracking) but keeps it in the price book — it's the same master row. Checkout history preserved.
+  if (!confirm('Remove this item from inventory tracking? It stays in your price book — only stock tracking is turned off.')) return;
+  var m = (DB.catalog||[]).find(function(c){ return String(c.id)==String(id); });
+  if (m) { m.tracked = false; }
   saveDB();
-  if(_sb&&_currentUser){ _sb.from('inventory').update({is_active:false}).eq('id',id).then(function(r){ if(r&&r.error)console.warn('[Delete] inventory:',r.error.message); if(typeof pushAllToCloud==='function')setTimeout(pushAllToCloud,300); }); }
+  if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
+  if(_sb&&_currentUser){ _sb.from('catalog').update({tracked:false}).eq('id',id).then(function(r){ if(r&&r.error)console.warn('[Untrack] inventory:',r.error.message); }); }
   renderInventory();
 }
 

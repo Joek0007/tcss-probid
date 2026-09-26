@@ -1169,8 +1169,13 @@ async function syncAllFromCloud(silent) {
       if (cate) { errors.push('catalog: '+cate.message); }
       else if (cat && cat.length) {
         DB.catalog = cat.filter(function(item){ return delCat.indexOf(String(item.id)) < 0; }).map(function(item) {
-          return { id:item.id, name:item.name, desc:item.description, cat:item.category, unit:item.unit, mc:item.default_cost, lh:item.default_hours, cost:item.default_cost, hours:item.default_hours, notes:item.notes, active:item.is_active };
+          // Unified item master (Step 0): catalog carries both price-book fields (mc/lh/unit)
+          // AND the stock profile (tracked/locations/part#/etc.). The Inventory page reads the
+          // tracked subset via _deriveInventoryFromCatalog(); there is no separate inventory table read.
+          return { id:item.id, name:item.name, desc:item.description, cat:item.category, unit:item.unit, mc:item.default_cost, lh:item.default_hours, cost:item.default_cost, hours:item.default_hours, notes:item.notes, active:item.is_active,
+            itemType:item.item_type||'nonstock', tracked:!!item.tracked, part:item.part_num||'', partNum:item.part_num||'', barcode:item.barcode||'', manufacturer:item.manufacturer||'', mfrPart:item.mfr_part||'', vendor:item.vendor||'', photoUrl:item.photo_url||'', returnable:!!item.returnable, locations:item.locations||{}, minQty:item.min_qty||0, reorderQty:item.reorder_qty||0, reorderMax:item.reorder_max||0 };
         });
+        if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
       }
     } catch(e) { errors.push('catalog: '+e.message); }
 
@@ -1522,33 +1527,13 @@ async function syncAllFromCloud(silent) {
       }
     } catch(e) { errors.push('wo_expenses: '+e.message); }
 
-    // 19. Inventory
+    // 19. Inventory — UNIFIED (Step 0): stock is now the tracked subset of the item master
+    // (catalog table). We no longer read the legacy `inventory` table; DB.inventory is derived
+    // from DB.catalog by _deriveInventoryFromCatalog() (called right after the catalog pull above).
+    // Kept as a guarded no-op so the derive also runs even if the catalog block was skipped.
     try {
-      var { data: invRows, error: inve } = await _sbSelectAll(function(){ return _sb.from('inventory').select('*').order('name'); });
-      if (inve) { errors.push('inventory: '+inve.message); }
-      else if (invRows) {
-        // Exclude soft-deleted (is_active===false). NULL-safe: existing rows may have
-        // is_active NULL (column predates the flag), so treat NULL/true as active — a
-        // strict .eq('is_active',true) would have hidden all legacy inventory.
-        DB.inventory = invRows.filter(function(i){ return i.is_active !== false && delInv.indexOf(String(i.id)) < 0; }).map(function(i){
-          return {
-            id:         i.id,
-            name:       i.name,
-            tag:        i.tag||'',
-            cat:        i.category||'General',
-            partNum:    i.part_num||'',
-            barcode:    i.barcode||'',
-            returnable: !!i.returnable,
-            locations:  i.locations||{'loc-shop':0},
-            qty:        i.qty||0,
-            minQty:     i.min_qty||0,
-            cost:       i.unit_cost||0,
-            notes:      i.notes||'',
-            createdAt:  i.created_at
-          };
-        });
-      }
-    } catch(e) { errors.push('inventory: '+e.message); }
+      if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
+    } catch(e) { errors.push('inventory(derive): '+e.message); }
 
     // 16. Vendors
     try {
@@ -1886,23 +1871,67 @@ async function _pushWOPartToCloud(wp) {
   } catch (e) { console.warn('[WO Part Push]', e.message || e); }
 }
 
+// Unified item master (Step 0): stock is the tracked subset of DB.catalog. This derives the
+// DB.inventory working array the Inventory page + scanner read, from the catalog master, so
+// there is one source of truth. Quantity is summed from the per-location map.
+function _deriveInventoryFromCatalog() {
+  DB.inventory = (DB.catalog || []).filter(function(c){ return c && c.tracked; }).map(function(c){
+    var locs = c.locations || {};
+    var qty = Object.keys(locs).reduce(function(s,k){ return s + (parseFloat(locs[k])||0); }, 0);
+    return {
+      id:         c.id,
+      name:       c.name,
+      tag:        c.tag || '',
+      cat:        c.cat || 'General',
+      partNum:    c.partNum || c.part || '',
+      barcode:    c.barcode || '',
+      returnable: !!c.returnable,
+      locations:  locs,                 // SAME object ref as the master, so qty edits propagate
+      qty:        qty,
+      minQty:     c.minQty || 0,
+      cost:       (c.mc != null ? c.mc : (c.cost || 0)),
+      notes:      c.notes || '',
+      createdAt:  c.createdAt || c.created_at
+      // NB: no backref to the master — DB.inventory is serialized by saveDB(), a backref would
+      // make it circular. Writers locate the master by id in DB.catalog instead.
+    };
+  });
+}
+
+// Write a stock item through to the unified master (catalog table). Sets tracked=true and the
+// stock columns; OMITS price-book columns (description/unit/default_hours) so a PostgREST upsert
+// preserves them on update. Also updates the in-memory DB.catalog master + re-derives inventory.
 async function _pushInventoryToCloud(inv) {
   if (!_sb || !_currentUser || !inv || !inv.id) return;
+  // Keep the in-memory master in step with this stock edit.
+  var m = (DB.catalog || []).find(function(c){ return String(c.id) === String(inv.id); });
+  if (m) {
+    m.tracked = true; if (!m.itemType || m.itemType === 'nonstock') m.itemType = 'stock';
+    m.locations = inv.locations || m.locations || {};
+    if (inv.partNum != null) { m.partNum = inv.partNum; m.part = inv.partNum; }
+    if (inv.barcode != null) m.barcode = inv.barcode;
+    if (inv.returnable != null) m.returnable = !!inv.returnable;
+    if (inv.minQty != null) m.minQty = inv.minQty;
+    if (inv.cost != null) { m.cost = inv.cost; m.mc = inv.cost; }
+    if (inv.tag != null) m.tag = inv.tag;
+    if (inv.notes != null) m.notes = inv.notes;
+    if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
+  }
   try {
-    var { error } = await _sb.from('inventory').upsert({
+    var { error } = await _sb.from('catalog').upsert({
       id:         inv.id,
       name:       inv.name,
-      tag:        inv.tag||null,
-      category:   inv.cat||'General',
-      part_num:   inv.partNum||null,
-      barcode:    inv.barcode||null,
+      category:   inv.cat || 'General',
+      part_num:   inv.partNum || null,
+      barcode:    inv.barcode || null,
       returnable: !!inv.returnable,
-      locations:  inv.locations||null,
-      qty:        inv.qty||0,
-      min_qty:    inv.minQty||0,
-      unit_cost:  inv.cost||0,
-      notes:      inv.notes||null,
-      created_by: _currentUser.id
+      locations:  inv.locations || {},
+      min_qty:    inv.minQty || 0,
+      default_cost: inv.cost || 0,
+      notes:      inv.notes || null,
+      item_type:  'stock',
+      tracked:    true,
+      is_active:  true
     }, { onConflict: 'id' });
     if (error) console.warn('[Inventory Push]', error.message);
   } catch (e) { console.warn('[Inventory Push]', e.message || e); }
@@ -2442,7 +2471,21 @@ async function pushAllToCloud() {
           default_cost: (item.mc != null ? item.mc : (item.cost || 0)),
           default_hours: (item.lh != null ? item.lh : (item.hours || 0)),
           notes: item.notes || null,
-          is_active: item.active !== false
+          is_active: item.active !== false,
+          // Unified item master (Step 0): persist the stock profile alongside price-book fields.
+          item_type: item.itemType || 'nonstock',
+          tracked: !!item.tracked,
+          part_num: item.partNum || item.part || null,
+          barcode: item.barcode || null,
+          manufacturer: item.manufacturer || null,
+          mfr_part: item.mfrPart || null,
+          vendor: item.vendor || null,
+          photo_url: item.photoUrl || null,
+          returnable: !!item.returnable,
+          locations: item.locations || {},
+          min_qty: item.minQty || 0,
+          reorder_qty: item.reorderQty || 0,
+          reorder_max: item.reorderMax || 0
         }));
       } catch(iErr) {
         console.warn('[Push] Catalog error for', item.name, iErr);
