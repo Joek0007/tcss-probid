@@ -744,73 +744,156 @@ function saveInventoryItemV2() {
 
   function gv(eid){ var el=document.getElementById(eid); return el?el.value.trim():''; }
 
-  // Unified item master (Step 0): a stock item IS a catalog master row with tracked=true. Find the
-  // master by id (edit) or create a new one (new stock item). We no longer keep a separate inventory list.
+  // Unified item master. Find the master by id (edit) or create a new one. Wave 1d: the item type
+  // (stock/non-stock/service) drives whether it's tracked; non-stock/service carry no stock qty.
   if (!DB.catalog) DB.catalog = [];
   var master = id ? (DB.catalog||[]).find(function(c){ return String(c.id)==String(id); }) : null;
-  var shopQty  = parseFloat((document.getElementById('inv-qty-shop')||{}).value)||0;
-  var locations = master && master.locations ? Object.assign({}, master.locations) : {};
-  locations['loc-shop'] = shopQty;
+  var itemType = (document.getElementById('inv-type')||{}).value || 'stock';
+  var isStock  = (itemType === 'stock');
 
   if (!master) {
     master = {
       // catalog.id is a UUID column — new items must use a real UUID or the sync upsert is rejected.
       id:        (window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'inv-'+Date.now()),
-      active:    true, unit: 'ea', lh: 0, hours: 0,
+      lh: 0, hours: 0, locations: {},
       createdAt: new Date().toISOString()
     };
     DB.catalog.push(master);
   }
-  master.name       = name;
-  master.tracked    = true;
-  master.itemType   = 'stock';
-  master.cat        = gv('inv-cat') || master.cat || 'General';
-  master.partNum    = gv('inv-part-num'); master.part = master.partNum;
-  master.barcode    = gv('inv-barcode');
-  master.returnable = !!(document.getElementById('inv-returnable')||{}).checked;
-  master.locations  = locations;
-  master.minQty     = parseInt((document.getElementById('inv-min')||{}).value)||0;
-  master.mc         = parseFloat((document.getElementById('inv-cost')||{}).value)||0;
-  master.cost       = master.mc;
-  master.notes      = gv('inv-item-notes');
-  // Tag is respected only if the user typed one — we no longer auto-assign an asset tag to bulk
-  // consumables (asset tags belong to serialized tools/assets, not stock).
+  // Stock qty applies only to stock items; non-stock/service keep an empty location map.
+  var locations = master.locations ? Object.assign({}, master.locations) : {};
+  if (isStock) { locations['loc-shop'] = parseFloat((document.getElementById('inv-qty-shop')||{}).value)||0; }
+  else { locations = {}; }
+
+  master.name         = name;
+  master.itemType     = itemType;
+  master.tracked      = isStock;
+  master.active       = !!(document.getElementById('inv-active')||{checked:true}).checked;
+  master.cat          = gv('inv-cat') || master.cat || 'General';
+  master.unit         = gv('inv-uom') || master.unit || 'ea';
+  master.manufacturer = gv('inv-mfr');
+  master.mfrPart      = gv('inv-mfr-part');
+  master.vendor       = gv('inv-vendor');
+  master.photoUrl     = (document.getElementById('inv-photo-url')||{}).value || master.photoUrl || '';
+  master.partNum      = gv('inv-part-num'); master.part = master.partNum;
+  master.barcode      = gv('inv-barcode');
+  master.returnable   = isStock && !!(document.getElementById('inv-returnable')||{}).checked;
+  master.locations    = locations;
+  master.minQty       = isStock ? (parseInt((document.getElementById('inv-min')||{}).value)||0) : 0;
+  master.mc           = parseFloat((document.getElementById('inv-cost')||{}).value)||0;
+  master.cost         = master.mc;
+  master.notes        = gv('inv-item-notes');
   if (gv('inv-tag')) master.tag = gv('inv-tag');
 
   saveDB();
   if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
   if (typeof _pushInventoryToCloud === 'function') {
-    _pushInventoryToCloud({ id:master.id, name:master.name, cat:master.cat, partNum:master.partNum,
-      barcode:master.barcode, returnable:master.returnable, locations:master.locations,
-      minQty:master.minQty, cost:master.mc, tag:master.tag, notes:master.notes });
+    _pushInventoryToCloud({ id:master.id, name:master.name, cat:master.cat, unit:master.unit,
+      partNum:master.partNum, barcode:master.barcode, manufacturer:master.manufacturer, mfrPart:master.mfrPart,
+      vendor:master.vendor, photoUrl:master.photoUrl, returnable:master.returnable, locations:master.locations,
+      minQty:master.minQty, cost:master.mc, notes:master.notes, itemType:master.itemType,
+      tracked:master.tracked, active:master.active });
   }
   closeModal('modal-inv-item');
   renderInventory();
-  showToast('"'+name+'" saved ✓','success');
+  showToast('"'+name+'" saved'+(isStock?' ✓':' (non-stock — kept in Price Catalog) ✓'),'success');
 }
 
 // Override editInventoryItem to populate new fields
 var _origEditInventoryItem = typeof editInventoryItem !== 'undefined' ? editInventoryItem : null;
 function editInventoryItem(id) {
-  var item = (DB.inventory||[]).find(function(i){ return i.id==id; });
-  if (!item) return;
-  document.getElementById('inv-modal-title').textContent = 'Edit: '+(item.name||'Item');
+  // Wave 1d: read from the item MASTER (catalog), which carries the full field set (type, unit,
+  // manufacturer, vendor, photo, active) — the derived DB.inventory row only has stock basics.
+  var m = (DB.catalog||[]).find(function(c){ return String(c.id)==String(id); });
+  if (!m) { var iv=(DB.inventory||[]).find(function(i){ return i.id==id; }); if(iv) m=(DB.catalog||[]).find(function(c){return String(c.id)==String(iv.id);}); }
+  if (!m) return;
+  document.getElementById('inv-modal-title').textContent = 'Edit: '+(m.name||'Item');
   function sv(eid,v){ var el=document.getElementById(eid); if(el) el.value=v!==undefined&&v!==null?v:''; }
-  sv('inv-name',    item.name);
-  sv('inv-tag',     item.tag);
-  sv('inv-cat',     item.cat);
-  sv('inv-part-num',item.partNum||'');
-  sv('inv-barcode', item.barcode||'');
-  sv('inv-qty-shop',getItemQtyAtLocation(item,'loc-shop'));
-  sv('inv-qty',     item.qty||0);
-  sv('inv-min',     item.minQty||0);
-  sv('inv-cost',    item.cost||0);
-  sv('inv-item-notes',item.notes||'');
-  sv('inv-id',      item.id);
-  var retEl = document.getElementById('inv-returnable');
-  if (retEl) retEl.checked = !!item.returnable;
+  sv('inv-name',    m.name);
+  sv('inv-tag',     m.tag||'');
+  sv('inv-cat',     m.cat||'');
+  sv('inv-uom',     m.unit||'EA');
+  sv('inv-mfr',     m.manufacturer||'');
+  sv('inv-mfr-part',m.mfrPart||'');
+  sv('inv-vendor',  m.vendor||'');
+  sv('inv-part-num',m.partNum||m.part||'');
+  sv('inv-barcode', m.barcode||'');
+  sv('inv-qty-shop',getItemQtyAtLocation(m,'loc-shop'));
+  sv('inv-min',     m.minQty||0);
+  sv('inv-cost',    (m.mc!=null?m.mc:(m.cost||0)));
+  sv('inv-item-notes',m.notes||'');
+  sv('inv-id',      m.id);
+  var typeEl = document.getElementById('inv-type'); if (typeEl) typeEl.value = m.itemType || (m.tracked ? 'stock' : 'nonstock');
+  var retEl = document.getElementById('inv-returnable'); if (retEl) retEl.checked = !!m.returnable;
+  var actEl = document.getElementById('inv-active'); if (actEl) actEl.checked = (m.active !== false);
+  var phUrl = document.getElementById('inv-photo-url'); if (phUrl) phUrl.value = m.photoUrl || '';
+  _renderInvPhotoPreview(m.photoUrl || '');
   if (typeof populateInvDataLists === 'function') populateInvDataLists();
+  if (typeof _populateInvVendorList === 'function') _populateInvVendorList();
+  if (typeof invTypeChanged === 'function') invTypeChanged();
+  _renderInvOnOrder(m);
   openModal('modal-inv-item');
+}
+
+// Show/hide the stock-only fields based on the selected item type.
+function invTypeChanged() {
+  var t = (document.getElementById('inv-type')||{}).value || 'stock';
+  var sf = document.getElementById('inv-stock-fields');
+  if (sf) sf.style.display = (t === 'stock') ? '' : 'none';
+}
+
+// Compute qty currently on open purchase orders (Sent / Partially Received) for this item.
+function _invOnOrder(item) {
+  var pos = (DB.purchaseOrders||[]).filter(function(p){ return p && (p.status==='Sent' || p.status==='Partially Received'); });
+  var pn = (item.partNum||item.part||'').toLowerCase();
+  var nm = (item.name||'').toLowerCase();
+  var total = 0;
+  pos.forEach(function(p){ (p.items||[]).forEach(function(li){
+    var lpn=(li.partNum||'').toLowerCase(), ld=(li.desc||'').toLowerCase();
+    if ((pn && lpn===pn) || (nm && ld===nm)) {
+      total += Math.max(0, (parseFloat(li.qtyOrdered||0) - parseFloat(li.qtyReceived||0)));
+    }
+  }); });
+  return total;
+}
+function _renderInvOnOrder(item) {
+  var row = document.getElementById('inv-onorder-row'); if (!row) return;
+  var oo = _invOnOrder(item);
+  if (oo > 0) { row.style.display=''; row.textContent = '📦 On order: ' + oo + ' (open POs)'; }
+  else { row.style.display='none'; row.textContent=''; }
+}
+
+// Photo: resize to a small thumbnail data URL (keeps the row light) and preview.
+function _renderInvPhotoPreview(url) {
+  var el = document.getElementById('inv-photo-preview'); if (!el) return;
+  el.innerHTML = url ? '<img src="'+url+'" style="max-height:70px;border-radius:6px;border:1px solid #e0e7ef">' : '';
+}
+function onInvPhotoChange(input) {
+  var f = input && input.files && input.files[0]; if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var max=240, w=img.width, h=img.height;
+      if (w>h && w>max){ h=Math.round(h*max/w); w=max; } else if (h>max){ w=Math.round(w*max/h); h=max; }
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      var url=cv.toDataURL('image/jpeg',0.72);
+      var ph=document.getElementById('inv-photo-url'); if(ph) ph.value=url;
+      _renderInvPhotoPreview(url);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(f);
+}
+
+// Vendor autocomplete from known vendors + catalog vendors.
+function _populateInvVendorList() {
+  var set = {};
+  (DB.vendors||[]).forEach(function(v){ if(v&&v.name) set[v.name]=1; });
+  (DB.catalog||[]).forEach(function(c){ if(c&&c.vendor) set[c.vendor]=1; });
+  var dl = document.getElementById('inv-vendor-datalist');
+  if (dl) dl.innerHTML = Object.keys(set).sort().map(function(v){ return '<option value="'+escHtml(v)+'"></option>'; }).join('');
 }
 
 // Show import run button when step 2 appears

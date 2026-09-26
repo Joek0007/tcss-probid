@@ -4171,24 +4171,45 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <button class="close-btn" data-action="closeModal" data-modal="modal-inv-item">×</button>
     </div>
     <div class="modal-body">
-      <div class="form-row"><div><label>Item Name *</label><input id="inv-name" placeholder="e.g. CAT6 Cable (500ft box)"></div></div>
+      <div class="form-row cols2">
+        <div><label>Item Name *</label><input id="inv-name" placeholder="e.g. CAT6 Cable (500ft box)"></div>
+        <div><label>Item Type</label>
+          <select id="inv-type" onchange="invTypeChanged()">
+            <option value="stock">Stock — tracked inventory</option>
+            <option value="nonstock">Non-stock — special order</option>
+            <option value="service">Service / Labor</option>
+          </select>
+        </div>
+      </div>
       <div class="form-row cols3">
-        <div><label>Category</label><input id="inv-cat" placeholder="Cable, Hardware, Connectors..." list="inv-cat-datalist"><datalist id="inv-cat-datalist"></datalist></div>
+        <div><label>Category</label><input id="inv-cat" placeholder="Cable, Connectors..." list="inv-cat-datalist"><datalist id="inv-cat-datalist"></datalist></div>
+        <div><label>Unit of Measure</label><input id="inv-uom" placeholder="EA, FT, BOX..." list="inv-uom-datalist" value="EA"><datalist id="inv-uom-datalist"><option value="EA"></option><option value="FT"></option><option value="BOX"></option><option value="ROLL"></option><option value="CASE"></option><option value="PR"></option><option value="HR"></option></datalist></div>
+        <div><label>Unit Cost ($)</label><input id="inv-cost" type="number" value="0" min="0" step="0.01"></div>
+      </div>
+      <div class="form-row cols3">
+        <div><label>Manufacturer</label><input id="inv-mfr" placeholder="e.g. CommScope"></div>
+        <div><label>Mfr Part #</label><input id="inv-mfr-part" placeholder="Manufacturer part #"></div>
+        <div><label>Preferred Vendor</label><input id="inv-vendor" placeholder="e.g. Graybar" list="inv-vendor-datalist"><datalist id="inv-vendor-datalist"></datalist></div>
+      </div>
+      <div class="form-row cols3">
         <div><label>Part / Item #</label><input id="inv-part-num" placeholder="Vendor part number"></div>
         <div><label>Barcode / UPC</label><input id="inv-barcode" placeholder="Scan or enter UPC"></div>
+        <div><label>Photo</label><input type="file" id="inv-photo" accept="image/*" onchange="onInvPhotoChange(this)" style="font-size:11px"><input type="hidden" id="inv-photo-url"></div>
       </div>
-      <div class="form-row cols3">
-        <div><label>Min Stock Level</label><input id="inv-min" type="number" value="1" min="0"></div>
-        <div><label>Unit Cost ($)</label><input id="inv-cost" type="number" value="0" min="0" step="0.01"></div>
-        <div><label style="display:flex;align-items:center;gap:6px;margin-top:20px"><input type="checkbox" id="inv-returnable" style="width:16px;height:16px"> Returnable Item</label></div>
+      <div id="inv-photo-preview" style="margin:2px 0 6px"></div>
+      <div id="inv-stock-fields">
+        <div class="form-row cols3">
+          <div><label>Main Shop Qty</label><input id="inv-qty-shop" type="number" value="0" min="0"></div>
+          <div><label>Min Stock Level</label><input id="inv-min" type="number" value="1" min="0"></div>
+          <div><label style="display:flex;align-items:center;gap:6px;margin-top:20px"><input type="checkbox" id="inv-returnable" style="width:16px;height:16px"> Returnable</label></div>
+        </div>
+        <div id="inv-onorder-row" style="font-size:12px;color:#1565c0;margin:0 0 8px;display:none"></div>
       </div>
-      <div class="form-row cols2">
-        <div><label>Main Shop Qty</label><input id="inv-qty-shop" type="number" value="0" min="0"></div>
-        <div><label>Location (legacy)</label><input id="inv-loc" placeholder="Shop, Warehouse..." list="inv-loc-datalist" style="display:none"><datalist id="inv-loc-datalist"></datalist><input id="inv-qty" type="number" value="0" min="0" style="display:none"></div>
-      </div>
-      <div class="form-row"><div><label>Notes</label><textarea id="inv-item-notes" rows="2" placeholder="Supplier, part number, notes..."></textarea></div></div>
+      <div class="form-row"><div><label>Notes</label><textarea id="inv-item-notes" rows="2" placeholder="Notes..."></textarea></div></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:4px;cursor:pointer"><input type="checkbox" id="inv-active" checked style="width:16px;height:16px"> <span><strong>Active</strong> — uncheck to discontinue (hides it from lists but keeps history)</span></label>
       <input type="hidden" id="inv-id">
       <input type="hidden" id="inv-tag">
+      <input id="inv-loc" style="display:none"><input id="inv-qty" type="number" style="display:none">
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-inv-item">Cancel</button>
@@ -6744,27 +6765,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919fb with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919fc with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919fb"></script>
-<script src="js/quotes.js?v=20260919fb"></script>
-<script src="js/tools.js?v=20260919fb"></script>
-<script src="js/field.js?v=20260919fb"></script>
-<script src="js/crm.js?v=20260919fb"></script>
-<script src="js/vehicles.js?v=20260919fb"></script>
-<script src="js/dispatch.js?v=20260919fb"></script>
-<script src="js/permissions.js?v=20260919fb"></script>
-<script src="js/worktracking.js?v=20260919fb"></script>
-<script src="js/calendar.js?v=20260919fb"></script>
-<script src="js/workorders.js?v=20260919fb"></script>
-<script src="js/purchaseorders.js?v=20260919fb"></script>
-<script src="js/inventory.js?v=20260919fb"></script>
-<script src="js/reports.js?v=20260919fb"></script>
-<script src="js/recyclebin.js?v=20260919fb"></script>
-<script src="js/contracts.js?v=20260919fb"></script>
-  <script src="js/recurring.js?v=20260919fb"></script>
-  <script src="js/seed_managed.js?v=20260919fb"></script>
-  <script src="js/auth.js?v=20260919fb"></script>
+<script src="js/core.js?v=20260919fc"></script>
+<script src="js/quotes.js?v=20260919fc"></script>
+<script src="js/tools.js?v=20260919fc"></script>
+<script src="js/field.js?v=20260919fc"></script>
+<script src="js/crm.js?v=20260919fc"></script>
+<script src="js/vehicles.js?v=20260919fc"></script>
+<script src="js/dispatch.js?v=20260919fc"></script>
+<script src="js/permissions.js?v=20260919fc"></script>
+<script src="js/worktracking.js?v=20260919fc"></script>
+<script src="js/calendar.js?v=20260919fc"></script>
+<script src="js/workorders.js?v=20260919fc"></script>
+<script src="js/purchaseorders.js?v=20260919fc"></script>
+<script src="js/inventory.js?v=20260919fc"></script>
+<script src="js/reports.js?v=20260919fc"></script>
+<script src="js/recyclebin.js?v=20260919fc"></script>
+<script src="js/contracts.js?v=20260919fc"></script>
+  <script src="js/recurring.js?v=20260919fc"></script>
+  <script src="js/seed_managed.js?v=20260919fc"></script>
+  <script src="js/auth.js?v=20260919fc"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

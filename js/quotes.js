@@ -6225,14 +6225,20 @@ function renderInventory() {
 // ---- NEW / EDIT INVENTORY ITEM ----
 function newInventoryItem() {
   document.getElementById('inv-modal-title').textContent = 'New Inventory Item';
-  ['inv-name','inv-cat','inv-loc','inv-item-notes','inv-id'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
-  const qtyEl=document.getElementById('inv-qty'); if(qtyEl) qtyEl.value=1;
-  const minEl=document.getElementById('inv-min'); if(minEl) minEl.value=1;
-  const costEl=document.getElementById('inv-cost'); if(costEl) costEl.value=0;
-  // Suggest the next asset tag (own sequence — no longer tied to the invoice counter)
-  const tagEl=document.getElementById('inv-tag'); if(tagEl) tagEl.value=nextAssetTag();
-  // Populate datalists
+  // Wave 1d: reset the full field set. No auto asset-tag on bulk items.
+  ['inv-name','inv-cat','inv-item-notes','inv-id','inv-part-num','inv-barcode','inv-mfr','inv-mfr-part','inv-vendor','inv-photo-url','inv-tag','inv-loc']
+    .forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+  const setv=function(id,v){ const el=document.getElementById(id); if(el) el.value=v; };
+  setv('inv-qty-shop',0); setv('inv-min',1); setv('inv-cost',0); setv('inv-uom','EA');
+  const typeEl=document.getElementById('inv-type'); if(typeEl) typeEl.value='stock';
+  const retEl=document.getElementById('inv-returnable'); if(retEl) retEl.checked=false;
+  const actEl=document.getElementById('inv-active'); if(actEl) actEl.checked=true;
+  const phEl=document.getElementById('inv-photo'); if(phEl) phEl.value='';
+  const ooEl=document.getElementById('inv-onorder-row'); if(ooEl){ ooEl.style.display='none'; ooEl.textContent=''; }
+  if (typeof _renderInvPhotoPreview==='function') _renderInvPhotoPreview('');
   populateInvDataLists();
+  if (typeof _populateInvVendorList==='function') _populateInvVendorList();
+  if (typeof invTypeChanged==='function') invTypeChanged();
   openModal('modal-inv-item');
 }
 

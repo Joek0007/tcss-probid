@@ -1923,35 +1923,32 @@ async function _pushStockQtyToCloud(id, locations) {
 // preserves them on update. Also updates the in-memory DB.catalog master + re-derives inventory.
 async function _pushInventoryToCloud(inv) {
   if (!_sb || !_currentUser || !inv || !inv.id) return;
-  // Keep the in-memory master in step with this stock edit.
-  var m = (DB.catalog || []).find(function(c){ return String(c.id) === String(inv.id); });
-  if (m) {
-    m.tracked = true; if (!m.itemType || m.itemType === 'nonstock') m.itemType = 'stock';
-    m.locations = inv.locations || m.locations || {};
-    if (inv.partNum != null) { m.partNum = inv.partNum; m.part = inv.partNum; }
-    if (inv.barcode != null) m.barcode = inv.barcode;
-    if (inv.returnable != null) m.returnable = !!inv.returnable;
-    if (inv.minQty != null) m.minQty = inv.minQty;
-    if (inv.cost != null) { m.cost = inv.cost; m.mc = inv.cost; }
-    if (inv.tag != null) m.tag = inv.tag;
-    if (inv.notes != null) m.notes = inv.notes;
-    if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
-  }
+  // Full item-master write-through (office save path). Respects the item type + active flag and the
+  // Wave 1d fields (unit, manufacturer, mfr part, vendor, photo). Stock items are tracked; non-stock
+  // and service items are not.
+  var _type = inv.itemType || 'stock';
+  var _tracked = (inv.tracked != null) ? !!inv.tracked : (_type === 'stock');
+  var _active = (inv.active != null) ? !!inv.active : true;
   try {
     var { error } = await _sb.from('catalog').upsert({
-      id:         inv.id,
-      name:       inv.name,
-      category:   inv.cat || 'General',
-      part_num:   inv.partNum || null,
-      barcode:    inv.barcode || null,
-      returnable: !!inv.returnable,
-      locations:  inv.locations || {},
-      min_qty:    inv.minQty || 0,
+      id:           inv.id,
+      name:         inv.name,
+      category:     inv.cat || 'General',
+      unit:         inv.unit || 'ea',
+      part_num:     inv.partNum || null,
+      barcode:      inv.barcode || null,
+      manufacturer: inv.manufacturer || null,
+      mfr_part:     inv.mfrPart || null,
+      vendor:       inv.vendor || null,
+      photo_url:    inv.photoUrl || null,
+      returnable:   !!inv.returnable,
+      locations:    inv.locations || {},
+      min_qty:      inv.minQty || 0,
       default_cost: inv.cost || 0,
-      notes:      inv.notes || null,
-      item_type:  'stock',
-      tracked:    true,
-      is_active:  true
+      notes:        inv.notes || null,
+      item_type:    _type,
+      tracked:      _tracked,
+      is_active:    _active
     }, { onConflict: 'id' });
     if (error) console.warn('[Inventory Push]', error.message);
   } catch (e) { console.warn('[Inventory Push]', e.message || e); }
