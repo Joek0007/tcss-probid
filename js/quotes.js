@@ -6158,6 +6158,7 @@ function renderInventory() {
         '<td><span class="inv-qty-badge '+qtyClass+'">'+qty+' — '+qtyLabel+'</span></td>' +
         '<td>'+(activeCoCount>0?'<span class="checkout-badge co-out">'+activeCoCount+' Out</span>':'<span class="checkout-badge co-in">Available</span>')+'</td>' +
         '<td style="white-space:nowrap">' +
+          '<button class="btn btn-ghost btn-sm" onclick="toggleInvFavorite(\''+item.id+'\',event)" title="Favorite (surfaces at top of Add-Item picker)" style="font-size:15px;padding:2px 6px;color:'+(_isInvFav(item.id)?'#f9a825':'#cfd8dc')+'">'+(_isInvFav(item.id)?'★':'☆')+'</button> ' +
           '<button class="btn btn-outline btn-sm" data-action="checkoutItem" data-id="'+item.id+'" title="Check Out">↗ Out</button> ' +
           (canAdjust ? '<button class="btn btn-outline btn-sm" data-action="openAdjustQty" data-id="'+item.id+'" title="Correct on-hand quantity">± Adjust</button> ' : '') +
           '<button class="btn btn-ghost btn-sm" data-action="editInventoryItem" data-id="'+item.id+'">Edit</button> ' +

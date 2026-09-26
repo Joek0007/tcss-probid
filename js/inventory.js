@@ -1041,15 +1041,19 @@ function renderWOItemResults(term) {
            (c.partNum || c.part || '').toLowerCase().indexOf(term) >= 0 ||
            (c.barcode || '').toLowerCase().indexOf(term) >= 0;
   });
-  // tracked (stock) items first, then by name
-  list.sort(function(a,b){ return (b.tracked?1:0) - (a.tracked?1:0) || String(a.name||'').localeCompare(String(b.name||'')); });
+  // Favorites first, then tracked (stock) items, then by name.
+  list.sort(function(a,b){
+    return (_isInvFav(b.id)?1:0) - (_isInvFav(a.id)?1:0)
+        || (b.tracked?1:0) - (a.tracked?1:0)
+        || String(a.name||'').localeCompare(String(b.name||''));
+  });
   list = list.slice(0, 30);
   var el = document.getElementById('wo-ai-results'); if (!el) return;
   if (!list.length) { el.innerHTML = '<div style="color:#90a4ae;font-size:13px;padding:10px">No matching items — use the one-off form below to add a custom item.</div>'; return; }
   el.innerHTML = list.map(function(c){
     var oh = _woItemOnHand(c);
     return '<div onclick="selectWOAIItem(\'' + escHtml(c.id) + '\')" style="padding:8px 10px;border-bottom:1px solid #f0f4f8;cursor:pointer;display:flex;justify-content:space-between;gap:10px">' +
-      '<div><div style="font-weight:600;font-size:13px">' + escHtml(c.name || '') + '</div>' +
+      '<div><div style="font-weight:600;font-size:13px">' + (_isInvFav(c.id)?'<span style="color:#f9a825">★</span> ':'') + escHtml(c.name || '') + '</div>' +
       '<div style="font-size:11px;color:#90a4ae">' + escHtml(c.partNum || c.part || '') + (c.tracked ? '' : ' · non-stock') + '</div></div>' +
       '<div style="text-align:right;font-size:12px;white-space:nowrap">$' + Number(_woItemCost(c)).toFixed(2) + '<br>' +
         (c.tracked ? '<span style="color:' + (oh > 0 ? '#2e7d32' : '#c62828') + '">' + oh + ' on hand</span>' : '<span style="color:#90a4ae">—</span>') +
@@ -1154,4 +1158,25 @@ function setAllowNegativeStock(v) {
   saveDB();
   if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
   showToast('Inventory setting saved', 'success', 1500);
+}
+
+// ============================================================
+// Wave 1e — Favorites (company-wide "our common items")
+// ============================================================
+// Stored in DB.settings.invFavorites (array of item ids) — syncs via settings_json, no migration.
+// Favorited items sort to the top of the Add-Item picker (one-tap add) and get a ★ marker.
+function _invFavs() { return (DB.settings && Array.isArray(DB.settings.invFavorites)) ? DB.settings.invFavorites : []; }
+function _isInvFav(id) { return _invFavs().indexOf(String(id)) >= 0; }
+function toggleInvFavorite(id, ev) {
+  if (ev) { try { ev.stopPropagation(); ev.preventDefault(); } catch(e){} }
+  if (!DB.settings) DB.settings = {};
+  var f = (Array.isArray(DB.settings.invFavorites) ? DB.settings.invFavorites : []).slice();
+  var i = f.indexOf(String(id));
+  var added;
+  if (i >= 0) { f.splice(i, 1); added = false; } else { f.push(String(id)); added = true; }
+  DB.settings.invFavorites = f;
+  saveDB();
+  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
+  if (typeof renderInventory === 'function') renderInventory();
+  if (typeof showToast === 'function') showToast(added ? '★ Added to favorites' : 'Removed from favorites', 'info', 1500);
 }
