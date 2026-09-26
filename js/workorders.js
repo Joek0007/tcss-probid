@@ -2161,11 +2161,16 @@ function renderWOPartsTab(woId) {
 
   var html = '<div>';
 
+  // Add-Item picker (office/lead): from stock / order / non-stock / one-off (Wave 1b)
+  if (isOffice) {
+    html += '<div style="margin-bottom:12px"><button class="btn btn-primary btn-sm" onclick="openWOAddItem()">+ Add Item &nbsp;<span style="font-weight:400;opacity:.8">from stock · catalog · one-off</span></button></div>';
+  }
+
   // Add part form (office/lead only)
   if (isOffice) {
     html +=
       '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:16px">'+
-        '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin-bottom:8px">Request a Part</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin-bottom:8px">Quick request a part (free text)</div>'+
         '<div style="display:grid;grid-template-columns:1fr 64px 96px 1fr auto;gap:8px;align-items:end">'+
           '<div><input id="wop-name" placeholder="Part name / search catalog..." list="wop-catalog-list" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box">'+
           '<datalist id="wop-catalog-list">'+
@@ -2273,6 +2278,9 @@ function renderWOPartsTab(woId) {
   html += renderGroup('Ordered — In Transit',       '⏳', ordered,   '#1565c0', '#e3f2fd');
   html += renderGroup('Partially Received',          '🔶', partial,   '#e65100', '#fff3e0');
   html += renderGroup('Received — On Hand',          '✅', received,  '#2e7d32', '#e8f5e9');
+  // Wave 1b: items issued from stock / non-stock / one-off land as status 'used' and now have a home.
+  var used = parts.filter(function(p){ return p.status==='used'; });
+  html += renderGroup('Used / On This Job',           '🔧', used,     '#00695c', '#e0f2f1');
 
   return html + '</div>';
 }

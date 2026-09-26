@@ -249,7 +249,7 @@ async function ensureWOPartsForIds(ids){
         var have = {}; DB.woParts.forEach(function(p){ if(p&&p.id) have[p.id]=1; });
         r.data.forEach(function(p){
           if (have[p.id] || delWP.indexOf(String(p.id))>=0) return;
-          DB.woParts.push({ id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, unit:p.unit, unitCost:p.unit_cost, status:p.status, notes:p.notes, requestedBy:p.requested_by, createdAt:p.created_at });
+          DB.woParts.push({ id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, unit:p.unit, unitCost:p.unit_cost, status:p.status, notes:p.notes, requestedBy:p.requested_by, itemId:p.item_id, source:p.source, fromLocation:p.from_location, createdAt:p.created_at });
         });
       }
     } catch(e) { /* skip chunk on failure */ }
@@ -1489,7 +1489,9 @@ async function syncAllFromCloud(silent) {
         // not yet confirmed-deleted in the cloud must be filtered out here or it would
         // resurrect on every sync. Mirrors the WO/PO tombstone-filter pattern.
         DB.woParts = woPartsRows.filter(function(p){ return delWP.indexOf(String(p.id)) < 0; }).map(function(p){
-          return { id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, unit:p.unit, status:p.status, notes:p.notes, requestedBy:p.requested_by, createdAt:p.created_at };
+          // BUGFIX (Wave 1b): the full pull previously dropped unit_cost, so part costs vanished on a
+          // full sync — billing needs it. Also carry the new item-master link + source fields.
+          return { id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, unit:p.unit, unitCost:p.unit_cost, status:p.status, notes:p.notes, requestedBy:p.requested_by, itemId:p.item_id, source:p.source, fromLocation:p.from_location, createdAt:p.created_at };
         });
       }
     } catch(e) { errors.push('wo_parts: '+e.message); }
@@ -1865,6 +1867,9 @@ async function _pushWOPartToCloud(wp) {
       status:       wp.status||'requested',
       notes:        wp.notes||null,
       requested_by: wp.requestedBy||null,
+      item_id:      wp.itemId||null,
+      source:       wp.source||null,
+      from_location:wp.fromLocation||null,
       created_at:   wp.createdAt||new Date().toISOString()
     }, { onConflict: 'id' });
     if (error) console.warn('[WO Part Push]', error.message);
@@ -2768,6 +2773,9 @@ async function pushAllToCloud() {
           status:       wp.status||'requested',
           notes:        wp.notes||null,
           requested_by: wp.requestedBy||null,
+          item_id:      wp.itemId||null,
+          source:       wp.source||null,
+          from_location:wp.fromLocation||null,
           created_at:   wp.createdAt||new Date().toISOString()
         }, {onConflict:'id'}));
       } catch(wpErr) { console.warn('[Push] WO part:', wpErr.message||wpErr); }

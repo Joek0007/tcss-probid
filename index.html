@@ -4229,6 +4229,33 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   </div>
 </div>
 
+<!-- ADD-ITEM PICKER MODAL (Wave 1b) -->
+<div class="modal-overlay" id="modal-wo-additem" data-no-backdrop-close>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Add Item to Work Order</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-wo-additem">×</button>
+    </div>
+    <div class="modal-body">
+      <input id="wo-ai-search" placeholder="Search items by name, part #, or barcode..." oninput="renderWOItemResults(this.value)" style="width:100%;padding:9px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px;box-sizing:border-box">
+      <div id="wo-ai-results" style="max-height:220px;overflow-y:auto;border:1px solid #eceff1;border-radius:8px;margin-top:8px"></div>
+      <div id="wo-ai-detail" style="display:none;background:#f8f9fa;border-radius:8px;padding:12px;margin-top:12px"></div>
+      <div style="border-top:1px dashed #cfd8dc;margin:16px 0 12px"></div>
+      <div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin-bottom:8px">Or add a one-off / custom item</div>
+      <div style="display:grid;grid-template-columns:1fr 70px 90px auto;gap:8px;align-items:end">
+        <div><label style="font-size:11px;color:#546e7a">Description</label><input id="wo-ai-oneoff-name" placeholder="e.g. rented lift" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box"></div>
+        <div><label style="font-size:11px;color:#546e7a">Qty</label><input id="wo-ai-oneoff-qty" type="number" min="0" step="any" value="1" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box"></div>
+        <div><label style="font-size:11px;color:#546e7a">Unit $</label><input id="wo-ai-oneoff-cost" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box"></div>
+        <div><button class="btn btn-primary btn-sm" onclick="addOneOffToWO()">+ Add</button></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#546e7a;margin-top:8px"><input type="checkbox" id="wo-ai-oneoff-save"> Also save to price catalog for next time</label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-wo-additem">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOOL ITEM MODAL -->
 <div class="modal-overlay" id="modal-tool-item">
   <div class="modal-box">
@@ -4910,6 +4937,13 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           <input id="new-location-name" placeholder="New location name..." style="flex:1;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
           <button class="btn btn-primary btn-sm" onclick="addLocation()">+ Add Location</button>
         </div>
+      </div>
+      <div class="card ms-full">
+        <div class="card-title">⚙️ Inventory Options</div>
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;padding:6px 0;cursor:pointer">
+          <input type="checkbox" id="inv-allow-negative" onchange="setAllowNegativeStock(this.checked)" style="width:18px;height:18px;margin-top:2px">
+          <span><strong>Allow negative stock</strong><br><span style="font-size:12px;color:#607d8b">When ON, issuing more than on-hand is allowed and stock can go negative (backorder). When OFF (default), issuing beyond on-hand is blocked — add the item as a one-off or Request-for-PO instead.</span></span>
+        </label>
       </div>
     </div>
   </div><!-- end ms-section inventory -->
@@ -6700,27 +6734,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919ez with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919fa with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919ez"></script>
-<script src="js/quotes.js?v=20260919ez"></script>
-<script src="js/tools.js?v=20260919ez"></script>
-<script src="js/field.js?v=20260919ez"></script>
-<script src="js/crm.js?v=20260919ez"></script>
-<script src="js/vehicles.js?v=20260919ez"></script>
-<script src="js/dispatch.js?v=20260919ez"></script>
-<script src="js/permissions.js?v=20260919ez"></script>
-<script src="js/worktracking.js?v=20260919ez"></script>
-<script src="js/calendar.js?v=20260919ez"></script>
-<script src="js/workorders.js?v=20260919ez"></script>
-<script src="js/purchaseorders.js?v=20260919ez"></script>
-<script src="js/inventory.js?v=20260919ez"></script>
-<script src="js/reports.js?v=20260919ez"></script>
-<script src="js/recyclebin.js?v=20260919ez"></script>
-<script src="js/contracts.js?v=20260919ez"></script>
-  <script src="js/recurring.js?v=20260919ez"></script>
-  <script src="js/seed_managed.js?v=20260919ez"></script>
-  <script src="js/auth.js?v=20260919ez"></script>
+<script src="js/core.js?v=20260919fa"></script>
+<script src="js/quotes.js?v=20260919fa"></script>
+<script src="js/tools.js?v=20260919fa"></script>
+<script src="js/field.js?v=20260919fa"></script>
+<script src="js/crm.js?v=20260919fa"></script>
+<script src="js/vehicles.js?v=20260919fa"></script>
+<script src="js/dispatch.js?v=20260919fa"></script>
+<script src="js/permissions.js?v=20260919fa"></script>
+<script src="js/worktracking.js?v=20260919fa"></script>
+<script src="js/calendar.js?v=20260919fa"></script>
+<script src="js/workorders.js?v=20260919fa"></script>
+<script src="js/purchaseorders.js?v=20260919fa"></script>
+<script src="js/inventory.js?v=20260919fa"></script>
+<script src="js/reports.js?v=20260919fa"></script>
+<script src="js/recyclebin.js?v=20260919fa"></script>
+<script src="js/contracts.js?v=20260919fa"></script>
+  <script src="js/recurring.js?v=20260919fa"></script>
+  <script src="js/seed_managed.js?v=20260919fa"></script>
+  <script src="js/auth.js?v=20260919fa"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

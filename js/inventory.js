@@ -57,7 +57,10 @@ function adjustItemQty(itemId, locId, delta) {
   if (!m) return;
   if (!m.locations || typeof m.locations !== 'object') m.locations = {};
   if (m.locations[locId] == null) m.locations[locId] = 0;
-  m.locations[locId] = Math.max(0, parseFloat(m.locations[locId]) + delta);
+  // Floor at 0 unless the shop has enabled negative stock (backorder), in which case a move may go
+  // below zero — keeps scanner/receiving/issue behavior consistent with the Add-Item picker.
+  var _floor = (DB.settings && DB.settings.allowNegativeStock) ? -Infinity : 0;
+  m.locations[locId] = Math.max(_floor, parseFloat(m.locations[locId]) + delta);
   m.tracked = true;
   saveDB();
   if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
@@ -652,6 +655,9 @@ function runImport() {
 // ---- LOCATION SETTINGS ----
 
 function renderLocationSettings() {
+  // Wave 1b: reflect the global "allow negative stock" toggle when the inventory settings render.
+  var neg = document.getElementById('inv-allow-negative');
+  if (neg) neg.checked = !!(DB.settings && DB.settings.allowNegativeStock);
   var locs = getLocations();
   var el   = document.getElementById('inv-locations-list');
   if (!el) return;
@@ -900,4 +906,169 @@ async function saveAdjustQty() {
   closeModal('modal-inv-adjust');
   if (typeof renderInventory === 'function') renderInventory();
   showToast('Stock adjusted ✓', 'success');
+}
+
+// ============================================================
+// Wave 1b — Add-Item picker (WO parts): stock / order / non-stock / one-off
+// ============================================================
+var _woAISelected = null;
+
+function _addWOPartRecord(part) {
+  var woId = _woCurrentId;
+  if (!woId) { showToast('Save the work order first', 'error'); return null; }
+  if (!DB.woParts) DB.woParts = [];
+  var rec = Object.assign({
+    id: 'wop-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+    woId: woId,
+    requestedBy: (_currentUser && (_currentUser.full_name || _currentUser.name)) || 'Unknown',
+    createdAt: new Date().toISOString()
+  }, part);
+  DB.woParts.push(rec);
+  if (typeof _pushWOPartToCloud === 'function') _pushWOPartToCloud(rec);
+  saveDB();
+  return rec;
+}
+
+function openWOAddItem() {
+  if (!_woCurrentId) { showToast('Save the work order first', 'error'); return; }
+  _woAISelected = null;
+  var s = document.getElementById('wo-ai-search'); if (s) s.value = '';
+  var d = document.getElementById('wo-ai-detail'); if (d) d.style.display = 'none';
+  var on = document.getElementById('wo-ai-oneoff-name'); if (on) on.value = '';
+  var oc = document.getElementById('wo-ai-oneoff-cost'); if (oc) oc.value = '';
+  var oq = document.getElementById('wo-ai-oneoff-qty'); if (oq) oq.value = '1';
+  var os = document.getElementById('wo-ai-oneoff-save'); if (os) os.checked = false;
+  renderWOItemResults('');
+  openModal('modal-wo-additem');
+  setTimeout(function(){ var s2 = document.getElementById('wo-ai-search'); if (s2) s2.focus(); }, 120);
+}
+
+function _woItemOnHand(c) {
+  if (!c.tracked) return null;
+  var locs = c.locations || {};
+  return Object.keys(locs).reduce(function(s, k){ return s + (parseFloat(locs[k]) || 0); }, 0);
+}
+function _woItemCost(c) { return (c.mc != null ? c.mc : (c.cost || 0)); }
+
+function renderWOItemResults(term) {
+  term = (term || '').toLowerCase().trim();
+  var list = (DB.catalog || []).filter(function(c){ return c && c.active !== false; });
+  if (term) list = list.filter(function(c){
+    return (c.name || '').toLowerCase().indexOf(term) >= 0 ||
+           (c.partNum || c.part || '').toLowerCase().indexOf(term) >= 0 ||
+           (c.barcode || '').toLowerCase().indexOf(term) >= 0;
+  });
+  // tracked (stock) items first, then by name
+  list.sort(function(a,b){ return (b.tracked?1:0) - (a.tracked?1:0) || String(a.name||'').localeCompare(String(b.name||'')); });
+  list = list.slice(0, 30);
+  var el = document.getElementById('wo-ai-results'); if (!el) return;
+  if (!list.length) { el.innerHTML = '<div style="color:#90a4ae;font-size:13px;padding:10px">No matching items — use the one-off form below to add a custom item.</div>'; return; }
+  el.innerHTML = list.map(function(c){
+    var oh = _woItemOnHand(c);
+    return '<div onclick="selectWOAIItem(\'' + escHtml(c.id) + '\')" style="padding:8px 10px;border-bottom:1px solid #f0f4f8;cursor:pointer;display:flex;justify-content:space-between;gap:10px">' +
+      '<div><div style="font-weight:600;font-size:13px">' + escHtml(c.name || '') + '</div>' +
+      '<div style="font-size:11px;color:#90a4ae">' + escHtml(c.partNum || c.part || '') + (c.tracked ? '' : ' · non-stock') + '</div></div>' +
+      '<div style="text-align:right;font-size:12px;white-space:nowrap">$' + Number(_woItemCost(c)).toFixed(2) + '<br>' +
+        (c.tracked ? '<span style="color:' + (oh > 0 ? '#2e7d32' : '#c62828') + '">' + oh + ' on hand</span>' : '<span style="color:#90a4ae">—</span>') +
+      '</div></div>';
+  }).join('');
+}
+
+function selectWOAIItem(id) {
+  var c = (DB.catalog || []).find(function(x){ return String(x.id) === String(id); });
+  if (!c) return;
+  _woAISelected = c.id;
+  var d = document.getElementById('wo-ai-detail'); if (!d) return;
+  var locs = getLocations();
+  var chips = c.tracked ? locs.map(function(l){ var q = getItemQtyAtLocation(c, l.id); return q > 0 ? '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 8px;border-radius:10px;font-size:11px;margin:2px 3px 0 0;display:inline-block">' + escHtml(l.name) + ': ' + q + '</span>' : ''; }).join('') : '';
+  var locOpts = locs.map(function(l){ return '<option value="' + escHtml(l.id) + '">' + escHtml(l.name) + ' (' + getItemQtyAtLocation(c, l.id) + ')</option>'; }).join('');
+  d.style.display = '';
+  d.innerHTML =
+    '<div style="font-weight:700;font-size:14px;margin-bottom:2px">' + escHtml(c.name || '') + '</div>' +
+    '<div style="font-size:12px;color:#607d8b;margin-bottom:8px">' + escHtml(c.partNum || c.part || '') + ' · $' + Number(_woItemCost(c)).toFixed(2) + ' · ' + (c.tracked ? '<span style="color:#2e7d32">stock item</span>' : '<span style="color:#e65100">non-stock</span>') + '</div>' +
+    (chips ? '<div style="margin-bottom:8px">' + chips + '</div>' : '') +
+    '<div style="display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;margin-bottom:10px">' +
+      '<label style="font-size:12px;font-weight:700;color:#546e7a">Qty</label>' +
+      '<input type="number" id="wo-ai-qty" min="0" step="any" value="1" style="width:110px;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">' +
+      (c.tracked ? '<label style="font-size:12px;font-weight:700;color:#546e7a">From</label><select id="wo-ai-loc" style="padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">' + locOpts + '</select>' : '') +
+    '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      (c.tracked ? '<button class="btn btn-primary btn-sm" onclick="addPickedItemToWO(\'stock\')">↓ Add from Stock</button>' : '') +
+      '<button class="btn btn-outline btn-sm" onclick="addPickedItemToWO(\'order\')">Request for PO</button>' +
+      '<button class="btn btn-outline btn-sm" onclick="addPickedItemToWO(\'nonstock\')">Add as Non-stock</button>' +
+    '</div>';
+  var sel = document.getElementById('wo-ai-loc');
+  if (sel) { var best = locs.find(function(l){ return getItemQtyAtLocation(c, l.id) > 0; }); if (best) sel.value = best.id; }
+}
+
+function addPickedItemToWO(mode) {
+  var c = (DB.catalog || []).find(function(x){ return String(x.id) === String(_woAISelected); });
+  if (!c) { showToast('Pick an item first', 'error'); return; }
+  var qty = parseFloat((document.getElementById('wo-ai-qty') || {}).value) || 0;
+  if (qty <= 0) { showToast('Enter a quantity', 'error'); return; }
+  var base = { name: c.name, partNum: c.partNum || c.part || '', qty: qty, unit: c.unit || 'ea', unitCost: _woItemCost(c), itemId: c.id };
+
+  if (mode === 'stock') {
+    var fromLoc = (document.getElementById('wo-ai-loc') || {}).value || 'loc-shop';
+    var avail = getItemQtyAtLocation(c, fromLoc);
+    var allowNeg = !!(DB.settings && DB.settings.allowNegativeStock);
+    if (qty > avail && !allowNeg) {
+      showToast('Only ' + avail + ' at ' + getLocationName(fromLoc) + '. Enable "Allow negative stock" in Inventory settings, or use Request for PO / Non-stock.', 'error', 7000);
+      return;
+    }
+    adjustItemQty(c.id, fromLoc, -qty); // RPC-backed decrement + re-derive
+    _addWOPartRecord(Object.assign({}, base, { status: 'used', source: 'stock', fromLocation: fromLoc }));
+    showToast(qty + ' × ' + c.name + ' issued from ' + getLocationName(fromLoc) + ' ✓', 'success');
+  } else if (mode === 'order') {
+    _addWOPartRecord(Object.assign({}, base, { status: 'requested', source: 'order' }));
+    showToast(c.name + ' added to parts to order', 'success');
+  } else {
+    _addWOPartRecord(Object.assign({}, base, { status: 'used', source: 'nonstock' }));
+    showToast(c.name + ' added (non-stock)', 'success');
+  }
+  if (typeof switchWOTab === 'function') switchWOTab('parts');
+  _woAISelected = null;
+  var d = document.getElementById('wo-ai-detail'); if (d) d.style.display = 'none';
+  var s = document.getElementById('wo-ai-search'); if (s) { s.value = ''; s.focus(); }
+  renderWOItemResults('');
+}
+
+function addOneOffToWO() {
+  var name = ((document.getElementById('wo-ai-oneoff-name') || {}).value || '').trim();
+  var qty  = parseFloat((document.getElementById('wo-ai-oneoff-qty') || {}).value) || 0;
+  var cost = parseFloat((document.getElementById('wo-ai-oneoff-cost') || {}).value) || 0;
+  if (!name) { showToast('Enter a description', 'error'); return; }
+  if (qty <= 0) { showToast('Enter a quantity', 'error'); return; }
+  var saveToCatalog = !!((document.getElementById('wo-ai-oneoff-save') || {}).checked);
+  var itemId = null;
+  if (saveToCatalog) {
+    var newId = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'cat-' + Date.now());
+    var newItem = { id: newId, name: name, cat: 'General', unit: 'ea', mc: cost, cost: cost, lh: 0, hours: 0,
+                    itemType: 'nonstock', tracked: false, active: true, locations: {}, createdAt: new Date().toISOString() };
+    if (!DB.catalog) DB.catalog = [];
+    DB.catalog.push(newItem);
+    if (_sb && _currentUser) {
+      _sb.from('catalog').upsert({ id: newId, name: name, category: 'General', unit: 'ea', default_cost: cost,
+        default_hours: 0, item_type: 'nonstock', tracked: false, is_active: true }, { onConflict: 'id' })
+        .then(function(r){ if (r && r.error) console.warn('[one-off catalog]', r.error.message); });
+    }
+    itemId = newId;
+  }
+  _addWOPartRecord({ name: name, partNum: '', qty: qty, unit: 'ea', unitCost: cost, status: 'used',
+                     source: 'oneoff', itemId: itemId, notes: 'One-off item' });
+  showToast('One-off "' + name + '" added', 'success');
+  if (typeof switchWOTab === 'function') switchWOTab('parts');
+  var on = document.getElementById('wo-ai-oneoff-name'); if (on) on.value = '';
+  var oc = document.getElementById('wo-ai-oneoff-cost'); if (oc) oc.value = '';
+  var oq = document.getElementById('wo-ai-oneoff-qty'); if (oq) oq.value = '1';
+  var os = document.getElementById('wo-ai-oneoff-save'); if (os) os.checked = false;
+}
+
+// Global setup toggle — allow issuing stock below on-hand (backorder / negative).
+function setAllowNegativeStock(v) {
+  if (!DB.settings) DB.settings = {};
+  DB.settings.allowNegativeStock = !!v;
+  saveDB();
+  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
+  showToast('Inventory setting saved', 'success', 1500);
 }
