@@ -1685,6 +1685,20 @@ async function syncAllFromCloud(silent) {
     }
   } catch(e) { errors.push('app_state: '+e.message); }
 
+  // time_off_requests — per-row pull (upgraded from the app_state blob so two people
+  // editing different requests no longer overwrite each other). Preserves local-only
+  // rows not yet pushed, and honors the client tombstone list.
+  try {
+    var { data: torRows } = await _sbSelectAll(function(){ return _sb.from('time_off_requests').select('*').eq('deleted', false); });
+    if (torRows) {
+      var _torDel2 = (DB.deletedIds && DB.deletedIds.timeOffRequests) || [];
+      var cloudTor = torRows.filter(function(t){ return _torDel2.indexOf(String(t.id)) < 0; }).map(_timeOffRowToObj);
+      var _cloudTorIds = {}; cloudTor.forEach(function(t){ _cloudTorIds[t.id] = 1; });
+      var _localOnlyTor = (DB.timeOffRequests || []).filter(function(t){ return t && t.id && !_cloudTorIds[t.id]; });
+      DB.timeOffRequests = cloudTor.concat(_localOnlyTor);
+    }
+  } catch(e) { errors.push('time_off_requests: '+e.message); }
+
   // Audit log — read recent history back so the view isn't empty after a reload.
   try {
     var { data: auditRows } = await _sb.from('probid_audit').select('*').order('created_at', { ascending: false }).limit(500);
@@ -2030,6 +2044,45 @@ async function _pushJobToCloud(jb) {
       }
     }
   } catch (e) { console.warn('[Job Push]', e.message || e); }
+}
+
+// time-off row mappers (per-row sync — shared by push + pull)
+function _timeOffToRow(r){
+  return {
+    id: r.id,
+    tech_name: r.techName || null,
+    tech_id: r.techId || null,
+    type: r.type || 'vacation',
+    start_date: r.startDate || null,
+    end_date: r.endDate || r.startDate || null,
+    hours: (r.hours != null ? r.hours : null),
+    note: r.note || null,
+    status: r.status || 'pending',
+    submitted_at: r.submittedAt || null,
+    approved_by: r.resolvedBy || null,
+    resolved_at: r.resolvedAt || null,
+    resolved_by: r.resolvedBy || null,
+    deny_reason: r.denyReason || null,
+    deleted: !!r.deleted,
+    updated_at: new Date().toISOString()
+  };
+}
+function _timeOffRowToObj(t){
+  return {
+    id: t.id,
+    techName: t.tech_name || '',
+    techId: t.tech_id || null,
+    type: t.type || 'vacation',
+    startDate: t.start_date || '',
+    endDate: t.end_date || '',
+    hours: (t.hours != null ? Number(t.hours) : 8),
+    note: t.note || '',
+    status: t.status || 'pending',
+    submittedAt: t.submitted_at || '',
+    resolvedAt: t.resolved_at || '',
+    resolvedBy: t.resolved_by || '',
+    denyReason: t.deny_reason || ''
+  };
 }
 
 async function pushAllToCloud() {
@@ -2745,7 +2798,7 @@ async function pushAllToCloud() {
     // Persist secondary collections that have no dedicated table (tools & assets,
     // tool checkouts, checkout log, inventory locations/transfers). Stored as whole-
     // collection JSON blobs in app_state so they survive reloads and reach every device.
-    var _blobKeys = ['tools','toolCheckouts','checkoutLog','invLocations','invTransfers','timeOffRequests','absences',
+    var _blobKeys = ['tools','toolCheckouts','checkoutLog','invLocations','invTransfers','absences',
       // sync-audit RED #7: payroll/tool side-records that were local-only (per-device). Arrays,
       // synced via the app_state blob store (whole-array last-write-wins — fine for these
       // low-frequency, office-written collections; strictly better than never syncing).
@@ -2754,6 +2807,18 @@ async function pushAllToCloud() {
       try { await _sb.from('app_state').upsert({ key: _bk, data: DB[_bk] || [], updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
       catch(_be) { console.warn('[Push] app_state', _bk, _be && _be.message); }
     }
+
+    // time_off_requests — per-row upsert + tombstone (replaces the app_state blob for this collection)
+    try {
+      for (var _tor of (DB.timeOffRequests || [])) {
+        if (!_tor || !_tor.id) continue;
+        _pushErr('time_off '+(_tor.techName || _tor.id), await _sb.from('time_off_requests').upsert(_timeOffToRow(_tor), { onConflict: 'id' }));
+      }
+      var _torDel = (DB.deletedIds && DB.deletedIds.timeOffRequests) || [];
+      for (var _tid of _torDel) {
+        await _sb.from('time_off_requests').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', _tid);
+      }
+    } catch(_te) { console.warn('[Push] time_off_requests', _te && _te.message); }
 
   } catch(e) {
     console.error('Push error:', e);

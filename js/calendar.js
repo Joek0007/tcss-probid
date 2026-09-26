@@ -323,8 +323,10 @@ async function uploadJobPhoto(jobId, file, caption) {
 function renderJobPhotosSection(jobId) {
   var el = document.getElementById('job-photos-section-'+jobId);
   if (!el) return;
-  var photos = (DB.jobPhotos||[]).filter(function(p){ return p.jobId === jobId; })
+  var photos = (DB.jobPhotos||[]).filter(function(p){ return p.jobId === jobId && !p.deleted; })
     .sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
+  var _role = (_currentUser && _currentUser.role) || '';
+  var _officePhoto = ['owner','manager','back_office'].indexOf(_role) >= 0;
   var html = '<div style="margin-bottom:10px">'+
     '<button class="btn btn-outline btn-sm" onclick="openPhotoUpload(\''+jobId+'\')">📷 Upload Photos</button>'+
   '</div>';
@@ -334,10 +336,12 @@ function renderJobPhotosSection(jobId) {
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px">';
     photos.forEach(function(p) {
       if (!p.url) return;
+      var canDel = _officePhoto || (p.uploadedBy && _currentUser && p.uploadedBy === _currentUser.id);
       html += '<div style="position:relative">'+
         '<img data-sp="'+escHtml(p.filePath||p.file_path||'')+'" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" onclick="if(this.getAttribute(\'src\').indexOf(\'/sign/\')>-1)window.open(this.src,\'_blank\')" '+
         'style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid #e0e7ef;background:#eef2f7" '+
         'title="'+escHtml(p.caption||p.fileName||'')+'" loading="lazy">'+
+        (canDel?'<button onclick="deleteJobPhoto(\''+p.id+'\')" title="Delete photo (moves to Recycle Bin)" style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:13px;line-height:1;cursor:pointer;padding:0">×</button>':'')+
         (p.caption?'<div style="font-size:9px;color:#546e7a;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(p.caption)+'</div>':'')+
       '</div>';
     });
@@ -346,13 +350,44 @@ function renderJobPhotosSection(jobId) {
   el.innerHTML = html;
 }
 
+// Soft-delete a job photo → Recycle Bin (restorable). Cloud row flagged deleted=true;
+// pull filters it out and the tombstone stops it resurrecting before the flag lands.
+function deleteJobPhoto(id) {
+  if (!confirm('Delete this photo? It will move to the Recycle Bin.')) return;
+  var p = (DB.jobPhotos||[]).find(function(x){ return x.id===id; });
+  if (!p) return;
+  p.deleted = true;
+  if (!DB.deletedIds) DB.deletedIds = {};
+  if (!DB.deletedIds.jobPhotos) DB.deletedIds.jobPhotos = [];
+  if (DB.deletedIds.jobPhotos.indexOf(id) < 0) DB.deletedIds.jobPhotos.push(id);
+  saveDB();
+  if (_sb) _sb.from('job_photos').update({ deleted:true }).eq('id', id).then(function(r){ if(r&&r.error)console.warn('[Photo delete]', r.error.message); });
+  renderJobPhotosSection(p.jobId);
+  showToast('Photo moved to Recycle Bin','info');
+}
+
+// Restore a soft-deleted job photo from the Recycle Bin
+function restoreJobPhoto(id) {
+  if (_sb) _sb.from('job_photos').update({ deleted:false }).eq('id', id).then(function(r){
+    if (r && r.error) { console.warn('[Photo restore]', r.error.message); showToast('Restore failed','error'); return; }
+    var td = (DB.deletedIds && DB.deletedIds.jobPhotos) || [];
+    var i = td.indexOf(id); if (i>=0) td.splice(i,1);
+    var p = (DB.jobPhotos||[]).find(function(x){ return x.id===id; }); if (p) p.deleted=false;
+    saveDB();
+    if (typeof syncJobPhotos==='function') syncJobPhotos().then(function(){ if(typeof renderRecycleBin==='function') renderRecycleBin(); });
+    showToast('Photo restored','success');
+  });
+}
+
 // Pull job photos from Supabase on sync
 async function syncJobPhotos() {
   if (!_sb || !_currentUser) return;
   try {
-    var { data, error } = await _sb.from('job_photos').select('*').order('created_at', { ascending: false });
+    var { data, error } = await _sb.from('job_photos').select('*').eq('deleted', false).order('created_at', { ascending: false });
     if (error) { console.warn('[Sync] job_photos:', error.message); return; }
     if (data) {
+      var _jpDel = (DB.deletedIds && DB.deletedIds.jobPhotos) || [];
+      data = data.filter(function(p){ return _jpDel.indexOf(String(p.id)) < 0; });
       // Get signed URLs for all photos
       DB.jobPhotos = await Promise.all(data.map(async function(p) {
         var urlData = _sb.storage.from('job-photos').getPublicUrl(p.file_path);
@@ -366,6 +401,7 @@ async function syncJobPhotos() {
           caption:      p.caption || '',
           photoType:    p.photo_type || 'general',
           createdAt:    p.created_at,
+          deleted:      false,
           url:          urlData && urlData.data ? urlData.data.publicUrl : null
         };
       }));

@@ -6303,7 +6303,7 @@ function submitTimeOffRequest() {
   if (!start) { showToast('Please select a start date','error'); return; }
   if (hours < 4) { showToast('Minimum 4 hours per request','error'); return; }
   if (!DB.timeOffRequests) DB.timeOffRequests=[];
-  DB.timeOffRequests.push({
+  var _newTor = {
     id:          'tor-'+Date.now(),
     techName:    name,
     type:        type,
@@ -6313,8 +6313,13 @@ function submitTimeOffRequest() {
     note:        note,
     status:      'pending',
     submittedAt: new Date().toISOString().split('T')[0]
-  });
+  };
+  DB.timeOffRequests.push(_newTor);
   saveDB();
+  // per-row cloud sync (upsert the single new request immediately)
+  if (typeof _sb!=='undefined' && _sb && typeof _timeOffToRow==='function') {
+    try { _sb.from('time_off_requests').upsert(_timeOffToRow(_newTor), { onConflict:'id' }).then(function(r){ if(r&&r.error)console.warn('[TimeOff push]',r.error.message); }); } catch(e){}
+  }
   closeModal('modal-time-off');
   renderTimeOffTab();
   showToast('Time off request submitted — pending approval','success');
@@ -6396,7 +6401,12 @@ function resolveTimeOff(id, status) {
       approvedBy:_currentUser?_currentUser.full_name:'Admin'
     });
   }
-  saveDB(); renderTimeOffTab();
+  saveDB();
+  // per-row cloud sync (upsert the resolved request immediately)
+  if (typeof _sb!=='undefined' && _sb && typeof _timeOffToRow==='function') {
+    try { _sb.from('time_off_requests').upsert(_timeOffToRow(r), { onConflict:'id' }).then(function(rr){ if(rr&&rr.error)console.warn('[TimeOff push]',rr.error.message); }); } catch(e){}
+  }
+  renderTimeOffTab();
   showToast('Request '+status,'success');
 }
 

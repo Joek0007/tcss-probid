@@ -39,17 +39,20 @@ async function renderRecycleBin(){
       _sb.from('contacts').select('id,name,deleted_at,deleted_by').eq('is_active',false).order('deleted_at',{ascending:false}),
       _sb.from('jobs').select('id,name,deleted_at,deleted_by').eq('is_active',false).order('deleted_at',{ascending:false}),
       _sb.from('profiles').select('id,full_name'),
-      _sb.from('time_entries').select('id,tech_name,entry_date,entry_type,total_hours,deleted_at,deleted_by').eq('deleted',true).order('deleted_at',{ascending:false})
+      _sb.from('time_entries').select('id,tech_name,entry_date,entry_type,total_hours,deleted_at,deleted_by').eq('deleted',true).order('deleted_at',{ascending:false}),
+      _sb.from('job_photos').select('id,job_id,file_name,uploader_name,caption,created_at').eq('deleted',true).order('created_at',{ascending:false})
     ]);
     var firstErr = res.find(function(r){ return r && r.error; });
     if (firstErr) { el.innerHTML = '<div class="card" style="text-align:center;padding:40px;color:#c62828">Could not load the Recycle Bin: '+_rbEsc(firstErr.error.message)+'</div>'; return; }
 
     var quotes=res[0].data||[], custs=res[1].data||[], conts=res[2].data||[], jobs=res[3].data||[];
     var tents=res[5].data||[];
+    var photos=res[6].data||[];
     var who={}; (res[4].data||[]).forEach(function(p){ who[p.id]=p.full_name; });
     var by=function(uid){ return uid ? (who[uid]||'—') : '—'; };
+    var jobName=function(jid){ var j=(DB.jobs||[]).find(function(x){return x.id===jid;}); return j?(j.name||jid):(jid||''); };
 
-    var total = quotes.length+custs.length+conts.length+jobs.length+tents.length;
+    var total = quotes.length+custs.length+conts.length+jobs.length+tents.length+photos.length;
     if (total === 0) {
       el.innerHTML = '<div class="card" style="text-align:center;padding:48px;color:#90a4ae">'
         + '<div style="font-size:40px;margin-bottom:8px">♻️</div>'
@@ -117,6 +120,14 @@ async function renderRecycleBin(){
         function(r){ return _rbEsc(_rbDate(r.deleted_at)); },
         function(r){ return _rbEsc(r.deleted_by||'—'); } ]);
 
+    html += section('Job Photos','📷','jobPhoto', photos,
+      ['File','Job','Uploaded by','Caption','Uploaded'],
+      [ function(r){ return '<b>'+_rbEsc(r.file_name||'photo')+'</b>'; },
+        function(r){ return _rbEsc(jobName(r.job_id)); },
+        function(r){ return _rbEsc(r.uploader_name||'—'); },
+        function(r){ return _rbEsc(r.caption||''); },
+        function(r){ return _rbEsc(_rbDate(r.created_at)); } ]);
+
     el.innerHTML = html;
   } catch(e){
     el.innerHTML = '<div class="card" style="text-align:center;padding:40px;color:#c62828">Could not load the Recycle Bin: '+_rbEsc(String(e))+'</div>';
@@ -128,7 +139,22 @@ async function renderRecycleBin(){
 async function rbRestore(kind, id, btn){
   var rpcMap  = { quote:'restore_quote', customer:'restore_customer', contact:'restore_contact', job:'restore_job', timeEntry:'restore_time_entry' };
   var tombMap = { quote:'quotes', customer:'customers', contact:'contacts', job:'jobs', timeEntry:'timeEntries' };
-  var rpc = rpcMap[kind]; if (!rpc || !_sb) return;
+  if (!_sb) return;
+  // Job photos restore by a direct flag flip (no RPC) — job_photos has no soft-delete RPC.
+  if (kind === 'jobPhoto') {
+    if (btn){ btn.disabled = true; btn.textContent = 'Restoring…'; }
+    try {
+      var pr = await _sb.from('job_photos').update({ deleted:false }).eq('id', id);
+      if (pr && pr.error) { if(btn){btn.disabled=false;btn.textContent='↩ Restore';} showToast('Restore failed: '+pr.error.message,'error',6000); return; }
+      if (DB.deletedIds && DB.deletedIds.jobPhotos) DB.deletedIds.jobPhotos = DB.deletedIds.jobPhotos.filter(function(x){ return String(x)!==String(id); });
+      saveDB();
+      if (typeof syncJobPhotos === 'function') { try { await syncJobPhotos(); } catch(e){} }
+      showToast('Photo restored ✓','success');
+      renderRecycleBin();
+    } catch(e){ if(btn){btn.disabled=false;btn.textContent='↩ Restore';} showToast('Restore failed: '+String(e),'error',6000); }
+    return;
+  }
+  var rpc = rpcMap[kind]; if (!rpc) return;
   if (btn){ btn.disabled = true; btn.textContent = 'Restoring…'; }
   try {
     var r = await _sb.rpc(rpc, { p_id: id });
