@@ -4271,7 +4271,7 @@ function renderTeam() {
         (canManageTeam ? (
           (!hasLogin && t.email)
             ? '<button class="btn btn-outline btn-sm" data-action="inviteTeamMember" data-id="'+t.id+'">✉ '+(invited?'Re-invite':'Invite')+'</button> '
-            : '<button class="btn btn-sm" disabled title="'+(hasLogin?'Already has a login account':'Add an email address first to send an invite')+'" style="background:#eceff1;border:1px solid #90a4ae;color:#546e7a;cursor:not-allowed">✉ Invite</button> '
+            : '<button class="btn btn-sm" disabled title="'+(hasLogin?'Already has a login account':'Add an email address first to send an invite')+'" style="background:#eceff1;border:1px solid #607d8b;color:#455a64;cursor:not-allowed">✉ Invite</button> '
         ) : '')+
         (isOwner ? '<button class="btn btn-danger btn-sm" data-action="delTeamMember" data-id="'+t.id+'">Del</button>' : '')+
       '</td>'+
