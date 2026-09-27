@@ -4743,10 +4743,34 @@ function savePriceUpdates() {
   }
 }
 
+// Wave 2e (quote side): expand a kit into individual quote line items — one per component, each priced
+// the normal way a material/labor line is (the quote's own margin applies), consistent with decision #3.
+function _expandKitToQuoteRows(kit, kitQty) {
+  const comps = kit.kitComponents || [];
+  const mult = parseFloat(kitQty) || 1;
+  let n = 0;
+  comps.forEach(function(k){
+    const ci = DB.catalog.find(function(x){ return String(x.id)===String(k.itemId); });
+    const nm  = k.name || (ci && ci.name) || 'Component';
+    const cat = (ci && ci.cat) || 'Material';
+    const unit= (ci && ci.unit) || 'ea';
+    const mc  = ci ? (ci.mc!=null ? ci.mc : (ci.cost||0)) : 0;
+    const lh  = ci ? (ci.lh||ci.hours||0) : 0;
+    addRow(newLI(nm, cat, (parseFloat(k.qty)||1)*mult, unit, mc, lh));
+    n++;
+  });
+  return n;
+}
+
 function addCatToQQ(id) {
   const item = DB.catalog.find(function(i){return i.id==id});
   if (!item) return;
-  addRow(newLI(item.name, item.cat, 1, item.unit||'ea', item.mc||0, item.lh||0));
+  if (item.itemType === 'kit') {
+    const n = _expandKitToQuoteRows(item, 1);
+    if (typeof showToast === 'function') showToast(item.name + ' expanded to ' + n + ' line' + (n!==1?'s':''), 'success');
+  } else {
+    addRow(newLI(item.name, item.cat, 1, item.unit||'ea', item.mc||0, item.lh||0));
+  }
   goPage('qq');
 }
 
@@ -4805,13 +4829,18 @@ function renderCPick() {
   }
 
   cpList.innerHTML = list.map(function(item){
+    var isKit = item.itemType === 'kit';
+    var kitN = isKit ? ((item.kitComponents||[]).length) : 0;
+    var sub = isKit
+      ? '📦 Kit / bundle &nbsp;·&nbsp; ' + kitN + ' component' + (kitN!==1?'s':'') + ' (expands into line items)'
+      : escHtml(item.cat||'General') + ' &nbsp;·&nbsp; Mat: ' + fmt(item.mc||0) + ' &nbsp;·&nbsp; ' + (item.lh||0) + ' hrs &nbsp;·&nbsp; ' + escHtml(item.unit||'ea');
     return '<div class="cpick-row" data-cpid="' + item.id + '" style="display:flex;align-items:center;gap:10px;padding:10px 6px;border-bottom:1px solid #f0f0f0;cursor:pointer">' +
       '<input type="checkbox" data-cpid="' + item.id + '" style="width:18px;height:18px;flex-shrink:0">' +
       '<div style="flex:1;min-width:0">' +
-        '<div style="font-weight:600;font-size:13px;color:#0d1b2a">' + escHtml(item.name||'(no name)') + '</div>' +
-        '<div style="font-size:11px;color:#90a4ae;margin-top:2px">' + escHtml(item.cat||'General') + ' &nbsp;·&nbsp; Mat: ' + fmt(item.mc||0) + ' &nbsp;·&nbsp; ' + (item.lh||0) + ' hrs &nbsp;·&nbsp; ' + escHtml(item.unit||'ea') + '</div>' +
+        '<div style="font-weight:600;font-size:13px;color:#0d1b2a">' + (isKit?'📦 ':'') + escHtml(item.name||'(no name)') + '</div>' +
+        '<div style="font-size:11px;color:#90a4ae;margin-top:2px">' + sub + '</div>' +
       '</div>' +
-      '<div style="font-size:12px;font-weight:700;color:#1565c0;flex-shrink:0">' + fmt(item.mc||0) + '</div>' +
+      '<div style="font-size:12px;font-weight:700;color:#1565c0;flex-shrink:0">' + (isKit ? '' : fmt(item.mc||0)) + '</div>' +
     '</div>';
   }).join('');
 }
@@ -4820,7 +4849,9 @@ function addFromCatalog() {
   checked.forEach(function(cb) {
     const id = cb.getAttribute('data-cpid');
     const item = DB.catalog.find(function(i){return i.id==id});
-    if (item) addRow(newLI(item.name, item.cat, 1, item.unit||'ea', item.mc||0, item.lh||0));
+    if (!item) return;
+    if (item.itemType === 'kit') _expandKitToQuoteRows(item, 1);   // Wave 2e: kit → component lines
+    else addRow(newLI(item.name, item.cat, 1, item.unit||'ea', item.mc||0, item.lh||0));
   });
   closeModal('modal-catalog-pick');
   calcTotals();
