@@ -1173,7 +1173,7 @@ async function syncAllFromCloud(silent) {
           // AND the stock profile (tracked/locations/part#/etc.). The Inventory page reads the
           // tracked subset via _deriveInventoryFromCatalog(); there is no separate inventory table read.
           return { id:item.id, name:item.name, desc:item.description, cat:item.category, unit:item.unit, mc:item.default_cost, lh:item.default_hours, cost:item.default_cost, hours:item.default_hours, notes:item.notes, active:item.is_active,
-            itemType:item.item_type||'nonstock', tracked:!!item.tracked, part:item.part_num||'', partNum:item.part_num||'', barcode:item.barcode||'', manufacturer:item.manufacturer||'', mfrPart:item.mfr_part||'', vendor:item.vendor||'', photoUrl:item.photo_url||'', returnable:!!item.returnable, locations:item.locations||{}, minQty:item.min_qty||0, reorderQty:item.reorder_qty||0, reorderMax:item.reorder_max||0, locPars:item.loc_pars||{}, bins:item.bins||{}, purchaseUnit:item.purchase_unit||'', conversionFactor:(item.conversion_factor!=null?item.conversion_factor:1), kitComponents:item.kit_components||[], photos:item.photos||[] };
+            itemType:item.item_type||'nonstock', tracked:!!item.tracked, part:item.part_num||'', partNum:item.part_num||'', barcode:item.barcode||'', manufacturer:item.manufacturer||'', mfrPart:item.mfr_part||'', vendor:item.vendor||'', photoUrl:item.photo_url||'', returnable:!!item.returnable, locations:item.locations||{}, minQty:item.min_qty||0, reorderQty:item.reorder_qty||0, reorderMax:item.reorder_max||0, locPars:item.loc_pars||{}, bins:item.bins||{}, serialized:!!item.serialized, purchaseUnit:item.purchase_unit||'', conversionFactor:(item.conversion_factor!=null?item.conversion_factor:1), kitComponents:item.kit_components||[], photos:item.photos||[] };
         });
         if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
       }
@@ -1686,6 +1686,19 @@ async function syncAllFromCloud(silent) {
     }
   } catch(e) { errors.push('time_off_requests: '+e.message); }
 
+  // item_serials — per-row pull (Wave 3c). Serialized-unit registry with warranty + WO/customer link.
+  // Same merge/tombstone shape as time_off_requests so two people editing different units don't clobber.
+  try {
+    var { data: serRows } = await _sbSelectAll(function(){ return _sb.from('item_serials').select('*').eq('deleted', false); });
+    if (serRows) {
+      var _serDel = (DB.deletedIds && DB.deletedIds.itemSerials) || [];
+      var cloudSer = serRows.filter(function(s){ return _serDel.indexOf(String(s.id)) < 0; }).map(_serialRowToObj);
+      var _cloudSerIds = {}; cloudSer.forEach(function(s){ _cloudSerIds[s.id] = 1; });
+      var _localOnlySer = (DB.itemSerials || []).filter(function(s){ return s && s.id && !_cloudSerIds[s.id]; });
+      DB.itemSerials = cloudSer.concat(_localOnlySer);
+    }
+  } catch(e) { errors.push('item_serials: '+e.message); }
+
   // Audit log — read recent history back so the view isn't empty after a reload.
   try {
     var { data: auditRows } = await _sb.from('probid_audit').select('*').order('created_at', { ascending: false }).limit(500);
@@ -1948,6 +1961,7 @@ async function _pushInventoryToCloud(inv) {
       reorder_max:  inv.reorderMax || 0,
       loc_pars:     inv.locPars || {},
       bins:         inv.bins || {},
+      serialized:   !!inv.serialized,
       purchase_unit: inv.purchaseUnit || null,
       conversion_factor: (inv.conversionFactor != null ? inv.conversionFactor : 1),
       kit_components: inv.kitComponents || [],
@@ -2136,6 +2150,44 @@ function _timeOffRowToObj(t){
     resolvedAt: t.resolved_at || '',
     resolvedBy: t.resolved_by || '',
     denyReason: t.deny_reason || ''
+  };
+}
+
+// ---- item_serials mappers (Wave 3c) ----
+function _serialToRow(s){
+  return {
+    id: s.id,
+    item_id: s.itemId || null,
+    serial: s.serial || null,
+    lot: s.lot || null,
+    status: s.status || 'in_stock',
+    location: s.location || null,
+    wo_id: s.woId || null,
+    customer_id: s.customerId || null,
+    customer_name: s.customerName || null,
+    install_date: s.installDate || null,
+    warranty_expires: s.warrantyExpires || null,
+    cost: (s.cost != null && s.cost !== '' ? s.cost : null),
+    notes: s.notes || null,
+    deleted: !!s.deleted,
+    updated_at: new Date().toISOString()
+  };
+}
+function _serialRowToObj(s){
+  return {
+    id: s.id,
+    itemId: s.item_id || '',
+    serial: s.serial || '',
+    lot: s.lot || '',
+    status: s.status || 'in_stock',
+    location: s.location || '',
+    woId: s.wo_id || '',
+    customerId: s.customer_id || '',
+    customerName: s.customer_name || '',
+    installDate: s.install_date || '',
+    warrantyExpires: s.warranty_expires || '',
+    cost: (s.cost != null ? Number(s.cost) : null),
+    notes: s.notes || ''
   };
 }
 
@@ -2514,6 +2566,7 @@ async function pushAllToCloud() {
           reorder_max: item.reorderMax || 0,
           loc_pars: item.locPars || {},
           bins: item.bins || {},
+          serialized: !!item.serialized,
           purchase_unit: item.purchaseUnit || null,
           conversion_factor: (item.conversionFactor != null ? item.conversionFactor : 1),
           kit_components: item.kitComponents || [],
@@ -2897,6 +2950,18 @@ async function pushAllToCloud() {
         await _sb.from('time_off_requests').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', _tid);
       }
     } catch(_te) { console.warn('[Push] time_off_requests', _te && _te.message); }
+
+    // item_serials — per-row upsert + tombstone (Wave 3c).
+    try {
+      for (var _ser of (DB.itemSerials || [])) {
+        if (!_ser || !_ser.id) continue;
+        _pushErr('serial '+(_ser.serial || _ser.id), await _sb.from('item_serials').upsert(_serialToRow(_ser), { onConflict: 'id' }));
+      }
+      var _serDel2 = (DB.deletedIds && DB.deletedIds.itemSerials) || [];
+      for (var _sid of _serDel2) {
+        await _sb.from('item_serials').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', _sid);
+      }
+    } catch(_se) { console.warn('[Push] item_serials', _se && _se.message); }
 
   } catch(e) {
     console.error('Push error:', e);

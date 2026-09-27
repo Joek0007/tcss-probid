@@ -4206,6 +4206,10 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           <div><label>Reorder Up To (par)</label><input id="inv-reorder-max" type="number" value="0" min="0" placeholder="0 = same as min"></div>
         </div>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:2px 0 6px"><input type="checkbox" id="inv-returnable" style="width:16px;height:16px"> Returnable</label>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:2px 0 6px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="inv-serialized" onchange="invSerializedChanged()" style="width:16px;height:16px"> 🔢 Serialized — track individual units (serial #, warranty, where installed)</label>
+          <button type="button" id="inv-serials-btn" onclick="openSerialsFromModal()" class="btn btn-outline btn-sm" style="display:none">🔢 Manage Serials</button>
+        </div>
         <div class="form-row cols3">
           <div><label>📍 Bin / Shelf <span style="font-weight:400;color:#90a4ae">(where it lives in the Main Shop)</span></label><input id="inv-bin-shop" placeholder="e.g. Aisle 3 · Shelf B"></div>
         </div>
@@ -4296,6 +4300,37 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-replenish">Cancel</button>
       <button class="btn btn-primary" id="replenish-commit-btn" onclick="commitReplenish()">Transfer to Truck</button>
+    </div>
+  </div>
+</div>
+
+<!-- SERIAL / LOT MANAGER MODAL (Wave 3c) -->
+<div class="modal-overlay" id="modal-serials" data-no-backdrop-close>
+  <div class="modal-box" style="max-width:920px">
+    <div class="modal-head">
+      <h3 id="serials-title">🔢 Serial / Unit Registry</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-serials">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="serials-summary" style="font-size:12px;color:#546e7a;margin-bottom:8px"></div>
+      <div style="border:1px solid #eceff1;border-radius:8px;padding:10px;margin-bottom:12px;background:#fafbfc">
+        <div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin-bottom:6px">Add units</div>
+        <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+          <div><label style="font-size:11px;color:#607d8b">Serial #(s) — one per line for bulk</label><br>
+            <textarea id="serial-add-input" rows="2" placeholder="SN-0001&#10;SN-0002" style="min-width:220px;padding:6px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></textarea></div>
+          <div><label style="font-size:11px;color:#607d8b">Lot (optional)</label><br>
+            <input id="serial-add-lot" style="width:110px;padding:6px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+          <div><label style="font-size:11px;color:#607d8b">Location</label><br>
+            <select id="serial-add-loc" style="padding:6px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></select></div>
+          <div><label style="font-size:11px;color:#607d8b">Warranty expires</label><br>
+            <input id="serial-add-warranty" type="date" style="padding:6px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
+          <button class="btn btn-primary btn-sm" onclick="addSerials()">+ Add</button>
+        </div>
+      </div>
+      <div id="serials-list"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-serials">Close</button>
     </div>
   </div>
 </div>
@@ -6816,27 +6851,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919fn with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919fo with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919fn"></script>
-<script src="js/quotes.js?v=20260919fn"></script>
-<script src="js/tools.js?v=20260919fn"></script>
-<script src="js/field.js?v=20260919fn"></script>
-<script src="js/crm.js?v=20260919fn"></script>
-<script src="js/vehicles.js?v=20260919fn"></script>
-<script src="js/dispatch.js?v=20260919fn"></script>
-<script src="js/permissions.js?v=20260919fn"></script>
-<script src="js/worktracking.js?v=20260919fn"></script>
-<script src="js/calendar.js?v=20260919fn"></script>
-<script src="js/workorders.js?v=20260919fn"></script>
-<script src="js/purchaseorders.js?v=20260919fn"></script>
-<script src="js/inventory.js?v=20260919fn"></script>
-<script src="js/reports.js?v=20260919fn"></script>
-<script src="js/recyclebin.js?v=20260919fn"></script>
-<script src="js/contracts.js?v=20260919fn"></script>
-  <script src="js/recurring.js?v=20260919fn"></script>
-  <script src="js/seed_managed.js?v=20260919fn"></script>
-  <script src="js/auth.js?v=20260919fn"></script>
+<script src="js/core.js?v=20260919fo"></script>
+<script src="js/quotes.js?v=20260919fo"></script>
+<script src="js/tools.js?v=20260919fo"></script>
+<script src="js/field.js?v=20260919fo"></script>
+<script src="js/crm.js?v=20260919fo"></script>
+<script src="js/vehicles.js?v=20260919fo"></script>
+<script src="js/dispatch.js?v=20260919fo"></script>
+<script src="js/permissions.js?v=20260919fo"></script>
+<script src="js/worktracking.js?v=20260919fo"></script>
+<script src="js/calendar.js?v=20260919fo"></script>
+<script src="js/workorders.js?v=20260919fo"></script>
+<script src="js/purchaseorders.js?v=20260919fo"></script>
+<script src="js/inventory.js?v=20260919fo"></script>
+<script src="js/reports.js?v=20260919fo"></script>
+<script src="js/recyclebin.js?v=20260919fo"></script>
+<script src="js/contracts.js?v=20260919fo"></script>
+  <script src="js/recurring.js?v=20260919fo"></script>
+  <script src="js/seed_managed.js?v=20260919fo"></script>
+  <script src="js/auth.js?v=20260919fo"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

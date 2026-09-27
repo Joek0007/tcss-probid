@@ -6237,12 +6237,13 @@ function renderInventory() {
         '<td><div style="font-weight:700;font-size:13px">'+escHtml(item.name||'')+'</div>'+(item.notes?'<div style="font-size:11px;color:#90a4ae">'+escHtml((typeof stripHtmlToText==='function'?stripHtmlToText(item.notes):item.notes).substring(0,60))+'</div>':'')+'</td>' +
         '<td style="font-size:12px">'+escHtml(item.cat||'General')+'</td>' +
         '<td style="font-size:12px">'+escHtml(item.location||'—')+((typeof _primaryBin==='function' && _primaryBin(item))?'<div style="font-size:10px;color:#8d6e63">📍 '+escHtml(_primaryBin(item))+'</div>':'')+'</td>' +
-        '<td><span class="inv-qty-badge '+qtyClass+'">'+qty+' — '+qtyLabel+'</span>'+(reservedQty>0?'<div style="font-size:10px;color:#6a1b9a;margin-top:2px">'+reservedQty+' reserved · '+(qty-reservedQty)+' avail</div>':'')+'</td>' +
+        '<td><span class="inv-qty-badge '+qtyClass+'">'+qty+' — '+qtyLabel+'</span>'+(reservedQty>0?'<div style="font-size:10px;color:#6a1b9a;margin-top:2px">'+reservedQty+' reserved · '+(qty-reservedQty)+' avail</div>':'')+((typeof isSerialized==='function' && isSerialized(item.id))?(function(){var c=_serialCounts(item.id);var rr=_warrantyRollup(item.id);return '<div style="font-size:10px;color:#5c6bc0;margin-top:2px">🔢 '+c.total+' serial'+(c.total===1?'':'s')+(c.installed?' ('+c.installed+' installed)':'')+(rr.expired?' <span style="color:#c62828">·'+rr.expired+' exp</span>':'')+(rr.expiring?' <span style="color:#e65100">·'+rr.expiring+' soon</span>':'')+'</div>';})():'')+'</td>' +
         '<td>'+(activeCoCount>0?'<span class="checkout-badge co-out">'+activeCoCount+' Out</span>':'<span class="checkout-badge co-in">Available</span>')+'</td>' +
         '<td style="white-space:nowrap">' +
           '<button class="btn btn-ghost btn-sm" onclick="toggleInvFavorite(\''+item.id+'\',event)" title="Favorite (surfaces at top of Add-Item picker)" style="font-size:15px;padding:2px 6px;color:'+(_isInvFav(item.id)?'#f9a825':'#cfd8dc')+'">'+(_isInvFav(item.id)?'★':'☆')+'</button> ' +
           '<button class="btn btn-outline btn-sm" data-action="checkoutItem" data-id="'+item.id+'" title="Check Out">↗ Out</button> ' +
           (canAdjust ? '<button class="btn btn-outline btn-sm" data-action="openAdjustQty" data-id="'+item.id+'" title="Correct on-hand quantity">± Adjust</button> ' : '') +
+          ((typeof isSerialized==='function' && isSerialized(item.id)) ? '<button class="btn btn-outline btn-sm" onclick="openSerials(\''+item.id+'\')" title="Manage serial numbers / warranty">🔢 Serials</button> ' : '') +
           '<button class="btn btn-ghost btn-sm" data-action="editInventoryItem" data-id="'+item.id+'">Edit</button> ' +
           '<button class="btn btn-danger btn-sm" data-action="delInventoryItem" data-id="'+item.id+'">Del</button>' +
         '</td></tr>';
@@ -6305,6 +6306,8 @@ function newInventoryItem() {
   if (typeof renderKitEditor==='function') renderKitEditor([]);
   const typeEl=document.getElementById('inv-type'); if(typeEl) typeEl.value='stock';
   const retEl=document.getElementById('inv-returnable'); if(retEl) retEl.checked=false;
+  const serEl=document.getElementById('inv-serialized'); if(serEl) serEl.checked=false;
+  const serBtn=document.getElementById('inv-serials-btn'); if(serBtn) serBtn.style.display='none';
   const actEl=document.getElementById('inv-active'); if(actEl) actEl.checked=true;
   const phEl=document.getElementById('inv-photo'); if(phEl) phEl.value='';
   const ooEl=document.getElementById('inv-onorder-row'); if(ooEl){ ooEl.style.display='none'; ooEl.textContent=''; }

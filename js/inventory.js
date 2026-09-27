@@ -1059,6 +1059,195 @@ function _primaryBin(item) {
   return k ? b[k] : '';
 }
 
+// ---- SERIAL / LOT + WARRANTY (Wave 3c) ----
+// DB.itemSerials = one row per physical serialized unit: {id,itemId,serial,lot,status,location,woId,
+// customerId,customerName,installDate,warrantyExpires,cost,notes}. status: in_stock|installed|returned|
+// defective. An item is serial-tracked when its catalog master has serialized=true. Per-row synced.
+var _serialsItemId = null;
+
+function _serialsFor(itemId) {
+  return (DB.itemSerials || []).filter(function(s){ return s && String(s.itemId) === String(itemId) && !s.deleted; });
+}
+function _serialCounts(itemId) {
+  var list = _serialsFor(itemId), inStock = 0, installed = 0;
+  list.forEach(function(s){ if (s.status === 'in_stock') inStock++; else if (s.status === 'installed') installed++; });
+  return { inStock: inStock, installed: installed, total: list.length };
+}
+function isSerialized(idOrItem) {
+  var m = _itemMaster(idOrItem) || idOrItem;
+  return !!(m && m.serialized);
+}
+// Warranty state from an ISO date string. Expiring window = 60 days.
+function _warrantyState(dateStr) {
+  if (!dateStr) return { state:'none', label:'—', color:'#b0bec5' };
+  var d = new Date(dateStr + (dateStr.length <= 10 ? 'T00:00:00' : ''));
+  if (isNaN(d.getTime())) return { state:'none', label:'—', color:'#b0bec5' };
+  var days = Math.floor((d - new Date()) / 86400000);
+  if (days < 0)  return { state:'expired',  label:'Expired '+dateStr,  color:'#c62828' };
+  if (days <= 60) return { state:'expiring', label:'Expires '+dateStr+' ('+days+'d)', color:'#e65100' };
+  return { state:'active', label:'Warranty '+dateStr, color:'#2e7d32' };
+}
+function _warrantyRollup(itemId) {
+  var r = { expiring:0, expired:0 };
+  _serialsFor(itemId).forEach(function(s){
+    var w = _warrantyState(s.warrantyExpires).state;
+    if (w === 'expiring') r.expiring++; else if (w === 'expired') r.expired++;
+  });
+  return r;
+}
+
+// Open the registry for an item id.
+function openSerials(itemId) {
+  var m = _itemMaster(itemId);
+  if (!m) { showToast('Item not found', 'error'); return; }
+  _serialsItemId = String(itemId);
+  var t = document.getElementById('serials-title');
+  if (t) t.textContent = '🔢 Serials — ' + (m.name || 'Item');
+  // location dropdown for new units
+  var locSel = document.getElementById('serial-add-loc');
+  if (locSel) locSel.innerHTML = getLocations().map(function(l){ return '<option value="'+escHtml(l.id)+'">'+escHtml(l.name)+'</option>'; }).join('');
+  var addIn = document.getElementById('serial-add-input'); if (addIn) addIn.value = '';
+  var addLot = document.getElementById('serial-add-lot'); if (addLot) addLot.value = '';
+  var addW = document.getElementById('serial-add-warranty'); if (addW) addW.value = '';
+  renderSerialsList();
+  if (typeof openModal === 'function') openModal('modal-serials');
+}
+// Open from inside the item modal (uses the currently-edited item id).
+function openSerialsFromModal() {
+  var id = (document.getElementById('inv-id') || {}).value || '';
+  if (!id) { showToast('Save the item first, then manage its serials', 'info'); return; }
+  openSerials(id);
+}
+
+function addSerials() {
+  if (!_serialsItemId) return;
+  var raw = ((document.getElementById('serial-add-input') || {}).value || '').split('\n')
+    .map(function(s){ return s.trim(); }).filter(Boolean);
+  var lot = ((document.getElementById('serial-add-lot') || {}).value || '').trim();
+  var loc = (document.getElementById('serial-add-loc') || {}).value || 'loc-shop';
+  var warranty = (document.getElementById('serial-add-warranty') || {}).value || '';
+  if (!raw.length) {
+    // allow adding a single blank-serial unit (unknown serial) so counts still work
+    raw = [''];
+  }
+  if (!DB.itemSerials) DB.itemSerials = [];
+  var added = 0, dupes = [];
+  var existing = _serialsFor(_serialsItemId).map(function(s){ return (s.serial||'').toLowerCase(); });
+  raw.forEach(function(sn){
+    if (sn && existing.indexOf(sn.toLowerCase()) >= 0) { dupes.push(sn); return; }  // skip dup serials on same item
+    DB.itemSerials.push({
+      id: makeUUID(), itemId: _serialsItemId, serial: sn, lot: lot, status: 'in_stock',
+      location: loc, woId: '', customerId: '', customerName: '', installDate: '',
+      warrantyExpires: warranty, cost: null, notes: ''
+    });
+    if (sn) existing.push(sn.toLowerCase());
+    added++;
+  });
+  saveDB();
+  var addIn2 = document.getElementById('serial-add-input'); if (addIn2) addIn2.value = '';
+  renderSerialsList();
+  if (typeof renderInventory === 'function') renderInventory();
+  var msg = added + ' unit(s) added';
+  if (dupes.length) msg += ' · ' + dupes.length + ' duplicate serial(s) skipped';
+  showToast(msg, dupes.length ? 'warning' : 'success');
+}
+
+function _serialById(id) { return (DB.itemSerials || []).find(function(s){ return String(s.id) === String(id); }); }
+
+function updateSerialField(id, field, value) {
+  var s = _serialById(id); if (!s) return;
+  s[field] = value;
+  saveDB();
+}
+// Status change; when set to installed, prompt for WO on the row (renderSerialsList shows the picker).
+function setSerialStatus(id, status) {
+  var s = _serialById(id); if (!s) return;
+  s.status = status;
+  if (status !== 'installed') { s.woId=''; s.customerId=''; s.customerName=''; s.installDate=''; }
+  else if (!s.installDate) { s.installDate = new Date().toISOString().slice(0,10); }
+  saveDB();
+  renderSerialsList();
+  if (typeof renderInventory === 'function') renderInventory();
+}
+// Assign a WO to an installed unit; auto-fill customer from the WO.
+function assignSerialWO(id, woId) {
+  var s = _serialById(id); if (!s) return;
+  s.woId = woId || '';
+  var w = (DB.workOrders || []).find(function(x){ return String(x.id) === String(woId); });
+  if (w) { s.customerId = w.customerId || ''; s.customerName = w.customerName || ''; if (!s.installDate) s.installDate = new Date().toISOString().slice(0,10); }
+  saveDB();
+  renderSerialsList();
+}
+function removeSerial(id) {
+  if (!confirm('Remove this unit from the registry?')) return;
+  var s = _serialById(id); if (!s) return;
+  DB.itemSerials = (DB.itemSerials || []).filter(function(x){ return String(x.id) !== String(id); });
+  // tombstone so the delete propagates and the row can't resurrect on next pull
+  if (!DB.deletedIds) DB.deletedIds = {};
+  if (!DB.deletedIds.itemSerials) DB.deletedIds.itemSerials = [];
+  DB.deletedIds.itemSerials.push(String(id));
+  saveDB();
+  renderSerialsList();
+  if (typeof renderInventory === 'function') renderInventory();
+}
+
+var _SERIAL_STATUSES = ['in_stock','installed','returned','defective'];
+var _SERIAL_STATUS_LABEL = { in_stock:'In stock', installed:'Installed', returned:'Returned', defective:'Defective' };
+
+function renderSerialsList() {
+  var host = document.getElementById('serials-list'); if (!host) return;
+  var list = _serialsFor(_serialsItemId);
+  var counts = _serialCounts(_serialsItemId);
+  var roll = _warrantyRollup(_serialsItemId);
+  var sumEl = document.getElementById('serials-summary');
+  if (sumEl) sumEl.innerHTML = '<strong>'+counts.total+'</strong> unit(s) · '+counts.inStock+' in stock · '+counts.installed+' installed'+
+    (roll.expiring?' · <span style="color:#e65100">'+roll.expiring+' warranty expiring</span>':'')+
+    (roll.expired?' · <span style="color:#c62828">'+roll.expired+' expired</span>':'');
+  if (!list.length) { host.innerHTML = '<div style="padding:16px;color:#90a4ae;font-size:13px;text-align:center">No units yet. Add serial numbers above.</div>'; return; }
+  var locs = getLocations();
+  var woOpts = (DB.workOrders || []).filter(function(w){ return w && w.status!=='Void'; })
+    .slice(0,300).map(function(w){ return {id:w.id, label:(w.woNumber||w.id)+' — '+(w.customerName||'')}; });
+  host.innerHTML =
+    '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="color:#607d8b;text-align:left;border-bottom:1px solid #eceff1">'+
+      '<th style="padding:5px 6px">Serial</th><th style="padding:5px 6px">Lot</th><th style="padding:5px 6px">Status</th>'+
+      '<th style="padding:5px 6px">Location / WO</th><th style="padding:5px 6px">Warranty</th><th style="padding:5px 6px"></th></tr></thead><tbody>'+
+    list.map(function(s){
+      var w = _warrantyState(s.warrantyExpires);
+      var locOrWo;
+      if (s.status === 'installed') {
+        locOrWo = '<select onchange="assignSerialWO(\''+s.id+'\',this.value)" style="max-width:180px;padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px;font-size:11px">'+
+          '<option value="">— pick WO —</option>'+
+          woOpts.map(function(o){ return '<option value="'+escHtml(o.id)+'"'+(String(o.id)===String(s.woId)?' selected':'')+'>'+escHtml(o.label)+'</option>'; }).join('')+
+          '</select>'+(s.customerName?'<div style="font-size:10px;color:#90a4ae">'+escHtml(s.customerName)+(s.installDate?' · '+escHtml(s.installDate):'')+'</div>':'');
+      } else {
+        locOrWo = '<select onchange="updateSerialField(\''+s.id+'\',\'location\',this.value)" style="padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px;font-size:11px">'+
+          locs.map(function(l){ return '<option value="'+escHtml(l.id)+'"'+(l.id===(s.location||'loc-shop')?' selected':'')+'>'+escHtml(l.name)+'</option>'; }).join('')+'</select>';
+      }
+      return '<tr style="border-bottom:1px solid #f5f7f9">'+
+        '<td style="padding:4px 6px"><input value="'+escHtml(s.serial||'')+'" onchange="updateSerialField(\''+s.id+'\',\'serial\',this.value)" placeholder="(no serial)" style="width:120px;padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px;font-size:12px"></td>'+
+        '<td style="padding:4px 6px"><input value="'+escHtml(s.lot||'')+'" onchange="updateSerialField(\''+s.id+'\',\'lot\',this.value)" style="width:70px;padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px;font-size:12px"></td>'+
+        '<td style="padding:4px 6px"><select onchange="setSerialStatus(\''+s.id+'\',this.value)" style="padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px;font-size:11px">'+
+          _SERIAL_STATUSES.map(function(st){ return '<option value="'+st+'"'+(st===s.status?' selected':'')+'>'+_SERIAL_STATUS_LABEL[st]+'</option>'; }).join('')+'</select></td>'+
+        '<td style="padding:4px 6px">'+locOrWo+'</td>'+
+        '<td style="padding:4px 6px"><input type="date" value="'+escHtml(s.warrantyExpires||'')+'" onchange="updateSerialField(\''+s.id+'\',\'warrantyExpires\',this.value)" style="padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px;font-size:11px"><div style="font-size:10px;color:'+w.color+'">'+escHtml(w.label)+'</div></td>'+
+        '<td style="padding:4px 6px"><button onclick="removeSerial(\''+s.id+'\')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:15px" title="Remove unit">×</button></td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table>';
+}
+
+// Toggle the "Manage Serials" button + count in the item modal when the serialized box changes.
+function invSerializedChanged() {
+  var cb = document.getElementById('inv-serialized');
+  var btn = document.getElementById('inv-serials-btn');
+  var id = (document.getElementById('inv-id') || {}).value || '';
+  if (btn) {
+    var on = cb && cb.checked;
+    btn.style.display = (on && id) ? '' : 'none';
+    if (on && id) { var c = _serialCounts(id); btn.textContent = '🔢 Manage Serials (' + c.total + ')'; }
+  }
+}
+
 // Read the per-location editor back into a locPars map. Only keeps locations with a min or par set.
 function _readInvLocParsFromForm() {
   var out = {};
@@ -1284,6 +1473,7 @@ function saveInventoryItemV2() {
   master.reorderMax   = isStock ? (parseFloat((document.getElementById('inv-reorder-max')||{}).value)||0) : 0;
   master.locPars      = isStock ? _readInvLocParsFromForm() : {};
   master.bins         = isStock ? _readInvBinsFromForm() : {};   // Wave 3b: per-location bin/shelf
+  master.serialized   = isStock && !!(document.getElementById('inv-serialized')||{}).checked;  // Wave 3c
   // Wave 2d: UoM purchase→stock conversion. purchaseUnit = how you buy; unit (above) = stock/issue unit;
   // conversionFactor = stock units per one purchase unit (1 = buy & stock the same).
   master.purchaseUnit     = isStock ? gv('inv-purchase-unit') : '';
@@ -1303,6 +1493,7 @@ function saveInventoryItemV2() {
       partNum:master.partNum, barcode:master.barcode, manufacturer:master.manufacturer, mfrPart:master.mfrPart,
       vendor:master.vendor, photoUrl:master.photoUrl, returnable:master.returnable, locations:master.locations,
       minQty:master.minQty, reorderMax:master.reorderMax, locPars:master.locPars, bins:master.bins,
+      serialized:master.serialized,
       purchaseUnit:master.purchaseUnit, conversionFactor:master.conversionFactor,
       kitComponents:master.kitComponents, photos:master.photos,
       cost:master.mc, notes:master.notes, itemType:master.itemType,
@@ -1336,6 +1527,8 @@ function editInventoryItem(id) {
   sv('inv-min',     m.minQty||0);
   sv('inv-reorder-max', m.reorderMax||0);
   sv('inv-bin-shop', (m.bins && m.bins['loc-shop']) || '');   // Wave 3b
+  var serCb = document.getElementById('inv-serialized'); if (serCb) serCb.checked = !!m.serialized;   // Wave 3c
+  if (typeof invSerializedChanged === 'function') invSerializedChanged();
   sv('inv-purchase-unit', m.purchaseUnit||'');
   sv('inv-conv-factor', (m.conversionFactor!=null?m.conversionFactor:1));
   sv('inv-cost',    (m.mc!=null?m.mc:(m.cost||0)));
