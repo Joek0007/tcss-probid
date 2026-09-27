@@ -1305,7 +1305,8 @@ async function syncAllFromCloud(silent) {
             showVacation: !!m.show_vacation,
             showPTO:      !!m.show_pto,
             active:       m.is_active !== false,
-            smsEnabled:   m.sms_enabled !== false
+            smsEnabled:   m.sms_enabled !== false,
+            invitedAt:    m.invited_at || null    // Login Status: persists a sent magic-link invite
           };
         });
       }

@@ -4209,9 +4209,31 @@ function _populateAccessDropdown(selectedVal) {
   sel.title = isOwner ? '' : 'Only the owner can change a team member’s role';
 }
 
+// Login Status (Team page): a roster row is "Active" when its email matches a real login account.
+// The login-email set comes from the login_account_emails() RPC (office roles only), fetched once.
+var _loginEmails = null;            // Set of lowercased emails that have a login, or null until loaded
+var _loginEmailsLoaded = false;
+function _teamHasLogin(t) {
+  if (!_loginEmails) return false;
+  var e = (t && t.email ? String(t.email).trim().toLowerCase() : '');
+  return !!e && _loginEmails.has(e);
+}
+function _ensureLoginEmails(force) {
+  if (_loginEmailsLoaded && !force) return;
+  if (typeof _sb === 'undefined' || !_sb || !_currentUser) return;
+  _loginEmailsLoaded = true;
+  _sb.rpc('login_account_emails').then(function(res){
+    if (res && !res.error && Array.isArray(res.data)) {
+      _loginEmails = new Set(res.data.map(function(r){ return String(r.email || '').trim().toLowerCase(); }).filter(Boolean));
+      if (typeof renderTeam === 'function') renderTeam();   // re-render now that we know who can log in
+    }
+  }).catch(function(){ /* non-office roles get nothing — badge falls back to No Login */ });
+}
+
 function renderTeam() {
   var tbody = document.getElementById('team-tbl');
   if (!tbody) return;
+  _ensureLoginEmails();               // fires once; re-renders when the login set arrives
   if (!DB.team.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>No team members yet. Click Invite Member to add your first team member.</p></td></tr>';
     return;
@@ -4229,7 +4251,7 @@ function renderTeam() {
     var access    = t.access || t.systemRole || t.role || 'field';
     var accessLbl = _accessLabels[access] || access;
     var invited   = !!t.invitedAt;
-    var hasLogin  = !!t.authUserId;
+    var hasLogin  = _teamHasLogin(t);   // truthful: email matches a real login account
     var statusBadge = hasLogin
       ? '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✓ Active</span>'
       : invited
@@ -4246,7 +4268,7 @@ function renderTeam() {
         (canManageTeam ? '<button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> ' : '')+
         '<button class="btn btn-outline btn-sm" onclick="openTechJournalView(\''+escHtml(t.name)+'\')" style="color:#1565c0">📋 Journal</button> '+
         '<button class="btn btn-outline btn-sm" onclick="openQuarterlyReview(\''+escHtml(t.name)+'\')" style="color:#7b1fa2">📊 Review</button> '+
-        (!hasLogin && t.email ? '<button class="btn btn-outline btn-sm" data-action="inviteTeamMember" data-id="'+t.id+'">✉ Invite</button> ' : '')+
+        (canManageTeam && !hasLogin && t.email ? '<button class="btn btn-outline btn-sm" data-action="inviteTeamMember" data-id="'+t.id+'">✉ '+(invited?'Re-invite':'Invite')+'</button> ' : '')+
         (isOwner ? '<button class="btn btn-danger btn-sm" data-action="delTeamMember" data-id="'+t.id+'">Del</button>' : '')+
       '</td>'+
     '</tr>';
@@ -4469,7 +4491,7 @@ function editTeamMemberV2(id) {
   var stEl=document.getElementById('tm-invite-status');
   var rbEl=document.getElementById('tm-resend-btn');
   if (stEl) {
-    if (t.authUserId) {
+    if (_teamHasLogin(t)) {
       stEl.style.display=''; stEl.style.background='#e8f5e9'; stEl.style.color='#2e7d32';
       stEl.innerHTML='✓ This member has an active login account.';
       if(rbEl) rbEl.style.display='none';
