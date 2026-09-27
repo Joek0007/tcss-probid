@@ -6224,6 +6224,7 @@ function newInventoryItem() {
   setv('inv-purchase-unit',''); setv('inv-conv-factor',1);
   if (typeof _renderInvLocParsEditor==='function') _renderInvLocParsEditor({});
   if (typeof _updateConvHint==='function') _updateConvHint();
+  if (typeof renderKitEditor==='function') renderKitEditor([]);
   const typeEl=document.getElementById('inv-type'); if(typeEl) typeEl.value='stock';
   const retEl=document.getElementById('inv-returnable'); if(retEl) retEl.checked=false;
   const actEl=document.getElementById('inv-active'); if(actEl) actEl.checked=true;

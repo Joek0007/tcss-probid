@@ -4174,6 +4174,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
             <option value="stock">Stock — tracked inventory</option>
             <option value="nonstock">Non-stock — special order</option>
             <option value="service">Service / Labor</option>
+            <option value="kit">Kit / Bundle</option>
           </select>
         </div>
       </div>
@@ -4210,6 +4211,17 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           <button type="button" id="inv-locpars-toggle" onclick="toggleInvLocPars()" style="background:none;border:none;color:#1565c0;cursor:pointer;font-size:12px;font-weight:600;padding:2px 0">▸ Per-location reorder levels (trucks)</button>
           <div id="inv-locpars-panel" style="display:none;margin-top:6px"></div>
         </div>
+      </div>
+      <!-- KIT / BUNDLE COMPONENTS (Wave 2e) -->
+      <div id="inv-kit-fields" style="display:none">
+        <div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin:6px 0 2px">Kit components</div>
+        <div style="font-size:11px;color:#90a4ae;margin-bottom:8px">Add the items this kit includes. Adding the kit to a work order expands to these component lines (quantities multiply by the kit qty).</div>
+        <div style="display:flex;gap:8px;align-items:end;margin-bottom:8px">
+          <div style="flex:1"><label style="font-size:11px;color:#546e7a">Component item</label><input id="inv-kit-search" list="inv-kit-datalist" placeholder="Search catalog items..." style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px;box-sizing:border-box"><datalist id="inv-kit-datalist"></datalist></div>
+          <div><label style="font-size:11px;color:#546e7a">Qty</label><input id="inv-kit-qty" type="number" min="0" step="any" value="1" style="width:72px;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>
+          <div><button type="button" class="btn btn-outline btn-sm" onclick="addKitComponent()">+ Add</button></div>
+        </div>
+        <div id="inv-kit-list"></div>
       </div>
       <div class="form-row"><div><label>Notes</label><textarea id="inv-item-notes" rows="2" placeholder="Notes..."></textarea></div></div>
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:4px;cursor:pointer"><input type="checkbox" id="inv-active" checked style="width:16px;height:16px"> <span><strong>Active</strong> — uncheck to discontinue (hides it from lists but keeps history)</span></label>
@@ -6795,27 +6807,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919fi with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919fj with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919fi"></script>
-<script src="js/quotes.js?v=20260919fi"></script>
-<script src="js/tools.js?v=20260919fi"></script>
-<script src="js/field.js?v=20260919fi"></script>
-<script src="js/crm.js?v=20260919fi"></script>
-<script src="js/vehicles.js?v=20260919fi"></script>
-<script src="js/dispatch.js?v=20260919fi"></script>
-<script src="js/permissions.js?v=20260919fi"></script>
-<script src="js/worktracking.js?v=20260919fi"></script>
-<script src="js/calendar.js?v=20260919fi"></script>
-<script src="js/workorders.js?v=20260919fi"></script>
-<script src="js/purchaseorders.js?v=20260919fi"></script>
-<script src="js/inventory.js?v=20260919fi"></script>
-<script src="js/reports.js?v=20260919fi"></script>
-<script src="js/recyclebin.js?v=20260919fi"></script>
-<script src="js/contracts.js?v=20260919fi"></script>
-  <script src="js/recurring.js?v=20260919fi"></script>
-  <script src="js/seed_managed.js?v=20260919fi"></script>
-  <script src="js/auth.js?v=20260919fi"></script>
+<script src="js/core.js?v=20260919fj"></script>
+<script src="js/quotes.js?v=20260919fj"></script>
+<script src="js/tools.js?v=20260919fj"></script>
+<script src="js/field.js?v=20260919fj"></script>
+<script src="js/crm.js?v=20260919fj"></script>
+<script src="js/vehicles.js?v=20260919fj"></script>
+<script src="js/dispatch.js?v=20260919fj"></script>
+<script src="js/permissions.js?v=20260919fj"></script>
+<script src="js/worktracking.js?v=20260919fj"></script>
+<script src="js/calendar.js?v=20260919fj"></script>
+<script src="js/workorders.js?v=20260919fj"></script>
+<script src="js/purchaseorders.js?v=20260919fj"></script>
+<script src="js/inventory.js?v=20260919fj"></script>
+<script src="js/reports.js?v=20260919fj"></script>
+<script src="js/recyclebin.js?v=20260919fj"></script>
+<script src="js/contracts.js?v=20260919fj"></script>
+  <script src="js/recurring.js?v=20260919fj"></script>
+  <script src="js/seed_managed.js?v=20260919fj"></script>
+  <script src="js/auth.js?v=20260919fj"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

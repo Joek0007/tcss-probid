@@ -1166,6 +1166,8 @@ function saveInventoryItemV2() {
   master.purchaseUnit     = isStock ? gv('inv-purchase-unit') : '';
   master.conversionFactor = isStock ? (parseFloat((document.getElementById('inv-conv-factor')||{}).value)||1) : 1;
   if (!(master.conversionFactor > 0)) master.conversionFactor = 1;
+  // Wave 2e: kits carry a component list and are never stock-tracked.
+  master.kitComponents = (itemType === 'kit') ? ((typeof _kitDraft !== 'undefined' ? _kitDraft : []) || []).slice() : [];
   master.mc           = parseFloat((document.getElementById('inv-cost')||{}).value)||0;
   master.cost         = master.mc;
   master.notes        = gv('inv-item-notes');
@@ -1179,6 +1181,7 @@ function saveInventoryItemV2() {
       vendor:master.vendor, photoUrl:master.photoUrl, returnable:master.returnable, locations:master.locations,
       minQty:master.minQty, reorderMax:master.reorderMax, locPars:master.locPars,
       purchaseUnit:master.purchaseUnit, conversionFactor:master.conversionFactor,
+      kitComponents:master.kitComponents,
       cost:master.mc, notes:master.notes, itemType:master.itemType,
       tracked:master.tracked, active:master.active });
   }
@@ -1225,6 +1228,8 @@ function editInventoryItem(id) {
   _renderInvOnOrder(m);
   _renderInvLocParsEditor(m.locPars || {});   // reset panel collapsed, populated from saved pars
   if (typeof _updateConvHint === 'function') _updateConvHint();
+  if (typeof _populateKitDatalist === 'function') _populateKitDatalist();
+  if (typeof renderKitEditor === 'function') renderKitEditor(m.kitComponents || []);
   openModal('modal-inv-item');
 }
 
@@ -1246,6 +1251,50 @@ function invTypeChanged() {
   var t = (document.getElementById('inv-type')||{}).value || 'stock';
   var sf = document.getElementById('inv-stock-fields');
   if (sf) sf.style.display = (t === 'stock') ? '' : 'none';
+  var kf = document.getElementById('inv-kit-fields');
+  if (kf) kf.style.display = (t === 'kit') ? '' : 'none';
+  if (t === 'kit' && typeof _populateKitDatalist === 'function') _populateKitDatalist();
+}
+
+// ---- KIT / BUNDLE COMPONENT EDITOR (Wave 2e) ----
+var _kitDraft = [];   // [{itemId, name, qty}]
+
+function _populateKitDatalist() {
+  var dl = document.getElementById('inv-kit-datalist'); if (!dl) return;
+  dl.innerHTML = (DB.catalog||[]).filter(function(c){ return c && c.active!==false && c.itemType!=='kit'; })
+    .map(function(c){ return '<option value="'+escHtml(c.name||'')+'">'+escHtml(c.partNum||c.part||'')+'</option>'; }).join('');
+}
+
+function renderKitEditor(components) {
+  _kitDraft = (components || []).slice();
+  var host = document.getElementById('inv-kit-list'); if (!host) return;
+  if (!_kitDraft.length) { host.innerHTML = '<div style="font-size:12px;color:#bdbdbd;padding:6px 0">No components yet.</div>'; return; }
+  host.innerHTML = '<table style="width:100%;font-size:12px"><tbody>' + _kitDraft.map(function(c,i){
+    return '<tr style="border-top:1px solid #f0f4f8">'+
+      '<td style="padding:5px 6px;font-weight:600">'+escHtml(c.name||'')+'</td>'+
+      '<td style="padding:5px 6px;text-align:right;color:#546e7a">× '+c.qty+'</td>'+
+      '<td style="padding:5px 6px;text-align:right;width:32px"><button type="button" onclick="removeKitComponent('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:16px;line-height:1">×</button></td>'+
+    '</tr>';
+  }).join('') + '</tbody></table>';
+}
+
+function addKitComponent() {
+  var name = ((document.getElementById('inv-kit-search')||{}).value||'').trim();
+  var qty  = parseFloat((document.getElementById('inv-kit-qty')||{}).value)||0;
+  if (!name) { showToast('Pick a component item','error'); return; }
+  if (qty <= 0) { showToast('Enter a component quantity','error'); return; }
+  var c = (DB.catalog||[]).find(function(x){ return (x.name||'').toLowerCase()===name.toLowerCase() && x.itemType!=='kit'; });
+  if (!c) { showToast('No catalog item named "'+name+'"','error'); return; }
+  _kitDraft.push({ itemId:c.id, name:c.name, qty:qty });
+  renderKitEditor(_kitDraft);
+  var s=document.getElementById('inv-kit-search'); if(s) s.value='';
+  var q=document.getElementById('inv-kit-qty'); if(q) q.value='1';
+  if (s) s.focus();
+}
+
+function removeKitComponent(idx) {
+  _kitDraft.splice(idx,1);
+  renderKitEditor(_kitDraft);
 }
 
 // Compute qty currently on open purchase orders (Sent / Partially Received) for this item.
@@ -1460,7 +1509,7 @@ function renderWOItemResults(term) {
     var oh = _woItemOnHand(c);
     return '<div onclick="selectWOAIItem(\'' + escHtml(c.id) + '\')" style="padding:8px 10px;border-bottom:1px solid #f0f4f8;cursor:pointer;display:flex;justify-content:space-between;gap:10px">' +
       '<div><div style="font-weight:600;font-size:13px">' + (_isInvFav(c.id)?'<span style="color:#f9a825">★</span> ':'') + escHtml(c.name || '') + '</div>' +
-      '<div style="font-size:11px;color:#90a4ae">' + escHtml(c.partNum || c.part || '') + (c.tracked ? '' : ' · non-stock') + '</div></div>' +
+      '<div style="font-size:11px;color:#90a4ae">' + escHtml(c.partNum || c.part || '') + (c.itemType==='kit' ? ' · 📦 kit' : (c.tracked ? '' : ' · non-stock')) + '</div></div>' +
       '<div style="text-align:right;font-size:12px;white-space:nowrap">$' + Number(_woItemCost(c)).toFixed(2) + '<br>' +
         (c.tracked ? '<span style="color:' + (oh > 0 ? '#2e7d32' : '#c62828') + '">' + oh + ' on hand</span>' : '<span style="color:#90a4ae">—</span>') +
       '</div></div>';
@@ -1472,6 +1521,34 @@ function selectWOAIItem(id) {
   if (!c) return;
   _woAISelected = c.id;
   var d = document.getElementById('wo-ai-detail'); if (!d) return;
+
+  // Wave 2e: a kit expands to its component lines in one click.
+  if (c.itemType === 'kit') {
+    var comps = c.kitComponents || [];
+    d.style.display = '';
+    d.innerHTML =
+      '<div style="font-weight:700;font-size:14px;margin-bottom:2px">📦 ' + escHtml(c.name || '') + '</div>' +
+      '<div style="font-size:12px;color:#607d8b;margin-bottom:8px">Kit / bundle · ' + comps.length + ' component' + (comps.length!==1?'s':'') + '</div>' +
+      (comps.length
+        ? '<div style="border:1px solid #eceff1;border-radius:6px;margin-bottom:10px">' + comps.map(function(k){
+            var ci = (DB.catalog||[]).find(function(x){ return String(x.id)===String(k.itemId); });
+            var oh = (ci && ci.tracked) ? _availableAtLocation(ci,'loc-shop') : null;
+            return '<div style="display:flex;justify-content:space-between;padding:5px 8px;border-top:1px solid #f4f6f8;font-size:12px">'+
+              '<span>'+escHtml(k.name||(ci&&ci.name)||'')+' <span style="color:#90a4ae">× '+k.qty+'</span></span>'+
+              '<span style="color:'+(ci&&ci.tracked?(oh>0?'#2e7d32':'#c62828'):'#90a4ae')+'">'+(ci&&ci.tracked?(oh+' avail'):'non-stock')+'</span>'+
+            '</div>';
+          }).join('') + '</div>'
+        : '<div style="font-size:12px;color:#c62828;margin-bottom:10px">This kit has no components. Add some on the item first.</div>') +
+      '<div style="display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;margin-bottom:10px">' +
+        '<label style="font-size:12px;font-weight:700;color:#546e7a">Kit qty</label>' +
+        '<input type="number" id="wo-ai-qty" min="0" step="any" value="1" style="width:110px;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        (comps.length ? '<button class="btn btn-primary btn-sm" onclick="addKitToWO()">📦 Add Kit — expands to ' + comps.length + ' item' + (comps.length!==1?'s':'') + '</button>' : '') +
+      '</div>';
+    return;
+  }
+
   var locs = getLocations();
   var chips = c.tracked ? locs.map(function(l){ var q = getItemQtyAtLocation(c, l.id); return q > 0 ? '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 8px;border-radius:10px;font-size:11px;margin:2px 3px 0 0;display:inline-block">' + escHtml(l.name) + ': ' + q + '</span>' : ''; }).join('') : '';
   var locOpts = locs.map(function(l){ var oh=getItemQtyAtLocation(c,l.id); var av=_availableAtLocation(c,l.id); return '<option value="' + escHtml(l.id) + '">' + escHtml(l.name) + ' (' + av + ' avail' + (av!==oh?(' / '+oh+' on hand'):'') + ')</option>'; }).join('');
@@ -1539,6 +1616,45 @@ function addPickedItemToWO(mode) {
     _addWOPartRecord(Object.assign({}, base, { status: 'used', source: 'nonstock' }));
     showToast(c.name + ' added (non-stock)', 'success');
   }
+  if (typeof switchWOTab === 'function') switchWOTab('parts');
+  _woAISelected = null;
+  var d = document.getElementById('wo-ai-detail'); if (d) d.style.display = 'none';
+  var s = document.getElementById('wo-ai-search'); if (s) { s.value = ''; s.focus(); }
+  renderWOItemResults('');
+}
+
+// Wave 2e: expand a kit into its component wo_parts (component qty × kit qty). Tracked components issue
+// from shop stock when available (decrement); otherwise land as non-stock. Nested kits are not recursed.
+function addKitToWO() {
+  var kit = (DB.catalog || []).find(function(x){ return String(x.id) === String(_woAISelected); });
+  if (!kit || kit.itemType !== 'kit') { showToast('Pick a kit first', 'error'); return; }
+  var kitQty = parseFloat((document.getElementById('wo-ai-qty') || {}).value) || 0;
+  if (kitQty <= 0) { showToast('Enter a kit quantity', 'error'); return; }
+  var comps = kit.kitComponents || [];
+  if (!comps.length) { showToast('This kit has no components', 'error'); return; }
+  var allowNeg = !!(DB.settings && DB.settings.allowNegativeStock);
+  var added = 0;
+  comps.forEach(function(k){
+    var ci = (DB.catalog || []).find(function(x){ return String(x.id) === String(k.itemId); });
+    var qty = (parseFloat(k.qty) || 0) * kitQty;
+    if (qty <= 0) return;
+    var name = k.name || (ci && ci.name) || 'Component';
+    var base = { name:name, partNum:(ci && (ci.partNum||ci.part))||'', qty:qty, unit:(ci && ci.unit)||'ea',
+                 unitCost: ci ? _woItemCost(ci) : 0, itemId: ci ? ci.id : null };
+    if (ci && ci.tracked && ci.itemType !== 'kit') {
+      var avail = _availableAtLocation(ci, 'loc-shop');
+      if (qty <= avail || allowNeg) {
+        adjustItemQty(ci.id, 'loc-shop', -qty);
+        _addWOPartRecord(Object.assign({}, base, { status:'used', source:'stock', fromLocation:'loc-shop', notes:'Kit: '+kit.name }));
+      } else {
+        _addWOPartRecord(Object.assign({}, base, { status:'used', source:'nonstock', notes:'Kit: '+kit.name+' (short on stock)' }));
+      }
+    } else {
+      _addWOPartRecord(Object.assign({}, base, { status:'used', source:'nonstock', notes:'Kit: '+kit.name }));
+    }
+    added++;
+  });
+  showToast(kit.name + ' added — ' + added + ' component' + (added!==1?'s':'') + ' on the job ✓', 'success');
   if (typeof switchWOTab === 'function') switchWOTab('parts');
   _woAISelected = null;
   var d = document.getElementById('wo-ai-detail'); if (d) d.style.display = 'none';
