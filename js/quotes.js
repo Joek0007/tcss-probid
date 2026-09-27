@@ -6290,6 +6290,10 @@ function renderInventory() {
   if (tab === 'lowstock') {
     if (typeof renderBuyList === 'function') renderBuyList();
   }
+
+  if (tab === 'counts') {
+    if (typeof renderCountsList === 'function') renderCountsList();
+  }
 }
 
 // ---- NEW / EDIT INVENTORY ITEM ----

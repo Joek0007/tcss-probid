@@ -3709,6 +3709,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <div class="inv-tab-nav">
     <button class="inv-tab active" data-tab="items" onclick="switchInvTab('items')">📦 All Items</button>
     <button class="inv-tab" data-tab="lowstock" onclick="switchInvTab('lowstock')">🛒 Buy List</button>
+    <button class="inv-tab" data-tab="counts" onclick="switchInvTab('counts')">📋 Cycle Counts</button>
   </div>
   <div class="low-stock-warn" id="inv-low-warn"></div>
   <!-- ITEMS TAB -->
@@ -3737,6 +3738,15 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <!-- BUY LIST TAB (Wave 2a: par-aware reorder list, grouped by vendor) -->
   <div class="inv-section" id="inv-lowstock">
     <div id="inv-buylist"></div>
+  </div>
+
+  <!-- CYCLE COUNTS (Wave 3d) -->
+  <div class="inv-section" id="inv-counts">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:13px;color:#546e7a">Guided cycle counts — assign a count sheet, enter what's physically on the shelf, review the variances, then post the corrections (all logged).</div>
+      <button class="btn btn-primary btn-sm" onclick="newCountSession()">+ New Count</button>
+    </div>
+    <div id="inv-counts-list"></div>
   </div>
 </div>
 
@@ -4332,6 +4342,44 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div class="modal-foot">
       <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-serials">Close</button>
     </div>
+  </div>
+</div>
+
+<!-- NEW CYCLE COUNT MODAL (Wave 3d) -->
+<div class="modal-overlay" id="modal-count-new" data-no-backdrop-close>
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-head">
+      <h3>📋 New Cycle Count</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-count-new">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><div style="width:100%"><label>Count name</label><input id="count-new-name" placeholder="e.g. Shop — Cameras — Sept"></div></div>
+      <div class="form-row cols2" style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:150px"><label>Location to count</label><select id="count-new-loc" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px"></select></div>
+        <div style="flex:1;min-width:150px"><label>Category</label><select id="count-new-scope" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px"></select></div>
+      </div>
+      <div class="form-row"><div style="width:100%"><label>Assign to (optional)</label><select id="count-new-assignee" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px"></select></div></div>
+      <div id="count-new-preview" style="font-size:12px;color:#607d8b;margin-top:6px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-count-new">Cancel</button>
+      <button class="btn btn-primary" onclick="createCountSession()">Create Count Sheet</button>
+    </div>
+  </div>
+</div>
+
+<!-- CYCLE COUNT SHEET / REVIEW MODAL (Wave 3d) -->
+<div class="modal-overlay" id="modal-count" data-no-backdrop-close>
+  <div class="modal-box" style="max-width:960px">
+    <div class="modal-head">
+      <h3 id="count-title">📋 Cycle Count</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-count">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="count-sheet-head" style="margin-bottom:8px"></div>
+      <div id="count-sheet-body"></div>
+    </div>
+    <div class="modal-foot" id="count-sheet-foot"></div>
   </div>
 </div>
 
@@ -6851,27 +6899,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919fo with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919fp with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919fo"></script>
-<script src="js/quotes.js?v=20260919fo"></script>
-<script src="js/tools.js?v=20260919fo"></script>
-<script src="js/field.js?v=20260919fo"></script>
-<script src="js/crm.js?v=20260919fo"></script>
-<script src="js/vehicles.js?v=20260919fo"></script>
-<script src="js/dispatch.js?v=20260919fo"></script>
-<script src="js/permissions.js?v=20260919fo"></script>
-<script src="js/worktracking.js?v=20260919fo"></script>
-<script src="js/calendar.js?v=20260919fo"></script>
-<script src="js/workorders.js?v=20260919fo"></script>
-<script src="js/purchaseorders.js?v=20260919fo"></script>
-<script src="js/inventory.js?v=20260919fo"></script>
-<script src="js/reports.js?v=20260919fo"></script>
-<script src="js/recyclebin.js?v=20260919fo"></script>
-<script src="js/contracts.js?v=20260919fo"></script>
-  <script src="js/recurring.js?v=20260919fo"></script>
-  <script src="js/seed_managed.js?v=20260919fo"></script>
-  <script src="js/auth.js?v=20260919fo"></script>
+<script src="js/core.js?v=20260919fp"></script>
+<script src="js/quotes.js?v=20260919fp"></script>
+<script src="js/tools.js?v=20260919fp"></script>
+<script src="js/field.js?v=20260919fp"></script>
+<script src="js/crm.js?v=20260919fp"></script>
+<script src="js/vehicles.js?v=20260919fp"></script>
+<script src="js/dispatch.js?v=20260919fp"></script>
+<script src="js/permissions.js?v=20260919fp"></script>
+<script src="js/worktracking.js?v=20260919fp"></script>
+<script src="js/calendar.js?v=20260919fp"></script>
+<script src="js/workorders.js?v=20260919fp"></script>
+<script src="js/purchaseorders.js?v=20260919fp"></script>
+<script src="js/inventory.js?v=20260919fp"></script>
+<script src="js/reports.js?v=20260919fp"></script>
+<script src="js/recyclebin.js?v=20260919fp"></script>
+<script src="js/contracts.js?v=20260919fp"></script>
+  <script src="js/recurring.js?v=20260919fp"></script>
+  <script src="js/seed_managed.js?v=20260919fp"></script>
+  <script src="js/auth.js?v=20260919fp"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

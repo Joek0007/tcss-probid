@@ -1699,6 +1699,18 @@ async function syncAllFromCloud(silent) {
     }
   } catch(e) { errors.push('item_serials: '+e.message); }
 
+  // count_sessions — per-row pull (Wave 3d). Guided cycle-count sessions.
+  try {
+    var { data: csRows } = await _sbSelectAll(function(){ return _sb.from('count_sessions').select('*').eq('deleted', false); });
+    if (csRows) {
+      var _csDel = (DB.deletedIds && DB.deletedIds.countSessions) || [];
+      var cloudCs = csRows.filter(function(c){ return _csDel.indexOf(String(c.id)) < 0; }).map(_countRowToObj);
+      var _cloudCsIds = {}; cloudCs.forEach(function(c){ _cloudCsIds[c.id] = 1; });
+      var _localOnlyCs = (DB.countSessions || []).filter(function(c){ return c && c.id && !_cloudCsIds[c.id]; });
+      DB.countSessions = cloudCs.concat(_localOnlyCs);
+    }
+  } catch(e) { errors.push('count_sessions: '+e.message); }
+
   // Audit log — read recent history back so the view isn't empty after a reload.
   try {
     var { data: auditRows } = await _sb.from('probid_audit').select('*').order('created_at', { ascending: false }).limit(500);
@@ -2188,6 +2200,39 @@ function _serialRowToObj(s){
     warrantyExpires: s.warranty_expires || '',
     cost: (s.cost != null ? Number(s.cost) : null),
     notes: s.notes || ''
+  };
+}
+
+// ---- count_sessions mappers (Wave 3d) ----
+function _countToRow(c){
+  return {
+    id: c.id,
+    name: c.name || null,
+    location: c.location || null,
+    scope: c.scope || 'all',
+    status: c.status || 'open',
+    assigned_to: c.assignedTo || null,
+    assigned_name: c.assignedName || null,
+    lines: c.lines || [],
+    notes: c.notes || null,
+    posted_at: c.postedAt || null,
+    deleted: !!c.deleted,
+    updated_at: new Date().toISOString()
+  };
+}
+function _countRowToObj(c){
+  return {
+    id: c.id,
+    name: c.name || '',
+    location: c.location || '',
+    scope: c.scope || 'all',
+    status: c.status || 'open',
+    assignedTo: c.assigned_to || '',
+    assignedName: c.assigned_name || '',
+    lines: Array.isArray(c.lines) ? c.lines : [],
+    notes: c.notes || '',
+    postedAt: c.posted_at || '',
+    createdAt: c.created_at || ''
   };
 }
 
@@ -2962,6 +3007,18 @@ async function pushAllToCloud() {
         await _sb.from('item_serials').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', _sid);
       }
     } catch(_se) { console.warn('[Push] item_serials', _se && _se.message); }
+
+    // count_sessions — per-row upsert + tombstone (Wave 3d).
+    try {
+      for (var _cs of (DB.countSessions || [])) {
+        if (!_cs || !_cs.id) continue;
+        _pushErr('count '+(_cs.name || _cs.id), await _sb.from('count_sessions').upsert(_countToRow(_cs), { onConflict: 'id' }));
+      }
+      var _csDel2 = (DB.deletedIds && DB.deletedIds.countSessions) || [];
+      for (var _csid of _csDel2) {
+        await _sb.from('count_sessions').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', _csid);
+      }
+    } catch(_cse) { console.warn('[Push] count_sessions', _cse && _cse.message); }
 
   } catch(e) {
     console.error('Push error:', e);

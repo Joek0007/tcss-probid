@@ -1248,6 +1248,277 @@ function invSerializedChanged() {
   }
 }
 
+// ============================================================
+// Wave 3d — Guided cycle-count sessions
+// ============================================================
+// DB.countSessions = [{id,name,location,scope,status,assignedTo,assignedName,lines,notes,postedAt}].
+// lines = [{itemId,name,cat,bin,expected,counted}] — counted null until entered. Posting writes each
+// variance through the audited record_stock_adjustment RPC (same path as the Quantity Correction modal).
+var _countActiveId = null;
+
+function _countSessions() { return (DB.countSessions || []).filter(function(c){ return c && !c.deleted; }); }
+function _countById(id) { return (DB.countSessions || []).find(function(c){ return String(c.id) === String(id); }); }
+function _countProgress(s) {
+  var lines = (s && s.lines) || [], counted = 0, variances = 0;
+  lines.forEach(function(l){ if (l.counted != null && l.counted !== '') { counted++; if (parseFloat(l.counted) !== parseFloat(l.expected)) variances++; } });
+  return { counted: counted, total: lines.length, variances: variances };
+}
+
+// Open the "New Count" modal — populate location, category, assignee pickers.
+function newCountSession() {
+  if (typeof hasPermission === 'function' && !hasPermission('inv.adjust')) {
+    showToast('You don’t have permission to run cycle counts.', 'error'); return;
+  }
+  var locSel = document.getElementById('count-new-loc');
+  if (locSel) locSel.innerHTML = getLocations().map(function(l){ return '<option value="'+escHtml(l.id)+'">'+escHtml(getLocationName(l.id))+'</option>'; }).join('');
+  var cats = [];
+  (DB.catalog || []).forEach(function(c){ if (c && c.tracked && c.active !== false) { var k = c.cat || 'General'; if (cats.indexOf(k) < 0) cats.push(k); } });
+  cats.sort();
+  var scopeSel = document.getElementById('count-new-scope');
+  if (scopeSel) scopeSel.innerHTML = '<option value="all">All categories</option>' + cats.map(function(c){ return '<option value="'+escHtml(c)+'">'+escHtml(c)+'</option>'; }).join('');
+  var asg = document.getElementById('count-new-assignee');
+  if (asg) asg.innerHTML = '<option value="">— unassigned —</option>' + (DB.team || []).filter(function(t){ return t && t.active !== false; }).map(function(t){ var nm=t.full_name||t.name||t.email||t.id; return '<option value="'+escHtml(t.id)+'|'+escHtml(nm)+'">'+escHtml(nm)+'</option>'; }).join('');
+  var nm = document.getElementById('count-new-name'); if (nm) nm.value = '';
+  _updateCountPreview();
+  if (locSel) locSel.onchange = _updateCountPreview;
+  if (scopeSel) scopeSel.onchange = _updateCountPreview;
+  if (typeof openModal === 'function') openModal('modal-count-new');
+}
+function _countCandidateItems(locId, scope) {
+  return (DB.catalog || []).filter(function(c){
+    if (!c || !c.tracked || c.active === false) return false;
+    if (scope && scope !== 'all' && (c.cat || 'General') !== scope) return false;
+    return true;
+  });
+}
+function _updateCountPreview() {
+  var loc = (document.getElementById('count-new-loc') || {}).value || 'loc-shop';
+  var scope = (document.getElementById('count-new-scope') || {}).value || 'all';
+  var n = _countCandidateItems(loc, scope).length;
+  var el = document.getElementById('count-new-preview');
+  if (el) el.innerHTML = '<strong>' + n + '</strong> item(s) will be on this count sheet' + (scope !== 'all' ? ' (category: ' + escHtml(scope) + ')' : '') + '.';
+}
+
+function createCountSession() {
+  if (typeof hasPermission === 'function' && !hasPermission('inv.adjust')) { showToast('Permission denied','error'); return; }
+  var loc = (document.getElementById('count-new-loc') || {}).value || 'loc-shop';
+  var scope = (document.getElementById('count-new-scope') || {}).value || 'all';
+  var name = ((document.getElementById('count-new-name') || {}).value || '').trim();
+  var asgRaw = (document.getElementById('count-new-assignee') || {}).value || '';
+  var asgId = '', asgName = '';
+  if (asgRaw) { var p = asgRaw.split('|'); asgId = p[0] || ''; asgName = p[1] || ''; }
+  if (!name) name = getLocationName(loc) + (scope !== 'all' ? ' — ' + scope : '') + ' — ' + new Date().toISOString().slice(0,10);
+  var items = _countCandidateItems(loc, scope);
+  if (!items.length) { showToast('No tracked items match that location/category', 'warning'); return; }
+  var lines = items.map(function(c){
+    return { itemId: c.id, name: c.name || '', cat: c.cat || 'General',
+             bin: (typeof getItemBin === 'function' ? getItemBin(c, loc) : ''),
+             expected: getItemQtyAtLocation(c, loc), counted: null };
+  });
+  var sess = { id: makeUUID(), name: name, location: loc, scope: scope, status: 'open',
+    assignedTo: asgId, assignedName: asgName, lines: lines, notes: '', postedAt: '' };
+  if (!DB.countSessions) DB.countSessions = [];
+  DB.countSessions.push(sess);
+  saveDB();
+  if (typeof closeModal === 'function') closeModal('modal-count-new');
+  openCount(sess.id);
+  renderCountsList();
+  showToast('Count sheet created — ' + lines.length + ' items', 'success');
+}
+
+var _COUNT_STATUS_PILL = {
+  open:     '<span style="background:#e3f2fd;color:#1565c0;padding:1px 8px;border-radius:10px;font-size:11px">Open</span>',
+  review:   '<span style="background:#fff3e0;color:#e65100;padding:1px 8px;border-radius:10px;font-size:11px">In review</span>',
+  posted:   '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 8px;border-radius:10px;font-size:11px">Posted</span>',
+  cancelled:'<span style="background:#eceff1;color:#78909c;padding:1px 8px;border-radius:10px;font-size:11px">Cancelled</span>'
+};
+
+function renderCountsList() {
+  var host = document.getElementById('inv-counts-list'); if (!host) return;
+  var list = _countSessions().slice().sort(function(a,b){ return String(b.createdAt||b.id).localeCompare(String(a.createdAt||a.id)); });
+  if (!list.length) { host.innerHTML = '<div style="padding:24px;text-align:center;color:#90a4ae;font-size:13px">No cycle counts yet. Click <strong>+ New Count</strong> to start one.</div>'; return; }
+  host.innerHTML = '<table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="color:#607d8b;text-align:left;border-bottom:1px solid #eceff1">'+
+      '<th style="padding:6px 8px">Count</th><th style="padding:6px 8px">Location</th><th style="padding:6px 8px">Progress</th><th style="padding:6px 8px">Status</th><th style="padding:6px 8px"></th></tr></thead><tbody>'+
+    list.map(function(s){
+      var p = _countProgress(s);
+      var prog = s.status === 'posted' ? (p.variances + ' correction(s) posted')
+        : (p.counted + '/' + p.total + ' counted' + (p.variances ? ' · <span style="color:#e65100">'+p.variances+' variance</span>' : ''));
+      return '<tr style="border-bottom:1px solid #f5f7f9">'+
+        '<td style="padding:6px 8px"><div style="font-weight:700">'+escHtml(s.name||'Count')+'</div>'+(s.assignedName?'<div style="font-size:11px;color:#90a4ae">👤 '+escHtml(s.assignedName)+'</div>':'')+'</td>'+
+        '<td style="padding:6px 8px">'+escHtml(getLocationName(s.location))+(s.scope&&s.scope!=='all'?'<div style="font-size:11px;color:#90a4ae">'+escHtml(s.scope)+'</div>':'')+'</td>'+
+        '<td style="padding:6px 8px;font-size:12px">'+prog+'</td>'+
+        '<td style="padding:6px 8px">'+(_COUNT_STATUS_PILL[s.status]||s.status)+'</td>'+
+        '<td style="padding:6px 8px;white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="openCount(\''+s.id+'\')">'+(s.status==='posted'||s.status==='cancelled'?'View':'Open')+'</button>'+
+          (s.status!=='posted'?' <button class="btn btn-ghost btn-sm" onclick="deleteCount(\''+s.id+'\')" title="Delete count" style="color:#c62828">×</button>':'')+'</td>'+
+      '</tr>';
+    }).join('')+'</tbody></table>';
+}
+
+function openCount(id) {
+  var s = _countById(id); if (!s) { showToast('Count not found','error'); return; }
+  _countActiveId = String(id);
+  renderCountSheet();
+  if (typeof openModal === 'function') openModal('modal-count');
+}
+
+function _countSearch() { var e = document.getElementById('count-search'); return e ? (e.value||'').toLowerCase() : ''; }
+
+function renderCountSheet() {
+  var s = _countById(_countActiveId); if (!s) return;
+  var t = document.getElementById('count-title'); if (t) t.textContent = '📋 ' + (s.name || 'Cycle Count');
+  var head = document.getElementById('count-sheet-head');
+  var body = document.getElementById('count-sheet-body');
+  var foot = document.getElementById('count-sheet-foot');
+  var p = _countProgress(s);
+  var canPost = (typeof hasPermission !== 'function') || hasPermission('inv.adjust');
+
+  if (head) head.innerHTML = '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12px;color:#546e7a">'+
+    '<span>📍 <strong>'+escHtml(getLocationName(s.location))+'</strong></span>'+
+    (s.scope&&s.scope!=='all'?'<span>Category: <strong>'+escHtml(s.scope)+'</strong></span>':'')+
+    '<span>'+(_COUNT_STATUS_PILL[s.status]||s.status)+'</span>'+
+    '<span>'+p.counted+'/'+p.total+' counted'+(p.variances?' · <span style="color:#e65100;font-weight:700">'+p.variances+' variance</span>':'')+'</span>'+
+    (s.assignedName?'<span>👤 '+escHtml(s.assignedName)+'</span>':'')+'</div>';
+
+  // ---- POSTED / CANCELLED: read-only summary ----
+  if (s.status === 'posted' || s.status === 'cancelled') {
+    var rows = (s.lines||[]).filter(function(l){ return l.counted != null && parseFloat(l.counted) !== parseFloat(l.expected); });
+    if (body) body.innerHTML = (s.status==='posted'
+      ? '<div style="font-size:13px;color:#2e7d32;margin:6px 0">Posted '+escHtml((s.postedAt||'').slice(0,10))+' — '+rows.length+' correction(s) applied.</div>'
+      : '<div style="font-size:13px;color:#78909c;margin:6px 0">This count was cancelled — no changes were made.</div>')+
+      (rows.length ? _countVarianceTable(rows, true) : '<div style="color:#90a4ae;font-size:12px">No variances.</div>');
+    if (foot) foot.innerHTML = '<button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-count">Close</button>';
+    return;
+  }
+
+  // ---- REVIEW GATE ----
+  if (s.status === 'review') {
+    var vrows = (s.lines||[]).filter(function(l){ return l.counted != null && l.counted !== '' && parseFloat(l.counted) !== parseFloat(l.expected); });
+    var net = 0; vrows.forEach(function(l){ net += (parseFloat(l.counted)-parseFloat(l.expected)); });
+    if (body) body.innerHTML =
+      '<div style="font-size:13px;margin:6px 0"><strong>Review variances before posting.</strong> Only items whose count differs from the system are listed. Posting sets the on-hand at <strong>'+escHtml(getLocationName(s.location))+'</strong> to the counted value and logs each correction. Items left uncounted are not changed.</div>'+
+      (vrows.length ? _countVarianceTable(vrows, false) + '<div style="font-size:13px;margin-top:8px">Net adjustment: <strong style="color:'+(net<0?'#c62828':'#2e7d32')+'">'+(net>=0?'+':'')+net+'</strong> unit(s) across '+vrows.length+' item(s).</div>'
+        : '<div style="color:#2e7d32;font-size:13px;padding:10px 0">✓ No variances — every counted item matches the system. Nothing to post.</div>');
+    if (foot) foot.innerHTML =
+      '<button class="btn btn-ghost btn-sm" onclick="backToCount(\''+s.id+'\')">← Back to counting</button>'+
+      (vrows.length && canPost ? '<button class="btn btn-primary" onclick="postCount(\''+s.id+'\')">Post '+vrows.length+' Correction(s)</button>'
+        : (!canPost ? '<span style="font-size:12px;color:#c62828">Posting needs the inv.adjust permission</span>' : '<button class="btn btn-primary" onclick="postCount(\''+s.id+'\')">Finish (no changes)</button>'));
+    return;
+  }
+
+  // ---- OPEN: the count sheet ----
+  var search = _countSearch();
+  var lines = (s.lines||[]);
+  var shown = search ? lines.filter(function(l){ return (l.name||'').toLowerCase().indexOf(search)>=0 || (l.cat||'').toLowerCase().indexOf(search)>=0 || (l.bin||'').toLowerCase().indexOf(search)>=0; }) : lines;
+  if (body) body.innerHTML =
+    '<div style="margin:4px 0 8px"><input id="count-search" oninput="renderCountSheet()" value="'+escHtml(search)+'" placeholder="Filter items…" style="width:100%;padding:7px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>'+
+    '<div style="max-height:52vh;overflow:auto"><table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="color:#607d8b;text-align:left;border-bottom:1px solid #eceff1;position:sticky;top:0;background:#fff">'+
+      '<th style="padding:5px 8px">Item</th><th style="padding:5px 8px;width:80px">System</th><th style="padding:5px 8px;width:110px">Counted</th><th style="padding:5px 8px;width:90px">Variance</th></tr></thead><tbody>'+
+    shown.map(function(l){
+      var idx = lines.indexOf(l);
+      var counted = (l.counted != null && l.counted !== '') ? parseFloat(l.counted) : null;
+      var v = counted != null ? (counted - parseFloat(l.expected)) : null;
+      var vColor = v == null ? '#b0bec5' : (v === 0 ? '#2e7d32' : '#c62828');
+      var vLabel = v == null ? '—' : (v === 0 ? '✓ match' : (v>0?'+':'')+v);
+      var rowBg = counted == null ? '' : (v === 0 ? 'background:#f4fbf4' : 'background:#fff6f6');
+      return '<tr style="border-bottom:1px solid #f5f7f9;'+rowBg+'">'+
+        '<td style="padding:4px 8px"><div style="font-weight:600">'+escHtml(l.name||'')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(l.cat||'')+(l.bin?' · 📍'+escHtml(l.bin):'')+'</div></td>'+
+        '<td style="padding:4px 8px;color:#607d8b">'+l.expected+'</td>'+
+        '<td style="padding:4px 8px"><input type="number" min="0" step="any" value="'+(counted!=null?counted:'')+'" data-cidx="'+idx+'" oninput="setCount(\''+s.id+'\','+idx+',this.value)" style="width:90px;padding:5px;border:1px solid #e0e7ef;border-radius:5px"></td>'+
+        '<td style="padding:4px 8px;color:'+vColor+';font-weight:600">'+vLabel+'</td>'+
+      '</tr>';
+    }).join('')+'</tbody></table></div>';
+  if (foot) foot.innerHTML =
+    '<button class="btn btn-ghost btn-sm" onclick="matchAllRemaining(\''+s.id+'\')" title="Mark every not-yet-counted item as matching the system">✓ Match remaining</button>'+
+    '<button class="btn btn-outline btn-sm" data-action="closeModal" data-modal="modal-count">Save &amp; Close</button>'+
+    '<button class="btn btn-primary" onclick="gotoReview(\''+s.id+'\')">Review →</button>';
+}
+
+function _countVarianceTable(rows, posted) {
+  return '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="color:#607d8b;text-align:left;border-bottom:1px solid #eceff1">'+
+    '<th style="padding:4px 6px">Item</th><th style="padding:4px 6px">System</th><th style="padding:4px 6px">Counted</th><th style="padding:4px 6px">Variance</th></tr></thead><tbody>'+
+    rows.map(function(l){ var v=parseFloat(l.counted)-parseFloat(l.expected); return '<tr style="border-bottom:1px solid #f5f7f9">'+
+      '<td style="padding:4px 6px">'+escHtml(l.name||'')+(l.bin?' <span style="color:#8d6e63">📍'+escHtml(l.bin)+'</span>':'')+'</td>'+
+      '<td style="padding:4px 6px">'+l.expected+'</td><td style="padding:4px 6px">'+l.counted+'</td>'+
+      '<td style="padding:4px 6px;color:'+(v<0?'#c62828':'#2e7d32')+';font-weight:600">'+(v>0?'+':'')+v+'</td></tr>'; }).join('')+
+    '</tbody></table>';
+}
+
+function setCount(id, idx, val) {
+  var s = _countById(id); if (!s || !s.lines[idx]) return;
+  s.lines[idx].counted = (val === '' || val == null) ? null : (parseFloat(val) < 0 ? 0 : parseFloat(val));
+  saveDB();
+  // update only the head progress + this row's variance cheaply: re-render head
+  var head = document.getElementById('count-sheet-head');
+  var p = _countProgress(s);
+  if (head) head.innerHTML = '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12px;color:#546e7a">'+
+    '<span>📍 <strong>'+escHtml(getLocationName(s.location))+'</strong></span>'+
+    (s.scope&&s.scope!=='all'?'<span>Category: <strong>'+escHtml(s.scope)+'</strong></span>':'')+
+    '<span>'+(_COUNT_STATUS_PILL[s.status]||s.status)+'</span>'+
+    '<span>'+p.counted+'/'+p.total+' counted'+(p.variances?' · <span style="color:#e65100;font-weight:700">'+p.variances+' variance</span>':'')+'</span>'+
+    (s.assignedName?'<span>👤 '+escHtml(s.assignedName)+'</span>':'')+'</div>';
+}
+function matchAllRemaining(id) {
+  var s = _countById(id); if (!s) return;
+  var n = 0;
+  (s.lines||[]).forEach(function(l){ if (l.counted == null || l.counted === '') { l.counted = parseFloat(l.expected)||0; n++; } });
+  saveDB();
+  renderCountSheet();
+  showToast(n + ' item(s) marked as matching the system', 'info');
+}
+function gotoReview(id) {
+  var s = _countById(id); if (!s) return;
+  s.status = 'review'; saveDB(); renderCountSheet(); renderCountsList();
+}
+function backToCount(id) {
+  var s = _countById(id); if (!s) return;
+  s.status = 'open'; saveDB(); renderCountSheet(); renderCountsList();
+}
+
+async function postCount(id) {
+  var s = _countById(id); if (!s) return;
+  if (typeof hasPermission === 'function' && !hasPermission('inv.adjust')) { showToast('Permission denied','error'); return; }
+  var loc = s.location, locName = getLocationName(loc);
+  var byName = (_currentUser && (_currentUser.full_name || _currentUser.name)) || 'Unknown';
+  var variances = (s.lines||[]).filter(function(l){ return l.counted != null && l.counted !== '' && parseFloat(l.counted) !== parseFloat(l.expected); });
+  var posted = 0, failed = 0;
+  for (var i=0; i<variances.length; i++) {
+    var l = variances[i];
+    var m = (DB.catalog||[]).find(function(c){ return String(c.id) === String(l.itemId); });
+    if (!m) { failed++; continue; }
+    var oldVal = getItemQtyAtLocation(m, loc);
+    var newVal = parseFloat(l.counted) || 0;
+    var newLocations = Object.assign({}, m.locations || {}); newLocations[loc] = newVal;
+    m.locations = newLocations; m.tracked = true;
+    if (_sb && _currentUser) {
+      try {
+        var r = await _sb.rpc('record_stock_adjustment', {
+          p_id: m.id, p_locations: newLocations,
+          p_reason: 'Cycle count: ' + (s.name || ''), p_by_name: byName,
+          p_lines: [{ location: loc, location_name: locName, old: oldVal, new: newVal, delta: (newVal - oldVal) }]
+        });
+        if (r && r.error) { failed++; } else { posted++; }
+      } catch(e) { failed++; }
+    } else { posted++; }
+  }
+  s.status = 'posted'; s.postedAt = new Date().toISOString();
+  saveDB();
+  if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
+  renderCountSheet(); renderCountsList();
+  if (typeof renderInventory === 'function') renderInventory();
+  showToast('Posted '+posted+' correction(s)'+(failed?' · '+failed+' failed (kept local)':'')+' ✓', failed?'warning':'success');
+}
+
+function deleteCount(id) {
+  var s = _countById(id); if (!s) return;
+  if (!confirm('Delete this cycle count? '+(s.status==='posted'?'':'Any entered counts will be lost.'))) return;
+  DB.countSessions = (DB.countSessions||[]).filter(function(c){ return String(c.id) !== String(id); });
+  if (!DB.deletedIds) DB.deletedIds = {};
+  if (!DB.deletedIds.countSessions) DB.deletedIds.countSessions = [];
+  DB.deletedIds.countSessions.push(String(id));
+  saveDB();
+  renderCountsList();
+}
+
 // Read the per-location editor back into a locPars map. Only keeps locations with a min or par set.
 function _readInvLocParsFromForm() {
   var out = {};
