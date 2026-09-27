@@ -4207,13 +4207,16 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         </div>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:2px 0 6px"><input type="checkbox" id="inv-returnable" style="width:16px;height:16px"> Returnable</label>
         <div class="form-row cols3">
+          <div><label>📍 Bin / Shelf <span style="font-weight:400;color:#90a4ae">(where it lives in the Main Shop)</span></label><input id="inv-bin-shop" placeholder="e.g. Aisle 3 · Shelf B"></div>
+        </div>
+        <div class="form-row cols3">
           <div><label>Purchase Unit <span style="font-weight:400;color:#90a4ae">(how you buy)</span></label><input id="inv-purchase-unit" placeholder="e.g. Box — blank = same" oninput="_updateConvHint()"></div>
           <div><label>Stock Units per Purchase Unit</label><input id="inv-conv-factor" type="number" min="0.0001" step="any" value="1" oninput="_updateConvHint()"></div>
           <div id="inv-conv-hint" style="align-self:end;font-size:12px;color:#2e7d32;font-weight:600;padding-bottom:8px"></div>
         </div>
         <div id="inv-onorder-row" style="font-size:12px;color:#1565c0;margin:0 0 8px;display:none"></div>
         <div style="border-top:1px solid #eceff1;padding-top:6px;margin-top:2px">
-          <button type="button" id="inv-locpars-toggle" onclick="toggleInvLocPars()" style="background:none;border:none;color:#1565c0;cursor:pointer;font-size:12px;font-weight:600;padding:2px 0">▸ Per-location reorder levels (trucks)</button>
+          <button type="button" id="inv-locpars-toggle" onclick="toggleInvLocPars()" style="background:none;border:none;color:#1565c0;cursor:pointer;font-size:12px;font-weight:600;padding:2px 0">▸ Per-location bins &amp; reorder levels (trucks)</button>
           <div id="inv-locpars-panel" style="display:none;margin-top:6px"></div>
         </div>
       </div>
@@ -6813,27 +6816,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919fm with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919fn with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919fm"></script>
-<script src="js/quotes.js?v=20260919fm"></script>
-<script src="js/tools.js?v=20260919fm"></script>
-<script src="js/field.js?v=20260919fm"></script>
-<script src="js/crm.js?v=20260919fm"></script>
-<script src="js/vehicles.js?v=20260919fm"></script>
-<script src="js/dispatch.js?v=20260919fm"></script>
-<script src="js/permissions.js?v=20260919fm"></script>
-<script src="js/worktracking.js?v=20260919fm"></script>
-<script src="js/calendar.js?v=20260919fm"></script>
-<script src="js/workorders.js?v=20260919fm"></script>
-<script src="js/purchaseorders.js?v=20260919fm"></script>
-<script src="js/inventory.js?v=20260919fm"></script>
-<script src="js/reports.js?v=20260919fm"></script>
-<script src="js/recyclebin.js?v=20260919fm"></script>
-<script src="js/contracts.js?v=20260919fm"></script>
-  <script src="js/recurring.js?v=20260919fm"></script>
-  <script src="js/seed_managed.js?v=20260919fm"></script>
-  <script src="js/auth.js?v=20260919fm"></script>
+<script src="js/core.js?v=20260919fn"></script>
+<script src="js/quotes.js?v=20260919fn"></script>
+<script src="js/tools.js?v=20260919fn"></script>
+<script src="js/field.js?v=20260919fn"></script>
+<script src="js/crm.js?v=20260919fn"></script>
+<script src="js/vehicles.js?v=20260919fn"></script>
+<script src="js/dispatch.js?v=20260919fn"></script>
+<script src="js/permissions.js?v=20260919fn"></script>
+<script src="js/worktracking.js?v=20260919fn"></script>
+<script src="js/calendar.js?v=20260919fn"></script>
+<script src="js/workorders.js?v=20260919fn"></script>
+<script src="js/purchaseorders.js?v=20260919fn"></script>
+<script src="js/inventory.js?v=20260919fn"></script>
+<script src="js/reports.js?v=20260919fn"></script>
+<script src="js/recyclebin.js?v=20260919fn"></script>
+<script src="js/contracts.js?v=20260919fn"></script>
+  <script src="js/recurring.js?v=20260919fn"></script>
+  <script src="js/seed_managed.js?v=20260919fn"></script>
+  <script src="js/auth.js?v=20260919fn"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

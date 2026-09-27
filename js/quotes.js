@@ -6132,6 +6132,7 @@ function renderInvGrid(list) {
         '<div style="padding:8px 10px">'+
           '<div style="font-weight:700;font-size:12px;line-height:1.25;height:30px;overflow:hidden">'+escHtml(item.name||'')+'</div>'+
           '<div style="font-size:10px;color:#90a4ae;margin:2px 0 6px">'+escHtml(item.cat||'General')+'</div>'+
+          ((typeof _primaryBin==='function' && _primaryBin(item))?'<div style="font-size:10px;color:#8d6e63;margin:-4px 0 6px">📍 '+escHtml(_primaryBin(item))+'</div>':'')+
           '<div style="display:flex;justify-content:space-between;align-items:center">'+
             '<span class="inv-qty-badge '+qtyClass+'" style="font-size:10px">'+qty+'</span>'+
             (canAdjust ? '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openAdjustQty(\''+item.id+'\')" style="font-size:10px;padding:2px 6px">± Adjust</button>' : '')+
@@ -6235,7 +6236,7 @@ function renderInventory() {
         '<td><span class="asset-tag">'+escHtml(item.tag||'—')+'</span></td>' +
         '<td><div style="font-weight:700;font-size:13px">'+escHtml(item.name||'')+'</div>'+(item.notes?'<div style="font-size:11px;color:#90a4ae">'+escHtml((typeof stripHtmlToText==='function'?stripHtmlToText(item.notes):item.notes).substring(0,60))+'</div>':'')+'</td>' +
         '<td style="font-size:12px">'+escHtml(item.cat||'General')+'</td>' +
-        '<td style="font-size:12px">'+escHtml(item.location||'—')+'</td>' +
+        '<td style="font-size:12px">'+escHtml(item.location||'—')+((typeof _primaryBin==='function' && _primaryBin(item))?'<div style="font-size:10px;color:#8d6e63">📍 '+escHtml(_primaryBin(item))+'</div>':'')+'</td>' +
         '<td><span class="inv-qty-badge '+qtyClass+'">'+qty+' — '+qtyLabel+'</span>'+(reservedQty>0?'<div style="font-size:10px;color:#6a1b9a;margin-top:2px">'+reservedQty+' reserved · '+(qty-reservedQty)+' avail</div>':'')+'</td>' +
         '<td>'+(activeCoCount>0?'<span class="checkout-badge co-out">'+activeCoCount+' Out</span>':'<span class="checkout-badge co-in">Available</span>')+'</td>' +
         '<td style="white-space:nowrap">' +
@@ -6298,8 +6299,8 @@ function newInventoryItem() {
     .forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
   const setv=function(id,v){ const el=document.getElementById(id); if(el) el.value=v; };
   setv('inv-qty-shop',0); setv('inv-min',1); setv('inv-reorder-max',0); setv('inv-cost',0); setv('inv-uom','EA');
-  setv('inv-purchase-unit',''); setv('inv-conv-factor',1);
-  if (typeof _renderInvLocParsEditor==='function') _renderInvLocParsEditor({});
+  setv('inv-purchase-unit',''); setv('inv-conv-factor',1); setv('inv-bin-shop','');
+  if (typeof _renderInvLocParsEditor==='function') _renderInvLocParsEditor({}, {});
   if (typeof _updateConvHint==='function') _updateConvHint();
   if (typeof renderKitEditor==='function') renderKitEditor([]);
   const typeEl=document.getElementById('inv-type'); if(typeEl) typeEl.value='stock';

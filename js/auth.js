@@ -1173,7 +1173,7 @@ async function syncAllFromCloud(silent) {
           // AND the stock profile (tracked/locations/part#/etc.). The Inventory page reads the
           // tracked subset via _deriveInventoryFromCatalog(); there is no separate inventory table read.
           return { id:item.id, name:item.name, desc:item.description, cat:item.category, unit:item.unit, mc:item.default_cost, lh:item.default_hours, cost:item.default_cost, hours:item.default_hours, notes:item.notes, active:item.is_active,
-            itemType:item.item_type||'nonstock', tracked:!!item.tracked, part:item.part_num||'', partNum:item.part_num||'', barcode:item.barcode||'', manufacturer:item.manufacturer||'', mfrPart:item.mfr_part||'', vendor:item.vendor||'', photoUrl:item.photo_url||'', returnable:!!item.returnable, locations:item.locations||{}, minQty:item.min_qty||0, reorderQty:item.reorder_qty||0, reorderMax:item.reorder_max||0, locPars:item.loc_pars||{}, purchaseUnit:item.purchase_unit||'', conversionFactor:(item.conversion_factor!=null?item.conversion_factor:1), kitComponents:item.kit_components||[], photos:item.photos||[] };
+            itemType:item.item_type||'nonstock', tracked:!!item.tracked, part:item.part_num||'', partNum:item.part_num||'', barcode:item.barcode||'', manufacturer:item.manufacturer||'', mfrPart:item.mfr_part||'', vendor:item.vendor||'', photoUrl:item.photo_url||'', returnable:!!item.returnable, locations:item.locations||{}, minQty:item.min_qty||0, reorderQty:item.reorder_qty||0, reorderMax:item.reorder_max||0, locPars:item.loc_pars||{}, bins:item.bins||{}, purchaseUnit:item.purchase_unit||'', conversionFactor:(item.conversion_factor!=null?item.conversion_factor:1), kitComponents:item.kit_components||[], photos:item.photos||[] };
         });
         if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog();
       }
@@ -1947,6 +1947,7 @@ async function _pushInventoryToCloud(inv) {
       reorder_qty:  inv.reorderQty || 0,
       reorder_max:  inv.reorderMax || 0,
       loc_pars:     inv.locPars || {},
+      bins:         inv.bins || {},
       purchase_unit: inv.purchaseUnit || null,
       conversion_factor: (inv.conversionFactor != null ? inv.conversionFactor : 1),
       kit_components: inv.kitComponents || [],
@@ -2512,6 +2513,7 @@ async function pushAllToCloud() {
           reorder_qty: item.reorderQty || 0,
           reorder_max: item.reorderMax || 0,
           loc_pars: item.locPars || {},
+          bins: item.bins || {},
           purchase_unit: item.purchaseUnit || null,
           conversion_factor: (item.conversionFactor != null ? item.conversionFactor : 1),
           kit_components: item.kitComponents || [],

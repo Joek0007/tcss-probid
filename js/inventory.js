@@ -994,31 +994,69 @@ function toggleInvLocPars() {
   if (!panel) return;
   var isHidden = (panel.style.display === 'none' || panel.style.display === '');
   panel.style.display = isHidden ? 'block' : 'none';
-  if (btn) btn.textContent = (isHidden ? '▾' : '▸') + ' Per-location reorder levels (trucks)';
+  if (btn) btn.textContent = (isHidden ? '▾' : '▸') + ' Per-location bins & reorder levels (trucks)';
 }
 
-// Render the per-location min/par editor. Shows every location; pre-fills saved overrides.
-function _renderInvLocParsEditor(pars) {
+// Render the per-location min/par + bin editor. Shows every location; pre-fills saved overrides.
+// Wave 3b: adds a Bin/Shelf column per location. The Main Shop bin is edited by the top-level
+// #inv-bin-shop field (more discoverable), so the shop row here shows "set above" instead of an input.
+function _renderInvLocParsEditor(pars, bins) {
   var panel = document.getElementById('inv-locpars-panel');
   var btn = document.getElementById('inv-locpars-toggle');
   if (!panel) return;
   pars = pars || {};
+  bins = bins || {};
   panel.style.display = 'none';                 // always collapsed on open — keeps the quick path clean
-  if (btn) btn.textContent = '▸ Per-location reorder levels (trucks)';
+  if (btn) btn.textContent = '▸ Per-location bins & reorder levels (trucks)';
   var locs = getLocations();
   panel.innerHTML =
-    '<div style="font-size:11px;color:#90a4ae;margin-bottom:6px">Optional. Set a reorder point and par (bring-to level) for specific trucks/locations. Leave blank to use the global reorder point above. Truck replenishment restocks to par.</div>'+
+    '<div style="font-size:11px;color:#90a4ae;margin-bottom:6px">Optional. Set a Bin/Shelf, reorder point, and par (bring-to level) for specific trucks/locations. Leave reorder blank to use the global reorder point above. Truck replenishment restocks to par.</div>'+
     '<table style="width:100%;font-size:12px"><thead><tr style="color:#607d8b;text-align:left">'+
-      '<th style="padding:2px 6px">Location</th><th style="padding:2px 6px;width:90px">Reorder at</th><th style="padding:2px 6px;width:90px">Par (max)</th></tr></thead><tbody>'+
+      '<th style="padding:2px 6px">Location</th><th style="padding:2px 6px">Bin / Shelf</th><th style="padding:2px 6px;width:82px">Reorder at</th><th style="padding:2px 6px;width:82px">Par (max)</th></tr></thead><tbody>'+
     locs.map(function(l){
       var p = pars[l.id] || {};
+      var binCell = (l.id==='loc-shop')
+        ? '<td style="padding:2px 6px;color:#b0bec5;font-size:11px">set above ↑</td>'
+        : '<td style="padding:2px 6px"><input id="inv-locbin-'+escHtml(l.id)+'" value="'+escHtml(bins[l.id]||'')+'" placeholder="—" style="width:100%;min-width:90px;padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px"></td>';
       return '<tr>'+
         '<td style="padding:2px 6px">'+escHtml(l.name)+'</td>'+
-        '<td style="padding:2px 6px"><input type="number" min="0" step="0.01" id="inv-locpar-min-'+escHtml(l.id)+'" value="'+(p.min!=null&&p.min!==0?p.min:'')+'" placeholder="—" style="width:80px;padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px"></td>'+
-        '<td style="padding:2px 6px"><input type="number" min="0" step="0.01" id="inv-locpar-max-'+escHtml(l.id)+'" value="'+(p.max!=null&&p.max!==0?p.max:'')+'" placeholder="—" style="width:80px;padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px"></td>'+
+        binCell+
+        '<td style="padding:2px 6px"><input type="number" min="0" step="0.01" id="inv-locpar-min-'+escHtml(l.id)+'" value="'+(p.min!=null&&p.min!==0?p.min:'')+'" placeholder="—" style="width:74px;padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px"></td>'+
+        '<td style="padding:2px 6px"><input type="number" min="0" step="0.01" id="inv-locpar-max-'+escHtml(l.id)+'" value="'+(p.max!=null&&p.max!==0?p.max:'')+'" placeholder="—" style="width:74px;padding:3px 5px;border:1px solid #e0e7ef;border-radius:4px"></td>'+
       '</tr>';
     }).join('')+
     '</tbody></table>';
+}
+
+// ---- BIN / SHELF (Wave 3b) ----
+// bins = { locId: "Aisle 3 · Shelf B" }. Purely a "where is it" label per location; stock qty is
+// unchanged. Shop bin is edited by #inv-bin-shop; truck bins by the per-location editor above.
+function _readInvBinsFromForm() {
+  var out = {};
+  var shopEl = document.getElementById('inv-bin-shop');
+  var shopBin = shopEl ? String(shopEl.value||'').trim() : '';
+  if (shopBin) out['loc-shop'] = shopBin;
+  getLocations().forEach(function(l){
+    if (l.id === 'loc-shop') return;
+    var el = document.getElementById('inv-locbin-'+l.id);
+    var v = el ? String(el.value||'').trim() : '';
+    if (v) out[l.id] = v;
+  });
+  return out;
+}
+// Bin at a location for a derived inventory row or master (resolves the master which carries bins).
+function getItemBin(item, locId) {
+  var m = _itemMaster(item) || item;
+  return (m && m.bins && m.bins[locId]) ? m.bins[locId] : '';
+}
+// Primary bin for compact display: the shop bin, else the first bin set anywhere.
+function _primaryBin(item) {
+  var m = _itemMaster(item) || item;
+  var b = m && m.bins;
+  if (!b) return '';
+  if (b['loc-shop']) return b['loc-shop'];
+  var k = Object.keys(b).find(function(k){ return b[k]; });
+  return k ? b[k] : '';
 }
 
 // Read the per-location editor back into a locPars map. Only keeps locations with a min or par set.
@@ -1189,8 +1227,9 @@ function renderInventoryLocationBreakdown(item) {
   locs.forEach(function(l){
     var q = getItemQtyAtLocation(item, l.id);
     if (q > 0) {
+      var bin = getItemBin(item, l.id);   // Wave 3b: show the bin/shelf where it lives here
       html += '<span style="display:inline-block;background:#f0f4f8;padding:1px 6px;border-radius:8px;font-size:10px;margin-right:3px;margin-bottom:2px">'+
-        escHtml(l.name)+': <strong>'+q+'</strong></span>';
+        escHtml(l.name)+': <strong>'+q+'</strong>'+(bin?' <span style="color:#8d6e63">📍'+escHtml(bin)+'</span>':'')+'</span>';
     }
   });
   return html || '<span style="font-size:11px;color:#bdbdbd">No stock</span>';
@@ -1244,6 +1283,7 @@ function saveInventoryItemV2() {
   master.minQty       = isStock ? (parseFloat((document.getElementById('inv-min')||{}).value)||0) : 0;
   master.reorderMax   = isStock ? (parseFloat((document.getElementById('inv-reorder-max')||{}).value)||0) : 0;
   master.locPars      = isStock ? _readInvLocParsFromForm() : {};
+  master.bins         = isStock ? _readInvBinsFromForm() : {};   // Wave 3b: per-location bin/shelf
   // Wave 2d: UoM purchase→stock conversion. purchaseUnit = how you buy; unit (above) = stock/issue unit;
   // conversionFactor = stock units per one purchase unit (1 = buy & stock the same).
   master.purchaseUnit     = isStock ? gv('inv-purchase-unit') : '';
@@ -1262,7 +1302,7 @@ function saveInventoryItemV2() {
     _pushInventoryToCloud({ id:master.id, name:master.name, cat:master.cat, unit:master.unit,
       partNum:master.partNum, barcode:master.barcode, manufacturer:master.manufacturer, mfrPart:master.mfrPart,
       vendor:master.vendor, photoUrl:master.photoUrl, returnable:master.returnable, locations:master.locations,
-      minQty:master.minQty, reorderMax:master.reorderMax, locPars:master.locPars,
+      minQty:master.minQty, reorderMax:master.reorderMax, locPars:master.locPars, bins:master.bins,
       purchaseUnit:master.purchaseUnit, conversionFactor:master.conversionFactor,
       kitComponents:master.kitComponents, photos:master.photos,
       cost:master.mc, notes:master.notes, itemType:master.itemType,
@@ -1295,6 +1335,7 @@ function editInventoryItem(id) {
   sv('inv-qty-shop',getItemQtyAtLocation(m,'loc-shop'));
   sv('inv-min',     m.minQty||0);
   sv('inv-reorder-max', m.reorderMax||0);
+  sv('inv-bin-shop', (m.bins && m.bins['loc-shop']) || '');   // Wave 3b
   sv('inv-purchase-unit', m.purchaseUnit||'');
   sv('inv-conv-factor', (m.conversionFactor!=null?m.conversionFactor:1));
   sv('inv-cost',    (m.mc!=null?m.mc:(m.cost||0)));
@@ -1310,7 +1351,7 @@ function editInventoryItem(id) {
   if (typeof _populateInvVendorList === 'function') _populateInvVendorList();
   if (typeof invTypeChanged === 'function') invTypeChanged();
   _renderInvOnOrder(m);
-  _renderInvLocParsEditor(m.locPars || {});   // reset panel collapsed, populated from saved pars
+  _renderInvLocParsEditor(m.locPars || {}, m.bins || {});   // reset panel collapsed, populated from saved pars + bins
   if (typeof _updateConvHint === 'function') _updateConvHint();
   if (typeof _populateKitDatalist === 'function') _populateKitDatalist();
   if (typeof renderKitEditor === 'function') renderKitEditor(m.kitComponents || []);
@@ -1663,7 +1704,8 @@ function selectWOAIItem(id) {
   }
 
   var locs = getLocations();
-  var chips = c.tracked ? locs.map(function(l){ var q = getItemQtyAtLocation(c, l.id); return q > 0 ? '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 8px;border-radius:10px;font-size:11px;margin:2px 3px 0 0;display:inline-block">' + escHtml(l.name) + ': ' + q + '</span>' : ''; }).join('') : '';
+  var chips = c.tracked ? locs.map(function(l){ var q = getItemQtyAtLocation(c, l.id); var bin=getItemBin(c,l.id); return q > 0 ? '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 8px;border-radius:10px;font-size:11px;margin:2px 3px 0 0;display:inline-block">' + escHtml(l.name) + ': ' + q + (bin?' <span style="color:#8d6e63">📍'+escHtml(bin)+'</span>':'') + '</span>' : ''; }).join('') : '';
+  var _pbin = c.tracked ? _primaryBin(c) : '';
   var locOpts = locs.map(function(l){ var oh=getItemQtyAtLocation(c,l.id); var av=_availableAtLocation(c,l.id); return '<option value="' + escHtml(l.id) + '">' + escHtml(l.name) + ' (' + av + ' avail' + (av!==oh?(' / '+oh+' on hand'):'') + ')</option>'; }).join('');
   var _oh = c.tracked ? (_woItemOnHand(c)||0) : 0;
   var _res = c.tracked ? _reservedTotal(c.id) : 0;
@@ -1673,7 +1715,7 @@ function selectWOAIItem(id) {
   d.style.display = '';
   d.innerHTML =
     '<div style="font-weight:700;font-size:14px;margin-bottom:2px">' + escHtml(c.name || '') + '</div>' +
-    '<div style="font-size:12px;color:#607d8b;margin-bottom:8px">' + escHtml(c.partNum || c.part || '') + ' · $' + Number(_woItemCost(c)).toFixed(2) + ' · ' + _stockLabel + '</div>' +
+    '<div style="font-size:12px;color:#607d8b;margin-bottom:8px">' + escHtml(c.partNum || c.part || '') + ' · $' + Number(_woItemCost(c)).toFixed(2) + ' · ' + _stockLabel + (_pbin?' · <span style="color:#8d6e63">📍 '+escHtml(_pbin)+'</span>':'') + '</div>' +
     (chips ? '<div style="margin-bottom:8px">' + chips + '</div>' : '') +
     '<div style="display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;margin-bottom:10px">' +
       '<label style="font-size:12px;font-weight:700;color:#546e7a">Qty</label>' +
