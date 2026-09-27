@@ -616,9 +616,9 @@ function renderQuotes() {
       ageCell+
       '<td style="color:#90a4ae;font-size:11px">'+(q.followupDate?'📅 '+q.followupDate:(q.dt||''))+'</td>'+
       '<td style="white-space:nowrap">'+
-        '<button class="btn btn-ghost btn-sm" data-action="viewQuote" data-id="'+q.id+'">View</button> '+
+        '<button class="btn btn-outline btn-sm" data-action="viewQuote" data-id="'+q.id+'">View</button> '+
         '<button class="btn btn-outline btn-sm" data-action="editQuote" data-id="'+q.id+'">Edit</button> '+
-        '<button class="btn btn-ghost btn-sm" data-action="dupQuote" data-id="'+q.id+'">Dup</button> '+
+        '<button class="btn btn-outline btn-sm" data-action="dupQuote" data-id="'+q.id+'">Dup</button> '+
         '<button class="btn btn-convert btn-sm" '+(canConvert?'data-action="convertToJob" data-id="'+q.id+'"':'disabled')+
           ' style="'+(canConvert?'':'background:#eceff1;border:1px solid #607d8b;color:#455a64;cursor:not-allowed;pointer-events:none')+'" title="'+(canConvert?'Mark Won & Create Job':'Already converted')+'">▶</button> '+
         '<button class="btn btn-success btn-sm" data-action="emailSavedQuote" data-id="'+q.id+'" title="Email to customer">📧</button> '+
