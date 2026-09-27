@@ -1153,7 +1153,8 @@ function saveInventoryItemV2() {
   master.manufacturer = gv('inv-mfr');
   master.mfrPart      = gv('inv-mfr-part');
   master.vendor       = gv('inv-vendor');
-  master.photoUrl     = (document.getElementById('inv-photo-url')||{}).value || master.photoUrl || '';
+  master.photos       = (typeof _readInvPhotos === 'function') ? _readInvPhotos() : (master.photos||[]);
+  master.photoUrl     = master.photos[0] || (document.getElementById('inv-photo-url')||{}).value || '';
   master.partNum      = gv('inv-part-num'); master.part = master.partNum;
   master.barcode      = gv('inv-barcode');
   master.returnable   = isStock && !!(document.getElementById('inv-returnable')||{}).checked;
@@ -1181,7 +1182,7 @@ function saveInventoryItemV2() {
       vendor:master.vendor, photoUrl:master.photoUrl, returnable:master.returnable, locations:master.locations,
       minQty:master.minQty, reorderMax:master.reorderMax, locPars:master.locPars,
       purchaseUnit:master.purchaseUnit, conversionFactor:master.conversionFactor,
-      kitComponents:master.kitComponents,
+      kitComponents:master.kitComponents, photos:master.photos,
       cost:master.mc, notes:master.notes, itemType:master.itemType,
       tracked:master.tracked, active:master.active });
   }
@@ -1221,7 +1222,8 @@ function editInventoryItem(id) {
   var retEl = document.getElementById('inv-returnable'); if (retEl) retEl.checked = !!m.returnable;
   var actEl = document.getElementById('inv-active'); if (actEl) actEl.checked = (m.active !== false);
   var phUrl = document.getElementById('inv-photo-url'); if (phUrl) phUrl.value = m.photoUrl || '';
-  _renderInvPhotoPreview(m.photoUrl || '');
+  var _seedPhotos = (m.photos && m.photos.length) ? m.photos : (m.photoUrl ? [m.photoUrl] : []);
+  _renderInvPhotoPreview(_seedPhotos);
   if (typeof populateInvDataLists === 'function') populateInvDataLists();
   if (typeof _populateInvVendorList === 'function') _populateInvVendorList();
   if (typeof invTypeChanged === 'function') invTypeChanged();
@@ -1318,29 +1320,58 @@ function _renderInvOnOrder(item) {
   else { row.style.display='none'; row.textContent=''; }
 }
 
-// Photo: resize to a small thumbnail data URL (keeps the row light) and preview.
-function _renderInvPhotoPreview(url) {
+// Photos (Wave 2f): multiple resized thumbnails per item. _photoDraft holds the working set; the first
+// image is also mirrored to inv-photo-url as the PRIMARY photo (row thumbnails, back-compat).
+var _photoDraft = [];
+var INV_MAX_PHOTOS = 6;
+
+// url arg kept for back-compat callers; when passed, it seeds the draft (edit/new paths call the
+// dedicated setter below, so this just re-renders whatever seeds it gets).
+function _renderInvPhotoPreview(seed) {
+  if (typeof seed === 'string') { _photoDraft = seed ? [seed] : []; }
+  else if (Array.isArray(seed)) { _photoDraft = seed.slice(); }
   var el = document.getElementById('inv-photo-preview'); if (!el) return;
-  el.innerHTML = url ? '<img src="'+url+'" style="max-height:70px;border-radius:6px;border:1px solid #e0e7ef">' : '';
+  if (!_photoDraft.length) { el.innerHTML = ''; _syncPrimaryPhoto(); return; }
+  el.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">' + _photoDraft.map(function(u,i){
+    return '<div style="position:relative;display:inline-block">'+
+      '<img src="'+u+'" style="height:64px;border-radius:6px;border:1px solid '+(i===0?'#1565c0':'#e0e7ef')+'">'+
+      (i===0?'<span style="position:absolute;bottom:2px;left:2px;background:#1565c0;color:#fff;font-size:9px;padding:0 4px;border-radius:6px">main</span>':'')+
+      '<button type="button" onclick="removeInvPhoto('+i+')" title="Remove" style="position:absolute;top:-6px;right:-6px;background:#c62828;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:12px;line-height:1;cursor:pointer">×</button>'+
+    '</div>';
+  }).join('') + '</div>';
+  _syncPrimaryPhoto();
+}
+function _syncPrimaryPhoto() {
+  var ph = document.getElementById('inv-photo-url'); if (ph) ph.value = _photoDraft[0] || '';
+}
+function removeInvPhoto(i) {
+  _photoDraft.splice(i,1);
+  _renderInvPhotoPreview();
 }
 function onInvPhotoChange(input) {
-  var f = input && input.files && input.files[0]; if (!f) return;
-  var reader = new FileReader();
-  reader.onload = function(e){
-    var img = new Image();
-    img.onload = function(){
-      var max=240, w=img.width, h=img.height;
-      if (w>h && w>max){ h=Math.round(h*max/w); w=max; } else if (h>max){ w=Math.round(w*max/h); h=max; }
-      var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
-      cv.getContext('2d').drawImage(img,0,0,w,h);
-      var url=cv.toDataURL('image/jpeg',0.72);
-      var ph=document.getElementById('inv-photo-url'); if(ph) ph.value=url;
-      _renderInvPhotoPreview(url);
+  var files = input && input.files ? Array.prototype.slice.call(input.files) : [];
+  if (!files.length) return;
+  files.forEach(function(f){
+    if (_photoDraft.length >= INV_MAX_PHOTOS) { showToast('Up to '+INV_MAX_PHOTOS+' photos per item','error'); return; }
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var img = new Image();
+      img.onload = function(){
+        var max=240, w=img.width, h=img.height;
+        if (w>h && w>max){ h=Math.round(h*max/w); w=max; } else if (h>max){ w=Math.round(w*max/h); h=max; }
+        var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        if (_photoDraft.length < INV_MAX_PHOTOS) _photoDraft.push(cv.toDataURL('image/jpeg',0.72));
+        _renderInvPhotoPreview();
+      };
+      img.src = e.target.result;
     };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(f);
+    reader.readAsDataURL(f);
+  });
+  if (input) input.value = '';
 }
+// Read the current photo draft (for save).
+function _readInvPhotos() { return (_photoDraft||[]).slice(); }
 
 // Vendor autocomplete from known vendors + catalog vendors.
 function _populateInvVendorList() {

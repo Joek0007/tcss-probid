@@ -6073,6 +6073,42 @@ function exportReportCSV() {
 // =============================================
 
 let _invActiveTab = 'items';
+var _invView = 'table';  // Wave 2f: 'table' | 'grid' (photo grid)
+
+function setInvView(v) {
+  _invView = (v === 'grid') ? 'grid' : 'table';
+  renderInventory();
+}
+
+// Wave 2f: Sortly-style photo grid. Resolves each item's primary photo from the catalog master.
+function renderInvGrid(list) {
+  var host = document.getElementById('inv-grid'); if (!host) return;
+  if (!list || !list.length) { host.innerHTML = '<div class="card"><div class="empty-state" style="padding:40px"><p>'+(DB.inventory.length?'No items match filter.':'No items yet.')+'</p></div></div>'; return; }
+  var canAdjust = (typeof hasPermission==='function') ? hasPermission('inv.adjust') : true;
+  host.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">' +
+    list.map(function(item){
+      var m = (DB.catalog||[]).find(function(c){ return String(c.id)===String(item.id); }) || {};
+      var photo = m.photoUrl || ((m.photos&&m.photos[0])||'');
+      var nPhotos = (m.photos&&m.photos.length) ? m.photos.length : (photo?1:0);
+      var qty = item.qty||0, min = item.minQty||1;
+      var qtyClass = qty===0?'inv-qty-out':qty<=min?'inv-qty-low':'inv-qty-ok';
+      return '<div class="card" style="padding:0;overflow:hidden;cursor:pointer" data-action="editInventoryItem" data-id="'+item.id+'">'+
+        '<div style="height:120px;background:#f4f6f8;display:flex;align-items:center;justify-content:center;position:relative">'+
+          (photo ? '<img src="'+photo+'" style="width:100%;height:100%;object-fit:cover">' : '<span style="font-size:32px;color:#cfd8dc">📦</span>')+
+          (nPhotos>1 ? '<span style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:1px 6px;border-radius:8px">🖷 '+nPhotos+'</span>' : '')+
+          '<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleInvFavorite(\''+item.id+'\',event)" style="position:absolute;top:2px;left:2px;font-size:15px;padding:2px 5px;color:'+(_isInvFav(item.id)?'#f9a825':'#eceff1')+'">'+(_isInvFav(item.id)?'★':'☆')+'</button>'+
+        '</div>'+
+        '<div style="padding:8px 10px">'+
+          '<div style="font-weight:700;font-size:12px;line-height:1.25;height:30px;overflow:hidden">'+escHtml(item.name||'')+'</div>'+
+          '<div style="font-size:10px;color:#90a4ae;margin:2px 0 6px">'+escHtml(item.cat||'General')+'</div>'+
+          '<div style="display:flex;justify-content:space-between;align-items:center">'+
+            '<span class="inv-qty-badge '+qtyClass+'" style="font-size:10px">'+qty+'</span>'+
+            (canAdjust ? '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openAdjustQty(\''+item.id+'\')" style="font-size:10px;padding:2px 6px">± Adjust</button>' : '')+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    }).join('') + '</div>';
+}
 
 function switchInvTab(tab) {
   _invActiveTab = tab;
@@ -6141,6 +6177,16 @@ function renderInventory() {
     if (search) list = list.filter(function(i){ return (i.name||'').toLowerCase().includes(search)||(i.tag||'').toLowerCase().includes(search)||(i.cat||'').toLowerCase().includes(search)||(i.location||'').toLowerCase().includes(search); });
     if (catFilter) list = list.filter(function(i){ return (i.cat||'General')===catFilter; });
     if (locFilter) list = list.filter(function(i){ return (i.location||'')===locFilter; });
+
+    // Wave 2f: table vs photo-grid view.
+    var _view = (typeof _invView !== 'undefined') ? _invView : 'table';
+    var _tableCard = document.getElementById('inv-table-card'), _gridEl = document.getElementById('inv-grid');
+    if (_tableCard) _tableCard.style.display = (_view==='grid') ? 'none' : '';
+    if (_gridEl) _gridEl.style.display = (_view==='grid') ? '' : 'none';
+    var _btT = document.getElementById('inv-view-table'), _btG = document.getElementById('inv-view-grid');
+    if (_btT) _btT.className = 'btn btn-sm ' + (_view==='grid' ? 'btn-ghost' : 'btn-primary');
+    if (_btG) _btG.className = 'btn btn-sm ' + (_view==='grid' ? 'btn-primary' : 'btn-ghost');
+    if (_view === 'grid') { if (typeof renderInvGrid === 'function') renderInvGrid(list); return; }
 
     const tbl = document.getElementById('inv-tbl');
     if (!tbl) return;

@@ -3722,12 +3722,17 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <input id="inv-search" placeholder="🔍 Search materials...">
       <select id="inv-cat-filter"><option value="">All Categories</option></select>
       <select id="inv-loc-filter"><option value="">All Locations</option></select>
+      <div style="display:inline-flex;border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">
+        <button id="inv-view-table" class="btn btn-sm" onclick="setInvView('table')" style="border:none;border-radius:0;padding:6px 10px" title="Table view">☰ Table</button>
+        <button id="inv-view-grid" class="btn btn-sm" onclick="setInvView('grid')" style="border:none;border-radius:0;padding:6px 10px" title="Photo grid view">▦ Grid</button>
+      </div>
     </div>
-    <div class="card" style="padding:0;overflow:hidden">
+    <div id="inv-table-card" class="card" style="padding:0;overflow:hidden">
       <table><thead><tr>
         <th>Item Name</th><th>Category</th><th>Location</th><th>Qty</th><th>Min</th><th>Unit Cost</th><th>Actions</th>
       </tr></thead><tbody id="inv-tbl"></tbody></table>
     </div>
+    <div id="inv-grid" style="display:none"></div>
   </div>
   <!-- BUY LIST TAB (Wave 2a: par-aware reorder list, grouped by vendor) -->
   <div class="inv-section" id="inv-lowstock">
@@ -4191,7 +4196,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <div class="form-row cols3">
         <div><label>Part / Item #</label><input id="inv-part-num" placeholder="Vendor part number"></div>
         <div><label>Barcode / UPC</label><input id="inv-barcode" placeholder="Scan or enter UPC"></div>
-        <div><label>Photo</label><input type="file" id="inv-photo" accept="image/*" onchange="onInvPhotoChange(this)" style="font-size:11px"><input type="hidden" id="inv-photo-url"></div>
+        <div><label>Photos <span style="font-weight:400;color:#90a4ae">(add one or more)</span></label><input type="file" id="inv-photo" accept="image/*" multiple onchange="onInvPhotoChange(this)" style="font-size:11px"><input type="hidden" id="inv-photo-url"></div>
       </div>
       <div id="inv-photo-preview" style="margin:2px 0 6px"></div>
       <div id="inv-stock-fields">
@@ -6807,27 +6812,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919fj with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919fk with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919fj"></script>
-<script src="js/quotes.js?v=20260919fj"></script>
-<script src="js/tools.js?v=20260919fj"></script>
-<script src="js/field.js?v=20260919fj"></script>
-<script src="js/crm.js?v=20260919fj"></script>
-<script src="js/vehicles.js?v=20260919fj"></script>
-<script src="js/dispatch.js?v=20260919fj"></script>
-<script src="js/permissions.js?v=20260919fj"></script>
-<script src="js/worktracking.js?v=20260919fj"></script>
-<script src="js/calendar.js?v=20260919fj"></script>
-<script src="js/workorders.js?v=20260919fj"></script>
-<script src="js/purchaseorders.js?v=20260919fj"></script>
-<script src="js/inventory.js?v=20260919fj"></script>
-<script src="js/reports.js?v=20260919fj"></script>
-<script src="js/recyclebin.js?v=20260919fj"></script>
-<script src="js/contracts.js?v=20260919fj"></script>
-  <script src="js/recurring.js?v=20260919fj"></script>
-  <script src="js/seed_managed.js?v=20260919fj"></script>
-  <script src="js/auth.js?v=20260919fj"></script>
+<script src="js/core.js?v=20260919fk"></script>
+<script src="js/quotes.js?v=20260919fk"></script>
+<script src="js/tools.js?v=20260919fk"></script>
+<script src="js/field.js?v=20260919fk"></script>
+<script src="js/crm.js?v=20260919fk"></script>
+<script src="js/vehicles.js?v=20260919fk"></script>
+<script src="js/dispatch.js?v=20260919fk"></script>
+<script src="js/permissions.js?v=20260919fk"></script>
+<script src="js/worktracking.js?v=20260919fk"></script>
+<script src="js/calendar.js?v=20260919fk"></script>
+<script src="js/workorders.js?v=20260919fk"></script>
+<script src="js/purchaseorders.js?v=20260919fk"></script>
+<script src="js/inventory.js?v=20260919fk"></script>
+<script src="js/reports.js?v=20260919fk"></script>
+<script src="js/recyclebin.js?v=20260919fk"></script>
+<script src="js/contracts.js?v=20260919fk"></script>
+  <script src="js/recurring.js?v=20260919fk"></script>
+  <script src="js/seed_managed.js?v=20260919fk"></script>
+  <script src="js/auth.js?v=20260919fk"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
