@@ -3423,6 +3423,8 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <div class="page" id="page-scanner">
   <div class="page-header"><h2>📷 Scanner — Check Out / In / Transfer</h2></div>
+  <!-- Offline / pending-sync banner (Wave 3e) -->
+  <div id="scan-sync-status" style="display:none;margin-bottom:14px"></div>
   <!-- Mode buttons -->
   <div style="display:flex;gap:8px;margin-bottom:20px">
     <button id="scan-mode-checkout" class="btn btn-primary btn-sm" onclick="setScanMode('checkout')">↗ Check Out</button>
@@ -6899,27 +6901,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919fp with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919fq with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919fp"></script>
-<script src="js/quotes.js?v=20260919fp"></script>
-<script src="js/tools.js?v=20260919fp"></script>
-<script src="js/field.js?v=20260919fp"></script>
-<script src="js/crm.js?v=20260919fp"></script>
-<script src="js/vehicles.js?v=20260919fp"></script>
-<script src="js/dispatch.js?v=20260919fp"></script>
-<script src="js/permissions.js?v=20260919fp"></script>
-<script src="js/worktracking.js?v=20260919fp"></script>
-<script src="js/calendar.js?v=20260919fp"></script>
-<script src="js/workorders.js?v=20260919fp"></script>
-<script src="js/purchaseorders.js?v=20260919fp"></script>
-<script src="js/inventory.js?v=20260919fp"></script>
-<script src="js/reports.js?v=20260919fp"></script>
-<script src="js/recyclebin.js?v=20260919fp"></script>
-<script src="js/contracts.js?v=20260919fp"></script>
-  <script src="js/recurring.js?v=20260919fp"></script>
-  <script src="js/seed_managed.js?v=20260919fp"></script>
-  <script src="js/auth.js?v=20260919fp"></script>
+<script src="js/core.js?v=20260919fq"></script>
+<script src="js/quotes.js?v=20260919fq"></script>
+<script src="js/tools.js?v=20260919fq"></script>
+<script src="js/field.js?v=20260919fq"></script>
+<script src="js/crm.js?v=20260919fq"></script>
+<script src="js/vehicles.js?v=20260919fq"></script>
+<script src="js/dispatch.js?v=20260919fq"></script>
+<script src="js/permissions.js?v=20260919fq"></script>
+<script src="js/worktracking.js?v=20260919fq"></script>
+<script src="js/calendar.js?v=20260919fq"></script>
+<script src="js/workorders.js?v=20260919fq"></script>
+<script src="js/purchaseorders.js?v=20260919fq"></script>
+<script src="js/inventory.js?v=20260919fq"></script>
+<script src="js/reports.js?v=20260919fq"></script>
+<script src="js/recyclebin.js?v=20260919fq"></script>
+<script src="js/contracts.js?v=20260919fq"></script>
+  <script src="js/recurring.js?v=20260919fq"></script>
+  <script src="js/seed_managed.js?v=20260919fq"></script>
+  <script src="js/auth.js?v=20260919fq"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

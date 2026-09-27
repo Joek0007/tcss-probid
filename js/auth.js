@@ -1933,14 +1933,55 @@ function _deriveInventoryFromCatalog() {
 // adjust_item_stock RPC (SECURITY DEFINER) so ANY active user — including field techs, who cannot
 // write the catalog master directly — can move stock, while price-book fields stay office-only.
 async function _pushStockQtyToCloud(id, locations) {
-  if (!_sb || !_currentUser || !id) return;
+  if (!id) return;
   var m = (DB.catalog || []).find(function(c){ return String(c.id) === String(id); });
   if (m) { m.locations = locations || {}; m.tracked = true;
            if (typeof _deriveInventoryFromCatalog === 'function') _deriveInventoryFromCatalog(); }
+  // Wave 3e — offline-resilient stock moves. The local change is already applied above; the cloud
+  // write goes through the adjust_item_stock RPC. If we're offline (or the RPC fails), queue the move
+  // (absolute per-item location map, so replaying the latest entry is idempotent) and drain it on
+  // reconnect. Covers the scanner, receiving, replenishment and WO issue — every stock move.
+  var _offline = (typeof navigator !== 'undefined' && navigator.onLine === false);
+  if (!_sb || !_currentUser) return;                    // not signed in — nothing to sync to
+  if (_offline) { _enqueueStockSync(id, locations); return; }
   try {
     var { error } = await _sb.rpc('adjust_item_stock', { p_id: id, p_locations: locations || {} });
-    if (error) console.warn('[Stock adjust]', error.message);
-  } catch (e) { console.warn('[Stock adjust]', e.message || e); }
+    if (error) { console.warn('[Stock adjust]', error.message); _enqueueStockSync(id, locations); }
+    else { _dequeueStockSync(id); }
+  } catch (e) { console.warn('[Stock adjust]', e.message || e); _enqueueStockSync(id, locations); }
+  if (typeof _updateOfflineIndicator === 'function') _updateOfflineIndicator();
+}
+
+// ---- Offline stock-sync queue (Wave 3e) ----
+// One entry per item id holding the latest absolute location map. saveDB persists it to localStorage,
+// so queued moves survive a reload/offline period.
+function _enqueueStockSync(id, locations) {
+  if (!DB.stockSyncQueue) DB.stockSyncQueue = [];
+  var i = DB.stockSyncQueue.findIndex(function(o){ return String(o.id) === String(id); });
+  var entry = { id: id, locations: locations || {}, ts: new Date().toISOString() };
+  if (i >= 0) DB.stockSyncQueue[i] = entry; else DB.stockSyncQueue.push(entry);
+  try { saveDB(); } catch(e) {}
+  if (typeof _updateOfflineIndicator === 'function') _updateOfflineIndicator();
+}
+function _dequeueStockSync(id) {
+  if (!DB.stockSyncQueue || !DB.stockSyncQueue.length) return;
+  DB.stockSyncQueue = DB.stockSyncQueue.filter(function(o){ return String(o.id) !== String(id); });
+}
+// Replay every queued stock move through the RPC. Successful ops are removed; failures stay queued.
+async function flushStockSync() {
+  if (!_sb || !_currentUser) return { done: 0, left: (DB.stockSyncQueue || []).length };
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return { done: 0, left: (DB.stockSyncQueue || []).length, offline: true };
+  var q = (DB.stockSyncQueue || []).slice(), done = 0;
+  for (var k = 0; k < q.length; k++) {
+    var op = q[k];
+    try {
+      var { error } = await _sb.rpc('adjust_item_stock', { p_id: op.id, p_locations: op.locations || {} });
+      if (!error) { _dequeueStockSync(op.id); done++; }
+    } catch (e) { /* keep queued */ }
+  }
+  try { saveDB(); } catch(e) {}
+  if (typeof _updateOfflineIndicator === 'function') _updateOfflineIndicator();
+  return { done: done, left: (DB.stockSyncQueue || []).length };
 }
 
 // Write a stock item through to the unified master (catalog table). Sets tracked=true and the
@@ -3019,6 +3060,9 @@ async function pushAllToCloud() {
         await _sb.from('count_sessions').update({ deleted: true, updated_at: new Date().toISOString() }).eq('id', _csid);
       }
     } catch(_cse) { console.warn('[Push] count_sessions', _cse && _cse.message); }
+
+    // Wave 3e — drain any queued offline stock moves as part of the normal sync.
+    try { if (typeof flushStockSync === 'function') await flushStockSync(); } catch(_fe) { console.warn('[Push] stockSync', _fe && _fe.message); }
 
   } catch(e) {
     console.error('Push error:', e);

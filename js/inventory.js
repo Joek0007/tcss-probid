@@ -146,6 +146,7 @@ function renderScannerPage() {
   updateScanModeUI();
   document.getElementById('scan-input').value = '';
   document.getElementById('scan-result').innerHTML = '';
+  if (typeof _updateOfflineIndicator === 'function') _updateOfflineIndicator();   // Wave 3e
 }
 
 function updateScanModeUI() {
@@ -334,6 +335,55 @@ function showScanResult(item, type, msg) {
     '<div style="font-size:18px;margin-bottom:4px">'+icons[type]+' '+escHtml(msg)+'</div>'+
     '<div style="font-size:12px;color:#546e7a;margin-top:6px">Stock: '+locsHtml+'</div>'+
     '</div>';
+}
+
+// ---- OFFLINE SCAN SYNC (Wave 3e) ----
+// The scan itself always applies locally (works offline); _pushStockQtyToCloud queues the cloud write
+// when offline/failed. This surfaces the offline state + pending queue and lets the user force a sync.
+function _updateOfflineIndicator() {
+  var el = document.getElementById('scan-sync-status');
+  if (!el) return;
+  var offline = (typeof navigator !== 'undefined' && navigator.onLine === false);
+  var pending = (DB.stockSyncQueue || []).length;
+  if (!offline && !pending) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  var bg = offline ? '#fff3e0' : '#e3f2fd', border = offline ? '#ffb74d' : '#64b5f6';
+  var msg = offline
+    ? '📴 <strong>Offline</strong> — scans are saved on this device' + (pending ? ' (' + pending + ' waiting to sync)' : '') + ' and will sync automatically when you’re back online.'
+    : '🔄 <strong>' + pending + '</strong> stock update(s) waiting to sync.';
+  var right = (pending && !offline)
+    ? '<button class="btn btn-primary btn-sm" onclick="syncStockNow()">Sync now</button>'
+    : (pending ? '<span style="font-size:12px;color:#90a4ae">' + pending + ' queued</span>' : '');
+  var detail = '';
+  if (pending) {
+    var names = (DB.stockSyncQueue || []).map(function(o){ var m = (DB.catalog || []).find(function(c){ return String(c.id) === String(o.id); }); return escHtml((m && m.name) || o.id); });
+    detail = '<div style="font-size:11px;color:#90a4ae;margin-top:4px">Queued: ' + names.slice(0,8).join(', ') + (names.length>8?' +'+(names.length-8)+' more':'') + '</div>';
+  }
+  el.innerHTML = '<div style="background:'+bg+';border:1px solid '+border+';border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
+    '<span style="font-size:13px;color:#37474f">'+msg+'</span>'+right+'</div>'+detail;
+}
+function syncStockNow() {
+  if (typeof flushStockSync !== 'function') return;
+  if (typeof showToast === 'function') showToast('Syncing…', 'info');
+  flushStockSync().then(function(r){
+    if (typeof showToast === 'function') {
+      if (r && r.offline) showToast('Still offline — will sync when the connection returns', 'warning');
+      else showToast(((r&&r.done)||0) + ' synced' + (r&&r.left ? ', ' + r.left + ' still pending' : '') + ' ✓', (r&&r.left) ? 'warning' : 'success');
+    }
+    _updateOfflineIndicator();
+  });
+}
+// Auto-flush + indicator refresh on connectivity changes (registered once).
+if (typeof window !== 'undefined' && !window.__stockSyncWired) {
+  window.__stockSyncWired = true;
+  window.addEventListener('online', function(){
+    if (typeof _updateOfflineIndicator === 'function') _updateOfflineIndicator();
+    if (typeof flushStockSync === 'function') flushStockSync().then(function(r){
+      if (r && r.done && typeof showToast === 'function') showToast(r.done + ' offline stock update(s) synced ✓', 'success');
+      if (typeof _updateOfflineIndicator === 'function') _updateOfflineIndicator();
+    });
+  });
+  window.addEventListener('offline', function(){ if (typeof _updateOfflineIndicator === 'function') _updateOfflineIndicator(); });
 }
 
 // ---- PHONE CAMERA SCANNER ----
