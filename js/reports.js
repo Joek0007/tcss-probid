@@ -609,20 +609,20 @@ function renderQuotes() {
       custCell+
       '<td>'+escHtml(q.jn||'')+'</td>'+
       '<td style="font-size:11px">'+escHtml(envLabel)+'</td>'+
-      '<td style="font-weight:700">'+fmt(q.total||0)+'</td>'+
+      '<td style="font-weight:700;white-space:nowrap">'+fmt(q.total||0)+'</td>'+
       '<td style="font-weight:700;'+healthColor(q)+'">'+pct(q.achievedMargin||0)+'</td>'+
       '<td><span class="status-badge s-'+(q.status||'draft')+'">'+(q.status||'draft')+'</span>'+fuBadge+
         '<div style="font-size:10px;color:'+prColor+';font-weight:700;margin-top:3px">'+pr.label+'</div></td>'+
       ageCell+
       '<td style="color:#90a4ae;font-size:11px">'+(q.followupDate?'📅 '+q.followupDate:(q.dt||''))+'</td>'+
       '<td style="white-space:nowrap">'+
-        '<button class="btn btn-soft-blue btn-sm" data-action="viewQuote" data-id="'+q.id+'">View</button> '+
-        '<button class="btn btn-soft-blue btn-sm" data-action="editQuote" data-id="'+q.id+'">Edit</button> '+
-        '<button class="btn btn-soft-blue btn-sm" data-action="dupQuote" data-id="'+q.id+'">Dup</button> '+
-        '<button class="btn btn-sm '+(canConvert?'btn-soft-green':'')+'" '+(canConvert?'data-action="convertToJob" data-id="'+q.id+'"':'disabled')+
+        '<button class="btn btn-outline btn-sm btn-ico" data-action="viewQuote" data-id="'+q.id+'" title="View">👁</button> '+
+        '<button class="btn btn-outline btn-sm" data-action="editQuote" data-id="'+q.id+'">Edit</button> '+
+        '<button class="btn btn-outline btn-sm btn-ico" data-action="dupQuote" data-id="'+q.id+'" title="Duplicate">⧉</button> '+
+        '<button class="btn btn-sm btn-ico '+(canConvert?'btn-outline-green':'')+'" '+(canConvert?'data-action="convertToJob" data-id="'+q.id+'"':'disabled')+
           ' style="'+(canConvert?'':'background:#eceff1;border:1px solid #607d8b;color:#455a64;cursor:not-allowed;pointer-events:none')+'" title="'+(canConvert?'Mark Won & Create Job':'Already converted')+'">▶</button> '+
-        '<button class="btn btn-soft-green btn-sm" data-action="emailSavedQuote" data-id="'+q.id+'" title="Email to customer">📧</button> '+
-        '<button class="btn btn-soft-blue btn-sm" data-action="copyPortalLink" data-id="'+q.id+'" title="Email the client an approval link" style="font-size:11px">📧 Approve</button> '+
+        '<button class="btn btn-outline-green btn-sm btn-ico" data-action="emailSavedQuote" data-id="'+q.id+'" title="Email to customer">📧</button> '+
+        '<button class="btn btn-outline btn-sm" data-action="copyPortalLink" data-id="'+q.id+'" title="Email the client an approval link" style="font-size:11px">📧 Approve</button> '+
         (_canDelQ ? '<button class="btn btn-danger btn-sm" data-action="deleteQuote" data-id="'+q.id+'">Del</button>' : '')+
       '</td>'+
     '</tr>';
