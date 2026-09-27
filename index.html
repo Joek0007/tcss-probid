@@ -5004,11 +5004,12 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div class="ms-grid">
       <div class="card ms-full">
         <div class="card-title">📦 Inventory Locations</div>
-        <p style="font-size:13px;color:#546e7a;margin-bottom:16px">Manage stock locations — Main Shop and Vehicles. Names you set here appear in the Scanner and Inventory pages.</p>
+        <p style="font-size:13px;color:#546e7a;margin-bottom:16px">Manage stock locations — Main Shop and Vehicles. Names you set here appear in the Scanner and Inventory pages. Link a vehicle location to a Fleet vehicle so its real name/number shows everywhere and there's one source of truth.</p>
         <div id="inv-locations-list"></div>
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <input id="new-location-name" placeholder="New location name..." style="flex:1;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <input id="new-location-name" placeholder="New location name..." style="flex:1;min-width:160px;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
           <button class="btn btn-primary btn-sm" onclick="addLocation()">+ Add Location</button>
+          <button class="btn btn-outline btn-sm" onclick="syncLocationsFromFleet()" title="Create/link a stock location for each active Fleet vehicle">🚚 Sync from Fleet</button>
         </div>
       </div>
       <div class="card ms-full">
@@ -6812,27 +6813,27 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919fl with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919fm with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919fl"></script>
-<script src="js/quotes.js?v=20260919fl"></script>
-<script src="js/tools.js?v=20260919fl"></script>
-<script src="js/field.js?v=20260919fl"></script>
-<script src="js/crm.js?v=20260919fl"></script>
-<script src="js/vehicles.js?v=20260919fl"></script>
-<script src="js/dispatch.js?v=20260919fl"></script>
-<script src="js/permissions.js?v=20260919fl"></script>
-<script src="js/worktracking.js?v=20260919fl"></script>
-<script src="js/calendar.js?v=20260919fl"></script>
-<script src="js/workorders.js?v=20260919fl"></script>
-<script src="js/purchaseorders.js?v=20260919fl"></script>
-<script src="js/inventory.js?v=20260919fl"></script>
-<script src="js/reports.js?v=20260919fl"></script>
-<script src="js/recyclebin.js?v=20260919fl"></script>
-<script src="js/contracts.js?v=20260919fl"></script>
-  <script src="js/recurring.js?v=20260919fl"></script>
-  <script src="js/seed_managed.js?v=20260919fl"></script>
-  <script src="js/auth.js?v=20260919fl"></script>
+<script src="js/core.js?v=20260919fm"></script>
+<script src="js/quotes.js?v=20260919fm"></script>
+<script src="js/tools.js?v=20260919fm"></script>
+<script src="js/field.js?v=20260919fm"></script>
+<script src="js/crm.js?v=20260919fm"></script>
+<script src="js/vehicles.js?v=20260919fm"></script>
+<script src="js/dispatch.js?v=20260919fm"></script>
+<script src="js/permissions.js?v=20260919fm"></script>
+<script src="js/worktracking.js?v=20260919fm"></script>
+<script src="js/calendar.js?v=20260919fm"></script>
+<script src="js/workorders.js?v=20260919fm"></script>
+<script src="js/purchaseorders.js?v=20260919fm"></script>
+<script src="js/inventory.js?v=20260919fm"></script>
+<script src="js/reports.js?v=20260919fm"></script>
+<script src="js/recyclebin.js?v=20260919fm"></script>
+<script src="js/contracts.js?v=20260919fm"></script>
+  <script src="js/recurring.js?v=20260919fm"></script>
+  <script src="js/seed_managed.js?v=20260919fm"></script>
+  <script src="js/auth.js?v=20260919fm"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

@@ -32,7 +32,71 @@ function getLocations() {
 
 function getLocationName(id) {
   var loc = getLocations().find(function(l){ return l.id===id; });
-  return loc ? loc.name : id||'Unknown';
+  if (!loc) return id||'Unknown';
+  // Wave 3a: if this vehicle location is linked to a Fleet asset, the fleet vehicle is the single
+  // source of truth for its name/number. Fall back to the location's own name if the link is stale.
+  if (loc.assetId) { var v=_fleetVehicle(loc.assetId); if (v) return _fleetVehicleLabel(v); }
+  return loc.name || id || 'Unknown';
+}
+
+// ---- FLEET LINK (Wave 3a) ----
+// A vehicle-type inventory location can point at a Fleet asset (DB.vehicles) via loc.assetId, so the
+// truck's stock location shows the real vehicle and there is one source of truth. loc.assetId rides on
+// the blob-synced invLocations array — no migration.
+function _fleetVehicle(assetId) {
+  if (!assetId) return null;
+  return (DB.vehicles||[]).find(function(v){ return v && String(v.id)===String(assetId) && !v.deleted; }) || null;
+}
+function _fleetVehicleLabel(v) {
+  if (!v) return '';
+  var num = (v.number||'').trim(), nm = (v.name||'').trim();
+  if (num && nm) return num + ' · ' + nm;
+  if (num) return num;
+  if (nm) return nm;
+  var mm = [v.year, v.make, v.model].filter(Boolean).join(' ').trim();
+  return mm || 'Vehicle';
+}
+// The set of active fleet vehicles eligible to link (not deleted, active, not sold).
+function _activeFleetVehicles() {
+  return (DB.vehicles||[]).filter(function(v){
+    return v && !v.deleted && v.isActive!==false && (v.status||'').toLowerCase()!=='sold';
+  });
+}
+function _fleetLinkOptions(selectedId) {
+  return '<option value="">— not linked —</option>' + _activeFleetVehicles().map(function(v){
+    return '<option value="'+escHtml(v.id)+'"'+(String(v.id)===String(selectedId||'')?' selected':'')+'>'+
+      escHtml(_fleetVehicleLabel(v))+'</option>';
+  }).join('');
+}
+function linkLocationToVehicle(locId, assetId) {
+  var loc = getLocations().find(function(l){ return l.id===locId; });
+  if (!loc) return;
+  loc.assetId = assetId || null;
+  DB.invLocations = getLocations();
+  saveDB();
+  renderLocationSettings();
+}
+// One-click onboarding: give every active Fleet vehicle a stock location. Adopts existing UNLINKED
+// vehicle-type locations first (preserving their id + any stock already there), then creates new ones.
+// Additive only — never deletes a location and never double-links a vehicle.
+function syncLocationsFromFleet() {
+  var vehicles = _activeFleetVehicles();
+  if (!vehicles.length) { alert('No active fleet vehicles to sync. Add vehicles on the Vehicles page first.'); return; }
+  var locs = getLocations();
+  var linked = {};
+  locs.forEach(function(l){ if (l.assetId) linked[String(l.assetId)] = true; });
+  var freeLocs = locs.filter(function(l){ return l.type==='vehicle' && !l.assetId; });
+  var adopted = 0, created = 0;
+  vehicles.forEach(function(v){
+    if (linked[String(v.id)]) return;              // already represented
+    if (freeLocs.length) { var l = freeLocs.shift(); l.assetId = v.id; adopted++; }
+    else { locs.push({ id:'loc-veh-'+v.id, name:_fleetVehicleLabel(v), type:'vehicle', isDefault:false, assetId:v.id }); created++; }
+    linked[String(v.id)] = true;
+  });
+  DB.invLocations = locs;
+  saveDB();
+  renderLocationSettings();
+  alert('Fleet sync complete: '+adopted+' existing location(s) linked, '+created+' new location(s) created.');
 }
 
 // ---- INVENTORY ITEM QTY BY LOCATION ----
@@ -673,11 +737,29 @@ function renderLocationSettings() {
   var locs = getLocations();
   var el   = document.getElementById('inv-locations-list');
   if (!el) return;
+  var hasFleet = _activeFleetVehicles().length > 0;
   el.innerHTML = locs.map(function(l,i){
-    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f0f4f8">'+
-      '<input value="'+escHtml(l.name)+'" onchange="updateLocation(\''+l.id+'\',this.value)" style="flex:1;padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"'+
-      (l.isDefault?' title="Default location — cannot delete"':'')+'>'+
-      '<span style="font-size:11px;color:#90a4ae;min-width:60px">'+escHtml(l.type)+'</span>'+
+    var linkedV = l.assetId ? _fleetVehicle(l.assetId) : null;
+    // For vehicle-type locations, offer a Fleet link picker. When linked, the fleet vehicle names the
+    // location everywhere, so the free-text name box becomes a fallback label only.
+    var fleetCell = '';
+    if (l.type==='vehicle') {
+      if (hasFleet) {
+        fleetCell = '<select onchange="linkLocationToVehicle(\''+l.id+'\',this.value)" title="Link to a Fleet vehicle" '+
+          'style="min-width:150px;padding:6px 8px;border:1px solid '+(linkedV?'#66bb6a':'#e0e7ef')+';border-radius:6px;font-size:12px;background:'+(linkedV?'#f1f8e9':'#fff')+'">'+
+          _fleetLinkOptions(l.assetId)+'</select>';
+      } else {
+        fleetCell = '<span style="font-size:11px;color:#b0bec5;min-width:150px">no fleet vehicles</span>';
+      }
+    } else {
+      fleetCell = '<span style="width:150px"></span>';
+    }
+    var nameNote = linkedV ? ' 🔗' : '';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f0f4f8;flex-wrap:wrap">'+
+      '<input value="'+escHtml(l.name)+'" onchange="updateLocation(\''+l.id+'\',this.value)" style="flex:1;min-width:140px;padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"'+
+      (l.isDefault?' title="Default location — cannot delete"':(linkedV?' title="Linked to Fleet: '+escHtml(_fleetVehicleLabel(linkedV))+' — the fleet name is shown app-wide"':''))+'>'+
+      '<span style="font-size:11px;color:#90a4ae;min-width:52px">'+escHtml(l.type)+nameNote+'</span>'+
+      fleetCell+
       (!l.isDefault?'<button onclick="deleteLocation(\''+l.id+'\')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:16px">×</button>':'<span style="width:24px"></span>')+
     '</div>';
   }).join('');
