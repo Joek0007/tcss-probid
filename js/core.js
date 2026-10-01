@@ -3453,7 +3453,7 @@ function formatTimeAgo(timestamp) {
 // ============================================================
 // NOTIFICATION SETTINGS — Master Settings page save
 // ============================================================
-function saveNotificationSettings() {
+function saveNotificationSettings(btn) {
   var clockInEnabled = (document.getElementById('ms-notif-clockin-enabled')||{}).value;
   var clockInTime    = (document.getElementById('ms-notif-clockin-time')||{}).value || '07:00';
   var expenseEnabled = (document.getElementById('ms-notif-expense-enabled')||{}).value;
@@ -3487,6 +3487,7 @@ function saveNotificationSettings() {
   saveDB();
   if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
   showToast('Notification settings saved ✓', 'success');
+  if (typeof flashSavedBtn === 'function') flashSavedBtn(btn);
 }
 
 // ============================================================
@@ -3498,7 +3499,7 @@ function saveNotificationSettings() {
 // The pending-approval gate applies in BOTH modes — a new user never
 // gets access until an owner activates them.
 // ============================================================
-function saveAccessPolicy() {
+function saveAccessPolicy(btn) {
   if (!(typeof _currentUser === 'object' && _currentUser && _currentUser.role === 'owner')) {
     showToast('Only an owner can change the access policy', 'error');
     return;
@@ -3509,6 +3510,7 @@ function saveAccessPolicy() {
   saveDB();
   if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
   showToast('Access policy saved ✓', 'success');
+  if (typeof flashSavedBtn === 'function') flashSavedBtn(btn);
 }
 function loadAccessPolicy() {
   var sel = document.getElementById('ms-access-joinpolicy');
@@ -3518,12 +3520,34 @@ function loadAccessPolicy() {
 }
 
 // ============================================================
+// SAVE CONFIRMATION — flash the clicked button to "✓ Saved"
+// Unmistakable in-place feedback on top of the toast, so there's
+// no doubt a save took. Reusable across settings save buttons.
+// ============================================================
+function flashSavedBtn(btn, label) {
+  try {
+    if (!btn || btn._savedFlashing) return;
+    btn._savedFlashing = true;
+    var orig = { html: btn.innerHTML, bg: btn.style.background, col: btn.style.color, bd: btn.style.borderColor };
+    btn.innerHTML = label || '✓ Saved';
+    btn.style.background = '#2e7d32';
+    btn.style.color = '#fff';
+    btn.style.borderColor = '#2e7d32';
+    setTimeout(function () {
+      btn.innerHTML = orig.html; btn.style.background = orig.bg;
+      btn.style.color = orig.col; btn.style.borderColor = orig.bd;
+      btn._savedFlashing = false;
+    }, 1800);
+  } catch (e) {}
+}
+
+// ============================================================
 // APP LOCK / SESSION SECURITY (per-site, owner-only)
 // Stored on DB.settings (synced via company_settings.settings_json):
 //   secLockEnabled, secQuickLockMins, secIdleReloginDays, secAllowBiometric
 // The lock behavior itself lives in js/applock.js.
 // ============================================================
-function saveSecuritySettings() {
+function saveSecuritySettings(btn) {
   if (!(typeof _currentUser === 'object' && _currentUser && _currentUser.role === 'owner')) {
     showToast('Only an owner can change App Lock settings', 'error');
     return;
@@ -3540,6 +3564,7 @@ function saveSecuritySettings() {
   saveDB();
   if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
   showToast('App Lock settings saved ✓', 'success');
+  flashSavedBtn(btn);
   // Apply immediately: if just enabled and this device has no PIN, offer setup.
   try { if (en && window.AppLock) { window.AppLock.markActive(); window.AppLock.maybeOfferPinSetup(); } } catch (e) {}
 }
