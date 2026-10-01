@@ -4915,6 +4915,58 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         Saved as this company’s policy. <b>Invite-only is what the app enforces today</b> (there is no public sign-up form). <b>Open request</b> becomes active with the multi-company onboarding rollout — your choice here is stored now so it’s ready for it.
       </p>
     </div>
+
+    <!-- ===== APP LOCK / SESSION SECURITY (per-site) ===== -->
+    <div class="card" style="margin-bottom:14px">
+      <h3 style="margin:0 0 6px">🔒 App Lock &amp; Auto Sign-Out</h3>
+      <p style="font-size:12.5px;color:#607d8b;margin:0 0 12px;line-height:1.5">
+        Controls whether ProBid re-locks after it’s been away for a while, and whether people can get back in with a quick <b>PIN or fingerprint/Face ID</b> instead of retyping their password. <b>Off = today’s behavior</b> (stays signed in). This is a per-company setting.
+      </p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">App Lock</label>
+          <select id="ms-sec-enabled" style="padding:8px 10px;border-radius:6px;border:1px solid #cfd8e3;font-size:14px;min-width:170px">
+            <option value="0">Off — stay signed in</option>
+            <option value="1">On — lock &amp; re-login</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Quick-lock after</label>
+          <select id="ms-sec-quickmins" style="padding:8px 10px;border-radius:6px;border:1px solid #cfd8e3;font-size:14px;min-width:150px">
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="240">4 hours</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Full re-login after</label>
+          <select id="ms-sec-idledays" style="padding:8px 10px;border-radius:6px;border:1px solid #cfd8e3;font-size:14px;min-width:150px">
+            <option value="1">1 day unused</option>
+            <option value="7">7 days unused</option>
+            <option value="14">14 days unused</option>
+            <option value="30">30 days unused</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Biometric unlock</label>
+          <select id="ms-sec-biometric" style="padding:8px 10px;border-radius:6px;border:1px solid #cfd8e3;font-size:14px;min-width:150px">
+            <option value="1">Allowed</option>
+            <option value="0">PIN only</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="saveSecuritySettings()">💾 Save</button>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #eceff1;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:12px;color:#607d8b">This device:</span>
+        <button class="btn btn-outline btn-sm" onclick="if(window.AppLock)AppLock.openPinSetup()">Set / change my PIN</button>
+        <button class="btn btn-outline btn-sm" onclick="if(window.AppLock)AppLock.enableBiometricFromSetup()">Enable Face ID / fingerprint here</button>
+      </div>
+      <p style="font-size:11.5px;color:#90a4ae;margin:10px 0 0;line-height:1.5">
+        The PIN is stored only on each device (as a scrambled hash — never your password, never sent to the server). Locking the app never clocks anyone out. 5 wrong PIN tries drops to a full password login.
+      </p>
+    </div>
+
     <div id="ms-roles-content">
       <!-- role-permissions-card injected here -->
     </div>
@@ -6905,27 +6957,28 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919fz with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919ga with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919fz"></script>
-<script src="js/quotes.js?v=20260919fz"></script>
-<script src="js/tools.js?v=20260919fz"></script>
-<script src="js/field.js?v=20260919fz"></script>
-<script src="js/crm.js?v=20260919fz"></script>
-<script src="js/vehicles.js?v=20260919fz"></script>
-<script src="js/dispatch.js?v=20260919fz"></script>
-<script src="js/permissions.js?v=20260919fz"></script>
-<script src="js/worktracking.js?v=20260919fz"></script>
-<script src="js/calendar.js?v=20260919fz"></script>
-<script src="js/workorders.js?v=20260919fz"></script>
-<script src="js/purchaseorders.js?v=20260919fz"></script>
-<script src="js/inventory.js?v=20260919fz"></script>
-<script src="js/reports.js?v=20260919fz"></script>
-<script src="js/recyclebin.js?v=20260919fz"></script>
-<script src="js/contracts.js?v=20260919fz"></script>
-  <script src="js/recurring.js?v=20260919fz"></script>
-  <script src="js/seed_managed.js?v=20260919fz"></script>
-  <script src="js/auth.js?v=20260919fz"></script>
+<script src="js/core.js?v=20260919ga"></script>
+<script src="js/quotes.js?v=20260919ga"></script>
+<script src="js/tools.js?v=20260919ga"></script>
+<script src="js/field.js?v=20260919ga"></script>
+<script src="js/crm.js?v=20260919ga"></script>
+<script src="js/vehicles.js?v=20260919ga"></script>
+<script src="js/dispatch.js?v=20260919ga"></script>
+<script src="js/permissions.js?v=20260919ga"></script>
+<script src="js/worktracking.js?v=20260919ga"></script>
+<script src="js/calendar.js?v=20260919ga"></script>
+<script src="js/workorders.js?v=20260919ga"></script>
+<script src="js/purchaseorders.js?v=20260919ga"></script>
+<script src="js/inventory.js?v=20260919ga"></script>
+<script src="js/reports.js?v=20260919ga"></script>
+<script src="js/recyclebin.js?v=20260919ga"></script>
+<script src="js/contracts.js?v=20260919ga"></script>
+  <script src="js/recurring.js?v=20260919ga"></script>
+  <script src="js/seed_managed.js?v=20260919ga"></script>
+  <script src="js/applock.js?v=20260919ga"></script>
+  <script src="js/auth.js?v=20260919ga"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
@@ -6984,10 +7037,15 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         </div>
         <div style="margin-bottom:8px">
           <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Password</label>
-          <input id="auth-password" type="password" placeholder="••••••••" autocomplete="current-password"
-            style="width:100%;padding:11px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box;transition:border-color .15s"
-            onfocus="this.style.borderColor='#1565c0'" onblur="this.style.borderColor='#e0e0e0'"
-            onkeydown="if(event.key==='Enter')doSignIn()">
+          <div style="position:relative">
+            <input id="auth-password" type="password" placeholder="••••••••" autocomplete="current-password"
+              style="width:100%;padding:11px 44px 11px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box;transition:border-color .15s"
+              onfocus="this.style.borderColor='#1565c0'" onblur="this.style.borderColor='#e0e0e0'"
+              onkeydown="if(event.key==='Enter')doSignIn()">
+            <button type="button" id="auth-password-eye" aria-label="Show password" title="Show password"
+              onclick="togglePwVisibility('auth-password', this)"
+              style="position:absolute;top:50%;right:6px;transform:translateY(-50%);background:none;border:none;padding:6px;cursor:pointer;color:#90a4ae;line-height:0;display:flex;align-items:center;justify-content:center"></button>
+          </div>
         </div>
         <div style="text-align:right;margin-bottom:20px">
           <a href="#" onclick="showForgotPassword();return false" style="font-size:12px;color:#1565c0;text-decoration:none">Forgot password?</a>

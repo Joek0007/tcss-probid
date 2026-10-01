@@ -3517,6 +3517,44 @@ function loadAccessPolicy() {
   sel.value = (v === 'open_request') ? 'open_request' : 'invite_only';
 }
 
+// ============================================================
+// APP LOCK / SESSION SECURITY (per-site, owner-only)
+// Stored on DB.settings (synced via company_settings.settings_json):
+//   secLockEnabled, secQuickLockMins, secIdleReloginDays, secAllowBiometric
+// The lock behavior itself lives in js/applock.js.
+// ============================================================
+function saveSecuritySettings() {
+  if (!(typeof _currentUser === 'object' && _currentUser && _currentUser.role === 'owner')) {
+    showToast('Only an owner can change App Lock settings', 'error');
+    return;
+  }
+  var en  = (document.getElementById('ms-sec-enabled')   || {}).value === '1';
+  var qm  = parseInt((document.getElementById('ms-sec-quickmins') || {}).value, 10);
+  var dd  = parseInt((document.getElementById('ms-sec-idledays')  || {}).value, 10);
+  var bio = (document.getElementById('ms-sec-biometric') || {}).value !== '0';
+  if (!(qm > 0)) qm = 60;
+  if (!(dd > 0)) dd = 7;
+  DB.settings = Object.assign({}, DB.settings, {
+    secLockEnabled: en, secQuickLockMins: qm, secIdleReloginDays: dd, secAllowBiometric: bio
+  });
+  saveDB();
+  if (typeof _pushSettingsToSupabase === 'function') _pushSettingsToSupabase();
+  showToast('App Lock settings saved ✓', 'success');
+  // Apply immediately: if just enabled and this device has no PIN, offer setup.
+  try { if (en && window.AppLock) { window.AppLock.markActive(); window.AppLock.maybeOfferPinSetup(); } } catch (e) {}
+}
+function loadSecuritySettings() {
+  var s = DB.settings || {};
+  var en  = document.getElementById('ms-sec-enabled');
+  var qm  = document.getElementById('ms-sec-quickmins');
+  var dd  = document.getElementById('ms-sec-idledays');
+  var bio = document.getElementById('ms-sec-biometric');
+  if (en)  en.value  = s.secLockEnabled === true ? '1' : '0';
+  if (qm)  qm.value  = String((s.secQuickLockMins > 0) ? s.secQuickLockMins : 60);
+  if (dd)  dd.value  = String((s.secIdleReloginDays > 0) ? s.secIdleReloginDays : 7);
+  if (bio) bio.value = s.secAllowBiometric === false ? '0' : '1';
+}
+
 // Load notification settings into Master Settings page
 function loadNotificationSettings() {
   var s = DB.settings || {};

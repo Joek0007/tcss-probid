@@ -667,6 +667,9 @@ async function loadCurrentUserProfile() {
     // Live permission refresh: pick up role / access changes made by an admin in
     // another session WITHOUT requiring this user to reload (see startPermRefresh).
     if (typeof startPermRefresh === 'function') startPermRefresh();
+    // App-lock / session security: evaluate the lock state and offer PIN setup
+    // (no-op unless the per-site Security setting is ON). See js/applock.js.
+    try { if (window.AppLock) setTimeout(function(){ window.AppLock.onAuthed(); }, 400); } catch (e) {}
   } else {
     console.warn('[Profile] No profile row found. Error:', res.error);
     // Fallback: create a minimal currentUser from the auth session
@@ -3454,6 +3457,11 @@ function startSessionTimeout() {
   _sessionTimer = setTimeout(function() {
     if (!_sessionWarned) {
       _sessionWarned = true;
+      // If the per-site App Lock is on and this device can quick-unlock, lock to
+      // the PIN/biometric screen instead of a full sign-out. Otherwise sign out.
+      try {
+        if (window.AppLock && window.AppLock.cfg().enabled && window.AppLock.onIdleTimeout()) return;
+      } catch (e) {}
       showToast('Session expiring in 1 minute due to inactivity', 'warning', 8000);
       _sessionTimer = setTimeout(function() {
         showToast('Session expired — signing out', 'warning', 3000);
@@ -3474,6 +3482,44 @@ function resetSessionTimeout() {
     if (_currentUser) resetSessionTimeout();
   }, { passive: true });
 });
+
+// ============================================================
+// SHOW / HIDE PASSWORD  (reusable eye toggle)
+// Masked by default; the user opts to reveal. Used on the login
+// screen and the PIN screens. Never auto-reveals.
+// ============================================================
+var EYE_SHOW_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+var EYE_HIDE_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+
+function togglePwVisibility(inputId, btn) {
+  try {
+    var el = document.getElementById(inputId);
+    if (!el) return;
+    var reveal = (el.type === 'password');
+    el.type = reveal ? 'text' : 'password';
+    if (btn) {
+      btn.innerHTML = reveal ? EYE_HIDE_SVG : EYE_SHOW_SVG;
+      btn.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+      btn.title = reveal ? 'Hide password' : 'Show password';
+    }
+    try { el.focus(); var n = el.value.length; el.setSelectionRange(n, n); } catch(_e) {}
+  } catch(e) {}
+}
+
+// Paint the initial eye icon(s) and ensure fields start masked.
+function _initPwEyes() {
+  try {
+    document.querySelectorAll('[data-pw-eye]').forEach(function(btn) {
+      var el = document.getElementById(btn.getAttribute('data-pw-eye'));
+      if (el) el.type = 'password';
+      btn.innerHTML = EYE_SHOW_SVG;
+    });
+    var le = document.getElementById('auth-password-eye');
+    if (le && !le.innerHTML.trim()) le.innerHTML = EYE_SHOW_SVG;
+  } catch(e) {}
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initPwEyes);
+else _initPwEyes();
 
 // ============================================================
 // AUTO-SYNC — every 15 minutes while logged in
