@@ -3414,6 +3414,13 @@ function showUserMenu() {
     if (nameEl && _currentUser) nameEl.textContent = _currentUser.full_name;
     if (roleEl && _currentUser) roleEl.textContent = _currentUser.role.charAt(0).toUpperCase()+_currentUser.role.slice(1)+' — '+(_currentUser.job_title||'');
     if (adminEl) adminEl.style.display = (_currentUser&&_currentUser.role==='owner') ? 'flex' : 'none';
+    // Set/change PIN — available to EVERY user when App Lock is on for the company
+    var pinEl = document.getElementById('user-menu-pin');
+    if (pinEl) {
+      var lockOn = false;
+      try { lockOn = !!(window.AppLock && window.AppLock.cfg().enabled); } catch (e) {}
+      pinEl.style.display = lockOn ? 'flex' : 'none';
+    }
     menu.style.display = 'block';
     setTimeout(function(){ document.addEventListener('click', hideUserMenuOutside, {once:true}); }, 10);
   } else {
