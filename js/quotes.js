@@ -1764,13 +1764,13 @@ function buildEmailBodyHTML(q){
   })();
   var coBlock = '<div style="font-weight:bold;color:#0D2B4E;font-size:12px;letter-spacing:.4px;font-family:Arial,Helvetica,sans-serif">'+_emEsc((cname||'').toUpperCase())+'</div>'
     + (caddr ? '<div style="color:#5b6675;font-size:11px;line-height:1.55;margin-top:3px;font-family:Arial,Helvetica,sans-serif">'+_addrHtml+'</div>' : '')
-    + '<div style="color:#5b6675;font-size:11px;margin-top:2px;font-family:Arial,Helvetica,sans-serif">'
-    + (cphone?'<span style="white-space:nowrap">'+_emEsc(cphone)+'</span>':'')
-    + (cphone && webHref?' &nbsp;&middot;&nbsp; ':'')
+    + '<div style="color:#5b6675;font-size:11px;margin-top:2px;font-family:Arial,Helvetica,sans-serif"><span style="white-space:nowrap">'
+    + (cphone?_emEsc(cphone):'')
+    + (cphone && webHref?' &middot; ':'')
     + (webHref?'<a href="'+_emEsc(webHref)+'" style="color:#1565C0;text-decoration:none;font-weight:bold">'+_emEsc(cweb)+'</a>':'')
-    + '</div>';
+    + '</span></div>';
 
-  var footWeb = webHref ? ' &middot; <a href="'+_emEsc(webHref)+'" style="color:#9fb3cc;text-decoration:none;font-weight:bold">'+_emEsc(cweb)+'</a>' : '';
+  var footWeb = webHref ? ' &middot; <a href="'+_emEsc(webHref)+'" style="color:#9fb3cc;text-decoration:none;font-weight:bold;white-space:nowrap">'+_emEsc(cweb)+'</a>' : '';
   var footPhone = cphone ? ' or call <a href="tel:'+_emEsc(cphone.replace(/[^0-9+]/g,''))+'" style="color:#ffffff;text-decoration:none;font-weight:bold;white-space:nowrap">'+_emEsc(cphone)+'</a>' : '';
 
   var html =
@@ -1811,9 +1811,9 @@ function buildEmailBodyHTML(q){
       +'<div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#0D2B4E;font-weight:bold;font-family:Arial,Helvetica,sans-serif">Respond to This Proposal</div>'
       +'<div style="font-size:12.5px;color:#6b7686;margin:5px 0 13px;font-family:Arial,Helvetica,sans-serif">Review the full proposal online, then approve with a signature or request changes.</div>'
       +'<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>'
-        +'<td align="center" bgcolor="#2E7D32" style="background:#2E7D32;border-radius:6px;padding:11px 22px;mso-padding-alt:11px 22px"><a href="'+portalUrl+'" style="color:#ffffff;text-decoration:none;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif;white-space:nowrap"><span style="color:#ffffff;text-decoration:none">&#10003;&nbsp;Approve Proposal</span></a></td>'
+        +'<td align="center" valign="middle" bgcolor="#2E7D32" style="background:#2E7D32;border:1.5px solid #2E7D32;border-radius:6px;padding:10px 20px;mso-padding-alt:10px 20px"><a href="'+portalUrl+'" style="color:#ffffff;text-decoration:none;font-weight:bold;font-size:13px;line-height:1;font-family:Arial,Helvetica,sans-serif;white-space:nowrap"><span style="color:#ffffff;text-decoration:none">&#10003;&nbsp;Approve Proposal</span></a></td>'
         +'<td style="width:12px;font-size:0;line-height:0">&nbsp;</td>'
-        +'<td align="center" bgcolor="#ffffff" style="background:#ffffff;border:1.5px solid #9FB0C2;border-radius:6px;padding:10px 20px;mso-padding-alt:10px 20px"><a href="'+portalUrl+'" style="color:#0D2B4E;text-decoration:none;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif;white-space:nowrap"><span style="color:#0D2B4E;text-decoration:none">&#9998;&nbsp;Request Changes</span></a></td>'
+        +'<td align="center" valign="middle" bgcolor="#ffffff" style="background:#ffffff;border:1.5px solid #9FB0C2;border-radius:6px;padding:10px 20px;mso-padding-alt:10px 20px"><a href="'+portalUrl+'" style="color:#0D2B4E;text-decoration:none;font-weight:bold;font-size:13px;line-height:1;font-family:Arial,Helvetica,sans-serif;white-space:nowrap"><span style="color:#0D2B4E;text-decoration:none">&#9998;&nbsp;Request Changes</span></a></td>'
       +'</tr></table>'
       +'<div style="font-size:10.5px;color:#90a4ae;margin-top:9px;font-family:Arial,Helvetica,sans-serif">Secure link &middot; no login required &middot; about a minute</div>'
     +'</td></tr></table>'
@@ -1828,7 +1828,7 @@ function buildEmailBodyHTML(q){
   +'<tr><td style="padding:22px 32px 0">'
     +'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#0D2B4E;border-radius:10px;padding:16px 22px;text-align:center">'
       +'<div style="color:#c9d6e6;font-size:11.5px;line-height:1.6;font-family:Arial,Helvetica,sans-serif">This proposal is valid until '+validUntil+'. &nbsp;Questions? Reply to this email'+footPhone+'.</div>'
-      +'<div style="color:#7f93ad;font-size:11px;margin-top:5px;font-family:Arial,Helvetica,sans-serif">'+_emEsc(cname)+(caddr?' &middot; '+_emEsc(caddr.split(',').slice(-2).join(',').trim()||caddr):'')+footWeb+'</div>'
+      +'<div style="color:#7f93ad;font-size:11px;margin-top:5px;font-family:Arial,Helvetica,sans-serif"><span style="white-space:nowrap">'+_emEsc(cname)+'</span>'+(caddr?' &middot; <span style="white-space:nowrap">'+_emEsc(caddr.split(',').slice(-2).join(',').trim()||caddr)+'</span>':'')+footWeb+'</div>'
     +'</td></tr></table>'
   +'</td></tr>'
   +'<tr><td style="height:14px;font-size:0;line-height:0">&nbsp;</td></tr>'
