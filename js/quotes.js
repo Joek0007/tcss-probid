@@ -1811,8 +1811,9 @@ function buildEmailBodyHTML(q){
       +'<div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#0D2B4E;font-weight:bold;font-family:Arial,Helvetica,sans-serif">Respond to This Proposal</div>'
       +'<div style="font-size:12.5px;color:#6b7686;margin:5px 0 13px;font-family:Arial,Helvetica,sans-serif">Review the full proposal online, then approve with a signature or request changes.</div>'
       +'<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>'
-        +'<td style="padding:0 5px"><a href="'+portalUrl+'" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif;padding:9px 18px;border-radius:6px">&#10003;&nbsp; Approve Proposal</a></td>'
-        +'<td style="padding:0 5px"><a href="'+portalUrl+'" style="display:inline-block;background:#ffffff;color:#0D2B4E;text-decoration:none;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif;padding:8px 16px;border:1.5px solid #9fb0c2;border-radius:6px">&#9998;&nbsp; Request Changes</a></td>'
+        +'<td align="center" bgcolor="#2E7D32" style="background:#2E7D32;border-radius:6px;padding:11px 22px;mso-padding-alt:11px 22px"><a href="'+portalUrl+'" style="color:#ffffff;text-decoration:none;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif;white-space:nowrap"><span style="color:#ffffff;text-decoration:none">&#10003;&nbsp;Approve Proposal</span></a></td>'
+        +'<td style="width:12px;font-size:0;line-height:0">&nbsp;</td>'
+        +'<td align="center" bgcolor="#ffffff" style="background:#ffffff;border:1.5px solid #9FB0C2;border-radius:6px;padding:10px 20px;mso-padding-alt:10px 20px"><a href="'+portalUrl+'" style="color:#0D2B4E;text-decoration:none;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif;white-space:nowrap"><span style="color:#0D2B4E;text-decoration:none">&#9998;&nbsp;Request Changes</span></a></td>'
       +'</tr></table>'
       +'<div style="font-size:10.5px;color:#90a4ae;margin-top:9px;font-family:Arial,Helvetica,sans-serif">Secure link &middot; no login required &middot; about a minute</div>'
     +'</td></tr></table>'
@@ -1959,6 +1960,17 @@ async function sendQuoteConfirmed(){
     if (ccList.length) fd.append('cc', ccList.join(','));
     fd.append('h:Reply-To', fromAddr);
     fd.append('subject', subject);
+    // Embed the logo inline (cid) so it always displays — email clients (Outlook, Gmail)
+    // block remote images by default, which left the header logo blank.
+    try {
+      var _logoUrl2 = (window.location.origin + window.location.pathname.replace('index.html','').replace(/\/$/,'')) + '/assets/email-logo.png';
+      var _lr2 = await fetch(_logoUrl2);
+      if (_lr2.ok) {
+        var _lb2 = await _lr2.blob();
+        htmlBody = htmlBody.split(_logoUrl2).join('cid:tcsslogo');
+        fd.append('inline', new File([_lb2], 'tcsslogo', { type: _lb2.type || 'image/png' }));
+      }
+    } catch(_logoErr){ console.warn('[Email Quote] inline logo embed failed; using remote URL', _logoErr); }
     fd.append('html', htmlBody);
     fd.append('text', textBody);
     fd.append('attachment', new File([pdfBlob], pdfName, {type:'application/pdf'}));
