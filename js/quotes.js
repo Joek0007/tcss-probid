@@ -803,6 +803,66 @@ function upsertCustomer(q) {
 }
 
 
+// Shared scope/notes HTML normalizer. Turns messy pasted Word / Google-Docs / ChatGPT
+// markup into clean, consistently-styled HTML so the Scope of Work (and Terms) look the
+// same in the on-screen quote, the emailed PDF, and the customer approval portal.
+// Plain-text input is escaped + line-broken. Needs a browser DOM (document).
+function cleanScopeHtml(raw){
+  if (raw == null) return '';
+  var s = String(raw);
+  if (!/<[a-z!/][\s\S]*>/i.test(s)) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/\t/g,' ').replace(/\r\n?|\n/g,'<br>');
+  }
+  s = s.replace(/<!--[\s\S]*?-->/g,'')
+       .replace(/<(script|style|xml|title)\b[\s\S]*?<\/\1>/gi,'')
+       .replace(/<\/?[a-z]+:[^>]*>/gi,'');
+  var root = document.createElement('div');
+  root.innerHTML = s;
+  var MAP = { B:'strong', STRONG:'strong', I:'em', EM:'em', U:'u',
+    P:'p', DIV:'p', BLOCKQUOTE:'blockquote',
+    UL:'ul', OL:'ol', LI:'li', BR:'br', HR:'hr', A:'a',
+    H1:'h3', H2:'h3', H3:'h3', H4:'h4', H5:'h4', H6:'h4' };
+  var BLOCKISH = {P:1,DIV:1,UL:1,OL:1,H1:1,H2:1,H3:1,H4:1,H5:1,H6:1,BLOCKQUOTE:1,TABLE:1};
+  function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function containsBlock(el){
+    for (var i=0;i<el.childNodes.length;i++){
+      var c=el.childNodes[i];
+      if (c.nodeType===1){ if (BLOCKISH[c.tagName.toUpperCase()]) return true; if (containsBlock(c)) return true; }
+    }
+    return false;
+  }
+  function kids(el){ var out=''; for (var i=0;i<el.childNodes.length;i++) out += node(el.childNodes[i]); return out; }
+  function node(n){
+    if (n.nodeType===3){ return esc(n.nodeValue.replace(/\s+/g,' ')); }
+    if (n.nodeType!==1) return '';
+    var tag = n.tagName.toUpperCase();
+    if (tag==='BR') return '<br>';
+    if (tag==='HR') return '<hr>';
+    var map = MAP[tag];
+    if (!map) return kids(n);
+    if ((map==='h3'||map==='h4') && containsBlock(n)) return kids(n);
+    if (map==='p' && n.parentNode && n.parentNode.tagName==='LI') return kids(n);
+    var inner = kids(n);
+    if (map==='a'){
+      var href=(n.getAttribute('href')||'').trim();
+      if(!/^(https?:|mailto:|tel:)/i.test(href)) return inner;
+      return '<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">'+inner+'</a>';
+    }
+    var visible = inner.replace(/<[^>]+>/g,'').replace(/&nbsp;|&#160;/gi,'').replace(/\s+/g,'');
+    if (!visible && map!=='ul' && map!=='ol' && map!=='li') return '';
+    if ((map==='ul'||map==='ol') && !/<li\b/i.test(inner)) return inner;
+    return '<'+map+'>'+inner+'</'+map+'>';
+  }
+  var html = kids(root);
+  html = html.replace(/(\s*<br>\s*){3,}/gi,'<br><br>')
+             .replace(/<li>\s*<\/li>/gi,'')
+             .replace(/<\/(ul|ol)>\s*<\1>/gi,'')
+             .replace(/[ \t]{2,}/g,' ')
+             .trim();
+  return html;
+}
+
 // =============================================
 // STAGE 3: buildPrintHTML() — PROFESSIONAL PROPOSAL
 // =============================================
@@ -1109,11 +1169,15 @@ function buildPrintHTML(q, mode) {
   '.exec-box p{margin:0 0 10px 0}' +
   '.exec-box p:last-child{margin-bottom:0}' +
   '.scope-box{background:#f8f9fa;border-radius:8px;padding:14px 18px;font-size:13px;line-height:1.7;color:#37474f}' +
-  '.scope-box h3{font-size:13px;font-weight:700;color:#1f3b57;margin:10px 0 4px}' +
-  '.scope-box ul,.scope-box ol{padding-left:20px;margin:4px 0}' +
-  '.scope-box li{margin:2px 0}' +
+  '.scope-box h3{font-size:13.5px;font-weight:700;color:#1f3b57;margin:12px 0 4px}' +
+  '.scope-box h3:first-child,.scope-box h4:first-child,.scope-box p:first-child{margin-top:0}' +
+  '.scope-box h4{font-size:12.5px;font-weight:700;color:#37474f;margin:10px 0 3px}' +
+  '.scope-box p{margin:6px 0}' +
+  '.scope-box ul,.scope-box ol{padding-left:22px;margin:4px 0}' +
+  '.scope-box li{margin:3px 0}' +
   '.scope-box strong{font-weight:700}' +
   '.scope-box em{font-style:italic}' +
+  '.scope-box blockquote{margin:6px 0 6px 14px;padding-left:12px;border-left:3px solid #cfd8dc;color:#546e7a}' +
   'table.items-table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}' +
   'table.items-table th{background:#1565c0;color:#fff;padding:10px 12px;text-align:left;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}' +
   'table.items-table th:last-child,table.items-table th:nth-last-child(2){text-align:right}' +
@@ -1222,7 +1286,7 @@ table{font-size:12.5px}
   })() +
 
   // SCOPE
-  (q.notes ? '<div class="prop-section"><div class="prop-section-title">Scope of Work</div><div class="scope-box">' + (q.notesIsHtml ? q.notes : escHtml(q.notes).replace(/\n/g,'<br>')) + '</div></div>' : '') +
+  (q.notes ? '<div class="prop-section"><div class="prop-section-title">Scope of Work</div><div class="scope-box">' + cleanScopeHtml(q.notes) + '</div></div>' : '') +
 
   // EQUIPMENT & MATERIALS + LABOR
   '<div class="prop-section"><div class="prop-section-title">Equipment, Materials &amp; Installation</div>' +
@@ -1302,8 +1366,8 @@ table{font-size:12.5px}
     if (!fullTC.trim()) return '';
     return '<div class="prop-section"><div class="prop-section-title">Terms &amp; Conditions</div>' +
       '<div class="scope-box" style="font-size:12px">' +
-        (typeof rtfDisplayHTML==='function' ? rtfDisplayHTML(baseTC) : escHtml(baseTC).replace(/\n/g,'<br>')) +
-        (jtExtra ? '<br><br><strong style="color:#1565c0">' + escHtml(q.jt) + ' — Additional Terms:</strong><br>' + escHtml(jtExtra).replace(/\n/g,'<br>') : '') +
+        cleanScopeHtml(baseTC) +
+        (jtExtra ? '<br><br><strong style="color:#1565c0">' + escHtml(q.jt) + ' — Additional Terms:</strong><br>' + cleanScopeHtml(jtExtra) : '') +
       '</div></div>';
   })() +
   (function(){
