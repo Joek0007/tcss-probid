@@ -2046,9 +2046,7 @@ async function _pushQuoteToCloud(q) {
     };
     var { error } = await _sb.from('quotes').upsert({
       id: qId,
-      quote_number: q.num || null,
-      approval_token: (q.approvalToken || null),
-      customer_name: q.cn || null,
+      quote_number: q.num || null,      customer_name: q.cn || null,
       job_id: null,
       sales_rep_name: q.rep || null,
       status: statusMap[q.status] || 'Draft',
@@ -2444,9 +2442,7 @@ async function pushAllToCloud() {
         };
         _pushErr('quote '+(q.num||qId), await _sb.from('quotes').upsert({
           id: qId,
-          quote_number: q.num || null,
-      approval_token: (q.approvalToken || null),
-          customer_name: q.cn || null,
+          quote_number: q.num || null,          customer_name: q.cn || null,
           job_id: null,
           sales_rep_name: q.rep || null,
           status: statusMap[q.status] || 'Draft',
