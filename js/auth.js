@@ -1119,6 +1119,7 @@ async function syncAllFromCloud(silent) {
             belowMarginFloor: q.below_margin_floor,
             marginBypass: q.margin_bypass ? { enabled:true, by:q.margin_bypass_by||null, at:q.margin_bypass_at||null } : { enabled:false, by:null, at:null },
             notes: q.scope_notes,
+            approvalToken: (q.approval_token || null),
             internalNotes: q.internal_notes,
             tc: q.quote_terms || null,
             priority: q.priority,
@@ -2046,6 +2047,7 @@ async function _pushQuoteToCloud(q) {
     var { error } = await _sb.from('quotes').upsert({
       id: qId,
       quote_number: q.num || null,
+      approval_token: (q.approvalToken || null),
       customer_name: q.cn || null,
       job_id: null,
       sales_rep_name: q.rep || null,
@@ -2443,6 +2445,7 @@ async function pushAllToCloud() {
         _pushErr('quote '+(q.num||qId), await _sb.from('quotes').upsert({
           id: qId,
           quote_number: q.num || null,
+      approval_token: (q.approvalToken || null),
           customer_name: q.cn || null,
           job_id: null,
           sales_rep_name: q.rep || null,
@@ -3735,3 +3738,4 @@ function deactivateViewAs() {
   goPage('settings');
   showToast('Back to Owner view','success',2000);
 }
+
