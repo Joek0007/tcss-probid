@@ -1672,6 +1672,16 @@ function buildEmailBody(q) {
 // Currency + escape helpers (email builder)
 function _emMoney(n){ return '$'+(Number(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
 function _emEsc(x){ return (x==null?'':String(x)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// Extract just "City, ST ZIP" from a full address, regardless of how many commas it has.
+// (Footer shows only the locality; the full street address is in the header.)
+function _emLocality(a){
+  a=(a==null?'':String(a)).trim(); if(!a) return '';
+  var m=a.match(/^(.*?)[,\s]+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/);
+  if(!m||!m[1].trim()) return a;
+  var head=m[1].trim().replace(/,+\s*$/,'').trim();
+  var city = head.indexOf(',')>=0 ? head.slice(head.lastIndexOf(',')+1).trim() : head.split(/\s+/).pop();
+  return (city?city+', ':'')+m[2]+' '+m[3];
+}
 
 // Build the branded, email-safe HTML body (table layout + inline styles for Outlook/Gmail).
 // Logo is loaded from the app's own hosted /assets/email-logo.png (data URLs don't render in email).
@@ -1764,11 +1774,8 @@ function buildEmailBodyHTML(q){
   })();
   var coBlock = '<div style="font-weight:bold;color:#0D2B4E;font-size:12px;letter-spacing:.4px;font-family:Arial,Helvetica,sans-serif">'+_emEsc((cname||'').toUpperCase())+'</div>'
     + (caddr ? '<div style="color:#5b6675;font-size:11px;line-height:1.55;margin-top:3px;font-family:Arial,Helvetica,sans-serif">'+_addrHtml+'</div>' : '')
-    + '<div style="color:#5b6675;font-size:11px;margin-top:2px;font-family:Arial,Helvetica,sans-serif"><span style="white-space:nowrap">'
-    + (cphone?_emEsc(cphone):'')
-    + (cphone && webHref?' &middot; ':'')
-    + (webHref?'<a href="'+_emEsc(webHref)+'" style="color:#1565C0;text-decoration:none;font-weight:bold">'+_emEsc(cweb)+'</a>':'')
-    + '</span></div>';
+    + (cphone?'<div style="color:#5b6675;font-size:11px;margin-top:3px;font-family:Arial,Helvetica,sans-serif;white-space:nowrap">'+_emEsc(cphone)+'</div>':'')
+    + (webHref?'<div style="font-size:11px;margin-top:1px;font-family:Arial,Helvetica,sans-serif;white-space:nowrap"><a href="'+_emEsc(webHref)+'" style="color:#1565C0;text-decoration:none;font-weight:bold">'+_emEsc(cweb)+'</a></div>':'');
 
   var footWeb = webHref ? ' &middot; <a href="'+_emEsc(webHref)+'" style="color:#9fb3cc;text-decoration:none;font-weight:bold;white-space:nowrap">'+_emEsc(cweb)+'</a>' : '';
   var footPhone = cphone ? ' or call <a href="tel:'+_emEsc(cphone.replace(/[^0-9+]/g,''))+'" style="color:#ffffff;text-decoration:none;font-weight:bold;white-space:nowrap">'+_emEsc(cphone)+'</a>' : '';
@@ -1828,7 +1835,7 @@ function buildEmailBodyHTML(q){
   +'<tr><td style="padding:22px 32px 0">'
     +'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#0D2B4E;border-radius:10px;padding:16px 22px;text-align:center">'
       +'<div style="color:#c9d6e6;font-size:11.5px;line-height:1.6;font-family:Arial,Helvetica,sans-serif">This proposal is valid until '+validUntil+'. &nbsp;Questions? Reply to this email'+footPhone+'.</div>'
-      +'<div style="color:#7f93ad;font-size:11px;margin-top:5px;font-family:Arial,Helvetica,sans-serif"><span style="white-space:nowrap">'+_emEsc(cname)+'</span>'+(caddr?' &middot; <span style="white-space:nowrap">'+_emEsc(caddr.split(',').slice(-2).join(',').trim()||caddr)+'</span>':'')+footWeb+'</div>'
+      +'<div style="color:#7f93ad;font-size:11px;margin-top:5px;font-family:Arial,Helvetica,sans-serif"><span style="white-space:nowrap">'+_emEsc(cname)+'</span>'+(caddr?' &middot; <span style="white-space:nowrap">'+_emEsc(_emLocality(caddr))+'</span>':'')+footWeb+'</div>'
     +'</td></tr></table>'
   +'</td></tr>'
   +'<tr><td style="height:14px;font-size:0;line-height:0">&nbsp;</td></tr>'
