@@ -1696,6 +1696,10 @@ function buildEmailBodyHTML(q){
 
   var baseUrl = window.location.origin + window.location.pathname.replace('index.html','').replace(/\/$/,'');
   var logoUrl = baseUrl + '/assets/email-logo.png';
+  // Approval portal link for this quote (generate a token if missing; persisted to the
+  // cloud on a real send in sendQuoteConfirmed so the customer's click resolves).
+  if (!q.approvalToken) q.approvalToken = _generateToken();
+  var portalUrl = baseUrl + '/portal.html?token=' + q.approvalToken;
 
   // --- Proposal Details rows ---
   function drow(k,v){
@@ -1800,6 +1804,18 @@ function buildEmailBodyHTML(q){
     +'<div style="font-size:12px;letter-spacing:1.3px;text-transform:uppercase;color:#0D2B4E;font-weight:bold;border-bottom:2px solid #eef1f6;padding-bottom:7px;font-family:Arial,Helvetica,sans-serif">Investment Summary</div>'
     +'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px">'+inv+'</table>'
     +terms
+  +'</td></tr>'
+  // respond card — approve / request changes (opens the approval portal for this quote)
+  +'<tr><td style="padding:20px 32px 0">'
+    +'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#f6f9fc;border:1px solid #dbe3ec;border-radius:10px;padding:16px 18px;text-align:center">'
+      +'<div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#0D2B4E;font-weight:bold;font-family:Arial,Helvetica,sans-serif">Respond to This Proposal</div>'
+      +'<div style="font-size:12.5px;color:#6b7686;margin:5px 0 13px;font-family:Arial,Helvetica,sans-serif">Review the full proposal online, then approve with a signature or request changes.</div>'
+      +'<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>'
+        +'<td style="padding:0 5px"><a href="'+portalUrl+'" style="display:inline-block;background:#2e7d32;color:#ffffff;text-decoration:none;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif;padding:9px 18px;border-radius:6px">&#10003;&nbsp; Approve Proposal</a></td>'
+        +'<td style="padding:0 5px"><a href="'+portalUrl+'" style="display:inline-block;background:#ffffff;color:#0D2B4E;text-decoration:none;font-weight:bold;font-size:13px;font-family:Arial,Helvetica,sans-serif;padding:8px 16px;border:1.5px solid #9fb0c2;border-radius:6px">&#9998;&nbsp; Request Changes</a></td>'
+      +'</tr></table>'
+      +'<div style="font-size:10.5px;color:#90a4ae;margin-top:9px;font-family:Arial,Helvetica,sans-serif">Secure link &middot; no login required &middot; about a minute</div>'
+    +'</td></tr></table>'
   +'</td></tr>'
   // signature
   +'<tr><td style="padding:24px 32px 4px">'
@@ -1964,11 +1980,18 @@ async function sendQuoteConfirmed(){
         if (saved.status==='draft' || !saved.status) saved.status='sent';
         if (!saved.sentDate) saved.sentDate = getTodayISO();
         saved.emailedTo = allTo; saved.emailedAt = new Date().toISOString();
+        if (q.approvalToken) saved.approvalToken = q.approvalToken;
         saveDB(); renderQuotes && renderQuotes(); renderDash && renderDash();
       } else {
         if (q.status==='draft' || !q.status) q.status='sent';
         if (!q.sentDate) q.sentDate = getTodayISO();
       }
+      // Persist the approval token to the cloud so the portal link in the email resolves.
+      try {
+        if (q.id && _sb && _currentUser && q.approvalToken) {
+          await _sb.from('quotes').update({ approval_token: q.approvalToken }).eq('id', q.id);
+        }
+      } catch(_tokErr){ console.warn('[Email Quote] approval token persist failed', _tokErr); }
       var stEl = document.getElementById('qq-status');
       if (stEl && stEl.value==='draft') stEl.value='sent';
       closeEmailQuoteModal();
