@@ -1845,7 +1845,16 @@ function buildEmailBodyHTML(q){
   var footPhone = cphone ? ' or call <a href="tel:'+_emEsc(cphone.replace(/[^0-9+]/g,''))+'" style="color:#ffffff;text-decoration:none;font-weight:bold;white-space:nowrap">'+_emEsc(cphone)+'</a>' : '';
 
   var html =
-'<div style="background:#e9edf2;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">'
+// Lock the CTA button text colors across ALL link states (link/visited/hover/active).
+// Without this, after the customer clicks a button the email client recolors the "visited"
+// link text to its purple/magenta default, which looked dark and ugly on return to the email.
+'<style>'
++'a.tcss-btn-green,a.tcss-btn-green:link,a.tcss-btn-green:visited,a.tcss-btn-green:hover,a.tcss-btn-green:active{color:#ffffff !important;text-decoration:none !important}'
++'a.tcss-btn-green span{color:#ffffff !important}'
++'a.tcss-btn-outline,a.tcss-btn-outline:link,a.tcss-btn-outline:visited,a.tcss-btn-outline:hover,a.tcss-btn-outline:active{color:#0D2B4E !important;text-decoration:none !important}'
++'a.tcss-btn-outline span{color:#0D2B4E !important}'
++'</style>'
++'<div style="background:#e9edf2;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">'
 +'<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center" style="max-width:600px;width:100%;margin:0 auto;background:#ffffff;border:1px solid #e6eaf0;border-radius:14px;overflow:hidden">'
   // header
   +'<tr><td style="padding:22px 32px 16px">'
@@ -1882,9 +1891,9 @@ function buildEmailBodyHTML(q){
       +'<div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#0D2B4E;font-weight:bold;font-family:Arial,Helvetica,sans-serif">Respond to This Proposal</div>'
       +'<div style="font-size:12.5px;color:#6b7686;margin:5px 0 13px;font-family:Arial,Helvetica,sans-serif">Review the full proposal online, then approve with a signature or request changes.</div>'
       +'<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>'
-        +'<td align="center" valign="middle" bgcolor="#2E7D32" style="background:#2E7D32;border:1.5px solid #2E7D32;border-radius:6px;padding:10px 20px;mso-padding-alt:10px 20px"><a href="'+portalUrl+'" style="color:#ffffff;text-decoration:none;font-weight:bold;font-size:13px;line-height:1;font-family:Arial,Helvetica,sans-serif;white-space:nowrap"><span style="color:#ffffff;text-decoration:none">&#10003;&nbsp;Approve Proposal</span></a></td>'
+        +'<td align="center" valign="middle" bgcolor="#2E7D32" style="background:#2E7D32;border:1.5px solid #2E7D32;border-radius:6px;padding:10px 20px;mso-padding-alt:10px 20px"><a href="'+portalUrl+'" class="tcss-btn-green" style="color:#ffffff !important;text-decoration:none;font-weight:bold;font-size:13px;line-height:1;font-family:Arial,Helvetica,sans-serif;white-space:nowrap"><span style="color:#ffffff !important;text-decoration:none">&#10003;&nbsp;Approve Proposal</span></a></td>'
         +'<td style="width:12px;font-size:0;line-height:0">&nbsp;</td>'
-        +'<td align="center" valign="middle" bgcolor="#ffffff" style="background:#ffffff;border:1.5px solid #9FB0C2;border-radius:6px;padding:10px 20px;mso-padding-alt:10px 20px"><a href="'+portalUrl+'" style="color:#0D2B4E;text-decoration:none;font-weight:bold;font-size:13px;line-height:1;font-family:Arial,Helvetica,sans-serif;white-space:nowrap"><span style="color:#0D2B4E;text-decoration:none">&#9998;&nbsp;Request Changes</span></a></td>'
+        +'<td align="center" valign="middle" bgcolor="#ffffff" style="background:#ffffff;border:1.5px solid #9FB0C2;border-radius:6px;padding:10px 20px;mso-padding-alt:10px 20px"><a href="'+portalUrl+'" class="tcss-btn-outline" style="color:#0D2B4E !important;text-decoration:none;font-weight:bold;font-size:13px;line-height:1;font-family:Arial,Helvetica,sans-serif;white-space:nowrap"><span style="color:#0D2B4E !important;text-decoration:none">&#9998;&nbsp;Request Changes</span></a></td>'
       +'</tr></table>'
       +'<div style="font-size:10.5px;color:#90a4ae;margin-top:9px;font-family:Arial,Helvetica,sans-serif">Secure link &middot; no login required &middot; about a minute</div>'
     +'</td></tr></table>'
