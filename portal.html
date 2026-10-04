@@ -377,7 +377,7 @@ async function loadPortal() {
 
     // Populate quote fields
     setText('q-num', data.quote_number || '');
-    setText('q-jobname', data.name || '');
+    setText('q-jobname', data.job_name || data.name || '');
     setText('q-customer', data.customer_name || '');
     setText('q-date', fmtDate(data.quote_date));
     setText('q-valid', fmtDate(data.valid_until));
