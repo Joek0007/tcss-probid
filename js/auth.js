@@ -1732,6 +1732,13 @@ async function syncAllFromCloud(silent) {
   // Save to localStorage only — do NOT call saveDB() here as it would schedule a push
   // We just pulled from Supabase so there's nothing to push back
   window._syncInProgress = false;
+  // Notify-recipient hygiene (build gp): drop any former employee lingering on the
+  // proposal-response notify list, then push the corrected settings so the cloud
+  // copy can't resurrect them on the next device. Non-fatal if it fails.
+  try {
+    await refreshRemovedTeamEmails();
+    if (pruneNotifyRecipients()) { try { await _pushSettingsToCloud(); } catch(e) {} }
+  } catch(e) {}
   // Persist the freshly-pulled data off the main thread (no push — data came FROM cloud).
   try { _dbPackAsync(DB).then(function(p){ try{ localStorage.setItem(DB_KEY, p); }catch(e){} }); } catch(e) {}
   clearTimeout(window._syncTimer); // Cancel any push timer that snuck in during sync
@@ -2281,9 +2288,80 @@ function _countRowToObj(c){
   };
 }
 
+// ============================================================
+// Notify-recipient hygiene (build gp)
+// The Quote Proposal Response notify list (DB.settings.notifyRecipients)
+// stores copied name/email/phone snapshots that are NOT linked to the
+// team table, so removing someone from the team never removed them here;
+// and the whole-DB last-writer-wins sync could resurrect a stale copy.
+// Fix: reconcile the list against the team roster — drop any recipient
+// whose email belongs to a removed (inactive / soft-deleted) team member,
+// unless that same email also belongs to an ACTIVE member (re-hire safety).
+// Manual recipients who match no team record are always kept.
+// Runs once at the end of every cloud pull (authoritative clean) and again
+// synchronously before every full push (so a stale list can't be written).
+// ============================================================
+var _removedTeamEmails = null;   // cache: { emailLower: true }
+
+async function refreshRemovedTeamEmails() {
+  try {
+    // RLS "Authenticated users can read team" = true, so inactive/deleted rows
+    // are visible here even though the normal roster pull filters is_active=true.
+    var res = await _sb.from('team').select('email,is_active,deleted_at');
+    if (!res || res.error || !res.data) return _removedTeamEmails || {};
+    var active = {}, removed = {};
+    res.data.forEach(function(r){
+      var em = (r && r.email ? String(r.email).trim().toLowerCase() : '');
+      if (!em) return;
+      if (r.is_active === false || r.deleted_at) removed[em] = true;
+      else active[em] = true;
+    });
+    Object.keys(active).forEach(function(em){ delete removed[em]; }); // re-hire safety
+    _removedTeamEmails = removed;
+  } catch(e) { /* keep previous cache on failure */ }
+  return _removedTeamEmails || {};
+}
+
+function pruneNotifyRecipients() {
+  try {
+    if (!DB || !DB.settings || !Array.isArray(DB.settings.notifyRecipients)) return false;
+    var removed = Object.assign({}, _removedTeamEmails || {});
+    // Backstop: honor any locally-known inactive flags too.
+    (DB.team || []).forEach(function(t){
+      if (!t || !t.email) return;
+      if (t.active === false || t.is_active === false || t.deletedAt || t.deleted_at)
+        removed[String(t.email).trim().toLowerCase()] = true;
+    });
+    var before = DB.settings.notifyRecipients.length;
+    DB.settings.notifyRecipients = DB.settings.notifyRecipients.filter(function(r){
+      var em = (r && r.email ? String(r.email).trim().toLowerCase() : '');
+      return !(em && removed[em]);
+    });
+    return DB.settings.notifyRecipients.length !== before;
+  } catch(e) { return false; }
+}
+
+// Targeted settings-only push (same mapping as pushAllToCloud's company_settings
+// upsert) so a load-time prune can clean the cloud copy without a full sync.
+async function _pushSettingsToCloud() {
+  if (!_sb || !DB || !DB.settings) return;
+  return _sb.from('company_settings').upsert({
+    id: 1,
+    company_name: DB.settings.cname || 'TCSS',
+    default_labor_rate: DB.settings.laborRate || 100,
+    default_target_margin: DB.settings.targetMargin !== undefined ? DB.settings.targetMargin : 35,
+    ma_enabled: DB.settings.managerApproval ? !!DB.settings.managerApproval.enabled : false,
+    ma_below_floor_only: DB.settings.managerApproval ? !!DB.settings.managerApproval.belowFloorOnly : true,
+    ma_pin_hash: DB.settings.managerApproval ? (DB.settings.managerApproval.pinHash || '') : '',
+    ma_pin_salt: DB.settings.managerApproval ? (DB.settings.managerApproval.pinSalt || '') : '',
+    settings_json: Object.assign({}, DB.settings, { _woSettings: DB.woSettings || null, _msSettings: DB.msSettings || null })
+  });
+}
+
 async function pushAllToCloud() {
   if (!_sb || !_currentUser) return;
   if (_currentUser.role === 'helper_tech') return;
+  try { pruneNotifyRecipients(); } catch(e) {}   // never push a removed employee
   // Concurrency lock — prevent overlapping pushes which cause duplicate line item inserts
   if (_pushInProgress) {
     // Re-schedule for after current push completes
