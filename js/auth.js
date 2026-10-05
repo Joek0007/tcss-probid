@@ -1732,11 +1732,12 @@ async function syncAllFromCloud(silent) {
   // Save to localStorage only — do NOT call saveDB() here as it would schedule a push
   // We just pulled from Supabase so there's nothing to push back
   window._syncInProgress = false;
-  // Notify-recipient hygiene (build gp): drop any former employee lingering on the
-  // proposal-response notify list, then push the corrected settings so the cloud
-  // copy can't resurrect them on the next device. Non-fatal if it fails.
+  // Notify-recipient hygiene (build gq): drop any former employee lingering on the
+  // proposal-response notify list or the vehicle/absence/urgent-WO alert lists,
+  // then push the corrected settings so the cloud copy can't resurrect them on
+  // the next device. Non-fatal if it fails.
   try {
-    await refreshRemovedTeamEmails();
+    await refreshRemovedTeamContacts();
     if (pruneNotifyRecipients()) { try { await _pushSettingsToCloud(); } catch(e) {} }
   } catch(e) {}
   // Persist the freshly-pulled data off the main thread (no push — data came FROM cloud).
@@ -2289,56 +2290,110 @@ function _countRowToObj(c){
 }
 
 // ============================================================
-// Notify-recipient hygiene (build gp)
-// The Quote Proposal Response notify list (DB.settings.notifyRecipients)
-// stores copied name/email/phone snapshots that are NOT linked to the
-// team table, so removing someone from the team never removed them here;
-// and the whole-DB last-writer-wins sync could resurrect a stale copy.
-// Fix: reconcile the list against the team roster — drop any recipient
-// whose email belongs to a removed (inactive / soft-deleted) team member,
-// unless that same email also belongs to an ACTIVE member (re-hire safety).
-// Manual recipients who match no team record are always kept.
-// Runs once at the end of every cloud pull (authoritative clean) and again
-// synchronously before every full push (so a stale list can't be written).
+// Notify-recipient hygiene (build gq)
+// Several alert settings store copied email/phone snapshots that are NOT
+// linked to the team table, so removing someone from the team never removed
+// them here; and the whole-DB last-writer-wins sync could resurrect a stale
+// copy. Fix: reconcile against the team roster — drop any entry whose email
+// or phone belongs to a REMOVED (inactive / soft-deleted) team member, unless
+// that same email/phone also belongs to an ACTIVE member (re-hire safety).
+// Covered lists:
+//   • DB.settings.notifyRecipients  — Quote Proposal Response (objects, by email)
+//   • DB.settings.vehIssueEmailTo   — Vehicle-issue alert (comma string, by email)
+//   • DB.settings.absenceAlertSmsTo — Absence alert (comma string, by phone)
+//   • DB.settings.urgentWOAlertSmsTo— Urgent work-order alert (comma string, by phone)
+// Entries that match NO team record (shared mailboxes like shop@/fleet@, the
+// office line, outside contacts) are always kept — only a departed employee's
+// own email/phone is pruned. Runs once at the end of every cloud pull
+// (authoritative clean) and again synchronously before every full push.
 // ============================================================
 var _removedTeamEmails = null;   // cache: { emailLower: true }
+var _removedTeamPhones = null;   // cache: { last10digits: true }
 
-async function refreshRemovedTeamEmails() {
+function _normPhone(p) {
+  var d = String(p == null ? '' : p).replace(/\D/g, '');
+  if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1); // drop US country code
+  return d.length >= 10 ? d.slice(-10) : '';                   // compare on last 10 digits
+}
+
+async function refreshRemovedTeamContacts() {
   try {
     // RLS "Authenticated users can read team" = true, so inactive/deleted rows
     // are visible here even though the normal roster pull filters is_active=true.
-    var res = await _sb.from('team').select('email,is_active,deleted_at');
-    if (!res || res.error || !res.data) return _removedTeamEmails || {};
-    var active = {}, removed = {};
+    var res = await _sb.from('team').select('email,phone,is_active,deleted_at');
+    if (!res || res.error || !res.data) return;
+    var activeEm = {}, remEm = {}, activePh = {}, remPh = {};
     res.data.forEach(function(r){
+      var gone = (r.is_active === false) || !!r.deleted_at;
       var em = (r && r.email ? String(r.email).trim().toLowerCase() : '');
-      if (!em) return;
-      if (r.is_active === false || r.deleted_at) removed[em] = true;
-      else active[em] = true;
+      var ph = _normPhone(r && r.phone);
+      if (em) { if (gone) remEm[em] = true; else activeEm[em] = true; }
+      if (ph) { if (gone) remPh[ph] = true; else activePh[ph] = true; }
     });
-    Object.keys(active).forEach(function(em){ delete removed[em]; }); // re-hire safety
-    _removedTeamEmails = removed;
+    Object.keys(activeEm).forEach(function(k){ delete remEm[k]; }); // re-hire safety
+    Object.keys(activePh).forEach(function(k){ delete remPh[k]; });
+    _removedTeamEmails = remEm;
+    _removedTeamPhones = remPh;
   } catch(e) { /* keep previous cache on failure */ }
-  return _removedTeamEmails || {};
+}
+
+// Prune a comma-separated email/phone string against a removed-set.
+// Returns the cleaned string; leaves order/spacing of survivors tidy.
+function _pruneCsv(str, removedSet, normFn) {
+  if (!str || typeof str !== 'string') return str;
+  var kept = str.split(',').map(function(s){ return s.trim(); }).filter(function(s){
+    if (!s) return false;
+    var key = normFn(s);
+    return !(key && removedSet[key]);
+  });
+  return kept.join(', ');
 }
 
 function pruneNotifyRecipients() {
+  var changed = false;
   try {
-    if (!DB || !DB.settings || !Array.isArray(DB.settings.notifyRecipients)) return false;
-    var removed = Object.assign({}, _removedTeamEmails || {});
-    // Backstop: honor any locally-known inactive flags too.
+    if (!DB || !DB.settings) return false;
+
+    // Build removed email + phone sets (cloud caches + local inactive backstop).
+    var remEm = Object.assign({}, _removedTeamEmails || {});
+    var remPh = Object.assign({}, _removedTeamPhones || {});
     (DB.team || []).forEach(function(t){
-      if (!t || !t.email) return;
-      if (t.active === false || t.is_active === false || t.deletedAt || t.deleted_at)
-        removed[String(t.email).trim().toLowerCase()] = true;
+      if (!t) return;
+      if (t.active === false || t.is_active === false || t.deletedAt || t.deleted_at) {
+        if (t.email) remEm[String(t.email).trim().toLowerCase()] = true;
+        var ph = _normPhone(t.phone); if (ph) remPh[ph] = true;
+      }
     });
-    var before = DB.settings.notifyRecipients.length;
-    DB.settings.notifyRecipients = DB.settings.notifyRecipients.filter(function(r){
-      var em = (r && r.email ? String(r.email).trim().toLowerCase() : '');
-      return !(em && removed[em]);
-    });
-    return DB.settings.notifyRecipients.length !== before;
+
+    // 1) notifyRecipients — array of {name,email,phone}; match by email.
+    if (Array.isArray(DB.settings.notifyRecipients)) {
+      var before = DB.settings.notifyRecipients.length;
+      DB.settings.notifyRecipients = DB.settings.notifyRecipients.filter(function(r){
+        var em = (r && r.email ? String(r.email).trim().toLowerCase() : '');
+        return !(em && remEm[em]);
+      });
+      if (DB.settings.notifyRecipients.length !== before) changed = true;
+    }
+
+    // 2) vehIssueEmailTo — comma-separated emails.
+    if (typeof DB.settings.vehIssueEmailTo === 'string') {
+      var v2 = _pruneCsv(DB.settings.vehIssueEmailTo, remEm, function(s){ return s.trim().toLowerCase(); });
+      if (v2 !== DB.settings.vehIssueEmailTo) { DB.settings.vehIssueEmailTo = v2; changed = true; }
+    }
+
+    // 3) absenceAlertSmsTo — comma-separated phones.
+    if (typeof DB.settings.absenceAlertSmsTo === 'string') {
+      var v3 = _pruneCsv(DB.settings.absenceAlertSmsTo, remPh, _normPhone);
+      if (v3 !== DB.settings.absenceAlertSmsTo) { DB.settings.absenceAlertSmsTo = v3; changed = true; }
+    }
+
+    // 4) urgentWOAlertSmsTo — comma-separated phones.
+    if (typeof DB.settings.urgentWOAlertSmsTo === 'string') {
+      var v4 = _pruneCsv(DB.settings.urgentWOAlertSmsTo, remPh, _normPhone);
+      if (v4 !== DB.settings.urgentWOAlertSmsTo) { DB.settings.urgentWOAlertSmsTo = v4; changed = true; }
+    }
   } catch(e) { return false; }
+  return changed;
 }
 
 // Targeted settings-only push (same mapping as pushAllToCloud's company_settings
