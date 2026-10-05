@@ -528,11 +528,16 @@ async function sendChangesRequest() {
   try {
     var note = '[Change Request ' + new Date().toLocaleDateString('en-US') + ']: ' + msg;
     var existing = _quoteData.scope_notes || '';
-    await sb.from('quotes').update({
+    // status 'Review' (valid enum) — 'Followup' is NOT a valid quote_status and the whole
+    // update was being rejected, so the request never saved and no notification fired.
+    // We also now check the returned error instead of assuming success.
+    var { error } = await sb.from('quotes').update({
       approval_status: 'changes_requested',
-      status:          'Followup',
+      status:          'Review',
+      approval_note:   note,
       scope_notes:     existing + (existing ? '\n\n' : '') + note
     }).eq('id', _quoteData.id);
+    if (error) throw error;
 
     hide('approval-section');
     show('state-changes-sent');
