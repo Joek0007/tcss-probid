@@ -2462,6 +2462,24 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     </div>
   </div>
 </div>
+<div class="modal-overlay" id="modal-email-contact-sync">
+  <div class="modal-box" style="max-width:470px;width:92%">
+    <div class="modal-body" style="padding:26px 26px 22px">
+      <div style="font-size:17px;font-weight:800;color:#0D2B4E;margin-bottom:10px">Email differs from the contact</div>
+      <p style="font-size:14px;line-height:1.55;color:#37474f;margin:0 0 6px">
+        You entered <b id="emc-new-email" style="color:#0D2B4E"></b>, but the contact
+        <b id="emc-contact-name" style="color:#0D2B4E"></b> has
+        <b id="emc-contact-email" style="color:#0D2B4E"></b> on file.
+      </p>
+      <p style="font-size:13.5px;color:#6b7686;margin:0 0 18px">What would you like to do?</p>
+      <div style="display:flex;flex-direction:column;gap:9px">
+        <button type="button" onclick="emcUseForQuoteOnly()" style="padding:11px 14px;border:1.5px solid #2E7D32;background:#2E7D32;color:#fff;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;text-align:left">Use this email for this quote only<div style="font-weight:400;font-size:12px;opacity:.9;margin-top:2px">The contact record stays unchanged.</div></button>
+        <button type="button" onclick="emcUpdateContact()" style="padding:11px 14px;border:1.5px solid #1565C0;background:#fff;color:#0D2B4E;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;text-align:left">Also update <span id="emc-contact-name2"></span>&rsquo;s saved email<div style="font-weight:400;font-size:12px;color:#6b7686;margin-top:2px">Changes the contact record for future quotes too.</div></button>
+        <button type="button" onclick="emcRevert()" style="padding:10px 14px;border:1.5px solid #cfd8dc;background:#fff;color:#546e7a;border-radius:8px;font-weight:700;font-size:13.5px;cursor:pointer;text-align:left">Cancel &mdash; keep the contact&rsquo;s email</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-invoice" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
   <div class="modal-box" style="max-width:1100px;width:98%;margin:0 auto">
     <div class="modal-head" style="position:sticky;top:0;z-index:10;background:#fff">
@@ -6957,28 +6975,28 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919gn with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919go with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919gn"></script>
-<script src="js/quotes.js?v=20260919gn"></script>
-<script src="js/tools.js?v=20260919gn"></script>
-<script src="js/field.js?v=20260919gn"></script>
-<script src="js/crm.js?v=20260919gn"></script>
-<script src="js/vehicles.js?v=20260919gn"></script>
-<script src="js/dispatch.js?v=20260919gn"></script>
-<script src="js/permissions.js?v=20260919gn"></script>
-<script src="js/worktracking.js?v=20260919gn"></script>
-<script src="js/calendar.js?v=20260919gn"></script>
-<script src="js/workorders.js?v=20260919gn"></script>
-<script src="js/purchaseorders.js?v=20260919gn"></script>
-<script src="js/inventory.js?v=20260919gn"></script>
-<script src="js/reports.js?v=20260919gn"></script>
-<script src="js/recyclebin.js?v=20260919gn"></script>
-<script src="js/contracts.js?v=20260919gn"></script>
-  <script src="js/recurring.js?v=20260919gn"></script>
-  <script src="js/seed_managed.js?v=20260919gn"></script>
-  <script src="js/applock.js?v=20260919gn"></script>
-  <script src="js/auth.js?v=20260919gn"></script>
+<script src="js/core.js?v=20260919go"></script>
+<script src="js/quotes.js?v=20260919go"></script>
+<script src="js/tools.js?v=20260919go"></script>
+<script src="js/field.js?v=20260919go"></script>
+<script src="js/crm.js?v=20260919go"></script>
+<script src="js/vehicles.js?v=20260919go"></script>
+<script src="js/dispatch.js?v=20260919go"></script>
+<script src="js/permissions.js?v=20260919go"></script>
+<script src="js/worktracking.js?v=20260919go"></script>
+<script src="js/calendar.js?v=20260919go"></script>
+<script src="js/workorders.js?v=20260919go"></script>
+<script src="js/purchaseorders.js?v=20260919go"></script>
+<script src="js/inventory.js?v=20260919go"></script>
+<script src="js/reports.js?v=20260919go"></script>
+<script src="js/recyclebin.js?v=20260919go"></script>
+<script src="js/contracts.js?v=20260919go"></script>
+  <script src="js/recurring.js?v=20260919go"></script>
+  <script src="js/seed_managed.js?v=20260919go"></script>
+  <script src="js/applock.js?v=20260919go"></script>
+  <script src="js/auth.js?v=20260919go"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

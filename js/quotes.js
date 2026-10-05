@@ -630,6 +630,8 @@ function initQQStage3Watchers(){
       scheduleQQDraftSave();
       setTimeout(updateQQStage3UI, 0);
     }
+    // When the quote's email field is edited, check it against the linked contact's email.
+    if (t.id === 'qq-em') setTimeout(_qqCheckEmailVsContact, 0);
   }, true);
   window.addEventListener('beforeunload', function(e){
     if (!_qqDirty) return;
@@ -2255,6 +2257,64 @@ function openModal(id) { const m=document.getElementById(id); if(m){
 function closeModal(id) { const m=document.getElementById(id); if(m){ m.classList.remove('open'); m.style.zIndex=''; }
   // Hide the document prev/next arrows when a document modal closes
   if (typeof hideDocNav === 'function' && ['modal-view-quote','modal-work-order','modal-invoice','modal-contract'].indexOf(id) >= 0) hideDocNav();
+}
+
+// ============================================================
+// Quote email vs. linked contact — confirmation prompt
+// When the user edits the email on the quote form and it differs from the saved
+// email of the quote's linked contact, ask whether to keep it just for this quote
+// or also update the contact record. Prevents silent contact overwrites and makes
+// an intentional per-quote address explicit. Triggered on blur/change of qq-em.
+// ============================================================
+var _emcState = null;
+function _qqCheckEmailVsContact() {
+  var emEl  = document.getElementById('qq-em');
+  var ctIdEl= document.getElementById('qq-contact-id');
+  if (!emEl || !ctIdEl) return;
+  var newEmail = (emEl.value || '').trim();
+  var ctId     = (ctIdEl.value || '').trim();
+  if (!ctId || !newEmail) return;                       // no linked contact or empty field
+  var c = (DB.contacts || []).find(function(x){ return x.id === ctId; });
+  if (!c || !c.email) return;                           // contact has no email to compare
+  if (String(c.email).trim().toLowerCase() === newEmail.toLowerCase()) return;  // same → no prompt
+  if (emEl.getAttribute('data-emc-ack') === newEmail) return;  // already decided for this value
+  _emcState = { contactId: c.id, newEmail: newEmail, contactEmail: c.email, contactName: c.name || 'this contact' };
+  var sv = function(id, v){ var e=document.getElementById(id); if(e) e.textContent = v; };
+  sv('emc-new-email', newEmail);
+  sv('emc-contact-name', _emcState.contactName);
+  sv('emc-contact-name2', _emcState.contactName);
+  sv('emc-contact-email', c.email);
+  openModal('modal-email-contact-sync');
+}
+function emcUseForQuoteOnly() {
+  var emEl = document.getElementById('qq-em');
+  if (emEl && _emcState) emEl.setAttribute('data-emc-ack', _emcState.newEmail);
+  closeModal('modal-email-contact-sync');
+  _emcState = null;
+}
+function emcUpdateContact() {
+  if (_emcState) {
+    var c = (DB.contacts || []).find(function(x){ return x.id === _emcState.contactId; });
+    if (c) {
+      c.email = _emcState.newEmail;
+      try { if (typeof saveDB === 'function') saveDB(); } catch(e){}
+      try {
+        if (typeof _pushContactToCloud === 'function') _pushContactToCloud(c);
+        else if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300);
+      } catch(e){}
+      if (typeof showToast === 'function') showToast("Updated " + (c.name || 'contact') + "'s email to " + _emcState.newEmail, 'success');
+    }
+    var emEl = document.getElementById('qq-em');
+    if (emEl) emEl.setAttribute('data-emc-ack', _emcState.newEmail);
+  }
+  closeModal('modal-email-contact-sync');
+  _emcState = null;
+}
+function emcRevert() {
+  var emEl = document.getElementById('qq-em');
+  if (emEl && _emcState) { emEl.value = _emcState.contactEmail; emEl.removeAttribute('data-emc-ack'); if (typeof setQQDirty==='function') setQQDirty(true,'Unsaved changes in Quick Quote'); }
+  closeModal('modal-email-contact-sync');
+  _emcState = null;
 }
 
 // ============================================================
