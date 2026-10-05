@@ -952,6 +952,7 @@ async function syncAllFromCloud(silent) {
   // Always re-enforce role permissions when sync completes
   var _syncRole = _currentUser ? _currentUser.role : null;
   if (!_sb || !_currentUser) return;
+  _ensureSaveDBWrapped();   // (build gr) so local blob changes are tracked for anti-clobber
   // PERF: if a local cache already exists (every hard refresh / re-login), never block the
   // screen with the sync overlay. Show the cached data instantly and refresh in the
   // background — exactly like the 15-minute auto-sync. Only a genuinely empty first load
@@ -1670,6 +1671,10 @@ async function syncAllFromCloud(silent) {
 
   // Secondary collections (tools, checkouts, inventory locations/transfers) live in the
   // app_state blob store. Only overwrite local when the cloud actually returned an array.
+  // ANTI-CLOBBER (build gr): if local blob data has unpushed changes (e.g. a tool just
+  // checked out / transferred / returned, or a kit's Required flag edited), flush those
+  // blobs to the cloud FIRST so the read below reflects them instead of wiping them.
+  try { if (_blobHasUnpushedChanges()) { await _pushBlobsToCloud(); } } catch(e) {}
   try {
     var { data: stateRows } = await _sbSelectAll(function(){ return _sb.from('app_state').select('key,data'); });
     if (stateRows && stateRows.length) {
@@ -2413,9 +2418,58 @@ async function _pushSettingsToCloud() {
   });
 }
 
+// ============================================================
+// Blob-collection anti-clobber (build gr)
+// tools, toolCheckouts, inventory locations, etc. sync as whole-array
+// blobs in app_state (last-writer-wins). A background PULL overwrites
+// local with the cloud copy — so a just-made local change (a tool
+// checkout, a transfer, a return, a Required-vs-Optional kit edit) is
+// WIPED if a pull lands before that change is pushed. Observed live:
+// a checkout vanished on the next sync and the tool reverted to Available.
+// Fix: note when local blob data changes (every saveDB), and on a pull
+// FLUSH those local blobs to the cloud first so the read reflects them
+// instead of clobbering them. On boot (no local change yet) the pull is
+// unchanged and still receives other devices' data — important so a
+// stale/empty local copy never overwrites good cloud data.
+// ============================================================
+var _BLOB_KEYS = ['tools','toolCheckouts','checkoutLog','invLocations','invTransfers','absences',
+  'lunchFlags','payrollLog','timeCorrections','leaveForfeiture','toolLoans'];
+if (typeof window.__blobDirtyAt !== 'number')  window.__blobDirtyAt = 0;
+if (typeof window.__blobPushedAt !== 'number') window.__blobPushedAt = 0;
+
+// Mark blob data dirty on every local save. saveDB lives in core.js; wrap it
+// once, lazily, so load order can't matter.
+function _ensureSaveDBWrapped() {
+  try {
+    if (typeof window.saveDB === 'function' && !window.saveDB.__blobWrapped) {
+      var _orig = window.saveDB;
+      window.saveDB = function(){ window.__blobDirtyAt = Date.now(); return _orig.apply(this, arguments); };
+      window.saveDB.__blobWrapped = true;
+    }
+  } catch(e) {}
+}
+
+// True only when a local change happened AFTER the last successful blob push,
+// within a safety window (so a stuck push can't block pulls forever).
+function _blobHasUnpushedChanges() {
+  return window.__blobDirtyAt > window.__blobPushedAt &&
+         (Date.now() - window.__blobDirtyAt) < 120000;
+}
+
+// Flush the blob collections to the cloud (same mapping pushAllToCloud uses).
+async function _pushBlobsToCloud() {
+  if (!_sb || !_currentUser || _currentUser.role === 'helper_tech') return;
+  for (var _bk of _BLOB_KEYS) {
+    try { await _sb.from('app_state').upsert({ key: _bk, data: DB[_bk] || [], updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
+    catch(e) { console.warn('[BlobFlush]', _bk, e && e.message); }
+  }
+  window.__blobPushedAt = Date.now();
+}
+
 async function pushAllToCloud() {
   if (!_sb || !_currentUser) return;
   if (_currentUser.role === 'helper_tech') return;
+  _ensureSaveDBWrapped();
   try { pruneNotifyRecipients(); } catch(e) {}   // never push a removed employee
   // Concurrency lock — prevent overlapping pushes which cause duplicate line item inserts
   if (_pushInProgress) {
@@ -3151,15 +3205,13 @@ async function pushAllToCloud() {
     // Persist secondary collections that have no dedicated table (tools & assets,
     // tool checkouts, checkout log, inventory locations/transfers). Stored as whole-
     // collection JSON blobs in app_state so they survive reloads and reach every device.
-    var _blobKeys = ['tools','toolCheckouts','checkoutLog','invLocations','invTransfers','absences',
-      // sync-audit RED #7: payroll/tool side-records that were local-only (per-device). Arrays,
-      // synced via the app_state blob store (whole-array last-write-wins — fine for these
-      // low-frequency, office-written collections; strictly better than never syncing).
-      'lunchFlags','payrollLog','timeCorrections','leaveForfeiture','toolLoans'];
-    for (var _bk of _blobKeys) {
+    // Blob collections (tools, checkouts, inventory locations/transfers, payroll/tool
+    // side-records). Whole-array last-write-wins; see _BLOB_KEYS / anti-clobber above.
+    for (var _bk of _BLOB_KEYS) {
       try { await _sb.from('app_state').upsert({ key: _bk, data: DB[_bk] || [], updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
       catch(_be) { console.warn('[Push] app_state', _bk, _be && _be.message); }
     }
+    window.__blobPushedAt = Date.now();   // local blobs are now in the cloud
 
     // time_off_requests — per-row upsert + tombstone (replaces the app_state blob for this collection)
     try {
