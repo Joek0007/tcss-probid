@@ -1962,6 +1962,13 @@ function _validEmail(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
 var _emailQuoteData = null;
 function fireEmailQuote(q) {
   if (!q) return;
+  // Reuse the quote's EXISTING approval token so the portal link stays stable across re-sends.
+  // Form-derived quote objects (getQData) don't carry approvalToken, which previously made every
+  // send mint a NEW token — breaking any link already emailed. Pull it from the saved quote.
+  if (!q.approvalToken) {
+    var _savedQ = (DB.quotes || []).find(function(x){ return (q.id && x.id === q.id) || (q.num && x.num === q.num); });
+    if (_savedQ && _savedQ.approvalToken) q.approvalToken = _savedQ.approvalToken;
+  }
   _emailQuoteData = q;
   openEmailQuoteModal(q);
 }
