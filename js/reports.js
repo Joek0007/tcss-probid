@@ -219,6 +219,7 @@ function getQData(id) {
   return {
     id: id || null,
     num: (document.getElementById('qq-num')||{}).value || '',
+    approvalToken: (existing ? existing.approvalToken : undefined),
     cn:  (document.getElementById('qq-cn')||{}).value || '',
     customerId: (document.getElementById('qq-customer-id')||{}).value || '',
     ph:  (document.getElementById('qq-ph')||{}).value || '',
@@ -240,7 +241,7 @@ function getQData(id) {
     rep: (document.getElementById('qq-rep')||{}).value || '',
     pt:  (document.getElementById('qq-pt')||{}).value || '',
     tc:  (document.getElementById('qq-tc')||{}).value || '',
-    notes: (document.getElementById('qq-notes')||{}).value || '',
+    notes: (function(){var _n=document.getElementById('qq-notes'); if(!_n) return ''; var _v=_n.value; if(_v!=null&&_v!=='') return _v; if(_n.isContentEditable||_n.getAttribute('contenteditable')!=null){ if(!(_n.textContent||'').trim()) return ''; return _n.innerHTML||''; } return '';})(),
     intNotes: (document.getElementById('qq-int')||{}).value || '',
     status: (document.getElementById('qq-status')||{}).value || 'draft',
     followupDate: (document.getElementById('qq-followup')||{}).value || calcFollowupDate((document.getElementById('qq-dt')||{}).value || ''),
