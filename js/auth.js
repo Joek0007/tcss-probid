@@ -1048,6 +1048,8 @@ async function syncAllFromCloud(silent) {
       }
     }
   } catch(e) { errors.push('settings: '+e.message); }
+  // (ig) snapshot settings baseline so the field-level merge push can send only changed keys
+  try { window.__settingsBaseline = (typeof _settingsSnapshot==='function') ? _settingsSnapshot() : null; } catch(e){ window.__settingsBaseline = null; }
 
   if (_currentUser.role !== 'helper_tech' && _currentUser.role !== 'lead_tech') {
 
@@ -2420,10 +2422,44 @@ function pruneNotifyRecipients() {
   return changed;
 }
 
+// (build ig) FIELD-LEVEL SETTINGS MERGE. The settings blob is one big object; a
+// wholesale write clobbers a concurrent editor's change (the "John Wilson"
+// notify-list resurrection). When _settingsMerge() is on, each push sends ONLY
+// the keys this session changed since load, merged atomically server-side via
+// merge_company_settings(), so two people changing different settings both stick.
+// Dormant by default; ?setmerge=0 reverts instantly.
+window._settingsMerge = function _settingsMerge(){
+  try {
+    if (/[?&]setmerge=0\b/.test(location.search)) return false;
+    if (localStorage.getItem('settings_merge') === '0') return false;
+    if (/[?&]setmerge=1\b/.test(location.search)) return true;
+    if (localStorage.getItem('settings_merge') === '1') return true;
+  } catch(e){}
+  return !!window.__SETTINGS_MERGE_DEFAULT;   // cutover flips this to true
+};
+function _settingsSnapshot(){
+  try { return JSON.parse(JSON.stringify(Object.assign({}, DB.settings, { _woSettings: DB.woSettings||null, _msSettings: DB.msSettings||null }))); }
+  catch(e){ return {}; }
+}
+function _settingsDelta(){
+  var cur = _settingsSnapshot(), base = window.__settingsBaseline || {}, delta = {};
+  for (var k in cur){ if (cur.hasOwnProperty(k)){ if (JSON.stringify(cur[k]) !== JSON.stringify(base[k])) delta[k] = cur[k]; } }
+  return delta;
+}
+// Merge-aware push: sends only changed keys through the atomic merge RPC.
+async function _settingsMergePush(){
+  var delta = _settingsDelta();
+  if (!Object.keys(delta).length) return { error:null, noop:true };
+  var rr = await _sb.rpc('merge_company_settings', { delta: delta });
+  if (!rr.error) { try { window.__settingsBaseline = _settingsSnapshot(); } catch(e){} }
+  return rr;
+}
+
 // Targeted settings-only push (same mapping as pushAllToCloud's company_settings
 // upsert) so a load-time prune can clean the cloud copy without a full sync.
 async function _pushSettingsToCloud() {
   if (!_sb || !DB || !DB.settings) return;
+  if (typeof _settingsMerge==='function' && _settingsMerge()) { return _settingsMergePush(); }
   return _sb.from('company_settings').upsert({
     id: 1,
     company_name: DB.settings.cname || 'TCSS',
@@ -2604,6 +2640,10 @@ async function pushAllToCloud() {
       try { _dbPackAsync(DB).then(function(p){ try{ localStorage.setItem(DB_KEY, p); }catch(e){} }); } catch(e) {}
     }
     // Push settings to company_settings (single row, id=1)
+    if (typeof _settingsMerge==='function' && _settingsMerge()) {
+      // (ig) field-level merge: only the keys this session changed, atomic, no clobber
+      var _sm = await _settingsMergePush(); if (_sm && _sm.error) _pushErr('company_settings(merge)', _sm);
+    } else {
     _pushErr('company_settings', await _sb.from('company_settings').upsert({
       id: 1,
       company_name: DB.settings.cname || 'TCSS',
@@ -2616,6 +2656,7 @@ async function pushAllToCloud() {
       // Bundle the per-module settings blobs so they persist + round-trip (RED #5/#6).
       settings_json: Object.assign({}, DB.settings, { _woSettings: DB.woSettings || null, _msSettings: DB.msSettings || null })
     }));
+    }
 
     // Push margin floors — upsert each row
     if (_getMFList) {

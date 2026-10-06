@@ -321,6 +321,44 @@ async function run(){
   r=add('Auto-clean all SELFTEST locations');
   try{ const n=await softDeleteSelftestLocs(); const remain=(await freshLoc('SELFTEST')).length; mark(r, remain===0, remain===0?'cleaned up; no active SELFTEST locations remain.':(remain+' still active')); }catch(e){ mark(r,false,e.message); }
 
+  // ---- COMPANY SETTINGS (field-level merge) ----
+  group('Company settings — field-level merge (the fix)');
+  async function _readSettings(){ const rr=await sb.from('company_settings').select('settings_json').eq('id',1).single(); return (rr.data&&rr.data.settings_json)||{}; }
+  var _cnameBefore;
+
+  r=add('Capture a real untouched setting to prove it survives');
+  try{ const s=await _readSettings(); _cnameBefore=s.cname; mark(r,true,'baseline captured.'); }catch(e){ mark(r,false,e.message); }
+
+  r=add('Two writers change DIFFERENT settings at once → both survive');
+  try{
+    await Promise.all([
+      sb.rpc('merge_company_settings', {delta:{_selftest_a:'A-'+TAG}}),
+      sb.rpc('merge_company_settings', {delta:{_selftest_b:'B-'+TAG}})
+    ]);
+    const s=await _readSettings();
+    const ok = s._selftest_a==='A-'+TAG && s._selftest_b==='B-'+TAG;
+    mark(r, ok, ok?'Both keys present — neither writer clobbered the other (the "John Wilson" fix).':'a='+s._selftest_a+' b='+s._selftest_b);
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('A real untouched setting is preserved through those merges');
+  try{ const s=await _readSettings(); const ok=(s.cname===_cnameBefore); mark(r, ok, ok?'Untouched "cname" unchanged by the concurrent merges.':'cname changed: '+_cnameBefore+' -> '+s.cname); }catch(e){ mark(r,false,e.message); }
+
+  r=add('Two writers change the SAME setting → last-writer-wins (expected)');
+  try{
+    await sb.rpc('merge_company_settings', {delta:{_selftest_x:'first'}});
+    await sb.rpc('merge_company_settings', {delta:{_selftest_x:'second'}});
+    const s=await _readSettings();
+    mark(r, s._selftest_x==='second', s._selftest_x==='second'?'Same-key resolves to the latest write, as designed for single config values.':'got '+s._selftest_x);
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Auto-clean the SELFTEST settings keys');
+  try{
+    await sb.rpc('merge_company_settings', {delta:{}, remove_keys:['_selftest_a','_selftest_b','_selftest_x']});
+    const s=await _readSettings();
+    const clean = !('_selftest_a' in s) && !('_selftest_b' in s) && !('_selftest_x' in s);
+    mark(r, clean, clean?'probe keys removed; settings back to baseline.':'leftover probe keys remain');
+  }catch(e){ mark(r,false,e.message); }
+
   // ---- RETIRE / TEARDOWN ----
   group('Retire & cleanup');
   r=add('Retire (soft-delete) removes a tool from the active list');
