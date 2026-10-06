@@ -2435,7 +2435,7 @@ window._settingsMerge = function _settingsMerge(){
     if (/[?&]setmerge=1\b/.test(location.search)) return true;
     if (localStorage.getItem('settings_merge') === '1') return true;
   } catch(e){}
-  return !!window.__SETTINGS_MERGE_DEFAULT;   // cutover flips this to true
+  return true;   // (cutover) field-level settings merge is now the default for everyone
 };
 function _settingsSnapshot(){
   try { return JSON.parse(JSON.stringify(Object.assign({}, DB.settings, { _woSettings: DB.woSettings||null, _msSettings: DB.msSettings||null }))); }
