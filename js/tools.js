@@ -1444,10 +1444,10 @@ async function _uploadToolPhotoFile(file, subId) {
   try {
     if (typeof compressImage === 'function') file = await compressImage(file);
     var safe = ((file && file.name) || 'photo.jpg').replace(/[^a-zA-Z0-9._-]/g,'_');
-    var path = 'tool-photos/' + (subId || 'misc') + '/' + Date.now() + '-' + Math.random().toString(36).slice(2,6) + '-' + safe;
-    var up = await _sb.storage.from('job-photos').upload(path, file, { cacheControl:'3600', upsert:false });
+    var path = (subId || 'misc') + '/' + Date.now() + '-' + Math.random().toString(36).slice(2,6) + '-' + safe;
+    var up = await _sb.storage.from('tool-photos').upload(path, file, { cacheControl:'3600', upsert:false });
     if (up.error) throw up.error;
-    var pu = _sb.storage.from('job-photos').getPublicUrl(path);
+    var pu = _sb.storage.from('tool-photos').getPublicUrl(path);
     return (pu && pu.data) ? pu.data.publicUrl : null;
   } catch(e) { showToast('Photo upload failed: ' + (e.message || e), 'error'); return null; }
 }
