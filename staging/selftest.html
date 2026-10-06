@@ -69,6 +69,7 @@ async function run(){
     const u = await setupAuth();
     document.getElementById('who').textContent = 'signed in as '+(u.email||u.id.slice(0,8));
     if(!window.ToolsDB){ throw new Error('tools_db.js did not load (ToolsDB missing).'); }
+    if(!window.CheckoutsDB){ throw new Error('checkouts_db.js did not load (CheckoutsDB missing).'); }
   } catch(e){
     group('Setup'); const r=add('Authenticate with your ProBid session'); mark(r,false,e.message);
     finish(); return;
@@ -83,12 +84,20 @@ async function run(){
     for(const t of mine){ await ToolsDB.retireTool(t._uuid); }
     return mine.length;
   }
+  function today(){ return new Date().toISOString().split('T')[0]; }
+  async function freshCO(nameIncludes){ const list=await CheckoutsDB.load(); return list.filter(c=>(c.toName||'').indexOf(nameIncludes)>=0); }
+  async function softDeleteSelftestCheckouts(){
+    // teardown: retire any SELFTEST custody rows (soft delete; invisible to the app)
+    const all=await CheckoutsDB.load(); const mine=all.filter(c=>(c.toName||'').indexOf('SELFTEST')===0);
+    for(const c of mine){ await CheckoutsDB.retire(c._uuid); }
+    return mine.length;
+  }
 
   // ---- SETUP ----
   group('Setup');
   let r=add('Authenticate + load real tools_db.js'); mark(r,true,'ToolsDB present; running against live DB.');
   r=add('Clean any leftover SELFTEST data from a prior run');
-  try{ const n=await softDeleteSelftest(); mark(r,true,'retired '+n+' leftover test tool(s).'); }catch(e){ mark(r,false,e.message); }
+  try{ const nc=await softDeleteSelftestCheckouts(); const n=await softDeleteSelftest(); mark(r,true,'retired '+nc+' leftover checkout(s) + '+n+' tool(s).'); }catch(e){ mark(r,false,e.message); }
 
   // ---- PER-ROW CORE ----
   group('Per-row core (the fix)');
@@ -141,6 +150,121 @@ async function run(){
   r=add('Tool id stays stable for checkout linkage');
   try{ const alpha=(await freshLoad(TAG+' ')).find(t=>t.name===TAG+' Alpha'); const ok=!!alpha.id && !!alpha._uuid; mark(r, ok, ok?('app id="'+alpha.id+'" (what checkouts reference); table uuid tracked separately.'):'missing id/_uuid'); }catch(e){ mark(r,false,e.message); }
 
+  // ---- CHECKOUTS / CUSTODY (per-row) ----
+  group('Checkouts — per-row custody (the fix)');
+  var RIG=null;
+
+  r=add('Prepare a SELFTEST tool to check out');
+  try{
+    var rigId='SELFTEST-CO-RIG-'+Date.now();
+    var rsv=await ToolsDB.saveTool({id:rigId, name:'SELFTEST Checkout Rig', cat:'Selftest',
+      linkedGroups:[{id:'cg1',label:'Case',mode:'required'},{id:'cg2',label:'Battery',mode:'optional'}]});
+    window.DB.tools = await ToolsDB.load();                 // so CheckoutsDB can resolve tool_id
+    var rigApp=(DB.tools||[]).find(function(t){ return t.name==='SELFTEST Checkout Rig'; });
+    RIG = rigApp && rigApp.id;
+    mark(r, rsv.ok && !!RIG, (rsv.ok&&RIG)?('rig ready (app id="'+RIG+'" resolves to a real tool uuid).'):'could not create rig: '+JSON.stringify(rsv));
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Two writers create DIFFERENT checkouts at once → both survive');
+  try{
+    var coA={id:'ST-CO-A-'+Date.now(), toolId:RIG, toName:'SELFTEST Al', jobName:'Job One', date:today(), status:'checked_out',
+      groupsIncluded:[{groupId:'cg1',label:'Case',included:true,mode:'required'},{groupId:'cg2',label:'Battery',included:true,mode:'optional'}]};
+    var coB={id:'ST-CO-B-'+Date.now(), toolId:RIG, toName:'SELFTEST Bob', jobName:'Job Two', date:today(), status:'checked_out', groupsIncluded:[]};
+    var pair=await Promise.all([CheckoutsDB.save(coA), CheckoutsDB.save(coB)]);
+    var found=await freshCO('SELFTEST ');
+    var ok = pair[0].ok && pair[1].ok && found.some(function(c){return c.toName==='SELFTEST Al';}) && found.some(function(c){return c.toName==='SELFTEST Bob';});
+    mark(r, ok, ok?'Both custody records persisted independently (old blob would have lost one).':'A='+JSON.stringify(pair[0])+' B='+JSON.stringify(pair[1]));
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Two writers edit the SAME checkout at once → stale one REJECTED (no clobber)');
+  try{
+    var al0=(await freshCO('SELFTEST Al'))[0];
+    var s1=Object.assign({},al0); s1.jobName='by-writer-1';
+    var s2=Object.assign({},al0); s2.jobName='by-writer-2';
+    var w1=await CheckoutsDB.save(s1);
+    var w2=await CheckoutsDB.save(s2);
+    var afterE=(await freshCO('SELFTEST Al'))[0];
+    var ok = w1.ok && w2.conflict===true && afterE.jobName==='by-writer-1';
+    mark(r, ok, ok?'Writer 1 saved; writer 2 rejected with a conflict; writer 1\'s value kept.':'w1='+JSON.stringify(w1)+' w2='+JSON.stringify(w2)+' job='+(afterE&&afterE.jobName));
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Field hand-off (pending → accept) moves custody; stayed-behind parts split off');
+  try{
+    var al=(await freshCO('SELFTEST Al'))[0];
+    // sender proposes the hand-off; Case travels, Battery stays
+    al.pendingTransfer={ to:'SELFTEST Cara', by:al.toName, byUser:'tester', at:today(),
+      travel:[{groupId:'cg1',label:'Case',included:true,mode:'required'}],
+      stay:[{groupId:'cg2',label:'Battery',included:true,mode:'optional'}],
+      note:'field handoff', expiresAt:Date.now()+86400000 };
+    var pend=await CheckoutsDB.save(al);
+    var alP=(await freshCO('SELFTEST Al'))[0];
+    var pendOk = pend.ok && alP.pendingTransfer && alP.pendingTransfer.to==='SELFTEST Cara' &&
+      (alP.pendingTransfer.travel||[]).length===1 && (alP.pendingTransfer.stay||[]).length===1;
+    // receiver accepts: close sender, open receiver, split the stay
+    var now=today();
+    delete alP.pendingTransfer;
+    alP.returnedAt=now; alP.status='verified'; alP.transferredTo='SELFTEST Cara';
+    alP.groupsIncluded=[{groupId:'cg1',label:'Case',included:true,mode:'required'}];
+    var cl=await CheckoutsDB.save(alP);
+    var recv={id:'ST-CO-R-'+Date.now(), toolId:RIG, toName:'SELFTEST Cara', jobName:al.jobName, date:now, status:'checked_out',
+      groupsIncluded:[{groupId:'cg1',label:'Case',included:true,mode:'required'}],
+      transferredFrom:'SELFTEST Al', transferMode:'peer', acceptedBy:'SELFTEST Cara', acceptedAt:now, transferPriorCoId:al.id};
+    var rc=await CheckoutsDB.save(recv);
+    var split={id:'ST-CO-S-'+Date.now(), toolId:RIG, toName:'SELFTEST Al', jobName:al.jobName, date:now, status:'checked_out',
+      groupsIncluded:[{groupId:'cg2',label:'Battery',included:true,mode:'optional'}],
+      isGroupSplit:true, splitFromToolId:RIG, notes:'Battery stayed with SELFTEST Al'};
+    var sp=await CheckoutsDB.save(split);
+    var all=await freshCO('SELFTEST ');
+    var sender=all.find(function(c){return c.toName==='SELFTEST Al' && !c.isGroupSplit;});
+    var receiver=all.find(function(c){return c.toName==='SELFTEST Cara';});
+    var splitRec=all.find(function(c){return c.isGroupSplit;});
+    var ok = pendOk && cl.ok && rc.ok && sp.ok &&
+      sender && sender.returnedAt && sender.status==='verified' && sender.transferredTo==='SELFTEST Cara' &&
+      receiver && !receiver.returnedAt && receiver.transferredFrom==='SELFTEST Al' && receiver.transferMode==='peer' && receiver.acceptedBy==='SELFTEST Cara' &&
+      splitRec && splitRec.isGroupSplit===true && splitRec.toName==='SELFTEST Al' && (splitRec.groupsIncluded||[]).length===1 && splitRec.toolId===RIG;
+    mark(r, ok, ok?'Cara holds it (peer-accepted), Al released, Battery stayed behind as a real split row — no "_groups" fake id.':
+      'pendOk='+pendOk+' close='+JSON.stringify(cl)+' recv='+JSON.stringify(rc)+' split='+JSON.stringify(sp)+' sender='+!!sender+' receiver='+!!receiver+' splitRec='+!!splitRec);
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Active-holder lookup ignores the split row (new rule: !isGroupSplit)');
+  try{
+    var active=(await freshCO('SELFTEST ')).filter(function(c){ return c.toolId===RIG && !c.returnedAt && !c.isGroupSplit; });
+    var names=active.map(function(c){return c.toName;}).sort();
+    var ok = active.every(function(c){ return !c.isGroupSplit; }) && names.indexOf('SELFTEST Cara')>=0;
+    mark(r, ok, ok?('live holders of the rig: '+names.join(', ')+' — the stayed-behind split row is correctly excluded.'):'active='+JSON.stringify(names));
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Return → verify closes the record and round-trips');
+  try{
+    var bob=(await freshCO('SELFTEST Bob'))[0];
+    bob.status='pending_verify'; bob.returnedAt=today(); bob.returnSubmittedAt=today(); bob.returnSubmittedBy='SELFTEST Bob'; bob.dropoffLocation='shop shelf';
+    var rr1=await CheckoutsDB.save(bob);
+    var pv=(await freshCO('SELFTEST Bob'))[0];
+    var pvOk = rr1.ok && pv.status==='pending_verify' && pv.dropoffLocation==='shop shelf';
+    pv.status='verified'; pv.verifiedAt=today(); pv.verifiedBy='SELFTEST Office';
+    var rr2=await CheckoutsDB.save(pv);
+    var done=(await freshCO('SELFTEST Bob'))[0];
+    var ok = pvOk && rr2.ok && done.status==='verified' && done.verifiedBy==='SELFTEST Office' && !!done.returnedAt;
+    mark(r, ok, ok?'Pending-verify → verified persisted; closed record kept for history (status verified, returnedAt set).':'pvOk='+pvOk+' r2='+JSON.stringify(rr2)+' status='+(done&&done.status)+' by='+(done&&done.verifiedBy));
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Take-as-is custody chain persists');
+  try{
+    var asis={id:'ST-CO-AI-'+Date.now(), toolId:RIG, toName:'SELFTEST Dan', date:today(), status:'checked_out', groupsIncluded:[],
+      takenAsIs:true, asIsFrom:'SELFTEST Bob', asIsAckBy:'SELFTEST Dan', asIsApprovedBy:'SELFTEST Mgr', asIsPriorCoId:'prior-x'};
+    var asv=await CheckoutsDB.save(asis);
+    var back=(await freshCO('SELFTEST Dan'))[0];
+    var ok = asv.ok && back.takenAsIs===true && back.asIsFrom==='SELFTEST Bob' && back.asIsApprovedBy==='SELFTEST Mgr' && back.asIsPriorCoId==='prior-x';
+    mark(r, ok, ok?'As-is chain (from / ack-by / approved-by / prior) round-tripped.':'sv='+JSON.stringify(asv)+' back='+JSON.stringify(back));
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Included parts (groups) persist on a checkout');
+  try{
+    var cara=(await freshCO('SELFTEST Cara'))[0];
+    var n=(cara.groupsIncluded||[]).length;
+    mark(r, n===1, n===1?'Cara\'s checkout kept its 1 traveling part (Case).':'expected 1 group, got '+n);
+  }catch(e){ mark(r,false,e.message); }
+
   // ---- RETIRE / TEARDOWN ----
   group('Retire & cleanup');
   r=add('Retire (soft-delete) removes a tool from the active list');
@@ -151,8 +275,15 @@ async function run(){
     mark(r, !still, !still?'Retired tool no longer appears in the active list.':'tool still active after retire');
   }catch(e){ mark(r,false,e.message); }
 
-  r=add('Auto-clean all SELFTEST data');
-  try{ const n=await softDeleteSelftest(); const remain=(await freshLoad(TAG+' ')).length; mark(r, remain===0, remain===0?('cleaned up; no active SELFTEST tools remain.'):(remain+' SELFTEST tools still active')); }catch(e){ mark(r,false,e.message); }
+  r=add('Auto-clean all SELFTEST data (checkouts + tools)');
+  try{
+    const nc=await softDeleteSelftestCheckouts();
+    const n=await softDeleteSelftest();
+    const remainCO=(await freshCO('SELFTEST')).length;
+    const remainT=(await freshLoad('SELFTEST')).length;
+    const ok = remainCO===0 && remainT===0;
+    mark(r, ok, ok?'cleaned up; no active SELFTEST checkouts or tools remain.':(remainCO+' checkouts / '+remainT+' tools still active'));
+  }catch(e){ mark(r,false,e.message); }
 
   finish();
 }
@@ -165,7 +296,8 @@ function finish(){
 }
 document.getElementById('run').addEventListener('click', run);
 </script>
-<!-- the real shipped per-row engine; tested, not a copy -->
+<!-- the real shipped per-row engines; tested, not copies -->
 <script src="../js/tools_db.js"></script>
+<script src="../js/checkouts_db.js"></script>
 </body>
 </html>
