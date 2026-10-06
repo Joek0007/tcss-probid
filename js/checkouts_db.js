@@ -38,14 +38,22 @@
   function _tsFromMs(ms){ if(!ms) return null; try{ var d=new Date(ms); return isNaN(d.getTime())?null:d.toISOString(); }catch(e){ return null; } }
   function _dateOnly(v){ return v ? String(v).split('T')[0] : ''; }
 
+  // The live in-memory tool list. In the real app DB is module-scoped (NOT on
+  // window), so we read it through the global getTools() accessor; the self-test
+  // harness has no getTools(), so we fall back to window.DB.tools which it sets.
+  function _liveTools(){
+    try { if (typeof window.getTools === 'function') { var g = window.getTools(); if (Array.isArray(g)) return g; } } catch(e){}
+    try { if (window.DB && Array.isArray(window.DB.tools)) return window.DB.tools; } catch(e){}
+    return [];
+  }
+
   // legacy app tool id (string) -> real tools.id uuid, via the in-memory tools
-  // (ToolsDB.load has already populated DB.tools with _uuid). A checkout whose
-  // tool can't be resolved is NOT written (tool_id is a NOT NULL FK) — we never
-  // create a dangling custody row.
+  // (each carries _uuid from ToolsDB). A checkout whose tool can't be resolved is
+  // NOT written (tool_id is a NOT NULL FK) — we never create a dangling custody row.
   function _resolveToolUuid(appToolId){
     if (!appToolId) return null;
     if (_isUuid(appToolId)) return appToolId;
-    var t = (window.DB && DB.tools || []).find(function(x){ return x && String(x.id)===String(appToolId); });
+    var t = _liveTools().find(function(x){ return x && String(x.id)===String(appToolId); });
     return (t && t._uuid) ? t._uuid : null;
   }
 
@@ -221,7 +229,7 @@
   }
 
   function _toolByUuid(){
-    var m={}; (window.DB && DB.tools || []).forEach(function(t){ if(t && t._uuid) m[t._uuid]=t.id; }); return m;
+    var m={}; _liveTools().forEach(function(t){ if(t && t._uuid) m[t._uuid]=t.id; }); return m;
   }
 
   // Load all active checkout/custody records into the app's shape.
@@ -270,7 +278,7 @@
   // Currently a clean slate (0 rows); safe to re-run (matches by legacy_id).
   async function migrateFromBlob(blobCheckouts){
     var sb = window._sb; if(!sb) return {error:'offline'};
-    var list = blobCheckouts || (window.DB && DB.toolCheckouts) || [];
+    var list = blobCheckouts || (typeof window.getToolCheckouts==='function' ? window.getToolCheckouts() : (window.DB && DB.toolCheckouts)) || [];
     var report = [];
     for (var k=0;k<list.length;k++){
       var co = list[k];
