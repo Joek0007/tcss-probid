@@ -1440,9 +1440,12 @@ function viewPhoto(url, caption) {
 async function _uploadToolPhotoFile(file, subId) {
   if (typeof _sb === 'undefined' || !_sb || !_currentUser) { showToast('Not logged in — photo not saved','error'); return null; }
   if (!file) return null;
-  if (file.size > 5*1024*1024) { showToast('Photo must be under 5MB','error'); return null; }
   try {
+    // Compress FIRST (phone photos are routinely 5-12MB) — then guard against the
+    // bucket's 10MB cap. The old pre-compression 5MB gate silently rejected normal
+    // phone photos before they could upload, which looked like "nothing happens".
     if (typeof compressImage === 'function') file = await compressImage(file);
+    if (file && file.size > 10*1024*1024) { showToast('Photo is still over 10MB after compression — please use a smaller image','error'); return null; }
     var safe = ((file && file.name) || 'photo.jpg').replace(/[^a-zA-Z0-9._-]/g,'_');
     var path = (subId || 'misc') + '/' + Date.now() + '-' + Math.random().toString(36).slice(2,6) + '-' + safe;
     var up = await _sb.storage.from('tool-photos').upload(path, file, { cacheControl:'3600', upsert:false });
