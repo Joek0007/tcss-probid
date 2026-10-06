@@ -24,7 +24,7 @@
       if (/[?&]invloc=1\b/.test(location.search)) return true;
       if (localStorage.getItem('invloc_perrow') === '1') return true;
     } catch(e){}
-    return !!window.__INVLOC_PERROW_DEFAULT;   // cutover flips this to true
+    return true;   // (cutover) inventory locations are now per-row for everyone
   };
 
   var _isUuid = function(v){ return typeof v==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v); };
