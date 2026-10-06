@@ -1417,8 +1417,15 @@ function renderDash() {
   var wtAvg = wtPcts.length ? Math.round(wtPcts.reduce(function(s,v){ return s+v; },0)/wtPcts.length) : null;
   setT('ds-wt-pct', wtAvg!==null ? wtAvg+'%' : '—');
 
-  // Tools out
-  var toolsOut = tools.filter(function(t){ return t.status==='checked_out'||t.status==='out'; }).length;
+  // Tools out — a tool's out/available state lives on toolCheckouts, not on the
+  // tool object, so derive it from active (non-returned, non-pending-verify)
+  // checkouts, matching the Tools page's own "Out" definition. Dedupe by toolId so
+  // a tool split across several field techs still counts once.
+  var _dashOutIds = {};
+  (DB.toolCheckouts||[]).forEach(function(c){
+    if (!c.returnedAt && c.status!=='pending_verify') _dashOutIds[c.toolId] = true;
+  });
+  var toolsOut = Object.keys(_dashOutIds).length;
   setT('ds-tools-out', toolsOut);
 
   // Follow-ups due
@@ -1580,12 +1587,19 @@ function renderDash() {
     if (!tools.length) {
       toolsEl.innerHTML = '<div style="color:#90a4ae;font-size:13px">All tools accounted for.</div>';
     } else {
-      var outTools = tools.filter(function(t){ return t.status==='checked_out'||t.status==='out'; }).slice(0,5);
+      var _ovSeen = {}, _ovRows = [];
+      (DB.toolCheckouts||[]).forEach(function(c){
+        if (c.returnedAt || c.status==='pending_verify') return;
+        if (_ovSeen[c.toolId]) return; _ovSeen[c.toolId] = true;
+        var _t = tools.find(function(x){ return x.id===c.toolId; }) || {};
+        _ovRows.push({ name:_t.name||'Tool', who:c.toName||'' });
+      });
+      var outTools = _ovRows.slice(0,5);
       toolsEl.innerHTML = outTools.length ?
-        outTools.map(function(t){
+        (outTools.map(function(r){
           return '<div style="font-size:13px;padding:4px 0;border-bottom:1px solid #f5f5f5">'+
-            escHtml(t.name||'Tool')+' — <strong>'+escHtml(t.checkedOutTo||'')+'</strong></div>';
-        }).join('') :
+            escHtml(r.name)+' — <strong>'+escHtml(r.who)+'</strong></div>';
+        }).join('') + (_ovRows.length>5 ? '<div style="font-size:11px;color:#90a4ae;margin-top:4px">+'+(_ovRows.length-5)+' more out</div>' : '')) :
         '<div style="color:#90a4ae;font-size:13px">All tools accounted for.</div>';
     }
   }
