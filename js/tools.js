@@ -9,6 +9,25 @@
 function getTools() { return DB.tools || []; }
 function getToolCheckouts() { return DB.toolCheckouts || []; }
 
+// (build ib) PER-ROW checkout persistence. When _checkoutsPerRow() is on, every
+// created/mutated checkout is written to its OWN row via CheckoutsDB (optimistic
+// -concurrency guarded) instead of riding the clobber-prone whole-array blob.
+// Dormant by default: when the flag is off this is a no-op and the existing blob
+// path is completely unchanged. Fire-and-forget; the in-memory DB.toolCheckouts
+// is already updated by the caller, so the UI is correct immediately.
+function _coPersist(co){
+  try {
+    if (co && typeof _checkoutsPerRow==='function' && _checkoutsPerRow() && window.CheckoutsDB){
+      CheckoutsDB.save(co).then(function(res){
+        if (res && res.conflict){
+          try{ showToast('That checkout was just changed on another device — reloading the latest','warning',4500); }catch(e){}
+          try{ CheckoutsDB.load().then(function(list){ DB.toolCheckouts = list; if(typeof renderTools==='function') renderTools(); try{ if(typeof renderPendingVerifyTab==='function') renderPendingVerifyTab(); }catch(e){} }); }catch(e){}
+        } else if (res && res.error){ console.warn('[CheckoutsDB save]', res.error); }
+      }).catch(function(e){ console.warn('[CheckoutsDB save]', e&&e.message); });
+    }
+  } catch(e){ console.warn('[CheckoutsDB persist]', e&&e.message); }
+}
+
 // (gt) Fill the tool Location + Assigned-Tech pickers from real data:
 //   Location  = Inventory Locations (Main Shop + trucks) + team members (a tool's
 //               home can be a place OR a person's kit).
@@ -77,7 +96,7 @@ function _renderToolsInner() {
   // Stats
   var totalOut = active.length;
   var totalPV  = pending.length;
-  var totalIn  = tools.filter(function(t){ return !active.find(function(c){ return c.toolId===t.id; }) && !pending.find(function(c){ return c.toolId===t.id; }); }).length;
+  var totalIn  = tools.filter(function(t){ return !active.find(function(c){ return c.toolId===t.id && !c.isGroupSplit; }) && !pending.find(function(c){ return c.toolId===t.id; }); }).length;
   var tagged   = tools.filter(function(t){ return t.tag; }).length;
   var setT = function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
   setT('tool-total', tools.length);
@@ -100,7 +119,7 @@ function _renderToolsInner() {
   if (!tools.length) { tbl.innerHTML='<tr><td colspan="8" class="empty-state"><p>No tools yet. Click + Add Tool to get started.</p></td></tr>'; return; }
 
   tbl.innerHTML = tools.map(function(t){
-    var co = checkouts.find(function(c){ return c.toolId===t.id && !c.returnedAt; });
+    var co = checkouts.find(function(c){ return c.toolId===t.id && !c.returnedAt && !c.isGroupSplit; });
     var isPV = co && co.status === 'pending_verify';
     var isOut = co && !isPV;
 
@@ -492,7 +511,7 @@ function saveToolItem() {
 function delTool(id) {
   if (typeof hasPermission==='function' && !hasPermission('tool.edit')) { showToast('You do not have permission to delete tools','error'); return; }
   var t=(DB.tools||[]).find(function(x){return x.id==id}); if(!t) return;
-  var active=(DB.toolCheckouts||[]).find(function(c){ return c.toolId===id && !c.returnedAt; });
+  var active=(DB.toolCheckouts||[]).find(function(c){ return c.toolId===id && !c.returnedAt && !c.isGroupSplit; });
   if(active){showToast('Cannot delete — checked out to '+active.toName+'. Return it first.','error');return;}
   if (!confirm('Delete '+t.name+' ('+t.tag+')? This cannot be undone.')) return;
   DB.tools=DB.tools.filter(function(x){return x.id!=id});
@@ -600,7 +619,7 @@ function saveCheckoutModal(toolId, modalId) {
     return { groupId:g.id, label:g.label, included: g.mode==='required'||(cb&&cb.checked), mode:g.mode };
   });
   if (!DB.toolCheckouts) DB.toolCheckouts=[];
-  DB.toolCheckouts.push({
+  var _newCo = {
     id:             Date.now().toString(),
     toolId:         toolId,
     toName:         toName.trim(),
@@ -610,8 +629,9 @@ function saveCheckoutModal(toolId, modalId) {
     returnedAt:     null,
     status:         'checked_out',
     groupsIncluded: groupsIncluded
-  });
-  saveDB();
+  };
+  DB.toolCheckouts.push(_newCo);
+  saveDB(); _coPersist(_newCo);
   var m = document.getElementById(modalId); if(m) m.remove();
   renderTools();
   showToast((tool.tag||tool.name)+' checked out to '+toName.trim(),'success');
@@ -702,7 +722,7 @@ function confirmReturn(modalId) {
     co.returnSubmittedAt = now;
     co.returnSubmittedBy = (document.getElementById('ret-verifier')||{}).value||(_currentUser&&_currentUser.full_name)||'Office';
     co.dropoffLocation   = 'Direct verify';
-    saveDB();
+    saveDB(); _coPersist(co);
     var m = document.getElementById(modalId); if(m) m.remove();
     // Open inspection modal immediately
     verifyToolReturn(coId);
@@ -715,7 +735,7 @@ function confirmReturn(modalId) {
     co.returnSubmittedBy  = submitter;
     co.dropoffLocation    = (document.getElementById('ret-dropoff')||{}).value||'';
     showToast((tool&&tool.tag||'Tool')+' return submitted — pending verification','info');
-    saveDB();
+    saveDB(); _coPersist(co);
     var m = document.getElementById(modalId); if(m) m.remove();
     renderTools();
   }
@@ -759,7 +779,7 @@ function _executeTransferMove(co, tool, toName, travelGroups, stayGroups, note, 
   co.status         = 'verified';
   co.transferredTo  = toName;
   co.groupsIncluded = travelGroups.map(function(g){ return Object.assign({}, g, {included:true}); });
-  DB.toolCheckouts.push({
+  var _recvCo = {
     id:              Date.now().toString(),
     toolId:          co.toolId,
     toName:          toName,
@@ -779,12 +799,14 @@ function _executeTransferMove(co, tool, toName, travelGroups, stayGroups, note, 
     approvedBy:      meta.approvedBy||'',
     acceptCondition: meta.condition||'',
     transferPriorCoId: co.id
-  });
+  };
+  DB.toolCheckouts.push(_recvCo);
+  var _splitCo = null;
   if (stayGroups && stayGroups.length > 0) {
-    DB.toolCheckouts.push({
+    _splitCo = {
       id:              (Date.now()+1).toString(),
-      toolId:          co.toolId + '_groups',
-      toName:          co.toName||'',
+      toolId:          co.toolId,            // (ib) real tool id — the synthetic "_groups" id is gone;
+      toName:          co.toName||'',        //       isGroupSplit keeps it out of active-holder lookups
       jobName:         co.jobName||'',
       date:            now,
       expectedReturn:  co.expectedReturn||'',
@@ -795,9 +817,11 @@ function _executeTransferMove(co, tool, toName, travelGroups, stayGroups, note, 
       isGroupSplit:    true,
       splitFromToolId: co.toolId,
       splitFromTool:   tool ? (tool.name||'') : ''
-    });
+    };
+    DB.toolCheckouts.push(_splitCo);
   }
   saveDB();
+  _coPersist(co); _coPersist(_recvCo); if (_splitCo) _coPersist(_splitCo);
   return stayGroups ? stayGroups.length : 0;
 }
 
@@ -807,7 +831,7 @@ function _sweepExpiredTransfers() {
   (DB.toolCheckouts||[]).forEach(function(c){
     if (c.pendingTransfer && c.pendingTransfer.expiresAt && c.pendingTransfer.expiresAt < now) {
       c.transferExpiredNote = 'Hand-off to '+(c.pendingTransfer.to||'')+' expired unaccepted on '+new Date().toISOString().split('T')[0];
-      delete c.pendingTransfer; changed = true;
+      delete c.pendingTransfer; changed = true; _coPersist(c);
     }
   });
   if (changed) { try{ saveDB(); }catch(e){} }
@@ -816,7 +840,7 @@ function _sweepExpiredTransfers() {
 function openTransferModal(toolId) {
   if (typeof hasPermission==='function' && !hasPermission('tool.transfer')) { showToast('You do not have permission to transfer tools','error'); return; }
   var tool = (DB.tools||[]).find(function(t){ return t.id==toolId; }); if(!tool) return;
-  var co   = (DB.toolCheckouts||[]).find(function(c){ return c.toolId===toolId && !c.returnedAt && c.status !== 'pending_verify'; }); if(!co) return;
+  var co   = (DB.toolCheckouts||[]).find(function(c){ return c.toolId===toolId && !c.returnedAt && c.status !== 'pending_verify' && !c.isGroupSplit; }); if(!co) return;
   if (co.pendingTransfer) { showToast('A hand-off to '+co.pendingTransfer.to+' is already pending','info'); return; }
   var cfg = _toolCustodyCfg();
   var teamOpts = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
@@ -892,7 +916,7 @@ function sendTransferRequest(modalId, acceptNow) {
     note: (document.getElementById('tr-note')||{}).value||'',
     expiresAt: Date.now() + (cfg.transferExpiryHours*3600*1000)
   };
-  try{ saveDB(); }catch(e){}
+  try{ saveDB(); }catch(e){} _coPersist(co);
   var m = document.getElementById(modalId); if(m) m.remove();
   if (acceptNow) { openAcceptTransfer(co.id); }
   else { showToast('Hand-off request sent to '+toName+' — awaiting their acceptance','info',4000); if(typeof renderTools==='function') renderTools(); }
@@ -902,7 +926,7 @@ function cancelTransferRequest(coId) {
   var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co||!co.pendingTransfer) return;
   var to = co.pendingTransfer.to;
   delete co.pendingTransfer;
-  try{ saveDB(); }catch(e){}
+  try{ saveDB(); }catch(e){} _coPersist(co);
   if(typeof renderTools==='function') renderTools();
   showToast('Hand-off request to '+to+' canceled','info');
 }
@@ -987,7 +1011,7 @@ function disputeTransfer(coId, modalId) {
   var pt = co.pendingTransfer;
   co.transferDispute = { by: pt.to, from: pt.by, at: new Date().toISOString().split('T')[0], reason: reason||'Not accepted' };
   delete co.pendingTransfer;
-  try{ saveDB(); }catch(e){}
+  try{ saveDB(); }catch(e){} _coPersist(co);
   var m = document.getElementById(modalId); if(m) m.remove();
   if(typeof renderTools==='function') renderTools();
   showToast('Hand-off disputed — tool stays with '+co.toName+', office flagged','warning',5000);
@@ -1157,7 +1181,7 @@ function confirmAsIsCheckout(coId, modalId) {
 
   // New active custody for the person taking it as-is (carry the same parts).
   var carried = (co.groupsIncluded||[]).filter(function(g){ return g.included; }).map(function(g){ return {groupId:g.groupId,label:g.label,included:true,mode:g.mode}; });
-  DB.toolCheckouts.push({
+  var _asisCo = {
     id:             Date.now().toString(),
     toolId:         co.toolId,
     toName:         toName,
@@ -1173,9 +1197,11 @@ function confirmAsIsCheckout(coId, modalId) {
     asIsApprovedBy: reqApproval ? approver : '',
     asIsNote:       note,
     asIsPriorCoId:  coId
-  });
+  };
+  DB.toolCheckouts.push(_asisCo);
 
   try { if (typeof saveDB==='function') saveDB(); } catch(e){}
+  _coPersist(co); _coPersist(_asisCo);
   var m = document.getElementById(modalId); if(m) m.remove();
   if (typeof renderTools==='function') renderTools();
   showToast((tool&&tool.tag||'Tool')+' taken as-is by '+toName+' — responsibility transferred','success',4000);
@@ -1407,6 +1433,10 @@ function confirmVerifyReturn(modalId) {
   }
 
   saveDB();
+  _coPersist(co);
+  // (ib) if verification flagged the tool, persist that flag per-row too, so the
+  // tools cutover's blob-skip can't drop it on the next reload.
+  try { if (issues.length > 0 && tool && typeof _toolsPerRow==='function' && _toolsPerRow() && window.ToolsDB) { ToolsDB.saveTool(tool); } } catch(e){}
   var m = document.getElementById(modalId); if(m) m.remove();
   renderTools();
 
@@ -2018,14 +2048,15 @@ function convertBorrowToCheckout(toolId, requestId) {
   var req  = (tool.personalShareRequests||[]).find(function(r){ return r.id===requestId; }); if(!req) return;
   if (!DB.toolCheckouts) DB.toolCheckouts=[];
   var ret=new Date(); ret.setDate(ret.getDate()+7);
-  DB.toolCheckouts.push({
+  var _borrowCo = {
     id:'co-'+Date.now(), toolId:toolId, toName:req.requesterName, jobName:req.note||'',
     date:new Date().toISOString().split('T')[0], expectedReturn:ret.toISOString().split('T')[0],
     returnedAt:null, status:'checked_out', groupsIncluded:[],
     isPersonalBorrow:true, ownerName:tool.ownerId||'', borrowRequestId:requestId
-  });
+  };
+  DB.toolCheckouts.push(_borrowCo);
   req.status='picked_up'; req.pickedUpAt=new Date().toISOString().split('T')[0];
-  saveDB(); renderTools();
+  saveDB(); _coPersist(_borrowCo); renderTools();
   showToast(req.requesterName+' picked up '+tool.name,'success');
 }
 
@@ -2081,7 +2112,7 @@ function lookupBarcode(val) {
     return;
   }
 
-  var co=(DB.toolCheckouts||[]).find(function(c){return c.toolId===tool.id&&!c.returnedAt;});
+  var co=(DB.toolCheckouts||[]).find(function(c){return c.toolId===tool.id&&!c.returnedAt&&!c.isGroupSplit;});
   var statusHtml=co
     ? '<span class="barcode-result-status brs-checked-out">🔄 Checked Out to '+escHtml(co.toName||'')+'</span>'
     : '<span class="barcode-result-status brs-available">✓ Available</span>';
