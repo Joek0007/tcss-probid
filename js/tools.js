@@ -56,6 +56,7 @@ function renderTools() {
   }
 }
 function _renderToolsInner() {
+  try { if (typeof _sweepExpiredTransfers==='function') _sweepExpiredTransfers(); } catch(e){}
   // Hide the "+ Add Tool" button for roles without tool.edit (field techs check out/in only).
   var _addBtn = document.getElementById('tool-add-btn');
   if (_addBtn) _addBtn.style.display = (typeof hasPermission!=='function' || hasPermission('tool.edit')) ? '' : 'none';
@@ -104,11 +105,14 @@ function _renderToolsInner() {
     var isOut = co && !isPV;
 
     // Status badge
+    var isPendingTr = isOut && co.pendingTransfer;
     var statusBadge = isPV
       ? '<span class="ts-badge" style="background:#f9a825;color:#333">⏳ Pending Verify</span>'
-      : isOut
-        ? '<span class="ts-badge ts-break">🔄 Out — '+escHtml(co.toName||'')+'</span>'
-        : '<span class="ts-badge ts-in">✓ Available</span>';
+      : isPendingTr
+        ? '<span class="ts-badge" style="background:#ede7f6;color:#5e35b1">⏳ Transfer pending → '+escHtml(co.pendingTransfer.to||'')+'</span>'
+        : isOut
+          ? '<span class="ts-badge ts-break">🔄 Out — '+escHtml(co.toName||'')+'</span>'
+          : '<span class="ts-badge ts-in">✓ Available</span>';
 
     // Photo thumbnail
     var photoHtml = t.photoUrl
@@ -139,6 +143,13 @@ function _renderToolsInner() {
     if (isPV) {
       actions = '<button class="btn btn-success btn-sm" onclick="verifyToolReturn(\''+co.id+'\')">🔍 Inspect & Verify</button> '+
                 (_toolCustodyCfg().asIs ? '<button class="btn btn-sm" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px" onclick="openAsIsCheckout(\''+co.id+'\')" title="Take this tool as-is before the office verifies it">📦 As-Is</button> ' : '');
+    } else if (isPendingTr) {
+      var _me = (_currentUser&&_currentUser.full_name)||'';
+      var _pt = co.pendingTransfer;
+      var canAccept = _isOfficeRole() || _me===_pt.to || !_pt.to;      // receiver (or office) accepts
+      var canCancel = _isOfficeRole() || _me===co.toName;             // sender (or office) cancels
+      actions = (canAccept ? '<button class="btn btn-success btn-sm" onclick="openAcceptTransfer(\''+co.id+'\')" title="Receiver accepts and takes responsibility">✓ Accept Hand-Off</button> ' : '<span style="font-size:11px;color:#7e57c2">awaiting '+escHtml(_pt.to||'')+'</span> ')+
+                (canCancel ? '<button class="btn btn-outline btn-sm" onclick="cancelTransferRequest(\''+co.id+'\')">✕ Cancel</button> ' : '');
     } else if (isOut) {
       actions = '<button class="btn btn-success btn-sm" data-action="checkinTool" data-id="'+co.id+'">✓ Return</button> '+
                 '<button class="btn btn-sm" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px" onclick="openTransferModal(\''+t.id+'\')">⇄ Transfer</button> ';
@@ -249,7 +260,11 @@ function renderToolCheckouts() {
       '<td style="font-size:12px">'+escHtml(c.jobName||'—')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.date||'')+'</td>'+
       '<td style="font-size:12px;'+(overdue?'color:#c62828;font-weight:700':'')+'">'+escHtml(c.expectedReturn||'—')+(overdue?' ⚠️':'')+'</td>'+
-      '<td><button class="btn btn-success btn-sm" data-action="checkinTool" data-id="'+c.id+'">✓ Return</button></td>'+
+      '<td>'+(c.pendingTransfer
+        ? ('<div style="font-size:11px;color:#5e35b1;font-weight:700;margin-bottom:3px">⏳ → '+escHtml(c.pendingTransfer.to||'')+'</div>'+
+           '<button class="btn btn-success btn-sm" onclick="openAcceptTransfer(\''+c.id+'\')">✓ Accept</button> '+
+           '<button class="btn btn-outline btn-sm" onclick="cancelTransferRequest(\''+c.id+'\')">✕ Cancel</button>')
+        : '<button class="btn btn-success btn-sm" data-action="checkinTool" data-id="'+c.id+'">✓ Return</button>')+'</td>'+
     '</tr>';
   }).join('');
 }
@@ -689,15 +704,107 @@ function confirmReturn(modalId) {
 }
 
 // ---- TRANSFER ----
+// ============================================================
+// FORMAL FIELD HAND-OFF (build gv) — a transfer is a two-party handshake,
+// not a one-way push. Responsibility only moves when the receiver
+// affirmatively accepts; until then the tool stays the sender's (state
+// `pendingTransfer` on the sender's checkout). An office/manager/owner can
+// broker a reassignment as a clearly-labeled exception.
+//   • sendTransferRequest  — sender proposes; tool enters "Transfer pending".
+//   • openAcceptTransfer / confirmAcceptTransfer — receiver accepts (parts
+//                            present + accept responsibility); custody moves.
+//   • disputeTransfer      — receiver rejects; bounces back to sender, flags office.
+//   • cancelTransferRequest— sender withdraws a pending request.
+//   • brokerTransfer       — office forces the move, recorded as brokered.
+//   • confirmTransfer      — legacy one-way move (only when acceptance is OFF).
+// Config: Settings → Inventory → Tool Custody.
+// ============================================================
+
+// Read which linked groups travel vs stay from the transfer modal's checkboxes.
+function _readTransferGroups(co) {
+  var travel=[], stay=[];
+  (co.groupsIncluded||[]).filter(function(g){ return g.included; }).forEach(function(g){
+    var cb = document.getElementById('trg-'+g.groupId);
+    var travels = g.mode==='required' || (cb&&cb.checked);
+    (travels?travel:stay).push({ groupId:g.groupId, label:g.label, included:true, mode:g.mode });
+  });
+  return { travel:travel, stay:stay };
+}
+
+// The actual custody move. Closes the sender's checkout, opens the receiver's
+// (stamped with the trail in `meta`), and splits off any parts left behind.
+function _executeTransferMove(co, tool, toName, travelGroups, stayGroups, note, meta) {
+  var now = new Date().toISOString().split('T')[0];
+  meta = meta || {};
+  if (co.pendingTransfer) delete co.pendingTransfer;
+  co.returnedAt     = now;
+  co.status         = 'verified';
+  co.transferredTo  = toName;
+  co.groupsIncluded = travelGroups.map(function(g){ return Object.assign({}, g, {included:true}); });
+  DB.toolCheckouts.push({
+    id:              Date.now().toString(),
+    toolId:          co.toolId,
+    toName:          toName,
+    jobName:         co.jobName||'',
+    date:            now,
+    expectedReturn:  co.expectedReturn||'',
+    notes:           note||'',
+    status:          'checked_out',
+    returnedAt:      null,
+    groupsIncluded:  travelGroups,
+    transferredFrom: co.toName||'',
+    transferMode:    meta.mode||'peer',       // 'peer' (accepted) | 'brokered' | 'oneway'
+    acceptedBy:      meta.acceptedBy||'',
+    acceptedAt:      meta.acceptedAt||'',
+    brokeredBy:      meta.brokeredBy||'',
+    brokeredAt:      meta.brokeredAt||'',
+    approvedBy:      meta.approvedBy||'',
+    acceptCondition: meta.condition||'',
+    transferPriorCoId: co.id
+  });
+  if (stayGroups && stayGroups.length > 0) {
+    DB.toolCheckouts.push({
+      id:              (Date.now()+1).toString(),
+      toolId:          co.toolId + '_groups',
+      toName:          co.toName||'',
+      jobName:         co.jobName||'',
+      date:            now,
+      expectedReturn:  co.expectedReturn||'',
+      notes:           'Group split from hand-off to '+toName+' — these items remain with '+co.toName,
+      status:          'checked_out',
+      returnedAt:      null,
+      groupsIncluded:  stayGroups,
+      isGroupSplit:    true,
+      splitFromToolId: co.toolId,
+      splitFromTool:   tool ? (tool.name||'') : ''
+    });
+  }
+  saveDB();
+  return stayGroups ? stayGroups.length : 0;
+}
+
+// Drop pending transfers that have sat past their expiry back to the sender.
+function _sweepExpiredTransfers() {
+  var now = Date.now(), changed = false;
+  (DB.toolCheckouts||[]).forEach(function(c){
+    if (c.pendingTransfer && c.pendingTransfer.expiresAt && c.pendingTransfer.expiresAt < now) {
+      c.transferExpiredNote = 'Hand-off to '+(c.pendingTransfer.to||'')+' expired unaccepted on '+new Date().toISOString().split('T')[0];
+      delete c.pendingTransfer; changed = true;
+    }
+  });
+  if (changed) { try{ saveDB(); }catch(e){} }
+}
+
 function openTransferModal(toolId) {
+  if (typeof hasPermission==='function' && !hasPermission('tool.transfer')) { showToast('You do not have permission to transfer tools','error'); return; }
   var tool = (DB.tools||[]).find(function(t){ return t.id==toolId; }); if(!tool) return;
   var co   = (DB.toolCheckouts||[]).find(function(c){ return c.toolId===toolId && !c.returnedAt && c.status !== 'pending_verify'; }); if(!co) return;
-  var teamOpts = (DB.team||[]).map(function(m){
-    return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';
-  }).join('');
+  if (co.pendingTransfer) { showToast('A hand-off to '+co.pendingTransfer.to+' is already pending','info'); return; }
+  var cfg = _toolCustodyCfg();
+  var teamOpts = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
   var groupsHtml = '';
   if ((co.groupsIncluded||[]).filter(function(g){return g.included;}).length > 0) {
-    groupsHtml = '<div style="margin-top:12px"><label style="font-size:12px;font-weight:700;color:#546e7a">WHICH PIECES TRAVEL WITH THIS TRANSFER?</label>'+
+    groupsHtml = '<div style="margin-top:12px"><label style="font-size:12px;font-weight:700;color:#546e7a">WHICH PIECES TRAVEL WITH THIS HAND-OFF?</label>'+
       '<div style="background:#f8f9fa;border-radius:8px;padding:10px;margin-top:6px">'+
       co.groupsIncluded.filter(function(g){return g.included;}).map(function(g){
         var req = g.mode === 'required';
@@ -709,13 +816,23 @@ function openTransferModal(toolId) {
         '</div>';
       }).join('')+'</div></div>';
   }
+  var footer;
+  if (!cfg.transferRequireAccept) {
+    footer = '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'modal-tool-tr-dyn\').remove()">Cancel</button>'+
+             '<button class="btn btn-primary" onclick="confirmTransfer(\'modal-tool-tr-dyn\')">Transfer</button>';
+  } else {
+    footer = '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'modal-tool-tr-dyn\').remove()">Cancel</button>'+
+             (( _isOfficeRole() && cfg.allowBrokered) ? '<button class="btn btn-outline btn-sm" onclick="brokerTransfer(\'modal-tool-tr-dyn\')" title="Office override — recorded as brokered, not peer-accepted">⚙ Office Reassign</button>' : '')+
+             '<button class="btn btn-outline btn-sm" onclick="sendTransferRequest(\'modal-tool-tr-dyn\',false)">📨 Send Request</button>'+
+             '<button class="btn btn-success" onclick="sendTransferRequest(\'modal-tool-tr-dyn\',true)">🤝 Accept Now (in person)</button>';
+  }
   var modalId = 'modal-tool-tr-dyn';
   var existing = document.getElementById(modalId); if(existing) existing.remove();
   var div = document.createElement('div');
   div.className = 'modal-overlay'; div.id = modalId; div.style.display='flex';
   div.innerHTML =
     '<div class="modal-box">'+
-      '<div class="modal-head"><h3>Transfer Tool</h3>'+
+      '<div class="modal-head"><h3>Hand Off Tool</h3>'+
         '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
       '<div class="modal-body">'+
         '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:14px">'+
@@ -723,7 +840,8 @@ function openTransferModal(toolId) {
           '<span class="asset-tag-badge">'+escHtml(tool.tag||'Untagged')+'</span>'+
           ' <span style="font-size:12px;color:#546e7a">Currently with: '+escHtml(co.toName||'')+'</span>'+
         '</div>'+
-        '<label>Transfer To *</label>'+
+        (cfg.transferRequireAccept?'<div style="font-size:12px;color:#607d8b;margin-bottom:8px">The receiver must <strong>accept</strong> before responsibility moves. Until then, <strong>'+escHtml(co.toName||'')+'</strong> stays responsible.</div>':'')+
+        '<label>Hand Off To *</label>'+
         '<input id="tr-to" list="tr-team" placeholder="Receiving technician">'+
         '<datalist id="tr-team">'+teamOpts+'</datalist>'+
         '<div style="margin-top:10px"><label>Reason / Note</label>'+
@@ -732,84 +850,167 @@ function openTransferModal(toolId) {
         '<input type="hidden" id="tr-tool-id" value="'+escHtml(toolId)+'">'+
         '<input type="hidden" id="tr-co-id" value="'+escHtml(co.id)+'">'+
       '</div>'+
+      '<div class="modal-foot">'+footer+'</div>'+
+    '</div>';
+  document.body.appendChild(div);
+}
+
+// Sender proposes a hand-off → tool enters "Transfer pending"; sender stays responsible.
+function sendTransferRequest(modalId, acceptNow) {
+  var coId   = (document.getElementById('tr-co-id')||{}).value||'';
+  var toName = ((document.getElementById('tr-to')||{}).value||'').trim();
+  if (!toName) { showToast('Please enter who is receiving this tool','error'); return; }
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co) return;
+  if (toName === co.toName) { showToast('That tool is already with '+toName,'error'); return; }
+  var grp = _readTransferGroups(co);
+  var cfg = _toolCustodyCfg();
+  co.pendingTransfer = {
+    to: toName,
+    by: (co.toName)||'',
+    byUser: (_currentUser&&_currentUser.full_name)||'',
+    at: new Date().toISOString().split('T')[0],
+    travel: grp.travel,
+    stay: grp.stay,
+    note: (document.getElementById('tr-note')||{}).value||'',
+    expiresAt: Date.now() + (cfg.transferExpiryHours*3600*1000)
+  };
+  try{ saveDB(); }catch(e){}
+  var m = document.getElementById(modalId); if(m) m.remove();
+  if (acceptNow) { openAcceptTransfer(co.id); }
+  else { showToast('Hand-off request sent to '+toName+' — awaiting their acceptance','info',4000); if(typeof renderTools==='function') renderTools(); }
+}
+
+function cancelTransferRequest(coId) {
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co||!co.pendingTransfer) return;
+  var to = co.pendingTransfer.to;
+  delete co.pendingTransfer;
+  try{ saveDB(); }catch(e){}
+  if(typeof renderTools==='function') renderTools();
+  showToast('Hand-off request to '+to+' canceled','info');
+}
+
+// Receiver's acceptance step — parts present + explicit acceptance of responsibility.
+function openAcceptTransfer(coId) {
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co||!co.pendingTransfer) return;
+  var pt = co.pendingTransfer;
+  var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
+  var toolGroups = (tool&&tool.linkedGroups)||[];
+  function _thumb(photoUrl,label,isTool){
+    if (photoUrl && typeof photoThumb==='function') return photoThumb(photoUrl,label,isTool?34:30,'border-radius:7px;flex-shrink:0');
+    return '<span style="width:'+(isTool?34:30)+'px;height:'+(isTool?34:30)+'px;background:'+(isTool?'#e3eaf6':'#eef0f5')+';border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:'+(isTool?18:15)+'px;flex-shrink:0">'+(isTool?'🔧':'📦')+'</span>';
+  }
+  var parts = (pt.travel||[]);
+  var partsHtml =
+    '<div style="font-size:11px;color:#607d8b;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:2px 0 6px">Confirm all '+(parts.length+1)+' items are present</div>'+
+    '<div style="border:1px solid #e6e9ef;border-radius:10px;overflow:hidden;margin-bottom:14px">'+
+      '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#eef3fb;border-bottom:1px solid #e6e9ef">'+
+        _thumb(tool&&tool.photoUrl,(tool&&tool.name)||'',true)+
+        '<span style="font-weight:800;font-size:14px;flex:1">'+escHtml((tool&&tool.name)||'Tool')+'</span>'+
+        '<span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span>'+
+      '</div>'+
+      '<div style="max-height:180px;overflow-y:auto">'+
+        (parts.length ? parts.map(function(g){
+          var req=g.mode==='required'; var tg=toolGroups.find(function(x){return x.id===g.groupId;})||{};
+          return '<div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-top:1px solid #f2f4f8">'+
+            _thumb(tg.photoUrl,g.label,false)+
+            '<span style="flex:1;font-size:13px">'+escHtml(g.label)+'</span>'+
+            (req?'<span style="background:#c62828;color:#fff;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">REQUIRED</span>':'<span style="background:#e8820c;color:#fff;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">OPTIONAL</span>')+
+          '</div>';
+        }).join('') : '<div style="padding:10px 12px;font-size:12px;color:#90a4ae">Tool only — no extra parts.</div>')+
+      '</div>'+
+    '</div>';
+  var modalId = 'modal-tool-acc-dyn';
+  var existing = document.getElementById(modalId); if(existing) existing.remove();
+  var div = document.createElement('div');
+  div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
+  div.innerHTML =
+    '<div class="modal-box">'+
+      '<div class="modal-head"><h3>Accept Hand-Off</h3>'+
+        '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
+      '<div class="modal-body">'+
+        '<div style="background:#eaf4ff;border:1px solid #b6d8ff;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#17496b">'+
+          '<strong>'+escHtml(pt.by||'A tech')+'</strong> is handing this tool to <strong>'+escHtml(pt.to||'')+'</strong>. Accepting transfers responsibility to '+escHtml(pt.to||'you')+'.'+
+        '</div>'+
+        partsHtml+
+        '<div style="margin-top:4px"><label>Condition note (optional)</label><input id="acc-note" placeholder="Any damage or concern at hand-off"></div>'+
+        '<label for="acc-ack" style="display:flex;align-items:flex-start;gap:12px;font-size:13px;margin-top:14px;padding:12px 14px;border:1.5px solid #2e7d32;background:#eef7ed;border-radius:10px;cursor:pointer">'+
+          '<input type="checkbox" id="acc-ack" style="width:20px;height:20px;margin-top:0;flex-shrink:0;accent-color:#2e7d32">'+
+          '<span style="line-height:1.45">I, <strong>'+escHtml(pt.to||'')+'</strong>, received this tool, confirm all parts above are <strong>present</strong>, and accept responsibility for it.</span>'+
+        '</label>'+
+      '</div>'+
       '<div class="modal-foot">'+
-        '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
-        '<button class="btn btn-primary" onclick="confirmTransfer(\''+modalId+'\')">Send Transfer</button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\''+modalId+'\').remove()">Later</button>'+
+        '<button class="btn btn-sm" style="background:#c62828;color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer" onclick="disputeTransfer(\''+co.id+'\',\''+modalId+'\')">⚠ Dispute</button>'+
+        '<button class="btn btn-success" onclick="confirmAcceptTransfer(\''+co.id+'\',\''+modalId+'\')">✓ Accept & Take Responsibility</button>'+
       '</div>'+
     '</div>';
   document.body.appendChild(div);
 }
 
+function confirmAcceptTransfer(coId, modalId) {
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co||!co.pendingTransfer) return;
+  if (!(document.getElementById('acc-ack')||{}).checked) { showToast('You must confirm the parts are present and accept responsibility','error'); return; }
+  var pt = co.pendingTransfer;
+  var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
+  var now = new Date().toISOString().split('T')[0];
+  var stay = (pt.stay||0) && pt.stay.length;
+  var n = _executeTransferMove(co, tool, pt.to, pt.travel||[], pt.stay||[], pt.note||'', {
+    mode:'peer', acceptedBy: pt.to, acceptedAt: now,
+    condition: ((document.getElementById('acc-note')||{}).value||'').trim()
+  });
+  var m = document.getElementById(modalId); if(m) m.remove();
+  if(typeof renderTools==='function') renderTools();
+  showToast((tool&&tool.tag||'Tool')+' accepted by '+pt.to+' — responsibility transferred'+(n?'. '+n+' item(s) stayed behind':''),'success',4000);
+}
+
+function disputeTransfer(coId, modalId) {
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co||!co.pendingTransfer) return;
+  var reason = ((document.getElementById('acc-note')||{}).value||'').trim();
+  var pt = co.pendingTransfer;
+  co.transferDispute = { by: pt.to, from: pt.by, at: new Date().toISOString().split('T')[0], reason: reason||'Not accepted' };
+  delete co.pendingTransfer;
+  try{ saveDB(); }catch(e){}
+  var m = document.getElementById(modalId); if(m) m.remove();
+  if(typeof renderTools==='function') renderTools();
+  showToast('Hand-off disputed — tool stays with '+co.toName+', office flagged','warning',5000);
+}
+
+// Office/manager/owner forces the reassignment (clearly recorded as brokered).
+function brokerTransfer(modalId) {
+  var cfg = _toolCustodyCfg();
+  if (!cfg.allowBrokered) { showToast('Office-brokered transfers are turned off','error'); return; }
+  if (!_isOfficeRole()) { showToast('Only office/manager/owner can broker a reassignment','error'); return; }
+  var role = (_currentUser&&_currentUser.role)||'';
+  if (cfg.requireApprovalBrokered && !(role==='owner'||role==='manager')) { showToast('Brokered reassignment requires a manager or owner','error'); return; }
+  var coId   = (document.getElementById('tr-co-id')||{}).value||'';
+  var toName = ((document.getElementById('tr-to')||{}).value||'').trim();
+  if (!toName) { showToast('Please enter who is receiving this tool','error'); return; }
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co) return;
+  var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
+  var grp = _readTransferGroups(co);
+  var now = new Date().toISOString().split('T')[0];
+  var n = _executeTransferMove(co, tool, toName, grp.travel, grp.stay, (document.getElementById('tr-note')||{}).value||'', {
+    mode:'brokered', brokeredBy: (_currentUser&&_currentUser.full_name)||'Office', brokeredAt: now,
+    approvedBy: cfg.requireApprovalBrokered ? ((_currentUser&&_currentUser.full_name)||'') : ''
+  });
+  var m = document.getElementById(modalId); if(m) m.remove();
+  if(typeof renderTools==='function') renderTools();
+  showToast((tool&&tool.tag||'Tool')+' reassigned to '+toName+' by office (brokered)'+(n?'. '+n+' item(s) stayed behind':''),'info',4000);
+}
+
+// Legacy one-way move (used only when "require receiver acceptance" is OFF).
 function confirmTransfer(modalId) {
   if (typeof hasPermission==='function' && !hasPermission('tool.transfer')) { showToast('You do not have permission to transfer tools','error'); return; }
-  var toolId = (document.getElementById('tr-tool-id')||{}).value||'';
   var coId   = (document.getElementById('tr-co-id')||{}).value||'';
   var toName = ((document.getElementById('tr-to')||{}).value||'').trim();
   if (!toName) { showToast('Please enter who is receiving this tool','error'); return; }
   var co   = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co) return;
-  var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; });
-  var now  = new Date().toISOString().split('T')[0];
-
-  // Determine which groups travel and which stay
-  var travelGroups = [];
-  var stayGroups   = [];
-  (co.groupsIncluded||[]).filter(function(g){ return g.included; }).forEach(function(g){
-    var cb = document.getElementById('trg-'+g.groupId);
-    var travels = g.mode==='required' || (cb&&cb.checked);
-    if (travels) {
-      travelGroups.push({ groupId:g.groupId, label:g.label, included:true, mode:g.mode });
-    } else {
-      stayGroups.push({ groupId:g.groupId, label:g.label, included:true, mode:g.mode });
-    }
-  });
-
-  // Close current checkout for the tool
-  // Update groupsIncluded to only the items that traveled — history accurately shows what left with the tool
-  co.returnedAt      = now;
-  co.status          = 'verified';
-  co.transferredTo   = toName;
-  co.groupsIncluded  = travelGroups.map(function(g){ return Object.assign({}, g, {included:true}); });
-
-  // New checkout for receiver — only groups that traveled
-  DB.toolCheckouts.push({
-    id:              Date.now().toString(),
-    toolId:          toolId,
-    toName:          toName,
-    jobName:         co.jobName||'',
-    date:            now,
-    expectedReturn:  co.expectedReturn||'',
-    notes:           (document.getElementById('tr-note')||{}).value||'',
-    status:          'checked_out',
-    returnedAt:      null,
-    groupsIncluded:  travelGroups,
-    transferredFrom: co.toName||''
-  });
-
-  // If any optional groups stayed behind, create a separate custody record for original holder
-  if (stayGroups.length > 0) {
-    DB.toolCheckouts.push({
-      id:              (Date.now()+1).toString(),
-      toolId:          toolId + '_groups',  // virtual — groups only, not the parent tool
-      toName:          co.toName||'',
-      jobName:         co.jobName||'',
-      date:            now,
-      expectedReturn:  co.expectedReturn||'',
-      notes:           'Group split from transfer to '+toName+' — these items remain with '+co.toName,
-      status:          'checked_out',
-      returnedAt:      null,
-      groupsIncluded:  stayGroups,
-      isGroupSplit:    true,
-      splitFromToolId: toolId,
-      splitFromTool:   tool ? (tool.name||'') : ''
-    });
-    showToast((tool&&tool.tag||'Tool')+' transferred to '+toName+'. '+stayGroups.length+' item(s) remain with '+co.toName,'info',4000);
-  } else {
-    showToast((tool&&tool.tag||'Tool')+' transferred to '+toName,'success');
-  }
-
-  saveDB();
+  var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
+  var grp = _readTransferGroups(co);
+  var n = _executeTransferMove(co, tool, toName, grp.travel, grp.stay, (document.getElementById('tr-note')||{}).value||'', {mode:'oneway'});
   var m = document.getElementById(modalId); if(m) m.remove();
-  renderTools();
+  if(typeof renderTools==='function') renderTools();
+  showToast((tool&&tool.tag||'Tool')+' transferred to '+toName+(n?'. '+n+' item(s) stayed behind':''),'success');
 }
 
 // ---- PENDING VERIFY TAB ----
@@ -831,8 +1032,18 @@ function _toolCustodyCfg() {
   return {
     selfCheckin:     s.toolAllowSelfCheckin  !== false,  // default on
     asIs:            s.toolAllowAsIsCheckout  !== false,  // default on
-    requireApproval: !!s.toolRequireApprovalAsIs          // default off
+    requireApproval: !!s.toolRequireApprovalAsIs,         // default off
+    // Transfer (field hand-off) chain-of-responsibility (build gv)
+    transferRequireAccept:   s.toolTransferRequireAccept   !== false, // default on (peer handshake)
+    allowBrokered:           s.toolAllowBrokeredTransfer    !== false, // default on (office override)
+    requireApprovalBrokered: !!s.toolRequireApprovalBrokered,          // default off
+    transferExpiryHours:     (typeof s.toolTransferExpiryHours==='number' && s.toolTransferExpiryHours>0) ? s.toolTransferExpiryHours : 24
   };
+}
+// Is the current user an office/manager/owner (allowed to broker a reassignment)?
+function _isOfficeRole() {
+  var r = (_currentUser && _currentUser.role) || '';
+  return r==='owner' || r==='manager' || r==='back_office' || r==='office' || r==='project_manager';
 }
 function setToolCustody(key, v) {
   if (!DB.settings) DB.settings = {};

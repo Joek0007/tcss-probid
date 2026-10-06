@@ -5197,6 +5197,19 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           <input type="checkbox" id="tc-require-approval" onchange="setToolCustody('toolRequireApprovalAsIs', this.checked)" style="width:18px;height:18px;margin-top:2px">
           <span><strong>Require approval for take-as-is</strong><br><span style="font-size:12px;color:#607d8b">When ON, a take-as-is checkout must record a manager/owner's name as approver.</span></span>
         </label>
+        <div style="border-top:1px solid #eef0f4;margin:10px 0 2px;padding-top:10px;font-size:12px;font-weight:700;color:#5e35b1;text-transform:uppercase;letter-spacing:.5px">Field Hand-Offs (tech → tech)</div>
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;padding:6px 0;cursor:pointer">
+          <input type="checkbox" id="tc-transfer-accept" onchange="setToolCustody('toolTransferRequireAccept', this.checked)" style="width:18px;height:18px;margin-top:2px">
+          <span><strong>Require receiver acceptance (formal hand-off)</strong><br><span style="font-size:12px;color:#607d8b">When ON, a transfer is a handshake — the tool sits "transfer pending" and the <strong>sender stays responsible</strong> until the receiving tech confirms the parts and accepts. When OFF, a transfer is a one-way push (not recommended).</span></span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;padding:6px 0;cursor:pointer">
+          <input type="checkbox" id="tc-allow-brokered" onchange="setToolCustody('toolAllowBrokeredTransfer', this.checked)" style="width:18px;height:18px;margin-top:2px">
+          <span><strong>Allow office-brokered reassignment</strong><br><span style="font-size:12px;color:#607d8b">Lets an owner/manager/back-office force a hand-off (e.g. a tech is unreachable or gone). Recorded distinctly as <strong>brokered — not peer-accepted</strong>.</span></span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;padding:6px 0;cursor:pointer">
+          <input type="checkbox" id="tc-brokered-approval" onchange="setToolCustody('toolRequireApprovalBrokered', this.checked)" style="width:18px;height:18px;margin-top:2px">
+          <span><strong>Brokered requires a manager/owner</strong><br><span style="font-size:12px;color:#607d8b">When ON, only an owner or manager can broker a reassignment (back-office/PM can't).</span></span>
+        </label>
       </div>
     </div>
   </div><!-- end ms-section inventory -->
@@ -6992,28 +7005,28 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919gu with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919gv with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919gu"></script>
-<script src="js/quotes.js?v=20260919gu"></script>
-<script src="js/tools.js?v=20260919gu"></script>
-<script src="js/field.js?v=20260919gu"></script>
-<script src="js/crm.js?v=20260919gu"></script>
-<script src="js/vehicles.js?v=20260919gu"></script>
-<script src="js/dispatch.js?v=20260919gu"></script>
-<script src="js/permissions.js?v=20260919gu"></script>
-<script src="js/worktracking.js?v=20260919gu"></script>
-<script src="js/calendar.js?v=20260919gu"></script>
-<script src="js/workorders.js?v=20260919gu"></script>
-<script src="js/purchaseorders.js?v=20260919gu"></script>
-<script src="js/inventory.js?v=20260919gu"></script>
-<script src="js/reports.js?v=20260919gu"></script>
-<script src="js/recyclebin.js?v=20260919gu"></script>
-<script src="js/contracts.js?v=20260919gu"></script>
-  <script src="js/recurring.js?v=20260919gu"></script>
-  <script src="js/seed_managed.js?v=20260919gu"></script>
-  <script src="js/applock.js?v=20260919gu"></script>
-  <script src="js/auth.js?v=20260919gu"></script>
+<script src="js/core.js?v=20260919gv"></script>
+<script src="js/quotes.js?v=20260919gv"></script>
+<script src="js/tools.js?v=20260919gv"></script>
+<script src="js/field.js?v=20260919gv"></script>
+<script src="js/crm.js?v=20260919gv"></script>
+<script src="js/vehicles.js?v=20260919gv"></script>
+<script src="js/dispatch.js?v=20260919gv"></script>
+<script src="js/permissions.js?v=20260919gv"></script>
+<script src="js/worktracking.js?v=20260919gv"></script>
+<script src="js/calendar.js?v=20260919gv"></script>
+<script src="js/workorders.js?v=20260919gv"></script>
+<script src="js/purchaseorders.js?v=20260919gv"></script>
+<script src="js/inventory.js?v=20260919gv"></script>
+<script src="js/reports.js?v=20260919gv"></script>
+<script src="js/recyclebin.js?v=20260919gv"></script>
+<script src="js/contracts.js?v=20260919gv"></script>
+  <script src="js/recurring.js?v=20260919gv"></script>
+  <script src="js/seed_managed.js?v=20260919gv"></script>
+  <script src="js/applock.js?v=20260919gv"></script>
+  <script src="js/auth.js?v=20260919gv"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
