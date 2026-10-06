@@ -29,7 +29,7 @@
       if (localStorage.getItem('checkouts_perrow') === '1') return true;
       if (localStorage.getItem('checkouts_perrow') === '0') return false;
     } catch(e){}
-    return !!window.__CHECKOUTS_PERROW_DEFAULT;   // cutover flips this to true
+    return true;   // (cutover) per-row checkouts/custody are now the default for everyone
   };
 
   var _isUuid = function(v){ return typeof v==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v); };
