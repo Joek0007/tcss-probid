@@ -1678,7 +1678,9 @@ async function syncAllFromCloud(silent) {
   try {
     var { data: stateRows } = await _sbSelectAll(function(){ return _sb.from('app_state').select('key,data'); });
     if (stateRows && stateRows.length) {
-      stateRows.forEach(function(row){ if (row && row.key && Array.isArray(row.data)) DB[row.key] = row.data; });
+      stateRows.forEach(function(row){ if (row && row.key && Array.isArray(row.data)) { if (row.key==='tools' && typeof _toolsPerRow==='function' && _toolsPerRow()) return; DB[row.key] = row.data; } });
+      // (build hc) per-row tools: load from real tables instead of the clobber-prone blob
+      if (typeof _toolsPerRow==='function' && _toolsPerRow() && window.ToolsDB) { try { DB.tools = await ToolsDB.load(); } catch(e){ errors.push('toolsdb load: '+(e&&e.message)); } }
     }
   } catch(e) { errors.push('app_state: '+e.message); }
 
@@ -2473,6 +2475,7 @@ function _blobHasUnpushedChanges() {
 async function _pushBlobsToCloud() {
   if (!_sb || !_currentUser || _currentUser.role === 'helper_tech') return;
   for (var _bk of _BLOB_KEYS) {
+    if (_bk==='tools' && typeof _toolsPerRow==='function' && _toolsPerRow()) continue; // (hc) tools are per-row now
     try { await _sb.from('app_state').upsert({ key: _bk, data: DB[_bk] || [], updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
     catch(e) { console.warn('[BlobFlush]', _bk, e && e.message); }
   }
@@ -3221,6 +3224,7 @@ async function pushAllToCloud() {
     // Blob collections (tools, checkouts, inventory locations/transfers, payroll/tool
     // side-records). Whole-array last-write-wins; see _BLOB_KEYS / anti-clobber above.
     for (var _bk of _BLOB_KEYS) {
+      if (_bk==='tools' && typeof _toolsPerRow==='function' && _toolsPerRow()) continue; // (hc) tools are per-row now
       try { await _sb.from('app_state').upsert({ key: _bk, data: DB[_bk] || [], updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
       catch(_be) { console.warn('[Push] app_state', _bk, _be && _be.message); }
     }

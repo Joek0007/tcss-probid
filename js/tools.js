@@ -459,6 +459,24 @@ function saveToolItem() {
   };
 
   if (!DB.tools) DB.tools=[];
+  // (build hc) PER-ROW save path (flagged). Writes this one tool as its own row with an
+  // optimistic-concurrency guard, so two people editing the same tool can't silently
+  // clobber. Legacy blob path remains below for when the flag is off.
+  if (typeof _toolsPerRow==='function' && _toolsPerRow() && window.ToolsDB) {
+    var _ex = id ? (DB.tools||[]).find(function(t){return t.id==id;}) : null;
+    if (_ex) { data._uuid=_ex._uuid; data._rev=_ex._rev; }
+    closeModal('modal-tool-item');
+    ToolsDB.saveTool(data).then(function(res){
+      if (res && res.conflict) { showToast('That tool was just changed by someone else — reloading the latest','error'); ToolsDB.load().then(function(list){ DB.tools=list; renderTools(); }); return; }
+      if (res && res.error) { showToast('Save failed: '+res.error,'error'); return; }
+      data._uuid = res.id;
+      var ix=(DB.tools||[]).findIndex(function(t){return t.id==data.id;});
+      if(ix>=0) DB.tools[ix]=data; else DB.tools.push(data);
+      renderTools();
+      showToast('Tool saved — '+data.tag, 'success');
+    });
+    return;
+  }
   if (id) {
     var idx=DB.tools.findIndex(function(t){return t.id==id});
     if(idx>=0) DB.tools[idx]=data; else DB.tools.push(data);
