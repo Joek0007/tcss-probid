@@ -1747,7 +1747,16 @@ async function syncAllFromCloud(silent) {
   } catch(e) {}
   // Persist the freshly-pulled data off the main thread (no push — data came FROM cloud).
   try { _dbPackAsync(DB).then(function(p){ try{ localStorage.setItem(DB_KEY, p); }catch(e){} }); } catch(e) {}
-  clearTimeout(window._syncTimer); // Cancel any push timer that snuck in during sync
+  // (fix 2026-10-06) A Save made DURING this sync was NOT pushed: saveDB() skips the
+  // cloud push while _syncInProgress is true (core.js). Previously this line
+  // unconditionally cancelled the push timer, stranding those edits unpushed until the
+  // next save — so an in-progress edit could be overwritten by the next cold-sync pull
+  // and appear "lost". Now: if local data changed since the last successful push, flush
+  // it to the cloud instead of cancelling.
+  clearTimeout(window._syncTimer);
+  if (window.__blobDirtyAt > window.__blobPushedAt) {
+    window._syncTimer = setTimeout(pushAllToCloud, 1500);
+  }
   // Re-apply permissions after sync then render correct dashboard for role
   if (_currentUser) applyRolePermissions(_currentUser.role);
   if (_currentUser && _currentUser.role === 'helper_tech') {
