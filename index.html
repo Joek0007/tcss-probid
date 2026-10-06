@@ -4483,10 +4483,11 @@ body.role-lead-tech .page-settings-btn{display:none!important}
             <option>Camera Equipment</option><option>Vehicles</option><option>Other</option>
           </select>
         </div>
-        <div><label>Location / Assigned To</label><input id="tool-loc" placeholder="Shop, Van 1, Marcus..." list="tool-loc-list"><datalist id="tool-loc-list"></datalist></div>
-        <div><label>Purchase Value ($)</label><input id="tool-cost" type="number" value="0" min="0" step="0.01"></div>
+        <div><label>Location (home)</label><input id="tool-loc" placeholder="Main Shop, Van 2, or a tech…" list="tool-loc-list"><datalist id="tool-loc-list"></datalist></div>
+        <div><label>Assigned Tech</label><input id="tool-assigned" placeholder="(optional) team member" list="tool-assigned-list"><datalist id="tool-assigned-list"></datalist></div>
       </div>
-      <div class="form-row cols2">
+      <div class="form-row cols3">
+        <div><label>Purchase Value ($)</label><input id="tool-cost" type="number" value="0" min="0" step="0.01"></div>
         <div><label>Serial Number</label><input id="tool-serial" placeholder="Optional"></div>
         <div><label>Purchase Date</label><input id="tool-purchase-date" type="date"></div>
       </div>
@@ -5179,6 +5180,22 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;padding:6px 0;cursor:pointer">
           <input type="checkbox" id="inv-allow-negative" onchange="setAllowNegativeStock(this.checked)" style="width:18px;height:18px;margin-top:2px">
           <span><strong>Allow negative stock</strong><br><span style="font-size:12px;color:#607d8b">When ON, issuing more than on-hand is allowed and stock can go negative (backorder). When OFF (default), issuing beyond on-hand is blocked — add the item as a one-off or Request-for-PO instead.</span></span>
+        </label>
+      </div>
+      <div class="card ms-full">
+        <div class="card-title">🔧 Tool Custody</div>
+        <p style="font-size:13px;color:#546e7a;margin-bottom:12px">Controls how a tool's chain of responsibility can move when the office isn't there to verify a return. Every hand-off is recorded (who had it, who dropped it, who took it as-is, who verified it).</p>
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;padding:6px 0;cursor:pointer">
+          <input type="checkbox" id="tc-allow-selfcheckin" onchange="setToolCustody('toolAllowSelfCheckin', this.checked)" style="width:18px;height:18px;margin-top:2px">
+          <span><strong>Allow self check-in</strong><br><span style="font-size:12px;color:#607d8b">A tech can return a tool after/before office hours ("Verify Later") — it goes to <strong>Pending Verify</strong> for the office to confirm when they're in. When OFF, returns must be verified on the spot.</span></span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;padding:6px 0;cursor:pointer">
+          <input type="checkbox" id="tc-allow-asis" onchange="setToolCustody('toolAllowAsIsCheckout', this.checked)" style="width:18px;height:18px;margin-top:2px">
+          <span><strong>Allow take-as-is checkout</strong><br><span style="font-size:12px;color:#607d8b">Before the office verifies a returned tool, another tech can check it out by confirming all parts are present and accepting responsibility — custody passes straight to them, like a field hand-off.</span></span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;font-size:14px;padding:6px 0;cursor:pointer">
+          <input type="checkbox" id="tc-require-approval" onchange="setToolCustody('toolRequireApprovalAsIs', this.checked)" style="width:18px;height:18px;margin-top:2px">
+          <span><strong>Require approval for take-as-is</strong><br><span style="font-size:12px;color:#607d8b">When ON, a take-as-is checkout must record a manager/owner's name as approver.</span></span>
         </label>
       </div>
     </div>
@@ -6975,28 +6992,28 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919gr with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919gt with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919gr"></script>
-<script src="js/quotes.js?v=20260919gr"></script>
-<script src="js/tools.js?v=20260919gr"></script>
-<script src="js/field.js?v=20260919gr"></script>
-<script src="js/crm.js?v=20260919gr"></script>
-<script src="js/vehicles.js?v=20260919gr"></script>
-<script src="js/dispatch.js?v=20260919gr"></script>
-<script src="js/permissions.js?v=20260919gr"></script>
-<script src="js/worktracking.js?v=20260919gr"></script>
-<script src="js/calendar.js?v=20260919gr"></script>
-<script src="js/workorders.js?v=20260919gr"></script>
-<script src="js/purchaseorders.js?v=20260919gr"></script>
-<script src="js/inventory.js?v=20260919gr"></script>
-<script src="js/reports.js?v=20260919gr"></script>
-<script src="js/recyclebin.js?v=20260919gr"></script>
-<script src="js/contracts.js?v=20260919gr"></script>
-  <script src="js/recurring.js?v=20260919gr"></script>
-  <script src="js/seed_managed.js?v=20260919gr"></script>
-  <script src="js/applock.js?v=20260919gr"></script>
-  <script src="js/auth.js?v=20260919gr"></script>
+<script src="js/core.js?v=20260919gt"></script>
+<script src="js/quotes.js?v=20260919gt"></script>
+<script src="js/tools.js?v=20260919gt"></script>
+<script src="js/field.js?v=20260919gt"></script>
+<script src="js/crm.js?v=20260919gt"></script>
+<script src="js/vehicles.js?v=20260919gt"></script>
+<script src="js/dispatch.js?v=20260919gt"></script>
+<script src="js/permissions.js?v=20260919gt"></script>
+<script src="js/worktracking.js?v=20260919gt"></script>
+<script src="js/calendar.js?v=20260919gt"></script>
+<script src="js/workorders.js?v=20260919gt"></script>
+<script src="js/purchaseorders.js?v=20260919gt"></script>
+<script src="js/inventory.js?v=20260919gt"></script>
+<script src="js/reports.js?v=20260919gt"></script>
+<script src="js/recyclebin.js?v=20260919gt"></script>
+<script src="js/contracts.js?v=20260919gt"></script>
+  <script src="js/recurring.js?v=20260919gt"></script>
+  <script src="js/seed_managed.js?v=20260919gt"></script>
+  <script src="js/applock.js?v=20260919gt"></script>
+  <script src="js/auth.js?v=20260919gt"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

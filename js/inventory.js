@@ -784,6 +784,11 @@ function renderLocationSettings() {
   // Wave 1b: reflect the global "allow negative stock" toggle when the inventory settings render.
   var neg = document.getElementById('inv-allow-negative');
   if (neg) neg.checked = !!(DB.settings && DB.settings.allowNegativeStock);
+  // (gs) Tool Custody toggles — defaults: self check-in ON, take-as-is ON, require-approval OFF.
+  var _tcS = DB.settings || {};
+  var _tc1 = document.getElementById('tc-allow-selfcheckin'); if (_tc1) _tc1.checked = (_tcS.toolAllowSelfCheckin !== false);
+  var _tc2 = document.getElementById('tc-allow-asis');        if (_tc2) _tc2.checked = (_tcS.toolAllowAsIsCheckout !== false);
+  var _tc3 = document.getElementById('tc-require-approval');  if (_tc3) _tc3.checked = !!_tcS.toolRequireApprovalAsIs;
   var locs = getLocations();
   var el   = document.getElementById('inv-locations-list');
   if (!el) return;

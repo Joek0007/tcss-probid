@@ -9,6 +9,22 @@
 function getTools() { return DB.tools || []; }
 function getToolCheckouts() { return DB.toolCheckouts || []; }
 
+// (gt) Fill the tool Location + Assigned-Tech pickers from real data:
+//   Location  = Inventory Locations (Main Shop + trucks) + team members (a tool's
+//               home can be a place OR a person's kit).
+//   Assigned Tech = existing team members only.
+function _populateToolLocAssignLists() {
+  var teamOpts = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'; }).join('');
+  var locDl = document.getElementById('tool-loc-list');
+  if (locDl) {
+    var locs = (typeof getLocations==='function' ? (getLocations()||[]) : []);
+    var locOpts = locs.map(function(l){ return '<option value="'+escHtml((l&&l.name)||l||'')+'">'; }).join('');
+    locDl.innerHTML = locOpts + teamOpts;   // places + people
+  }
+  var asgDl = document.getElementById('tool-assigned-list');
+  if (asgDl) asgDl.innerHTML = teamOpts;     // team members only
+}
+
 // ---- TAG GENERATION ----
 // Format: TCSS -001 (space before dash, zero-padded to 3 digits up to 999, then 4 digits)
 function formatTag(n) {
@@ -121,7 +137,8 @@ function _renderToolsInner() {
     var isMyPersonalTool = t.ownerType==='personal' && t.ownerId===(_currentUser&&_currentUser.full_name);
     var isPersonalOther  = t.ownerType==='personal' && !isMyPersonalTool;
     if (isPV) {
-      actions = '<button class="btn btn-success btn-sm" onclick="verifyToolReturn(\''+co.id+'\')">🔍 Inspect & Verify</button> ';
+      actions = '<button class="btn btn-success btn-sm" onclick="verifyToolReturn(\''+co.id+'\')">🔍 Inspect & Verify</button> '+
+                (_toolCustodyCfg().asIs ? '<button class="btn btn-sm" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px" onclick="openAsIsCheckout(\''+co.id+'\')" title="Take this tool as-is before the office verifies it">📦 As-Is</button> ' : '');
     } else if (isOut) {
       actions = '<button class="btn btn-success btn-sm" data-action="checkinTool" data-id="'+co.id+'">✓ Return</button> '+
                 '<button class="btn btn-sm" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px" onclick="openTransferModal(\''+t.id+'\')">⇄ Transfer</button> ';
@@ -142,7 +159,7 @@ function _renderToolsInner() {
       '<td style="font-size:12px">'+escHtml(t.location||'')+'</td>'+
       '<td>'+lgBadge+'</td>'+
       '<td>'+statusBadge+'</td>'+
-      '<td style="font-size:12px">'+escHtml(co?co.toName:t.location||'')+'</td>'+
+      '<td style="font-size:12px">'+escHtml(co ? (co.toName||'') : (t.assignedTech || (t.ownerType==='personal'?(t.ownerId||''):'') || '—'))+'</td>'+
       '<td style="white-space:nowrap">'+actions+'</td>'+
     '</tr>';
   }).join('');
@@ -333,11 +350,10 @@ function newToolItem() {
   var costEl=document.getElementById('tool-cost'); if(costEl) costEl.value=0;
   var catEl=document.getElementById('tool-cat'); if(catEl) catEl.value='Power Tools';
   var locEl=document.getElementById('tool-loc'); if(locEl) locEl.value='';
+  var asgEl0=document.getElementById('tool-assigned'); if(asgEl0) asgEl0.value='';
   var pdEl=document.getElementById('tool-purchase-date'); if(pdEl) pdEl.value='';
   var tagEl=document.getElementById('tool-tag'); if(tagEl) tagEl.value=nextAvailableTag();
-  var locDl=document.getElementById('tool-loc-list');
-  if(locDl) locDl.innerHTML='<option value="Shop"><option value="Warehouse">'+
-    (DB.team||[]).map(function(t){return '<option value="'+escHtml(t.name)+'">'; }).join('');
+  _populateToolLocAssignLists();
   // Reset ownership
   var companyRadio = document.getElementById('tool-owner-company');
   if (companyRadio) companyRadio.checked = true;
@@ -365,7 +381,8 @@ function editTool(id) {
   function sv(eid,v){var el=document.getElementById(eid);if(el)el.value=v||'';}
   sv('tool-name',t.name); sv('tool-tag',t.tag); sv('tool-cat',t.cat||'Power Tools');
   sv('tool-loc',t.location); sv('tool-cost',t.cost||0); sv('tool-serial',t.serial);
-  sv('tool-notes',t.notes); sv('tool-id',t.id);
+  sv('tool-notes',t.notes); sv('tool-id',t.id); sv('tool-assigned',t.assignedTech);
+  _populateToolLocAssignLists();
   var pd=document.getElementById('tool-purchase-date'); if(pd) pd.value=t.purchaseDate||'';
   // Load ownership
   var isPersonal = t.ownerType === 'personal';
@@ -412,6 +429,7 @@ function saveToolItem() {
     tag:          tag,
     cat:          document.getElementById('tool-cat').value||'Other',
     location:     document.getElementById('tool-loc').value||'',
+    assignedTech: (document.getElementById('tool-assigned')||{}).value||'',
     cost:         parseFloat(document.getElementById('tool-cost').value)||0,
     serial:       document.getElementById('tool-serial').value||'',
     notes:        document.getElementById('tool-notes').value||'',
@@ -571,6 +589,7 @@ function checkinTool(checkoutId) {
   var tool=(DB.tools||[]).find(function(t){return t.id==co.toolId});
   var toolName = tool ? tool.name : 'tool';
   var toolTag  = tool ? (tool.tag||'Untagged') : '';
+  var _selfCI  = _toolCustodyCfg().selfCheckin;   // (gs) allow after-hours self check-in?
 
   // Build dynamic return modal
   var modalId = 'modal-tool-ret-dyn';
@@ -587,15 +606,16 @@ function checkinTool(checkoutId) {
           '<span class="asset-tag-badge">'+escHtml(toolTag)+'</span>'+
           ' <span style="font-size:12px;color:#546e7a">Currently assigned to '+escHtml(co.toName||'')+'.</span>'+
         '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'+
+        '<div style="display:grid;grid-template-columns:'+(_selfCI?'1fr 1fr':'1fr')+';gap:10px;margin-bottom:14px">'+
           '<div id="ret-opt-now" onclick="selectReturnOpt(\'now\')" style="border:2px solid #1565c0;background:#e3f2fd;border-radius:10px;padding:14px;cursor:pointer">'+
             '<div style="font-weight:800;font-size:14px;color:#1565c0">Verify Now</div>'+
             '<div style="font-size:11px;color:#546e7a;margin-top:4px">Office verifies immediately and closes the custody record.</div>'+
           '</div>'+
+          (_selfCI ?
           '<div id="ret-opt-later" onclick="selectReturnOpt(\'later\')" style="border:2px solid #e0e0e0;border-radius:10px;padding:14px;cursor:pointer">'+
-            '<div style="font-weight:800;font-size:14px">Verify Later</div>'+
+            '<div style="font-weight:800;font-size:14px">Verify Later (self check-in)</div>'+
             '<div style="font-size:11px;color:#546e7a;margin-top:4px">Submit return now, move to Pending Verify for office review.</div>'+
-          '</div>'+
+          '</div>' : '')+
         '</div>'+
         '<div id="ret-now-fields">'+
           '<label>Verifier Name *</label>'+
@@ -793,6 +813,130 @@ function confirmTransfer(modalId) {
 }
 
 // ---- PENDING VERIFY TAB ----
+// ============================================================
+// TOOL CUSTODY — self check-in & take-as-is (build gs)
+// Owner toggles (Settings -> Inventory -> Tool Custody):
+//   toolAllowSelfCheckin    (default ON)  — a tech may drop a tool off after
+//        hours ("Verify Later") into Pending Verify for the office to confirm later.
+//   toolAllowAsIsCheckout   (default ON)  — before the office verifies a returned
+//        tool, another tech may take it "as-is" by confirming all parts are present
+//        and accepting responsibility; custody passes to them.
+//   toolRequireApprovalAsIs (default OFF) — that take-as-is step needs a
+//        manager/owner name on record.
+// The chain of responsibility (who held it, who dropped it, who took it as-is,
+// who office-verified) is kept on the checkout records so there is never a gap.
+// ============================================================
+function _toolCustodyCfg() {
+  var s = DB.settings || {};
+  return {
+    selfCheckin:     s.toolAllowSelfCheckin  !== false,  // default on
+    asIs:            s.toolAllowAsIsCheckout  !== false,  // default on
+    requireApproval: !!s.toolRequireApprovalAsIs          // default off
+  };
+}
+function setToolCustody(key, v) {
+  if (!DB.settings) DB.settings = {};
+  DB.settings[key] = !!v;
+  try { if (typeof saveDB === 'function') saveDB(); } catch(e){}
+  if (typeof showToast === 'function') showToast('Tool custody setting saved', 'success', 1500);
+}
+
+// Take a returned-but-unverified tool as-is (custody transfer before office verify).
+function openAsIsCheckout(coId) {
+  if (!_toolCustodyCfg().asIs) { showToast('Take-as-is checkout is turned off in Settings','error'); return; }
+  if (typeof hasPermission==='function' && !hasPermission('tool.checkout')) { showToast('You do not have permission to check out tools','error'); return; }
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId && c.status==='pending_verify'; }); if(!co) return;
+  var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
+  var reqApproval = _toolCustodyCfg().requireApproval;
+  var teamOpts = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
+  var included = (co.groupsIncluded||[]).filter(function(g){ return g.included; });
+  var partsHtml = '<div style="font-size:12px;color:#90a4ae;margin:6px 0 4px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Confirm these are all present</div>'+
+    '<div style="background:#f8f9fa;border-radius:8px;padding:10px;margin-bottom:12px">'+
+      '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #eee"><span style="font-size:18px">🔧</span><span style="font-weight:700;font-size:13px;flex:1">'+escHtml((tool&&tool.name)||'Tool')+'</span><span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span></div>'+
+      (included.length ? included.map(function(g){
+        var req = g.mode==='required';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0"><span style="font-size:15px">📦</span><span style="flex:1;font-size:13px">'+escHtml(g.label)+'</span>'+
+          (req?'<span style="background:#c62828;color:#fff;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700">REQUIRED</span>':'<span style="background:#e65100;color:#fff;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700">OPTIONAL</span>')+
+        '</div>';
+      }).join('') : '')+
+    '</div>';
+  var modalId = 'modal-tool-asis-dyn';
+  var existing = document.getElementById(modalId); if(existing) existing.remove();
+  var div = document.createElement('div');
+  div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
+  div.innerHTML =
+    '<div class="modal-box">'+
+      '<div class="modal-head"><h3>Check Out As-Is (Before Office Verify)</h3>'+
+        '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
+      '<div class="modal-body">'+
+        '<div style="background:#fff3e0;border:1px solid #ffcc02;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#8a5a00">'+
+          'This tool was returned by <strong>'+escHtml(co.returnSubmittedBy||co.toName||'a tech')+'</strong> but the office hasn’t verified it yet. Taking it as-is transfers responsibility to you.'+
+        '</div>'+
+        partsHtml+
+        '<div class="form-row cols2">'+
+          '<div><label>Checked Out To *</label><input id="asis-to" list="asis-team" value="'+escHtml((_currentUser&&_currentUser.full_name)||'')+'"><datalist id="asis-team">'+teamOpts+'</datalist></div>'+
+          '<div><label>Job / Purpose</label><input id="asis-job" placeholder="Job name or purpose"></div>'+
+        '</div>'+
+        (reqApproval?'<div style="margin-top:10px"><label>Approved By (manager/owner) *</label><input id="asis-approver" placeholder="Name of approver"></div>':'')+
+        '<div style="margin-top:10px"><label>Note (optional)</label><input id="asis-note" placeholder="Anything the office should know"></div>'+
+        '<label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;margin-top:12px;cursor:pointer">'+
+          '<input type="checkbox" id="asis-ack" style="width:18px;height:18px;margin-top:1px">'+
+          '<span>I confirm all parts listed above are <strong>present</strong> and I accept responsibility for this tool <strong>as-is</strong>.</span>'+
+        '</label>'+
+      '</div>'+
+      '<div class="modal-foot">'+
+        '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
+        '<button class="btn btn-success" onclick="confirmAsIsCheckout(\''+coId+'\',\''+modalId+'\')">📦 Take Responsibility & Check Out</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+}
+
+function confirmAsIsCheckout(coId, modalId) {
+  var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId && c.status==='pending_verify'; }); if(!co) return;
+  var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
+  var toName = ((document.getElementById('asis-to')||{}).value||'').trim();
+  if (!toName) { showToast('Enter who is taking the tool','error'); return; }
+  if (!(document.getElementById('asis-ack')||{}).checked) { showToast('You must confirm the parts are present and accept responsibility','error'); return; }
+  var reqApproval = _toolCustodyCfg().requireApproval;
+  var approver = ((document.getElementById('asis-approver')||{}).value||'').trim();
+  if (reqApproval && !approver) { showToast('A manager/owner approval name is required','error'); return; }
+  var note = ((document.getElementById('asis-note')||{}).value||'').trim();
+  var job  = ((document.getElementById('asis-job')||{}).value||'').trim();
+  var now  = new Date().toISOString().split('T')[0];
+
+  // Resolve the prior unverified drop-off as released as-is (kept on record, leaves Pending Verify).
+  co.status         = 'as_is_released';
+  co.asIsReleasedTo = toName;
+  co.asIsReleasedAt = now;
+  co.asIsReleasedBy = (_currentUser&&_currentUser.full_name)||'';
+
+  // New active custody for the person taking it as-is (carry the same parts).
+  var carried = (co.groupsIncluded||[]).filter(function(g){ return g.included; }).map(function(g){ return {groupId:g.groupId,label:g.label,included:true,mode:g.mode}; });
+  DB.toolCheckouts.push({
+    id:             Date.now().toString(),
+    toolId:         co.toolId,
+    toName:         toName,
+    jobName:        job || co.jobName || '',
+    date:           now,
+    expectedReturn: co.expectedReturn || '',
+    returnedAt:     null,
+    status:         'checked_out',
+    groupsIncluded: carried,
+    takenAsIs:      true,
+    asIsFrom:       co.returnSubmittedBy || co.toName || '',
+    asIsAckBy:      (_currentUser&&_currentUser.full_name)||'',
+    asIsApprovedBy: reqApproval ? approver : '',
+    asIsNote:       note,
+    asIsPriorCoId:  coId
+  });
+
+  try { if (typeof saveDB==='function') saveDB(); } catch(e){}
+  var m = document.getElementById(modalId); if(m) m.remove();
+  if (typeof renderTools==='function') renderTools();
+  showToast((tool&&tool.tag||'Tool')+' taken as-is by '+toName+' — responsibility transferred','success',4000);
+}
+
 function renderPendingVerifyTab() {
   var tbl = document.getElementById('tool-pv-tbl'); if(!tbl) return;
   var pending = getToolCheckouts().filter(function(c){ return c.status === 'pending_verify'; });
@@ -815,6 +959,7 @@ function renderPendingVerifyTab() {
       '<td style="font-size:12px">'+escHtml(c.dropoffLocation||'—')+'</td>'+
       '<td>'+
         '<button class="btn btn-success btn-sm" onclick="verifyToolReturn(\''+c.id+'\')">🔍 Inspect & Verify</button>'+
+        (_toolCustodyCfg().asIs ? ' <button class="btn btn-sm" style="background:#e65100;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px" onclick="openAsIsCheckout(\''+c.id+'\')" title="Let a tech take this tool before the office verifies it, accepting responsibility as-is">📦 Check Out As-Is</button>' : '')+
       '</td>'+
     '</tr>';
   }).join('');
