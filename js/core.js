@@ -128,6 +128,14 @@ function saveDB() {
   if (window._syncInProgress) return;
   // Debounced cloud push — no recursion
   if (typeof _sb !== 'undefined' && _sb && typeof _currentUser !== 'undefined' && _currentUser && _currentUser.role !== 'field') {
+    // (fix 2026-10-06) Land the small blob collections (tools, tool checkouts, checkout
+    // log, inventory locations/transfers, tool loans — things like a tool photo link or a
+    // checkout) via the FAST targeted blob push. pushAllToCloud re-pushes tens of thousands
+    // of rows and writes these blobs LAST, so on a large dataset the tools blob frequently
+    // never lands — which is why tool photos/edits silently failed to reach the cloud.
+    // This flushes them in ~1.2s, independent of the heavy full push below.
+    clearTimeout(window._blobTimer);
+    window._blobTimer = setTimeout(function(){ try { if (typeof _pushBlobsToCloud === 'function') _pushBlobsToCloud(); } catch(e){} }, 1200);
     clearTimeout(window._syncTimer);
     window._syncTimer = setTimeout(pushAllToCloud, 2000);
   }

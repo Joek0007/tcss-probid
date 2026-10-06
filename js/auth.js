@@ -1755,6 +1755,10 @@ async function syncAllFromCloud(silent) {
   // it to the cloud instead of cancelling.
   clearTimeout(window._syncTimer);
   if (window.__blobDirtyAt > window.__blobPushedAt) {
+    // Land the small blob collections (tools/checkouts/photos) immediately via the fast
+    // targeted push — pushAllToCloud is too heavy to rely on for these — then schedule the
+    // full push for any per-row changes made during the sync.
+    try { if (typeof _pushBlobsToCloud === 'function') _pushBlobsToCloud(); } catch(e){}
     window._syncTimer = setTimeout(pushAllToCloud, 1500);
   }
   // Re-apply permissions after sync then render correct dashboard for role
