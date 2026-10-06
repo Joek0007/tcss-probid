@@ -19,10 +19,13 @@
 
   window._toolsPerRow = function _toolsPerRow(){
     try {
+      // Emergency OFF (instant revert, no redeploy): ?perrow=0 or localStorage 'tools_perrow'='0'
+      if (/[?&]perrow=0\b/.test(location.search)) return false;
+      if (localStorage.getItem('tools_perrow') === '0') return false;
       if (/[?&]perrow=1\b/.test(location.search)) return true;
       if (localStorage.getItem('tools_perrow') === '1') return true;
     } catch(e){}
-    return !!window.__TOOLS_PERROW_DEFAULT;   // cutover flips this to true
+    return true;   // (cutover hd) per-row tables are now the default for everyone
   };
 
   var _isUuid = function(v){ return typeof v==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v); };
