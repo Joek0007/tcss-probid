@@ -1432,18 +1432,36 @@ function viewPhoto(url, caption) {
 }
 
 // ---- PHOTO HANDLERS ----
-function onToolPhotoSelected(input) {
+// (build gx) Tool photos now upload to Supabase Storage (existing public job-photos
+// bucket, under a tool-photos/ path) and we persist only the short public URL — never
+// base64 inside the synced tools blob. This keeps the image bytes completely OUT of the
+// last-writer-wins blob sync, so a checkout, transfer, or new-build cold-sync can never
+// wipe them again. Mirrors the proven upload pattern used for work-order / vehicle docs.
+async function _uploadToolPhotoFile(file, subId) {
+  if (typeof _sb === 'undefined' || !_sb || !_currentUser) { showToast('Not logged in — photo not saved','error'); return null; }
+  if (!file) return null;
+  if (file.size > 5*1024*1024) { showToast('Photo must be under 5MB','error'); return null; }
+  try {
+    if (typeof compressImage === 'function') file = await compressImage(file);
+    var safe = ((file && file.name) || 'photo.jpg').replace(/[^a-zA-Z0-9._-]/g,'_');
+    var path = 'tool-photos/' + (subId || 'misc') + '/' + Date.now() + '-' + Math.random().toString(36).slice(2,6) + '-' + safe;
+    var up = await _sb.storage.from('job-photos').upload(path, file, { cacheControl:'3600', upsert:false });
+    if (up.error) throw up.error;
+    var pu = _sb.storage.from('job-photos').getPublicUrl(path);
+    return (pu && pu.data) ? pu.data.publicUrl : null;
+  } catch(e) { showToast('Photo upload failed: ' + (e.message || e), 'error'); return null; }
+}
+
+async function onToolPhotoSelected(input) {
   var file = input.files[0]; if(!file) return;
-  if (file.size > 5*1024*1024) { showToast('Photo must be under 5MB','error'); return; }
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    var url = e.target.result;
-    document.getElementById('tool-photo-url').value = url;
-    var preview = document.getElementById('tool-photo-preview');
-    if (preview) preview.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover">';
-    var clr = document.getElementById('tool-photo-clear'); if(clr) clr.style.display='block';
-  };
-  reader.readAsDataURL(file);
+  var preview = document.getElementById('tool-photo-preview');
+  if (preview) preview.innerHTML = '<div style="font-size:11px;color:#1565c0">Uploading…</div>';
+  var toolId = (document.getElementById('tool-id')||{}).value || 'new';
+  var url = await _uploadToolPhotoFile(file, toolId);
+  if (!url) { if (preview) preview.innerHTML = '\ud83d\udcf7'; return; }
+  document.getElementById('tool-photo-url').value = url;
+  if (preview) preview.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover">';
+  var clr = document.getElementById('tool-photo-clear'); if(clr) clr.style.display='block';
 }
 
 function clearToolPhoto() {
@@ -1490,16 +1508,13 @@ function addLinkedGroup() {
   if (confirm('Add a photo for "'+label.trim()+'"? (Recommended — helps techs identify the item in the field)')) {
     var inp = document.createElement('input');
     inp.type='file'; inp.accept='image/*';
-    inp.onchange = function() {
+    inp.onchange = async function() {
       var file = inp.files[0]; if(!file) return;
-      if(file.size > 5*1024*1024){showToast('Photo must be under 5MB','error');return;}
-      var reader = new FileReader();
-      reader.onload = function(e){
-        newGroup.photoUrl = e.target.result;
-        renderLinkedGroupsEditor();
-        showToast('Photo added for '+label.trim(),'success');
-      };
-      reader.readAsDataURL(file);
+      var url = await _uploadToolPhotoFile(file, newGroup.id);
+      if (!url) return;
+      newGroup.photoUrl = url;
+      renderLinkedGroupsEditor();
+      showToast('Photo added for '+label.trim(),'success');
     };
     inp.click();
   }
@@ -1508,18 +1523,15 @@ function addLinkedGroup() {
 function addGroupPhoto(idx) {
   var inp = document.createElement('input');
   inp.type='file'; inp.accept='image/*';
-  inp.onchange = function() {
+  inp.onchange = async function() {
     var file = inp.files[0]; if(!file) return;
-    if(file.size > 5*1024*1024){showToast('Photo must be under 5MB','error');return;}
-    var reader = new FileReader();
-    reader.onload = function(e){
-      if(window._editingToolGroups&&window._editingToolGroups[idx]){
-        window._editingToolGroups[idx].photoUrl = e.target.result;
-        renderLinkedGroupsEditor();
-        showToast('Photo added','success');
-      }
-    };
-    reader.readAsDataURL(file);
+    var grp = window._editingToolGroups && window._editingToolGroups[idx];
+    if (!grp) return;
+    var url = await _uploadToolPhotoFile(file, grp.id || ('grp'+idx));
+    if (!url) return;
+    grp.photoUrl = url;
+    renderLinkedGroupsEditor();
+    showToast('Photo added','success');
   };
   inp.click();
 }
@@ -1736,16 +1748,14 @@ function onOfferToolSelect(sel) {
   }
 }
 
-function onOfferPhotoSelected(input) {
+async function onOfferPhotoSelected(input) {
   var file=input.files[0]; if(!file) return;
-  if(file.size>5*1024*1024){showToast('Photo must be under 5MB','error');return;}
-  var reader=new FileReader();
-  reader.onload=function(e){
-    document.getElementById('offer-photo-url').value=e.target.result;
-    var preview=document.getElementById('offer-photo-preview');
-    if(preview) preview.innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">';
-  };
-  reader.readAsDataURL(file);
+  var preview=document.getElementById('offer-photo-preview');
+  if(preview) preview.innerHTML='<div style="font-size:11px;color:#1565c0">Uploading\u2026</div>';
+  var url = await _uploadToolPhotoFile(file, 'loan');
+  if(!url){ if(preview) preview.innerHTML='\ud83d\udcf7'; return; }
+  document.getElementById('offer-photo-url').value=url;
+  if(preview) preview.innerHTML='<img src="'+url+'" style="width:100%;height:100%;object-fit:cover">';
 }
 
 function submitLoanOffer() {
