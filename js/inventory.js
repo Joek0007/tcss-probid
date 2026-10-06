@@ -30,6 +30,33 @@ function getLocations() {
   return DB.invLocations;
 }
 
+// (build ie) PER-ROW location persistence. When _invLocPerRow() is on, each
+// created/changed location is written to its own row via InvLocationsDB (guarded),
+// instead of the clobber-prone whole-array blob. No-op (and blob path unchanged)
+// when the flag is off. Fire-and-forget; DB.invLocations is already updated.
+function _locPersist(loc, idx){
+  try {
+    if (loc && typeof _invLocPerRow==='function' && _invLocPerRow() && window.InvLocationsDB){
+      InvLocationsDB.save(loc, idx).then(function(res){
+        if (res && res.conflict){
+          try{ if(typeof showToast==='function') showToast('That location was just changed on another device — reloading','warning',4000); }catch(e){}
+          try{ InvLocationsDB.load().then(function(list){ DB.invLocations=list; if(typeof renderLocationSettings==='function') renderLocationSettings(); }); }catch(e){}
+        } else if (res && res.error){ console.warn('[InvLocationsDB save]', res.error); }
+      }).catch(function(e){ console.warn('[InvLocationsDB save]', e&&e.message); });
+    }
+  } catch(e){ console.warn('[InvLocationsDB persist]', e&&e.message); }
+}
+function _locRetire(loc){
+  try {
+    if (loc && loc._uuid && typeof _invLocPerRow==='function' && _invLocPerRow() && window.InvLocationsDB){
+      InvLocationsDB.retire(loc._uuid).catch(function(e){ console.warn('[InvLocationsDB retire]', e&&e.message); });
+    }
+  } catch(e){}
+}
+function _locPersistAll(){
+  try { (DB.invLocations||[]).forEach(function(l,i){ _locPersist(l,i); }); } catch(e){}
+}
+
 function getLocationName(id) {
   var loc = getLocations().find(function(l){ return l.id===id; });
   if (!loc) return id||'Unknown';
@@ -73,7 +100,7 @@ function linkLocationToVehicle(locId, assetId) {
   if (!loc) return;
   loc.assetId = assetId || null;
   DB.invLocations = getLocations();
-  saveDB();
+  saveDB(); _locPersist(loc);
   renderLocationSettings();
 }
 // One-click onboarding: give every active Fleet vehicle a stock location. Adopts existing UNLINKED
@@ -94,7 +121,7 @@ function syncLocationsFromFleet() {
     linked[String(v.id)] = true;
   });
   DB.invLocations = locs;
-  saveDB();
+  saveDB(); _locPersistAll();
   renderLocationSettings();
   alert('Fleet sync complete: '+adopted+' existing location(s) linked, '+created+' new location(s) created.');
 }
@@ -826,24 +853,26 @@ function renderLocationSettings() {
 function updateLocation(id, name) {
   var locs = getLocations();
   var loc  = locs.find(function(l){ return l.id===id; });
-  if (loc) { loc.name=name; DB.invLocations=locs; saveDB(); }
+  if (loc) { loc.name=name; DB.invLocations=locs; saveDB(); _locPersist(loc); }
 }
 
 function addLocation() {
   var name = (document.getElementById('new-location-name')||{}).value||'';
   if (!name.trim()) return;
   var locs = getLocations();
-  locs.push({ id:'loc-'+Date.now(), name:name.trim(), type:'vehicle', isDefault:false });
+  var _nl = { id:'loc-'+Date.now(), name:name.trim(), type:'vehicle', isDefault:false };
+  locs.push(_nl);
   DB.invLocations = locs;
   document.getElementById('new-location-name').value = '';
-  saveDB();
+  saveDB(); _locPersist(_nl, locs.length-1);
   renderLocationSettings();
 }
 
 function deleteLocation(id) {
   if (!confirm('Delete this location? Items assigned here will remain but show no location.')) return;
+  var _gone = getLocations().find(function(l){ return l.id===id; });
   DB.invLocations = getLocations().filter(function(l){ return l.id!==id; });
-  saveDB();
+  saveDB(); _locRetire(_gone);
   renderLocationSettings();
 }
 

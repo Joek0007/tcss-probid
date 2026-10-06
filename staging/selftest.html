@@ -70,6 +70,7 @@ async function run(){
     document.getElementById('who').textContent = 'signed in as '+(u.email||u.id.slice(0,8));
     if(!window.ToolsDB){ throw new Error('tools_db.js did not load (ToolsDB missing).'); }
     if(!window.CheckoutsDB){ throw new Error('checkouts_db.js did not load (CheckoutsDB missing).'); }
+    if(!window.InvLocationsDB){ throw new Error('inventory_locations_db.js did not load (InvLocationsDB missing).'); }
   } catch(e){
     group('Setup'); const r=add('Authenticate with your ProBid session'); mark(r,false,e.message);
     finish(); return;
@@ -90,6 +91,12 @@ async function run(){
     // teardown: retire any SELFTEST custody rows (soft delete; invisible to the app)
     const all=await CheckoutsDB.load(); const mine=all.filter(c=>(c.toName||'').indexOf('SELFTEST')===0);
     for(const c of mine){ await CheckoutsDB.retire(c._uuid); }
+    return mine.length;
+  }
+  async function freshLoc(nameIncludes){ const list=await InvLocationsDB.load(); return list.filter(l=>(l.name||'').indexOf(nameIncludes)>=0); }
+  async function softDeleteSelftestLocs(){
+    const all=await InvLocationsDB.load(); const mine=all.filter(l=>(l.name||'').indexOf('SELFTEST')===0);
+    for(const l of mine){ await InvLocationsDB.retire(l._uuid); }
     return mine.length;
   }
 
@@ -265,6 +272,55 @@ async function run(){
     mark(r, n===1, n===1?'Cara\'s checkout kept its 1 traveling part (Case).':'expected 1 group, got '+n);
   }catch(e){ mark(r,false,e.message); }
 
+  // ---- INVENTORY LOCATIONS (per-row) ----
+  group('Inventory locations — per-row (the fix)');
+
+  r=add('Clean any leftover SELFTEST locations');
+  try{ const n=await softDeleteSelftestLocs(); mark(r,true,'retired '+n+' leftover test location(s).'); }catch(e){ mark(r,false,e.message); }
+
+  r=add('Two writers create DIFFERENT locations at once → both survive');
+  try{
+    const la={id:'SELFTEST-LOC-A-'+Date.now(), name:'SELFTEST Truck A', type:'vehicle', isDefault:false};
+    const lb={id:'SELFTEST-LOC-B-'+Date.now(), name:'SELFTEST Truck B', type:'vehicle', isDefault:false};
+    const [ra,rb]=await Promise.all([InvLocationsDB.save(la), InvLocationsDB.save(lb)]);
+    const found=await freshLoc('SELFTEST Truck');
+    const ok = ra.ok && rb.ok && found.some(l=>l.name==='SELFTEST Truck A') && found.some(l=>l.name==='SELFTEST Truck B');
+    mark(r, ok, ok?'Both locations persisted independently.':'A='+JSON.stringify(ra)+' B='+JSON.stringify(rb));
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Two writers edit the SAME location at once → stale one REJECTED (no clobber)');
+  try{
+    const a0=(await freshLoc('SELFTEST Truck A'))[0];
+    const s1=Object.assign({},a0); s1.name='SELFTEST Truck A (writer-1)';
+    const s2=Object.assign({},a0); s2.name='SELFTEST Truck A (writer-2)';
+    const w1=await InvLocationsDB.save(s1);
+    const w2=await InvLocationsDB.save(s2);
+    const after=(await freshLoc('SELFTEST Truck A'))[0];
+    const ok = w1.ok && w2.conflict===true && after.name==='SELFTEST Truck A (writer-1)';
+    mark(r, ok, ok?'Writer 1 saved; writer 2 rejected with a conflict; writer 1 kept.':'w1='+JSON.stringify(w1)+' w2='+JSON.stringify(w2)+' name='+(after&&after.name));
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Location fields (type, fleet link, stable id) round-trip');
+  try{
+    const a=(await freshLoc('SELFTEST Truck A'))[0];
+    const e1=Object.assign({},a); e1.assetId='veh-selftest-9'; e1.type='vehicle';
+    const sv=await InvLocationsDB.save(e1);
+    const after=(await freshLoc('SELFTEST Truck A'))[0];
+    const ok = sv.ok && after.assetId==='veh-selftest-9' && after.type==='vehicle' && !!after.id && !!after._uuid;
+    mark(r, ok, ok?('fleet link + type saved; app id="'+after.id+'" stays stable (stock keys to it), table uuid separate.'):'save='+JSON.stringify(sv)+' got='+JSON.stringify(after));
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Retire (soft-delete) removes a location from the active list');
+  try{
+    const a=(await freshLoc('SELFTEST Truck A'))[0];
+    await InvLocationsDB.retire(a._uuid);
+    const still=(await freshLoc('SELFTEST Truck A')).length>0;
+    mark(r, !still, !still?'Retired location no longer appears.':'still active after retire');
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Auto-clean all SELFTEST locations');
+  try{ const n=await softDeleteSelftestLocs(); const remain=(await freshLoc('SELFTEST')).length; mark(r, remain===0, remain===0?'cleaned up; no active SELFTEST locations remain.':(remain+' still active')); }catch(e){ mark(r,false,e.message); }
+
   // ---- RETIRE / TEARDOWN ----
   group('Retire & cleanup');
   r=add('Retire (soft-delete) removes a tool from the active list');
@@ -299,5 +355,6 @@ document.getElementById('run').addEventListener('click', run);
 <!-- the real shipped per-row engines; tested, not copies -->
 <script src="../js/tools_db.js"></script>
 <script src="../js/checkouts_db.js"></script>
+<script src="../js/inventory_locations_db.js"></script>
 </body>
 </html>
