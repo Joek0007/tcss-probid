@@ -850,15 +850,30 @@ function openAsIsCheckout(coId) {
   var reqApproval = _toolCustodyCfg().requireApproval;
   var teamOpts = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
   var included = (co.groupsIncluded||[]).filter(function(g){ return g.included; });
-  var partsHtml = '<div style="font-size:12px;color:#90a4ae;margin:6px 0 4px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Confirm these are all present</div>'+
-    '<div style="background:#f8f9fa;border-radius:8px;padding:10px;margin-bottom:12px">'+
-      '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #eee"><span style="font-size:18px">🔧</span><span style="font-weight:700;font-size:13px;flex:1">'+escHtml((tool&&tool.name)||'Tool')+'</span><span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span></div>'+
-      (included.length ? included.map(function(g){
-        var req = g.mode==='required';
-        return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0"><span style="font-size:15px">📦</span><span style="flex:1;font-size:13px">'+escHtml(g.label)+'</span>'+
-          (req?'<span style="background:#c62828;color:#fff;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700">REQUIRED</span>':'<span style="background:#e65100;color:#fff;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700">OPTIONAL</span>')+
-        '</div>';
-      }).join('') : '')+
+  var toolGroups = (tool&&tool.linkedGroups)||[];
+  function _asisThumb(photoUrl, label, isTool){
+    if (photoUrl && typeof photoThumb==='function') return photoThumb(photoUrl, label, isTool?34:30, 'border-radius:7px;flex-shrink:0');
+    return '<span style="width:'+(isTool?34:30)+'px;height:'+(isTool?34:30)+'px;background:'+(isTool?'#e3eaf6':'#eef0f5')+';border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:'+(isTool?18:15)+'px;flex-shrink:0">'+(isTool?'🔧':'📦')+'</span>';
+  }
+  var partsHtml =
+    '<div style="font-size:11px;color:#607d8b;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:2px 0 6px">Confirm all '+(included.length+1)+' items are present</div>'+
+    '<div style="border:1px solid #e6e9ef;border-radius:10px;overflow:hidden;margin-bottom:14px">'+
+      '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#eef3fb;border-bottom:1px solid #e6e9ef">'+
+        _asisThumb(tool&&tool.photoUrl,(tool&&tool.name)||'',true)+
+        '<span style="font-weight:800;font-size:14px;flex:1">'+escHtml((tool&&tool.name)||'Tool')+'</span>'+
+        '<span class="asset-tag-badge">'+escHtml((tool&&tool.tag)||'—')+'</span>'+
+      '</div>'+
+      '<div style="max-height:190px;overflow-y:auto">'+
+        (included.length ? included.map(function(g){
+          var req=g.mode==='required';
+          var tg=toolGroups.find(function(x){return x.id===g.groupId;})||{};
+          return '<div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-top:1px solid #f2f4f8">'+
+            _asisThumb(tg.photoUrl, g.label, false)+
+            '<span style="flex:1;font-size:13px">'+escHtml(g.label)+'</span>'+
+            (req?'<span style="background:#c62828;color:#fff;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.3px">REQUIRED</span>':'<span style="background:#e8820c;color:#fff;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.3px">OPTIONAL</span>')+
+          '</div>';
+        }).join('') : '<div style="padding:10px 12px;font-size:12px;color:#90a4ae">No linked parts.</div>')+
+      '</div>'+
     '</div>';
   var modalId = 'modal-tool-asis-dyn';
   var existing = document.getElementById(modalId); if(existing) existing.remove();
@@ -879,9 +894,9 @@ function openAsIsCheckout(coId) {
         '</div>'+
         (reqApproval?'<div style="margin-top:10px"><label>Approved By (manager/owner) *</label><input id="asis-approver" placeholder="Name of approver"></div>':'')+
         '<div style="margin-top:10px"><label>Note (optional)</label><input id="asis-note" placeholder="Anything the office should know"></div>'+
-        '<label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;margin-top:12px;cursor:pointer">'+
-          '<input type="checkbox" id="asis-ack" style="width:18px;height:18px;margin-top:1px">'+
-          '<span>I confirm all parts listed above are <strong>present</strong> and I accept responsibility for this tool <strong>as-is</strong>.</span>'+
+        '<label for="asis-ack" style="display:flex;align-items:flex-start;gap:12px;font-size:13px;margin-top:14px;padding:12px 14px;border:1.5px solid #f0b000;background:#fff8e6;border-radius:10px;cursor:pointer">'+
+          '<input type="checkbox" id="asis-ack" style="width:20px;height:20px;margin-top:0;flex-shrink:0;accent-color:#2e7d32">'+
+          '<span style="line-height:1.45">I confirm all parts listed above are <strong>present</strong> and I accept full responsibility for this tool <strong>as-is</strong>.</span>'+
         '</label>'+
       '</div>'+
       '<div class="modal-foot">'+
