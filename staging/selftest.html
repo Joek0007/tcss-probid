@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProBid — Data Integrity Self-Test</title>
+<style>
+  :root{ --ok:#2e7d32; --okbg:#e8f5e9; --bad:#c62828; --badbg:#fdecea; --ink:#0d1b2a; --mut:#607d8b; --line:#e0e0e0; }
+  *{box-sizing:border-box} body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#f5f7fa;color:var(--ink)}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 16px 80px}
+  h1{font-size:20px;margin:0 0 4px} .sub{color:var(--mut);font-size:13px;margin:0 0 18px}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+  button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:11px 18px;cursor:pointer;background:#1565c0;color:#fff}
+  button:disabled{opacity:.5;cursor:default}
+  .verdict{font-weight:900;font-size:15px;padding:10px 16px;border-radius:10px;display:none}
+  .verdict.pass{display:inline-block;background:var(--okbg);color:var(--ok);border:1.5px solid #a5d6a7}
+  .verdict.fail{display:inline-block;background:var(--badbg);color:var(--bad);border:1.5px solid #ef9a9a}
+  .grp{margin:18px 0 6px;font-size:12px;font-weight:800;letter-spacing:.5px;color:var(--mut);text-transform:uppercase}
+  .row{display:flex;gap:12px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-left-width:5px;border-radius:10px;padding:11px 14px;margin-bottom:8px}
+  .row.ok{border-left-color:var(--ok)} .row.bad{border-left-color:var(--bad)} .row.run{border-left-color:#90a4ae}
+  .ic{font-size:16px;line-height:1.4;width:20px;flex-shrink:0} .ok .ic{color:var(--ok)} .bad .ic{color:var(--bad)}
+  .t{font-weight:700;font-size:14px} .d{color:var(--mut);font-size:12px;margin-top:2px;white-space:pre-wrap}
+  .muted{color:var(--mut);font-size:12px}
+  code{background:#eef2f7;padding:1px 5px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🧪 ProBid — Data Integrity Self-Test</h1>
+  <p class="sub">Proves the per-row design holds under concurrent use, against the live database. Creates clearly-named <code>SELFTEST</code> data and removes it automatically. Open while signed in to ProBid in this browser.</p>
+  <div class="bar">
+    <button id="run">Run all checks</button>
+    <span id="verdict" class="verdict"></span>
+    <span id="who" class="muted"></span>
+  </div>
+  <div id="out"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<script>
+const SUPA_URL='https://jzvoksidbelxibzbizvi.supabase.co';
+const SUPA_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6dm9rc2lkYmVseGliemJpenZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MjQ3MTQsImV4cCI6MjA5NDIwMDcxNH0.DfZZsGXnRgPqG0alp8PXuB7d_2AOJnsRMX3nHYVhGE8';
+const out=document.getElementById('out');
+let results=[], curGroup='';
+function group(g){ curGroup=g; const d=document.createElement('div'); d.className='grp'; d.textContent=g; out.appendChild(d); }
+function add(name){ const row=document.createElement('div'); row.className='row run'; row.innerHTML='<div class="ic">⏳</div><div><div class="t"></div><div class="d"></div></div>'; row.querySelector('.t').textContent=name; out.appendChild(row); return row; }
+function mark(row,pass,detail){ row.className='row '+(pass?'ok':'bad'); row.querySelector('.ic').textContent=pass?'✓':'✕'; row.querySelector('.d').textContent=detail||''; results.push(!!pass); }
+
+async function setupAuth(){
+  const sb = supabase.createClient(SUPA_URL, SUPA_ANON, {auth:{persistSession:false, autoRefreshToken:false}});
+  // reuse the app's stored session (same origin)
+  let tok=null; try{ tok=JSON.parse(localStorage.getItem('sb-jzvoksidbelxibzbizvi-auth-token')); }catch(e){}
+  const sess = tok && (tok.access_token ? tok : (tok.currentSession||tok.session));
+  if(!sess || !sess.access_token) throw new Error('Not signed in to ProBid in this browser — open the app and log in first, then reload this page.');
+  await sb.auth.setSession({access_token:sess.access_token, refresh_token:sess.refresh_token});
+  const u = (await sb.auth.getUser()).data.user;
+  if(!u) throw new Error('Session found but could not resolve user.');
+  window._sb = sb;
+  window.DB = window.DB || {};
+  window._currentUser = { id:u.id, role:'owner' };
+  return u;
+}
+
+async function run(){
+  document.getElementById('run').disabled=true;
+  out.innerHTML=''; results=[];
+  const verdict=document.getElementById('verdict'); verdict.className='verdict'; verdict.textContent='';
+  try {
+    const u = await setupAuth();
+    document.getElementById('who').textContent = 'signed in as '+(u.email||u.id.slice(0,8));
+    if(!window.ToolsDB){ throw new Error('tools_db.js did not load (ToolsDB missing).'); }
+  } catch(e){
+    group('Setup'); const r=add('Authenticate with your ProBid session'); mark(r,false,e.message);
+    finish(); return;
+  }
+
+  const sb=window._sb, TAG='SELFTEST';
+  const base={ cat:'Selftest' };
+  async function freshLoad(nameIncludes){ const list=await ToolsDB.load(); return list.filter(t=>(t.name||'').indexOf(nameIncludes)>=0); }
+  async function softDeleteSelftest(){
+    // teardown: retire any SELFTEST tools + their groups (soft delete; invisible to the app)
+    const all=await ToolsDB.load(); const mine=all.filter(t=>(t.name||'').indexOf(TAG)===0);
+    for(const t of mine){ await ToolsDB.retireTool(t._uuid); }
+    return mine.length;
+  }
+
+  // ---- SETUP ----
+  group('Setup');
+  let r=add('Authenticate + load real tools_db.js'); mark(r,true,'ToolsDB present; running against live DB.');
+  r=add('Clean any leftover SELFTEST data from a prior run');
+  try{ const n=await softDeleteSelftest(); mark(r,true,'retired '+n+' leftover test tool(s).'); }catch(e){ mark(r,false,e.message); }
+
+  // ---- PER-ROW CORE ----
+  group('Per-row core (the fix)');
+
+  // T: create two DIFFERENT tools concurrently -> both survive
+  r=add('Two writers create DIFFERENT tools at once → both survive');
+  try{
+    const [a,b]=await Promise.all([
+      ToolsDB.saveTool({id:TAG+'-A-'+Date.now(), name:TAG+' Alpha', cat:'Selftest', linkedGroups:[{id:'g1',label:'Part One',mode:'required'},{id:'g2',label:'Part Two',mode:'optional'}]}),
+      ToolsDB.saveTool({id:TAG+'-B-'+Date.now(), name:TAG+' Bravo', cat:'Selftest', linkedGroups:[]})
+    ]);
+    const found=await freshLoad(TAG+' ');
+    const ok = a.ok && b.ok && found.some(t=>t.name===TAG+' Alpha') && found.some(t=>t.name===TAG+' Bravo');
+    mark(r, ok, ok?'Both Alpha and Bravo persisted independently.':'saveA='+JSON.stringify(a)+' saveB='+JSON.stringify(b));
+  }catch(e){ mark(r,false,e.message); }
+
+  // T: two writers edit the SAME tool -> stale one rejected
+  r=add('Two writers edit the SAME tool at once → stale one REJECTED (no clobber)');
+  try{
+    const alpha=(await freshLoad(TAG+' ')).find(t=>t.name===TAG+' Alpha');
+    const s1=Object.assign({},alpha); s1.notes='writer-1';
+    const s2=Object.assign({},alpha); s2.notes='writer-2';
+    const w1=await ToolsDB.saveTool(s1);
+    const w2=await ToolsDB.saveTool(s2);
+    const after=(await freshLoad(TAG+' ')).find(t=>t.name===TAG+' Alpha');
+    const ok = w1.ok && w2.conflict===true && after.notes==='writer-1';
+    mark(r, ok, ok?'Writer 1 saved; writer 2 was rejected with a conflict; writer 1\'s value kept.':'w1='+JSON.stringify(w1)+' w2='+JSON.stringify(w2)+' finalNotes='+(after&&after.notes));
+  }catch(e){ mark(r,false,e.message); }
+
+  // ---- FIDELITY ----
+  group('Data fidelity');
+
+  // T: linked parts persist
+  r=add('Linked parts persist with the tool');
+  try{ const alpha=(await freshLoad(TAG+' ')).find(t=>t.name===TAG+' Alpha'); const n=(alpha.linkedGroups||[]).length; mark(r, n===2, n===2?'2 parts round-tripped (Part One, Part Two).':'expected 2 parts, got '+n); }catch(e){ mark(r,false,e.message); }
+
+  // T: photo link persists through a reload
+  r=add('Photo link persists through a reload');
+  try{
+    const alpha=(await freshLoad(TAG+' ')).find(t=>t.name===TAG+' Alpha');
+    const url='https://jzvoksidbelxibzbizvi.supabase.co/storage/v1/object/public/tool-photos/selftest/x.jpg';
+    const e1=Object.assign({},alpha); e1.photoUrl=url;
+    const sv=await ToolsDB.saveTool(e1);
+    const after=(await freshLoad(TAG+' ')).find(t=>t.name===TAG+' Alpha');
+    const ok = sv.ok && after.photoUrl===url;
+    mark(r, ok, ok?'Photo link saved per-row and survived reload.':'save='+JSON.stringify(sv)+' got='+(after&&after.photoUrl));
+  }catch(e){ mark(r,false,e.message); }
+
+  // T: checkout-linkage id shape (legacy id preserved for compatibility)
+  r=add('Tool id stays stable for checkout linkage');
+  try{ const alpha=(await freshLoad(TAG+' ')).find(t=>t.name===TAG+' Alpha'); const ok=!!alpha.id && !!alpha._uuid; mark(r, ok, ok?('app id="'+alpha.id+'" (what checkouts reference); table uuid tracked separately.'):'missing id/_uuid'); }catch(e){ mark(r,false,e.message); }
+
+  // ---- RETIRE / TEARDOWN ----
+  group('Retire & cleanup');
+  r=add('Retire (soft-delete) removes a tool from the active list');
+  try{
+    const alpha=(await freshLoad(TAG+' ')).find(t=>t.name===TAG+' Alpha');
+    await ToolsDB.retireTool(alpha._uuid);
+    const still=(await freshLoad(TAG+' ')).some(t=>t.name===TAG+' Alpha');
+    mark(r, !still, !still?'Retired tool no longer appears in the active list.':'tool still active after retire');
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Auto-clean all SELFTEST data');
+  try{ const n=await softDeleteSelftest(); const remain=(await freshLoad(TAG+' ')).length; mark(r, remain===0, remain===0?('cleaned up; no active SELFTEST tools remain.'):(remain+' SELFTEST tools still active')); }catch(e){ mark(r,false,e.message); }
+
+  finish();
+}
+function finish(){
+  const pass=results.length>0 && results.every(Boolean);
+  const v=document.getElementById('verdict');
+  v.className='verdict '+(pass?'pass':'fail');
+  v.textContent=(pass?'ALL CHECKS PASSED — data integrity holds':'SOME CHECKS FAILED — see red rows')+' ('+results.filter(Boolean).length+'/'+results.length+')';
+  document.getElementById('run').disabled=false;
+}
+document.getElementById('run').addEventListener('click', run);
+</script>
+<!-- the real shipped per-row engine; tested, not a copy -->
+<script src="../js/tools_db.js"></script>
+</body>
+</html>
