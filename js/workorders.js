@@ -559,6 +559,15 @@ function _wireWOListEvents() {
   });
 }
 
+// ---- Internal-fleet toggle (Customer is the primary path; fleet is tucked away) ----
+function _woShowFleet(show){
+  var wrap=document.getElementById('wo-fleet-wrap');
+  var tog=document.getElementById('wo-fleet-toggle');
+  if(wrap) wrap.style.display = show ? 'flex' : 'none';
+  if(tog)  tog.style.display  = show ? 'none' : '';
+  if(show){ var v=document.getElementById('wo-vehicle-name'); if(v){ try{ v.focus(); }catch(e){} } }
+}
+
 // ---- OPEN / NEW ----
 function openNewWorkOrder() {
   _woCurrentId = null;
@@ -632,7 +641,11 @@ function openNewWorkOrder() {
   }
   switchWOTab((typeof wtIsFieldTech==='function'&&wtIsFieldTech())?'fieldlog':'labor');
   setTimeout(function(){var cp=document.getElementById('wo-change-orders-panel');if(cp){var woId=_woCurrentId;cp.innerHTML=renderWOChangeOrders(woId);var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});if(wo&&wo.parentWoId&&wo.isChangeOrder){var par=(DB.workOrders||[]).find(function(w){return w.id===wo.parentWoId;});if(par)_renderParentWOBanner(par);}}},200);
+  // New WO: Customer is the path; internal-fleet is collapsed behind its toggle.
+  _woShowFleet(false);
   openModal('modal-work-order');
+  // Put the cursor in the customer search so the user can type immediately.
+  setTimeout(function(){ var c=document.getElementById('wo-customer-name'); if(c){ try{ c.focus(); }catch(e){} } }, 60);
 }
 
 // ── Work Order unsaved-changes guard (mirrors the quote's nav warning) ──────────
@@ -714,6 +727,8 @@ function openWorkOrder(id) {
   var _vv=(wo.vehicleId&&(DB.vehicles||[]).find(function(x){return x.id===wo.vehicleId;}))||null;
   sv('wo-vehicle-name',   _vv?(_vv.number||_vv.name||''):'');
   sv('wo-vehicle-id',     wo.vehicleId||'');
+  // Reveal the fleet field only when this WO actually is fleet work.
+  _woShowFleet(!!wo.vehicleId);
   sv('wo-description',    wo.description||'');
   sv('wo-work-performed', wo.workPerformed||'');
   sv('wo-ref-num',        wo.refNum||'');
@@ -1120,6 +1135,7 @@ function onWOVehicleInput(val){
   drop.style.display='block';
 }
 function selectWOVehicle(id, label){
+  _woShowFleet(true); // ensure the field is visible (e.g. when set from openNewWOForVehicle)
   var nameEl=document.getElementById('wo-vehicle-name'); if(nameEl) nameEl.value=label;
   var idEl=document.getElementById('wo-vehicle-id');     if(idEl)   idEl.value=id;
   var drop=document.getElementById('wo-vehicle-dropdown'); if(drop) drop.style.display='none';
@@ -3473,8 +3489,13 @@ function _renderParentWOBanner(parent) {
 }
 
 function renderWOChangeOrders(woId) {
+  // A brand-new, unsaved WO has no id yet (woId null/undefined). Guard against it:
+  // otherwise the filter below (w.parentWoId === woId) matches every ordinary WO
+  // whose parentWoId is also null — showing the entire work-order list as bogus
+  // "change orders" of a WO that doesn't exist yet.
+  if (!woId) return '';
   var children = (DB.workOrders||[]).filter(function(w){
-    return w.parentWoId === woId && !w.deleted;
+    return w.parentWoId && w.parentWoId === woId && !w.deleted;
   });
   if (!children.length) return '';
 
