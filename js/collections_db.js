@@ -25,7 +25,7 @@
       if (/[?&]colperrow=1\b/.test(location.search)) return true;
       if (localStorage.getItem('collections_perrow') === '1') return true;
     } catch(e){}
-    return !!window.__COLLECTIONS_PERROW_DEFAULT;   // cutover flips this to true
+    return true;   // (cutover) the generic per-row store is now the default for everyone
   };
 
   var _now = function(){ return new Date().toISOString(); };
