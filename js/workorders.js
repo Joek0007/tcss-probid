@@ -644,6 +644,9 @@ function openNewWorkOrder() {
   // New WO: Customer is the path; internal-fleet is collapsed behind its toggle.
   _woShowFleet(false);
   openModal('modal-work-order');
+  // Track unsaved edits for the close-guard; start clean (field clears above aren't "edits").
+  _wireWODirty();
+  _woDirty = false;
   // Put the cursor in the customer search so the user can type immediately.
   setTimeout(function(){ var c=document.getElementById('wo-customer-name'); if(c){ try{ c.focus(); }catch(e){} } }, 60);
 }
@@ -657,6 +660,20 @@ function _wireWODirty(){
   m.addEventListener('input',  function(){ _woDirty = true; });
   m.addEventListener('change', function(){ _woDirty = true; });
   m._dirtyWired = true;
+}
+// Close the work-order modal via the × button — but if the user has typed/changed
+// anything that isn't saved, confirm first so a stray close can't wipe their work.
+// A clean (untouched) work order closes immediately with no prompt.
+async function woTryClose(){
+  if (_woDirty){
+    var ok = (typeof showConfirm === 'function')
+      ? await showConfirm('You have unsaved changes on this work order.\n\nClose without saving them?',
+          { title:'Unsaved changes', okLabel:'Discard & Close', cancelLabel:'Keep Editing', danger:true })
+      : true;
+    if (!ok) return;            // Keep Editing — stay in the modal
+  }
+  _woDirty = false;
+  if (typeof closeModal === 'function') closeModal('modal-work-order');
 }
 function woNavWarnStay(){
   var mod = document.getElementById('modal-wo-nav-warn'); if (mod) mod.style.display='none';
@@ -1082,6 +1099,7 @@ function onWOCustomerInput(val) {
 }
 
 function selectWOCustomer(id, name) {
+  _woDirty = true; // picking from the dropdown counts as an edit (programmatic value set fires no input event)
   var nameEl=document.getElementById('wo-customer-name'); if(nameEl) nameEl.value=name;
   var idEl=document.getElementById('wo-customer-id');     if(idEl)   idEl.value=id;
   var drop=document.getElementById('wo-customer-dropdown'); if(drop) drop.style.display='none';
@@ -1135,6 +1153,7 @@ function onWOVehicleInput(val){
   drop.style.display='block';
 }
 function selectWOVehicle(id, label){
+  _woDirty = true; // picking from the dropdown counts as an edit
   _woShowFleet(true); // ensure the field is visible (e.g. when set from openNewWOForVehicle)
   var nameEl=document.getElementById('wo-vehicle-name'); if(nameEl) nameEl.value=label;
   var idEl=document.getElementById('wo-vehicle-id');     if(idEl)   idEl.value=id;
