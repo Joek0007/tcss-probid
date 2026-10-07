@@ -71,6 +71,7 @@ async function run(){
     if(!window.ToolsDB){ throw new Error('tools_db.js did not load (ToolsDB missing).'); }
     if(!window.CheckoutsDB){ throw new Error('checkouts_db.js did not load (CheckoutsDB missing).'); }
     if(!window.InvLocationsDB){ throw new Error('inventory_locations_db.js did not load (InvLocationsDB missing).'); }
+    if(!window.CollectionsDB){ throw new Error('collections_db.js did not load (CollectionsDB missing).'); }
   } catch(e){
     group('Setup'); const r=add('Authenticate with your ProBid session'); mark(r,false,e.message);
     finish(); return;
@@ -359,6 +360,41 @@ async function run(){
     mark(r, clean, clean?'probe keys removed; settings back to baseline.':'leftover probe keys remain');
   }catch(e){ mark(r,false,e.message); }
 
+  // ---- GENERIC PER-ROW COLLECTIONS ----
+  group('Generic collections store — per-row (the fix)');
+  const CC='SELFTEST_coll';
+  async function loadCC(){ return await CollectionsDB.load(CC); }
+  async function cleanCC(){ const all=await loadCC(); for(const it of all){ await CollectionsDB.retire(CC, it.id); } return all.length; }
+
+  r=add('Clean any leftover SELFTEST collection rows');
+  try{ const n=await cleanCC(); mark(r,true,'retired '+n+' leftover row(s).'); }catch(e){ mark(r,false,e.message); }
+
+  r=add('Two writers add DIFFERENT items at once → both survive');
+  try{
+    await Promise.all([
+      CollectionsDB.syncArray(CC, [{id:'ST-A', v:'alpha'}], []),   // writer 1, empty baseline
+      CollectionsDB.syncArray(CC, [{id:'ST-B', v:'bravo'}], [])    // writer 2, empty baseline
+    ]);
+    const all=await loadCC();
+    const ok = all.some(x=>x.id==='ST-A') && all.some(x=>x.id==='ST-B');
+    mark(r, ok, ok?'Both items persisted independently (old blob would have lost one).':'got '+JSON.stringify(all.map(x=>x.id)));
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Item data round-trips');
+  try{ const a=(await loadCC()).find(x=>x.id==='ST-A'); mark(r, a&&a.v==='alpha', a&&a.v==='alpha'?'payload intact.':'got '+JSON.stringify(a)); }catch(e){ mark(r,false,e.message); }
+
+  r=add('A writer removing its own item does NOT clobber a concurrent add');
+  try{
+    // writer 1 loaded only [ST-A], now removes it (arr empty, baseline [ST-A]); ST-B was added by "writer 2" and is NOT in writer 1's baseline
+    await CollectionsDB.syncArray(CC, [], ['ST-A']);
+    const all=await loadCC();
+    const ok = !all.some(x=>x.id==='ST-A') && all.some(x=>x.id==='ST-B');
+    mark(r, ok, ok?'ST-A retired by its owner; concurrently-added ST-B untouched.':'got '+JSON.stringify(all.map(x=>x.id)));
+  }catch(e){ mark(r,false,e.message); }
+
+  r=add('Auto-clean all SELFTEST collection rows');
+  try{ await cleanCC(); const remain=(await loadCC()).length; mark(r, remain===0, remain===0?'cleaned up; none remain.':(remain+' still active')); }catch(e){ mark(r,false,e.message); }
+
   // ---- RETIRE / TEARDOWN ----
   group('Retire & cleanup');
   r=add('Retire (soft-delete) removes a tool from the active list');
@@ -394,5 +430,6 @@ document.getElementById('run').addEventListener('click', run);
 <script src="../js/tools_db.js"></script>
 <script src="../js/checkouts_db.js"></script>
 <script src="../js/inventory_locations_db.js"></script>
+<script src="../js/collections_db.js"></script>
 </body>
 </html>

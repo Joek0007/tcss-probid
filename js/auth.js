@@ -1680,13 +1680,21 @@ async function syncAllFromCloud(silent) {
   try {
     var { data: stateRows } = await _sbSelectAll(function(){ return _sb.from('app_state').select('key,data'); });
     if (stateRows && stateRows.length) {
-      stateRows.forEach(function(row){ if (row && row.key && Array.isArray(row.data)) { if (row.key==='tools' && typeof _toolsPerRow==='function' && _toolsPerRow()) return; if (row.key==='toolCheckouts' && typeof _checkoutsPerRow==='function' && _checkoutsPerRow()) return; if (row.key==='invLocations' && typeof _invLocPerRow==='function' && _invLocPerRow()) return; DB[row.key] = row.data; } });
+      stateRows.forEach(function(row){ if (row && row.key && Array.isArray(row.data)) { if (row.key==='tools' && typeof _toolsPerRow==='function' && _toolsPerRow()) return; if (row.key==='toolCheckouts' && typeof _checkoutsPerRow==='function' && _checkoutsPerRow()) return; if (row.key==='invLocations' && typeof _invLocPerRow==='function' && _invLocPerRow()) return; if (typeof _isCollKey==='function' && _isCollKey(row.key)) return; DB[row.key] = row.data; } });
       // (build hc) per-row tools: load from real tables instead of the clobber-prone blob
       if (typeof _toolsPerRow==='function' && _toolsPerRow() && window.ToolsDB) { try { DB.tools = await ToolsDB.load(); } catch(e){ errors.push('toolsdb load: '+(e&&e.message)); } }
       // (build ib) per-row checkouts/custody: load from the real table (maps tool_id back via DB.tools loaded just above)
       if (typeof _checkoutsPerRow==='function' && _checkoutsPerRow() && window.CheckoutsDB) { try { DB.toolCheckouts = await CheckoutsDB.load(); } catch(e){ errors.push('checkoutsdb load: '+(e&&e.message)); } }
       // (build ie) per-row inventory locations: load the shop/truck list from its real table
       if (typeof _invLocPerRow==='function' && _invLocPerRow() && window.InvLocationsDB) { try { var _il = await InvLocationsDB.load(); if (_il && _il.length) DB.invLocations = _il; } catch(e){ errors.push('invlocdb load: '+(e&&e.message)); } }
+      // (build ii) generic per-row store: load the small leftover collections + snapshot baselines
+      if (typeof _collectionsPerRow==='function' && _collectionsPerRow() && window.CollectionsDB) {
+        for (var _ck=0; _ck<_COLLECTION_KEYS.length; _ck++){
+          var _cname = _COLLECTION_KEYS[_ck];
+          try { DB[_cname] = await CollectionsDB.load(_cname); window.__collBaselines[_cname] = (DB[_cname]||[]).map(function(x){ return String(x && x.id); }); }
+          catch(e){ errors.push('collectionsdb load '+_cname+': '+(e&&e.message)); }
+        }
+      }
     }
   } catch(e) { errors.push('app_state: '+e.message); }
 
@@ -2489,6 +2497,10 @@ async function _pushSettingsToCloud() {
 // ============================================================
 var _BLOB_KEYS = ['tools','toolCheckouts','checkoutLog','invLocations','invTransfers','absences',
   'lunchFlags','payrollLog','timeCorrections','leaveForfeiture','toolLoans'];
+// (build ii) low-churn blob collections moved to the generic per-row store (CollectionsDB).
+var _COLLECTION_KEYS = ['invTransfers','checkoutLog','toolLoans','absences','lunchFlags','timeCorrections','payrollLog','leaveForfeiture'];
+function _isCollKey(k){ return _COLLECTION_KEYS.indexOf(k) >= 0 && typeof _collectionsPerRow==='function' && _collectionsPerRow() && !!window.CollectionsDB; }
+if (!window.__collBaselines) window.__collBaselines = {};
 if (typeof window.__blobDirtyAt !== 'number')  window.__blobDirtyAt = 0;
 if (typeof window.__blobPushedAt !== 'number') window.__blobPushedAt = 0;
 
@@ -2518,6 +2530,7 @@ async function _pushBlobsToCloud() {
     if (_bk==='tools' && typeof _toolsPerRow==='function' && _toolsPerRow()) continue; // (hc) tools are per-row now
     if (_bk==='toolCheckouts' && typeof _checkoutsPerRow==='function' && _checkoutsPerRow()) continue; // (ib) checkouts are per-row now
     if (_bk==='invLocations' && typeof _invLocPerRow==='function' && _invLocPerRow()) continue; // (ie) inventory locations are per-row now
+    if (_isCollKey(_bk)) { try { await CollectionsDB.syncArray(_bk, DB[_bk]||[], window.__collBaselines[_bk]||[]); window.__collBaselines[_bk] = (DB[_bk]||[]).map(function(x){ return String(x && x.id); }); } catch(e){ console.warn('[coll sync]', _bk, e && e.message); } continue; } // (ii) per-row generic store
     try { await _sb.from('app_state').upsert({ key: _bk, data: DB[_bk] || [], updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
     catch(e) { console.warn('[BlobFlush]', _bk, e && e.message); }
   }
@@ -3274,6 +3287,7 @@ async function pushAllToCloud() {
       if (_bk==='tools' && typeof _toolsPerRow==='function' && _toolsPerRow()) continue; // (hc) tools are per-row now
       if (_bk==='toolCheckouts' && typeof _checkoutsPerRow==='function' && _checkoutsPerRow()) continue; // (ib) checkouts are per-row now
       if (_bk==='invLocations' && typeof _invLocPerRow==='function' && _invLocPerRow()) continue; // (ie) inventory locations are per-row now
+      if (_isCollKey(_bk)) { try { await CollectionsDB.syncArray(_bk, DB[_bk]||[], window.__collBaselines[_bk]||[]); window.__collBaselines[_bk] = (DB[_bk]||[]).map(function(x){ return String(x && x.id); }); } catch(_ce){ console.warn('[Push] coll sync', _bk, _ce && _ce.message); } continue; } // (ii) per-row generic store
       try { await _sb.from('app_state').upsert({ key: _bk, data: DB[_bk] || [], updated_at: new Date().toISOString() }, { onConflict: 'key' }); }
       catch(_be) { console.warn('[Push] app_state', _bk, _be && _be.message); }
     }
