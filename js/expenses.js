@@ -171,6 +171,15 @@
       page.innerHTML=html; return;
     }
 
+    // Cap rendered rows so a big history (thousands of expenses) stays snappy. Filters
+    // narrow the full set first, so a filtered view under the cap shows everything.
+    var MAX_ROWS = 400;
+    var shown = rows.slice(0, MAX_ROWS);
+    if (rows.length > MAX_ROWS){
+      html+='<div style="font-size:12px;color:#e65100;background:#fff8e1;border:1px solid #ffe0b2;border-radius:8px;padding:8px 12px;margin-bottom:8px">'+
+        'Showing the '+MAX_ROWS+' most recent of '+rows.length.toLocaleString()+' matching expenses. Use the filters above (date range, person, status, search) to narrow down.</div>';
+    }
+
     html+='<div style="overflow-x:auto;background:#fff;border:1px solid #e0e7ef;border-radius:12px">'+
       '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
       '<thead><tr style="background:#f8f9fa;text-align:left">'+
@@ -178,7 +187,7 @@
           .map(function(h){return '<th style="padding:9px 10px;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap">'+h+'</th>';}).join('')+
       '</tr></thead><tbody>';
 
-    rows.forEach(function(e){
+    shown.forEach(function(e){
       var info=_woInfo(e.woId);
       var isReimb = e.paymentType===REIMB_PAYTYPE;
       var st=e.reviewStatus||'pending';
