@@ -3691,7 +3691,16 @@ function renderFieldLogEntries(logs, woId) {
 
   return Object.keys(byDate).map(function(date){
     var dayLogs = byDate[date];
-    var dateLabel = formatDateFriendly ? formatDateFriendly(date) : date;
+    // formatDateFriendly was never defined — a bare reference threw a ReferenceError
+    // that killed the whole Field Log render (left it stuck on "Loading field log...").
+    // Guard with typeof and fall back to a readable date.
+    var dateLabel;
+    if (typeof formatDateFriendly === 'function') {
+      dateLabel = formatDateFriendly(date);
+    } else {
+      try { dateLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-US',{weekday:'short', month:'short', day:'numeric', year:'numeric'}); }
+      catch(e) { dateLabel = date; }
+    }
     return '<div style="margin-bottom:20px">'+
       '<div style="font-size:12px;font-weight:800;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f0f0f0">'+
         escHtml(dateLabel)+
