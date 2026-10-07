@@ -6064,8 +6064,10 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <!-- Customer (primary path) -->
         <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:220px">
           <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Customer <span style="color:#c62828">*</span></span>
-          <input id="wo-customer-name" placeholder="Search customer..." autocomplete="off" oninput="onWOCustomerInput(this.value)" onfocus="onWOCustomerInput(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;width:100%;min-width:220px">
-          <div id="wo-customer-dropdown" style="display:none;position:absolute;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:200;max-height:200px;overflow-y:auto;min-width:280px"></div>
+          <div style="position:relative">
+            <input id="wo-customer-name" placeholder="Search customer..." autocomplete="off" oninput="onWOCustomerInput(this.value)" onfocus="onWOCustomerInput(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;width:100%;box-sizing:border-box">
+            <div id="wo-customer-dropdown" style="display:none;position:absolute;top:100%;left:0;margin-top:2px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:400;max-height:240px;overflow-y:auto;width:100%;min-width:280px"></div>
+          </div>
           <input type="hidden" id="wo-customer-id">
           <!-- Internal fleet work: collapsed by default so Customer is the clear primary path -->
           <a id="wo-fleet-toggle" href="javascript:void(0)" onclick="_woShowFleet(true)" style="font-size:11px;color:#90a4ae;text-decoration:none;margin-top:2px;white-space:nowrap">🚚 This is internal fleet work →</a>
@@ -6074,8 +6076,10 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <!-- Vehicle (internal fleet work) — revealed only via the toggle above -->
         <div id="wo-fleet-wrap" style="display:none;flex-direction:column;gap:2px;flex:1;min-width:160px">
           <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">🚚 Vehicle <a href="javascript:void(0)" onclick="_woShowFleet(false)" style="font-weight:400;text-transform:none;color:#90a4ae;text-decoration:none;margin-left:6px">✕ not fleet</a></span>
-          <input id="wo-vehicle-name" placeholder="Search fleet..." autocomplete="off" oninput="onWOVehicleInput(this.value)" onfocus="onWOVehicleInput(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;width:100%;min-width:160px">
-          <div id="wo-vehicle-dropdown" style="display:none;position:absolute;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:200;max-height:200px;overflow-y:auto;min-width:260px"></div>
+          <div style="position:relative">
+            <input id="wo-vehicle-name" placeholder="Search fleet..." autocomplete="off" oninput="onWOVehicleInput(this.value)" onfocus="onWOVehicleInput(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;width:100%;box-sizing:border-box">
+            <div id="wo-vehicle-dropdown" style="display:none;position:absolute;top:100%;left:0;margin-top:2px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:400;max-height:240px;overflow-y:auto;width:100%;min-width:260px"></div>
+          </div>
           <input type="hidden" id="wo-vehicle-id">
         </div>
 
@@ -7007,32 +7011,32 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- TCSS ProBid V9 — JavaScript Modules -->
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
-     ON EACH RELEASE, bump this version (find-replace ?v=20260919ik with the new value) so the whole
+     ON EACH RELEASE, bump this version (find-replace ?v=20260919il with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919ik"></script>
-<script src="js/quotes.js?v=20260919ik"></script>
-<script src="js/tools_db.js?v=20260919ik"></script>
-<script src="js/checkouts_db.js?v=20260919ik"></script>
-<script src="js/collections_db.js?v=20260919ik"></script>
-<script src="js/tools.js?v=20260919ik"></script>
-<script src="js/field.js?v=20260919ik"></script>
-<script src="js/crm.js?v=20260919ik"></script>
-<script src="js/vehicles.js?v=20260919ik"></script>
-<script src="js/dispatch.js?v=20260919ik"></script>
-<script src="js/permissions.js?v=20260919ik"></script>
-<script src="js/worktracking.js?v=20260919ik"></script>
-<script src="js/calendar.js?v=20260919ik"></script>
-<script src="js/workorders.js?v=20260919ik"></script>
-<script src="js/purchaseorders.js?v=20260919ik"></script>
-<script src="js/inventory_locations_db.js?v=20260919ik"></script>
-<script src="js/inventory.js?v=20260919ik"></script>
-<script src="js/reports.js?v=20260919ik"></script>
-<script src="js/recyclebin.js?v=20260919ik"></script>
-<script src="js/contracts.js?v=20260919ik"></script>
-  <script src="js/recurring.js?v=20260919ik"></script>
-  <script src="js/seed_managed.js?v=20260919ik"></script>
-  <script src="js/applock.js?v=20260919ik"></script>
-  <script src="js/auth.js?v=20260919ik"></script>
+<script src="js/core.js?v=20260919il"></script>
+<script src="js/quotes.js?v=20260919il"></script>
+<script src="js/tools_db.js?v=20260919il"></script>
+<script src="js/checkouts_db.js?v=20260919il"></script>
+<script src="js/collections_db.js?v=20260919il"></script>
+<script src="js/tools.js?v=20260919il"></script>
+<script src="js/field.js?v=20260919il"></script>
+<script src="js/crm.js?v=20260919il"></script>
+<script src="js/vehicles.js?v=20260919il"></script>
+<script src="js/dispatch.js?v=20260919il"></script>
+<script src="js/permissions.js?v=20260919il"></script>
+<script src="js/worktracking.js?v=20260919il"></script>
+<script src="js/calendar.js?v=20260919il"></script>
+<script src="js/workorders.js?v=20260919il"></script>
+<script src="js/purchaseorders.js?v=20260919il"></script>
+<script src="js/inventory_locations_db.js?v=20260919il"></script>
+<script src="js/inventory.js?v=20260919il"></script>
+<script src="js/reports.js?v=20260919il"></script>
+<script src="js/recyclebin.js?v=20260919il"></script>
+<script src="js/contracts.js?v=20260919il"></script>
+  <script src="js/recurring.js?v=20260919il"></script>
+  <script src="js/seed_managed.js?v=20260919il"></script>
+  <script src="js/applock.js?v=20260919il"></script>
+  <script src="js/auth.js?v=20260919il"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->
