@@ -1528,16 +1528,26 @@ function woOpenWTProject() {
 }
 
 function woCreateWTProject() {
+  // Was calling wtShowNewProjectWizard() — a function that does not exist, so this
+  // button silently did nothing. Use the real wizard + the same pre-fill pattern as
+  // wtOpenFromWorkOrder().
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===_woCurrentId; });
   if (typeof goPage==='function') goPage('worktracking');
   setTimeout(function(){
-    if (typeof wtShowNewProjectWizard==='function') {
-      wtShowNewProjectWizard({
-        name: wo ? (wo.description||wo.woNumber||'Work Order') : '',
-        customerName: wo ? (wo.customerName||'') : ''
-      });
-    }
-  }, 300);
+    if (typeof openNewProjectWizard !== 'function') return;
+    openNewProjectWizard();
+    setTimeout(function(){
+      var nameEl = document.getElementById('wiz-name');
+      var custEl = document.getElementById('wiz-cust');
+      if (nameEl) nameEl.value = wo ? (wo.description||wo.woNumber||'') : '';
+      if (custEl) custEl.value = wo ? (wo.customerName||'') : '';
+      if (typeof _wiz !== 'undefined' && wo) {
+        _wiz.proj.jobId = wo.id;
+        _wiz.proj.customerName = wo.customerName || '';
+        _wiz.proj.name = wo.description || wo.woNumber || '';
+      }
+    }, 400);
+  }, 400);
 }
 
 
@@ -3471,7 +3481,7 @@ function confirmCreateChangeOrder(parentWoId) {
 
   // Open new WO pre-filled with parent data
   _woCurrentId = null;
-  newWorkOrder();
+  openNewWorkOrder();  // was newWorkOrder() — that function does not exist; threw ReferenceError and broke change-order creation
 
   // Pre-fill fields from parent after modal renders
   setTimeout(function(){
