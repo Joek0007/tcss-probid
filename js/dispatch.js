@@ -1383,6 +1383,7 @@ var PERM_DEFS = [
   // and could not be granted. Add them with office-role defaults.
   {key:'page.contracts',   label:'Contracts Page',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'page.recurring',   label:'Managed Services Page', group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.expenses',    label:'Expenses Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
 ];
 
 function getPermMatrix() {

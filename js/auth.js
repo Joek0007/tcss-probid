@@ -199,7 +199,7 @@ async function ensureWOExpensesLoaded(woId){
       var delWE = (DB.deletedIds && DB.deletedIds.woExpenses) || [];
       r.data.forEach(function(e){
         if (have[e.id] || delWE.indexOf(String(e.id))>=0) return;
-        DB.woExpenses.push({ id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, receiptUrl:e.receipt_url, receiptDocId:e.receipt_doc_id, createdAt:e.created_at });
+        DB.woExpenses.push({ id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, receiptUrl:e.receipt_url, receiptDocId:e.receipt_doc_id, createdAt:e.created_at, reviewStatus:e.review_status||'pending', reviewNote:e.review_note||'', reviewedBy:e.reviewed_by||'', reviewedAt:e.reviewed_at||'', reimbursed:!!e.reimbursed, reimbursedAt:e.reimbursed_at||'' });
       });
       _ondemandExpWOIds[woId] = 1;
     }
@@ -222,7 +222,7 @@ async function ensureWOExpensesForIds(ids){
         var have = {}; DB.woExpenses.forEach(function(e){ if(e&&e.id) have[e.id]=1; });
         r.data.forEach(function(e){
           if (have[e.id] || delWE.indexOf(String(e.id))>=0) return;
-          DB.woExpenses.push({ id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, receiptUrl:e.receipt_url, receiptDocId:e.receipt_doc_id, createdAt:e.created_at });
+          DB.woExpenses.push({ id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, receiptUrl:e.receipt_url, receiptDocId:e.receipt_doc_id, createdAt:e.created_at, reviewStatus:e.review_status||'pending', reviewNote:e.review_note||'', reviewedBy:e.reviewed_by||'', reviewedAt:e.reviewed_at||'', reimbursed:!!e.reimbursed, reimbursedAt:e.reimbursed_at||'' });
         });
       }
     } catch(e) { /* skip chunk on failure */ }
@@ -1904,7 +1904,14 @@ async function _pushWOExpenseToCloud(we) {
       expense_date:  we.date || null,
       receipt_url:   we.receiptUrl || null,
       receipt_doc_id:we.receiptDocId || null,
-      created_at:    we.createdAt || new Date().toISOString()
+      created_at:    we.createdAt || new Date().toISOString(),
+      // Expenses Review (2026-10): review + reimbursement tracking
+      review_status: we.reviewStatus || 'pending',
+      review_note:   we.reviewNote || null,
+      reviewed_by:   we.reviewedBy || null,
+      reviewed_at:   we.reviewedAt || null,
+      reimbursed:    !!we.reimbursed,
+      reimbursed_at: we.reimbursedAt || null
     }, { onConflict: 'id' });
     if (error) console.warn('[Expense Push]', error.message);
   } catch (e) { console.warn('[Expense Push]', e.message || e); }

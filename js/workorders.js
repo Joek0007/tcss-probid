@@ -2140,7 +2140,9 @@ function addWOExpense() {
     date:(document.getElementById('woe-date')||{}).value||getTodayISO(),
     loggedBy:(_currentUser&&_currentUser.full_name)||'Unknown',
     createdAt:new Date().toISOString(),
-    receiptUrl:null
+    receiptUrl:null,
+    reviewStatus:'pending', reviewNote:'', reviewedBy:'', reviewedAt:'',
+    reimbursed:false, reimbursedAt:''
   };
   DB.woExpenses.push(expEntry);
   if (typeof _pushWOExpenseToCloud === 'function') _pushWOExpenseToCloud(expEntry);
