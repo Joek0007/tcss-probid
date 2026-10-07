@@ -182,7 +182,11 @@ function saveCPAlerts() {
     customer.moduleAlerts[k] = el ? el.value.trim() : '';
   });
   saveDB();
-  if (typeof _pushCustomerToSupabase === 'function') _pushCustomerToSupabase(customer);
+  // was _pushCustomerToSupabase (never defined) — the reliable targeted push is
+  // _pushCustomerToCloud, used by every other customer-save site. Without it, alert
+  // changes rode only on the heavy debounced full push, which can fail to land on a
+  // large dataset — so saved alerts could silently never reach the cloud.
+  if (typeof _pushCustomerToCloud === 'function') _pushCustomerToCloud(customer);
   showToast('Alerts saved ✓','success');
   switchCPTab('alerts');
 }
