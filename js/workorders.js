@@ -1337,6 +1337,17 @@ function switchWOTab(tab) {
   var content=document.getElementById('wo-tab-content');
   if (!content) return;
   var id = _woCurrentId;
+  // A brand-new, unsaved WO has no id. Every tab below filters its records by woId,
+  // and a null id matches orphaned/un-jobbed records — most dangerously every clock
+  // entry with no jobId (thousands of hours showing on a blank WO). Until the WO is
+  // saved and has a real id, show a save-first message instead of leaking that data.
+  if (!id) {
+    content.innerHTML = '<div style="color:#607d8b;font-size:14px;padding:28px 16px;text-align:center;line-height:1.7">'+
+      '💾 <b>Save this work order first.</b><br>'+
+      '<span style="font-size:13px;color:#90a4ae">Once it’s saved you can log labor, add parts and expenses, attach photos, and track phases.</span>'+
+      '</div>';
+    return;
+  }
   if (tab==='labor')     content.innerHTML = renderWOLaborTab(id);
   if (tab==='expenses')  {
     content.innerHTML = renderWOExpensesTab(id);
