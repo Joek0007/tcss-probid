@@ -79,6 +79,16 @@
   function _owed(e){ return (e.nights||0)*(e.rate||0); }
   function _paid(e){ return (_pdPays[e.id]||[]).reduce(function(s,p){return s+(p.amount||0);},0); }
   function _balance(e){ return _owed(e)-_paid(e); }
+  // Age stamp from the entry's creation date — so on multi-week jobs you can see how old
+  // a per-diem is at a glance. Returns {text, days}. Goes amber past 14 days.
+  var _MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function _ageStamp(iso){
+    if(!iso) return null;
+    var d=new Date(iso); if(isNaN(d.getTime())) return null;
+    var days=Math.floor((Date.now()-d.getTime())/86400000);
+    var ago = days<=0 ? 'today' : (days===1?'1 day ago':days+' days ago');
+    return { text:'Added '+_MON[d.getMonth()]+' '+d.getDate()+' · '+ago, days:days };
+  }
 
   // ---------- Render ----------
   function renderPerDiemPage(){
@@ -152,6 +162,7 @@
               (dateRange?' &nbsp;·&nbsp; '+dateRange:'')+
             '</div>'+
             (e.woId?'<div style="font-size:12px;margin-top:4px">🔧 <a href="javascript:void(0)" onclick="openWorkOrder(\''+_attr(e.woId)+'\')" style="color:#1565c0;font-weight:600;text-decoration:none">'+_esc(_woLabelFor(e.woId))+'</a></div>':'')+
+            (function(){ var a=_ageStamp(e.createdAt); return a?'<div style="font-size:11px;margin-top:4px;color:'+(a.days>14?'#e65100':'#b0bec5')+';font-weight:'+(a.days>14?'700':'400')+'">🕒 '+_esc(a.text)+'</div>':''; })()+
             (e.notes?'<div style="font-size:12px;color:#607d8b;margin-top:4px;max-width:520px">'+_esc(e.notes)+'</div>':'')+
           '</div>'+
           '<div style="text-align:right">'+
