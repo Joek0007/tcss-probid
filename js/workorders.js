@@ -3196,6 +3196,8 @@ function refreshWOQuickStats(woId) {
   var cntEl   = document.getElementById('wo-expense-count');
   if (totEl) totEl.textContent = '$'+total.toFixed(2);
   if (cntEl) cntEl.textContent = expenses.length+' entr'+(expenses.length!==1?'ies':'y');
+  // Fold any linked per-diem into this tile (internal job cost; async, safe no-op if none).
+  if (typeof woPerDiemTile==='function') woPerDiemTile(woId, total, expenses.length);
 
   // Documents
   var docs = (DB.woDocuments||[]).filter(function(d){ return d.woId===woId && !d.deleted; });

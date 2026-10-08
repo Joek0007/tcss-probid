@@ -361,28 +361,55 @@
   function _pdCloseModal(){ var m=document.getElementById('pdm-modal'); if(m) m.remove(); }
 
   // ---------- Work-order rollup (internal cost; NOT billed) ----------
-  // Called by the WO Expenses tab. Fetches per-diem linked to this WO and shows a cost line
-  // plus the combined job cost (expenses + per-diem). Owner/office only ever see this — it is
-  // display-only and never touches the invoice. Fills #wo-perdiem-rollup if present.
+  // Fetch per-diem entries linked to a work order. Returns [{name,nights,rate,amount}].
+  async function _woPerDiemFetch(woId){
+    var sb=window._sb; if(!sb || !woId) return [];
+    try {
+      var r=await sb.from('per_diem').select('tech_name,nights,rate').eq('wo_id',woId);
+      if (r.error) return [];
+      return (r.data||[]).map(function(x){
+        var n=parseInt(x.nights||0,10)||0, rt=(x.rate==null?DEFAULT_RATE:parseFloat(x.rate));
+        return { name:x.tech_name||'—', nights:n, rate:rt, amount:n*rt };
+      });
+    } catch(e){ return []; }
+  }
+
+  // Called by the WO Expenses tab. Shows each linked per-diem WITH the tech's name, and folds
+  // it into the job's total. Display-only; never touches the invoice. Fills #wo-perdiem-rollup.
   async function woPerDiemRollup(woId, expenseTotal){
     var box=document.getElementById('wo-perdiem-rollup'); if(!box) return;
-    var sb=window._sb; if(!sb || !woId){ box.innerHTML=''; return; }
-    try {
-      var r=await sb.from('per_diem').select('nights,rate').eq('wo_id',woId);
-      if (r.error){ box.innerHTML=''; return; }
-      var rows=r.data||[];
-      if (!rows.length){ box.innerHTML=''; return; }
-      var pd=rows.reduce(function(s,x){ return s+((parseInt(x.nights||0,10)||0)*(x.rate==null?DEFAULT_RATE:parseFloat(x.rate))); },0);
-      var combined=(parseFloat(expenseTotal||0))+pd;
-      box.innerHTML='<div style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px">'+
-        '🧳 <b>Per-Diem (linked):</b> '+_money(pd)+' <span style="color:#8a6d3b">· '+rows.length+' entr'+(rows.length===1?'y':'ies')+'</span>'+
-        '<div style="font-size:12px;color:#8a6d3b;margin-top:2px">Total job cost incl. per-diem: <b>'+_money(combined)+'</b> <span style="font-weight:500">(internal — not billed to customer)</span></div>'+
-      '</div>';
-    } catch(e){ box.innerHTML=''; }
+    if(!woId){ box.innerHTML=''; return; }
+    var rows=await _woPerDiemFetch(woId);
+    if (!rows.length){ box.innerHTML=''; return; }
+    var pd=rows.reduce(function(s,x){ return s+x.amount; },0);
+    var combined=(parseFloat(expenseTotal||0))+pd;
+    var lines=rows.map(function(x){
+      return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#8a6d3b;padding:1px 0">'+
+        '<span>'+_esc(x.name)+' <span style="color:#b08d57">· '+x.nights+' night'+(x.nights===1?'':'s')+' × '+_money(x.rate)+'</span></span>'+
+        '<b>'+_money(x.amount)+'</b></div>';
+    }).join('');
+    box.innerHTML='<div style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px">'+
+      '<div style="font-weight:800;color:#8a6d3b;margin-bottom:4px">🧳 Per-Diem (linked) — '+_money(pd)+' · '+rows.length+' entr'+(rows.length===1?'y':'ies')+'</div>'+
+      lines+
+      '<div style="border-top:1px solid #ffe0b2;margin-top:6px;padding-top:6px;font-size:13px;color:#5d4037">Total job cost incl. per-diem: <b>'+_money(combined)+'</b> <span style="font-weight:500;color:#8a6d3b">(internal — not billed to customer)</span></div>'+
+    '</div>';
+  }
+
+  // Fold per-diem into the WO summary EXPENSES tile so it doesn't misleadingly read $0.
+  async function woPerDiemTile(woId, expenseTotal, expenseCount){
+    if(!woId) return;
+    var rows=await _woPerDiemFetch(woId);
+    if(!rows.length) return;  // nothing linked — leave the tile as the plain expense total
+    var pd=rows.reduce(function(s,x){ return s+x.amount; },0);
+    var totEl=document.getElementById('wo-expense-total');
+    var cntEl=document.getElementById('wo-expense-count');
+    if (totEl) totEl.textContent=_money((parseFloat(expenseTotal||0))+pd);
+    if (cntEl) cntEl.textContent=(expenseCount||0)+' exp · +'+_money(pd)+' per-diem';
   }
 
   // ---------- exports ----------
   window.woPerDiemRollup=woPerDiemRollup;
+  window.woPerDiemTile=woPerDiemTile;
   window.renderPerDiemPage=renderPerDiemPage;
   window.loadAllPerDiem=loadAllPerDiem;
   window._pdOpenEntry=_pdOpenEntry; window._pdSaveEntry=_pdSaveEntry;
