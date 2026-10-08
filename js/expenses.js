@@ -161,7 +161,9 @@
 
   function _datePreset(which){
     var now=new Date(), y=now.getFullYear(), m=now.getMonth();
-    function iso(d){ return d.toISOString().slice(0,10); }
+    // Local date (NOT toISOString — that converts to UTC and rolls the day forward in
+    // western timezones, which made "This week" start on Tuesday instead of Monday).
+    function iso(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
     if (which==='thisweek'){ var day=now.getDay(); var mon=new Date(now); mon.setDate(now.getDate()-((day+6)%7)); _expFilter.from=iso(mon); _expFilter.to=iso(now); }
     else if (which==='thismonth'){ _expFilter.from=iso(new Date(y,m,1)); _expFilter.to=iso(new Date(y,m+1,0)); }
     else if (which==='lastmonth'){ _expFilter.from=iso(new Date(y,m-1,1)); _expFilter.to=iso(new Date(y,m,0)); }
@@ -197,7 +199,7 @@
       // People multi-select (button + panel)
       '<div style="position:relative">'+
         '<button id="exp-people-btn" class="btn btn-outline btn-sm" style="font-size:12px" onclick="_expTogglePeople()">👤 '+(f.people.length?('People ('+f.people.length+')'):'All people')+' ▾</button>'+
-        '<div id="exp-people-panel" style="display:none;position:absolute;z-index:500;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:8px;max-height:320px;overflow:auto;min-width:220px"></div>'+
+        '<div id="exp-people-panel" style="display:none;position:absolute;z-index:500;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:6px;max-height:300px;overflow-y:auto;width:220px"></div>'+
       '</div>'+
       '<select id="exp-f-pay" onchange="_expSetFilter(\'payType\',this.value)" style="'+inpCss+'">'+_opt('',f.payType,'All pay types')+pays.map(function(p){return _opt(p,f.payType);}).join('')+'</select>'+
       '<select id="exp-f-cat" onchange="_expSetFilter(\'category\',this.value)" style="'+inpCss+'">'+_opt('',f.category,'All categories')+cats.map(function(c){return _opt(c,f.category);}).join('')+'</select>'+
@@ -352,7 +354,7 @@
   function _drawPeoplePanel(){
     var panel=document.getElementById('exp-people-panel'); if(!panel) return;
     var act=_activePeople(), hist=_historicalPeople(), f=_expFilter;
-    function row(n){ return '<label style="display:flex;align-items:center;gap:7px;padding:3px 4px;font-size:13px;cursor:pointer"><input type="checkbox" '+(f.people.indexOf(n)>=0?'checked':'')+' onclick="_expTogglePerson(\''+_attr(n).replace(/'/g,"\\'")+'\')">'+_esc(n)+'</label>'; }
+    function row(n){ return '<label style="display:flex;align-items:center;gap:8px;padding:4px 6px;font-size:13px;line-height:1.2;white-space:nowrap;cursor:pointer;border-radius:5px"><input type="checkbox" style="width:14px;height:14px;flex:0 0 auto;margin:0" '+(f.people.indexOf(n)>=0?'checked':'')+' onclick="_expTogglePerson(\''+_attr(n).replace(/'/g,"\\'")+'\')"><span style="overflow:hidden;text-overflow:ellipsis">'+_esc(n)+'</span></label>'; }
     var html='';
     if (f.people.length) html+='<div style="text-align:right;margin-bottom:4px"><button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="_expClearPeople()">clear</button></div>';
     html+='<div style="font-size:10px;font-weight:800;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px;margin:2px 0 4px">Active team</div>';
