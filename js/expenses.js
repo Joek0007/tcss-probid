@@ -118,66 +118,72 @@
 
   function _opt(val,cur,label){ return '<option value="'+_esc(val)+'"'+(val===cur?' selected':'')+'>'+_esc(label||val)+'</option>'; }
 
+  // Build the page SHELL once (header + filters + an empty results container). The filter
+  // controls are never rebuilt after this, so typing in the search keeps focus — only
+  // #exp-results re-renders on a filter/action change (via _drawResults).
   function _drawExpenses(){
     var page=document.getElementById('page-expenses'); if(!page) return;
+    var f=_expFilter;
+    var people=_people(), pays=_payTypes(), cats=_cats();
+    var inpCss='padding:7px 9px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px';
+
+    var html='';
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">'+
+      '<h2 style="margin:0;font-size:20px;font-weight:800;color:#0d1b2a">💰 Expenses Review</h2>'+
+      '<button class="btn btn-outline btn-sm" onclick="exportExpensesCSV()">⬇ Export CSV</button>'+
+    '</div>';
+
+    html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'+
+      '<input id="exp-f-from" type="date" value="'+_esc(f.from)+'" onchange="_expSetFilter(\'from\',this.value)" style="'+inpCss+'" title="From">'+
+      '<span style="color:#90a4ae">→</span>'+
+      '<input id="exp-f-to" type="date" value="'+_esc(f.to)+'" onchange="_expSetFilter(\'to\',this.value)" style="'+inpCss+'" title="To">'+
+      '<select id="exp-f-person" onchange="_expSetFilter(\'person\',this.value)" style="'+inpCss+'">'+_opt('',f.person,'All people')+people.map(function(p){return _opt(p,f.person);}).join('')+'</select>'+
+      '<select id="exp-f-pay" onchange="_expSetFilter(\'payType\',this.value)" style="'+inpCss+'">'+_opt('',f.payType,'All pay types')+pays.map(function(p){return _opt(p,f.payType);}).join('')+'</select>'+
+      '<select id="exp-f-cat" onchange="_expSetFilter(\'category\',this.value)" style="'+inpCss+'">'+_opt('',f.category,'All categories')+cats.map(function(c){return _opt(c,f.category);}).join('')+'</select>'+
+      '<select id="exp-f-status" onchange="_expSetFilter(\'status\',this.value)" style="'+inpCss+'">'+_opt('',f.status,'All statuses')+_opt('pending',f.status,'Pending')+_opt('approved',f.status,'Approved')+_opt('flagged',f.status,'Flagged')+'</select>'+
+      '<label style="font-size:12px;font-weight:700;color:#e65100;display:flex;align-items:center;gap:5px;cursor:pointer;background:#fff3e0;border:1px solid #ffe0b2;border-radius:6px;padding:6px 10px">'+
+        '<input id="exp-f-reimb" type="checkbox" '+(f.needsReimb?'checked':'')+' onchange="_expSetFilter(\'needsReimb\',this.checked)">Needs reimbursement</label>'+
+      '<input id="exp-f-q" type="text" placeholder="🔍 search" value="'+_esc(f.q)+'" oninput="_expSetFilter(\'q\',this.value)" style="'+inpCss+';min-width:150px;flex:1">'+
+      '<button id="exp-f-clear" class="btn btn-ghost btn-sm" onclick="_expClearFilters()" style="display:'+(_filterActive()?'':'none')+'">✕ clear</button>'+
+    '</div>';
+
+    html+='<div id="exp-results"></div>';
+    page.innerHTML=html;
+    _drawResults();
+  }
+
+  // Re-render ONLY the totals + table (leaves the filter inputs untouched so focus/caret stay put).
+  function _drawResults(){
+    var box=document.getElementById('exp-results'); if(!box) return;
     var rows=_filtered();
     var total=rows.reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
     var pending=rows.filter(function(e){return (e.reviewStatus||'pending')==='pending';}).length;
     var flagged=rows.filter(function(e){return e.reviewStatus==='flagged';}).length;
     var owed=rows.filter(function(e){return e.paymentType===REIMB_PAYTYPE && !e.reimbursed;})
                  .reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
-    var f=_expFilter;
+    var cb=document.getElementById('exp-f-clear'); if(cb) cb.style.display=_filterActive()?'':'none';
 
-    var people=_people(), pays=_payTypes(), cats=_cats();
-
-    var html='';
-    // Header
-    html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">'+
-      '<h2 style="margin:0;font-size:20px;font-weight:800;color:#0d1b2a">💰 Expenses Review</h2>'+
-      '<button class="btn btn-outline btn-sm" onclick="exportExpensesCSV()">⬇ Export CSV</button>'+
-    '</div>';
-
-    // Totals bar
     function tile(lbl,val,clr){ return '<div style="flex:1;min-width:130px;background:#fff;border:1px solid #e0e7ef;border-radius:10px;padding:10px 14px">'+
       '<div style="font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'+lbl+'</div>'+
       '<div style="font-size:20px;font-weight:800;color:'+(clr||'#0d1b2a')+'">'+val+'</div></div>'; }
-    html+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'+
+    var html='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'+
       tile('Showing', _money(total)+' · '+rows.length, '#0d1b2a')+
       tile('Pending review', pending, pending?'#f57f17':'#90a4ae')+
       tile('Flagged', flagged, flagged?'#c62828':'#90a4ae')+
       tile('Owed (reimburse)', _money(owed), owed?'#e65100':'#2e7d32')+
     '</div>';
 
-    // Filters
-    var inpCss='padding:7px 9px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px';
-    html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'+
-      '<input type="date" value="'+_esc(f.from)+'" onchange="_expSetFilter(\'from\',this.value)" style="'+inpCss+'" title="From">'+
-      '<span style="color:#90a4ae">→</span>'+
-      '<input type="date" value="'+_esc(f.to)+'" onchange="_expSetFilter(\'to\',this.value)" style="'+inpCss+'" title="To">'+
-      '<select onchange="_expSetFilter(\'person\',this.value)" style="'+inpCss+'">'+_opt('',f.person,'All people')+people.map(function(p){return _opt(p,f.person);}).join('')+'</select>'+
-      '<select onchange="_expSetFilter(\'payType\',this.value)" style="'+inpCss+'">'+_opt('',f.payType,'All pay types')+pays.map(function(p){return _opt(p,f.payType);}).join('')+'</select>'+
-      '<select onchange="_expSetFilter(\'category\',this.value)" style="'+inpCss+'">'+_opt('',f.category,'All categories')+cats.map(function(c){return _opt(c,f.category);}).join('')+'</select>'+
-      '<select onchange="_expSetFilter(\'status\',this.value)" style="'+inpCss+'">'+_opt('',f.status,'All statuses')+_opt('pending',f.status,'Pending')+_opt('approved',f.status,'Approved')+_opt('flagged',f.status,'Flagged')+'</select>'+
-      '<label style="font-size:12px;font-weight:700;color:#e65100;display:flex;align-items:center;gap:5px;cursor:pointer;background:#fff3e0;border:1px solid #ffe0b2;border-radius:6px;padding:6px 10px">'+
-        '<input type="checkbox" '+(f.needsReimb?'checked':'')+' onchange="_expSetFilter(\'needsReimb\',this.checked)">Needs reimbursement</label>'+
-      '<input type="text" placeholder="🔍 search" value="'+_esc(f.q)+'" oninput="_expSetFilter(\'q\',this.value)" style="'+inpCss+';min-width:150px;flex:1">'+
-      (_filterActive()?'<button class="btn btn-ghost btn-sm" onclick="_expClearFilters()">✕ clear</button>':'')+
-    '</div>';
-
-    // Table
     if (!rows.length){
       html+='<div style="padding:40px;text-align:center;color:#90a4ae;background:#f8f9fa;border-radius:12px">'+
         ((DB.woExpenses&&DB.woExpenses.length)?'No expenses match these filters.':'No expenses logged yet. They appear here as techs add them on work orders.')+'</div>';
-      page.innerHTML=html; return;
+      box.innerHTML=html; return;
     }
 
-    // Cap rendered rows so a big history (thousands of expenses) stays snappy. Filters
-    // narrow the full set first, so a filtered view under the cap shows everything.
     var MAX_ROWS = 400;
     var shown = rows.slice(0, MAX_ROWS);
     if (rows.length > MAX_ROWS){
       html+='<div style="font-size:12px;color:#e65100;background:#fff8e1;border:1px solid #ffe0b2;border-radius:8px;padding:8px 12px;margin-bottom:8px">'+
-        'Showing the '+MAX_ROWS+' most recent of '+rows.length.toLocaleString()+' matching expenses. Use the filters above (date range, person, status, search) to narrow down.</div>';
+        'Showing the '+MAX_ROWS+' most recent of '+rows.length.toLocaleString()+' matching expenses. Use the filters above to narrow down.</div>';
     }
 
     html+='<div style="overflow-x:auto;background:#fff;border:1px solid #e0e7ef;border-radius:12px">'+
@@ -215,7 +221,7 @@
     });
     html+='</tbody></table></div>';
 
-    page.innerHTML=html;
+    box.innerHTML=html;
   }
 
   function _filterActive(){ var f=_expFilter; return !!(f.from||f.to||f.person||f.payType||f.category||f.status||f.needsReimb||f.q); }
@@ -230,7 +236,7 @@
   function expApprove(id){
     var e=_findExp(id); if(!e) return;
     e.reviewStatus='approved'; e.reviewNote=''; e.reviewedBy=_me(); e.reviewedAt=new Date().toISOString();
-    _expPersist(e); _drawExpenses();
+    _expPersist(e); _drawResults();
     if (typeof showToast==='function') showToast('Expense approved','success');
   }
 
@@ -239,7 +245,7 @@
     var note = window.prompt('Why is this flagged? (owners/managers will see this note)', e.reviewNote||'');
     if (note===null) return;           // cancelled
     e.reviewStatus='flagged'; e.reviewNote=(note||'').trim(); e.reviewedBy=_me(); e.reviewedAt=new Date().toISOString();
-    _expPersist(e); _drawExpenses();
+    _expPersist(e); _drawResults();
     // Notify owners/managers
     var info=_woInfo(e.woId);
     if (typeof addNotification==='function'){
@@ -254,13 +260,13 @@
   function expUnflag(id){
     var e=_findExp(id); if(!e) return;
     e.reviewStatus='pending'; e.reviewNote=''; e.reviewedBy=_me(); e.reviewedAt=new Date().toISOString();
-    _expPersist(e); _drawExpenses();
+    _expPersist(e); _drawResults();
   }
 
   function expMarkReimbursed(id){
     var e=_findExp(id); if(!e) return;
     e.reimbursed=true; e.reimbursedAt=_today();
-    _expPersist(e); _drawExpenses();
+    _expPersist(e); _drawResults();
     if (typeof showToast==='function') showToast('Marked reimbursed','success');
   }
 
@@ -291,6 +297,19 @@
   window.expUnflag          = expUnflag;
   window.expMarkReimbursed  = expMarkReimbursed;
   window.exportExpensesCSV  = exportExpensesCSV;
-  window._expSetFilter = function(k,v){ _expFilter[k]=v; _drawExpenses(); };
-  window._expClearFilters = function(){ _expFilter={from:'',to:'',person:'',payType:'',category:'',status:'',needsReimb:false,q:''}; _drawExpenses(); };
+  var _qTimer=null;
+  window._expSetFilter = function(k,v){
+    _expFilter[k]=v;
+    // Debounce the free-text search so fast typing doesn't re-render per keystroke;
+    // other filters apply immediately. Only #exp-results re-renders, so the input keeps focus.
+    if (k==='q'){ clearTimeout(_qTimer); _qTimer=setTimeout(_drawResults, 180); }
+    else _drawResults();
+  };
+  window._expClearFilters = function(){
+    _expFilter={from:'',to:'',person:'',payType:'',category:'',status:'',needsReimb:false,q:''};
+    ['from','to','q'].forEach(function(id){ var el=document.getElementById('exp-f-'+id); if(el) el.value=''; });
+    ['person','pay','cat','status'].forEach(function(id){ var el=document.getElementById('exp-f-'+id); if(el) el.value=''; });
+    var rb=document.getElementById('exp-f-reimb'); if(rb) rb.checked=false;
+    _drawResults();
+  };
 })();
