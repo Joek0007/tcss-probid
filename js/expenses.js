@@ -17,7 +17,7 @@
 
   var REIMB_PAYTYPE = 'Employee Paid Cash';
 
-  var _expFilter = { from:'', to:'', people:[], payType:'', category:'', status:'pending',
+  var _expFilter = { from:'', to:'', people:[], payType:'', category:'', status:'',
                      needsReimb:false, flaggedOnly:false, missingReceipt:false, q:'' };
   var _expSort   = { col:'date', dir:'desc' };
   var _expSel    = {};            // id -> true (bulk selection, across current table view)
@@ -173,6 +173,7 @@
 
   function _drawShell(){
     var page=document.getElementById('page-expenses'); if(!page) return;
+    _expPeoplePanel=false;   // shell rebuild recreates the (hidden) panel; keep state in sync
     var f=_expFilter;
     var pays=_payTypes(), cats=_cats();
     var inpCss='padding:7px 9px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px';
@@ -192,17 +193,22 @@
       }).join('')+
     '</div>';
 
-    html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'+
-      '<input id="exp-f-from" type="date" value="'+_esc(f.from)+'" onchange="_expSetFilter(\'from\',this.value)" style="'+inpCss+'" title="From">'+
-      '<span style="color:#90a4ae">→</span>'+
-      '<input id="exp-f-to" type="date" value="'+_esc(f.to)+'" onchange="_expSetFilter(\'to\',this.value)" style="'+inpCss+'" title="To">'+
-      // People multi-select (button + panel)
-      '<div style="position:relative">'+
-        '<button id="exp-people-btn" class="btn btn-outline btn-sm" style="font-size:12px" onclick="_expTogglePeople()">👤 '+(f.people.length?('People ('+f.people.length+')'):'All people')+' ▾</button>'+
-        '<div id="exp-people-panel" style="display:none;position:absolute;z-index:500;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:6px;max-height:300px;overflow-y:auto;width:220px"></div>'+
+    html+='<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'+
+      // Dates — kept together on one line (never splits)
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">'+
+        '<input id="exp-f-from" type="date" value="'+_esc(f.from)+'" onchange="_expSetFilter(\'from\',this.value)" style="'+inpCss+'" title="From">'+
+        '<span style="color:#90a4ae">→</span>'+
+        '<input id="exp-f-to" type="date" value="'+_esc(f.to)+'" onchange="_expSetFilter(\'to\',this.value)" style="'+inpCss+'" title="To">'+
       '</div>'+
-      '<select id="exp-f-pay" onchange="_expSetFilter(\'payType\',this.value)" style="'+inpCss+'">'+_opt('',f.payType,'All pay types')+pays.map(function(p){return _opt(p,f.payType);}).join('')+'</select>'+
-      '<select id="exp-f-cat" onchange="_expSetFilter(\'category\',this.value)" style="'+inpCss+'">'+_opt('',f.category,'All categories')+cats.map(function(c){return _opt(c,f.category);}).join('')+'</select>'+
+      // People / pay types / categories — kept together on one line (never splits)
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">'+
+        '<div style="position:relative">'+
+          '<button id="exp-people-btn" class="btn btn-outline btn-sm" style="font-size:12px" onclick="_expTogglePeople()">👤 '+(f.people.length?('People ('+f.people.length+')'):'All people')+' ▾</button>'+
+          '<div id="exp-people-panel" style="display:none;position:absolute;z-index:500;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:6px;max-height:300px;overflow-y:auto;width:220px"></div>'+
+        '</div>'+
+        '<select id="exp-f-pay" onchange="_expSetFilter(\'payType\',this.value)" style="'+inpCss+'">'+_opt('',f.payType,'All pay types')+pays.map(function(p){return _opt(p,f.payType);}).join('')+'</select>'+
+        '<select id="exp-f-cat" onchange="_expSetFilter(\'category\',this.value)" style="'+inpCss+'">'+_opt('',f.category,'All categories')+cats.map(function(c){return _opt(c,f.category);}).join('')+'</select>'+
+      '</div>'+
       '<input id="exp-f-q" type="text" placeholder="🔍 search (name, desc, WO, amount)" value="'+_attr(f.q)+'" oninput="_expSetFilter(\'q\',this.value)" style="'+inpCss+';min-width:170px;flex:1">'+
       '<button id="exp-f-clear" class="btn btn-ghost btn-sm" onclick="_expClearFilters()" style="display:'+(_filterActive()?'':'none')+'">✕ clear filters</button>'+
     '</div>';
@@ -348,7 +354,7 @@
     box.innerHTML=html;
   }
 
-  function _filterActive(){ var f=_expFilter; return !!(f.from||f.to||f.people.length||f.payType||f.category||f.needsReimb||f.flaggedOnly||f.missingReceipt||f.q||f.status!=='pending'); }
+  function _filterActive(){ var f=_expFilter; return !!(f.from||f.to||f.people.length||f.payType||f.category||f.needsReimb||f.flaggedOnly||f.missingReceipt||f.q||f.status); }
 
   // ---------- People panel ----------
   function _drawPeoplePanel(){
@@ -445,7 +451,7 @@
   window._expToggleFormer=function(){ _expShowFormer=!_expShowFormer; _drawPeoplePanel(); };
   window._expClearPeople=function(){ _expFilter.people=[]; _drawPeoplePanel(); _drawPeopleChips(); _drawResults(); };
   window._expClearFilters=function(){
-    _expFilter={ from:'',to:'',people:[],payType:'',category:'',status:'pending',needsReimb:false,flaggedOnly:false,missingReceipt:false,q:'' };
+    _expFilter={ from:'',to:'',people:[],payType:'',category:'',status:'',needsReimb:false,flaggedOnly:false,missingReceipt:false,q:'' };
     _expShowFormer=false; _expSel={};
     _drawShell();
   };
@@ -464,6 +470,16 @@
     setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); },100);
     if (typeof showToast==='function') showToast('Exported '+rows.length+' rows','success');
   }
+
+  // Close the People panel when clicking anywhere outside it (not just re-clicking the button).
+  document.addEventListener('click', function(ev){
+    if (!_expPeoplePanel) return;
+    var panel=document.getElementById('exp-people-panel');
+    var btn=document.getElementById('exp-people-btn');
+    if (!panel) return;
+    if (panel.contains(ev.target) || (btn && btn.contains(ev.target))) return;  // inside panel or on the button → leave it
+    _expPeoplePanel=false; panel.style.display='none';
+  });
 
   // ---------- exports ----------
   window.renderExpensesPage=renderExpensesPage;
