@@ -25,6 +25,13 @@
   var _expPeoplePanel = false;    // people panel open?
   var _expLoadedOnce = false;
   var _expLoading = false;
+  // The review page keeps its OWN authoritative snapshot of all expenses, SEPARATE from
+  // the app's sync-managed DB.woExpenses. This is deliberate: the app lazy-loads expenses
+  // per-WO and its full push (pushAllToCloud) re-uploads whatever is in DB.woExpenses, so
+  // dumping all 8k rows there risks the full push clobbering the cloud with a stale copy.
+  // We read from _expRows, write per-row via _pushWOExpenseToCloud (never the full push),
+  // and only MIRROR a changed row into DB.woExpenses if it already happens to be loaded.
+  var _expRows = [];
 
   function _money(n){ return '$'+(parseFloat(n||0)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function _today(){ return (typeof getTodayISO==='function') ? getTodayISO() : new Date().toISOString().slice(0,10); }
@@ -50,18 +57,16 @@
         if (++guard > 60) break;   // safety: 60k rows max
       }
     } catch(e){ console.warn('[Expenses load]', e.message||e); }
-    if (!DB.woExpenses) DB.woExpenses = [];
-    var byId={}; DB.woExpenses.forEach(function(e){ if(e&&e.id) byId[e.id]=e; });
+    // Build our OWN authoritative snapshot from the cloud (do NOT merge into DB.woExpenses —
+    // see note on _expRows). Rebuilt fresh each load, so it always matches the cloud.
     var delWE=(DB.deletedIds && DB.deletedIds.woExpenses)||[];
-    all.forEach(function(e){
-      if (delWE.indexOf(String(e.id))>=0) return;
-      var obj={ id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount,
+    _expRows = (all||[]).filter(function(e){ return delWE.indexOf(String(e.id))<0; }).map(function(e){
+      return { id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount,
         paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by,
         receiptUrl:e.receipt_url, receiptDocId:e.receipt_doc_id, createdAt:e.created_at,
         reviewStatus:e.review_status||'pending', reviewNote:e.review_note||'',
         reviewedBy:e.reviewed_by||'', reviewedAt:e.reviewed_at||'',
         reimbursed:!!e.reimbursed, reimbursedAt:e.reimbursed_at||'' };
-      if (byId[e.id]) Object.assign(byId[e.id], obj); else { DB.woExpenses.push(obj); byId[e.id]=obj; }
     });
     _expLoadedOnce = true; _expLoading = false;
   }
@@ -81,7 +86,7 @@
   }
   function _historicalPeople(){
     var active=_activePeople();
-    return [].concat.apply([], (DB.woExpenses||[]).map(function(e){return e.loggedBy;}))
+    return [].concat.apply([], (_expRows||[]).map(function(e){return e.loggedBy;}))
       .filter(Boolean).filter(function(v,i,a){ return a.indexOf(v)===i; })
       .filter(function(n){ return active.indexOf(n)<0; }).sort();
   }
@@ -92,7 +97,7 @@
   // show a meaningful pending/flagged/owed picture for the current date/person/etc scope).
   function _baseRows(){
     var f=_expFilter;
-    return (DB.woExpenses||[]).filter(function(e){
+    return (_expRows||[]).filter(function(e){
       if (!e) return false;
       if (f.from && (e.date||'') < f.from) return false;
       if (f.to   && (e.date||'') > f.to)   return false;
@@ -264,7 +269,7 @@
     if (_expLoading && !rows.length){ box.innerHTML=html+'<div style="padding:24px;text-align:center;color:#90a4ae">Loading…</div>'; return; }
     if (!rows.length){
       html+='<div style="padding:40px;text-align:center;color:#90a4ae;background:#f8f9fa;border-radius:12px">'+
-        ((DB.woExpenses&&DB.woExpenses.length)?'Nothing matches the current view/filters.':'No expenses logged yet. They appear here as techs add them on work orders.')+'</div>';
+        ((_expRows&&_expRows.length)?'Nothing matches the current view/filters.':'No expenses logged yet. They appear here as techs add them on work orders.')+'</div>';
       box.innerHTML=html; return;
     }
 
@@ -361,8 +366,15 @@
   }
 
   // ---------- Persist + actions ----------
-  function _expPersist(e){ if (typeof _pushWOExpenseToCloud==='function') _pushWOExpenseToCloud(e); if (typeof saveDB==='function') saveDB(); }
-  function _findExp(id){ return (DB.woExpenses||[]).find(function(e){return e.id===id;}); }
+  function _expPersist(e){
+    // Targeted per-row push ONLY — never saveDB()/pushAllToCloud, which would re-upload a
+    // possibly-stale full expense array and clobber the cloud. Mirror the changed fields into
+    // DB.woExpenses only if that row is already loaded there (keeps the WO Expenses tab in sync).
+    if (typeof _pushWOExpenseToCloud==='function') _pushWOExpenseToCloud(e);
+    var d=(DB.woExpenses||[]).find(function(x){return x.id===e.id;});
+    if (d) { d.reviewStatus=e.reviewStatus; d.reviewNote=e.reviewNote; d.reviewedBy=e.reviewedBy; d.reviewedAt=e.reviewedAt; d.reimbursed=e.reimbursed; d.reimbursedAt=e.reimbursedAt; }
+  }
+  function _findExp(id){ return (_expRows||[]).find(function(e){return e.id===id;}); }
 
   function expApprove(id){ var e=_findExp(id); if(!e) return; e.reviewStatus='approved'; e.reviewNote=''; e.reviewedBy=_me(); e.reviewedAt=new Date().toISOString(); _expPersist(e); _drawResults(); if(typeof showToast==='function') showToast('Approved','success'); }
   function expUnflag(id){ var e=_findExp(id); if(!e) return; e.reviewStatus='pending'; e.reviewNote=''; e.reviewedBy=_me(); e.reviewedAt=new Date().toISOString(); _expPersist(e); _drawResults(); }
