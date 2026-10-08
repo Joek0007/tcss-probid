@@ -635,7 +635,7 @@ function ensureUUID(obj) {
 }
 
 // ---- NAVIGATION ----
-const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',vehicles:'Vehicles',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log',recyclebin:'Recycle Bin',contracts:'Contracts',recurring:'Managed Services',expenses:'Expenses'};
+const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',vehicles:'Vehicles',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log',recyclebin:'Recycle Bin',contracts:'Contracts',recurring:'Managed Services',expenses:'Expenses',perdiem:'Per-Diem'};
 
 // ============================================================
 // DOCUMENT PREV/NEXT NAVIGATOR
@@ -782,7 +782,7 @@ var _PAGE_PERM_MAP = {
   'reports':'page.reports','auditlog':'page.auditlog','calendar':'page.calendar','inventory':'page.inventory',
   'scanner':'page.scanner','tools':'page.tools','field':'page.timeclock','timesheet':'page.timesheet',
   'worktracking':'page.worktracking','settings':'page.settings','contracts':'page.contracts','recurring':'page.recurring',
-  'expenses':'page.expenses'
+  'expenses':'page.expenses','perdiem':'page.perdiem'
 };
 function _canAccessPage(id) {
   if (id === 'dash') return true;                                   // dashboard always allowed
@@ -893,6 +893,7 @@ function goPage(id) {
   else if (id==='templates') renderTemplates();
   if (id==='reports')    renderReports();
   if (id==='expenses')   { if (typeof renderExpensesPage==='function') renderExpensesPage(); }
+  if (id==='perdiem')    { if (typeof renderPerDiemPage==='function') renderPerDiemPage(); }
   if (id==='inventory')  renderInventory();
   if (id==='tools')      { setTimeout(renderTools, 50); }
   if (id==='settings')   { loadSettings(); setTimeout(function(){ renderPermissionsEditor(); var _t = (typeof _applyMsTabPerms==='function') ? _applyMsTabPerms() : 'company'; switchMsTab(_t); initViewAsCard(); window.scrollTo(0,0); var p=document.getElementById('page-settings'); if(p)p.scrollTop=0; }, 150); }

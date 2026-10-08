@@ -2179,13 +2179,14 @@ function addWOExpense() {
       var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
       var woNum = wo ? (wo.woNumber||'WO') : 'WO';
       var custName = wo ? (wo.customer||'') : '';
+      var expMsg = expEntry.loggedBy+' logged $'+amt.toFixed(2)+' ('+expEntry.category+')' + (custName ? ' · '+custName : '');
+      // Cloud feed → reaches the office (owner/manager/back_office) on their own devices.
+      if (typeof notifyOfficeCloud === 'function') {
+        notifyOfficeCloud('expense_logged', '💰 Expense Logged — '+woNum, expMsg, true);
+      }
+      // Local bell as well (harmless; the tech who logged it sees confirmation).
       if (typeof addNotification === 'function') {
-        addNotification(
-          'expense_logged',
-          '💰 Expense Logged — '+woNum,
-          expEntry.loggedBy+' logged $'+amt.toFixed(2)+' ('+expEntry.category+')' + (custName ? ' · '+custName : ''),
-          'wo'
-        );
+        addNotification('expense_logged', '💰 Expense Logged — '+woNum, expMsg, 'wo');
       }
     }
   }

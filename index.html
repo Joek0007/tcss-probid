@@ -1422,6 +1422,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <a class="nav-item" data-page="recurring" href="#/recurring"><span class="nav-icon">🔄</span>Managed Services</a>
     <a class="nav-item" data-page="purchaseorders" href="#/purchaseorders"><span class="nav-icon">📦</span>Purchase Orders</a>
     <a class="nav-item" data-page="expenses" href="#/expenses"><span class="nav-icon">💰</span>Expenses</a>
+    <a class="nav-item" data-page="perdiem" href="#/perdiem"><span class="nav-icon">🧳</span>Per-Diem</a>
   </div>
   <div class="nav-group">
     <div class="nav-group-title">Contacts</div>
@@ -3513,6 +3514,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
 <!-- EXPENSES REVIEW — rendered by renderExpensesPage() in js/expenses.js -->
 <div class="page" id="page-expenses" style="padding:16px 20px"></div>
+<div class="page" id="page-perdiem" style="padding:16px 20px"></div>
 
 <div class="page" id="page-reports">
   <div class="page-header"><h2>📈 Reports &amp; Analytics</h2>
@@ -7017,7 +7019,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919ix"></script>
+<script src="js/core.js?v=20260919iy"></script>
 <script src="js/quotes.js?v=20260919ix"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
 <script src="js/checkouts_db.js?v=20260919ix"></script>
@@ -7026,22 +7028,23 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/field.js?v=20260919ix"></script>
 <script src="js/crm.js?v=20260919ix"></script>
 <script src="js/vehicles.js?v=20260919ix"></script>
-<script src="js/dispatch.js?v=20260919ix"></script>
+<script src="js/dispatch.js?v=20260919iy"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
-<script src="js/worktracking.js?v=20260919ix"></script>
+<script src="js/worktracking.js?v=20260919iy"></script>
 <script src="js/calendar.js?v=20260919ix"></script>
-<script src="js/workorders.js?v=20260919ix"></script>
+<script src="js/workorders.js?v=20260919iy"></script>
 <script src="js/purchaseorders.js?v=20260919ix"></script>
 <script src="js/inventory_locations_db.js?v=20260919ix"></script>
 <script src="js/inventory.js?v=20260919ix"></script>
 <script src="js/reports.js?v=20260919ix"></script>
 <script src="js/expenses.js?v=20260919iy"></script>
+<script src="js/perdiem.js?v=20260919iy"></script>
 <script src="js/recyclebin.js?v=20260919ix"></script>
 <script src="js/contracts.js?v=20260919ix"></script>
   <script src="js/recurring.js?v=20260919ix"></script>
   <script src="js/seed_managed.js?v=20260919ix"></script>
   <script src="js/applock.js?v=20260919ix"></script>
-  <script src="js/auth.js?v=20260919ix"></script>
+  <script src="js/auth.js?v=20260919iy"></script>
 <!-- MOBILE BOTTOM NAV -->
 <div id="mobile-nav">
   <!-- Default nav (owner/manager/back_office/lead_tech) -->

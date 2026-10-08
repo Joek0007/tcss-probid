@@ -392,9 +392,13 @@
   function _applyFlag(ids, note){
     var touched=[];
     ids.forEach(function(id){ var e=_findExp(id); if(!e) return; e.reviewStatus='flagged'; e.reviewNote=(note||'').trim(); e.reviewedBy=_me(); e.reviewedAt=new Date().toISOString(); _expPersist(e); touched.push(e); });
-    if (touched.length && typeof addNotification==='function'){
+    if (touched.length){
       var sum = touched.length===1 ? (_money(touched[0].amount)+' ('+(touched[0].category||'')+', '+(touched[0].loggedBy||'')+')') : (touched.length+' expenses');
-      addNotification('expense_flagged','🚩 Expense Flagged', _me()+' flagged '+sum+(note?': '+note:''), 'wo');
+      var msg = _me()+' flagged '+sum+(note?': '+note:'');
+      // Cloud feed → reaches owner/manager/back_office on their own devices.
+      if (typeof notifyOfficeCloud==='function') notifyOfficeCloud('expense_flagged','🚩 Expense Flagged', msg, true);
+      // Local bell for the person who flagged (immediate confirmation on this screen).
+      if (typeof addNotification==='function') addNotification('expense_flagged','🚩 Expense Flagged', msg, 'wo');
     }
     _expSel={}; _drawResults();
     if (typeof showToast==='function') showToast(touched.length+' flagged for owner/manager','success');

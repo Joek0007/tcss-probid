@@ -45,6 +45,30 @@ function addNotification(type, title, body, action) {
   }
 }
 
+// Push a notification to the CLOUD feed for every office user (owner/manager/back_office),
+// so alerts actually reach the office on their own devices — addNotification() above is
+// local-only (the bell on the current browser) and never reached anyone else. Excludes the
+// person who triggered it (no point pinging yourself). Fire-and-forget per row.
+function notifyOfficeCloud(type, title, message, excludeSelf) {
+  if (!window._sb) return;
+  var meId = (window._currentUser && _currentUser.id) || null;
+  var office = (DB.team||[]).filter(function(m){
+    return m.userId && ['owner','manager','back_office'].indexOf(m.role)>=0;
+  });
+  office.forEach(function(m){
+    if (excludeSelf!==false && meId && m.userId===meId) return;
+    _sb.from('wt_notifications').insert({
+      user_id:    m.userId,
+      user_name:  m.name,
+      type:       type,
+      title:      title,
+      message:    message,
+      project_id: null,
+    }).then(function(){}, function(e){ console.warn('[notifyOfficeCloud]', (e&&e.message)||e); });
+  });
+}
+window.notifyOfficeCloud = notifyOfficeCloud;
+
 function updateNotifBadge() {
   var localUnread = (_notifications||[]).filter(function(n){ return !n.read; }).length;
   var remoteUnread = (WT.notifications||[]).filter(function(n){ return !n.read; }).length;

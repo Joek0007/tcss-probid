@@ -1384,6 +1384,7 @@ var PERM_DEFS = [
   {key:'page.contracts',   label:'Contracts Page',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'page.recurring',   label:'Managed Services Page', group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'page.expenses',    label:'Expenses Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.perdiem',     label:'Per-Diem Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
 ];
 
 function getPermMatrix() {
@@ -2078,35 +2079,75 @@ function deleteMsWOType(idx) {
   DB.woSettings.serviceTypes.splice(idx,1); saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase(); renderMsWOTypes();
 }
 
+// Canonical expense-category list. The expense-entry form (addWOExpense) and the Expenses
+// Review page both read DB.woSettings.expenseCats — so THIS is the key we edit. (An older
+// build wrote `expenseCategories`, which nothing read; we migrate those in on first render
+// so nothing added there is lost.) Add / remove / reorder; order here = order in the dropdown.
+function _msExpCats() {
+  if (!DB.woSettings) DB.woSettings = {};
+  if (!Array.isArray(DB.woSettings.expenseCats) || !DB.woSettings.expenseCats.length) {
+    var seed = (Array.isArray(DB.woSettings.expenseCategories) && DB.woSettings.expenseCategories.length)
+      ? DB.woSettings.expenseCategories
+      : ((typeof WO_EXPENSE_CATS!=='undefined') ? WO_EXPENSE_CATS : []);
+    DB.woSettings.expenseCats = seed.slice();
+  }
+  return DB.woSettings.expenseCats;
+}
+function _msExpCatsSave() {
+  saveDB();
+  if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  renderMsWOExpenses();
+}
 function renderMsWOExpenses() {
   var el = document.getElementById('ms-wo-expenses-section');
   if (!el) return;
-  var settings = DB.woSettings || {};
-  var cats = settings.expenseCategories || WO_EXPENSE_CATS || [];
+  var cats = _msExpCats();
   el.innerHTML =
     '<div class="card">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
       '<div class="card-title" style="margin:0">💸 Expense Categories</div>'+
-      '<button class="btn btn-primary btn-sm" onclick="addMsWOExpCat()">+ Add Category</button>'+
     '</div>'+
-    '<div style="display:flex;flex-wrap:wrap;gap:8px">'+
-      cats.map(function(c,i){
-        return '<div style="display:flex;align-items:center;gap:4px;background:#fff3e0;border-radius:20px;padding:4px 10px">'+
-          '<span style="font-size:12px;font-weight:600">'+escHtml(c)+'</span>'+
-          '<button onclick="deleteMsWOExpCat('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:14px;padding:0;line-height:1">×</button>'+
+    '<div style="font-size:12px;color:#90a4ae;margin-bottom:12px">These are the choices techs pick from when logging an expense. Order here is the order they appear.</div>'+
+    '<div style="display:flex;flex-direction:column;gap:4px;max-width:440px">'+
+      (cats.length ? cats.map(function(c,i){
+        return '<div style="display:flex;align-items:center;gap:8px;background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:6px 10px">'+
+          '<span style="flex:1;font-size:13px;font-weight:600">'+escHtml(c)+'</span>'+
+          '<button title="Move up" '+(i===0?'disabled':'')+' onclick="moveMsWOExpCat('+i+',-1)" style="background:none;border:none;cursor:'+(i===0?'default':'pointer')+';color:'+(i===0?'#e0e0e0':'#607d8b')+';font-size:14px;padding:0 2px">▲</button>'+
+          '<button title="Move down" '+(i===cats.length-1?'disabled':'')+' onclick="moveMsWOExpCat('+i+',1)" style="background:none;border:none;cursor:'+(i===cats.length-1?'default':'pointer')+';color:'+(i===cats.length-1?'#e0e0e0':'#607d8b')+';font-size:14px;padding:0 2px">▼</button>'+
+          '<button title="Remove" onclick="deleteMsWOExpCat('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:16px;padding:0 2px;line-height:1">×</button>'+
         '</div>';
-      }).join('')+
+      }).join('') : '<div style="font-size:12px;color:#b0bec5">No categories yet — add one below.</div>')+
+    '</div>'+
+    '<div style="display:flex;gap:8px;margin-top:12px;max-width:440px">'+
+      '<input id="ms-new-exp-cat" type="text" placeholder="New category name" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addMsWOExpCat();}" style="flex:1;padding:7px 9px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">'+
+      '<button class="btn btn-primary btn-sm" onclick="addMsWOExpCat()">+ Add</button>'+
     '</div></div>';
 }
 function addMsWOExpCat() {
-  var v = prompt('New expense category:'); if(!v||!v.trim()) return;
-  if (!DB.woSettings) DB.woSettings={};
-  if (!DB.woSettings.expenseCategories) DB.woSettings.expenseCategories = (WO_EXPENSE_CATS||[]).slice();
-  DB.woSettings.expenseCategories.push(v.trim()); saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase(); renderMsWOExpenses();
+  var inp = document.getElementById('ms-new-exp-cat');
+  var v = inp ? (inp.value||'') : '';
+  if (!v.trim()) { if(inp) inp.focus(); return; }
+  var cats = _msExpCats();
+  if (cats.map(function(x){return x.toLowerCase();}).indexOf(v.trim().toLowerCase())>=0){
+    if (typeof showToast==='function') showToast('That category already exists','info');
+    if (inp) inp.value='';
+    return;
+  }
+  cats.push(v.trim());
+  _msExpCatsSave();
+}
+function moveMsWOExpCat(idx, dir) {
+  var cats = _msExpCats();
+  var j = idx + dir;
+  if (j < 0 || j >= cats.length) return;
+  var tmp = cats[idx]; cats[idx] = cats[j]; cats[j] = tmp;
+  _msExpCatsSave();
 }
 function deleteMsWOExpCat(idx) {
-  if (!DB.woSettings||!DB.woSettings.expenseCategories) return;
-  DB.woSettings.expenseCategories.splice(idx,1); saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase(); renderMsWOExpenses();
+  var cats = _msExpCats();
+  if (idx<0 || idx>=cats.length) return;
+  cats.splice(idx,1);
+  _msExpCatsSave();
 }
 
 function renderMsWORates() {
