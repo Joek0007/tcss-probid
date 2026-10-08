@@ -181,29 +181,29 @@
     var cur = e ? e.techName : '';
     if (cur && people.indexOf(cur)<0) people.unshift(cur); // keep an existing (maybe former) name selectable
     var ov=document.createElement('div');
-    ov.id='pd-modal';
+    ov.id='pdm-modal';
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
     var inpCss='width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px;font-family:inherit';
     ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:480px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.2);max-height:90vh;overflow:auto">'+
       '<div style="font-size:17px;font-weight:800;color:#0d1b2a;margin-bottom:14px">'+(e?'Edit per-diem':'New per-diem')+'</div>'+
       '<label style="font-size:12px;font-weight:700;color:#546e7a">Tech</label>'+
-      '<select id="pd-tech" style="'+inpCss+';margin:4px 0 12px">'+
+      '<select id="pdm-tech" style="'+inpCss+';margin:4px 0 12px">'+
         '<option value="">— select —</option>'+
         people.map(function(n){ return '<option value="'+_attr(n)+'"'+(e&&e.techName===n?' selected':'')+'>'+_esc(n)+'</option>'; }).join('')+
       '</select>'+
       '<label style="font-size:12px;font-weight:700;color:#546e7a">Trip / reason (optional)</label>'+
-      '<input id="pd-trip" type="text" placeholder="e.g. Dallas install" value="'+_attr(e?e.tripLabel:'')+'" style="'+inpCss+';margin:4px 0 12px">'+
+      '<input id="pdm-trip" type="text" placeholder="e.g. Dallas install" value="'+_attr(e?e.tripLabel:'')+'" style="'+inpCss+';margin:4px 0 12px">'+
       '<div style="display:flex;gap:10px;margin-bottom:12px">'+
-        '<div style="flex:1"><label style="font-size:12px;font-weight:700;color:#546e7a">Start</label><input id="pd-start" type="date" value="'+_attr(e?(e.startDate||'').slice(0,10):'')+'" onchange="_pdSuggestNights()" style="'+inpCss+';margin-top:4px"></div>'+
-        '<div style="flex:1"><label style="font-size:12px;font-weight:700;color:#546e7a">End</label><input id="pd-end" type="date" value="'+_attr(e?(e.endDate||'').slice(0,10):'')+'" onchange="_pdSuggestNights()" style="'+inpCss+';margin-top:4px"></div>'+
+        '<div style="flex:1"><label style="font-size:12px;font-weight:700;color:#546e7a">Start</label><input id="pdm-start" type="date" value="'+_attr(e?(e.startDate||'').slice(0,10):'')+'" onchange="_pdSuggestNights()" style="'+inpCss+';margin-top:4px"></div>'+
+        '<div style="flex:1"><label style="font-size:12px;font-weight:700;color:#546e7a">End</label><input id="pdm-end" type="date" value="'+_attr(e?(e.endDate||'').slice(0,10):'')+'" onchange="_pdSuggestNights()" style="'+inpCss+';margin-top:4px"></div>'+
       '</div>'+
       '<div style="display:flex;gap:10px;margin-bottom:12px">'+
-        '<div style="flex:1"><label style="font-size:12px;font-weight:700;color:#546e7a">Nights</label><input id="pd-nights" type="number" min="0" step="1" value="'+(e?e.nights:0)+'" oninput="_pdCalcPreview()" style="'+inpCss+';margin-top:4px"></div>'+
-        '<div style="flex:1"><label style="font-size:12px;font-weight:700;color:#546e7a">Rate / night</label><input id="pd-rate" type="number" min="0" step="1" value="'+(e?e.rate:DEFAULT_RATE)+'" oninput="_pdCalcPreview()" style="'+inpCss+';margin-top:4px"></div>'+
+        '<div style="flex:1"><label style="font-size:12px;font-weight:700;color:#546e7a">Nights</label><input id="pdm-nights" type="number" min="0" step="1" value="'+(e?e.nights:0)+'" oninput="_pdCalcPreview()" style="'+inpCss+';margin-top:4px"></div>'+
+        '<div style="flex:1"><label style="font-size:12px;font-weight:700;color:#546e7a">Rate / night</label><input id="pdm-rate" type="number" min="0" step="1" value="'+(e?e.rate:DEFAULT_RATE)+'" oninput="_pdCalcPreview()" style="'+inpCss+';margin-top:4px"></div>'+
       '</div>'+
-      '<div id="pd-preview" style="font-size:13px;font-weight:700;color:#37474f;margin-bottom:12px"></div>'+
+      '<div id="pdm-preview" style="font-size:13px;font-weight:700;color:#37474f;margin-bottom:12px"></div>'+
       '<label style="font-size:12px;font-weight:700;color:#546e7a">Notes (optional)</label>'+
-      '<textarea id="pd-notes" rows="2" style="'+inpCss+';margin:4px 0 14px">'+_esc(e?e.notes:'')+'</textarea>'+
+      '<textarea id="pdm-notes" rows="2" style="'+inpCss+';margin:4px 0 14px">'+_esc(e?e.notes:'')+'</textarea>'+
       '<div style="display:flex;justify-content:flex-end;gap:10px">'+
         '<button class="btn btn-outline" onclick="_pdCloseModal()">Cancel</button>'+
         '<button class="btn btn-primary" onclick="_pdSaveEntry('+(e?'\''+e.id+'\'':'null')+')">Save</button>'+
@@ -212,8 +212,8 @@
     _pdCalcPreview();
   }
   function _pdSuggestNights(){
-    var s=(document.getElementById('pd-start')||{}).value, en=(document.getElementById('pd-end')||{}).value;
-    var nEl=document.getElementById('pd-nights'); if(!nEl) return;
+    var s=(document.getElementById('pdm-start')||{}).value, en=(document.getElementById('pdm-end')||{}).value;
+    var nEl=document.getElementById('pdm-nights'); if(!nEl) return;
     if (s && en){
       var d1=new Date(s+'T00:00:00'), d2=new Date(en+'T00:00:00');
       var diff=Math.round((d2-d1)/86400000);
@@ -222,25 +222,25 @@
     _pdCalcPreview();
   }
   function _pdCalcPreview(){
-    var n=_num((document.getElementById('pd-nights')||{}).value,0);
-    var r=_num((document.getElementById('pd-rate')||{}).value,0);
-    var box=document.getElementById('pd-preview'); if(box) box.innerHTML='Owed: '+_money(n*r)+' &nbsp;<span style="font-weight:500;color:#90a4ae">('+n+' × '+_money(r)+')</span>';
+    var n=_num((document.getElementById('pdm-nights')||{}).value,0);
+    var r=_num((document.getElementById('pdm-rate')||{}).value,0);
+    var box=document.getElementById('pdm-preview'); if(box) box.innerHTML='Owed: '+_money(n*r)+' &nbsp;<span style="font-weight:500;color:#90a4ae">('+n+' × '+_money(r)+')</span>';
   }
   async function _pdSaveEntry(id){
-    var tech=(document.getElementById('pd-tech')||{}).value||'';
+    var tech=(document.getElementById('pdm-tech')||{}).value||'';
     if (!tech){ if(typeof showToast==='function') showToast('Pick a tech','error'); return; }
-    var nights=Math.max(0, Math.round(_num((document.getElementById('pd-nights')||{}).value,0)));
-    var rate=_num((document.getElementById('pd-rate')||{}).value,DEFAULT_RATE);
+    var nights=Math.max(0, Math.round(_num((document.getElementById('pdm-nights')||{}).value,0)));
+    var rate=_num((document.getElementById('pdm-rate')||{}).value,DEFAULT_RATE);
     var member=(DB.team||[]).find(function(m){ return (m.name||m.full_name)===tech; });
     var row={
       tech_name: tech,
       tech_user_id: (member&&member.userId)||null,
-      trip_label: (document.getElementById('pd-trip')||{}).value||'',
-      start_date: (document.getElementById('pd-start')||{}).value||null,
-      end_date: (document.getElementById('pd-end')||{}).value||null,
+      trip_label: (document.getElementById('pdm-trip')||{}).value||'',
+      start_date: (document.getElementById('pdm-start')||{}).value||null,
+      end_date: (document.getElementById('pdm-end')||{}).value||null,
       nights: nights,
       rate: rate,
-      notes: (document.getElementById('pd-notes')||{}).value||''
+      notes: (document.getElementById('pdm-notes')||{}).value||''
     };
     var sb=window._sb;
     try {
@@ -273,38 +273,38 @@
     var e=_find(entryId); if(!e) return;
     var bal=_balance(e);
     var ov=document.createElement('div');
-    ov.id='pd-modal';
+    ov.id='pdm-modal';
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
     var inpCss='width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e0e7ef;border-radius:8px;font-size:13px;font-family:inherit';
     ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.2)">'+
       '<div style="font-size:17px;font-weight:800;color:#0d1b2a;margin-bottom:2px">Record payment</div>'+
       '<div style="font-size:12px;color:#90a4ae;margin-bottom:14px">'+_esc(e.techName)+(e.tripLabel?' · '+_esc(e.tripLabel):'')+' — '+_money(bal)+' owed</div>'+
       '<label style="font-size:12px;font-weight:700;color:#546e7a">Amount</label>'+
-      '<input id="pd-pay-amt" type="number" min="0" step="0.01" value="'+(bal>0?bal:0)+'" style="'+inpCss+';margin:4px 0 12px">'+
+      '<input id="pdm-pay-amt" type="number" min="0" step="0.01" value="'+(bal>0?bal:0)+'" style="'+inpCss+';margin:4px 0 12px">'+
       '<label style="font-size:12px;font-weight:700;color:#546e7a">Date paid</label>'+
-      '<input id="pd-pay-date" type="date" value="'+_attr(_today())+'" style="'+inpCss+';margin:4px 0 12px">'+
+      '<input id="pdm-pay-date" type="date" value="'+_attr(_today())+'" style="'+inpCss+';margin:4px 0 12px">'+
       '<label style="font-size:12px;font-weight:700;color:#546e7a">Method</label>'+
-      '<select id="pd-pay-method" style="'+inpCss+';margin:4px 0 12px">'+
+      '<select id="pdm-pay-method" style="'+inpCss+';margin:4px 0 12px">'+
         METHODS.map(function(m){ return '<option value="'+_attr(m)+'">'+_esc(m)+'</option>'; }).join('')+
       '</select>'+
       '<label style="font-size:12px;font-weight:700;color:#546e7a">Note (optional)</label>'+
-      '<input id="pd-pay-note" type="text" placeholder="e.g. check #1042" style="'+inpCss+';margin:4px 0 14px">'+
+      '<input id="pdm-pay-note" type="text" placeholder="e.g. check #1042" style="'+inpCss+';margin:4px 0 14px">'+
       '<div style="display:flex;justify-content:flex-end;gap:10px">'+
         '<button class="btn btn-outline" onclick="_pdCloseModal()">Cancel</button>'+
         '<button class="btn btn-primary" onclick="_pdSavePay(\''+entryId+'\')">Record</button>'+
       '</div></div>';
     document.body.appendChild(ov);
-    setTimeout(function(){ var a=document.getElementById('pd-pay-amt'); if(a){a.focus();a.select();} },50);
+    setTimeout(function(){ var a=document.getElementById('pdm-pay-amt'); if(a){a.focus();a.select();} },50);
   }
   async function _pdSavePay(entryId){
-    var amt=_num((document.getElementById('pd-pay-amt')||{}).value,0);
+    var amt=_num((document.getElementById('pdm-pay-amt')||{}).value,0);
     if (!(amt>0)){ if(typeof showToast==='function') showToast('Enter an amount','error'); return; }
     var row={
       per_diem_id: entryId,
       amount: amt,
-      paid_on: (document.getElementById('pd-pay-date')||{}).value||_today(),
-      method: (document.getElementById('pd-pay-method')||{}).value||'',
-      note: (document.getElementById('pd-pay-note')||{}).value||'',
+      paid_on: (document.getElementById('pdm-pay-date')||{}).value||_today(),
+      method: (document.getElementById('pdm-pay-method')||{}).value||'',
+      note: (document.getElementById('pdm-pay-note')||{}).value||'',
       created_by: _me()
     };
     try {
@@ -339,7 +339,7 @@
     } catch(err){ if(typeof showToast==='function') showToast('Error: '+((err&&err.message)||err),'error'); }
   }
 
-  function _pdCloseModal(){ var m=document.getElementById('pd-modal'); if(m) m.remove(); }
+  function _pdCloseModal(){ var m=document.getElementById('pdm-modal'); if(m) m.remove(); }
 
   // ---------- exports ----------
   window.renderPerDiemPage=renderPerDiemPage;

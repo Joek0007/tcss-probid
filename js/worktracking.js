@@ -47,25 +47,34 @@ function addNotification(type, title, body, action) {
 
 // Push a notification to the CLOUD feed for every office user (owner/manager/back_office),
 // so alerts actually reach the office on their own devices — addNotification() above is
-// local-only (the bell on the current browser) and never reached anyone else. Excludes the
-// person who triggered it (no point pinging yourself). Fire-and-forget per row.
-function notifyOfficeCloud(type, title, message, excludeSelf) {
+// local-only (the bell on the current browser) and never reached anyone else.
+// Recipients come from the `profiles` table (id = auth user id, the value wt_notifications
+// is read by), NOT DB.team — team records don't carry the auth user_id in this data, so
+// targeting off them notifies no one. De-dupes by id and (by default) skips the person who
+// triggered it. Async + fire-and-forget at the call sites.
+async function notifyOfficeCloud(type, title, message, excludeSelf) {
   if (!window._sb) return;
   var meId = (window._currentUser && _currentUser.id) || null;
-  var office = (DB.team||[]).filter(function(m){
-    return m.userId && ['owner','manager','back_office'].indexOf(m.role)>=0;
-  });
-  office.forEach(function(m){
-    if (excludeSelf!==false && meId && m.userId===meId) return;
-    _sb.from('wt_notifications').insert({
-      user_id:    m.userId,
-      user_name:  m.name,
-      type:       type,
-      title:      title,
-      message:    message,
-      project_id: null,
-    }).then(function(){}, function(e){ console.warn('[notifyOfficeCloud]', (e&&e.message)||e); });
-  });
+  try {
+    var r = await _sb.from('profiles').select('id,full_name,role,is_active')
+      .in('role', ['owner','manager','back_office','office'])
+      .eq('is_active', true);
+    if (r.error) throw r.error;
+    var seen = {};
+    (r.data||[]).forEach(function(p){
+      if (!p.id || seen[p.id]) return;
+      if (excludeSelf!==false && meId && p.id===meId) return;
+      seen[p.id] = 1;
+      _sb.from('wt_notifications').insert({
+        user_id:    p.id,
+        user_name:  p.full_name,
+        type:       type,
+        title:      title,
+        message:    message,
+        project_id: null,
+      }).then(function(){}, function(e){ console.warn('[notifyOfficeCloud insert]', (e&&e.message)||e); });
+    });
+  } catch(e){ console.warn('[notifyOfficeCloud]', (e&&e.message)||e); }
 }
 window.notifyOfficeCloud = notifyOfficeCloud;
 
