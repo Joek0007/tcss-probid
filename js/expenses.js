@@ -204,7 +204,7 @@
       '<div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap">'+
         '<div style="position:relative">'+
           '<button id="exp-people-btn" class="btn btn-outline btn-sm" style="font-size:12px" onclick="_expTogglePeople()">👤 '+(f.people.length?('People ('+f.people.length+')'):'All people')+' ▾</button>'+
-          '<div id="exp-people-panel" style="display:none;position:absolute;z-index:500;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:6px;max-height:300px;overflow-y:auto;width:220px"></div>'+
+          '<div id="exp-people-panel" onclick="event.stopPropagation()" style="display:none;position:absolute;z-index:500;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:6px;max-height:300px;overflow-y:auto;width:220px"></div>'+
         '</div>'+
         '<select id="exp-f-pay" onchange="_expSetFilter(\'payType\',this.value)" style="'+inpCss+'">'+_opt('',f.payType,'All pay types')+pays.map(function(p){return _opt(p,f.payType);}).join('')+'</select>'+
         '<select id="exp-f-cat" onchange="_expSetFilter(\'category\',this.value)" style="'+inpCss+'">'+_opt('',f.category,'All categories')+cats.map(function(c){return _opt(c,f.category);}).join('')+'</select>'+
