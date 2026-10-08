@@ -39,6 +39,17 @@
       .map(function(t){ return t.name||t.full_name; }).filter(Boolean)
       .filter(function(v,i,a){ return a.indexOf(v)===i; }).sort();
   }
+  // Work orders for the optional link selector — newest WO number first.
+  function _woList(){
+    return (DB.workOrders||[]).map(function(w){
+      return { id:w.id, label:(w.woNumber||('WO '+String(w.id).slice(0,6)))+(w.customerName?' · '+w.customerName:'') };
+    }).sort(function(a,b){ return String(b.label).localeCompare(String(a.label)); });
+  }
+  function _woLabelFor(woId){
+    var w=(DB.workOrders||[]).find(function(x){ return x.id===woId; });
+    if (w) return (w.woNumber||('WO '+String(woId).slice(0,6)))+(w.customerName?' · '+w.customerName:'');
+    return woId ? ('WO '+String(woId).slice(0,6)) : '';
+  }
 
   // ---------- Load ----------
   async function loadAllPerDiem(){
@@ -50,7 +61,7 @@
       _pdRows = (pd.data||[]).map(function(r){
         return { id:r.id, techName:r.tech_name, techUserId:r.tech_user_id, tripLabel:r.trip_label||'',
           startDate:r.start_date||'', endDate:r.end_date||'', nights:parseInt(r.nights||0,10)||0,
-          rate:(r.rate==null?DEFAULT_RATE:parseFloat(r.rate)), notes:r.notes||'',
+          rate:(r.rate==null?DEFAULT_RATE:parseFloat(r.rate)), notes:r.notes||'', woId:r.wo_id||'',
           createdAt:r.created_at, createdBy:r.created_by||'' };
       });
       var pay = await sb.from('per_diem_payments').select('*').order('paid_on',{ascending:true,nullsFirst:true});
@@ -140,6 +151,7 @@
               e.nights+' night'+(e.nights===1?'':'s')+' × '+_money(e.rate)+' = <b style="color:#37474f">'+_money(owed)+'</b>'+
               (dateRange?' &nbsp;·&nbsp; '+dateRange:'')+
             '</div>'+
+            (e.woId?'<div style="font-size:12px;margin-top:4px">🔧 <a href="javascript:void(0)" onclick="openWorkOrder(\''+_attr(e.woId)+'\')" style="color:#1565c0;font-weight:600;text-decoration:none">'+_esc(_woLabelFor(e.woId))+'</a></div>':'')+
             (e.notes?'<div style="font-size:12px;color:#607d8b;margin-top:4px;max-width:520px">'+_esc(e.notes)+'</div>':'')+
           '</div>'+
           '<div style="text-align:right">'+
@@ -178,6 +190,7 @@
     _pdCloseModal();
     var e = id ? _find(id) : null;
     var people=_activePeople();
+    var wos=_woList();
     var cur = e ? e.techName : '';
     if (cur && people.indexOf(cur)<0) people.unshift(cur); // keep an existing (maybe former) name selectable
     var ov=document.createElement('div');
@@ -193,6 +206,11 @@
       '</select>'+
       '<label style="font-size:12px;font-weight:700;color:#546e7a">Trip / reason (optional)</label>'+
       '<input id="pdm-trip" type="text" placeholder="e.g. Dallas install" value="'+_attr(e?e.tripLabel:'')+'" style="'+inpCss+';margin:4px 0 12px">'+
+      '<label style="font-size:12px;font-weight:700;color:#546e7a">Work order (optional — adds to that job\'s cost)</label>'+
+      '<select id="pdm-wo" style="'+inpCss+';margin:4px 0 12px">'+
+        '<option value="">— none —</option>'+
+        wos.map(function(w){ return '<option value="'+_attr(w.id)+'"'+(e&&e.woId===w.id?' selected':'')+'>'+_esc(w.label)+'</option>'; }).join('')+
+      '</select>'+
       '<div style="display:flex;gap:10px;margin-bottom:12px">'+
         '<div style="flex:1"><label style="font-size:12px;font-weight:700;color:#546e7a">Start</label><input id="pdm-start" type="date" value="'+_attr(e?(e.startDate||'').slice(0,10):'')+'" onchange="_pdSuggestNights()" style="'+inpCss+';margin-top:4px"></div>'+
         '<div style="flex:1"><label style="font-size:12px;font-weight:700;color:#546e7a">End</label><input id="pdm-end" type="date" value="'+_attr(e?(e.endDate||'').slice(0,10):'')+'" onchange="_pdSuggestNights()" style="'+inpCss+';margin-top:4px"></div>'+
@@ -240,6 +258,7 @@
       end_date: (document.getElementById('pdm-end')||{}).value||null,
       nights: nights,
       rate: rate,
+      wo_id: (document.getElementById('pdm-wo')||{}).value||null,
       notes: (document.getElementById('pdm-notes')||{}).value||''
     };
     var sb=window._sb;
@@ -262,7 +281,7 @@
   function _applyEntry(r, isNew){
     var mapped={ id:r.id, techName:r.tech_name, techUserId:r.tech_user_id, tripLabel:r.trip_label||'',
       startDate:r.start_date||'', endDate:r.end_date||'', nights:parseInt(r.nights||0,10)||0,
-      rate:(r.rate==null?DEFAULT_RATE:parseFloat(r.rate)), notes:r.notes||'', createdAt:r.created_at, createdBy:r.created_by||'' };
+      rate:(r.rate==null?DEFAULT_RATE:parseFloat(r.rate)), notes:r.notes||'', woId:r.wo_id||'', createdAt:r.created_at, createdBy:r.created_by||'' };
     var i=_pdRows.findIndex(function(e){return e.id===r.id;});
     if (i>=0) _pdRows[i]=mapped; else _pdRows.unshift(mapped);
   }
@@ -341,7 +360,29 @@
 
   function _pdCloseModal(){ var m=document.getElementById('pdm-modal'); if(m) m.remove(); }
 
+  // ---------- Work-order rollup (internal cost; NOT billed) ----------
+  // Called by the WO Expenses tab. Fetches per-diem linked to this WO and shows a cost line
+  // plus the combined job cost (expenses + per-diem). Owner/office only ever see this — it is
+  // display-only and never touches the invoice. Fills #wo-perdiem-rollup if present.
+  async function woPerDiemRollup(woId, expenseTotal){
+    var box=document.getElementById('wo-perdiem-rollup'); if(!box) return;
+    var sb=window._sb; if(!sb || !woId){ box.innerHTML=''; return; }
+    try {
+      var r=await sb.from('per_diem').select('nights,rate').eq('wo_id',woId);
+      if (r.error){ box.innerHTML=''; return; }
+      var rows=r.data||[];
+      if (!rows.length){ box.innerHTML=''; return; }
+      var pd=rows.reduce(function(s,x){ return s+((parseInt(x.nights||0,10)||0)*(x.rate==null?DEFAULT_RATE:parseFloat(x.rate))); },0);
+      var combined=(parseFloat(expenseTotal||0))+pd;
+      box.innerHTML='<div style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px">'+
+        '🧳 <b>Per-Diem (linked):</b> '+_money(pd)+' <span style="color:#8a6d3b">· '+rows.length+' entr'+(rows.length===1?'y':'ies')+'</span>'+
+        '<div style="font-size:12px;color:#8a6d3b;margin-top:2px">Total job cost incl. per-diem: <b>'+_money(combined)+'</b> <span style="font-weight:500">(internal — not billed to customer)</span></div>'+
+      '</div>';
+    } catch(e){ box.innerHTML=''; }
+  }
+
   // ---------- exports ----------
+  window.woPerDiemRollup=woPerDiemRollup;
   window.renderPerDiemPage=renderPerDiemPage;
   window.loadAllPerDiem=loadAllPerDiem;
   window._pdOpenEntry=_pdOpenEntry; window._pdSaveEntry=_pdSaveEntry;

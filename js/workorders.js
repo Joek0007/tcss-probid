@@ -2072,6 +2072,9 @@ function renderWOExpensesTab(woId) {
   var payTypes= settings.expensePayTypes||WO_EXPENSE_PAY_TYPES;
 
   var html = '<div style="margin-bottom:12px"><strong>Total Expenses: $'+total.toFixed(2)+'</strong></div>';
+  // Per-diem linked to this WO (internal job cost; fetched async, filled after render). Not billed.
+  html += '<div id="wo-perdiem-rollup"></div>';
+  if (typeof woPerDiemRollup==='function') setTimeout(function(){ woPerDiemRollup(woId, total); }, 0);
   html += '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:12px">'+
     '<div style="display:grid;grid-template-columns:1fr 1fr 0.7fr 1fr 0.7fr auto;gap:8px;align-items:end">'+
       '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Category</label>'+
