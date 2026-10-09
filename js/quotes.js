@@ -827,6 +827,21 @@ function cleanScopeHtml(raw){
     H1:'h3', H2:'h3', H3:'h3', H4:'h4', H5:'h4', H6:'h4' };
   var BLOCKISH = {P:1,DIV:1,UL:1,OL:1,H1:1,H2:1,H3:1,H4:1,H5:1,H6:1,BLOCKQUOTE:1,TABLE:1};
   function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  // Keep ONLY a safe whitelist of inline styles so formatting from the editor (text color,
+  // highlight, size, weight set via the toolbar's brush / highlighter / size dropdown) survives
+  // into the printed proposal, PDF, and approval portal — without letting arbitrary pasted CSS through.
+  function safeStyle(el){
+    if (!el || !el.style) return '';
+    var o=[];
+    var fw=el.style.fontWeight; if (fw && (fw==='bold'||fw==='bolder'||parseInt(fw,10)>=600)) o.push('font-weight:bold');
+    if (el.style.fontStyle==='italic') o.push('font-style:italic');
+    var td=el.style.textDecorationLine||el.style.textDecoration||''; if (td.indexOf('underline')>=0) o.push('text-decoration:underline');
+    var sz=el.style.fontSize; if (sz && /^\d+(\.\d+)?(px|pt|em|rem|%)$/i.test(sz)) o.push('font-size:'+sz);
+    var col=el.style.color; if (col && /^(#[0-9a-f]{3,8}|rgb\([^)]*\)|rgba\([^)]*\))$/i.test(col)) o.push('color:'+col);
+    var bg=el.style.backgroundColor;
+    if (bg && bg!=='transparent' && !/rgba\([^)]*,\s*0\s*\)$/i.test(bg) && /^(#[0-9a-f]{3,8}|rgb\([^)]*\)|rgba\([^)]*\))$/i.test(bg)) o.push('background-color:'+bg);
+    return o.join(';');
+  }
   function containsBlock(el){
     for (var i=0;i<el.childNodes.length;i++){
       var c=el.childNodes[i];
@@ -842,7 +857,19 @@ function cleanScopeHtml(raw){
     if (tag==='BR') return '<br>';
     if (tag==='HR') return '<hr>';
     var map = MAP[tag];
-    if (!map) return kids(n);
+    if (!map){
+      // Unmapped wrappers: keep their inline styling (color/highlight/size/weight) via a
+      // sanitized span, otherwise just unwrap to the inner content.
+      if (tag==='SPAN'){ var ss=safeStyle(n); var innerS=kids(n); return ss ? ('<span style="'+ss+'">'+innerS+'</span>') : innerS; }
+      if (tag==='FONT'){
+        var fst=[]; var fc=(n.getAttribute('color')||'').trim();
+        if (fc && /^(#[0-9a-f]{3,8}|[a-z]+|rgb\([^)]*\))$/i.test(fc)) fst.push('color:'+fc);
+        var innerF=kids(n); var fss=fst.join(';');
+        return fss ? ('<span style="'+fss+'">'+innerF+'</span>') : innerF;
+      }
+      if (tag==='MARK'){ return '<span style="background-color:#fff59d">'+kids(n)+'</span>'; }
+      return kids(n);
+    }
     if ((map==='h3'||map==='h4') && containsBlock(n)) return kids(n);
     if (map==='p' && n.parentNode && n.parentNode.tagName==='LI') return kids(n);
     var inner = kids(n);
@@ -854,7 +881,8 @@ function cleanScopeHtml(raw){
     var visible = inner.replace(/<[^>]+>/g,'').replace(/&nbsp;|&#160;/gi,'').replace(/\s+/g,'');
     if (!visible && map!=='ul' && map!=='ol' && map!=='li') return '';
     if ((map==='ul'||map==='ol') && !/<li\b/i.test(inner)) return inner;
-    return '<'+map+'>'+inner+'</'+map+'>';
+    var sty = safeStyle(n);
+    return (sty ? '<'+map+' style="'+sty+'">' : '<'+map+'>') + inner + '</'+map+'>';
   }
   var html = kids(root);
   html = html.replace(/(\s*<br>\s*){3,}/gi,'<br><br>')
@@ -1170,7 +1198,8 @@ function buildPrintHTML(q, mode) {
   '.exec-box{background:#f0f7ff;border-left:4px solid #1565c0;padding:16px 20px;border-radius:0 8px 8px 0;font-size:13px;line-height:1.8;color:#37474f;margin-bottom:18px}' +
   '.exec-box p{margin:0 0 10px 0}' +
   '.exec-box p:last-child{margin-bottom:0}' +
-  '.scope-box{background:#f8f9fa;border-radius:8px;padding:14px 18px;font-size:13px;line-height:1.7;color:#37474f}' +
+  '.scope-box{background:#f8f9fa;border-radius:8px;padding:14px 18px;font-size:13px;line-height:1.7;color:#37474f;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+  '.scope-box hr{border:none;height:1px;background:#cbd5de;margin:12px 0}' +
   '.scope-box h3{font-size:13.5px;font-weight:700;color:#1f3b57;margin:12px 0 4px}' +
   '.scope-box h3:first-child,.scope-box h4:first-child,.scope-box p:first-child{margin-top:0}' +
   '.scope-box h4{font-size:12.5px;font-weight:700;color:#37474f;margin:10px 0 3px}' +

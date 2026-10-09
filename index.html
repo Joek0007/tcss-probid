@@ -7031,7 +7031,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
 <script src="js/core.js?v=20260919iy"></script>
-<script src="js/quotes.js?v=20260919ix"></script>
+<script src="js/quotes.js?v=20260919jd"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
 <script src="js/checkouts_db.js?v=20260919ix"></script>
 <script src="js/collections_db.js?v=20260919ix"></script>
@@ -8397,10 +8397,17 @@ function qqNotesBrush() {
   var sel = window.getSelection();
   if (!sel || !sel.rangeCount || sel.isCollapsed) { if (typeof showToast === 'function') showToast('Select the text you want to paint first', 'info', 2800); return; }
   var f = _qqBrush;
-  try { document.execCommand('styleWithCSS', false, true); } catch (e) {}
+  // Bold/italic/underline/color: CSS-styling OFF so these emit the SAME tag markup as the
+  // B/I/U buttons (<b>, <i>, <u>, <font color>). A style-span version ("font-weight:bold")
+  // looked bold on screen but the print/proposal render drops style attributes, so it printed
+  // plain — that was this bug.
+  try { document.execCommand('styleWithCSS', false, false); } catch (e) {}
   if (document.queryCommandState('bold')      !== f.bold)      document.execCommand('bold');
   if (document.queryCommandState('italic')    !== f.italic)    document.execCommand('italic');
   if (document.queryCommandState('underline') !== f.underline) document.execCommand('underline');
+  // Color + highlight as style spans — the proposal renderer (cleanScopeHtml) keeps a safe
+  // whitelist of inline styles, so these print.
+  try { document.execCommand('styleWithCSS', false, true); } catch (e) {}
   if (f.color) { try { document.execCommand('foreColor', false, f.color); } catch (e) {} }
   if (f.hilite && f.hilite !== 'rgba(0, 0, 0, 0)' && f.hilite !== 'transparent') {
     try { document.execCommand('hiliteColor', false, f.hilite); } catch (e) { try { document.execCommand('backColor', false, f.hilite); } catch (e2) {} }
