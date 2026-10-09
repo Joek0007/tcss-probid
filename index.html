@@ -1825,6 +1825,17 @@ body.role-lead-tech .page-settings-btn{display:none!important}
                 <option value="26px">Huge</option>
               </select>
               <button type="button" class="rtf-btn" onmousedown="event.preventDefault()" onclick="qqNotesNormal()" title="Reset the current line to normal text">Normal</button>
+              <span class="rtf-sep"></span>
+              <select class="rtf-size" onmousedown="event.stopPropagation()" onchange="qqNotesHilite(this.value);this.selectedIndex=0" title="Highlight the selected text">
+                <option value="">🖍 Highlight</option>
+                <option value="#fff59d">Yellow</option>
+                <option value="#c8e6c9">Green</option>
+                <option value="#f8bbd0">Pink</option>
+                <option value="#b3e5fc">Blue</option>
+                <option value="none">Remove highlight</option>
+              </select>
+              <button type="button" id="qq-brush-btn" class="rtf-btn" onmousedown="event.preventDefault()" onclick="qqNotesBrush()" title="Format painter — click with your cursor in text whose look you want to copy, then select the text to paint and click the brush again">🖌 Brush</button>
+              <button type="button" class="rtf-btn" onmousedown="event.preventDefault()" onclick="qqNotesDivider()" title="Insert a thin divider line between sections">— Line</button>
             </div>
             <div id="qq-notes" class="rtf-editable"
               contenteditable="true"
@@ -8309,6 +8320,91 @@ function qqNotesSize(px) {
   });
   _qqNotesSaveRange();
   if (typeof setQQDirty === 'function') setQQDirty(true, 'notes size');
+}
+// ---- Highlighter: color behind the selected text (or Remove highlight) ----
+function qqNotesHilite(color) {
+  if (!color) return;
+  _qqNotesRestoreRange();
+  var ed = document.getElementById('qq-notes'); if (!ed) return;
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) {
+    if (typeof showToast === 'function') showToast('Highlight the text first, then pick a highlight color', 'info', 2800);
+    return;
+  }
+  var c = (color === 'none') ? 'transparent' : color;
+  try { document.execCommand('styleWithCSS', false, true); } catch (e) {}
+  try { document.execCommand('hiliteColor', false, c); }
+  catch (e) { try { document.execCommand('backColor', false, c); } catch (e2) {} }
+  _qqNotesSaveRange();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'notes highlight');
+}
+// ---- Thin divider line between sections ----
+function qqNotesDivider() {
+  _qqNotesRestoreRange();
+  var ed = document.getElementById('qq-notes'); if (!ed) return;
+  ed.focus();
+  var html = '<hr style="border:none;height:1px;background:#cbd5de;margin:12px 0"><div><br></div>';
+  try { document.execCommand('insertHTML', false, html); } catch (e) {}
+  _qqNotesSaveRange();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'notes divider');
+}
+// ---- Format painter: copy the look of one spot, paint it onto a selection ----
+var _qqBrush = null;
+function _qqCaptureFmt() {
+  var sel = window.getSelection(); if (!sel || !sel.rangeCount) return null;
+  var node = sel.getRangeAt(0).startContainer;
+  var el = (node.nodeType === 3) ? node.parentElement : node;
+  if (!el) return null;
+  var cs = window.getComputedStyle(el);
+  var td = (cs.textDecorationLine || cs.textDecoration || '');
+  return {
+    bold:      parseInt(cs.fontWeight, 10) >= 600,
+    italic:    cs.fontStyle === 'italic',
+    underline: td.indexOf('underline') >= 0,
+    fontSize:  cs.fontSize || '',
+    color:     cs.color || '',
+    hilite:    cs.backgroundColor || ''
+  };
+}
+function qqNotesBrush() {
+  var btn = document.getElementById('qq-brush-btn');
+  if (!_qqBrush) {
+    // Step 1: capture the formatting where the cursor currently is.
+    _qqNotesRestoreRange();
+    var s0 = window.getSelection();
+    if (!s0 || !s0.rangeCount) { if (typeof showToast === 'function') showToast('Put your cursor in the text whose look you want to copy, then click the brush', 'info', 3200); return; }
+    _qqBrush = _qqCaptureFmt();
+    if (!_qqBrush) return;
+    if (btn) btn.classList.add('rtf-active');
+    if (typeof showToast === 'function') showToast('Format copied — select the text to paint, then click the brush again', 'info', 3400);
+    return;
+  }
+  // Step 2: paint it onto the current selection.
+  _qqNotesRestoreRange();
+  var ed = document.getElementById('qq-notes');
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) { if (typeof showToast === 'function') showToast('Select the text you want to paint first', 'info', 2800); return; }
+  var f = _qqBrush;
+  try { document.execCommand('styleWithCSS', false, true); } catch (e) {}
+  if (document.queryCommandState('bold')      !== f.bold)      document.execCommand('bold');
+  if (document.queryCommandState('italic')    !== f.italic)    document.execCommand('italic');
+  if (document.queryCommandState('underline') !== f.underline) document.execCommand('underline');
+  if (f.color) { try { document.execCommand('foreColor', false, f.color); } catch (e) {} }
+  if (f.hilite && f.hilite !== 'rgba(0, 0, 0, 0)' && f.hilite !== 'transparent') {
+    try { document.execCommand('hiliteColor', false, f.hilite); } catch (e) { try { document.execCommand('backColor', false, f.hilite); } catch (e2) {} }
+  }
+  if (f.fontSize) {
+    document.execCommand('fontSize', false, '7');
+    ed.querySelectorAll('font[size="7"]').forEach(function (ft) {
+      var sp = document.createElement('span'); sp.style.fontSize = f.fontSize;
+      while (ft.firstChild) sp.appendChild(ft.firstChild);
+      ft.parentNode.replaceChild(sp, ft);
+    });
+  }
+  _qqBrush = null;
+  if (btn) btn.classList.remove('rtf-active');
+  _qqNotesSaveRange();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'notes brush');
 }
 // Highlight the toolbar buttons that are active at the caret (bold, lists, etc.)
 function qqNotesSyncToolbar() {
