@@ -159,16 +159,32 @@
 
   function _opt(val,cur,label){ return '<option value="'+_attr(val)+'"'+(val===cur?' selected':'')+'>'+_esc(label||val)+'</option>'; }
 
-  function _datePreset(which){
+  // Compute a preset's date range. Local dates (NOT toISOString — that converts to UTC and
+  // rolls the day forward in western timezones, which made "This week" start on Tuesday).
+  // Weeks run Monday→Sunday.
+  function _presetRange(which){
     var now=new Date(), y=now.getFullYear(), m=now.getMonth();
-    // Local date (NOT toISOString — that converts to UTC and rolls the day forward in
-    // western timezones, which made "This week" start on Tuesday instead of Monday).
     function iso(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
-    if (which==='thisweek'){ var day=now.getDay(); var mon=new Date(now); mon.setDate(now.getDate()-((day+6)%7)); _expFilter.from=iso(mon); _expFilter.to=iso(now); }
-    else if (which==='thismonth'){ _expFilter.from=iso(new Date(y,m,1)); _expFilter.to=iso(new Date(y,m+1,0)); }
-    else if (which==='lastmonth'){ _expFilter.from=iso(new Date(y,m-1,1)); _expFilter.to=iso(new Date(y,m,0)); }
-    else if (which==='all'){ _expFilter.from=''; _expFilter.to=''; }
-    _drawShell();
+    var day=now.getDay();
+    var thisMon=new Date(now); thisMon.setDate(now.getDate()-((day+6)%7));   // Monday of this week
+    if (which==='thisweek') return { from:iso(thisMon), to:iso(now) };
+    if (which==='lastweek'){
+      var lastMon=new Date(thisMon); lastMon.setDate(thisMon.getDate()-7);
+      var lastSun=new Date(thisMon); lastSun.setDate(thisMon.getDate()-1);
+      return { from:iso(lastMon), to:iso(lastSun) };
+    }
+    if (which==='thismonth') return { from:iso(new Date(y,m,1)), to:iso(new Date(y,m+1,0)) };
+    if (which==='lastmonth') return { from:iso(new Date(y,m-1,1)), to:iso(new Date(y,m,0)) };
+    return { from:'', to:'' };   // 'all'
+  }
+  function _datePreset(which){ var r=_presetRange(which); _expFilter.from=r.from; _expFilter.to=r.to; _drawShell(); }
+  // Which preset the current filter matches (to highlight it), or '' if a custom range.
+  function _activeDatePreset(){
+    var f=_expFilter;
+    var names=['thisweek','lastweek','thismonth','lastmonth'];
+    for (var i=0;i<names.length;i++){ var r=_presetRange(names[i]); if (f.from===r.from && f.to===r.to) return names[i]; }
+    if (!f.from && !f.to) return 'all';
+    return '';
   }
 
   function _drawShell(){
@@ -184,12 +200,14 @@
       '<button class="btn btn-outline btn-sm" onclick="exportExpensesCSV()">⬇ Export CSV</button>'+
     '</div>';
 
-    // Date presets
-    html+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'+
-      '<span style="font-size:11px;color:#90a4ae;font-weight:700">QUICK:</span>'+
-      ['thisweek:This week','thismonth:This month','lastmonth:Last month','all:All dates'].map(function(p){
+    // Date presets — in a tinted panel with pill buttons so the quick ranges are obvious.
+    var activePreset=_activeDatePreset();
+    html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;background:#eef4fc;border:1px solid #cfe0f5;border-radius:10px;padding:9px 12px">'+
+      '<span style="font-size:12px;color:#1565c0;font-weight:800">📅 Quick date range:</span>'+
+      ['thisweek:This week','lastweek:Last week','thismonth:This month','lastmonth:Last month','all:All dates'].map(function(p){
         var k=p.split(':')[0], lbl=p.split(':')[1];
-        return '<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 9px" onclick="_expDatePreset(\''+k+'\')">'+lbl+'</button>';
+        var on=activePreset===k;
+        return '<button class="btn btn-sm" style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:16px;cursor:pointer;border:1px solid '+(on?'#1565c0':'#90caf9')+';background:'+(on?'#1565c0':'#fff')+';color:'+(on?'#fff':'#1565c0')+'" onclick="_expDatePreset(\''+k+'\')">'+lbl+'</button>';
       }).join('')+
     '</div>';
 

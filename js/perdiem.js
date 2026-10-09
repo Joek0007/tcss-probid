@@ -376,11 +376,12 @@
   async function _woPerDiemFetch(woId){
     var sb=window._sb; if(!sb || !woId) return [];
     try {
-      var r=await sb.from('per_diem').select('tech_name,nights,rate').eq('wo_id',woId);
+      var r=await sb.from('per_diem').select('tech_name,nights,rate,created_at,start_date,end_date').eq('wo_id',woId);
       if (r.error) return [];
       return (r.data||[]).map(function(x){
         var n=parseInt(x.nights||0,10)||0, rt=(x.rate==null?DEFAULT_RATE:parseFloat(x.rate));
-        return { name:x.tech_name||'—', nights:n, rate:rt, amount:n*rt };
+        return { name:x.tech_name||'—', nights:n, rate:rt, amount:n*rt,
+          createdAt:x.created_at, startDate:x.start_date||'', endDate:x.end_date||'' };
       });
     } catch(e){ return []; }
   }
@@ -395,8 +396,11 @@
     var pd=rows.reduce(function(s,x){ return s+x.amount; },0);
     var combined=(parseFloat(expenseTotal||0))+pd;
     var lines=rows.map(function(x){
+      var a=_ageStamp(x.createdAt);
+      var dates = (x.startDate||x.endDate) ? ((x.startDate||'?').slice(0,10)+'→'+(x.endDate||'?').slice(0,10)) : '';
+      var stamp = a ? (' <span style="color:'+(a.days>14?'#e65100':'#b08d57')+';font-weight:'+(a.days>14?'700':'400')+'">· 🕒 '+_esc(a.text)+(dates?' ('+_esc(dates)+')':'')+'</span>') : '';
       return '<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#8a6d3b;padding:1px 0">'+
-        '<span>'+_esc(x.name)+' <span style="color:#b08d57">· '+x.nights+' night'+(x.nights===1?'':'s')+' × '+_money(x.rate)+'</span></span>'+
+        '<span>'+_esc(x.name)+' <span style="color:#b08d57">· '+x.nights+' night'+(x.nights===1?'':'s')+' × '+_money(x.rate)+'</span>'+stamp+'</span>'+
         '<b>'+_money(x.amount)+'</b></div>';
     }).join('');
     box.innerHTML='<div style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px">'+
