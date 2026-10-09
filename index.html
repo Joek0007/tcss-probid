@@ -8350,6 +8350,18 @@ function qqNotesDivider() {
 }
 // ---- Format painter: copy the look of one spot, paint it onto a selection ----
 var _qqBrush = null;
+// Only an EXPLICIT inline font size counts (text sized with the Size dropdown). Normal text
+// inherits its size, so we must NOT copy a computed px onto the target — that's what made
+// painted text balloon. Returns '' when the source is just normal-size text.
+function _qqExplicitFontSize(node) {
+  var ed = document.getElementById('qq-notes');
+  var el = (node && node.nodeType === 3) ? node.parentElement : node;
+  while (el && el !== ed) {
+    if (el.style && el.style.fontSize) return el.style.fontSize;
+    el = el.parentElement;
+  }
+  return '';
+}
 function _qqCaptureFmt() {
   var sel = window.getSelection(); if (!sel || !sel.rangeCount) return null;
   var node = sel.getRangeAt(0).startContainer;
@@ -8361,7 +8373,7 @@ function _qqCaptureFmt() {
     bold:      parseInt(cs.fontWeight, 10) >= 600,
     italic:    cs.fontStyle === 'italic',
     underline: td.indexOf('underline') >= 0,
-    fontSize:  cs.fontSize || '',
+    fontSize:  _qqExplicitFontSize(node),   // '' for normal text — don't resize
     color:     cs.color || '',
     hilite:    cs.backgroundColor || ''
   };
@@ -8394,6 +8406,10 @@ function qqNotesBrush() {
     try { document.execCommand('hiliteColor', false, f.hilite); } catch (e) { try { document.execCommand('backColor', false, f.hilite); } catch (e2) {} }
   }
   if (f.fontSize) {
+    // Turn CSS-styling OFF so fontSize emits a <font size="7"> marker we can find and convert
+    // to a clean px span. (With CSS mode on it emits xxx-large and this cleanup misses it —
+    // that was the "painted text is huge" bug.)
+    try { document.execCommand('styleWithCSS', false, false); } catch (e) {}
     document.execCommand('fontSize', false, '7');
     ed.querySelectorAll('font[size="7"]').forEach(function (ft) {
       var sp = document.createElement('span'); sp.style.fontSize = f.fontSize;
