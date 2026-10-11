@@ -5302,7 +5302,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     </div>
     <div style="margin-bottom:12px">
       <label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">📧 Mailgun API Key <span style="font-weight:400;color:#90a4ae">(for sending invoices from invoicing@tcss.com)</span></label>
-      <form style="display:contents" onsubmit="return false" autocomplete="off"><input id="s-mg-key" class="form-control" type="password" placeholder="key-xxxxxxxxxxxx" style="max-width:380px"></form>
+      <form style="display:contents" onsubmit="return false" autocomplete="off"><input id="s-mg-key" class="form-control" type="password" placeholder="key-xxxxxxxxxxxx" style="max-width:380px" autocomplete="off"></form>
     </div>
     <button class="btn btn-primary" onclick="saveClickSendSettings()">Save SMS Settings</button>
     <button class="btn btn-outline" style="margin-left:8px" onclick="testClickSendSMS()">&#x1F4F1; Send Test SMS</button>
@@ -7116,7 +7116,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         </div>
         <div style="margin-bottom:8px">
           <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Password</label>
-          <form style="display:contents" onsubmit="return false"><div style="position:relative">
+          <form style="display:contents" onsubmit="return false"><input type="text" autocomplete="username" aria-hidden="true" tabindex="-1" style="display:none"><div style="position:relative">
             <input id="auth-password" type="password" placeholder="••••••••" autocomplete="current-password"
               style="width:100%;padding:11px 44px 11px 14px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;box-sizing:border-box;transition:border-color .15s"
               onfocus="this.style.borderColor='#1565c0'" onblur="this.style.borderColor='#e0e0e0'"
