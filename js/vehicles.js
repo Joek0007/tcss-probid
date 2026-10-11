@@ -159,6 +159,7 @@ function renderVehicles(){
       })()+'</div>'+
       '<div class="cust-actions">'+
         '<button class="btn btn-primary btn-sm" onclick="openVehicleProfile(\''+v.id+'\')">Open</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="openNewWOForVehicle(\''+v.id+'\',\''+escHtml((v.number||v.name||'').replace(/\'/g,''))+'\')" title="New Work Order for this vehicle">🔨＋</button>'+
         '<button class="btn btn-outline btn-sm" onclick="editVehicle(\''+v.id+'\')" title="Edit">✏</button>'+
         ((typeof hasPermission!=='function' || hasPermission('cust.delete')) ? '<button class="btn btn-danger btn-sm" onclick="delVehicle(\''+v.id+'\')" title="Retire">✕</button>' : '')+
       '</div>'+
@@ -176,6 +177,7 @@ function newVehicle(){
   _vehFieldIds().forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
   var st=document.getElementById('m-vstatus'); if(st) st.value='active';
   var t=document.getElementById('modal-vehicle-title'); if(t) t.textContent='New Vehicle';
+  var _awo=document.getElementById('m-vehicle-addwo'); if(_awo) _awo.style.display='none'; // can't add a WO to an unsaved vehicle
   if (typeof openModal==='function') openModal('modal-vehicle');
 }
 function editVehicle(id){
@@ -188,6 +190,7 @@ function editVehicle(id){
   set('m-vodo',v.odometer); set('m-vpdate',v.purchaseDate); set('m-vpcost',v.purchaseCost);
   set('m-vreg',v.registrationExpires); set('m-vins',v.insuranceExpires); set('m-vnotes',v.notes); set('m-vid',v.id);
   var t=document.getElementById('modal-vehicle-title'); if(t) t.textContent='Edit Vehicle';
+  var _awo=document.getElementById('m-vehicle-addwo'); if(_awo) _awo.style.display=''; // existing vehicle → allow adding a WO from here
   if (typeof openModal==='function') openModal('modal-vehicle');
 }
 function _buildVehicleData(id){
