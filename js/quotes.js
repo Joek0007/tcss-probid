@@ -3838,9 +3838,20 @@ function _saveInlineContact(customerId) {
     if (custRec && isDefault) custRec.defaultContactId = contact.id;
   }
   saveDB();
+  // Persist to the cloud too — without this the edit was local-only and reverted on reload
+  // (the "contact didn't save" bug). Push both the contact and (if default changed) the customer.
+  if (typeof _pushContactToCloud === 'function') _pushContactToCloud(contact);
+  if (isDefault && customerId && typeof _pushCustomerToCloud === 'function') {
+    var _cr=(DB.customers||[]).find(function(c){ return c.id===customerId; });
+    if (_cr) _pushCustomerToCloud(_cr);
+  }
   showToast((editId ? 'Contact updated' : '"'+name+'" added') + ' ✓','success');
   // Re-render the contacts section
   _renderContactSection('edit', customerId, custName);
+  // If this was launched from a quote, push the contact's new info back onto that open quote.
+  if (_editCustReturnToQuote && _editCustReturnToQuote === customerId) {
+    try { refreshQuoteCustomerFields(customerId); } catch (e) {}
+  }
 }
 
 function _editInlineContact(contactId, customerId) {
