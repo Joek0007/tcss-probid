@@ -3286,7 +3286,10 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <div class="page" id="page-vehicles">
   <div class="page-header">
     <h2>🚚 Vehicles</h2>
-    <button class="btn btn-primary" onclick="newVehicle()">+ New Vehicle</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="btn btn-outline" title="Create a work order" onclick="if(typeof hasPermission==='function'&&!hasPermission('wo.create')){if(typeof showToast==='function')showToast('You don’t have permission to add that','error',3000);return;} if(typeof openNewWorkOrder==='function')openNewWorkOrder();">🔨 ＋ New Work Order</button>
+      <button class="btn btn-primary" onclick="newVehicle()">+ New Vehicle</button>
+    </div>
   </div>
 
   <div class="cust-summary-strip">
@@ -7032,7 +7035,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20260919iy"></script>
+<script src="js/core.js?v=20260919jm"></script>
 <script src="js/quotes.js?v=20260919jh"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>

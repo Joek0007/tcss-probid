@@ -1118,6 +1118,7 @@ var QUICK_ADD = {
   quotes:         { go: 'qq',                                     title: 'New quote',          perm: 'quote.create' },
   workorders:     { go: 'workorders',     fn: 'openNewWorkOrder', title: 'New work order',     perm: 'wo.create' },
   customers:      { go: 'customers',      fn: 'newCustomer',      title: 'New customer',       perm: 'cust.edit' },
+  vehicles:       { go: 'vehicles',       fn: 'newVehicle',       title: 'New vehicle',        perm: 'page.vehicles' },
   contacts:       { go: 'contacts',       fn: 'newContact',       title: 'New contact',        perm: 'contact.edit' },
   vendors:        { go: 'vendors',        fn: 'openNewVendor',    title: 'New vendor',         perm: 'page.vendors' },
   purchaseorders: { go: 'purchaseorders', fn: 'openNewPO',        title: 'New purchase order', perm: 'page.purchaseorders' },
