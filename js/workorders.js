@@ -1145,6 +1145,15 @@ function selectWOCustomer(id, name) {
 // each guard on their own host being open, so a stale flag is harmless.
 function editCustomerFromWO(id) {
   var drop=document.getElementById('wo-customer-dropdown'); if(drop) drop.style.display='none';
+  // Attach this customer to the WO first (unless it is already the selected one), so after the
+  // edit is saved the WO is guaranteed to be on this customer and refreshWOCustomerFields applies.
+  // Without this, editing a customer you only searched for (never selected) saved the customer
+  // record but left the WO unchanged — which read as "nothing happened".
+  var idEl=document.getElementById('wo-customer-id');
+  if ((!idEl || idEl.value !== id) && typeof selectWOCustomer==='function') {
+    var c=(DB.customers||[]).find(function(x){ return x.id===id; });
+    if (c) selectWOCustomer(id, c.name||'');
+  }
   window._editCustReturnToWO = id;
   if (typeof editCustomer === 'function') editCustomer(id);
 }
