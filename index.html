@@ -6081,14 +6081,14 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
         <!-- Customer (primary path) -->
         <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:220px">
-          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">Customer <span style="color:#c62828">*</span></span>
+          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;justify-content:space-between;gap:10px"><span>Customer <span style="color:#c62828">*</span></span><a id="wo-fleet-toggle" href="javascript:void(0)" onclick="_woShowFleet(true)" style="font-size:11px;font-weight:600;text-transform:none;letter-spacing:0;color:#1565c0;text-decoration:none;white-space:nowrap">🚚 Internal fleet work →</a></span>
           <div style="position:relative">
             <input id="wo-customer-name" placeholder="Search customer..." autocomplete="off" oninput="onWOCustomerInput(this.value)" onfocus="onWOCustomerInput(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;width:100%;box-sizing:border-box">
             <div id="wo-customer-dropdown" style="display:none;position:absolute;top:100%;left:0;margin-top:2px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:400;max-height:240px;overflow-y:auto;width:100%;min-width:280px"></div>
           </div>
           <input type="hidden" id="wo-customer-id">
-          <!-- Internal fleet work: collapsed by default so Customer is the clear primary path -->
-          <a id="wo-fleet-toggle" href="javascript:void(0)" onclick="_woShowFleet(true)" style="font-size:11px;color:#90a4ae;text-decoration:none;margin-top:2px;white-space:nowrap">🚚 This is internal fleet work →</a>
+          <!-- Internal fleet toggle now lives on the Customer label row above — always visible, never covered by the dropdown. -->
+          <span id="wo-fleet-toggle-legacy" style="display:none"></span>
         </div>
 
         <!-- Vehicle (internal fleet work) — revealed only via the toggle above -->
@@ -7045,7 +7045,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/permissions.js?v=20260919ix"></script>
 <script src="js/worktracking.js?v=20260919jg"></script>
 <script src="js/calendar.js?v=20260919ix"></script>
-<script src="js/workorders.js?v=20260919jk"></script>
+<script src="js/workorders.js?v=20260919jl"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
 <script src="js/purchaseorders.js?v=20260919ix"></script>

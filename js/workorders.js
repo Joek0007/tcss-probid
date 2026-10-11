@@ -556,6 +556,22 @@ function _wireWOListEvents() {
     if (!e.target.closest('.wo-menu-wrap')) {
       document.querySelectorAll('[id^="womenu-"]').forEach(function(el){ el.style.display='none'; });
     }
+    // Close the customer / vehicle autocomplete dropdowns on any click outside them.
+    // (They used to only close when you SELECTED something, which trapped the fleet toggle
+    // behind the auto-opened list.)
+    if (!e.target.closest('#wo-customer-name') && !e.target.closest('#wo-customer-dropdown')) {
+      var _cd=document.getElementById('wo-customer-dropdown'); if(_cd) _cd.style.display='none';
+    }
+    if (!e.target.closest('#wo-vehicle-name') && !e.target.closest('#wo-vehicle-dropdown')) {
+      var _vd=document.getElementById('wo-vehicle-dropdown'); if(_vd) _vd.style.display='none';
+    }
+  });
+  // Esc closes those autocomplete dropdowns too.
+  document.addEventListener('keydown', function(e) {
+    if (e.key==='Escape' || e.keyCode===27) {
+      var _cd=document.getElementById('wo-customer-dropdown'); if(_cd) _cd.style.display='none';
+      var _vd=document.getElementById('wo-vehicle-dropdown'); if(_vd) _vd.style.display='none';
+    }
   });
 }
 
