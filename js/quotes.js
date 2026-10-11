@@ -3916,6 +3916,38 @@ function newCustomer() {
   _renderContactSection('new', '', '');
   openModal('modal-customer');
 }
+// Launched from the quote's customer dropdown (✏️ Edit): opens the customer editor and
+// remembers to refresh the open quote's customer fields when it's saved.
+var _editCustReturnToQuote = null;
+function editCustomerFromQuote(id) {
+  if (typeof closeCustomerDropdown === 'function') closeCustomerDropdown();
+  _editCustReturnToQuote = id;
+  editCustomer(id);
+}
+// After a customer is saved, pull the latest values back onto the quote that's open on it.
+function refreshQuoteCustomerFields(custId) {
+  var cidEl = document.getElementById('qq-customer-id');
+  if (!cidEl || cidEl.value !== custId) return;   // the open quote isn't on this customer
+  var c = (DB.customers||[]).find(function(x){ return x.id === custId; });
+  if (!c) return;
+  function sv(eid, v){ var el=document.getElementById(eid); if(el) el.value=(v==null?'':v); }
+  sv('qq-cn', c.name);
+  sv('qq-ph', c.phone);
+  sv('qq-em', c.email);
+  sv('qq-ad', c.street || c.address || '');
+  sv('qq-city', c.city || '');
+  sv('qq-state', c.state || '');
+  sv('qq-zip', c.zip || '');
+  if (c.defaultTerms) sv('qq-pt', c.defaultTerms);
+  // Refresh the selected contact's display if it still exists.
+  var ctIdEl = document.getElementById('qq-contact-id');
+  if (ctIdEl && ctIdEl.value) {
+    var ct = (DB.contacts||[]).find(function(x){ return x.id === ctIdEl.value; });
+    if (ct) sv('qq-contact-name', ct.name || '');
+  }
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'customer edited from quote');
+  if (typeof showToast === 'function') showToast('Quote updated with the latest customer info', 'success');
+}
 function editCustomer(id) {
   const c = DB.customers.find(function(x){return x.id==id});
   if(!c) return;
@@ -4025,6 +4057,12 @@ function saveCustomer() {
   if (typeof _pushCustomerToCloud === 'function') _pushCustomerToCloud(data);
   saveDB(); closeModal('modal-customer'); renderCustomers();
   showToast('"'+name+'" saved','success');
+  // If this edit was launched from a quote's customer dropdown, push the new values back
+  // onto that open quote so its customer fields stay in step.
+  if (_editCustReturnToQuote && _editCustReturnToQuote === id) {
+    try { refreshQuoteCustomerFields(id); } catch (e) {}
+  }
+  _editCustReturnToQuote = null;
 }
 function saveCustomerAndAnother() {
   if (typeof hasPermission==='function' && !hasPermission('cust.edit')) { showToast('You do not have permission to add or edit customers','error'); return; }

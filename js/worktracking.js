@@ -56,8 +56,10 @@ async function notifyOfficeCloud(type, title, message, excludeSelf) {
   if (!window._sb) return;
   var meId = (window._currentUser && _currentUser.id) || null;
   try {
+    // NB: role is a Postgres enum — 'office' is only a client-side legacy alias and is NOT a
+    // valid enum value; including it makes the whole query error out. Use enum values only.
     var r = await _sb.from('profiles').select('id,full_name,role,is_active')
-      .in('role', ['owner','manager','back_office','office'])
+      .in('role', ['owner','manager','back_office'])
       .eq('is_active', true);
     if (r.error) throw r.error;
     var seen = {};
@@ -6878,9 +6880,10 @@ function onCustomerInput(val) {
     : (DB.customers||[]).slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); }).slice(0,15);
 
   var html = matches.map(function(c){
-    return '<div class="autocomplete-item" onmousedown="selectCustomer(\''+c.id+'\')">'+
+    return '<div class="autocomplete-item" style="position:relative;padding-right:78px" onmousedown="selectCustomer(\''+c.id+'\')">'+
       '<span class="autocomplete-item-main">'+escHtml(c.name||'')+'</span>'+
       '<span class="autocomplete-item-sub">'+(c.phone||'')+(c.email?' · '+c.email:'')+'</span>'+
+      '<button type="button" title="Edit this customer’s info (name, contact, email, address)" onmousedown="event.preventDefault();event.stopPropagation();editCustomerFromQuote(\''+c.id+'\')" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;padding:4px 10px;border:1px solid #90caf9;background:#fff;color:#1565c0;border-radius:12px;cursor:pointer">✏️ Edit</button>'+
     '</div>';
   }).join('');
 
