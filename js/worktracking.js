@@ -6995,6 +6995,9 @@ function saveNewCustomerFromQuote() {
   };
   DB.customers.push(newCust);
   saveDB();
+  // Push to the cloud like every other customer save — without this the new customer was
+  // local-only and reverted on reload / never reached other devices (data-integrity bug).
+  if (typeof _pushCustomerToCloud === 'function') _pushCustomerToCloud(newCust);
   renderCustomers();
 
   // Select them — fills form fields and sets hidden customer ID
