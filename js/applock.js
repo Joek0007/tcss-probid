@@ -323,7 +323,8 @@
       ov.innerHTML =
         '<div style="width:340px;max-width:92vw;background:#fff;border-radius:16px;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.4)">' +
           '<div style="font-size:16px;font-weight:800;color:#0d1b2a;margin-bottom:6px">Set a quick-unlock PIN</div>' +
-          '<div style="font-size:12px;color:#607d8b;margin-bottom:16px">So you can get back in fast after the app locks, without retyping your password. You can change it later in Settings.</div>' +
+          '<div style="font-size:12px;color:#607d8b;margin-bottom:12px">So you can get back in fast after the app locks, without retyping your password. You can change it later in Settings.</div>' +
+          '<div style="font-size:11px;color:#5a6b7b;background:#f0f4ff;border:1px solid #d9e4fb;border-radius:8px;padding:8px 10px;margin-bottom:16px;line-height:1.45">&#128274; Saved only on this device &mdash; your PIN never leaves this browser. Clearing your browser data will simply ask you to set it again; your account and data are never affected.</div>' +
           '<div style="position:relative;margin-bottom:10px">' +
             '<input id="applock-newpin" type="password" inputmode="numeric" maxlength="12" placeholder="New PIN (4+ digits)" autocomplete="off" style="width:100%;padding:11px 44px 11px 14px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:16px;text-align:center;letter-spacing:3px;box-sizing:border-box">' +
             '<button type="button" id="applock-newpin-eye" onclick="togglePwVisibility(\'applock-newpin\', this)" aria-label="Show PIN" style="position:absolute;top:50%;right:6px;transform:translateY(-50%);background:none;border:none;padding:6px;cursor:pointer;color:#90a4ae;line-height:0;display:flex"></button>' +
