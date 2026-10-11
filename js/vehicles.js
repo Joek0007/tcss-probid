@@ -216,6 +216,12 @@ function saveVehicle(){
   if (typeof _pushVehicleToCloud==='function') _pushVehicleToCloud(DB.vehicles[idx>=0?idx:DB.vehicles.length-1]);
   if (typeof closeModal==='function') closeModal('modal-vehicle');
   renderVehicles();
+  // If this edit was launched from a Work Order's vehicle dropdown (✏️ Edit), push the new
+  // label back onto that open WO. refreshWOVehicleFields guards on the WO being on this vehicle.
+  if (window._editVehReturnToWO && window._editVehReturnToWO===id && typeof refreshWOVehicleFields==='function'){
+    try { refreshWOVehicleFields(id); } catch(e){}
+  }
+  window._editVehReturnToWO = null;
   if (typeof showToast==='function') showToast('Vehicle saved ✓','success',2000);
 }
 function _pushVehicleToCloud(v){

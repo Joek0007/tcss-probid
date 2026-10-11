@@ -1189,8 +1189,14 @@ function onWOVehicleInput(val){
   drop.innerHTML=matches.map(function(x){
     var label=(x.number||x.name||'Vehicle');
     var sub=[x.year,x.make,x.model].filter(Boolean).join(' ');
-    return '<div onmousedown="selectWOVehicle(\''+x.id+'\',\''+escHtml((label).replace(/\'/g,''))+'\')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f4f8;font-size:13px" onmouseover="this.style.background=\'#f0f4f8\'" onmouseout="this.style.background=\'\'">'+
-      '<div style="font-weight:600">'+escHtml(label)+'</div>'+(sub?'<div style="font-size:11px;color:#90a4ae">'+escHtml(sub)+'</div>':'')+
+    var lj=escHtml((label).replace(/\'/g,''));
+    // Row = clickable select area + an ✏️ Edit cell that opens the vehicle editor
+    // (same pattern as the WO customer picker). The Edit cell passes only x.id.
+    return '<div style="display:flex;align-items:stretch;border-bottom:1px solid #f0f4f8">'+
+      '<div onmousedown="selectWOVehicle(\''+x.id+'\',\''+lj+'\')" style="flex:1;padding:10px 14px;cursor:pointer;font-size:13px" onmouseover="this.style.background=\'#f0f4f8\'" onmouseout="this.style.background=\'\'">'+
+        '<div style="font-weight:600">'+escHtml(label)+'</div>'+(sub?'<div style="font-size:11px;color:#90a4ae">'+escHtml(sub)+'</div>':'')+
+      '</div>'+
+      '<div onmousedown="event.preventDefault();event.stopPropagation();editVehicleFromWO(\''+x.id+'\')" title="Edit vehicle" style="padding:0 12px;cursor:pointer;color:#1565c0;font-size:13px;font-weight:600;border-left:1px solid #e0e7ef;display:flex;align-items:center;white-space:nowrap;background:#f8fafc">✏️ Edit</div>'+
     '</div>';
   }).join('');
   drop.style.display='block';
@@ -1210,6 +1216,30 @@ function selectWOVehicle(id, label){
 function openNewWOForVehicle(vehicleId, label){
   if (typeof openNewWorkOrder==='function') openNewWorkOrder();
   setTimeout(function(){ selectWOVehicle(vehicleId, label||''); }, 60);
+}
+
+// Launched from the WO vehicle dropdown (✏️ Edit): attach the vehicle to the WO first (so the
+// refresh applies — matching the customer picker), remember to refresh the WO when the vehicle is
+// saved, then open the vehicle editor. Uses a window-scoped flag so saveVehicle() (in vehicles.js)
+// can see it; refreshWOVehicleFields guards on the WO being on this vehicle, so a stale flag is harmless.
+function editVehicleFromWO(id){
+  var drop=document.getElementById('wo-vehicle-dropdown'); if(drop) drop.style.display='none';
+  var idEl=document.getElementById('wo-vehicle-id');
+  if ((!idEl || idEl.value !== id) && typeof selectWOVehicle==='function'){
+    var v=(DB.vehicles||[]).find(function(x){ return x.id===id; });
+    if (v) selectWOVehicle(id, v.number||v.name||'Vehicle');
+  }
+  window._editVehReturnToWO = id;
+  if (typeof editVehicle==='function') editVehicle(id);
+}
+// After a vehicle is saved, refresh the open WO's displayed vehicle label (its number or name may
+// have changed). The WO stores the vehicle by id and shows number||name, so that's all we refresh.
+function refreshWOVehicleFields(vehId){
+  var idEl=document.getElementById('wo-vehicle-id');
+  if (!idEl || idEl.value !== vehId) return;   // the open WO isn't on this vehicle
+  var v=(DB.vehicles||[]).find(function(x){ return x.id===vehId; });
+  if (!v) return;
+  var nameEl=document.getElementById('wo-vehicle-name'); if(nameEl) nameEl.value=(v.number||v.name||'Vehicle');
 }
 
 function _populateWOContacts(customerId, selectedContactId) {
