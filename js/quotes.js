@@ -3950,14 +3950,18 @@ function refreshQuoteCustomerFields(custId) {
   sv('qq-state', c.state || '');
   sv('qq-zip', c.zip || '');
   if (c.defaultTerms) sv('qq-pt', c.defaultTerms);
-  // Refresh the selected contact's display if it still exists.
+  // If a contact is selected, re-apply it on TOP of the customer values — the contact's
+  // name, title, phone, email and address take priority on a quote (same as selecting the
+  // contact). This is what makes an edited contact's PHONE/EMAIL actually show on the quote;
+  // the old version only refreshed the contact name and left the customer phone in place.
   var ctIdEl = document.getElementById('qq-contact-id');
-  if (ctIdEl && ctIdEl.value) {
-    var ct = (DB.contacts||[]).find(function(x){ return x.id === ctIdEl.value; });
-    if (ct) sv('qq-contact-name', ct.name || '');
+  var ctId = ctIdEl ? ctIdEl.value : '';
+  var ct = ctId ? (DB.contacts||[]).find(function(x){ return x.id === ctId; }) : null;
+  if (ct && typeof selectContact === 'function') {
+    selectContact(ct.id);
   }
   if (typeof setQQDirty === 'function') setQQDirty(true, 'customer edited from quote');
-  if (typeof showToast === 'function') showToast('Quote updated with the latest customer info', 'success');
+  if (typeof showToast === 'function') showToast('Quote updated with the latest customer/contact info', 'success');
 }
 function editCustomer(id) {
   const c = DB.customers.find(function(x){return x.id==id});
