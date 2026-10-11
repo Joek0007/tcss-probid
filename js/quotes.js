@@ -4078,6 +4078,12 @@ function saveCustomer() {
     try { refreshQuoteCustomerFields(id); } catch (e) {}
   }
   _editCustReturnToQuote = null;
+  // If this edit was launched from a work order's customer dropdown (✏️ Edit), refresh the
+  // open WO too. refreshWOCustomerFields guards on the WO being open on this customer.
+  if (window._editCustReturnToWO && window._editCustReturnToWO === id && typeof refreshWOCustomerFields === 'function') {
+    try { refreshWOCustomerFields(id); } catch (e) {}
+  }
+  window._editCustReturnToWO = null;
 }
 function saveCustomerAndAnother() {
   if (typeof hasPermission==='function' && !hasPermission('cust.edit')) { showToast('You do not have permission to add or edit customers','error'); return; }

@@ -1090,9 +1090,16 @@ function onWOCustomerInput(val) {
     : (DB.customers||[]).slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); }).slice(0,15);
   if (!matches.length) { drop.style.display='none'; return; }
   drop.innerHTML=matches.map(function(c){
-    return '<div onmousedown="selectWOCustomer(\''+c.id+'\',\''+escHtml(c.name)+'\')" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f4f8;font-size:13px" onmouseover="this.style.background=\'#f0f4f8\'" onmouseout="this.style.background=\'\'">'+
-      '<div style="font-weight:600">'+escHtml(c.name)+'</div>'+
-      (c.phone?'<div style="font-size:11px;color:#90a4ae">'+escHtml(c.phone)+'</div>':'')+
+    // Row = clickable "select" area on the left + an ✏️ Edit cell on the right that opens
+    // the customer editor (same pattern as the quote customer picker). Keeping the select
+    // onmousedown byte-for-byte identical to the original preserves existing behavior; the
+    // Edit cell only passes c.id so there is no string-escaping concern.
+    return '<div style="display:flex;align-items:stretch;border-bottom:1px solid #f0f4f8">'+
+      '<div onmousedown="selectWOCustomer(\''+c.id+'\',\''+escHtml(c.name)+'\')" style="flex:1;padding:10px 14px;cursor:pointer;font-size:13px" onmouseover="this.style.background=\'#f0f4f8\'" onmouseout="this.style.background=\'\'">'+
+        '<div style="font-weight:600">'+escHtml(c.name)+'</div>'+
+        (c.phone?'<div style="font-size:11px;color:#90a4ae">'+escHtml(c.phone)+'</div>':'')+
+      '</div>'+
+      '<div onmousedown="event.preventDefault();event.stopPropagation();editCustomerFromWO(\''+c.id+'\')" title="Edit customer" style="padding:0 12px;cursor:pointer;color:#1565c0;font-size:13px;font-weight:600;border-left:1px solid #e0e7ef;display:flex;align-items:center;white-space:nowrap;background:#f8fafc">✏️ Edit</div>'+
     '</div>';
   }).join('');
   drop.style.display='block';
@@ -1130,6 +1137,33 @@ function selectWOCustomer(id, name) {
 
   // Check hot notes for new WO (isNew=true for customer selection)
   if (!_woCurrentId) _checkHotNotes(id, 'new', true);
+}
+
+// Launched from the WO's customer dropdown (✏️ Edit): opens the customer editor and
+// remembers to refresh the open work order when it's saved. Uses a window-scoped flag so
+// saveCustomer() (in quotes.js) can see it. refreshQuoteCustomerFields / refreshWOCustomerFields
+// each guard on their own host being open, so a stale flag is harmless.
+function editCustomerFromWO(id) {
+  var drop=document.getElementById('wo-customer-dropdown'); if(drop) drop.style.display='none';
+  window._editCustReturnToWO = id;
+  if (typeof editCustomer === 'function') editCustomer(id);
+}
+// After a customer is saved, pull the latest values back onto the work order open on it.
+// The WO shows the customer NAME and (via the contact bar) the selected contact's live info.
+// The Site Address / labor rate are intentionally per-WO (seeded by selectWOCustomer only when
+// empty, so a WO can carry a different site than the customer's billing address) — we deliberately
+// do NOT clobber them here. We refresh the customer name, re-populate the contacts list (names
+// may have changed), and refresh the always-visible contact bar for the selected contact.
+function refreshWOCustomerFields(custId) {
+  var idEl=document.getElementById('wo-customer-id');
+  if (!idEl || idEl.value !== custId) return;   // the open WO isn't on this customer
+  var c=(DB.customers||[]).find(function(x){ return x.id===custId; });
+  if (!c) return;
+  var nameEl=document.getElementById('wo-customer-name'); if(nameEl) nameEl.value=c.name||'';
+  var ctEl=document.getElementById('wo-contact');
+  var selCt=ctEl ? ctEl.value : '';
+  if (typeof _populateWOContacts==='function') _populateWOContacts(custId, selCt||null);
+  if (selCt && typeof _updateWOContactBar==='function') _updateWOContactBar(selCt);
 }
 
 // ---- VEHICLE AUTOCOMPLETE (internal fleet work) ----
