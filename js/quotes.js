@@ -821,37 +821,6 @@ function cleanScopeHtml(raw){
        .replace(/<\/?[a-z]+:[^>]*>/gi,'');
   var root = document.createElement('div');
   root.innerHTML = s;
-  // Word pastes lists as <p class="MsoListParagraph" style="mso-list:...">•<span 7pt>…</span>text</p>
-  // — a literal bullet/number, not a real <li>. Convert runs of these into real <ul>/<ol> so they
-  // render as proper indented lists in the editor, the PDF and the approval portal (not stray bullets).
-  (function convertWordLists(rt){
-    function isItem(el){
-      if(el.nodeType!==1 || (el.tagName!=='P' && el.tagName!=='DIV')) return false;
-      var cls=(el.className||'')+'', sty=(el.getAttribute('style')||'');
-      return /MsoListParagraph/i.test(cls) || /mso-list\s*:/i.test(sty);
-    }
-    function ordered(el){ return /^\s*\d+[.)]/.test(el.textContent||''); }
-    function stripMarker(el){
-      var h=el.innerHTML;
-      h=h.replace(/^\s*<span[^>]*>\s*[•◦▪·‣o]\s*<\/span>\s*/i,'');                      // bullet wrapped in a span
-      h=h.replace(/^\s*(?:[•◦▪·‣o]|(?:\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)])\s*/,'');     // leading bullet glyph / number
-      h=h.replace(/^\s*<span[^>]*>(?:&nbsp;|&#160;|\s)*<\/span>\s*/i,'');               // Word's spacer span (nbsp only)
-      h=h.replace(/^\s*(?:&nbsp;|&#160;|\s)+/i,'');                                     // leftover leading spaces
-      return h;
-    }
-    var run=null, runType=null;
-    function flush(){ if(run){ rt.appendChild(run); run=null; runType=null; } }
-    var kids=Array.prototype.slice.call(rt.childNodes);
-    kids.forEach(function(n){ rt.removeChild(n); });
-    kids.forEach(function(n){
-      if(isItem(n)){
-        var t=ordered(n)?'ol':'ul';
-        if(!run||runType!==t){ flush(); run=document.createElement(t); runType=t; }
-        var li=document.createElement('li'); li.innerHTML=stripMarker(n); run.appendChild(li);
-      } else { flush(); rt.appendChild(n); }
-    });
-    flush();
-  })(root);
   var MAP = { B:'strong', STRONG:'strong', I:'em', EM:'em', U:'u',
     P:'p', DIV:'p', BLOCKQUOTE:'blockquote',
     UL:'ul', OL:'ol', LI:'li', BR:'br', HR:'hr', A:'a',
@@ -922,30 +891,6 @@ function cleanScopeHtml(raw){
              .replace(/[ \t]{2,}/g,' ')
              .trim();
   return html;
-}
-
-// Paste handler for the rich-text editors (quote Scope/Terms, WO scope, contract scope, notes).
-// Runs pasted Word / Google-Docs / web HTML through cleanScopeHtml so the editor immediately shows
-// the same clean house style that prints — "what you see is what you get". Falls back to plain text.
-function rtfCleanPaste(e){
-  try{
-    var cd = e.clipboardData || window.clipboardData; if(!cd) return;
-    var html = cd.getData && cd.getData('text/html');
-    var text = cd.getData ? cd.getData('text/plain') : '';
-    var cleaned;
-    if (html && html.trim()) cleaned = (typeof cleanScopeHtml==='function') ? cleanScopeHtml(html) : html;
-    else if (text) cleaned = (typeof cleanScopeHtml==='function') ? cleanScopeHtml(text)
-                      : String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\r\n?|\n/g,'<br>');
-    else return;
-    e.preventDefault();
-    try { document.execCommand('insertHTML', false, cleaned); }
-    catch(_){ // very old fallback: drop at caret via Range
-      var sel=window.getSelection && window.getSelection();
-      if(sel && sel.rangeCount){ var r=sel.getRangeAt(0); r.deleteContents();
-        var tmp=document.createElement('div'); tmp.innerHTML=cleaned; var frag=document.createDocumentFragment(), node;
-        while((node=tmp.firstChild)) frag.appendChild(node); r.insertNode(frag); }
-    }
-  }catch(err){ /* on any error, let the browser's default paste happen */ }
 }
 
 // =============================================
