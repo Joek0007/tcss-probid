@@ -893,6 +893,27 @@ function cleanScopeHtml(raw){
   return html;
 }
 
+// Like cleanScopeHtml, but PRESERVES the pasted formatting (Word / Google-Docs headings, bold,
+// indented bullet lists, spacing) instead of normalizing it — so the printed proposal, PDF and
+// approval portal render the Scope of Work looking like the document it was pasted from. It only
+// strips dangerous or junk markup (scripts, styles, Office namespace tags, comments, event handlers,
+// javascript: URLs) for safety; everything visual is kept.
+function sanitizeScopePreserve(raw){
+  if (raw == null) return '';
+  var s = String(raw);
+  if (!/<[a-z!/][\s\S]*>/i.test(s)) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/\t/g,' ').replace(/\r\n?|\n/g,'<br>');
+  }
+  s = s.replace(/<!--[\s\S]*?-->/g,'')                                                            // comments incl. <!--[if ...]-->
+       .replace(/<\/?(?:script|style|xml|title|meta|link|iframe|object|embed|form|input|button|textarea|base)\b[^>]*>/gi,'')
+       .replace(/<\/?[a-z]+:[^>]*>/gi,'')                                                          // <o:p>, <w:...>, <st1:...>
+       .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi,'')                                                   // inline event handlers (")
+       .replace(/\son[a-z]+\s*=\s*'[^']*'/gi,'')                                                   // inline event handlers (')
+       .replace(/(href|src)\s*=\s*(["'])\s*javascript:[^"']*\2/gi,'$1="#"');                       // neutralize javascript: urls
+  return s;
+}
+
 // =============================================
 // STAGE 3: buildPrintHTML() — PROFESSIONAL PROPOSAL
 // =============================================
@@ -1316,8 +1337,8 @@ table{font-size:12.5px}
       '</div></div>';
   })() +
 
-  // SCOPE
-  (q.notes ? '<div class="prop-section"><div class="prop-section-title">Scope of Work</div><div class="scope-box">' + cleanScopeHtml(q.notes) + '</div></div>' : '') +
+  // SCOPE — preserve the pasted (Word/Docs) formatting so the proposal looks like the source doc.
+  (q.notes ? '<div class="prop-section"><div class="prop-section-title">Scope of Work</div><div class="scope-box">' + sanitizeScopePreserve(q.notes) + '</div></div>' : '') +
 
   // EQUIPMENT & MATERIALS + LABOR
   '<div class="prop-section"><div class="prop-section-title">Equipment, Materials &amp; Installation</div>' +
