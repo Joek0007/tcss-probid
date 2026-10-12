@@ -1239,9 +1239,16 @@ function selectWOVehicle(id, label){
   var ctN=document.getElementById('wo-contact-name'); if(ctN){ ctN.value=''; }
   var ctI=document.getElementById('wo-contact');      if(ctI) ctI.value='';
 }
+// Fleet/vehicle work is almost always maintenance — default the Service Type to "Vehicle Maintenance"
+// when that option exists, so it doesn't have to be set on every vehicle work order.
+function _woDefaultFleetServiceType(){
+  var st=document.getElementById('wo-service-type'); if(!st) return;
+  var hasVM=Array.prototype.some.call(st.options,function(o){ return o.value==='Vehicle Maintenance'; });
+  if(hasVM) st.value='Vehicle Maintenance';
+}
 function openNewWOForVehicle(vehicleId, label){
   if (typeof openNewWorkOrder==='function') openNewWorkOrder();
-  setTimeout(function(){ selectWOVehicle(vehicleId, label||''); }, 60);
+  setTimeout(function(){ selectWOVehicle(vehicleId, label||''); _woDefaultFleetServiceType(); }, 60);
 }
 
 // Start a NEW work order for the fleet, no specific vehicle pre-picked: opens the WO straight into
@@ -1255,6 +1262,7 @@ function openNewFleetWorkOrder(){
     var cd=document.getElementById('wo-customer-dropdown'); if(cd) cd.style.display='none';
     var vn=document.getElementById('wo-vehicle-name'); if(vn){ try{ vn.value=''; vn.focus(); }catch(e){} }
     if(typeof onWOVehicleInput==='function') onWOVehicleInput(''); // populate + open the full vehicle list
+    _woDefaultFleetServiceType(); // default Service Type → Vehicle Maintenance
   }, 120);
 }
 
