@@ -580,10 +580,13 @@ function _woShowFleet(show){
   var wrap=document.getElementById('wo-fleet-wrap');
   var tog=document.getElementById('wo-fleet-toggle');
   var cust=document.getElementById('wo-customer-wrap');
+  var contact=document.getElementById('wo-contact-bar');
   if(wrap) wrap.style.display = show ? 'flex' : 'none';
   // Fleet work is always our own fleet (no customer), so hide the customer picker in fleet mode
   // and bring it back when this is customer work. Keeps the user from being asked "who's the customer".
   if(cust) cust.style.display = show ? 'none' : 'flex';
+  // Contacts belong to a customer, so they're meaningless for fleet work — hide the Contact box too.
+  if(contact) contact.style.display = show ? 'none' : 'flex';
   if(tog)  tog.style.display  = show ? 'none' : '';
   if(show){ var v=document.getElementById('wo-vehicle-name'); if(v){ try{ v.focus(); }catch(e){} } }
 }
