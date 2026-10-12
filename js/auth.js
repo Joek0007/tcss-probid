@@ -2777,14 +2777,17 @@ async function pushAllToCloud() {
           created_by: _currentUser.id
         }));
 
-        // Push line items ATOMICALLY (SF-1). The old code did a loose
-        // delete-then-insert with no error checks: a failed insert left the quote
-        // with NO line items in the cloud — pricing silently wiped. replace_quote_line_items
-        // does both in one transaction, so a failed insert rolls back the delete and
-        // the quote keeps its existing pricing. Guard on Array.isArray (not length>0) so
-        // that emptying a quote's items actually clears them in the cloud too — the old
-        // length>0 guard left stale line items behind when the last item was removed.
-        if (Array.isArray(q.items)) {
+        // Push line items ATOMICALLY (SF-1). replace_quote_line_items deletes+reinserts
+        // in one transaction, so a failed insert rolls back and the quote keeps its pricing.
+        // ICEBERG GUARD (SF-7, 2026-10-12): this BACKGROUND SWEEP re-pushes EVERY quote in
+        // memory ~2s after any saveDB anywhere. If a quote is momentarily in memory with an
+        // empty items[] (e.g. an incomplete pull that didn't attach its line items), an
+        // empty-array replace here would WIPE that quote's cloud line items permanently.
+        // That is exactly how Q-2060's two items went to $0. So the sweep NEVER wipes:
+        // it only replaces when there is at least one item. Legitimately clearing all items
+        // from a quote still propagates — that goes through the explicit per-quote save path
+        // (_pushQuoteToCloud, called from saveQuote), where q.items is authoritative.
+        if (Array.isArray(q.items) && q.items.length > 0) {
           var lineItems = q.items.map(function(item, idx) {
             return {
               sort_order: idx,
