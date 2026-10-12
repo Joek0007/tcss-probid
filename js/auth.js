@@ -1083,7 +1083,15 @@ async function syncAllFromCloud(silent) {
         // pull is provably COMPLETE — non-empty and under Supabase's 1000-row default
         // cap. An empty or capped result must NOT drop synced rows (would lose data).
         var qCloudComplete = quotes.length > 0;  // pagination returns the full set (no 1000 cap)
-        var localOnlyQuotes = (DB.quotes||[]).filter(function(q){ return q.id && !cloudQuoteIds.has(String(q.id)) && !(q.num && cloudQuoteNums.has(String(q.num))) && delQ.indexOf(String(q.id)) < 0 && !(q._synced && qCloudComplete); });
+        // Grace guard: never drop a quote THIS user saved in the last few minutes just because a
+        // (possibly not-yet-replicated or incomplete) cloud pull didn't include it. This is the
+        // "a new quote vanishes from the list until I refresh" bug — the quote is safe in the cloud,
+        // so keep showing it locally during the window. It can't resurrect a deleted quote: deletes
+        // are tracked separately via delQ tombstones, which still exclude the row below.
+        var _qSaveGrace = window._qqRecentSaves || {};
+        var _qGraceNow = Date.now();
+        function _qRecentlySaved(q){ var t = _qSaveGrace[q.id] || _qSaveGrace[String(q.id)] || (q.num && _qSaveGrace['num:'+q.num]) || 0; return t && (_qGraceNow - t) < 180000; }
+        var localOnlyQuotes = (DB.quotes||[]).filter(function(q){ return q.id && !cloudQuoteIds.has(String(q.id)) && !(q.num && cloudQuoteNums.has(String(q.num))) && delQ.indexOf(String(q.id)) < 0 && (!(q._synced && qCloudComplete) || _qRecentlySaved(q)); });
         var cloudQuotes = quotes.map(function(q) {
           return {
             id: q.id,
@@ -2088,6 +2096,10 @@ async function _pushQuoteToCloud(q) {
   if (!_sb || !_currentUser || !q) return;
   try {
     var qId = (typeof ensureUUID === 'function') ? ensureUUID(q) : q.id;
+    // Mark this quote as just-saved so a sync in the next few minutes won't drop it from the
+    // list before the cloud has it (see the grace guard in syncAllFromCloud).
+    try { window._qqRecentSaves = window._qqRecentSaves || {}; var _nowSave = Date.now();
+      window._qqRecentSaves[qId] = _nowSave; if (q.id) window._qqRecentSaves[q.id] = _nowSave; if (q.num) window._qqRecentSaves['num:'+q.num] = _nowSave; } catch(e){}
     var statusMap = {
       'draft':'Draft','Draft':'Draft','sent':'Sent','Sent':'Sent','review':'Review','Review':'Review',
       'followup':'Review','approved':'Approved','Approved':'Approved','won':'Won','Won':'Won',
