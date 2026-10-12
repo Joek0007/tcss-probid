@@ -1841,10 +1841,11 @@ body.role-lead-tech .page-settings-btn{display:none!important}
             </div>
             <div id="qq-notes" class="rtf-editable"
               contenteditable="true"
-              style="min-height:90px;padding:8px 12px;font-size:13px;line-height:1.6;color:#1f3b57;outline:none;font-family:inherit"
+              style="min-height:90px;padding:8px 12px;font-size:13px;line-height:1.7;color:#37474f;outline:none;font-family:inherit"
               data-placeholder="Describe the scope of work..."
               onfocus="qqNotesShowToolbar()"
               onblur="qqNotesHideToolbar(event)"
+              onpaste="rtfCleanPaste&&rtfCleanPaste(event)"
               oninput="setQQDirty&&setQQDirty(true,'notes edit');qqNotesUpdatePlaceholder()"
             ></div>
           </div>
@@ -7037,7 +7038,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
 <script src="js/core.js?v=20260919jn"></script>
-<script src="js/quotes.js?v=20260919jh"></script>
+<script src="js/quotes.js?v=20260919js"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
 <script src="js/checkouts_db.js?v=20260919ix"></script>
@@ -7056,7 +7057,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/purchaseorders.js?v=20260919ix"></script>
 <script src="js/inventory_locations_db.js?v=20260919ix"></script>
 <script src="js/inventory.js?v=20260919ix"></script>
-<script src="js/reports.js?v=20260919ix"></script>
+<script src="js/reports.js?v=20260919js"></script>
 <script src="js/expenses.js?v=20260919jd"></script>
 <script src="js/perdiem.js?v=20260919jd"></script>
 <script src="js/recyclebin.js?v=20260919ix"></script>
@@ -8158,6 +8159,8 @@ function woRtfUpgrade(id, opts){
   el.addEventListener('focus', function(){ woRtfShowBar(id); });
   el.addEventListener('blur', function(e){ woRtfHideBar(id, e); });
   el.addEventListener('input', function(){ _woRtfPlaceholder(id); });
+  // Clean pasted Word/Google-Docs/web HTML to the house style (same normalizer the output uses).
+  if (typeof rtfCleanPaste==='function') el.addEventListener('paste', rtfCleanPaste);
   _woRtfPlaceholder(id);
 }
 
@@ -8471,6 +8474,17 @@ function qqNotesUpdatePlaceholder() {
   style.textContent =
     '#qq-notes[data-empty="true"]:before{content:attr(data-placeholder);color:#9ca3af;pointer-events:none;position:absolute}' +
     '#qq-notes{position:relative}' +
+    // WYSIWYG: make the Scope editor render exactly like the printed proposal's .scope-box (same
+    // heading sizes, list indent and spacing) so what you edit is what prints.
+    '#qq-notes h1,#qq-notes h2,#qq-notes h3{font-size:13.5px;font-weight:700;color:#1f3b57;margin:12px 0 4px}' +
+    '#qq-notes h4,#qq-notes h5,#qq-notes h6{font-size:12.5px;font-weight:700;color:#37474f;margin:10px 0 3px}' +
+    '#qq-notes p{margin:6px 0}' +
+    '#qq-notes ul{list-style:disc outside;padding-left:22px;margin:4px 0}' +
+    '#qq-notes ol{list-style:decimal outside;padding-left:22px;margin:4px 0}' +
+    '#qq-notes li{margin:3px 0}' +
+    '#qq-notes blockquote{margin:6px 0 6px 14px;padding-left:12px;border-left:3px solid #cfd8dc;color:#546e7a}' +
+    '#qq-notes hr{border:none;height:1px;background:#cbd5de;margin:12px 0}' +
+    '#qq-notes>*:first-child{margin-top:0}' +
     // list + indent fixes — the global *{padding:0;margin:0} reset was hiding bullets/numbers and killing indent inside editors
     '.rtf-editable ul{list-style:disc outside;padding-left:1.6em;margin:6px 0}' +
     '.rtf-editable ol{list-style:decimal outside;padding-left:1.9em;margin:6px 0}' +

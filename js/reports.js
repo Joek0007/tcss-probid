@@ -417,6 +417,12 @@ function editQuote(id) {
   (function(){
     var _nc = q.notes || '';
     var _isHtml = !!q.notesIsHtml || (typeof _nc === 'string' && _nc.replace(/^\s+/,'').charAt(0) === '<');
+    // If the saved scope still carries messy Word / Google-Docs markup, normalize it to the house
+    // style on load so the editor shows exactly what prints (WYSIWYG). Only fires on messy markup —
+    // already-clean scopes are untouched. Saving the quote then persists the cleaned version.
+    if (_isHtml && typeof cleanScopeHtml === 'function' && /Mso|mso-|<o:p|panose|docs-internal-guid|<!--\[if/i.test(_nc)) {
+      try { _nc = cleanScopeHtml(_nc); } catch(e){}
+    }
     var _el = document.getElementById('qq-notes');
     if (_el && _el.contentEditable === 'true') {
       if (typeof woRtfLoad === 'function') woRtfLoad('qq-notes', _nc, _isHtml); else _el.innerHTML = _nc;
