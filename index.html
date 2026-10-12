@@ -870,6 +870,7 @@ body.dark-mode .cont-quick-btn{background:#252525!important;border-color:#444!im
 .wo-tab{padding:10px 16px;border:none;background:none;font-size:12px;font-weight:600;color:#546e7a;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap}
 .wo-tab.active{color:#1565c0;border-bottom-color:#1565c0;background:#fff}
 .wo-tab:hover{background:#f0f4f8}
+#modal-work-order.wo-fleet .wo-fleet-hide{display:none!important}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 .cp-tab:hover{background:#f5f7fa}
 .cp-stat-card{background:rgba(255,255,255,.15);border-radius:10px;padding:10px;text-align:center}
@@ -6096,7 +6097,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
         <!-- Vehicle (internal fleet work) — revealed only via the toggle above -->
         <div id="wo-fleet-wrap" style="display:none;flex-direction:column;gap:2px;flex:1;min-width:160px">
-          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">🚚 Vehicle <a href="javascript:void(0)" onclick="_woShowFleet(false)" style="font-weight:400;text-transform:none;color:#90a4ae;text-decoration:none;margin-left:6px">✕ not fleet</a></span>
+          <span style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">🚚 Vehicle <a href="javascript:void(0)" class="wo-fleet-hide" onclick="_woShowFleet(false)" style="font-weight:400;text-transform:none;color:#90a4ae;text-decoration:none;margin-left:6px">✕ not fleet</a></span>
           <div style="position:relative">
             <input id="wo-vehicle-name" placeholder="Pick a vehicle…" autocomplete="off" oninput="onWOVehicleInput(this.value)" onfocus="onWOVehicleInput(this.value)" style="padding:6px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;width:100%;box-sizing:border-box">
             <div id="wo-vehicle-dropdown" style="display:none;position:absolute;top:100%;left:0;margin-top:2px;background:#fff;border:1px solid #e0e7ef;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:400;max-height:240px;overflow-y:auto;width:100%;min-width:260px"></div>
@@ -6151,7 +6152,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div style="display:flex;flex-direction:column">
 
           <!-- Job Site Address — nested close to customer -->
-          <div style="margin-bottom:12px">
+          <div class="wo-fleet-hide" style="margin-bottom:12px">
             <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Job Site Address</label>
             <input id="wo-site-addr" placeholder="Street address" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:4px">
             <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px">
@@ -6269,7 +6270,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           </div>
 
           <!-- Labor + Tax -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+          <div class="wo-fleet-hide" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
             <div><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Labor Rate ($/hr)</label><input type="number" id="wo-labor-rate" min="0" step="0.01" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
             <div><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">Tax Rate (%)</label><input type="number" id="wo-tax-rate" min="0" step="0.01" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px"></div>
           </div>
@@ -6287,7 +6288,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
               <div id="wo-expense-total" style="font-size:16px;font-weight:700;color:#bf360c">$0.00</div>
               <div id="wo-expense-count" style="font-size:10px;color:#e65100">0 entries</div>
             </div>
-            <div id="wo-docs-summary" style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:8px 12px;cursor:pointer" onclick="switchWOTab('photos')" title="Click to view documents">
+            <div id="wo-docs-summary" class="wo-fleet-hide" style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:8px 12px;cursor:pointer" onclick="switchWOTab('photos')" title="Click to view documents">
               <div style="font-size:10px;font-weight:700;color:#2e7d32;text-transform:uppercase;margin-bottom:2px">📐 Field Docs</div>
               <div id="wo-docs-count" style="font-size:16px;font-weight:700;color:#1b5e20">0</div>
               <div style="font-size:10px;color:#2e7d32">files attached</div>
@@ -6301,14 +6302,14 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <div style="border-top:2px solid #e0e7ef">
         <div style="display:flex;overflow-x:auto;background:#f8f9fa">
           <div id="wo-change-orders-panel"></div>
-          <button class="wo-tab" onclick="switchWOTab('fieldlog')" id="wotab-fieldlog">📝 Field Log</button>
+          <button class="wo-tab wo-fleet-hide" onclick="switchWOTab('fieldlog')" id="wotab-fieldlog">📝 Field Log</button>
           <button class="wo-tab active" onclick="switchWOTab('labor')" id="wotab-labor">⏱ Labor</button>
           <button class="wo-tab" onclick="switchWOTab('expenses')" id="wotab-expenses">💰 Expenses</button>
           <button class="wo-tab" onclick="switchWOTab('parts')" id="wotab-parts">🔩 Parts</button>
           <button class="wo-tab" onclick="switchWOTab('checklist')" id="wotab-checklist">✅ Checklist</button>
-          <button class="wo-tab" onclick="switchWOTab('tracking')" id="wotab-tracking">📊 Phases</button>
+          <button class="wo-tab wo-fleet-hide" onclick="switchWOTab('tracking')" id="wotab-tracking">📊 Phases</button>
           <button class="wo-tab" onclick="switchWOTab('comments')" id="wotab-comments">💬 Comments</button>
-          <button class="wo-tab" onclick="switchWOTab('photos')" id="wotab-photos">📐 Field Docs</button>
+          <button class="wo-tab wo-fleet-hide" onclick="switchWOTab('photos')" id="wotab-photos">📐 Field Docs</button>
         </div>
         <div id="wo-tab-content" style="padding:16px;min-height:300px;background:#fff"></div>
       </div>
@@ -7049,7 +7050,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/permissions.js?v=20260919ix"></script>
 <script src="js/worktracking.js?v=20260919jg"></script>
 <script src="js/calendar.js?v=20260919ix"></script>
-<script src="js/workorders.js?v=20260919jp"></script>
+<script src="js/workorders.js?v=20260919jq"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
 <script src="js/purchaseorders.js?v=20260919ix"></script>

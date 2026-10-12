@@ -587,6 +587,9 @@ function _woShowFleet(show){
   if(cust) cust.style.display = show ? 'none' : 'flex';
   // Contacts belong to a customer, so they're meaningless for fleet work — hide the Contact box too.
   if(contact) contact.style.display = show ? 'none' : 'flex';
+  // Fleet work orders are internal: also hide job-site address, billing rates, the field-docs card,
+  // and the Field Log / Phases / Field Docs tabs — everything tagged .wo-fleet-hide — by flagging the modal.
+  var modal=document.getElementById('modal-work-order'); if(modal) modal.classList.toggle('wo-fleet', !!show);
   if(tog)  tog.style.display  = show ? 'none' : '';
   if(show){ var v=document.getElementById('wo-vehicle-name'); if(v){ try{ v.focus(); }catch(e){} } }
 }
