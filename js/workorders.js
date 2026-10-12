@@ -579,7 +579,11 @@ function _wireWOListEvents() {
 function _woShowFleet(show){
   var wrap=document.getElementById('wo-fleet-wrap');
   var tog=document.getElementById('wo-fleet-toggle');
+  var cust=document.getElementById('wo-customer-wrap');
   if(wrap) wrap.style.display = show ? 'flex' : 'none';
+  // Fleet work is always our own fleet (no customer), so hide the customer picker in fleet mode
+  // and bring it back when this is customer work. Keeps the user from being asked "who's the customer".
+  if(cust) cust.style.display = show ? 'none' : 'flex';
   if(tog)  tog.style.display  = show ? 'none' : '';
   if(show){ var v=document.getElementById('wo-vehicle-name'); if(v){ try{ v.focus(); }catch(e){} } }
 }
@@ -1200,7 +1204,7 @@ function onWOVehicleInput(val){
   var pool=(DB.vehicles||[]).filter(function(x){ return x && x.isActive!==false && !x.deleted; });
   var matches = v
     ? pool.filter(function(x){ return [x.number,x.name,x.plate,x.make,x.model].some(function(f){ return (f||'').toString().toLowerCase().includes(v); }); }).slice(0,10)
-    : pool.slice().sort(function(a,b){ return (a.number||a.name||'').localeCompare(b.number||b.name||'',undefined,{numeric:true}); }).slice(0,15);
+    : pool.slice().sort(function(a,b){ return (a.number||a.name||'').localeCompare(b.number||b.name||'',undefined,{numeric:true}); }).slice(0,200);
   if(!matches.length){ drop.style.display='none'; return; }
   drop.innerHTML=matches.map(function(x){
     var label=(x.number||x.name||'Vehicle');
@@ -1232,6 +1236,20 @@ function selectWOVehicle(id, label){
 function openNewWOForVehicle(vehicleId, label){
   if (typeof openNewWorkOrder==='function') openNewWorkOrder();
   setTimeout(function(){ selectWOVehicle(vehicleId, label||''); }, 60);
+}
+
+// Start a NEW work order for the fleet, no specific vehicle pre-picked: opens the WO straight into
+// fleet mode (customer picker hidden — it's always our fleet) with the vehicle list dropdown open so
+// you just click the vehicle. Used by the Vehicles nav "+" and the Vehicles page "+ New Work Order".
+function openNewFleetWorkOrder(){
+  if (typeof openNewWorkOrder==='function') openNewWorkOrder();
+  // openNewWorkOrder focuses the customer field ~60ms in and opens its dropdown; flip to fleet after.
+  setTimeout(function(){
+    _woShowFleet(true); // shows vehicle field + hides customer picker + focuses the vehicle field
+    var cd=document.getElementById('wo-customer-dropdown'); if(cd) cd.style.display='none';
+    var vn=document.getElementById('wo-vehicle-name'); if(vn){ try{ vn.value=''; vn.focus(); }catch(e){} }
+    if(typeof onWOVehicleInput==='function') onWOVehicleInput(''); // populate + open the full vehicle list
+  }, 120);
 }
 
 // Launched from the WO vehicle dropdown (✏️ Edit): attach the vehicle to the WO first (so the
