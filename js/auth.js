@@ -2182,7 +2182,12 @@ async function _pushQuoteToCloud(q) {
           labor_hours: item.lh || 0
         };
       });
-      var _rli = await _sb.rpc('replace_quote_line_items', { p_quote_id: qId, p_items: lineItems });
+      // SF-7c: pass p_allow_clear ONLY on a genuine clear (items empty — value is already 0
+      // per the guard above). Kept conditional so a normal save still calls the 2-arg form and
+      // works whether or not the SF-7c DB migration (3-arg function) has been applied yet.
+      var _rliArgs = { p_quote_id: qId, p_items: lineItems };
+      if (lineItems.length === 0) _rliArgs.p_allow_clear = true;
+      var _rli = await _sb.rpc('replace_quote_line_items', _rliArgs);
       if (_rli && _rli.error) console.warn('[Quote Push] line items', _rli.error.message);
     }
   } catch (e) { console.warn('[Quote Push]', e.message || e); }
