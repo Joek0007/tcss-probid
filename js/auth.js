@@ -2161,7 +2161,16 @@ async function _pushQuoteToCloud(q) {
     });
     if (error) { console.warn('[Quote Push]', error.message); return; }
     // Line items — atomic replace (same transaction guarantee as the full push).
-    if (Array.isArray(q.items)) {
+    // ICEBERG GUARD (SF-7, 2026-10-12): never let an empty items[] WIPE a quote that still
+    // carries pricing. A genuine "user cleared every item" save ALSO zeroes the totals, so
+    // empty items + zero value = a real clear (allow it to propagate); empty items + non-zero
+    // value = the quote was loaded WITHOUT its line items (incomplete pull) — skip the replace
+    // so the cloud copy is preserved instead of silently zeroed (how Q-2060 lost its items).
+    // A quote that actually has items always replaces normally.
+    var _qHasValue = (Number(q.total)||0) > 0 || (Number(q.totalMaterialCost)||0) > 0
+                  || (Number(q.materialSell)||0) > 0 || (Number(q.laborSell)||0) > 0
+                  || (Number(q.totalLaborHours)||0) > 0;
+    if (Array.isArray(q.items) && (q.items.length > 0 || !_qHasValue)) {
       var lineItems = q.items.map(function(item, idx) {
         return {
           sort_order: idx,
