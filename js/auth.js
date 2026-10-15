@@ -1142,6 +1142,7 @@ async function syncAllFromCloud(silent) {
             pt: q.payment_terms || 'Net 30',
             followupDate: q.followup_date || null,
             permits: q.permit_data ? (function(){ try{ return JSON.parse(q.permit_data); }catch(e){ return null; } })() : null,
+            proposalSections: (q.proposal_sections === undefined ? null : q.proposal_sections),
             items: (q.quote_line_items || []).sort(function(a,b){ return a.sort_order - b.sort_order; }).map(function(li) {
               return { _id:li.id, desc:li.description, cat:li.category, qty:li.qty, unit:li.unit, mc:li.material_cost, lh:li.labor_hours };
             })
@@ -2155,6 +2156,7 @@ async function _pushQuoteToCloud(q) {
       approval_token: q.approvalToken || null,
       show_labor_banner: q.showLaborBanner !== undefined ? !!q.showLaborBanner : true,
       permit_data: q.permits ? JSON.stringify(q.permits) : null,
+      proposal_sections: q.proposalSections || null,
       payment_terms: q.pt || 'Net 30',
       followup_date: q.followupDate || null,
       created_by: _currentUser.id
@@ -2786,6 +2788,7 @@ async function pushAllToCloud() {
           approval_token: q.approvalToken || null,
           show_labor_banner: q.showLaborBanner !== undefined ? !!q.showLaborBanner : true,
           permit_data: q.permits ? JSON.stringify(q.permits) : null,
+          proposal_sections: q.proposalSections || null,
           payment_terms: q.pt || 'Net 30',
           followup_date: q.followupDate || null,
           created_by: _currentUser.id
