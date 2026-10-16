@@ -1913,7 +1913,7 @@ function renderWOLaborTab(woId) {
   }).map(function(t) {
     // Look up tech name from team member ID
     var member = (DB.team||[]).find(function(m){ return m.id===t.teamMemberId||m.id===t.team_member_id; });
-    var techName = member ? member.name : (t.userName||t.user_name||'Unknown');
+    var techName = member ? member.name : (t.techName||t.userName||t.user_name||'Unknown');
     // Calculate hours
     var hrs = 0;
     if (t.totalHours) {
