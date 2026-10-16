@@ -1004,13 +1004,22 @@ function openAddTimeEntry(prefillTech, prefillDate, prefillWoId) {
 
   // Entry type default
   document.getElementById('te-type').value = prefillWoId ? 'work' : 'work';
+  window._teForcedWO = prefillWoId || null;
   onTeTypeChange();
 
-  // Pre-select WO if provided
+  // Pre-select WO if provided (inject the option even if its status excludes it from the open-WO list)
   if (prefillWoId) {
     setTimeout(function(){
       var woSel = document.getElementById('te-wo');
-      if (woSel) woSel.value = prefillWoId;
+      if (woSel) {
+        if (!Array.prototype.some.call(woSel.options, function(o){ return o.value===prefillWoId; })) {
+          var w=(DB.workOrders||[]).find(function(x){ return x.id===prefillWoId; });
+          var opt=document.createElement('option'); opt.value=prefillWoId;
+          opt.textContent = w ? ((w.woNumber||'WO')+' — '+(w.customerName||'')) : 'This Work Order';
+          woSel.insertBefore(opt, woSel.options[1]||null);
+        }
+        woSel.value = prefillWoId;
+      }
     }, 80);
   }
 
@@ -1045,11 +1054,20 @@ function openEditTimeEntry(entryId) {
   document.getElementById('te-start').value = entry.startTime||'';
   document.getElementById('te-end').value = entry.endTime||'';
 
+  window._teForcedWO = entry.woId || null;
   onTeTypeChange();
-  // Set WO after type change populates the dropdown
+  // Set WO after type change populates the dropdown (inject if its status excludes it)
   setTimeout(function(){
     var woSel = document.getElementById('te-wo');
-    if (woSel && entry.woId) woSel.value = entry.woId;
+    if (woSel && entry.woId) {
+      if (!Array.prototype.some.call(woSel.options, function(o){ return o.value===entry.woId; })) {
+        var w=(DB.workOrders||[]).find(function(x){ return x.id===entry.woId; });
+        var opt=document.createElement('option'); opt.value=entry.woId;
+        opt.textContent = w ? ((w.woNumber||'WO')+' — '+(w.customerName||'')) : 'This Work Order';
+        woSel.insertBefore(opt, woSel.options[1]||null);
+      }
+      woSel.value = entry.woId;
+    }
   }, 50);
 
   updateTeDuration();
@@ -1090,6 +1108,13 @@ function onTeTypeChange() {
       return true;
     }).sort(function(a,b){ return (a.woNumber||'').localeCompare(b.woNumber||''); });
 
+    // Keep a forced WO (opened from a specific WO's Labor tab) selectable even if its status
+    // (e.g. New / Invoiced) would normally exclude it from the open-WO list.
+    if (window._teForcedWO && !availableWOs.some(function(w){ return w.id===window._teForcedWO; })) {
+      var _fw=(DB.workOrders||[]).find(function(w){ return w.id===window._teForcedWO; });
+      if (_fw) availableWOs.unshift(_fw);
+    }
+
     woSel.innerHTML =
       '<option value="office">Office / General (no specific job)</option>' +
       availableWOs.map(function(w){
@@ -1098,7 +1123,7 @@ function onTeTypeChange() {
       (typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]))
         .filter(function(j){ return j.status!=='Closed'; })
         .map(function(j){ return '<option value="job:'+escHtml(j.id)+'">'+escHtml(j.num)+' — '+escHtml(j.name||'')+'</option>'; }).join('');
-    if (currentVal) woSel.value = currentVal;
+    if (currentVal) woSel.value = currentVal; else if (window._teForcedWO) woSel.value = window._teForcedWO;
   }
 }
 

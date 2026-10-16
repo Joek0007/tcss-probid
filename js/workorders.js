@@ -1909,7 +1909,7 @@ function renderWOLaborTab(woId) {
 
   // ---- Pull clocked time entries for this WO from DB.timeEntries ----
   var clockedEntries = (DB.timeEntries||[]).filter(function(t){
-    return t.jobId===woId || t.job_id===woId;
+    return t.jobId===woId || t.job_id===woId || t.woId===woId || t.wo_id===woId;
   }).map(function(t) {
     // Look up tech name from team member ID
     var member = (DB.team||[]).find(function(m){ return m.id===t.teamMemberId||m.id===t.team_member_id; });
@@ -2216,7 +2216,7 @@ function renderWOExpensesTab(woId) {
           payTypes.map(function(p){return '<option>'+escHtml(p)+'</option>';}).join('')+'</select></div>'+
       '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Date</label>'+
         '<input id="woe-date" type="date" value="'+getTodayISO()+'" style="width:100%;padding:7px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"></div>'+
-      '<div><button class="btn btn-primary btn-sm" style="margin-top:18px" onclick="addWOExpense()">Add</button></div>'+
+      '<div><button class="btn btn-primary btn-sm" id="woe-add-btn" style="margin-top:18px" onclick="addWOExpense()">Add</button></div>'+
     '</div>'+
     '<div style="margin-top:10px;padding:10px;background:#fff;border:1px solid #e0e7ef;border-radius:6px">'+
       '<div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:6px">📎 Attach Receipt (optional)</div>'+
@@ -2244,7 +2244,8 @@ function renderWOExpensesTab(woId) {
         ((e.receiptUrl||e.receiptDocId)?(function(){ var rd=(DB.woDocuments||[]).find(function(d){return d.id===e.receiptDocId;}); var p=(rd&&rd.path)?rd.path:''; return '<a '+(p?'data-sp="'+escHtml(p)+'" ':'')+'href="'+escHtml(e.receiptUrl||'#')+'" target="_blank" rel="noopener" style="font-size:11px;color:#1565c0;font-weight:600">📎 View Receipt</a>'; })():'')+
       '</div>'+
       '<div style="font-weight:700;color:#1565c0;min-width:60px;text-align:right">$'+parseFloat(e.amount||0).toFixed(2)+'</div>'+
-      '<button class="btn btn-danger btn-sm" onclick="deleteWOExpense(\''+e.id+'\')">✕</button>'+
+      '<button class="btn btn-outline btn-sm" onclick="editWOExpense(\''+e.id+'\')" title="Edit / add receipt">✎</button>'+
+      '<button class="btn btn-danger btn-sm" onclick="deleteWOExpense(\''+e.id+'\')" title="Remove">✕</button>'+
     '</div>';
   }).join('');
   return html;
@@ -2255,20 +2256,34 @@ function addWOExpense() {
   var amt=parseFloat((document.getElementById('woe-amt')||{}).value)||0;
   if(!amt){showToast('Enter an amount','error');return;}
   if(!DB.woExpenses) DB.woExpenses=[];
-  var expEntry = {
-    id:'woe-'+Date.now(), woId:woId,
-    category:(document.getElementById('woe-cat')||{}).value||'',
-    description:(document.getElementById('woe-desc')||{}).value||'',
-    amount:amt,
-    paymentType:(document.getElementById('woe-pay')||{}).value||'',
-    date:(document.getElementById('woe-date')||{}).value||getTodayISO(),
-    loggedBy:(_currentUser&&_currentUser.full_name)||'Unknown',
-    createdAt:new Date().toISOString(),
-    receiptUrl:null,
-    reviewStatus:'pending', reviewNote:'', reviewedBy:'', reviewedAt:'',
-    reimbursed:false, reimbursedAt:''
-  };
-  DB.woExpenses.push(expEntry);
+  var _woeEditId = window._woeEditId || '';
+  var _editing = _woeEditId && (DB.woExpenses||[]).some(function(x){return x.id===_woeEditId;});
+  var expEntry;
+  if (_editing) {
+    expEntry = (DB.woExpenses||[]).find(function(x){return x.id===_woeEditId;});
+    expEntry.category=(document.getElementById('woe-cat')||{}).value||'';
+    expEntry.description=(document.getElementById('woe-desc')||{}).value||'';
+    expEntry.amount=amt;
+    expEntry.paymentType=(document.getElementById('woe-pay')||{}).value||'';
+    expEntry.date=(document.getElementById('woe-date')||{}).value||getTodayISO();
+  } else {
+    expEntry = {
+      id:'woe-'+Date.now(), woId:woId,
+      category:(document.getElementById('woe-cat')||{}).value||'',
+      description:(document.getElementById('woe-desc')||{}).value||'',
+      amount:amt,
+      paymentType:(document.getElementById('woe-pay')||{}).value||'',
+      date:(document.getElementById('woe-date')||{}).value||getTodayISO(),
+      loggedBy:(_currentUser&&_currentUser.full_name)||'Unknown',
+      createdAt:new Date().toISOString(),
+      receiptUrl:null,
+      reviewStatus:'pending', reviewNote:'', reviewedBy:'', reviewedAt:'',
+      reimbursed:false, reimbursedAt:''
+    };
+    DB.woExpenses.push(expEntry);
+  }
+  window._woeEditId='';
+  var _woeAddBtn=document.getElementById('woe-add-btn'); if(_woeAddBtn) _woeAddBtn.textContent='Add';
   if (typeof _pushWOExpenseToCloud === 'function') _pushWOExpenseToCloud(expEntry);
   saveDB();
   // Upload receipt if attached
@@ -2293,10 +2308,10 @@ function addWOExpense() {
   }
   switchWOTab('expenses');
   refreshWOQuickStats(woId);
-  showToast('Expense added','success');
+  showToast(_editing?'Expense updated':'Expense added','success');
 
-  // Expense alert — notify office if enabled
-  if (DB.settings.notifExpenseEnabled !== false) {
+  // Expense alert — notify office if enabled (new expenses only)
+  if (!_editing && DB.settings.notifExpenseEnabled !== false) {
     var isOffice = _currentUser && ['owner','manager','back_office'].includes(_currentUser.role);
     if (!isOffice) {
       // Field tech logged it — notify office
@@ -2314,6 +2329,21 @@ function addWOExpense() {
       }
     }
   }
+}
+
+function editWOExpense(id){
+  var e=(DB.woExpenses||[]).find(function(x){return x.id===id;}); if(!e){showToast('Expense not found','error');return;}
+  window._woeEditId=id;
+  var g=function(f){return document.getElementById(f);};
+  if(g('woe-cat'))  g('woe-cat').value=e.category||'';
+  if(g('woe-desc')) g('woe-desc').value=e.description||'';
+  if(g('woe-amt'))  g('woe-amt').value=parseFloat(e.amount||0).toFixed(2);
+  if(g('woe-pay'))  g('woe-pay').value=e.paymentType||'';
+  if(g('woe-date')) g('woe-date').value=e.date||getTodayISO();
+  var ab=g('woe-add-btn'); if(ab) ab.textContent='Update';
+  var nm=g('woe-receipt-name'); if(nm) nm.textContent=(e.receiptUrl||e.receiptDocId)?'receipt attached — choose a file to replace':'no receipt — choose a file to attach';
+  if(g('woe-cat')&&g('woe-cat').scrollIntoView){ try{ g('woe-cat').scrollIntoView({block:'center'}); }catch(_){} }
+  showToast('Editing expense — update fields or attach a receipt, then click Update','info',4500);
 }
 
 function deleteWOExpense(id) {
@@ -2903,34 +2933,33 @@ function createPOFromWOParts(woId) {
 }
 
 function openNewWOForCustomer(customerId, customerName) {
-  // Close customer panel first
+  // Close customer panel + navigate to Work Orders FIRST, so the route change can't close the
+  // just-opened modal (the old order opened the modal then navigated, leaving the WO list).
   if (typeof closeCustomerProfile === 'function') closeCustomerProfile();
-  openNewWorkOrder();
-  // Pre-fill customer
-  var nameEl = document.getElementById('wo-customer-name');
-  var idEl   = document.getElementById('wo-customer-id');
-  if (nameEl) nameEl.value = customerName;
-  if (idEl)   idEl.value   = customerId;
-  // Populate contacts
-  _populateWOContacts(customerId, null);
-  // Fill address from customer record
-  var cust = (DB.customers||[]).find(function(c){ return c.id===customerId; });
-  if (cust) {
-    var settings = DB.woSettings||{};
-    var lr = document.getElementById('wo-labor-rate');
-    if (lr) lr.value = cust.laborRate || settings.defaultLaborRate || 125;
-    var addrEl  = document.getElementById('wo-site-addr');
-    var cityEl  = document.getElementById('wo-site-city');
-    var stEl    = document.getElementById('wo-site-state');
-    var zipEl   = document.getElementById('wo-site-zip');
-    if (addrEl) addrEl.value = cust.street||cust.address||'';
-    if (cityEl) cityEl.value = cust.city||'';
-    if (stEl)   stEl.value   = cust.state||'';
-    if (zipEl)  zipEl.value  = cust.zip||'';
-  }
-  // Check hot notes for new WO
-  _checkHotNotes(customerId, 'new', true);
-  goPage('workorders');
+  if (typeof goPage === 'function') goPage('workorders');
+  setTimeout(function(){
+    openNewWorkOrder();
+    var nameEl = document.getElementById('wo-customer-name');
+    var idEl   = document.getElementById('wo-customer-id');
+    if (nameEl) nameEl.value = customerName;
+    if (idEl)   idEl.value   = customerId;
+    _populateWOContacts(customerId, null);
+    var cust = (DB.customers||[]).find(function(c){ return c.id===customerId; });
+    if (cust) {
+      var settings = DB.woSettings||{};
+      var lr = document.getElementById('wo-labor-rate');
+      if (lr) lr.value = cust.laborRate || settings.defaultLaborRate || 125;
+      var addrEl  = document.getElementById('wo-site-addr');
+      var cityEl  = document.getElementById('wo-site-city');
+      var stEl    = document.getElementById('wo-site-state');
+      var zipEl   = document.getElementById('wo-site-zip');
+      if (addrEl) addrEl.value = cust.street||cust.address||'';
+      if (cityEl) cityEl.value = cust.city||'';
+      if (stEl)   stEl.value   = cust.state||'';
+      if (zipEl)  zipEl.value  = cust.zip||'';
+    }
+    if (typeof _checkHotNotes==='function') _checkHotNotes(customerId, 'new', true);
+  }, 140);
 }
 
 // ============================================================
