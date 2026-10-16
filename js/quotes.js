@@ -2671,13 +2671,14 @@ function renderInvoicesPage() {
   .map(function(inv){
     var isPaid    = inv.status==='paid';
     var isPartial = inv.status==='partial';
-    var isOverdue = inv.isOverdue;
+    var isVoid    = inv.status==='void';
+    var isOverdue = inv.isOverdue && !isVoid;
     var payments  = (DB.invoicePayments||[]).filter(function(p){ return p.invoiceId===inv.id; });
     var totalPaid = payments.reduce(function(s,p){ return s+parseFloat(p.amount||0); }, 0);
     var balance   = (inv.total||0) - totalPaid;
-    var statusBg  = isPaid?'#e8f5e9':isPartial?'#e3f2fd':isOverdue?'#ffebee':'#fff3e0';
-    var statusCol = isPaid?'#2e7d32':isPartial?'#1565c0':isOverdue?'#c62828':'#e65100';
-    var statusLbl = isPaid?'✓ Paid':isPartial?('⬛ Partial ($'+balance.toLocaleString('en-US',{minimumFractionDigits:2})+' due)'):isOverdue?'⚠ Overdue':'Unpaid';
+    var statusBg  = isVoid?'#eceff1':isPaid?'#e8f5e9':isPartial?'#e3f2fd':isOverdue?'#ffebee':'#fff3e0';
+    var statusCol = isVoid?'#78909c':isPaid?'#2e7d32':isPartial?'#1565c0':isOverdue?'#c62828':'#e65100';
+    var statusLbl = isVoid?'⊘ Void':isPaid?'✓ Paid':isPartial?('⬛ Partial ($'+balance.toLocaleString('en-US',{minimumFractionDigits:2})+' due)'):isOverdue?'⚠ Overdue':'Unpaid';
 
     return '<div style="display:grid;grid-template-columns:1fr 1.5fr 0.8fr 0.8fr 0.8fr auto;gap:12px;padding:12px 14px;border-bottom:1px solid #f0f0f0;align-items:center;cursor:pointer" onclick="reprintInvoice(\''+inv.id+'\')" onmouseover="this.style.background=\'#f0f4ff\'" onmouseout="this.style.background=\'\'">'+
       '<div>'+
@@ -2685,7 +2686,7 @@ function renderInvoicesPage() {
         (inv.po?'<div style="font-size:11px;color:#90a4ae">PO: '+escHtml(inv.po)+'</div>':'')+
       '</div>'+
       '<div>'+
-        '<div style="font-weight:600;font-size:13px">'+escHtml((inv.job&&inv.job.name)||'')+'</div>'+
+        '<div style="font-weight:600;font-size:13px">'+escHtml(_invClean((inv.job&&inv.job.name)||''))+'</div>'+
         '<div style="font-size:11px;color:#546e7a">'+escHtml((inv.job&&inv.job.customer)||'')+'</div>'+
       '</div>'+
       '<div style="font-size:12px;color:#546e7a">'+escHtml(inv.date||'')+'</div>'+
@@ -2697,9 +2698,9 @@ function renderInvoicesPage() {
       '<div style="display:flex;gap:4px" onclick="event.stopPropagation()">'+
         '<button class="btn btn-outline btn-sm" onclick="reprintInvoice(\''+inv.id+'\')" title="Edit">✏ Edit</button>'+
         '<button class="btn btn-outline btn-sm" onclick="printInvoiceDirect(\''+inv.id+'\')" title="Print">🖨</button>'+
-        (!isPaid?'<button class="btn btn-outline btn-sm" onclick="openRecordPayment(\''+inv.id+'\')" title="Record Payment">💵</button>':'')+
-        (!isPaid?'<button class="btn btn-primary btn-sm" onclick="markInvoicePaid(\''+inv.id+'\')" title="Mark Fully Paid">✓ Paid</button>':'')+
-        '<button class="btn btn-danger btn-sm" onclick="deleteInvoice(\''+inv.id+'\')" title="Delete">✕</button>'+
+        (!isVoid&&!isPaid?'<button class="btn btn-outline btn-sm" onclick="openRecordPayment(\''+inv.id+'\')" title="Record Payment">💵</button>':'')+
+        (!isVoid&&!isPaid?'<button class="btn btn-primary btn-sm" onclick="markInvoicePaid(\''+inv.id+'\')" title="Mark Fully Paid">✓ Paid</button>':'')+
+        (isVoid?'<button class="btn btn-outline btn-sm" onclick="unvoidInvoice(\''+inv.id+'\')" title="Restore (un-void)">↩ Unvoid</button>':'<button class="btn btn-danger btn-sm" onclick="voidInvoice(\''+inv.id+'\')" title="Void this invoice">⊘ Void</button>')+
       '</div>'+
     '</div>';
   }).join('');
@@ -2870,18 +2871,32 @@ function markInvoicePaid(invId) {
   showToast('Invoice '+inv.num+' marked as paid ✓','success');
 }
 
-function deleteInvoice(invId) {
-  if (!confirm('Delete this invoice? This cannot be undone.')) return;
-  DB.invoices = (DB.invoices||[]).filter(function(i){ return i.id!==invId; });
-  // RED #4: record the tombstone so pushAllToCloud removes it from app_invoices
-  // (single-writer delete with .select('id') guard) and a later pull can't resurrect it.
-  DB.deletedIds = DB.deletedIds || {};
-  DB.deletedIds.invoices = DB.deletedIds.invoices || [];
-  if (DB.deletedIds.invoices.indexOf(invId) === -1) DB.deletedIds.invoices.push(invId);
+function voidInvoice(invId) {
+  var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
+  if (!inv) { if (typeof fetchInvoiceById==='function') { fetchInvoiceById(invId).then(function(f){ if(f) voidInvoice(invId); }); } return; }
+  if (!confirm('Void invoice '+(inv.num||'')+'? It stays on record (marked Void) instead of being deleted.')) return;
+  inv.status = 'void';
+  inv.voidedDate = getTodayISO();
+  inv.voidedBy = (typeof _currentUser!=='undefined' && _currentUser) ? (_currentUser.email||_currentUser.id) : null;
+  if (inv.woId) { var _w=(DB.workOrders||[]).find(function(w){return w.id===inv.woId;}); if(_w && _w.invoiceId===inv.id){ _w.status='Open'; _w.invoiceId=null; _w.invoiceNum=null; if(typeof _pushWOToCloud==='function') _pushWOToCloud(_w); } }
+  if (typeof _pushInvoiceToCloud==='function') _pushInvoiceToCloud(inv);
   saveDB();
   renderInvoicesPage();
-  showToast('Invoice deleted','info');
+  showToast('Invoice '+(inv.num||'')+' voided','info');
 }
+
+function unvoidInvoice(invId) {
+  var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
+  if (!inv) return;
+  inv.status = 'draft'; inv.voidedDate = null; inv.voidedBy = null;
+  if (typeof _pushInvoiceToCloud==='function') _pushInvoiceToCloud(inv);
+  saveDB();
+  renderInvoicesPage();
+  showToast('Invoice '+(inv.num||'')+' restored','success');
+}
+
+// UI now voids instead of hard-deleting; alias keeps any internal callers safe.
+function deleteInvoice(invId) { return voidInvoice(invId); }
 
 // ============================================================
 // END INVOICES PAGE
@@ -3203,6 +3218,8 @@ function buildInvoiceData(job) {
   };
 }
 
+function _invClean(s){ return String(s==null?'':s).replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/\s+/g,' ').trim(); }
+
 function buildInvoiceHTML(inv) {
   var s = DB.settings||{};
   var cphone = s.cphone || '(336) 629-7474';
@@ -3259,7 +3276,7 @@ function buildInvoiceHTML(inv) {
   }
 
   if (!lineItemsHTML) {
-    lineItemsHTML = '<tr><td colspan="5" style="padding:16px 14px;color:#546e7a;font-style:italic;font-size:13px">'+escHtml((inv.job&&inv.job.name)||'Services Rendered')+'</td></tr>';
+    lineItemsHTML = '<tr><td colspan="5" style="padding:16px 14px;color:#546e7a;font-style:italic;font-size:13px">'+escHtml(_invClean((inv.job&&inv.job.name)||'Services Rendered'))+'</td></tr>';
   }
 
   return '<!DOCTYPE html><html><head><meta charset="UTF-8">'+
@@ -3346,7 +3363,7 @@ function buildInvoiceHTML(inv) {
         (inv.billCity||inv.billState?'<br>'+[inv.billCity,inv.billState].filter(Boolean).join(', ')+(inv.billZip?' '+escHtml(inv.billZip):''):'')+
       '</div></div>'+
       '<div class="addr-block"><label>Project / Job</label><div class="val">'+
-        '<strong>'+escHtml((inv.job&&inv.job.name)||'')+'</strong>'+
+        '<strong>'+escHtml(_invClean((inv.job&&inv.job.name)||''))+'</strong>'+
         ((inv.job&&inv.job.address)?'<br>'+escHtml(inv.job.address):'')+
         ((inv.job&&inv.job.num)?'<br><span style="color:#546e7a">Job #'+escHtml(inv.job.num)+'</span>':'')+
         (inv.po?'<br><span style="color:#546e7a">PO: '+escHtml(inv.po)+'</span>':'')+

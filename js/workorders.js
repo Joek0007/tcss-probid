@@ -2644,6 +2644,17 @@ function _partsMarkupFor(customerId) {
 async function createWOInvoice() {
   var woId=_woCurrentId; if(!woId) return;
   var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;}); if(!wo) return;
+  // #8: if this WO already has an invoice, offer to open it instead of making a duplicate.
+  if (wo.invoiceId) {
+    var _goEx = (typeof confirm==='function') ? confirm('This work order already has invoice '+(wo.invoiceNum||'')+'. Open that invoice instead of creating another?') : false;
+    if (_goEx) {
+      closeModal('modal-work-order'); goPage('invoices');
+      var _ex=(DB.invoices||[]).find(function(i){return i.id===wo.invoiceId;});
+      if (_ex && typeof reprintInvoice==='function') reprintInvoice(_ex.id);
+      else if (typeof fetchInvoiceById==='function') fetchInvoiceById(wo.invoiceId).then(function(f){ if(f&&typeof reprintInvoice==='function') reprintInvoice(wo.invoiceId); });
+      return;
+    }
+  }
   if (typeof ensureWOExpensesLoaded === 'function') { try { await ensureWOExpensesLoaded(woId); } catch(e){} }
   var labor=(DB.woLabor||[]).filter(function(l){return l.woId===woId;});
   var expenses=(DB.woExpenses||[]).filter(function(e){return e.woId===woId;});
@@ -2701,7 +2712,7 @@ async function createWOInvoice() {
     due:'',
     jobId:job?job.id:null,
     woId:woId,
-    job:{ name:wo.description||'', customer:wo.customerName||'' },
+    job:{ name:(typeof _invClean==='function'?_invClean(wo.description||''):(wo.description||'')), customer:wo.customerName||'' },
     billEmail:(function(){ var c=(DB.customers||[]).find(function(x){return x.id===wo.customerId;}); return c?(c.invoicingEmail||c.email||''):''; })(),
     total:total,
     subtotal:subtotal,
@@ -2730,16 +2741,22 @@ async function createWOInvoice() {
       qty:parseFloat(p.qty||1), unit:p.unit||'ea', unitPrice:sell, mc:sell, cost:parseFloat(p.unitCost||0), _part:true });
   });
   DB.invoices.push(inv);
-  // Update WO status
-  wo.status='Open — Partial Invoice (Please Create)';
+  // Mark the WO Invoiced + link the invoice. Persist with an AWAITED targeted cloud write so a
+  // concurrent pull can't clobber the status back to NEW (the old un-awaited push lost it).
+  wo.status='Invoiced';
   wo.invoiceId=inv.id;
-  // Write-through to cloud immediately (invoice + the WO whose status just changed)
-  if (typeof _pushInvoiceToCloud === 'function') _pushInvoiceToCloud(inv);
-  if (typeof _pushWOToCloud === 'function') _pushWOToCloud(wo);
+  wo.invoiceNum=inv.num;
+  if (typeof _pushInvoiceToCloud === 'function') { try { await _pushInvoiceToCloud(inv); } catch(e){} }
+  if (typeof _sb!=='undefined' && _sb) {
+    try { await _sb.from('work_orders').update({ status:'Invoiced', invoice_id:inv.id, updated_at:new Date().toISOString() }).eq('id', wo.id); } catch(e){}
+  }
+  if (typeof _pushWOToCloud === 'function') { try { _pushWOToCloud(wo); } catch(e){} }
   saveDB(); renderWorkOrders();
   closeModal('modal-work-order');
   goPage('invoices');
-  showToast('Draft invoice '+inv.num+' created — review and edit before sending','success',5000);
+  // #9/#7: open the editable invoice so tax + item selection happen before Save & Print.
+  if (typeof reprintInvoice === 'function') { try { reprintInvoice(inv.id); } catch(e){} }
+  showToast('Draft invoice '+inv.num+' created — set tax / adjust items, then Save & Print','success',6000);
 }
 
 // ---- SETTINGS ----

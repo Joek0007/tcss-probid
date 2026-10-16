@@ -372,16 +372,19 @@ function _loadCPInvoices(customer) {
   _cpInvoices = null;
   var forId = customer.id;
   // Always include any invoices already in memory for this customer (open / just-created / unpushed).
+  var _cnm = (customer.name||'').toLowerCase();
   function mem() {
     return (DB.invoices||[]).filter(function(i){
-      return i && (i.customerId===forId ||
-        (i.clientName||'').toLowerCase()===(customer.name||'').toLowerCase());
+      if (!i) return false;
+      if (i.customerId===forId) return true;
+      var n = (i.clientName||i.customerName||(i.job&&i.job.customer)||'').toLowerCase();
+      return !!_cnm && n===_cnm;
     });
   }
   if (typeof fetchInvoicesCloud !== 'function') {
     _cpInvoices = mem(); _applyCPInvoices(forId); return;
   }
-  fetchInvoicesCloud({ customerId: forId, limit: 1000 }).then(function(r){
+  fetchInvoicesCloud({ customerName: customer.name, limit: 1000 }).then(function(r){
     if (_cpCustomerId !== forId) return;           // profile switched/closed while loading
     var rows = (r && r.data) || [];
     var seen = {}; rows.forEach(function(i){ if(i && i.id) seen[i.id]=1; });
@@ -410,9 +413,9 @@ function renderCPInvoices() {
   var invs = _cpInvoices;
   if (!invs.length)
     return '<div style="color:#90a4ae;padding:20px;text-align:center">No invoices for this customer yet.</div>';
-  var statusColors = { paid:'#2e7d32', partial:'#e65100', unpaid:'#c62828' };
+  var statusColors = { paid:'#2e7d32', partial:'#e65100', unpaid:'#c62828', void:'#90a4ae' };
   var sorted = invs.slice().sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
-  var total = invs.reduce(function(s,i){ return s + (Number(i.total)||0); }, 0);
+  var total = invs.reduce(function(s,i){ return s + (i.status==='void'?0:(Number(i.total)||0)); }, 0);
   var paidAmt = invs.filter(function(i){ return i.status==='paid'; }).reduce(function(s,i){ return s + (Number(i.total)||0); }, 0);
   var openBal = total - paidAmt;
   var head = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">'+
@@ -423,7 +426,7 @@ function renderCPInvoices() {
     '</div>';
   return head + sorted.map(function(inv){
     var sc = statusColors[inv.status] || '#546e7a';
-    var jobname = (inv.job && inv.job.name) || inv.jobName || '';
+    var jobname = (typeof _invClean==='function'?_invClean((inv.job&&inv.job.name)||inv.jobName||''):((inv.job&&inv.job.name)||inv.jobName||''));
     var idAttr = escHtml(String(inv.id||''));
     return '<div class="cp-quote-row" style="cursor:pointer" onclick="reprintInvoice(\''+idAttr+'\')">'+
         '<div style="flex:1;min-width:0">'+
