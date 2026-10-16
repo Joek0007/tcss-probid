@@ -425,6 +425,7 @@
   // ---------- exports ----------
   window.woPerDiemRollup=woPerDiemRollup;
   window.woPerDiemTile=woPerDiemTile;
+  window._woPerDiemFetch=_woPerDiemFetch;
   window.renderPerDiemPage=renderPerDiemPage;
   window.loadAllPerDiem=loadAllPerDiem;
   window._pdOpenEntry=_pdOpenEntry; window._pdSaveEntry=_pdSaveEntry;

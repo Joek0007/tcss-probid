@@ -1678,6 +1678,10 @@ function printWorkOrder(woId) {
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
   if (!wo) { showToast('Work order not found','error',2000); return; }
 
+  // Open the print window NOW (inside the click gesture) so the per-diem async fetch can't trigger a popup block.
+  var win = window.open('','_blank','width=900,height=1100');
+  if (win) { try { win.document.write('<!doctype html><title>Work Order</title><p style="font:14px Arial;padding:24px;color:#607d8b">Preparing work order\u2026</p>'); } catch(e){} }
+
   var co = DB.settings || {};
   var labor   = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
   var parts   = (DB.woParts||[]).filter(function(p){ return p.woId===woId; });
@@ -1895,10 +1899,20 @@ function printWorkOrder(woId) {
 
     '</body></html>';
 
-  var win = window.open('','_blank','width=900,height=1100');
-  win.document.write(html);
-  win.document.close();
-  win.focus();
+  // Per Diem (internal cost from the per_diem table) — fetched async, injected before the signature block.
+  (async function(){
+    var pdRows = [];
+    try { if (typeof window._woPerDiemFetch==='function') pdRows = await window._woPerDiemFetch(woId); } catch(e){}
+    if (pdRows && pdRows.length) {
+      var pdTotal = pdRows.reduce(function(s,x){ return s+(parseFloat(x.amount)||0); },0);
+      var pdSection = '<div class="section"><h2>Per Diem (internal \u2014 not billed to customer)</h2>'+
+        '<table><thead><tr><th>Technician</th><th style="text-align:right">Nights</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead><tbody>'+
+        pdRows.map(function(x){ return '<tr><td>'+esc(x.name||'\u2014')+'</td><td style="text-align:right">'+(x.nights||0)+'</td><td style="text-align:right">$'+(parseFloat(x.rate)||0).toFixed(2)+'</td><td style="text-align:right">$'+(parseFloat(x.amount)||0).toFixed(2)+'</td></tr>'; }).join('')+
+        '</tbody><tfoot><tr class="total-row"><td colspan="3">Per Diem Total</td><td style="text-align:right">$'+pdTotal.toFixed(2)+'</td></tr></tfoot></table></div>';
+      html = html.replace('<div class="sig-section">', pdSection + '<div class="sig-section">');
+    }
+    if (win) { try { win.document.open(); win.document.write(html); win.document.close(); win.focus(); } catch(e){} }
+  })();
 }
 
 
