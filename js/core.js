@@ -1157,10 +1157,10 @@ function _favInjectCss(){
 .sf-fav:hover{background:#F0F6FF}
 .sf-fav .sf-star{color:#F59E0B;font-size:13px}
 .sf-fav .sf-cap{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sf-fav .sf-cnt{background:#e2e8f0;color:#475569;border-radius:10px;font-size:11px;padding:0 6px;font-weight:600}
+.sf-fav .sf-chg{background:#1565C0;color:#fff;border-radius:10px;font-size:10px;padding:1px 8px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .sf-fav .sf-car{opacity:.55;font-size:10px}
 .sf-fav.sf-on{color:#1565C0;background:#F0F6FF}
-.sf-fav.sf-on .sf-cnt{background:#1565C0;color:#fff}
+.sf-fav.sf-on .sf-chg{background:#0d4a94;color:#fff}
 .sf-menu{position:absolute;z-index:60;top:calc(100% + 6px);right:0;width:300px;background:#fff;border:1px solid #E0E0E0;border-radius:12px;box-shadow:0 12px 34px rgba(13,27,42,.18);padding:6px;display:none}
 .sf-menu.open{display:block}
 .sf-mh{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#64748b;padding:8px 10px 6px}
@@ -1259,7 +1259,7 @@ function _favEnsureUnit(listId){
   unit.appendChild(sfs);
   var dv=document.createElement('div'); dv.className='sf-div'; unit.appendChild(dv);
   var fav=document.createElement('button'); fav.type='button'; fav.className='sf-fav'; fav.id='sf-fav-'+listId;
-  fav.innerHTML='<span class="sf-star">&#9733;</span><span class="sf-cap">Favorites</span><span class="sf-cnt">0</span><span class="sf-car">&#9662;</span>';
+  fav.innerHTML='<span class="sf-star">&#9733;</span><span class="sf-cap">Favorites</span><span class="sf-chg">Change</span><span class="sf-car">&#9662;</span>';
   unit.appendChild(fav);
   var menu=document.createElement('div'); menu.className='sf-menu'; menu.id='sf-menu-'+listId; unit.appendChild(menu);
   fav.addEventListener('click', function(e){ e.stopPropagation(); _favToggleMenu(listId); });
@@ -1359,7 +1359,7 @@ function _favSyncTrigger(listId){
   var unit=document.getElementById('sf-unit-'+listId); if(!unit) return;
   var fav=document.getElementById('sf-fav-'+listId); if(!fav) return;
   var favs=_favGetAll(listId);
-  var cntEl=fav.querySelector('.sf-cnt'); if (cntEl) cntEl.textContent=favs.length;
+  var chgEl=fav.querySelector('.sf-chg'); if (chgEl) chgEl.style.display=favs.length?'':'none';
   unit.classList.toggle('sf-dirty', !_favIsBaseline(cfg));
   var mi=_favCurrentMatch(listId,cfg);
   var capEl=fav.querySelector('.sf-cap');
