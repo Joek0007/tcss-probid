@@ -3548,6 +3548,9 @@ function renderCustomers() {
     var n = (c.name||'').toLowerCase(), at = n.indexOf(sl);
     if (at === 0) { c._mrank = 0; c._mfield = ''; return true; }
     if (at >  0) { c._mrank = 1; c._mfield = ''; return true; }
+    var _acct=(c.accountNumber||'').toLowerCase();
+    if (_acct && _acct.indexOf(sl)===0) { c._mrank = 0; c._mfield = ''; return true; }
+    if (_acct && _acct.indexOf(sl)>0)   { c._mrank = 1; c._mfield = 'account #'; return true; }
     if ((c.phone||'').toLowerCase().includes(sl))   { c._mrank = 2; c._mfield = 'phone';   return true; }
     if ((c.email||'').toLowerCase().includes(sl))   { c._mrank = 2; c._mfield = 'email';   return true; }
     if ((c.address||'').toLowerCase().includes(sl)) { c._mrank = 2; c._mfield = 'address'; return true; }
@@ -3643,7 +3646,7 @@ function renderCustomers() {
       : '<span class="cust-won zero">$0</span>';
 
     return '<div class="cust-card">'+
-      '<div><div class="cust-card-name" onclick="openCustomerProfile(\''+c.id+'\')">'+n+'</div>'+(lastActivity?'<div class="cust-card-sub">'+lastActivity+'</div>':'')+matchHint+alertPill+'</div>'+
+      '<div><div class="cust-card-name" onclick="openCustomerProfile(\''+c.id+'\')">'+n+(c.accountNumber?' <span style="font-size:11px;color:#546e7a;font-weight:700;background:#eceff1;border-radius:4px;padding:1px 6px;margin-left:6px;white-space:nowrap">#'+escHtml(c.accountNumber)+'</span>':'')+'</div>'+(lastActivity?'<div class="cust-card-sub">'+lastActivity+'</div>':'')+matchHint+alertPill+'</div>'+
       '<div><div>'+phoneHtml+'</div>'+emailHtml+invEmailHtml+'</div>'+
       actCol+
       '<div>'+wonHtml+'</div>'+
@@ -3662,7 +3665,7 @@ function setCustSort(val) {
   if (sel) sel.value = val;
   renderCustomers();
 }
-function _custFieldIds() { return ['m-cname','m-cphone','m-cemail','m-cinvoicing-contact','m-cinvoicing-email','m-cparts-markup','m-cstreet','m-ccity','m-cstate','m-czip','m-cnotes','m-cid']; }
+function _custFieldIds() { return ['m-cname','m-caccount','m-cphone','m-cemail','m-cinvoicing-contact','m-cinvoicing-email','m-cparts-markup','m-cstreet','m-ccity','m-cstate','m-czip','m-cnotes','m-cid']; }
 function _custAddress(c) {
   // Build combined address from split fields for backward compat (quotes display, Supabase, etc)
   var parts = [c.street, c.city && c.state ? c.city+', '+c.state : (c.city||c.state||''), c.zip].filter(Boolean);
@@ -4010,7 +4013,7 @@ function editCustomer(id) {
   sv('m-cinvoicing-contact',c.invoicingContact); sv('m-cinvoicing-email',c.invoicingEmail);
   var _pmEl=document.getElementById('m-cparts-markup'); if(_pmEl) _pmEl.value=(c.partsMarkupPct!=null?c.partsMarkupPct:'');
   sv('m-cstreet',c.street||(c.address&&!c.city?c.address:'')); sv('m-ccity',c.city||''); sv('m-cstate',c.state||''); sv('m-czip',c.zip||'');
-  sv('m-cnotes',c.notes); sv('m-cid',c.id);
+  sv('m-cnotes',c.notes); sv('m-cid',c.id); sv('m-caccount',c.accountNumber||'');
   var sel=document.getElementById('m-cterms'); if(sel) sel.value=c.defaultTerms||'Due on Receipt';
   var taxEl=document.getElementById(c.taxExempt?'m-ctax-exempt':'m-ctax-taxable'); if(taxEl) taxEl.checked=true;
   var htEl=document.getElementById('m-c-hotnote-tech');   if(htEl) htEl.value=c.hotNoteTech||'';
@@ -4021,6 +4024,12 @@ function editCustomer(id) {
   });
   _renderContactSection('edit', c.id, c.name);
   openModal('modal-customer');
+}
+async function _allocCustomerNumber(){
+  var mx = 0;
+  (DB.customers||[]).forEach(function(c){ var n = parseInt(c.accountNumber,10); if (!isNaN(n) && n>mx) mx=n; });
+  try { if (typeof allocNumber==='function'){ var r = await allocNumber('customer', mx); if (r) return String(r); } } catch(e){}
+  return '';
 }
 function _buildCustomerData(id) {
   function gv(eid){var el=document.getElementById(eid); return el?el.value.trim():'';}
@@ -4043,6 +4052,7 @@ function _buildCustomerData(id) {
     hotNoteOffice:    (document.getElementById('m-c-hotnote-office')||{}).value||'',
     invoicingContact: gv('m-cinvoicing-contact'),
     invoicingEmail:   gv('m-cinvoicing-email'),
+    accountNumber:    gv('m-caccount'),
     partsMarkupPct:   (function(){ var v=gv('m-cparts-markup'); return (v!=='' && !isNaN(parseFloat(v))) ? parseFloat(v) : null; })(),
     officeAlertScope: {
       quotes:      !!((document.getElementById('m-calert-quotes')||{}).checked),
@@ -4087,7 +4097,7 @@ function _savePrimaryContact(customerId, customerName) {
   }
 }
 
-function saveCustomer() {
+async function saveCustomer() {
   if (typeof hasPermission==='function' && !hasPermission('cust.edit')) { showToast('You do not have permission to add or edit customers','error'); return; }
   const id = document.getElementById('m-cid').value;
   const name = (document.getElementById('m-cname')||{}).value||'';
@@ -4105,6 +4115,7 @@ function saveCustomer() {
     }
   }
   const data = _buildCustomerData(id);
+  if (!id && !data.accountNumber) { try { data.accountNumber = await _allocCustomerNumber(); } catch(e){} }
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
   else { DB.customers.push(data); _savePrimaryContact(data.id, data.name); }
   if (typeof _pushCustomerToCloud === 'function') _pushCustomerToCloud(data);
@@ -4123,7 +4134,7 @@ function saveCustomer() {
   }
   window._editCustReturnToWO = null;
 }
-function saveCustomerAndAnother() {
+async function saveCustomerAndAnother() {
   if (typeof hasPermission==='function' && !hasPermission('cust.edit')) { showToast('You do not have permission to add or edit customers','error'); return; }
   const id = document.getElementById('m-cid').value;
   const name = (document.getElementById('m-cname')||{}).value||'';
@@ -4140,6 +4151,7 @@ function saveCustomerAndAnother() {
     }
   }
   const data = _buildCustomerData(id);
+  if (!id && !data.accountNumber) { try { data.accountNumber = await _allocCustomerNumber(); } catch(e){} }
   if (id) { const idx=DB.customers.findIndex(function(c){return c.id==id}); if(idx>=0) DB.customers[idx]=data; else DB.customers.push(data); }
   else { DB.customers.push(data); _savePrimaryContact(data.id, data.name); }
   if (typeof _pushCustomerToCloud === 'function') _pushCustomerToCloud(data);

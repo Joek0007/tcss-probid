@@ -1173,7 +1173,7 @@ async function syncAllFromCloud(silent) {
         var cCloudComplete = custs.length > 0;
         var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)) && delC.indexOf(String(c.id)) < 0 && !(c._synced && cCloudComplete); });
         var cloudCusts = custs.map(function(c) {
-          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, partsMarkupPct:(c.parts_markup_pct!=null?c.parts_markup_pct:null), moduleAlerts:c.module_alerts||null, notes:c.notes, active:c.is_active };
+          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, partsMarkupPct:(c.parts_markup_pct!=null?c.parts_markup_pct:null), moduleAlerts:c.module_alerts||null, accountNumber:(c.account_number!=null?c.account_number:null), notes:c.notes, active:c.is_active };
         });
         cloudCusts.forEach(function(cc){ cc._synced = true; });
         DB.customers = cloudCusts.concat(localOnlyCusts);
@@ -1839,6 +1839,7 @@ async function _pushCustomerToCloud(c) {
       tax_exempt: !!c.taxExempt,
       hot_note_tech: c.hotNoteTech || null,
       hot_note_office: c.hotNoteOffice || null,
+      account_number: (c.accountNumber!=null && c.accountNumber!=='') ? String(c.accountNumber) : null,
       office_alert_scope: c.officeAlertScope || null,
       invoicing_contact: c.invoicingContact || null,
       invoicing_email: c.invoicingEmail || null,
@@ -2913,6 +2914,7 @@ async function pushAllToCloud() {
           tax_exempt: !!c.taxExempt,
           hot_note_tech:   c.hotNoteTech || null,
           hot_note_office: c.hotNoteOffice || null,
+      account_number: (c.accountNumber!=null && c.accountNumber!=='') ? String(c.accountNumber) : null,
           office_alert_scope: c.officeAlertScope || null,
           invoicing_contact: c.invoicingContact || null,
           invoicing_email:   c.invoicingEmail || null,

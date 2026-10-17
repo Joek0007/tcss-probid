@@ -17,7 +17,7 @@ function openCustomerProfile(customerId) {
   var av = document.getElementById('cp-avatar'); if(av) av.textContent=initials;
   var nm = document.getElementById('cp-name');   if(nm) nm.textContent=customer.name||'';
   var mt = document.getElementById('cp-meta');
-  if (mt) mt.textContent = [customer.phone,customer.email,customer.address].filter(Boolean).join(' · ');
+  if (mt) mt.textContent = [(customer.accountNumber?('Acct #'+customer.accountNumber):''),customer.phone,customer.email,customer.address].filter(Boolean).join(' · ');
 
   // Stats
   var quotes   = DB.quotes.filter(function(q){ return (q.cn||'').toLowerCase()===(customer.name||'').toLowerCase(); });
