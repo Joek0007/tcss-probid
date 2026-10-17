@@ -2244,10 +2244,12 @@ async function dupQuote(id) {
   if (!(validDays > 0)) validDays = (DB.settings && DB.settings.validDays) || 30;
   nq.vu = new Date(new Date(today).getTime() + validDays * 86400000).toISOString().split('T')[0];
 
-  // Never inherit the original's approval or its approval link — the token is unique
-  // per quote, so copying it would point the customer portal at the wrong quote.
+  // Give the copy its OWN fresh approval link — a brand-new unique token — so a
+  // duplicated quote always has a working Approve/Sign button instead of a dead one.
+  // The fresh token points the portal only at THIS copy, so it can never approve the
+  // wrong quote. We still never inherit the original's approval STATUS.
   nq.approval = null;
-  nq.approvalToken = null;
+  nq.approvalToken = (typeof _generateToken === 'function') ? _generateToken() : null;
 
   // Re-assign fresh _id to every line item to prevent cross-item edit bugs
   if (nq.items) nq.items = nq.items.map(function(item){ return Object.assign({},item,{_id:nextLiId()}); });
