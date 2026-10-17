@@ -1156,7 +1156,7 @@ function _favInjectCss(){
   _favCssInjected = true;
   var st = document.createElement('style'); st.id = 'sf-fav-css';
   st.textContent = `
-.sf-unit{display:flex;align-items:stretch;background:#fff;border:1.5px solid #e0e0e0;border-radius:7px;min-height:38px;flex:1 1 320px;max-width:470px;min-width:240px;position:relative}
+.sf-unit{display:flex;align-items:stretch;background:#fff;border:1.5px solid var(--sf-bd,#e0e0e0);border-radius:7px;min-height:38px;flex:1 1 320px;max-width:470px;min-width:240px;position:relative}
 .sf-unit:focus-within{border-color:#1565C0;box-shadow:0 0 0 3px rgba(25,118,210,.1)}
 .sf-unit .sf-search{position:relative;flex:1;display:flex;align-items:center;min-width:0}
 .sf-unit .sf-search input,.sf-unit input.search-input{border:none!important;outline:none!important;background:transparent!important;width:100%!important;max-width:none!important;padding:8px 6px 8px 12px!important;margin:0!important;font-family:inherit;font-size:13px;color:#1A1A2E;box-shadow:none!important}
@@ -1281,6 +1281,7 @@ function _favEnsureUnit(listId){
     }
   }
   var unit=document.createElement('div'); unit.className='sf-unit'; unit.id='sf-unit-'+listId;
+  try{ if(selEl){ unit.style.setProperty('--sf-bd', getComputedStyle(selEl).borderTopColor); } }catch(e){}
   var sfs=document.createElement('div'); sfs.className='sf-search';
   anchorParent.insertBefore(unit, replaceEl);   // drop the unit where the pill/input was
   sfs.appendChild(input);                         // move the input inside it
