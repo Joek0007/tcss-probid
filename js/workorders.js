@@ -309,17 +309,24 @@ function renderWorkOrders() {
     function makeChip(status, bg, color, border, label) {
       return '<span onclick="woChipClick(\'' + status + '\')" style="'+chipStyle+';background:'+bg+';color:'+color+';border-color:'+border+'">'+label+'</span>';
     }
-    var chipEls = makeChip('', chipFilter===''?'#1565c0':'#e0e7ef', chipFilter===''?'#fff':'#0d1b2a', chipFilter===''?'#1565c0':'#c8d0db', 'All <b>'+allU.length+'</b>');
+    // Contrasting count bubble inside each pill: on an unselected (gray) pill it takes the
+    // status color; on the selected (colored) pill it flips to white with the color as the number.
+    function woCountBubble(cnt, col, active){
+      var bg = active ? '#ffffff' : col;
+      var fg = active ? col : _smartTextColor(col);
+      return '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:7px;border-radius:9px;background:'+bg+';color:'+fg+';font-size:10px;font-weight:800;line-height:1;vertical-align:middle">'+cnt+'</span>';
+    }
+    var chipEls = makeChip('', chipFilter===''?'#1565c0':'#e0e7ef', chipFilter===''?'#fff':'#0d1b2a', chipFilter===''?'#1565c0':'#c8d0db', 'All'+woCountBubble(allU.length, '#1565c0', chipFilter===''));
     _getWOStatuses().forEach(function(s){
       var cnt = sCounts[s.id]||0; if (!cnt) return;
       var col = s.color||'#546e7a';
       var active = chipFilter===s.id;
-      chipEls += makeChip(s.id, active?col:'#e0e7ef', active?_smartTextColor(col):'#0d1b2a', active?col:'#c8d0db', escHtml(s.id)+' <b>'+cnt+'</b>');
+      chipEls += makeChip(s.id, active?col:'#e0e7ef', active?_smartTextColor(col):'#0d1b2a', active?col:'#c8d0db', escHtml(s.id)+woCountBubble(cnt, col, active));
     });
     var unschedCount = allU.filter(function(w){ return !w.scheduledDate; }).length;
     if (unschedCount) {
       var ua = _woUnscheduledFilter;
-      chipEls += makeChip('__unscheduled__', ua?'#c62828':'#e0e7ef', ua?'#fff':'#0d1b2a', ua?'#c62828':'#c8d0db', '&#9888; Unscheduled <b>'+unschedCount+'</b>');
+      chipEls += makeChip('__unscheduled__', ua?'#c62828':'#e0e7ef', ua?'#fff':'#0d1b2a', ua?'#c62828':'#c8d0db', '&#9888; Unscheduled'+woCountBubble(unschedCount, '#c62828', ua));
     }
     chipsEl.innerHTML = '<span style="font-size:11px;color:#546e7a;font-weight:700;margin-right:6px">QUICK FILTER:</span>'+chipEls;
   }
