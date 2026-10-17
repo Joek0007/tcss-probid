@@ -1117,169 +1117,275 @@ function saveUiPrefs() {
 // "+" on a menu item jumps straight into creating that record. Quotes routes to the Quick
 // Quote page (which IS the new-quote flow); the rest open the entity's "new" form/modal.
 // ============================================================
-// Per-list search: reset-on-return + saved "favorite" views
+// Per-list search: reset-on-return + Favorites (integrated dropdown)
 // ------------------------------------------------------------
-// Every configured list's search box resets to its default view
-// whenever you navigate back to the page (so stale searches never
-// linger), and users can save the current view (search text +
-// filter + sort) as a named chip to jump straight back to it.
-// Saved views live per-user in _uiPrefs.searches[listId] and are
-// cloud-synced through the same user_ui_prefs row as menu prefs.
+// Each configured list gets an integrated search control: the search
+// box with an in-pill "clear" (back to the full list), plus a Favorites
+// dropdown tucked against its right edge. A favorite stores the whole
+// view (search text + filter + sort). Star one as the DEFAULT and it
+// auto-applies whenever you open that list; with none starred the list
+// opens to all records (the prior behavior). Per-user, cloud-synced via
+// user_ui_prefs (prefs.searches[listId] = [{name,q,filter,sort,def?}]).
 // To add a list: add one entry to LIST_SEARCH_CFG below.
 // ============================================================
 var LIST_SEARCH_CFG = {
   customers: { input:'cust-search', filter:'cust-filter', sort:'cust-sort', defFilter:'', defSort:'name-asc', render:'renderCustomers' }
 };
+var _favEditing = {};          // listId -> suggested name while the save box is open
+var _favCssInjected = false;
+var _favMenuDocHooked = false;
 
 function _favEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 
-// Saved views for a list (read through effective prefs, so a user who
-// hasn't personalized still sees any company-default views).
+function _favInjectCss(){
+  if (_favCssInjected || document.getElementById('sf-fav-css')) { _favCssInjected = true; return; }
+  _favCssInjected = true;
+  var st = document.createElement('style'); st.id = 'sf-fav-css';
+  st.textContent = `
+.sf-unit{display:flex;align-items:stretch;background:#fff;border:1.3px solid #E0E0E0;border-radius:7px;flex:1 1 320px;max-width:470px;min-width:240px;position:relative}
+.sf-unit:focus-within{border-color:#90CAF9}
+.sf-unit .sf-search{position:relative;flex:1;display:flex;align-items:center;min-width:0}
+.sf-unit .sf-search input,.sf-unit input.search-input{border:none!important;outline:none!important;background:transparent!important;width:100%!important;max-width:none!important;padding:8px 6px 8px 12px!important;margin:0!important;font-family:inherit;font-size:13px;color:#1A1A2E;box-shadow:none!important}
+.sf-unit .sf-clr{margin-right:4px;width:18px;height:18px;border-radius:50%;border:none;background:#e2e8f0;color:#475569;font-size:11px;cursor:pointer;display:none;align-items:center;justify-content:center;flex:none;padding:0;line-height:1}
+.sf-unit .sf-clr:hover{background:#cbd5e1}
+.sf-unit.sf-dirty .sf-clr{display:inline-flex}
+.sf-unit .sf-div{width:1px;background:#E0E0E0;margin:6px 0;flex:none}
+.sf-fav{border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:12.5px;color:#1A1A2E;padding:0 11px;display:flex;align-items:center;gap:6px;border-radius:0 6px 6px 0;white-space:nowrap;flex:none}
+.sf-fav:hover{background:#F0F6FF}
+.sf-fav .sf-star{color:#F59E0B;font-size:13px}
+.sf-fav .sf-cap{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sf-fav .sf-cnt{background:#e2e8f0;color:#475569;border-radius:10px;font-size:11px;padding:0 6px;font-weight:600}
+.sf-fav .sf-car{opacity:.55;font-size:10px}
+.sf-fav.sf-on{color:#1565C0;background:#F0F6FF}
+.sf-fav.sf-on .sf-cnt{background:#1565C0;color:#fff}
+.sf-menu{position:absolute;z-index:60;top:calc(100% + 6px);right:0;width:300px;background:#fff;border:1px solid #E0E0E0;border-radius:12px;box-shadow:0 12px 34px rgba(13,27,42,.18);padding:6px;display:none}
+.sf-menu.open{display:block}
+.sf-mh{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#64748b;padding:8px 10px 6px}
+.sf-row{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px}
+.sf-row:hover{background:#f1f5f9}
+.sf-row.sf-active{background:#F0F6FF}
+.sf-tog{border:none;background:transparent;cursor:pointer;font-size:15px;padding:2px;color:#cbd5e1;line-height:1;width:24px;flex:none}
+.sf-tog.on{color:#F59E0B}
+.sf-nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1A1A2E;cursor:pointer}
+.sf-nm .sf-def{font-size:10px;color:#F59E0B;font-weight:700;margin-left:6px;letter-spacing:.03em}
+.sf-del{border:none;background:transparent;cursor:pointer;color:#94a3b8;font-size:13px;padding:2px 5px;border-radius:6px;flex:none}
+.sf-del:hover{background:#fee2e2;color:#dc2626}
+.sf-sep{height:1px;background:#E0E0E0;margin:6px 4px}
+.sf-foot{display:flex;align-items:center;gap:6px;padding:9px 10px;color:#1565C0;font-size:12.5px;cursor:pointer;border-radius:8px;font-weight:600}
+.sf-foot:hover{background:#F0F6FF}
+.sf-hint{font-size:11.5px;color:#64748b;padding:2px 10px 8px}
+.sf-namerow{display:flex;align-items:center;gap:6px;padding:8px}
+.sf-namerow input{flex:1;min-width:0;font-size:12.5px;padding:6px 9px;border:1px solid #E0E0E0;border-radius:8px;outline:none;font-family:inherit}
+.sf-ok{border:none;border-radius:8px;background:#16a34a;color:#fff;font-size:12px;font-weight:600;padding:6px 10px;cursor:pointer}
+.sf-cancel{border:1px solid #E0E0E0;border-radius:8px;background:transparent;color:#64748b;font-size:12px;padding:6px 8px;cursor:pointer}
+.sf-empty{padding:12px 10px;color:#94a3b8;font-size:12px;text-align:center}
+@media (max-width:640px){.sf-unit{flex:1 1 100%;max-width:none}.sf-menu{width:min(300px,86vw)}}
+`;
+  (document.head||document.documentElement).appendChild(st);
+}
+
+// ---- storage (read via effective prefs, write via personal) ----
 function _favGetAll(listId){
-  try { var s = (_effPrefs().searches)||{}; return Array.isArray(s[listId]) ? s[listId] : []; }
+  try { var s=(_effPrefs().searches)||{}; return Array.isArray(s[listId])?s[listId]:[]; }
   catch(e){ return []; }
 }
 function _favSetAll(listId, arr){
   _ensurePersonal();
-  if (!_uiPrefs.searches || typeof _uiPrefs.searches!=='object') _uiPrefs.searches = {};
-  _uiPrefs.searches[listId] = arr;
+  if (!_uiPrefs.searches || typeof _uiPrefs.searches!=='object') _uiPrefs.searches={};
+  _uiPrefs.searches[listId]=arr;
   saveUiPrefs();
 }
+function _favDefault(listId){
+  var a=_favGetAll(listId);
+  for (var i=0;i<a.length;i++){ if (a[i] && a[i].def) return a[i]; }
+  return null;
+}
 
-// Read the live search text + filter + sort off the DOM for a list.
+// ---- DOM view helpers ----
 function _favReadView(cfg){
-  var v = { q:'', filter:cfg.defFilter, sort:cfg.defSort };
-  var qi = cfg.input  && document.getElementById(cfg.input);  if (qi) v.q = (qi.value||'').trim();
-  var fi = cfg.filter && document.getElementById(cfg.filter); if (fi) v.filter = fi.value||'';
-  var si = cfg.sort   && document.getElementById(cfg.sort);   if (si) v.sort = si.value||'';
+  var v={ q:'', filter:cfg.defFilter, sort:cfg.defSort };
+  var qi=document.getElementById(cfg.input);  if (qi) v.q=(qi.value||'').trim();
+  var fi=document.getElementById(cfg.filter); if (fi) v.filter=fi.value||'';
+  var si=document.getElementById(cfg.sort);   if (si) v.sort=si.value||'';
   return v;
 }
-// Push a saved view back onto the DOM, then re-render the list.
-function _favApplyView(cfg, v){
-  var qi = cfg.input  && document.getElementById(cfg.input);  if (qi) qi.value = (v&&v.q)||'';
-  var fi = cfg.filter && document.getElementById(cfg.filter); if (fi) fi.value = (v&&v.filter!=null)?v.filter:cfg.defFilter;
-  var si = cfg.sort   && document.getElementById(cfg.sort);   if (si) si.value = (v&&v.sort)?v.sort:cfg.defSort;
-  if (cfg.render && typeof window[cfg.render]==='function') { try{ window[cfg.render](); }catch(e){} }
+function _favSetInputs(cfg, v){   // sets values only; caller triggers the render
+  var qi=document.getElementById(cfg.input);  if (qi) qi.value=(v&&v.q)||'';
+  var fi=document.getElementById(cfg.filter); if (fi) fi.value=(v&&v.filter!=null)?v.filter:cfg.defFilter;
+  var si=document.getElementById(cfg.sort);   if (si) si.value=(v&&v.sort)?v.sort:cfg.defSort;
 }
-
-// Reset-on-return: clear a list's search box back to its default whenever
-// the page is shown. Called from goPage BEFORE the page's render runs, so
-// the render picks up the cleared inputs. Also (re)builds the chip bar.
-function _listSearchReset(listId){
-  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
-  var qi = cfg.input  && document.getElementById(cfg.input);  if (qi) qi.value = '';
-  var fi = cfg.filter && document.getElementById(cfg.filter); if (fi) fi.value = cfg.defFilter;
-  var si = cfg.sort   && document.getElementById(cfg.sort);   if (si) si.value = cfg.defSort;
-  _favEnsureBar(listId);
-  _favRenderChips(listId);
+function _favRender(cfg){ if (cfg.render && typeof window[cfg.render]==='function'){ try{ window[cfg.render](); }catch(e){} } }
+function _favIsBaseline(cfg){ var v=_favReadView(cfg); return (!v.q && v.filter===cfg.defFilter && v.sort===cfg.defSort); }
+function _favCurrentMatch(listId, cfg){
+  var v=_favReadView(cfg), a=_favGetAll(listId);
+  for (var i=0;i<a.length;i++){ if (a[i] && a[i].q===v.q && a[i].filter===v.filter && a[i].sort===v.sort) return i; }
+  return -1;
 }
-
-// Inject (once) the chip bar just below a list's filter bar.
-function _favEnsureBar(listId){
-  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return null;
-  var barId = 'favbar-'+listId;
-  var bar = document.getElementById(barId);
-  if (bar) return bar;
-  var input = document.getElementById(cfg.input); if(!input) return null;
-  var container = (input.closest && input.closest('.filter-bar')) || input.parentNode;
-  if(!container || !container.parentNode) return null;
-  bar = document.createElement('div');
-  bar.id = barId;
-  bar.className = 'fav-bar';
-  bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-2px 0 12px 0';
-  container.parentNode.insertBefore(bar, container.nextSibling);
-  return bar;
-}
-
-function _favRenderChips(listId){
-  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
-  var bar = _favEnsureBar(listId); if(!bar) return;
-  var favs = _favGetAll(listId);
-  var h = '<button type="button" onclick="_favBeginSave(\'' + listId + '\')" title="Save the current search, filter and sort as a favorite you can jump back to" style="font-size:12px;padding:3px 10px;border:1px dashed var(--border,#cbd5e1);border-radius:14px;background:transparent;cursor:pointer;color:var(--text,#334155)">&#9733; Save as favorite</button>';
-  h += _favChipsHtml(listId, favs);
-  bar.innerHTML = h;
-}
-
-// Shared chip markup (used by the normal bar and the naming editor).
-function _favChipsHtml(listId, favs){
-  var h = '';
-  favs.forEach(function(f, i){
-    var nm = (f && f.name) ? f.name : 'Favorite';
-    h += '<span class="fav-chip" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 4px 3px 10px;border:1px solid var(--border,#cbd5e1);border-radius:14px;background:var(--chip-bg,#f1f5f9)">'
-       +   '<span onclick="_favApply(\'' + listId + '\',' + i + ')" title="Jump to this favorite" style="cursor:pointer">' + _favEsc(nm) + '</span>'
-       +   '<span onclick="_favDelete(\'' + listId + '\',' + i + ')" title="Remove this favorite" style="opacity:.5;padding:0 4px;font-weight:bold;cursor:pointer">&#10005;</span>'
-       + '</span>';
-  });
-  return h;
-}
-
-// Suggest a starting name for a new favorite: the search text if any,
-// else the active filter's label, else the sort's label.
 function _favSuggestName(cfg, v){
-  var name = v.q || '';
+  var name=v.q||'';
   if (!name){
-    var fi = document.getElementById(cfg.filter);
-    if (fi && v.filter && fi.selectedIndex>=0) name = fi.options[fi.selectedIndex].text;
-    if (!name){ var si = document.getElementById(cfg.sort); if (si && si.selectedIndex>=0) name = si.options[si.selectedIndex].text; }
+    var fi=document.getElementById(cfg.filter);
+    if (fi && v.filter && fi.selectedIndex>=0) name=fi.options[fi.selectedIndex].text;
+    if (!name){ var si=document.getElementById(cfg.sort); if (si && si.selectedIndex>=0) name=si.options[si.selectedIndex].text; }
   }
   return (name||'Favorite').trim().slice(0,40);
 }
 
-// Clicking "Save as favorite" opens an inline name box (pre-filled, editable)
-// instead of auto-saving, so the user labels it however makes sense to them.
-function _favBeginSave(listId){
-  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
-  var v = _favReadView(cfg);
-  if (!v.q && v.filter===cfg.defFilter && v.sort===cfg.defSort){
-    if (typeof showToast==='function') showToast('Search, filter or sort first, then save it as a favorite','info',2800);
-    return;
+// ---- build the integrated unit (once per list) ----
+function _favEnsureUnit(listId){
+  var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return null;
+  _favInjectCss();
+  var legacy=document.getElementById('favbar-'+listId); if (legacy && legacy.parentNode) legacy.parentNode.removeChild(legacy);
+  var existing=document.getElementById('sf-unit-'+listId); if (existing) return existing;
+  var input=document.getElementById(cfg.input); if(!input) return null;
+  var unit=document.createElement('div'); unit.className='sf-unit'; unit.id='sf-unit-'+listId;
+  var sfs=document.createElement('div'); sfs.className='sf-search';
+  input.parentNode.insertBefore(unit, input);   // drop the unit where the input was
+  sfs.appendChild(input);                         // move the input inside it
+  var clr=document.createElement('button'); clr.type='button'; clr.className='sf-clr'; clr.title='Clear — show all'; clr.innerHTML='&#10005;';
+  sfs.appendChild(clr);
+  unit.appendChild(sfs);
+  var dv=document.createElement('div'); dv.className='sf-div'; unit.appendChild(dv);
+  var fav=document.createElement('button'); fav.type='button'; fav.className='sf-fav'; fav.id='sf-fav-'+listId;
+  fav.innerHTML='<span class="sf-star">&#9733;</span><span class="sf-cap">Favorites</span><span class="sf-cnt">0</span><span class="sf-car">&#9662;</span>';
+  unit.appendChild(fav);
+  var menu=document.createElement('div'); menu.className='sf-menu'; menu.id='sf-menu-'+listId; unit.appendChild(menu);
+  fav.addEventListener('click', function(e){ e.stopPropagation(); _favToggleMenu(listId); });
+  clr.addEventListener('click', function(e){ e.stopPropagation(); _favClear(listId); });
+  input.addEventListener('input', function(){ _favSyncTrigger(listId); });
+  var fi=document.getElementById(cfg.filter); if (fi) fi.addEventListener('change', function(){ _favSyncTrigger(listId); });
+  var si=document.getElementById(cfg.sort);   if (si) si.addEventListener('change', function(){ _favSyncTrigger(listId); });
+  if (!_favMenuDocHooked){
+    _favMenuDocHooked=true;
+    document.addEventListener('click', function(ev){
+      var open=document.querySelectorAll('.sf-menu.open');
+      [].forEach.call(open, function(m){ var u=m.parentNode; if (u && !u.contains(ev.target)) m.classList.remove('open'); });
+    });
   }
-  var bar = _favEnsureBar(listId); if(!bar) return;
-  var suggested = _favSuggestName(cfg, v);
-  var ed = '<span style="display:inline-flex;align-items:center;gap:4px">'
-    + '<input id="favname-' + listId + '" type="text" maxlength="40" value="' + _favEsc(suggested) + '" placeholder="Name this favorite" '
-    +   'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_favConfirmSave(\'' + listId + '\');}else if(event.key===\'Escape\'){event.preventDefault();_favCancelSave(\'' + listId + '\');}" '
-    +   'style="font-size:12px;padding:4px 9px;border:1px solid var(--border,#cbd5e1);border-radius:12px;width:170px;outline:none">'
-    + '<button type="button" onclick="_favConfirmSave(\'' + listId + '\')" title="Save favorite" style="font-size:12px;padding:4px 10px;border:none;border-radius:12px;background:#16a34a;color:#fff;cursor:pointer;font-weight:600">&#10003; Save</button>'
-    + '<button type="button" onclick="_favCancelSave(\'' + listId + '\')" title="Cancel" style="font-size:12px;padding:4px 8px;border:1px solid var(--border,#cbd5e1);border-radius:12px;background:transparent;cursor:pointer;color:var(--text,#64748b)">&#10005;</button>'
-    + '</span>';
-  bar.innerHTML = ed + _favChipsHtml(listId, _favGetAll(listId));
-  var inp = document.getElementById('favname-' + listId);
-  if (inp){ try{ inp.focus(); inp.select(); }catch(e){} }
+  return unit;
 }
 
-function _favConfirmSave(listId){
-  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
-  var v = _favReadView(cfg);
-  var inp = document.getElementById('favname-' + listId);
-  var name = (inp && inp.value ? inp.value : '').trim().slice(0,40) || _favSuggestName(cfg, v);
-  var favs = _favGetAll(listId).slice();
-  if (favs.some(function(f){ return f && f.q===v.q && f.filter===v.filter && f.sort===v.sort; })){
-    if (typeof showToast==='function') showToast('That exact view is already a favorite','info',2200);
-    _favRenderChips(listId);
-    return;
-  }
-  favs.push({ name:name, q:v.q, filter:v.filter, sort:v.sort });
-  if (favs.length>12) favs = favs.slice(favs.length-12);
-  _favSetAll(listId, favs);
-  _favRenderChips(listId);
-  if (typeof showToast==='function') showToast('Saved favorite: '+name,'success',2000);
+function _favToggleMenu(listId){
+  var m=document.getElementById('sf-menu-'+listId); if(!m) return;
+  var isOpen=m.classList.contains('open');
+  [].forEach.call(document.querySelectorAll('.sf-menu.open'), function(x){ x.classList.remove('open'); });
+  _favEditing[listId]=null;
+  if (!isOpen){ _favRenderMenu(listId); m.classList.add('open'); }
 }
 
-function _favCancelSave(listId){ _favRenderChips(listId); }
+function _favRenderMenu(listId){
+  var m=document.getElementById('sf-menu-'+listId); if(!m) return;
+  var favs=_favGetAll(listId);
+  var cfg=LIST_SEARCH_CFG[listId];
+  var activeIdx=cfg ? _favCurrentMatch(listId,cfg) : -1;
+  var h='<div class="sf-mh">Your favorites</div>';
+  if (!favs.length){ h+='<div class="sf-empty">No favorites yet — search or filter, then save it below.</div>'; }
+  favs.forEach(function(f,i){
+    var isDef=!!(f&&f.def);
+    h+='<div class="sf-row'+(i===activeIdx?' sf-active':'')+'">'
+      +  '<button type="button" class="sf-tog'+(isDef?' on':'')+'" title="Set as the default view" onclick="event.stopPropagation();_favSetDefault(\''+listId+'\','+i+')">&#9733;</button>'
+      +  '<span class="sf-nm" onclick="_favApply(\''+listId+'\','+i+')">'+_favEsc(f.name||'Favorite')+(isDef?'<span class="sf-def">DEFAULT</span>':'')+'</span>'
+      +  '<button type="button" class="sf-del" title="Remove" onclick="event.stopPropagation();_favDelete(\''+listId+'\','+i+')">&#10005;</button>'
+      +'</div>';
+  });
+  h+='<div class="sf-sep"></div>';
+  if (_favEditing[listId]!=null){
+    h+='<div class="sf-namerow">'
+      +  '<input id="sf-name-'+listId+'" type="text" maxlength="40" value="'+_favEsc(_favEditing[listId])+'" placeholder="Name this favorite" '
+      +     'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_favConfirmSave(\''+listId+'\');}else if(event.key===\'Escape\'){event.preventDefault();_favCancelSave(\''+listId+'\');}">'
+      +  '<button type="button" class="sf-ok" onclick="event.stopPropagation();_favConfirmSave(\''+listId+'\')">&#10003;</button>'
+      +  '<button type="button" class="sf-cancel" onclick="event.stopPropagation();_favCancelSave(\''+listId+'\')">&#10005;</button>'
+      +'</div>';
+  } else {
+    h+='<div class="sf-foot" onclick="event.stopPropagation();_favBeginSave(\''+listId+'\')">&#65291; Save current view as favorite&hellip;</div>'
+      +'<div class="sf-hint">Tap a &#9733; to set the one that opens by default.</div>';
+  }
+  m.innerHTML=h;
+  _favSyncTrigger(listId);
+}
+
+function _favSyncTrigger(listId){
+  var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  var unit=document.getElementById('sf-unit-'+listId); if(!unit) return;
+  var fav=document.getElementById('sf-fav-'+listId); if(!fav) return;
+  var favs=_favGetAll(listId);
+  var cntEl=fav.querySelector('.sf-cnt'); if (cntEl) cntEl.textContent=favs.length;
+  unit.classList.toggle('sf-dirty', !_favIsBaseline(cfg));
+  var mi=_favCurrentMatch(listId,cfg);
+  var capEl=fav.querySelector('.sf-cap');
+  if (mi>=0){ fav.classList.add('sf-on'); if (capEl) capEl.textContent=(favs[mi].name||'Favorite'); }
+  else { fav.classList.remove('sf-on'); if (capEl) capEl.textContent='Favorites'; }
+}
 
 function _favApply(listId, i){
-  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
-  var f = _favGetAll(listId)[i]; if(!f) return;
-  _favApplyView(cfg, f);
+  var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  var f=_favGetAll(listId)[i]; if(!f) return;
+  _favSetInputs(cfg,f); _favRender(cfg);
+  var m=document.getElementById('sf-menu-'+listId); if(m) m.classList.remove('open');
+  _favSyncTrigger(listId);
+}
+function _favClear(listId){
+  var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  _favSetInputs(cfg,{q:'',filter:cfg.defFilter,sort:cfg.defSort}); _favRender(cfg);
+  _favSyncTrigger(listId);
+  var qi=document.getElementById(cfg.input); if(qi){ try{ qi.focus(); }catch(e){} }
+}
+function _favSetDefault(listId, i){
+  _ensurePersonal();
+  var arr=_favGetAll(listId).slice(); if (i<0||i>=arr.length) return;
+  var turnOn = !(arr[i] && arr[i].def);
+  arr.forEach(function(f,idx){ if (f) f.def=(turnOn && idx===i); });
+  _favSetAll(listId,arr);
+  _favRenderMenu(listId);
+}
+function _favDelete(listId, i){
+  _ensurePersonal();
+  var arr=_favGetAll(listId).slice(); if (i<0||i>=arr.length) return;
+  arr.splice(i,1);
+  _favSetAll(listId,arr);
+  _favRenderMenu(listId);
 }
 
-function _favDelete(listId, i){
-  var favs = _favGetAll(listId).slice();
-  if (i<0 || i>=favs.length) return;
-  favs.splice(i,1);
-  _favSetAll(listId, favs);
-  _favRenderChips(listId);
+// ---- save flow (inline name box inside the menu) ----
+function _favBeginSave(listId){
+  var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  var v=_favReadView(cfg);
+  if (_favIsBaseline(cfg)){ if (typeof showToast==='function') showToast('Search, filter or sort first, then save it as a favorite','info',2800); return; }
+  _favEditing[listId]=_favSuggestName(cfg,v);
+  _favRenderMenu(listId);
+  var inp=document.getElementById('sf-name-'+listId); if (inp){ try{ inp.focus(); inp.select(); }catch(e){} }
+}
+function _favConfirmSave(listId){
+  var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  var v=_favReadView(cfg);
+  var inp=document.getElementById('sf-name-'+listId);
+  var name=(inp&&inp.value?inp.value:'').trim().slice(0,40) || _favSuggestName(cfg,v);
+  _ensurePersonal();
+  var arr=_favGetAll(listId).slice();
+  if (arr.some(function(f){ return f && f.q===v.q && f.filter===v.filter && f.sort===v.sort; })){
+    if (typeof showToast==='function') showToast('That exact view is already a favorite','info',2200);
+    _favEditing[listId]=null; _favRenderMenu(listId); return;
+  }
+  arr.push({ name:name, q:v.q, filter:v.filter, sort:v.sort });
+  if (arr.length>20) arr=arr.slice(arr.length-20);
+  _favSetAll(listId,arr);
+  _favEditing[listId]=null;
+  _favRenderMenu(listId);
+  if (typeof showToast==='function') showToast('Saved favorite: '+name,'success',2000);
+}
+function _favCancelSave(listId){ _favEditing[listId]=null; _favRenderMenu(listId); }
+
+// ---- reset-on-return: apply the default favorite (if starred), else clear to all ----
+// Called from goPage BEFORE the page's own render runs, so the render picks up the inputs.
+function _listSearchReset(listId){
+  var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  _favEnsureUnit(listId);
+  _favEditing[listId]=null;
+  var m=document.getElementById('sf-menu-'+listId); if(m) m.classList.remove('open');
+  var def=_favDefault(listId);
+  if (def) _favSetInputs(cfg, def);
+  else     _favSetInputs(cfg, { q:'', filter:cfg.defFilter, sort:cfg.defSort });
+  _favRenderMenu(listId);
 }
 
 
