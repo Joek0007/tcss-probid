@@ -1195,42 +1195,78 @@ function _favRenderChips(listId){
   var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
   var bar = _favEnsureBar(listId); if(!bar) return;
   var favs = _favGetAll(listId);
-  var h = '<button type="button" onclick="_favSaveCurrent(\'' + listId + '\')" title="Save the current search, filter and sort as a reusable view" style="font-size:12px;padding:3px 10px;border:1px dashed var(--border,#cbd5e1);border-radius:14px;background:transparent;cursor:pointer;color:var(--text,#334155)">&#9733; Save view</button>';
-  favs.forEach(function(f, i){
-    var nm = (f && f.name) ? f.name : 'View';
-    h += '<span class="fav-chip" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 4px 3px 10px;border:1px solid var(--border,#cbd5e1);border-radius:14px;background:var(--chip-bg,#f1f5f9)">'
-       +   '<span onclick="_favApply(\'' + listId + '\',' + i + ')" title="Apply this saved view" style="cursor:pointer">' + _favEsc(nm) + '</span>'
-       +   '<span onclick="_favDelete(\'' + listId + '\',' + i + ')" title="Remove this saved view" style="opacity:.5;padding:0 4px;font-weight:bold;cursor:pointer">&#10005;</span>'
-       + '</span>';
-  });
+  var h = '<button type="button" onclick="_favBeginSave(\'' + listId + '\')" title="Save the current search, filter and sort as a favorite you can jump back to" style="font-size:12px;padding:3px 10px;border:1px dashed var(--border,#cbd5e1);border-radius:14px;background:transparent;cursor:pointer;color:var(--text,#334155)">&#9733; Save as favorite</button>';
+  h += _favChipsHtml(listId, favs);
   bar.innerHTML = h;
 }
 
-function _favSaveCurrent(listId){
-  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
-  var v = _favReadView(cfg);
-  if (!v.q && v.filter===cfg.defFilter && v.sort===cfg.defSort){
-    if (typeof showToast==='function') showToast('Nothing to save - search, filter or sort first','info',2500);
-    return;
-  }
+// Shared chip markup (used by the normal bar and the naming editor).
+function _favChipsHtml(listId, favs){
+  var h = '';
+  favs.forEach(function(f, i){
+    var nm = (f && f.name) ? f.name : 'Favorite';
+    h += '<span class="fav-chip" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 4px 3px 10px;border:1px solid var(--border,#cbd5e1);border-radius:14px;background:var(--chip-bg,#f1f5f9)">'
+       +   '<span onclick="_favApply(\'' + listId + '\',' + i + ')" title="Jump to this favorite" style="cursor:pointer">' + _favEsc(nm) + '</span>'
+       +   '<span onclick="_favDelete(\'' + listId + '\',' + i + ')" title="Remove this favorite" style="opacity:.5;padding:0 4px;font-weight:bold;cursor:pointer">&#10005;</span>'
+       + '</span>';
+  });
+  return h;
+}
+
+// Suggest a starting name for a new favorite: the search text if any,
+// else the active filter's label, else the sort's label.
+function _favSuggestName(cfg, v){
   var name = v.q || '';
   if (!name){
     var fi = document.getElementById(cfg.filter);
     if (fi && v.filter && fi.selectedIndex>=0) name = fi.options[fi.selectedIndex].text;
     if (!name){ var si = document.getElementById(cfg.sort); if (si && si.selectedIndex>=0) name = si.options[si.selectedIndex].text; }
   }
-  name = (name||'View').trim().slice(0,40);
+  return (name||'Favorite').trim().slice(0,40);
+}
+
+// Clicking "Save as favorite" opens an inline name box (pre-filled, editable)
+// instead of auto-saving, so the user labels it however makes sense to them.
+function _favBeginSave(listId){
+  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  var v = _favReadView(cfg);
+  if (!v.q && v.filter===cfg.defFilter && v.sort===cfg.defSort){
+    if (typeof showToast==='function') showToast('Search, filter or sort first, then save it as a favorite','info',2800);
+    return;
+  }
+  var bar = _favEnsureBar(listId); if(!bar) return;
+  var suggested = _favSuggestName(cfg, v);
+  var ed = '<span style="display:inline-flex;align-items:center;gap:4px">'
+    + '<input id="favname-' + listId + '" type="text" maxlength="40" value="' + _favEsc(suggested) + '" placeholder="Name this favorite" '
+    +   'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_favConfirmSave(\'' + listId + '\');}else if(event.key===\'Escape\'){event.preventDefault();_favCancelSave(\'' + listId + '\');}" '
+    +   'style="font-size:12px;padding:4px 9px;border:1px solid var(--border,#cbd5e1);border-radius:12px;width:170px;outline:none">'
+    + '<button type="button" onclick="_favConfirmSave(\'' + listId + '\')" title="Save favorite" style="font-size:12px;padding:4px 10px;border:none;border-radius:12px;background:#16a34a;color:#fff;cursor:pointer;font-weight:600">&#10003; Save</button>'
+    + '<button type="button" onclick="_favCancelSave(\'' + listId + '\')" title="Cancel" style="font-size:12px;padding:4px 8px;border:1px solid var(--border,#cbd5e1);border-radius:12px;background:transparent;cursor:pointer;color:var(--text,#64748b)">&#10005;</button>'
+    + '</span>';
+  bar.innerHTML = ed + _favChipsHtml(listId, _favGetAll(listId));
+  var inp = document.getElementById('favname-' + listId);
+  if (inp){ try{ inp.focus(); inp.select(); }catch(e){} }
+}
+
+function _favConfirmSave(listId){
+  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  var v = _favReadView(cfg);
+  var inp = document.getElementById('favname-' + listId);
+  var name = (inp && inp.value ? inp.value : '').trim().slice(0,40) || _favSuggestName(cfg, v);
   var favs = _favGetAll(listId).slice();
   if (favs.some(function(f){ return f && f.q===v.q && f.filter===v.filter && f.sort===v.sort; })){
-    if (typeof showToast==='function') showToast('That view is already saved','info',2000);
+    if (typeof showToast==='function') showToast('That exact view is already a favorite','info',2200);
+    _favRenderChips(listId);
     return;
   }
   favs.push({ name:name, q:v.q, filter:v.filter, sort:v.sort });
-  if (favs.length>10) favs = favs.slice(favs.length-10);
+  if (favs.length>12) favs = favs.slice(favs.length-12);
   _favSetAll(listId, favs);
   _favRenderChips(listId);
-  if (typeof showToast==='function') showToast('Saved view: '+name,'success',2000);
+  if (typeof showToast==='function') showToast('Saved favorite: '+name,'success',2000);
 }
+
+function _favCancelSave(listId){ _favRenderChips(listId); }
 
 function _favApply(listId, i){
   var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
