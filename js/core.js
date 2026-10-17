@@ -1131,7 +1131,18 @@ function saveUiPrefs() {
 // To add a list: add one entry to LIST_SEARCH_CFG below.
 // ============================================================
 var LIST_SEARCH_CFG = {
-  customers: { input:'cust-search', filter:'cust-filter', sort:'cust-sort', defFilter:'', defSort:'name-asc', render:'renderCustomers' }
+  customers:      { input:'cust-search',     filter:'cust-filter',          sort:'cust-sort', defFilter:'', defSort:'name-asc', render:'renderCustomers' },
+  quotes:         { input:'q-search',        filter:'q-filter',             sort:null,        defFilter:'', defSort:'',         render:'renderQuotes' },
+  workorders:     { input:'wo-search',       filter:'wo-filter-status',     sort:null,        defFilter:'', defSort:'',         render:'renderWorkOrders' },
+  jobs:           { input:'job-search',      filter:'job-filter-status',    sort:null,        defFilter:'', defSort:'',         render:'renderJobs' },
+  invoices:       { input:'invp-search',     filter:'invp-filter',          sort:null,        defFilter:'', defSort:'',         render:'renderInvoicesPage' },
+  contacts:       { input:'cont-search',     filter:'cont-filter',          sort:'cont-sort', defFilter:'', defSort:'name-asc', render:'renderContacts' },
+  purchaseorders: { input:'po-search',       filter:'po-filter-status',     sort:null,        defFilter:'', defSort:'',         render:'renderPOList' },
+  vendors:        { input:'vendor-search',   filter:null,                   sort:null,        defFilter:'', defSort:'',         render:'renderVendors' },
+  tools:          { input:'tool-search',     filter:'tool-cat-filter',      sort:null,        defFilter:'', defSort:'',         render:'renderTools' },
+  contracts:      { input:'contract-search', filter:'contract-filter-type', sort:null,        defFilter:'', defSort:'',         render:'renderContracts' },
+  recurring:      { input:'rc-search',       filter:'rc-filter-type',       sort:null,        defFilter:'', defSort:'',         render:'renderRecurring' },
+  vehicles:       { input:'veh-search',      filter:'veh-filter',           sort:null,        defFilter:'', defSort:'',         render:'renderVehicles' }
 };
 var _favEditing = {};          // listId -> suggested name while the save box is open
 var _favConfirmDel = {};       // listId -> index of the row awaiting a delete Yes/No
@@ -1226,7 +1237,13 @@ function _favSetInputs(cfg, v){   // sets values only; caller triggers the rende
   var fi=document.getElementById(cfg.filter); if (fi) fi.value=(v&&v.filter!=null)?v.filter:cfg.defFilter;
   var si=document.getElementById(cfg.sort);   if (si) si.value=(v&&v.sort)?v.sort:cfg.defSort;
 }
-function _favRender(cfg){ if (cfg.render && typeof window[cfg.render]==='function'){ try{ window[cfg.render](); }catch(e){} } }
+function _favRender(cfg){
+  var qi=document.getElementById(cfg.input);
+  if (qi){ try{ qi.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
+  var fi=cfg.filter && document.getElementById(cfg.filter); if (fi){ try{ fi.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
+  var si=cfg.sort && document.getElementById(cfg.sort);   if (si){ try{ si.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
+  if (cfg.render && typeof window[cfg.render]==='function'){ try{ window[cfg.render](); }catch(e){} }
+}
 function _favIsBaseline(cfg){ var v=_favReadView(cfg); return (!v.q && v.filter===cfg.defFilter && v.sort===cfg.defSort); }
 function _favCurrentMatch(listId, cfg){
   var v=_favReadView(cfg), a=_favGetAll(listId);
@@ -1250,10 +1267,24 @@ function _favEnsureUnit(listId){
   var legacy=document.getElementById('favbar-'+listId); if (legacy && legacy.parentNode) legacy.parentNode.removeChild(legacy);
   var existing=document.getElementById('sf-unit-'+listId); if (existing) return existing;
   var input=document.getElementById(cfg.input); if(!input) return null;
+  // Decide what to replace and where. Standard .filter-bar / .inv-filter-bar: replace the
+  // input in place. Custom toolbars where the input lives in its own styled 'pill' wrapper
+  // (not the element holding the selects): replace that wrapper so the unit lands beside the selects.
+  var replaceEl=input, anchorParent=input.parentNode;
+  var selEl=(cfg.filter&&document.getElementById(cfg.filter))||(cfg.sort&&document.getElementById(cfg.sort));
+  if (selEl && !(input.closest && (input.closest('.filter-bar')||input.closest('.inv-filter-bar')))){
+    var tb=selEl.parentNode;
+    if (tb && tb!==input.parentNode && tb.contains(input)){
+      var node=input;
+      while (node.parentNode && node.parentNode!==tb) node=node.parentNode;
+      if (node.parentNode===tb){ replaceEl=node; anchorParent=tb; }
+    }
+  }
   var unit=document.createElement('div'); unit.className='sf-unit'; unit.id='sf-unit-'+listId;
   var sfs=document.createElement('div'); sfs.className='sf-search';
-  input.parentNode.insertBefore(unit, input);   // drop the unit where the input was
+  anchorParent.insertBefore(unit, replaceEl);   // drop the unit where the pill/input was
   sfs.appendChild(input);                         // move the input inside it
+  if (replaceEl!==input && replaceEl.parentNode) replaceEl.parentNode.removeChild(replaceEl);
   var clr=document.createElement('button'); clr.type='button'; clr.className='sf-clr'; clr.title='Clear — show all'; clr.innerHTML='&#10005;';
   sfs.appendChild(clr);
   unit.appendChild(sfs);
