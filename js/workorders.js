@@ -1805,6 +1805,7 @@ function printWorkOrder(woId) {
       '<div class="grid-2">'+
         '<div>'+
           '<div class="field-label">'+(wo.vehicleId?'Vehicle':'Customer')+'</div><div class="field-val" style="font-weight:700">'+esc(wo.vehicleId?_woVehLabel(wo.vehicleId):(wo.customerName||'—'))+'</div>'+
+          (function(){ if(wo.vehicleId) return ''; var _c=(DB.customers||[]).find(function(x){return x.id===wo.customerId || (x.name||'').toLowerCase()===(wo.customerName||'').toLowerCase();}); return (_c&&_c.accountNumber)?('<div class="field-label">Account #</div><div class="field-val">'+esc(_c.accountNumber)+'</div>'):''; })() +
           (wo.serviceType?'<div class="field-val" style="margin-top:4px;color:#546e7a">'+esc(wo.serviceType)+'</div>':'')+
         '</div>'+
         '<div>'+

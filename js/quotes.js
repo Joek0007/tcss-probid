@@ -38,7 +38,7 @@ async function emailInvoiceDirect() {
     +'</div>'
     +'<div style="background:#f8f9fb;border-radius:8px;padding:14px 18px;margin-bottom:20px">'
       +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;margin-bottom:6px">Bill To</div>'
-      +'<div style="font-size:16px;font-weight:700">'+esc(billName)+'</div>'
+      +'<div style="font-size:16px;font-weight:700">'+esc(billName)+'</div>'+ (function(){ var _c=(DB.customers||[]).find(function(x){return (x.name||'').toLowerCase()===(billName||'').toLowerCase();}); return (_c&&_c.accountNumber)?('<div style="font-size:11px;color:#90a4ae;margin-top:1px">Account #'+esc(_c.accountNumber)+'</div>'):''; })()
       +'<div style="font-size:12px;color:#546e7a;margin-top:2px">'+esc(toEmail)+'</div></div>'
     +'<table style="width:100%;border-collapse:collapse">'
       +'<thead><tr style="background:#0d1b2a">'
@@ -1312,6 +1312,7 @@ table{font-size:12.5px}
   '<div class="prop-section"><div class="prop-section-title">Prepared For</div>' +
   '<div class="info-block">' +
   '<strong style="font-size:15px">' + escHtml(q.cn||'') + '</strong><br>' +
+  (function(){ var _c=(DB.customers||[]).find(function(x){return x.id===q.customerId || (x.name||'').toLowerCase()===(q.cn||'').toLowerCase();}); return (_c&&_c.accountNumber)?('<span style="color:#90a4ae;font-size:11px">Account #'+escHtml(_c.accountNumber)+'</span><br>'):''; })() +
   (q.contactName ? '<span style="color:#1565c0;font-weight:600">' + escHtml(q.contactName) + '</span>' + (q.contactTitle ? ' &nbsp;·&nbsp; <span style="color:#607d8b;font-size:12px">' + escHtml(q.contactTitle) + '</span>' : '') + '<br>' : '') +
   (q.ph ? '<span style="color:#546e7a">&#128222; ' + escHtml(q.ph) + '</span><br>' : '') +
   (q.em ? '<span style="color:#546e7a">&#9993; ' + escHtml(q.em) + '</span><br>' : '') +
