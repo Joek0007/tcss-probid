@@ -438,6 +438,8 @@ function _smartTextColor(hexColor) {
 var _woSortField = 'woNumber';
 var _woSortAsc = true;
 var _woUnscheduledFilter = false;
+// Reset the quick-filter chip / unscheduled toggle (part of a list 'view' reset).
+function woClearChipState(){ try { _woUnscheduledFilter = false; } catch(e){} }
 
 // Load-on-demand search state: the WO list shows a bounded working set; typing in the
 // search box also queries the FULL work-order history in the cloud and merges matches.

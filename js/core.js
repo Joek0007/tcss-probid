@@ -1133,7 +1133,7 @@ function saveUiPrefs() {
 var LIST_SEARCH_CFG = {
   customers:      { input:'cust-search',     filter:'cust-filter',          sort:'cust-sort', defFilter:'', defSort:'name-asc', render:'renderCustomers' },
   quotes:         { input:'q-search',        filter:'q-filter',             sort:null,        defFilter:'', defSort:'',         render:'renderQuotes' },
-  workorders:     { input:'wo-search',       filter:'wo-filter-status',     sort:null,        defFilter:'', defSort:'',         render:'renderWorkOrders' },
+  workorders:     { input:'wo-search',       filter:'wo-filter-status',     sort:null,        defFilter:'', defSort:'',         extras:['wo-filter-priority','wo-filter-type','wo-filter-tech'], onReset:'woClearChipState', render:'renderWorkOrders' },
   jobs:           { input:'job-search',      filter:'job-filter-status',    sort:null,        defFilter:'', defSort:'',         render:'renderJobs' },
   invoices:       { input:'invp-search',     filter:'invp-filter',          sort:null,        defFilter:'', defSort:'',         render:'renderInvoicesPage' },
   contacts:       { input:'cont-search',     filter:'cont-filter',          sort:'cont-sort', defFilter:'', defSort:'name-asc', render:'renderContacts' },
@@ -1230,24 +1230,29 @@ function _favReadView(cfg){
   var qi=document.getElementById(cfg.input);  if (qi) v.q=(qi.value||'').trim();
   var fi=document.getElementById(cfg.filter); if (fi) v.filter=fi.value||'';
   var si=document.getElementById(cfg.sort);   if (si) v.sort=si.value||'';
+  if (cfg.extras && cfg.extras.length){ v.extras={}; cfg.extras.forEach(function(id){ var e=document.getElementById(id); v.extras[id]=e?(e.value||''):''; }); }
   return v;
 }
 function _favSetInputs(cfg, v){   // sets values only; caller triggers the render
   var qi=document.getElementById(cfg.input);  if (qi) qi.value=(v&&v.q)||'';
   var fi=document.getElementById(cfg.filter); if (fi) fi.value=(v&&v.filter!=null)?v.filter:cfg.defFilter;
   var si=document.getElementById(cfg.sort);   if (si) si.value=(v&&v.sort)?v.sort:cfg.defSort;
+  if (cfg.extras && cfg.extras.length){ cfg.extras.forEach(function(id){ var e=document.getElementById(id); if (e) e.value=(v&&v.extras&&v.extras[id]!=null)?v.extras[id]:''; }); }
 }
 function _favRender(cfg){
   var qi=document.getElementById(cfg.input);
   if (qi){ try{ qi.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
   var fi=cfg.filter && document.getElementById(cfg.filter); if (fi){ try{ fi.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
   var si=cfg.sort && document.getElementById(cfg.sort);   if (si){ try{ si.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} }
+  if (cfg.extras){ cfg.extras.forEach(function(id){ var e=document.getElementById(id); if (e){ try{ e.dispatchEvent(new Event('change',{bubbles:true})); }catch(_e){} } }); }
   if (cfg.render && typeof window[cfg.render]==='function'){ try{ window[cfg.render](); }catch(e){} }
 }
-function _favIsBaseline(cfg){ var v=_favReadView(cfg); return (!v.q && v.filter===cfg.defFilter && v.sort===cfg.defSort); }
+function _favExtrasMatch(cfg, ae, ve){ if(!cfg.extras||!cfg.extras.length) return true; ae=ae||{}; ve=ve||{}; for(var i=0;i<cfg.extras.length;i++){ var id=cfg.extras[i]; if((ae[id]||'')!==(ve[id]||'')) return false; } return true; }
+function _favOnReset(cfg){ if (cfg.onReset && typeof window[cfg.onReset]==='function'){ try{ window[cfg.onReset](); }catch(e){} } }
+function _favIsBaseline(cfg){ var v=_favReadView(cfg); if (v.q || v.filter!==cfg.defFilter || v.sort!==cfg.defSort) return false; if (cfg.extras){ for (var i=0;i<cfg.extras.length;i++){ var e=document.getElementById(cfg.extras[i]); if (e && (e.value||'')!=='') return false; } } return true; }
 function _favCurrentMatch(listId, cfg){
   var v=_favReadView(cfg), a=_favGetAll(listId);
-  for (var i=0;i<a.length;i++){ if (a[i] && a[i].q===v.q && a[i].filter===v.filter && a[i].sort===v.sort) return i; }
+  for (var i=0;i<a.length;i++){ if (a[i] && a[i].q===v.q && a[i].filter===v.filter && a[i].sort===v.sort && _favExtrasMatch(cfg, a[i].extras, v.extras)) return i; }
   return -1;
 }
 function _favSuggestName(cfg, v){
@@ -1403,13 +1408,13 @@ function _favApply(listId, i){
   var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return;
   var f=_favGetAll(listId)[i]; if(!f) return;
   _favConfirmDel[listId]=null;
-  _favSetInputs(cfg,f); _favRender(cfg);
+  _favSetInputs(cfg,f); _favOnReset(cfg); _favRender(cfg);
   var m=document.getElementById('sf-menu-'+listId); if(m) m.classList.remove('open');
   _favSyncTrigger(listId);
 }
 function _favClear(listId){
   var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return;
-  _favSetInputs(cfg,{q:'',filter:cfg.defFilter,sort:cfg.defSort}); _favRender(cfg);
+  _favSetInputs(cfg,{q:'',filter:cfg.defFilter,sort:cfg.defSort}); _favOnReset(cfg); _favRender(cfg);
   _favSyncTrigger(listId);
   var qi=document.getElementById(cfg.input); if(qi){ try{ qi.focus(); }catch(e){} }
 }
@@ -1450,11 +1455,11 @@ function _favConfirmSave(listId){
   var name=(inp&&inp.value?inp.value:'').trim().slice(0,40) || _favSuggestName(cfg,v);
   _ensurePersonal();
   var arr=_favGetAll(listId).slice();
-  if (arr.some(function(f){ return f && f.q===v.q && f.filter===v.filter && f.sort===v.sort; })){
+  if (arr.some(function(f){ return f && f.q===v.q && f.filter===v.filter && f.sort===v.sort && _favExtrasMatch(cfg, f.extras, v.extras); })){
     if (typeof showToast==='function') showToast('That exact view is already a favorite','info',2200);
     _favEditing[listId]=null; _favRenderMenu(listId); return;
   }
-  arr.push({ name:name, q:v.q, filter:v.filter, sort:v.sort });
+  var _nv={ name:name, q:v.q, filter:v.filter, sort:v.sort }; if (v.extras) _nv.extras=v.extras; arr.push(_nv);
   if (arr.length>20) arr=arr.slice(arr.length-20);
   _favSetAll(listId,arr);
   _favEditing[listId]=null;
@@ -1473,6 +1478,7 @@ function _listSearchReset(listId){
   var def=_favDefault(listId);
   if (def) _favSetInputs(cfg, def);
   else     _favSetInputs(cfg, { q:'', filter:cfg.defFilter, sort:cfg.defSort });
+  _favOnReset(cfg);
   _favRenderMenu(listId);
 }
 
