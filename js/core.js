@@ -1133,7 +1133,7 @@ function saveUiPrefs() {
 var LIST_SEARCH_CFG = {
   customers:      { input:'cust-search',     filter:'cust-filter',          sort:'cust-sort', defFilter:'', defSort:'name-asc', render:'renderCustomers' },
   quotes:         { input:'q-search',        filter:'q-filter',             sort:null,        defFilter:'', defSort:'',         render:'renderQuotes' },
-  workorders:     { input:'wo-search',       filter:'wo-filter-status',     sort:null,        defFilter:'', defSort:'',         extras:['wo-filter-priority','wo-filter-type','wo-filter-tech'], onReset:'woClearChipState', render:'renderWorkOrders' },
+  workorders:     { input:'wo-search',       filter:'wo-filter-status',     sort:null,        defFilter:'', defSort:'',         extras:['wo-filter-priority','wo-filter-type','wo-filter-tech'], onReset:'woClearChipState', isActive:'woHasChipState', render:'renderWorkOrders' },
   jobs:           { input:'job-search',      filter:'job-filter-status',    sort:null,        defFilter:'', defSort:'',         render:'renderJobs' },
   invoices:       { input:'invp-search',     filter:'invp-filter',          sort:null,        defFilter:'', defSort:'',         render:'renderInvoicesPage' },
   contacts:       { input:'cont-search',     filter:'cont-filter',          sort:'cont-sort', defFilter:'', defSort:'name-asc', render:'renderContacts' },
@@ -1249,7 +1249,7 @@ function _favRender(cfg){
 }
 function _favExtrasMatch(cfg, ae, ve){ if(!cfg.extras||!cfg.extras.length) return true; ae=ae||{}; ve=ve||{}; for(var i=0;i<cfg.extras.length;i++){ var id=cfg.extras[i]; if((ae[id]||'')!==(ve[id]||'')) return false; } return true; }
 function _favOnReset(cfg){ if (cfg.onReset && typeof window[cfg.onReset]==='function'){ try{ window[cfg.onReset](); }catch(e){} } }
-function _favIsBaseline(cfg){ var v=_favReadView(cfg); if (v.q || v.filter!==cfg.defFilter || v.sort!==cfg.defSort) return false; if (cfg.extras){ for (var i=0;i<cfg.extras.length;i++){ var e=document.getElementById(cfg.extras[i]); if (e && (e.value||'')!=='') return false; } } return true; }
+function _favIsBaseline(cfg){ var v=_favReadView(cfg); if (v.q || v.filter!==cfg.defFilter || v.sort!==cfg.defSort) return false; if (cfg.extras){ for (var i=0;i<cfg.extras.length;i++){ var e=document.getElementById(cfg.extras[i]); if (e && (e.value||'')!=='') return false; } } if (cfg.isActive && typeof window[cfg.isActive]==='function'){ try{ if (window[cfg.isActive]()) return false; }catch(e){} } return true; }
 function _favCurrentMatch(listId, cfg){
   var v=_favReadView(cfg), a=_favGetAll(listId);
   for (var i=0;i<a.length;i++){ if (a[i] && a[i].q===v.q && a[i].filter===v.filter && a[i].sort===v.sort && _favExtrasMatch(cfg, a[i].extras, v.extras)) return i; }
@@ -1304,6 +1304,7 @@ function _favEnsureUnit(listId){
   input.addEventListener('input', function(){ _favSyncTrigger(listId); });
   var fi=document.getElementById(cfg.filter); if (fi) fi.addEventListener('change', function(){ _favSyncTrigger(listId); });
   var si=document.getElementById(cfg.sort);   if (si) si.addEventListener('change', function(){ _favSyncTrigger(listId); });
+  if (cfg.extras){ cfg.extras.forEach(function(xid){ var ex=document.getElementById(xid); if (ex) ex.addEventListener('change', function(){ _favSyncTrigger(listId); }); }); }
   if (!_favMenuDocHooked){
     _favMenuDocHooked=true;
     document.addEventListener('click', function(ev){

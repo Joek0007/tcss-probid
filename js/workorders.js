@@ -440,6 +440,7 @@ var _woSortAsc = true;
 var _woUnscheduledFilter = false;
 // Reset the quick-filter chip / unscheduled toggle (part of a list 'view' reset).
 function woClearChipState(){ try { _woUnscheduledFilter = false; } catch(e){} }
+function woHasChipState(){ return !!_woUnscheduledFilter; }
 
 // Load-on-demand search state: the WO list shows a bounded working set; typing in the
 // search box also queries the FULL work-order history in the cloud and merges matches.
@@ -478,6 +479,7 @@ function woChipClick(status) {
     if (sf) sf.value = status;
   }
   renderWorkOrders();
+  if (typeof _favSyncTrigger==='function') { try{ _favSyncTrigger('workorders'); }catch(e){} }
 }
 
 function woQuickFilterStatus(status) {
