@@ -115,6 +115,15 @@ body.menu-anim-ready .nav-group-body{transition:grid-template-rows .24s ease}
 #topbar{position:fixed;top:0;left:var(--sidebar);right:0;height:var(--top);background:#fff;border-bottom:1px solid #e0e0e0;z-index:100;display:flex;align-items:center;padding:0 20px;gap:12px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
 #topbar .page-title{font-size:18px;font-weight:700;color:#0d1b2a;flex:1}
 #topbar .topbar-right{display:flex;align-items:center;gap:10px}
+/* ===== Phone header: declutter so the title + key actions fit and nothing overflows (desktop unchanged) ===== */
+body.is-mobile #topbar .version-badge,
+body.is-mobile #topbar #company-badge,
+body.is-mobile #topbar #user-name-badge,
+body.is-mobile #topbar #dark-mode-btn{display:none!important}
+body.is-mobile #topbar .page-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.is-mobile #topbar .topbar-right{flex:none;gap:8px}
+body.is-mobile #topbar .topbar-right [data-action="newQuote"]{font-size:0!important;width:36px;min-width:36px;height:34px;padding:0!important;border-radius:9px;display:inline-flex;align-items:center;justify-content:center}
+body.is-mobile #topbar .topbar-right [data-action="newQuote"]::before{content:"+";font-size:24px;font-weight:400;line-height:1;color:#fff}
 .badge-company{background:#e3f2fd;color:#1565c0;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600}
 #content{margin-left:var(--sidebar);margin-top:var(--top);padding:24px 28px 28px;min-height:calc(100vh - var(--top));box-sizing:border-box;overflow-x:hidden}
 .page{display:none}.page.active{display:block}
