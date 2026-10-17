@@ -3359,7 +3359,7 @@ function buildInvoiceHTML(inv) {
     /* Address grid */
     '<div class="addr-grid">'+
       '<div class="addr-block"><label>Bill To</label><div class="val">'+
-        '<strong>'+escHtml(inv.billName||(inv.job&&inv.job.customer)||'')+'</strong>'+
+        '<strong>'+escHtml(inv.billName||(inv.job&&inv.job.customer)||'')+'</strong>'+ (function(){ var _bn=(inv.billName||(inv.job&&inv.job.customer)||''); var _c=(DB.customers||[]).find(function(x){return (x.name||'').toLowerCase()===_bn.toLowerCase();}); return (_c&&_c.accountNumber)?('<br><span style="font-size:11px;color:#90a4ae">Account #'+escHtml(_c.accountNumber)+'</span>'):''; })()+
         (inv.billAddr?'<br>'+escHtml(inv.billAddr):'')+
         (inv.billCity||inv.billState?'<br>'+[inv.billCity,inv.billState].filter(Boolean).join(', ')+(inv.billZip?' '+escHtml(inv.billZip):''):'')+
       '</div></div>'+
