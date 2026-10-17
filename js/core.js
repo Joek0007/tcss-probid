@@ -1124,14 +1124,17 @@ function saveUiPrefs() {
 // dropdown tucked against its right edge. A favorite stores the whole
 // view (search text + filter + sort). Star one as the DEFAULT and it
 // auto-applies whenever you open that list; with none starred the list
-// opens to all records (the prior behavior). Per-user, cloud-synced via
-// user_ui_prefs (prefs.searches[listId] = [{name,q,filter,sort,def?}]).
+// opens to all records (the prior behavior). Rows drag to reorder
+// (SortableJS), and deleting one asks for an inline Yes/No first.
+// Per-user, cloud-synced via user_ui_prefs
+// (prefs.searches[listId] = [{name,q,filter,sort,def?}], order = list order).
 // To add a list: add one entry to LIST_SEARCH_CFG below.
 // ============================================================
 var LIST_SEARCH_CFG = {
   customers: { input:'cust-search', filter:'cust-filter', sort:'cust-sort', defFilter:'', defSort:'name-asc', render:'renderCustomers' }
 };
 var _favEditing = {};          // listId -> suggested name while the save box is open
+var _favConfirmDel = {};       // listId -> index of the row awaiting a delete Yes/No
 var _favCssInjected = false;
 var _favMenuDocHooked = false;
 
@@ -1161,15 +1164,24 @@ function _favInjectCss(){
 .sf-menu{position:absolute;z-index:60;top:calc(100% + 6px);right:0;width:300px;background:#fff;border:1px solid #E0E0E0;border-radius:12px;box-shadow:0 12px 34px rgba(13,27,42,.18);padding:6px;display:none}
 .sf-menu.open{display:block}
 .sf-mh{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#64748b;padding:8px 10px 6px}
-.sf-row{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px}
+.sf-rows{display:block}
+.sf-row{display:flex;align-items:center;gap:6px;padding:8px 8px 8px 4px;border-radius:8px}
 .sf-row:hover{background:#f1f5f9}
 .sf-row.sf-active{background:#F0F6FF}
-.sf-tog{border:none;background:transparent;cursor:pointer;font-size:15px;padding:2px;color:#cbd5e1;line-height:1;width:24px;flex:none}
+.sf-row.sf-ghost{opacity:.4}
+.sf-row.sf-chosen{background:#eef4ff}
+.sf-drag{cursor:grab;color:#cbd5e1;font-size:13px;line-height:1;flex:none;padding:0 1px;user-select:none;touch-action:none;letter-spacing:-2px}
+.sf-drag:hover{color:#94a3b8}
+.sf-tog{border:none;background:transparent;cursor:pointer;font-size:15px;padding:2px;color:#cbd5e1;line-height:1;width:22px;flex:none}
 .sf-tog.on{color:#F59E0B}
 .sf-nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1A1A2E;cursor:pointer}
 .sf-nm .sf-def{font-size:10px;color:#F59E0B;font-weight:700;margin-left:6px;letter-spacing:.03em}
 .sf-del{border:none;background:transparent;cursor:pointer;color:#94a3b8;font-size:13px;padding:2px 5px;border-radius:6px;flex:none}
 .sf-del:hover{background:#fee2e2;color:#dc2626}
+.sf-confirm{display:flex;align-items:center;gap:7px;padding:8px;border-radius:8px;background:#fff5f5;border:1px solid #fecaca;margin:1px 0}
+.sf-confirm .sf-cq{flex:1;min-width:0;color:#b91c1c;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sf-confirm .sf-yes{border:none;border-radius:7px;background:#dc2626;color:#fff;font-size:12px;font-weight:600;padding:5px 11px;cursor:pointer}
+.sf-confirm .sf-no{border:1px solid #E0E0E0;border-radius:7px;background:#fff;color:#64748b;font-size:12px;padding:5px 10px;cursor:pointer}
 .sf-sep{height:1px;background:#E0E0E0;margin:6px 4px}
 .sf-foot{display:flex;align-items:center;gap:6px;padding:9px 10px;color:#1565C0;font-size:12.5px;cursor:pointer;border-radius:8px;font-weight:600}
 .sf-foot:hover{background:#F0F6FF}
@@ -1269,7 +1281,7 @@ function _favToggleMenu(listId){
   var m=document.getElementById('sf-menu-'+listId); if(!m) return;
   var isOpen=m.classList.contains('open');
   [].forEach.call(document.querySelectorAll('.sf-menu.open'), function(x){ x.classList.remove('open'); });
-  _favEditing[listId]=null;
+  _favEditing[listId]=null; _favConfirmDel[listId]=null;
   if (!isOpen){ _favRenderMenu(listId); m.classList.add('open'); }
 }
 
@@ -1278,16 +1290,28 @@ function _favRenderMenu(listId){
   var favs=_favGetAll(listId);
   var cfg=LIST_SEARCH_CFG[listId];
   var activeIdx=cfg ? _favCurrentMatch(listId,cfg) : -1;
+  var pendingDel=_favConfirmDel[listId];
   var h='<div class="sf-mh">Your favorites</div>';
   if (!favs.length){ h+='<div class="sf-empty">No favorites yet — search or filter, then save it below.</div>'; }
+  h+='<div class="sf-rows" id="sf-rows-'+listId+'">';
   favs.forEach(function(f,i){
+    if (pendingDel===i){
+      h+='<div class="sf-confirm" data-i="'+i+'">'
+        +  '<span class="sf-cq">Delete &ldquo;'+_favEsc(f.name||'Favorite')+'&rdquo;?</span>'
+        +  '<button type="button" class="sf-yes" onclick="event.stopPropagation();_favDelete(\''+listId+'\','+i+')">Yes</button>'
+        +  '<button type="button" class="sf-no" onclick="event.stopPropagation();_favCancelDelete(\''+listId+'\')">No</button>'
+        +'</div>';
+      return;
+    }
     var isDef=!!(f&&f.def);
-    h+='<div class="sf-row'+(i===activeIdx?' sf-active':'')+'">'
+    h+='<div class="sf-row'+(i===activeIdx?' sf-active':'')+'" data-i="'+i+'">'
+      +  '<span class="sf-drag" title="Drag to reorder">&#8942;&#8942;</span>'
       +  '<button type="button" class="sf-tog'+(isDef?' on':'')+'" title="Set as the default view" onclick="event.stopPropagation();_favSetDefault(\''+listId+'\','+i+')">&#9733;</button>'
       +  '<span class="sf-nm" onclick="_favApply(\''+listId+'\','+i+')">'+_favEsc(f.name||'Favorite')+(isDef?'<span class="sf-def">DEFAULT</span>':'')+'</span>'
-      +  '<button type="button" class="sf-del" title="Remove" onclick="event.stopPropagation();_favDelete(\''+listId+'\','+i+')">&#10005;</button>'
+      +  '<button type="button" class="sf-del" title="Remove" onclick="event.stopPropagation();_favAskDelete(\''+listId+'\','+i+')">&#10005;</button>'
       +'</div>';
   });
+  h+='</div>';
   h+='<div class="sf-sep"></div>';
   if (_favEditing[listId]!=null){
     h+='<div class="sf-namerow">'
@@ -1298,10 +1322,36 @@ function _favRenderMenu(listId){
       +'</div>';
   } else {
     h+='<div class="sf-foot" onclick="event.stopPropagation();_favBeginSave(\''+listId+'\')">&#65291; Save current view as favorite&hellip;</div>'
-      +'<div class="sf-hint">Tap a &#9733; to set the one that opens by default.</div>';
+      +'<div class="sf-hint">Tap &#9733; to set the default. Drag &#8942;&#8942; to reorder.</div>';
   }
   m.innerHTML=h;
+  _favInitSort(listId);
   _favSyncTrigger(listId);
+}
+
+// Drag-to-reorder via SortableJS (already loaded app-wide; touch-friendly).
+function _favInitSort(listId){
+  if (typeof Sortable==='undefined') return;
+  var cont=document.getElementById('sf-rows-'+listId); if(!cont) return;
+  if (cont._sortable){ try{ cont._sortable.destroy(); }catch(e){} cont._sortable=null; }
+  if (_favGetAll(listId).length<2) return;
+  if (_favConfirmDel[listId]!=null) return;  // don't reorder mid-confirm
+  try {
+    cont._sortable=Sortable.create(cont, {
+      handle:'.sf-drag', draggable:'.sf-row', animation:150,
+      ghostClass:'sf-ghost', chosenClass:'sf-chosen',
+      onEnd:function(){ _favReorder(listId); }
+    });
+  } catch(e){}
+}
+function _favReorder(listId){
+  var cont=document.getElementById('sf-rows-'+listId); if(!cont) return;
+  var order=[].map.call(cont.querySelectorAll('.sf-row'), function(r){ return +r.getAttribute('data-i'); });
+  var cur=_favGetAll(listId);
+  var next=order.map(function(idx){ return cur[idx]; }).filter(Boolean);
+  if (next.length!==cur.length) { _favRenderMenu(listId); return; }  // safety: bail, re-sync
+  _favSetAll(listId, next);
+  _favRenderMenu(listId);
 }
 
 function _favSyncTrigger(listId){
@@ -1320,6 +1370,7 @@ function _favSyncTrigger(listId){
 function _favApply(listId, i){
   var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return;
   var f=_favGetAll(listId)[i]; if(!f) return;
+  _favConfirmDel[listId]=null;
   _favSetInputs(cfg,f); _favRender(cfg);
   var m=document.getElementById('sf-menu-'+listId); if(m) m.classList.remove('open');
   _favSyncTrigger(listId);
@@ -1333,15 +1384,19 @@ function _favClear(listId){
 function _favSetDefault(listId, i){
   _ensurePersonal();
   var arr=_favGetAll(listId).slice(); if (i<0||i>=arr.length) return;
+  _favConfirmDel[listId]=null;
   var turnOn = !(arr[i] && arr[i].def);
   arr.forEach(function(f,idx){ if (f) f.def=(turnOn && idx===i); });
   _favSetAll(listId,arr);
   _favRenderMenu(listId);
 }
+function _favAskDelete(listId, i){ _favConfirmDel[listId]=i; _favRenderMenu(listId); }
+function _favCancelDelete(listId){ _favConfirmDel[listId]=null; _favRenderMenu(listId); }
 function _favDelete(listId, i){
   _ensurePersonal();
-  var arr=_favGetAll(listId).slice(); if (i<0||i>=arr.length) return;
+  var arr=_favGetAll(listId).slice(); if (i<0||i>=arr.length) { _favConfirmDel[listId]=null; return; }
   arr.splice(i,1);
+  _favConfirmDel[listId]=null;
   _favSetAll(listId,arr);
   _favRenderMenu(listId);
 }
@@ -1351,6 +1406,7 @@ function _favBeginSave(listId){
   var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return;
   var v=_favReadView(cfg);
   if (_favIsBaseline(cfg)){ if (typeof showToast==='function') showToast('Search, filter or sort first, then save it as a favorite','info',2800); return; }
+  _favConfirmDel[listId]=null;
   _favEditing[listId]=_favSuggestName(cfg,v);
   _favRenderMenu(listId);
   var inp=document.getElementById('sf-name-'+listId); if (inp){ try{ inp.focus(); inp.select(); }catch(e){} }
@@ -1380,7 +1436,7 @@ function _favCancelSave(listId){ _favEditing[listId]=null; _favRenderMenu(listId
 function _listSearchReset(listId){
   var cfg=LIST_SEARCH_CFG[listId]; if(!cfg) return;
   _favEnsureUnit(listId);
-  _favEditing[listId]=null;
+  _favEditing[listId]=null; _favConfirmDel[listId]=null;
   var m=document.getElementById('sf-menu-'+listId); if(m) m.classList.remove('open');
   var def=_favDefault(listId);
   if (def) _favSetInputs(cfg, def);
