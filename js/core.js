@@ -859,6 +859,7 @@ function goPage(id) {
   }
   var pg = document.getElementById('page-'+id);
   if (pg) pg.classList.add('active');
+  if (typeof _listSearchReset === 'function') _listSearchReset(id);
   document.querySelectorAll('.nav-item[data-page="'+id+'"]').forEach(function(ni){ ni.classList.add('active'); });
   var tt = document.getElementById('topbar-title');
   if (tt) tt.textContent = PAGE_TITLES[id] || id;
@@ -1052,7 +1053,8 @@ function _normUiPrefs(p) {
     itemOrder:   io,                                                          // { sectionKey: [pageId,...] }
     sectionOrder:Array.isArray(p.sectionOrder)? p.sectionOrder.slice(): [],   // [sectionKey,...]
     dashLayout:  Array.isArray(p.dashLayout)  ? p.dashLayout.slice()  : [],   // [{id,x,y,w,h},...] (dashboard grid)
-    statOrder:   Array.isArray(p.statOrder)   ? p.statOrder.slice()   : []    // [statTileId,...] (dashboard stat strip)
+    statOrder:   Array.isArray(p.statOrder)   ? p.statOrder.slice()   : [],   // [statTileId,...] (dashboard stat strip)
+    searches:    (p.searches && typeof p.searches==='object' && !Array.isArray(p.searches)) ? p.searches : {}  // { listId: [{name,q,filter,sort},...] } saved search views
   };
 }
 
@@ -1114,6 +1116,137 @@ function saveUiPrefs() {
 // Quick-add "+" map: menu page -> where to go + which add-function to fire. Clicking the
 // "+" on a menu item jumps straight into creating that record. Quotes routes to the Quick
 // Quote page (which IS the new-quote flow); the rest open the entity's "new" form/modal.
+// ============================================================
+// Per-list search: reset-on-return + saved "favorite" views
+// ------------------------------------------------------------
+// Every configured list's search box resets to its default view
+// whenever you navigate back to the page (so stale searches never
+// linger), and users can save the current view (search text +
+// filter + sort) as a named chip to jump straight back to it.
+// Saved views live per-user in _uiPrefs.searches[listId] and are
+// cloud-synced through the same user_ui_prefs row as menu prefs.
+// To add a list: add one entry to LIST_SEARCH_CFG below.
+// ============================================================
+var LIST_SEARCH_CFG = {
+  customers: { input:'cust-search', filter:'cust-filter', sort:'cust-sort', defFilter:'', defSort:'name-asc', render:'renderCustomers' }
+};
+
+function _favEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+// Saved views for a list (read through effective prefs, so a user who
+// hasn't personalized still sees any company-default views).
+function _favGetAll(listId){
+  try { var s = (_effPrefs().searches)||{}; return Array.isArray(s[listId]) ? s[listId] : []; }
+  catch(e){ return []; }
+}
+function _favSetAll(listId, arr){
+  _ensurePersonal();
+  if (!_uiPrefs.searches || typeof _uiPrefs.searches!=='object') _uiPrefs.searches = {};
+  _uiPrefs.searches[listId] = arr;
+  saveUiPrefs();
+}
+
+// Read the live search text + filter + sort off the DOM for a list.
+function _favReadView(cfg){
+  var v = { q:'', filter:cfg.defFilter, sort:cfg.defSort };
+  var qi = cfg.input  && document.getElementById(cfg.input);  if (qi) v.q = (qi.value||'').trim();
+  var fi = cfg.filter && document.getElementById(cfg.filter); if (fi) v.filter = fi.value||'';
+  var si = cfg.sort   && document.getElementById(cfg.sort);   if (si) v.sort = si.value||'';
+  return v;
+}
+// Push a saved view back onto the DOM, then re-render the list.
+function _favApplyView(cfg, v){
+  var qi = cfg.input  && document.getElementById(cfg.input);  if (qi) qi.value = (v&&v.q)||'';
+  var fi = cfg.filter && document.getElementById(cfg.filter); if (fi) fi.value = (v&&v.filter!=null)?v.filter:cfg.defFilter;
+  var si = cfg.sort   && document.getElementById(cfg.sort);   if (si) si.value = (v&&v.sort)?v.sort:cfg.defSort;
+  if (cfg.render && typeof window[cfg.render]==='function') { try{ window[cfg.render](); }catch(e){} }
+}
+
+// Reset-on-return: clear a list's search box back to its default whenever
+// the page is shown. Called from goPage BEFORE the page's render runs, so
+// the render picks up the cleared inputs. Also (re)builds the chip bar.
+function _listSearchReset(listId){
+  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  var qi = cfg.input  && document.getElementById(cfg.input);  if (qi) qi.value = '';
+  var fi = cfg.filter && document.getElementById(cfg.filter); if (fi) fi.value = cfg.defFilter;
+  var si = cfg.sort   && document.getElementById(cfg.sort);   if (si) si.value = cfg.defSort;
+  _favEnsureBar(listId);
+  _favRenderChips(listId);
+}
+
+// Inject (once) the chip bar just below a list's filter bar.
+function _favEnsureBar(listId){
+  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return null;
+  var barId = 'favbar-'+listId;
+  var bar = document.getElementById(barId);
+  if (bar) return bar;
+  var input = document.getElementById(cfg.input); if(!input) return null;
+  var container = (input.closest && input.closest('.filter-bar')) || input.parentNode;
+  if(!container || !container.parentNode) return null;
+  bar = document.createElement('div');
+  bar.id = barId;
+  bar.className = 'fav-bar';
+  bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-2px 0 12px 0';
+  container.parentNode.insertBefore(bar, container.nextSibling);
+  return bar;
+}
+
+function _favRenderChips(listId){
+  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  var bar = _favEnsureBar(listId); if(!bar) return;
+  var favs = _favGetAll(listId);
+  var h = '<button type="button" onclick="_favSaveCurrent(\'' + listId + '\')" title="Save the current search, filter and sort as a reusable view" style="font-size:12px;padding:3px 10px;border:1px dashed var(--border,#cbd5e1);border-radius:14px;background:transparent;cursor:pointer;color:var(--text,#334155)">&#9733; Save view</button>';
+  favs.forEach(function(f, i){
+    var nm = (f && f.name) ? f.name : 'View';
+    h += '<span class="fav-chip" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 4px 3px 10px;border:1px solid var(--border,#cbd5e1);border-radius:14px;background:var(--chip-bg,#f1f5f9)">'
+       +   '<span onclick="_favApply(\'' + listId + '\',' + i + ')" title="Apply this saved view" style="cursor:pointer">' + _favEsc(nm) + '</span>'
+       +   '<span onclick="_favDelete(\'' + listId + '\',' + i + ')" title="Remove this saved view" style="opacity:.5;padding:0 4px;font-weight:bold;cursor:pointer">&#10005;</span>'
+       + '</span>';
+  });
+  bar.innerHTML = h;
+}
+
+function _favSaveCurrent(listId){
+  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  var v = _favReadView(cfg);
+  if (!v.q && v.filter===cfg.defFilter && v.sort===cfg.defSort){
+    if (typeof showToast==='function') showToast('Nothing to save - search, filter or sort first','info',2500);
+    return;
+  }
+  var name = v.q || '';
+  if (!name){
+    var fi = document.getElementById(cfg.filter);
+    if (fi && v.filter && fi.selectedIndex>=0) name = fi.options[fi.selectedIndex].text;
+    if (!name){ var si = document.getElementById(cfg.sort); if (si && si.selectedIndex>=0) name = si.options[si.selectedIndex].text; }
+  }
+  name = (name||'View').trim().slice(0,40);
+  var favs = _favGetAll(listId).slice();
+  if (favs.some(function(f){ return f && f.q===v.q && f.filter===v.filter && f.sort===v.sort; })){
+    if (typeof showToast==='function') showToast('That view is already saved','info',2000);
+    return;
+  }
+  favs.push({ name:name, q:v.q, filter:v.filter, sort:v.sort });
+  if (favs.length>10) favs = favs.slice(favs.length-10);
+  _favSetAll(listId, favs);
+  _favRenderChips(listId);
+  if (typeof showToast==='function') showToast('Saved view: '+name,'success',2000);
+}
+
+function _favApply(listId, i){
+  var cfg = LIST_SEARCH_CFG[listId]; if(!cfg) return;
+  var f = _favGetAll(listId)[i]; if(!f) return;
+  _favApplyView(cfg, f);
+}
+
+function _favDelete(listId, i){
+  var favs = _favGetAll(listId).slice();
+  if (i<0 || i>=favs.length) return;
+  favs.splice(i,1);
+  _favSetAll(listId, favs);
+  _favRenderChips(listId);
+}
+
+
 var QUICK_ADD = {
   quotes:         { go: 'qq',                                     title: 'New quote',          perm: 'quote.create' },
   workorders:     { go: 'workorders',     fn: 'openNewWorkOrder', title: 'New work order',     perm: 'wo.create' },
