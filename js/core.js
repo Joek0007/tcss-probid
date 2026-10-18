@@ -1054,7 +1054,8 @@ function _normUiPrefs(p) {
     sectionOrder:Array.isArray(p.sectionOrder)? p.sectionOrder.slice(): [],   // [sectionKey,...]
     dashLayout:  Array.isArray(p.dashLayout)  ? p.dashLayout.slice()  : [],   // [{id,x,y,w,h},...] (dashboard grid)
     statOrder:   Array.isArray(p.statOrder)   ? p.statOrder.slice()   : [],   // [statTileId,...] (dashboard stat strip)
-    searches:    (p.searches && typeof p.searches==='object' && !Array.isArray(p.searches)) ? p.searches : {}  // { listId: [{name,q,filter,sort},...] } saved search views
+    searches:    (p.searches && typeof p.searches==='object' && !Array.isArray(p.searches)) ? p.searches : {},  // { listId: [{name,q,filter,sort},...] } saved search views
+    uiScale:     (typeof p.uiScale==='number' && p.uiScale>0) ? p.uiScale : 1  // per-user whole-app text size (CSS zoom)
   };
 }
 
@@ -1081,6 +1082,23 @@ function _companyDefaultIsSet() {
 }
 
 // Load this user's saved menu prefs from the cloud (self-only row).
+// ---- UI text size: scales the whole app via CSS zoom, saved per-user (cloud-synced). ----
+var _UI_SCALE_MIN=0.8, _UI_SCALE_MAX=1.6, _UI_SCALE_STEP=0.1;
+function _getUiScale(){ try{ var v=_effPrefs().uiScale; return (typeof v==='number'&&v>0)?v:1; }catch(e){ return 1; } }
+function _applyUiScale(v){
+  v=(typeof v==='number'&&v>0)?v:1;
+  try{ document.body.style.zoom = (v!==1) ? String(v) : ''; }catch(e){}
+  try{ var pct=Math.round(v*100)+'%'; [].forEach.call(document.querySelectorAll('.ts-val'), function(el){ el.textContent=pct; }); }catch(e){}
+}
+function uiScaleBump(dir){
+  var v=Math.round((_getUiScale()+dir*_UI_SCALE_STEP)*10)/10;
+  if(v<_UI_SCALE_MIN) v=_UI_SCALE_MIN; if(v>_UI_SCALE_MAX) v=_UI_SCALE_MAX;
+  _ensurePersonal(); _uiPrefs.uiScale=v; saveUiPrefs();
+  _applyUiScale(v);
+  if(typeof showToast==='function') showToast('Text size '+Math.round(v*100)+'%','info',1100);
+}
+function uiScaleReset(){ _ensurePersonal(); _uiPrefs.uiScale=1; saveUiPrefs(); _applyUiScale(1); }
+
 async function loadUiPrefs() {
   try {
     if (typeof _sb !== 'undefined' && _sb && _currentUser && _currentUser.id) {
@@ -1096,6 +1114,7 @@ async function loadUiPrefs() {
   try { initMenuChrome(); } catch (e) {}
   try { applyUserMenuPrefs(); } catch (e) {}
   try { applyDashPrefs(); } catch (e) {}
+  try { _applyUiScale(_getUiScale()); } catch (e) {}
 }
 
 // Debounced save of the current prefs (upsert into the user's own row).
