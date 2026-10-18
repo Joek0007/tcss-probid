@@ -3728,14 +3728,14 @@ function showUserMenu() {
       pinEl.style.display = lockOn ? 'flex' : 'none';
     }
     menu.style.display = 'block';
-    setTimeout(function(){ document.addEventListener('click', hideUserMenuOutside); }, 10);
+    setTimeout(function(){ document.addEventListener('pointerdown', hideUserMenuOutside); }, 10);
   } else {
     hideUserMenu();
   }
 }
 
 function hideUserMenu() {
-  try { document.removeEventListener('click', hideUserMenuOutside); } catch(e) {}
+  try { document.removeEventListener('pointerdown', hideUserMenuOutside); } catch(e) {}
   var m = document.getElementById('user-menu');
   if (m) m.style.display = 'none';
 }
