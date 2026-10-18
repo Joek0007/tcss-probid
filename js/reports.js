@@ -1355,6 +1355,34 @@ function setT(id, val) {
   if (el) el.textContent = val;
 }
 
+async function renderBackupHealth() {
+  var el = document.getElementById('dash-backup-health');
+  if (!el) return;
+  var _role = (typeof _currentUser !== 'undefined' && _currentUser) ? _currentUser.role : null;
+  if (_role !== 'owner') { el.style.display = 'none'; return; }        // owner-only backup indicator
+  if (typeof _sb === 'undefined' || !_sb) { el.style.display = 'none'; return; }
+  try {
+    var res = await _sb.rpc('backup_status');
+    if (res.error || !res.data || !res.data.length) { el.style.display = 'none'; return; }
+    var m = {};
+    res.data.forEach(function(r){ m[r.item] = r.value; });
+    var health = m['HEALTH'] || '';
+    var ok = /^OK/i.test(health);
+    var dot = ok ? '#2e7d32' : '#c62828';
+    var bg  = ok ? '#e8f5e9' : '#fdecea';
+    var bd  = ok ? '#a5d6a7' : '#ef9a9a';
+    var sub = (m['Last nightly backup'] || '') + '  \u00b7  today: ' + (m["Today's snapshot"] || '\u2014') + '  \u00b7  ' + (m['History on hand'] || '');
+    el.style.display = '';
+    el.innerHTML =
+      '<div style="display:flex;align-items:center;gap:10px;background:'+bg+';border:1px solid '+bd+';border-radius:8px;padding:8px 12px">'
+      + '<span style="width:11px;height:11px;border-radius:50%;background:'+dot+';flex:0 0 auto"></span>'
+      + '<span style="font-weight:700;font-size:12.5px;color:#263238">Backups: '+(ok?'healthy':'needs attention')+'</span>'
+      + '<span style="font-size:11.5px;color:#546e7a;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(sub)+'</span>'
+      + '<span style="margin-left:auto;font-size:11px;color:#90a4ae;cursor:help" title="'+escHtml(health)+'">&#9432;</span>'
+      + '</div>';
+  } catch (e) { try { el.style.display='none'; } catch(_){} }
+}
+
 function renderDash() {
   // Field techs get their own dashboard — check role directly, no dependency on worktracking.js
   var _role = typeof _currentUser !== 'undefined' && _currentUser ? _currentUser.role : null;
@@ -1366,6 +1394,7 @@ function renderDash() {
   }
   // Load journal data for dashboard blip
   setTimeout(loadJournalForDash, 800);
+  if (typeof renderBackupHealth === 'function') renderBackupHealth();
 
   const today = getTodayISO();
 
