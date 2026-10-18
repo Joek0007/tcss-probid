@@ -1835,8 +1835,8 @@ async function _pushCustomerToCloud(c) {
       city: c.city || null,
       state: c.state || null,
       zip: c.zip || null,
-      default_terms: c.defaultTerms || 'Due on Receipt',
-      tax_exempt: !!c.taxExempt,
+      ...(('defaultTerms' in c) ? { default_terms: c.defaultTerms || 'Due on Receipt' } : {}), /* stale client must not clobber a custom term with the default */
+      ...(('taxExempt' in c) ? { tax_exempt: !!c.taxExempt } : {}), /* stale client must not silently un-exempt */
       hot_note_tech: c.hotNoteTech || null,
       hot_note_office: c.hotNoteOffice || null,
       ...((c.accountNumber!=null && c.accountNumber!=='') ? { account_number: String(c.accountNumber) } : {}), /* account# is permanent: only ever SET from client, never null-out — a stale client lacking the field must not wipe the cloud value. DB trigger trg_protect_account_number is the hard backstop. */
@@ -2084,7 +2084,7 @@ async function _pushInventoryToCloud(inv) {
       conversion_factor: (inv.conversionFactor != null ? inv.conversionFactor : 1),
       kit_components: inv.kitComponents || [],
       photos: inv.photos || [],
-      default_cost: inv.cost || 0,
+      ...(('cost' in inv) ? { default_cost: inv.cost || 0 } : {}), /* stale client must not zero the cost */
       notes:        inv.notes || null,
       item_type:    _type,
       tracked:      _tracked,
@@ -2910,8 +2910,8 @@ async function pushAllToCloud() {
           city: c.city || null,
           state: c.state || null,
           zip: c.zip || null,
-          default_terms: c.defaultTerms || 'Due on Receipt',
-          tax_exempt: !!c.taxExempt,
+          ...(('defaultTerms' in c) ? { default_terms: c.defaultTerms || 'Due on Receipt' } : {}),
+          ...(('taxExempt' in c) ? { tax_exempt: !!c.taxExempt } : {}),
           hot_note_tech:   c.hotNoteTech || null,
           hot_note_office: c.hotNoteOffice || null,
       ...((c.accountNumber!=null && c.accountNumber!=='') ? { account_number: String(c.accountNumber) } : {}), /* account# is permanent: only ever SET from client, never null-out — a stale client lacking the field must not wipe the cloud value. DB trigger trg_protect_account_number is the hard backstop. */
@@ -2940,7 +2940,7 @@ async function pushAllToCloud() {
           description: item.desc || null,
           category: item.cat || null,
           unit: item.unit || 'ea',
-          default_cost: (item.mc != null ? item.mc : (item.cost || 0)),
+          ...(('mc' in item || 'cost' in item) ? { default_cost: (item.mc != null ? item.mc : (item.cost || 0)) } : {}),
           default_hours: (item.lh != null ? item.lh : (item.hours || 0)),
           notes: item.notes || null,
           is_active: item.active !== false,
@@ -3036,7 +3036,7 @@ async function pushAllToCloud() {
           role:         tm.role || 'field',
           phone:        tm.phone || null,
           email:        tm.email || null,
-          rate:         parseFloat(tm.rate) || 65,
+          ...(('rate' in tm) ? { rate: parseFloat(tm.rate) || 65 } : {}), /* stale client must not reset pay rate to the 65 default */
           hire_date:    tm.hireDate || null,
           show_vacation: !!tm.showVacation,
           show_pto:     !!tm.showPTO,
