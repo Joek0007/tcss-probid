@@ -1088,6 +1088,15 @@ function _getUiScale(){ try{ var v=_effPrefs().uiScale; return (typeof v==='numb
 function _applyUiScale(v){
   v=(typeof v==='number'&&v>0)?v:1;
   try{ document.body.style.zoom = (v!==1) ? String(v) : ''; }catch(e){}
+  // Keep modal height within the REAL screen at any zoom. body{zoom} scales vh
+  // units too, so a fixed 90vh box renders at 90*v% of the screen - above ~110%
+  // its sticky header (holding the close/Cancel/Save buttons) floats off the top
+  // and the modal cannot be closed. Dividing the cap by the zoom cancels that out
+  // so the box always fits and the header stays reachable. See .modal-box rules.
+  try{
+    var base = (document.body && document.body.classList.contains('is-mobile')) ? 94 : 90;
+    document.documentElement.style.setProperty('--modal-maxh', (base/v).toFixed(2)+'vh');
+  }catch(e){}
   try{ var pct=Math.round(v*100)+'%'; [].forEach.call(document.querySelectorAll('.ts-val'), function(el){ el.textContent=pct; }); }catch(e){}
 }
 function uiScaleBump(dir){
