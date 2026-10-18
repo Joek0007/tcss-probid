@@ -1843,7 +1843,7 @@ async function _pushCustomerToCloud(c) {
       office_alert_scope: c.officeAlertScope || null,
       invoicing_contact: c.invoicingContact || null,
       invoicing_email: c.invoicingEmail || null,
-      parts_markup_pct: (c.partsMarkupPct!=null && c.partsMarkupPct!=='') ? c.partsMarkupPct : null,
+      ...(('partsMarkupPct' in c) ? { parts_markup_pct: (c.partsMarkupPct!=null && c.partsMarkupPct!=='') ? c.partsMarkupPct : null } : {}), /* stale client lacking the field must not null the markup; a present value (even blank) still honors a real clear */
       module_alerts: c.moduleAlerts || null,
       notes: c.notes || null,
       is_active: c.active !== false,
@@ -2918,7 +2918,7 @@ async function pushAllToCloud() {
           office_alert_scope: c.officeAlertScope || null,
           invoicing_contact: c.invoicingContact || null,
           invoicing_email:   c.invoicingEmail || null,
-          parts_markup_pct:  (c.partsMarkupPct!=null && c.partsMarkupPct!=='') ? c.partsMarkupPct : null,
+          ...(('partsMarkupPct' in c) ? { parts_markup_pct: (c.partsMarkupPct!=null && c.partsMarkupPct!=='') ? c.partsMarkupPct : null } : {}), /* same stale-client guard as account_number */
           module_alerts:     c.moduleAlerts || null,
           notes: c.notes || null,
           is_active: c.active !== false,
