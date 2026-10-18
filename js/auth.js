@@ -1839,7 +1839,7 @@ async function _pushCustomerToCloud(c) {
       tax_exempt: !!c.taxExempt,
       hot_note_tech: c.hotNoteTech || null,
       hot_note_office: c.hotNoteOffice || null,
-      account_number: (c.accountNumber!=null && c.accountNumber!=='') ? String(c.accountNumber) : null,
+      ...((c.accountNumber!=null && c.accountNumber!=='') ? { account_number: String(c.accountNumber) } : {}), /* account# is permanent: only ever SET from client, never null-out — a stale client lacking the field must not wipe the cloud value. DB trigger trg_protect_account_number is the hard backstop. */
       office_alert_scope: c.officeAlertScope || null,
       invoicing_contact: c.invoicingContact || null,
       invoicing_email: c.invoicingEmail || null,
@@ -2914,7 +2914,7 @@ async function pushAllToCloud() {
           tax_exempt: !!c.taxExempt,
           hot_note_tech:   c.hotNoteTech || null,
           hot_note_office: c.hotNoteOffice || null,
-      account_number: (c.accountNumber!=null && c.accountNumber!=='') ? String(c.accountNumber) : null,
+      ...((c.accountNumber!=null && c.accountNumber!=='') ? { account_number: String(c.accountNumber) } : {}), /* account# is permanent: only ever SET from client, never null-out — a stale client lacking the field must not wipe the cloud value. DB trigger trg_protect_account_number is the hard backstop. */
           office_alert_scope: c.officeAlertScope || null,
           invoicing_contact: c.invoicingContact || null,
           invoicing_email:   c.invoicingEmail || null,
