@@ -1055,7 +1055,8 @@ function _normUiPrefs(p) {
     dashLayout:  Array.isArray(p.dashLayout)  ? p.dashLayout.slice()  : [],   // [{id,x,y,w,h},...] (dashboard grid)
     statOrder:   Array.isArray(p.statOrder)   ? p.statOrder.slice()   : [],   // [statTileId,...] (dashboard stat strip)
     searches:    (p.searches && typeof p.searches==='object' && !Array.isArray(p.searches)) ? p.searches : {},  // { listId: [{name,q,filter,sort},...] } saved search views
-    uiScale:     (typeof p.uiScale==='number' && p.uiScale>0) ? p.uiScale : 1  // per-user whole-app text size (CSS zoom)
+    uiScale:     (typeof p.uiScale==='number' && p.uiScale>0) ? p.uiScale : 1,  // per-user whole-app text size (CSS zoom)
+    navCollapsed:!!p.navCollapsed  // per-user: left menu collapsed to an icon rail (desktop only)
   };
 }
 
@@ -1113,6 +1114,33 @@ function uiScaleBump(dir){
 }
 function uiScaleReset(){ _ensurePersonal(); _uiPrefs.uiScale=1; saveUiPrefs(); _applyUiScale(1); }
 
+// ---- Left menu collapse to an icon rail (desktop only, saved per-user / cloud-synced) ----
+function _getNavCollapsed(){ try{ return !!_effPrefs().navCollapsed; }catch(e){ return false; } }
+function _applyNavCollapsed(on){
+  try{
+    var mobile = document.body && document.body.classList.contains('is-mobile');
+    if (mobile) on = false;                       // never rail-collapse on phones (menu is a slide-over there)
+    document.body.classList.toggle('nav-rail', !!on);
+    var btn = document.getElementById('nav-rail-toggle');
+    if (btn){ btn.textContent = on ? '\u203a' : '\u2039'; btn.title = on ? 'Expand menu' : 'Collapse menu'; }
+    if (on){                                       // give each icon a native tooltip of its page name
+      [].forEach.call(document.querySelectorAll('#sidebar .nav-item'), function(a){
+        if (a.getAttribute('data-tip')) return;
+        var ic=a.querySelector('.nav-icon'); var label=a.textContent||'';
+        if (ic) label = label.replace(ic.textContent||'','');
+        label = label.replace(/\s+/g,' ').trim();
+        if (label){ a.setAttribute('title', label); a.setAttribute('data-tip','1'); }
+      });
+    }
+  }catch(e){}
+}
+function toggleSidebarRail(){
+  _ensurePersonal();
+  var on = !_getNavCollapsed();
+  _uiPrefs.navCollapsed = on; saveUiPrefs();
+  _applyNavCollapsed(on);
+}
+
 async function loadUiPrefs() {
   try {
     if (typeof _sb !== 'undefined' && _sb && _currentUser && _currentUser.id) {
@@ -1129,6 +1157,7 @@ async function loadUiPrefs() {
   try { applyUserMenuPrefs(); } catch (e) {}
   try { applyDashPrefs(); } catch (e) {}
   try { _applyUiScale(_getUiScale()); } catch (e) {}
+  try { _applyNavCollapsed(_getNavCollapsed()); } catch (e) {}
 }
 
 // Debounced save of the current prefs (upsert into the user's own row).

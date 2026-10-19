@@ -139,6 +139,27 @@ body.is-mobile #topbar .topbar-right [data-action="newQuote"]{font-size:0!import
 body.is-mobile #topbar .topbar-right [data-action="newQuote"]::before{content:"+";font-size:24px;font-weight:400;line-height:1;color:#fff}
 .badge-company{background:#e3f2fd;color:#1565c0;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600}
 #content{margin-left:var(--sidebar);margin-top:calc(var(--top) + env(safe-area-inset-top,0px));padding:24px 28px 28px;min-height:calc(100vh - var(--top));box-sizing:border-box;overflow-x:auto}
+/* ===== Collapsible left menu -> icon rail (desktop; saved per-user) ===== */
+#sidebar{transition:width .18s ease}
+#content{transition:margin-left .18s ease}
+#sidebar::-webkit-scrollbar{width:7px}
+#sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:4px}
+#nav-rail-toggle{margin-left:auto;flex:0 0 auto;width:28px;height:28px;border-radius:7px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#dbe4f0;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s}
+#nav-rail-toggle:hover{background:rgba(255,255,255,.22);color:#fff}
+body.is-mobile #nav-rail-toggle{display:none}
+body.nav-rail:not(.is-mobile) #sidebar{width:48px}
+body.nav-rail:not(.is-mobile) #content{margin-left:48px}
+body.nav-rail:not(.is-mobile) #sidebar-logo-text-block,
+body.nav-rail:not(.is-mobile) #sidebar-logo-icon,
+body.nav-rail:not(.is-mobile) #sidebar-logo-img-wrap,
+body.nav-rail:not(.is-mobile) #sidebar .textsize-ctrl,
+body.nav-rail:not(.is-mobile) #nav-toolbar,
+body.nav-rail:not(.is-mobile) .nav-group-title{display:none!important}
+body.nav-rail:not(.is-mobile) #sidebar .logo{justify-content:center;padding:10px 0}
+body.nav-rail:not(.is-mobile) #nav-rail-toggle{margin:0}
+body.nav-rail:not(.is-mobile) .nav-group{padding:4px 0}
+body.nav-rail:not(.is-mobile) .nav-item{justify-content:center;gap:0;padding:11px 0;font-size:0;border-left-width:3px}
+body.nav-rail:not(.is-mobile) .nav-item .nav-icon{font-size:20px;width:auto}
 .page{display:none}.page.active{display:block}
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
 .page-header h2{font-size:22px;font-weight:700;color:#0d1b2a}
@@ -1418,6 +1439,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div class="logo-icon" id="sidebar-logo-icon">T</div>
     <div id="sidebar-logo-img-wrap" style="display:none;width:100%;overflow:hidden"><img id="sidebar-logo-img" class="sidebar-logo-img" src="" alt="Logo"></div>
     <div id="sidebar-logo-text-block"><div class="logo-text">TCSS ProBid</div><div class="logo-sub">V9 — Cloud</div></div>
+    <button id="nav-rail-toggle" type="button" title="Collapse menu" aria-label="Collapse or expand menu" onclick="toggleSidebarRail()">‹</button>
   </div>
   <div class="textsize-ctrl">
     <span class="ts-label">Text size</span>
@@ -7070,7 +7092,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20261019sidescroll"></script>
+<script src="js/core.js?v=20261019navrail"></script>
 <script src="js/quotes.js?v=20261017acctd"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
