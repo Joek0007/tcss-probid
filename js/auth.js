@@ -3659,8 +3659,8 @@ function checkMobileMode() {
     if (mobileNav) mobileNav.style.display = 'none';
     if (menuBtn)   menuBtn.style.display   = 'none';
     if (sidebar)   { sidebar.style.transform='translateX(0)'; sidebar.style.boxShadow=''; }
-    if (content)   { content.style.marginLeft='220px'; content.style.paddingBottom=''; }
-    if (topbar)    topbar.style.left = '220px';
+    if (content)   { content.style.marginLeft=''; content.style.paddingBottom=''; }   // let CSS var(--sidebar) drive width (respects rail collapse)
+    if (topbar)    topbar.style.left = '';
     document.body.classList.remove('is-mobile');
     var overlay = document.getElementById('mobile-overlay');
     if (overlay) overlay.classList.remove('visible');
