@@ -1096,6 +1096,11 @@ function _applyUiScale(v){
   try{
     var base = (document.body && document.body.classList.contains('is-mobile')) ? 94 : 90;
     document.documentElement.style.setProperty('--modal-maxh', (base/v).toFixed(2)+'vh');
+    // Same fix for the fixed, full-height left sidebar: a 100vh column renders at
+    // 100*v% of the screen under body{zoom}, pushing the bottom nav items (and the
+    // scroll end) below the screen edge. Dividing by the zoom keeps it exactly one
+    // real screen tall so overflow-y:auto can reach every item. See #sidebar.
+    document.documentElement.style.setProperty('--sidebar-h', (100/v).toFixed(2)+'vh');
   }catch(e){}
   try{ var pct=Math.round(v*100)+'%'; [].forEach.call(document.querySelectorAll('.ts-val'), function(el){ el.textContent=pct; }); }catch(e){}
 }

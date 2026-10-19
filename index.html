@@ -23,7 +23,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh;line-height:1.4}
 :root{--blue:#1565c0;--blue2:#1976d2;--teal:#00695c;--green:#2e7d32;--orange:#e65100;--red:#c62828;--gold:#f57f17;--gray:#607d8b;--sidebar:220px;--top:56px}
-#sidebar{position:fixed;top:0;left:0;width:var(--sidebar);height:100vh;background:linear-gradient(180deg,#0d1b2a 0%,#1a2744 100%);z-index:200;display:flex;flex-direction:column;overflow-y:auto}
+#sidebar{position:fixed;top:0;left:0;width:var(--sidebar);height:var(--sidebar-h,100vh);background:linear-gradient(180deg,#0d1b2a 0%,#1a2744 100%);z-index:200;display:flex;flex-direction:column;overflow-y:auto}
 #sidebar .logo{padding:14px 12px 14px 14px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;overflow:visible;min-width:0}
 #sidebar .logo-icon{width:36px;height:36px;background:linear-gradient(135deg,#1976d2,#00bcd4);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;font-weight:900;flex-shrink:0}
 #sidebar .logo-text{color:#fff;font-size:14px;font-weight:700;line-height:1.3}
@@ -7070,7 +7070,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20261018modalfit"></script>
+<script src="js/core.js?v=20261019sidescroll"></script>
 <script src="js/quotes.js?v=20261017acctd"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
