@@ -147,8 +147,9 @@ body.is-mobile #topbar .topbar-right [data-action="newQuote"]::before{content:"+
 #nav-rail-toggle{margin-left:auto;flex:0 0 auto;width:28px;height:28px;border-radius:7px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#dbe4f0;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s}
 #nav-rail-toggle:hover{background:rgba(255,255,255,.22);color:#fff}
 body.is-mobile #nav-rail-toggle{display:none}
-body.nav-rail:not(.is-mobile) #sidebar{width:48px}
-body.nav-rail:not(.is-mobile) #content{margin-left:48px}
+body.nav-rail:not(.is-mobile){--sidebar:48px}            /* drive sidebar+topbar+content+WO modal together */
+body.nav-rail:not(.is-mobile) #sidebar{scrollbar-width:none}
+body.nav-rail:not(.is-mobile) #sidebar::-webkit-scrollbar{display:none}
 body.nav-rail:not(.is-mobile) #sidebar-logo-text-block,
 body.nav-rail:not(.is-mobile) #sidebar-logo-icon,
 body.nav-rail:not(.is-mobile) #sidebar-logo-img-wrap,
@@ -159,7 +160,7 @@ body.nav-rail:not(.is-mobile) #sidebar .logo{justify-content:center;padding:10px
 body.nav-rail:not(.is-mobile) #nav-rail-toggle{margin:0}
 body.nav-rail:not(.is-mobile) .nav-group{padding:4px 0}
 body.nav-rail:not(.is-mobile) .nav-item{justify-content:center;gap:0;padding:11px 0;font-size:0;border-left-width:3px}
-body.nav-rail:not(.is-mobile) .nav-item .nav-icon{font-size:20px;width:auto}
+body.nav-rail:not(.is-mobile) .nav-item .nav-icon{font-size:20px;width:100%;text-align:center}
 .page{display:none}.page.active{display:block}
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
 .page-header h2{font-size:22px;font-weight:700;color:#0d1b2a}
