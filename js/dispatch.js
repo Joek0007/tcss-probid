@@ -720,7 +720,7 @@ function buildJobBlock(job, crewEntry, techName) {
   // Crew badges
   var crew=getJobCrew(job);
   var crewBadge=crew.length>1?'<span class="dispatch-role-badge">👥'+crew.length+'</span>':'';
-  var roleBadge=isLead?'<span class="dispatch-role-badge">♛</span>':'<span class="dispatch-role-badge" style="opacity:.6">+</span>';
+  var roleBadge=isLead?'<span class="dispatch-role-badge" style="background:#ffc107;color:#5d4037;letter-spacing:.3px">LEAD</span>':'<span class="dispatch-role-badge" style="opacity:.6">+</span>';
 
   return '<div class="dispatch-job-block'+(isLead?' is-lead':' is-helper')+'" '+
     'style="left:'+leftPct+'%;width:'+widPct+'%;background:'+color.bg+';border-color:'+color.border+';color:'+color.text+';opacity:'+(isLead?1:0.88)+';" '+
