@@ -101,6 +101,7 @@ function _saveJobToWO(job) {
   if (typeof _sb !== 'undefined' && _sb) {
     _sb.from('work_orders').update({
       assigned_techs: wo.assignedTechs,
+      status: wo.status||null,
       scheduled_date: wo.scheduledDate||null,
       scheduled_time: wo.scheduledTime||null,
       scheduled_duration: (wo.scheduledDuration!=null ? wo.scheduledDuration : null),
@@ -980,7 +981,9 @@ function dispatchSetLead(jobId,techName){
 
 function dispatchSetStatus(jobId,status){
   var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
-  job.status=status;saveDB();renderDispatchBoard();openDispatchDetail(jobId);
+  job.status=status;
+  if(typeof _saveJobToWO==='function') _saveJobToWO(job);  // persist to the WO record (+cloud) for WO-backed jobs
+  saveDB();renderDispatchBoard();openDispatchDetail(jobId);
   showToast('Status → '+status,'info');
 }
 
