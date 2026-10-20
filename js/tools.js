@@ -665,6 +665,16 @@ function saveCheckoutModal(toolId, modalId) {
     var cb = document.getElementById('cog-'+g.id);
     return { groupId:g.id, label:g.label, included: g.mode==='required'||(cb&&cb.checked), mode:g.mode };
   });
+  // Packing reminder (Settings → Tool Custody → "Remind when optional items are skipped").
+  // Soft nudge only when there ARE optional items and the tech ticked NONE of them.
+  if (_toolCustodyCfg().remindSkippedOptional) {
+    var _optG = (tool.linkedGroups||[]).filter(function(g){ return g.mode!=='required'; });
+    var _skip = _optG.filter(function(g){ var cb=document.getElementById('cog-'+g.id); return !(cb&&cb.checked); });
+    if (_optG.length && _skip.length===_optG.length) {
+      var _names = _skip.map(function(g){ return '\u2022 '+g.label; }).join('\n');
+      if (!confirm('Packing reminder \u2014 you didn\'t add any of the optional items for this tool:\n\n'+_names+'\n\nThese are just reminders, not required. Check out without them?')) return;
+    }
+  }
   if (!DB.toolCheckouts) DB.toolCheckouts=[];
   var _newCo = {
     id:             Date.now().toString(),
@@ -1151,7 +1161,8 @@ function _toolCustodyCfg() {
     transferRequireAccept:   s.toolTransferRequireAccept   !== false, // default on (peer handshake)
     allowBrokered:           s.toolAllowBrokeredTransfer    !== false, // default on (office override)
     requireApprovalBrokered: !!s.toolRequireApprovalBrokered,          // default off
-    transferExpiryHours:     (typeof s.toolTransferExpiryHours==='number' && s.toolTransferExpiryHours>0) ? s.toolTransferExpiryHours : 24
+    transferExpiryHours:     (typeof s.toolTransferExpiryHours==='number' && s.toolTransferExpiryHours>0) ? s.toolTransferExpiryHours : 24,
+    remindSkippedOptional:   s.toolRemindSkippedOptional !== false     // default on (packing reminder)
   };
 }
 // Is the current user an office/manager/owner (allowed to broker a reassignment)?

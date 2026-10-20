@@ -819,6 +819,7 @@ function renderLocationSettings() {
   var _tc4 = document.getElementById('tc-transfer-accept');   if (_tc4) _tc4.checked = (_tcS.toolTransferRequireAccept !== false);
   var _tc5 = document.getElementById('tc-allow-brokered');    if (_tc5) _tc5.checked = (_tcS.toolAllowBrokeredTransfer !== false);
   var _tc6 = document.getElementById('tc-brokered-approval'); if (_tc6) _tc6.checked = !!_tcS.toolRequireApprovalBrokered;
+  var _tc7 = document.getElementById('tc-remind-optional'); if (_tc7) _tc7.checked = (_tcS.toolRemindSkippedOptional !== false);
   var locs = getLocations();
   var el   = document.getElementById('inv-locations-list');
   if (!el) return;
