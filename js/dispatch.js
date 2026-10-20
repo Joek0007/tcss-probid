@@ -984,7 +984,7 @@ function dispatchSetStatus(jobId,status){
   job.status=status;
   if(typeof _saveJobToWO==='function') _saveJobToWO(job);  // persist to the WO record (+cloud) for WO-backed jobs
   saveDB();renderDispatchBoard();openDispatchDetail(jobId);
-  showToast('Status → '+status,'info');
+  // No toast: the status bubble + selected button hold the choice, no pop-up-and-disappear.
 }
 
 function closeDispatchDetail(){var p=document.getElementById('dispatch-detail-panel');if(p)p.style.display='none';}
