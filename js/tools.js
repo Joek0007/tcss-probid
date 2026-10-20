@@ -589,7 +589,10 @@ function checkoutTool(toolId) {
   // Build linked groups section
   var groupsHtml = '';
   if ((tool.linkedGroups||[]).length > 0) {
-    groupsHtml = '<div style="margin-top:14px"><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:6px">LINKED GROUPS / ADD-ON KITS</label>'+
+    var _reqN = (tool.linkedGroups||[]).filter(function(g){return g.mode==='required';}).length;
+    var _optN = (tool.linkedGroups||[]).length - _reqN;
+    groupsHtml = '<div style="margin-top:14px"><label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:6px">PACKING CHECKLIST'+
+      '<span style="font-weight:600;color:#90a4ae;margin-left:6px">'+_reqN+' required \u00b7 '+_optN+' optional</span></label>'+
       '<div style="background:#f8f9fa;border-radius:8px;padding:10px">'+
       tool.linkedGroups.map(function(g){
         var req = g.mode === 'required';
@@ -599,8 +602,8 @@ function checkoutTool(toolId) {
         var photoHtml = g.photoUrl
           ? photoThumb(g.photoUrl, g.label, 40)
           : '<div style="width:40px;height:40px;background:#e8eaf6;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">📦</div>';
-        return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #e8e8e8">'+
-          '<input type="checkbox" id="cog-'+escHtml(g.id)+'"'+(req?' checked disabled':' checked')+' style="width:16px;height:16px;flex-shrink:0">'+
+        return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #e8e8e8'+(req?'':';opacity:.92')+'">'+
+          '<input type="checkbox" id="cog-'+escHtml(g.id)+'"'+(req?' checked disabled':'')+' style="width:16px;height:16px;flex-shrink:0;accent-color:'+(req?'#c62828':'#1565c0')+'">'+
           photoHtml+
           '<div style="flex:1">'+
             '<div style="font-weight:700;font-size:13px">'+escHtml(g.label)+'</div>'+
@@ -608,7 +611,7 @@ function checkoutTool(toolId) {
           '</div>'+
           badge+'</div>';
       }).join('')+
-      '<p style="font-size:11px;color:#90a4ae;margin-top:6px">Required groups always travel with the tool. Uncheck optional groups to leave them behind.</p>'+
+      '<p style="font-size:11px;color:#90a4ae;margin-top:6px">Required items are locked in and always go. Optional items start <strong>unchecked</strong> \u2014 tick only what you\'re actually taking.</p>'+
     '</div></div>';
   }
 
