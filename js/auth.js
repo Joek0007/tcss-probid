@@ -3939,7 +3939,7 @@ function _syncDataOnReturn() {
   var ae = document.activeElement;
   var editing = (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) || (typeof _qqDirty !== 'undefined' && _qqDirty);
   if (editing) return;
-  if (document.querySelector('.modal-overlay')) return;
+  if (typeof _anyModalVisible==='function' ? _anyModalVisible() : document.querySelector('.modal-overlay')) return;
   var now = Date.now();
   if (now - _lastReturnSyncAt < 8000) return;
   _lastReturnSyncAt = now;

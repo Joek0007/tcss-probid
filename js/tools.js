@@ -90,7 +90,7 @@ async function _toolsLiveTick(){
     if (!window._currentUser || typeof _sb==='undefined' || !_sb) { _stopToolsLivePoll(); return; }
     var pg = document.getElementById('page-tools');
     if (!pg || !pg.classList.contains('active')) { _stopToolsLivePoll(); return; }
-    if (document.querySelector('.modal-overlay')) return;   // an action is open — leave the view alone
+    if (typeof _anyModalVisible==='function' ? _anyModalVisible() : document.querySelector('.modal-overlay')) return;   // an action is open — leave the view alone
     var ae = document.activeElement;
     if (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) return;
     try { if (typeof wtLoadNotifications==='function') wtLoadNotifications(); } catch(e){}  // keep the bell current while on this page
@@ -103,7 +103,7 @@ async function _toolsLiveTick(){
     var sig = _toolsComputeSig();
     if (sig === _toolsLiveSig) return;                      // nothing changed — skip re-render
     _toolsLiveSig = sig;
-    if (document.querySelector('.modal-overlay')) return;   // a modal opened during the await
+    if (typeof _anyModalVisible==='function' ? _anyModalVisible() : document.querySelector('.modal-overlay')) return;   // a modal opened during the await
     var ae2 = document.activeElement;
     if (ae2 && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae2.tagName) || ae2.isContentEditable)) return;
     if (typeof renderTools==='function') renderTools();

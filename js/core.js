@@ -792,6 +792,22 @@ function _canAccessPage(id) {
   return (typeof hasPermission === 'function') ? hasPermission(key) : false;
 }
 
+// True only when a modal is ACTUALLY on screen. The app keeps ~50 hidden modal
+// containers (.modal-overlay display:none) permanently in the DOM, so a bare
+// querySelector('.modal-overlay') is always truthy — which silently killed the live
+// Tools poll and the focus re-sync (they skip while "a modal is open"). Check real
+// visibility instead: a dynamic modal is shown with display:flex; document modals use
+// .open. Hidden (display:none) containers are ignored.
+function _anyModalVisible(){
+  try {
+    var ov = document.querySelectorAll('.modal-overlay');
+    for (var i=0;i<ov.length;i++){ if (getComputedStyle(ov[i]).display !== 'none') return true; }
+    if (document.querySelector('.modal.open, .modal-overlay.open')) return true;
+  } catch(e){}
+  return false;
+}
+window._anyModalVisible = _anyModalVisible;
+
 function goPage(id) {
   // ACCESS GUARD — block navigation to a page this role/user can't access (hiding the nav
   // item is not enough; the page is still reachable by hash, Back/Forward, deep link or a
