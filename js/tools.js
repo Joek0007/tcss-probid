@@ -93,6 +93,7 @@ async function _toolsLiveTick(){
     if (document.querySelector('.modal-overlay')) return;   // an action is open — leave the view alone
     var ae = document.activeElement;
     if (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) return;
+    try { if (typeof wtLoadNotifications==='function') wtLoadNotifications(); } catch(e){}  // keep the bell current while on this page
     if (typeof _toolsPerRow==='function' && _toolsPerRow() && window.ToolsDB) {
       try { DB.tools = await ToolsDB.load(); } catch(e){ return; }
     }

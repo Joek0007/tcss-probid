@@ -587,6 +587,7 @@ async function signIn(email, password) {
     setTimeout(initPhase3, 800);
     startSessionTimeout();
     startAutoSync();
+    startNotifPoll();
   }
   return result;
 }
@@ -3943,6 +3944,19 @@ function _syncDataOnReturn() {
   if (now - _lastReturnSyncAt < 8000) return;
   _lastReturnSyncAt = now;
   try { syncAllFromCloud(true); } catch(e){}
+  try { if (typeof wtLoadNotifications==='function') wtLoadNotifications(); } catch(e){}
+}
+
+// Keep the notification bell live app-wide (hand-offs, WO assignments, etc.) instead of
+// only loading it once at login. Light poll; the focus/visibility handler above makes it
+// feel instant when the user returns to the tab.
+var _notifPollTimer = null;
+function startNotifPoll() {
+  clearInterval(_notifPollTimer);
+  _notifPollTimer = setInterval(function(){
+    if (_currentUser && _sb) { try { if (typeof wtLoadNotifications==='function') wtLoadNotifications(); } catch(e){} }
+    else clearInterval(_notifPollTimer);
+  }, 45000);
 }
 
 function startPermRefresh() {
