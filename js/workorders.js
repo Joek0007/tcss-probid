@@ -2898,6 +2898,7 @@ async function _pushWOToCloud(wo) {
       date_requested:   wo.dateRequested||null,
       scheduled_date:   wo.scheduledDate||null,
       scheduled_time:   wo.scheduledTime||null,
+      ...(('scheduledDuration' in wo) ? { scheduled_duration: (wo.scheduledDuration!=null && wo.scheduledDuration!=='') ? wo.scheduledDuration : null } : {}),  /* stale client lacking the field must not null the duration */
       wt_project_id:    wo.wtProjectId||null,
       // SC-3a: job_id / quote_id columns exist on work_orders but were never written,
       // so a WO's link back to its originating job or quote was lost on every cloud

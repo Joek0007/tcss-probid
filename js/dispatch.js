@@ -95,6 +95,7 @@ function _saveJobToWO(job) {
   if (job.scheduledDate) wo.scheduledDate = job.scheduledDate;
   if (job.scheduledTime) wo.scheduledTime = job.scheduledTime;
   if (job.status) wo.status = job.status;
+  if (job.scheduledDuration != null) wo.scheduledDuration = job.scheduledDuration;  // persist timeline duration (WO-backed jobs)
   saveDB();
   // Push to Supabase
   if (typeof _sb !== 'undefined' && _sb) {
@@ -102,6 +103,7 @@ function _saveJobToWO(job) {
       assigned_techs: wo.assignedTechs,
       scheduled_date: wo.scheduledDate||null,
       scheduled_time: wo.scheduledTime||null,
+      scheduled_duration: (wo.scheduledDuration!=null ? wo.scheduledDuration : null),
     }).eq('id', wo.id).then(function(r){
       if (r && r.error) console.warn('[Dispatch] WO update error:', r.error.message);
     });
@@ -913,7 +915,9 @@ function openDispatchDetail(jobId) {
       '<div style="display:flex;gap:4px;flex-wrap:wrap">'+
         ['Scheduled','In Progress','Paused','On Hold','Complete'].map(function(s){
           var active=(job.status||'Scheduled')===s;
-          return '<button class="btn btn-sm" style="font-size:10px;'+(active?'background:#1565c0;color:#fff;border-color:#1565c0;':'')+'" onclick="dispatchSetStatus(\''+jobId+'\',\''+s+'\')">'+escHtml(s)+'</button>';
+          var selSty='background:#1565c0;color:#fff;border-color:#1565c0;font-weight:800;box-shadow:0 2px 8px rgba(21,101,192,.45)';
+          var offSty='background:#fff;color:#90a4ae;border-color:#cfd8dc;font-weight:600';
+          return '<button class="btn btn-sm" style="font-size:10px;'+(active?selSty:offSty)+'" onclick="dispatchSetStatus(\''+jobId+'\',\''+s+'\')">'+(active?'\u2713 ':'')+escHtml(s)+'</button>';
         }).join('')+
       '</div>'+
     '</div>'+
