@@ -3928,6 +3928,23 @@ async function refreshCurrentUserPermissions() {
   } catch (e) { /* silent — retry next tick */ }
 }
 
+// Pull fresh cloud data when the user returns to the tab/window, so a change another
+// user made (a checkout, a hand-off, a photo) shows WITHOUT a hard refresh. Debounced,
+// and skipped while editing or with a modal open so it never yanks the view mid-action.
+var _lastReturnSyncAt = 0;
+function _syncDataOnReturn() {
+  if (!_sb || !_currentUser) return;
+  if (typeof _viewAsActive !== 'undefined' && _viewAsActive) return;
+  var ae = document.activeElement;
+  var editing = (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) || (typeof _qqDirty !== 'undefined' && _qqDirty);
+  if (editing) return;
+  if (document.querySelector('.modal-overlay')) return;
+  var now = Date.now();
+  if (now - _lastReturnSyncAt < 8000) return;
+  _lastReturnSyncAt = now;
+  try { syncAllFromCloud(true); } catch(e){}
+}
+
 function startPermRefresh() {
   clearInterval(_permRefreshTimer);
   _permSig = _profileSig(_currentUser);   // baseline from the just-loaded profile
@@ -3940,9 +3957,9 @@ function startPermRefresh() {
   if (!_permRefreshListenersBound) {
     _permRefreshListenersBound = true;
     document.addEventListener('visibilitychange', function() {
-      if (document.visibilityState === 'visible') refreshCurrentUserPermissions();
+      if (document.visibilityState === 'visible') { refreshCurrentUserPermissions(); _syncDataOnReturn(); }
     });
-    window.addEventListener('focus', function() { refreshCurrentUserPermissions(); });
+    window.addEventListener('focus', function() { refreshCurrentUserPermissions(); _syncDataOnReturn(); });
   }
 }
 

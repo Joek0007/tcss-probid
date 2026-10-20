@@ -67,6 +67,49 @@ function autoAssignTag() {
 }
 
 // ---- RENDER TOOLS LIST ----
+// ---- LIVE REFRESH (while the Tools page is open) ----
+// Mirrors the dispatch board's refresh timer: every 20s, quietly reload tools +
+// checkouts from the per-row cloud tables and re-render ONLY if something changed, so a
+// second person's checkout / hand-off / photo shows without a hard refresh. Never runs
+// while a modal is open or an input is focused, so it can't interrupt an action in progress.
+var _toolsLiveTimer = null;
+var _toolsLiveSig = null;
+function _toolsComputeSig(){
+  var t = (DB.tools||[]).map(function(x){ return (x._uuid||x.id)+':'+(x._rev||'')+':'+(x.photoUrl?'1':'0'); }).join('|');
+  var c = (DB.toolCheckouts||[]).map(function(x){ return (x.id)+':'+(x.returnedAt||'')+':'+(x.status||'')+':'+(x.toName||'')+':'+((x.pendingTransfer&&x.pendingTransfer.to)||''); }).join('|');
+  return t+'##'+c;
+}
+function _startToolsLivePoll(){
+  clearInterval(_toolsLiveTimer);
+  _toolsLiveSig = _toolsComputeSig();
+  _toolsLiveTimer = setInterval(_toolsLiveTick, 20000);
+}
+function _stopToolsLivePoll(){ clearInterval(_toolsLiveTimer); _toolsLiveTimer = null; }
+async function _toolsLiveTick(){
+  try {
+    if (!window._currentUser || typeof _sb==='undefined' || !_sb) { _stopToolsLivePoll(); return; }
+    var pg = document.getElementById('page-tools');
+    if (!pg || !pg.classList.contains('active')) { _stopToolsLivePoll(); return; }
+    if (document.querySelector('.modal-overlay')) return;   // an action is open — leave the view alone
+    var ae = document.activeElement;
+    if (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) return;
+    if (typeof _toolsPerRow==='function' && _toolsPerRow() && window.ToolsDB) {
+      try { DB.tools = await ToolsDB.load(); } catch(e){ return; }
+    }
+    if (typeof _checkoutsPerRow==='function' && _checkoutsPerRow() && window.CheckoutsDB) {
+      try { DB.toolCheckouts = await CheckoutsDB.load(); } catch(e){ return; }
+    }
+    var sig = _toolsComputeSig();
+    if (sig === _toolsLiveSig) return;                      // nothing changed — skip re-render
+    _toolsLiveSig = sig;
+    if (document.querySelector('.modal-overlay')) return;   // a modal opened during the await
+    var ae2 = document.activeElement;
+    if (ae2 && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae2.tagName) || ae2.isContentEditable)) return;
+    if (typeof renderTools==='function') renderTools();
+    try { if (typeof renderPendingVerifyTab==='function') renderPendingVerifyTab(); } catch(e){}
+  } catch(e) { /* silent */ }
+}
+
 function renderTools() {
   try { _renderToolsInner(); } catch(e) {
     console.error('[renderTools] Error:', e);
@@ -864,9 +907,8 @@ function openTransferModal(toolId) {
              '<button class="btn btn-primary" onclick="confirmTransfer(\'modal-tool-tr-dyn\')">Transfer</button>';
   } else {
     footer = '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'modal-tool-tr-dyn\').remove()">Cancel</button>'+
-             (( _isOfficeRole() && cfg.allowBrokered) ? '<button class="btn btn-outline btn-sm" onclick="brokerTransfer(\'modal-tool-tr-dyn\')" title="Office override — recorded as brokered, not peer-accepted">⚙ Office Reassign</button>' : '')+
-             '<button class="btn btn-outline btn-sm" onclick="sendTransferRequest(\'modal-tool-tr-dyn\',false)">📨 Send Request</button>'+
-             '<button class="btn btn-success" onclick="sendTransferRequest(\'modal-tool-tr-dyn\',true)">🤝 Accept Now (in person)</button>';
+             (( _isOfficeRole() && cfg.allowBrokered) ? '<button class="btn btn-outline btn-sm" onclick="brokerTransfer(\'modal-tool-tr-dyn\')" title="Manager/office override — use only when the receiver cannot accept on their own device (no service, phone not with them, broken). Recorded as a forced hand-off, not receiver-accepted.">⚙ Force Hand-Off (override)</button>' : '')+
+             '<button class="btn btn-success" onclick="sendTransferRequest(\'modal-tool-tr-dyn\',false)">📨 Send Hand-Off Request</button>';
   }
   var modalId = 'modal-tool-tr-dyn';
   var existing = document.getElementById(modalId); if(existing) existing.remove();
@@ -882,7 +924,7 @@ function openTransferModal(toolId) {
           '<span class="asset-tag-badge">'+escHtml(tool.tag||'Untagged')+'</span>'+
           ' <span style="font-size:12px;color:#546e7a">Currently with: '+escHtml(co.toName||'')+'</span>'+
         '</div>'+
-        (cfg.transferRequireAccept?'<div style="font-size:12px;color:#607d8b;margin-bottom:8px">The receiver must <strong>accept</strong> before responsibility moves. Until then, <strong>'+escHtml(co.toName||'')+'</strong> stays responsible.</div>':'')+
+        (cfg.transferRequireAccept?'<div style="font-size:12px;color:#607d8b;margin-bottom:8px">The receiver gets a notification and must <strong>accept</strong> it on their own device before responsibility moves. Until then, <strong>'+escHtml(co.toName||'')+'</strong> stays responsible.</div>':'')+
         '<label>Hand Off To *</label>'+
         '<input id="tr-to" list="tr-team" placeholder="Receiving technician">'+
         '<datalist id="tr-team">'+teamOpts+'</datalist>'+
@@ -895,6 +937,20 @@ function openTransferModal(toolId) {
       '<div class="modal-foot">'+footer+'</div>'+
     '</div>';
   document.body.appendChild(div);
+}
+
+// Ping a team member's notification bell about a tool hand-off (mirrors the
+// work-order assignment notifications — inserts into wt_notifications for their user).
+function _notifyToolHandoff(toName, title, message) {
+  try {
+    if (typeof _sb === 'undefined' || !_sb || !toName) return;
+    var member = (DB.team||[]).find(function(m){ return m.name===toName; });
+    if (!member || !member.userId) return;
+    _sb.from('wt_notifications').insert({
+      user_id: member.userId, user_name: toName,
+      type: 'tool_handoff', title: title, message: message, project_id: null
+    }).then(function(){}).catch(function(e){ console.warn('[tool handoff notif]', e&&e.message); });
+  } catch(e) { console.warn('[tool handoff notif]', e&&e.message); }
 }
 
 // Sender proposes a hand-off → tool enters "Transfer pending"; sender stays responsible.
@@ -917,9 +973,14 @@ function sendTransferRequest(modalId, acceptNow) {
     expiresAt: Date.now() + (cfg.transferExpiryHours*3600*1000)
   };
   try{ saveDB(); }catch(e){} _coPersist(co);
+  var _tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
+  var _tname = (_tool && ((_tool.tag?_tool.tag+' \u00b7 ':'')+(_tool.name||'Tool'))) || 'A tool';
+  var _from = (co.toName)||((_currentUser&&_currentUser.full_name)||'');
+  _notifyToolHandoff(toName, 'A tool is being handed to you',
+    _tname+' from '+_from+' \u2014 open Tools to accept or dispute.');
   var m = document.getElementById(modalId); if(m) m.remove();
   if (acceptNow) { openAcceptTransfer(co.id); }
-  else { showToast('Hand-off request sent to '+toName+' — awaiting their acceptance','info',4000); if(typeof renderTools==='function') renderTools(); }
+  else { showToast('Hand-off request sent to '+toName+' \u2014 they\'ve been notified to accept it','info',4500); if(typeof renderTools==='function') renderTools(); }
 }
 
 function cancelTransferRequest(coId) {
@@ -1002,7 +1063,9 @@ function confirmAcceptTransfer(coId, modalId) {
   });
   var m = document.getElementById(modalId); if(m) m.remove();
   if(typeof renderTools==='function') renderTools();
-  showToast((tool&&tool.tag||'Tool')+' accepted by '+pt.to+' — responsibility transferred'+(n?'. '+n+' item(s) stayed behind':''),'success',4000);
+  _notifyToolHandoff(pt.by, (tool&&tool.tag||'Tool')+' hand-off accepted',
+    pt.to+' accepted the tool you handed off. Responsibility has moved to them.');
+  showToast((tool&&tool.tag||'Tool')+' accepted by '+pt.to+' \u2014 responsibility transferred'+(n?'. '+n+' item(s) stayed behind':''),'success',4000);
 }
 
 function disputeTransfer(coId, modalId) {
@@ -1012,9 +1075,12 @@ function disputeTransfer(coId, modalId) {
   co.transferDispute = { by: pt.to, from: pt.by, at: new Date().toISOString().split('T')[0], reason: reason||'Not accepted' };
   delete co.pendingTransfer;
   try{ saveDB(); }catch(e){} _coPersist(co);
+  var _dtool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
   var m = document.getElementById(modalId); if(m) m.remove();
   if(typeof renderTools==='function') renderTools();
-  showToast('Hand-off disputed — tool stays with '+co.toName+', office flagged','warning',5000);
+  _notifyToolHandoff(pt.by, (_dtool&&_dtool.tag||'Tool')+' hand-off declined',
+    pt.to+' declined the hand-off'+(reason?': '+reason:'')+'. The tool stays with you.');
+  showToast('Hand-off disputed \u2014 tool stays with '+co.toName+', office flagged','warning',5000);
 }
 
 // Office/manager/owner forces the reassignment (clearly recorded as brokered).
@@ -1037,6 +1103,8 @@ function brokerTransfer(modalId) {
   });
   var m = document.getElementById(modalId); if(m) m.remove();
   if(typeof renderTools==='function') renderTools();
+  _notifyToolHandoff(toName, 'A tool was assigned to you',
+    (tool&&((tool.tag?tool.tag+' \u00b7 ':'')+(tool.name||'Tool'))||'A tool')+' was handed to you by '+((_currentUser&&_currentUser.full_name)||'office')+' (office override). You are now responsible for it.');
   showToast((tool&&tool.tag||'Tool')+' reassigned to '+toName+' by office (brokered)'+(n?'. '+n+' item(s) stayed behind':''),'info',4000);
 }
 

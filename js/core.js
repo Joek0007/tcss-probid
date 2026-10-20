@@ -857,6 +857,8 @@ function goPage(id) {
     clearInterval(_dispatchRefreshTimer);
     _dispatchRefreshTimer = null;
   }
+  // Stop the Tools live-refresh poll when leaving the Tools page
+  if (id !== 'tools' && typeof _stopToolsLivePoll === 'function') _stopToolsLivePoll();
   var pg = document.getElementById('page-'+id);
   if (pg) pg.classList.add('active');
   if (typeof _listSearchReset === 'function') _listSearchReset(id);
@@ -896,7 +898,7 @@ function goPage(id) {
   if (id==='expenses')   { if (typeof renderExpensesPage==='function') renderExpensesPage(); }
   if (id==='perdiem')    { if (typeof renderPerDiemPage==='function') renderPerDiemPage(); }
   if (id==='inventory')  renderInventory();
-  if (id==='tools')      { setTimeout(renderTools, 50); }
+  if (id==='tools')      { setTimeout(renderTools, 50); if (typeof _startToolsLivePoll==='function') _startToolsLivePoll(); }
   if (id==='settings')   { loadSettings(); setTimeout(function(){ renderPermissionsEditor(); var _t = (typeof _applyMsTabPerms==='function') ? _applyMsTabPerms() : 'company'; switchMsTab(_t); initViewAsCard(); window.scrollTo(0,0); var p=document.getElementById('page-settings'); if(p)p.scrollTop=0; }, 150); }
   if (id==='qq')         { renderTplLibrary(); setTimeout(populateJTDropdown, 150); }
 qqStage4Init();
