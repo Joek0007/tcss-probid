@@ -3570,6 +3570,8 @@ function renderCustomers() {
     if (sort==='won-desc')    return b._wonRev - a._wonRev;
     if (sort==='quotes-desc') return b._qct - a._qct;
     if (sort==='recent')      return (b.createdAt||'').localeCompare(a.createdAt||'');
+    if (sort==='acct-asc')    return String(a.accountNumber||'~~~').localeCompare(String(b.accountNumber||'~~~'), undefined, {numeric:true});
+    if (sort==='acct-noacct') { var _an=!(a.accountNumber&&String(a.accountNumber).trim()), _bn=!(b.accountNumber&&String(b.accountNumber).trim()); if (_an!==_bn) return _an?-1:1; return (a.name||'').localeCompare(b.name||''); }
     return (a.name||'').localeCompare(b.name||'');
   }
   customers.sort(function(a,b){

@@ -135,8 +135,8 @@ function renderCPAlerts(customer) {
     var headerBg    = hasAlert ? '#fff8e1' : '#f8f9fa';
     var headerBorder= hasAlert ? '#ffe082' : '#f0f0f0';
     var badge = hasAlert
-      ? '<span style="background:#e65100;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">ACTIVE</span>'
-      : '<span style="background:#e0e7ef;color:#90a4ae;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">INACTIVE</span>';
+      ? '<span style="background:#e65100;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">ALERT SET</span>'
+      : '<span style="background:#e0e7ef;color:#90a4ae;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px">No alert stored</span>';
 
     var inputHtml;
     if (canEdit) {
