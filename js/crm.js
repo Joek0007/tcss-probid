@@ -155,14 +155,14 @@ async function _loadCPDocuments(customerId) {
           '<div style="font-weight:700;font-size:13px;color:#0d1b2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(disp)+'</div>'+
           '<div style="font-size:11px;color:#90a4ae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml([(d.file_name?'Original: '+d.file_name:''), when, d.uploaded_by, sizeKb].filter(Boolean).join(' · '))+'</div>'+
         '</div>'+
-        // Action cluster — fixed-width columns so every control lines up down the list
-        '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+
-          '<button class="btn btn-outline btn-sm" title="Download" style="width:42px;padding:5px 0;text-align:center;font-size:15px;line-height:1" onclick="downloadCustomerDoc(\''+d.id+'\')">⬇</button>'+
+        // Action cluster — unified icon tray; reserved slots keep every icon aligned row-to-row
+        '<div class="cpdoc-tray">'+
+          '<button class="dl" title="Download" onclick="downloadCustomerDoc(\''+d.id+'\')">⬇</button>'+
           (isView
-            ? '<button class="btn btn-outline btn-sm" style="width:80px" onclick="viewCustomerDoc(\''+d.id+'\')">👁 View</button>'
-            : '<span style="width:80px;display:inline-block"></span>')+
-          (canDelete?'<button class="btn btn-sm" style="width:92px;background:#eef3fb;color:#1565c0;border:none;border-radius:6px;padding:5px 0;cursor:pointer" title="Rename" onclick="renameCustomerDocument(\''+d.id+'\')">✎ Rename</button>':'<span style="width:92px;display:inline-block"></span>')+
-          (canDelete?'<button class="btn btn-sm" style="width:42px;background:#ffebee;color:#c62828;border:none;border-radius:6px;padding:5px 0;cursor:pointer" title="Remove" onclick="deleteCustomerDocument(\''+d.id+'\')">🗑</button>':'<span style="width:42px;display:inline-block"></span>')+
+            ? '<button class="vw" title="View" onclick="viewCustomerDoc(\''+d.id+'\')">👁</button>'
+            : '<span class="slot"></span>')+
+          (canDelete?'<button class="rn" title="Rename" onclick="renameCustomerDocument(\''+d.id+'\')">✎</button>':'<span class="slot"></span>')+
+          (canDelete?'<button class="dz" title="Remove" onclick="deleteCustomerDocument(\''+d.id+'\')">🗑</button>':'<span class="slot"></span>')+
         '</div>'+
       '</div>';
     }).join('');
