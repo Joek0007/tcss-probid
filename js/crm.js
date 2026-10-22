@@ -148,14 +148,17 @@ async function _loadCPDocuments(customerId) {
       var icon = isImg?'🖼️':(isPdf?'📄':'📎');
       var sizeKb = d.file_size?Math.max(1,Math.round(d.file_size/1024))+' KB':'';
       var when = d.uploaded_at?String(d.uploaded_at).slice(0,10):'';
-      var openLbl = (isImg||isPdf)?'👁 View':'⬇ Download';
+      var isView = (isImg||isPdf);
       return '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #eef0f4;border-radius:10px;margin-bottom:8px;background:#fff">'+
+        '<button class="btn btn-sm" title="Download" style="flex-shrink:0;background:#eef3fb;color:#1565c0;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;font-weight:700;line-height:1" onclick="downloadCustomerDoc(\''+d.id+'\')">⬇</button>'+
         '<span style="font-size:22px;flex-shrink:0">'+icon+'</span>'+
         '<div style="flex:1;min-width:0">'+
           '<div style="font-weight:700;font-size:13px;color:#0d1b2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(disp)+'</div>'+
           '<div style="font-size:11px;color:#90a4ae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml([(d.file_name?'Original: '+d.file_name:''), when, d.uploaded_by, sizeKb].filter(Boolean).join(' · '))+'</div>'+
         '</div>'+
-        '<button class="btn btn-outline btn-sm" style="flex-shrink:0" onclick="openCustomerDoc(\''+d.id+'\')">'+openLbl+'</button>'+
+        (isView
+          ? '<button class="btn btn-outline btn-sm" style="flex-shrink:0;min-width:78px" onclick="viewCustomerDoc(\''+d.id+'\')">👁 View</button>'
+          : '<span style="min-width:78px;flex-shrink:0;display:inline-block"></span>')+
         (canDelete?'<button class="btn btn-sm" style="background:#eef3fb;color:#1565c0;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;flex-shrink:0" title="Rename" onclick="renameCustomerDocument(\''+d.id+'\')">✎ Rename</button>':'')+
         (canDelete?'<button class="btn btn-sm" style="background:#ffebee;color:#c62828;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;flex-shrink:0" title="Remove" onclick="deleteCustomerDocument(\''+d.id+'\')">🗑</button>':'')+
       '</div>';
@@ -163,20 +166,32 @@ async function _loadCPDocuments(customerId) {
   } catch(e) { var l=document.getElementById('cp-docs-list'); if(l) l.innerHTML='<div style="padding:20px;color:#c62828">Could not load documents: '+escHtml(e.message||String(e))+'</div>'; }
 }
 
-async function openCustomerDoc(id) {
+// View (viewable types only): images open in the in-app viewer, PDFs open inline.
+async function viewCustomerDoc(id) {
   var info = (window._cpDocs && window._cpDocs[id]) || null;
   if (!info || !info.path || typeof _sb==='undefined' || !_sb) return;
   try {
-    // Non-viewable types (Word/Excel/CSV/text) download with their real filename;
-    // images open in the in-app viewer; PDFs open inline in a new tab.
-    var opts = (info.kind==='file') ? { download: info.name || info.file || true } : undefined;
-    var res = await _sb.storage.from('job-photos').createSignedUrl(info.path, 3600, opts);
+    var res = await _sb.storage.from('job-photos').createSignedUrl(info.path, 3600);
     if (res.error) throw res.error;
     var url = res.data && res.data.signedUrl;
     if (!url) { showToast('Could not open document','error'); return; }
-    if (info.kind==='image' && typeof viewPhoto==='function') { viewPhoto(url, 'Customer document'); return; }
+    if (info.kind==='image' && typeof viewPhoto==='function') { viewPhoto(url, info.name||'Customer document'); return; }
     window.open(url, '_blank', 'noopener');
   } catch(e) { showToast('Could not open: '+(e.message||e),'error'); }
+}
+
+// Download (any type): saves with the document's current name (extension kept).
+async function downloadCustomerDoc(id) {
+  var info = (window._cpDocs && window._cpDocs[id]) || null;
+  if (!info || !info.path || typeof _sb==='undefined' || !_sb) return;
+  try {
+    var res = await _sb.storage.from('job-photos').createSignedUrl(info.path, 3600, { download: info.name || info.file || true });
+    if (res.error) throw res.error;
+    var url = res.data && res.data.signedUrl;
+    if (!url) { showToast('Could not download document','error'); return; }
+    var a = document.createElement('a'); a.href = url; a.download = (info.name||info.file||''); a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch(e) { showToast('Could not download: '+(e.message||e),'error'); }
 }
 
 async function onCustomerDocSelected(input) {
