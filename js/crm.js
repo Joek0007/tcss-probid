@@ -136,19 +136,25 @@ async function _loadCPDocuments(customerId) {
     if (!docs.length) { list.innerHTML='<div style="padding:28px;text-align:center;color:#90a4ae"><div style="font-size:30px;margin-bottom:6px">📁</div>No documents yet. Upload a contract, agreement, or form to keep it on this customer.</div>'; return; }
     var canDelete = (typeof hasPermission!=='function') || hasPermission('cust.edit');
     window._cpDocNames = {};
+    window._cpDocs = {};
     list.innerHTML = docs.map(function(d){
       window._cpDocNames[d.id] = d.name||d.file_name||'';
       var ft = d.file_type||'';
-      var icon = ft.indexOf('image/')===0?'🖼️':(ft.indexOf('pdf')>=0?'📄':'📎');
+      var isImg = ft.indexOf('image/')===0;
+      var isPdf = ft.indexOf('pdf')>=0 || /\.pdf$/i.test(d.file_name||'');
+      var kind = isImg?'image':(isPdf?'pdf':'file');
+      window._cpDocs[d.id] = { path:d.file_path||'', file:d.file_name||'', kind:kind };
+      var icon = isImg?'🖼️':(isPdf?'📄':'📎');
       var sizeKb = d.file_size?Math.max(1,Math.round(d.file_size/1024))+' KB':'';
       var when = d.uploaded_at?String(d.uploaded_at).slice(0,10):'';
+      var openLbl = (isImg||isPdf)?'👁 View':'⬇ Download';
       return '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #eef0f4;border-radius:10px;margin-bottom:8px;background:#fff">'+
         '<span style="font-size:22px;flex-shrink:0">'+icon+'</span>'+
         '<div style="flex:1;min-width:0">'+
           '<div style="font-weight:700;font-size:13px;color:#0d1b2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(d.name||d.file_name||'Document')+'</div>'+
-          '<div style="font-size:11px;color:#90a4ae">'+escHtml([when, d.uploaded_by, sizeKb].filter(Boolean).join(' · '))+'</div>'+
+          '<div style="font-size:11px;color:#90a4ae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml([d.file_name, when, d.uploaded_by, sizeKb].filter(Boolean).join(' · '))+'</div>'+
         '</div>'+
-        '<button class="btn btn-outline btn-sm" style="flex-shrink:0" onclick="openCustomerDoc(\''+escHtml(d.file_path||'')+'\')">View</button>'+
+        '<button class="btn btn-outline btn-sm" style="flex-shrink:0" onclick="openCustomerDoc(\''+d.id+'\')">'+openLbl+'</button>'+
         (canDelete?'<button class="btn btn-sm" style="background:#eef3fb;color:#1565c0;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;flex-shrink:0" title="Rename" onclick="renameCustomerDocument(\''+d.id+'\')">✎ Rename</button>':'')+
         (canDelete?'<button class="btn btn-sm" style="background:#ffebee;color:#c62828;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;flex-shrink:0" title="Remove" onclick="deleteCustomerDocument(\''+d.id+'\')">🗑</button>':'')+
       '</div>';
@@ -156,13 +162,19 @@ async function _loadCPDocuments(customerId) {
   } catch(e) { var l=document.getElementById('cp-docs-list'); if(l) l.innerHTML='<div style="padding:20px;color:#c62828">Could not load documents: '+escHtml(e.message||String(e))+'</div>'; }
 }
 
-async function openCustomerDoc(path) {
-  if (!path || typeof _sb==='undefined' || !_sb) return;
+async function openCustomerDoc(id) {
+  var info = (window._cpDocs && window._cpDocs[id]) || null;
+  if (!info || !info.path || typeof _sb==='undefined' || !_sb) return;
   try {
-    var res = await _sb.storage.from('job-photos').createSignedUrl(path, 3600);
+    // Non-viewable types (Word/Excel/CSV/text) download with their real filename;
+    // images open in the in-app viewer; PDFs open inline in a new tab.
+    var opts = (info.kind==='file') ? { download: info.file || true } : undefined;
+    var res = await _sb.storage.from('job-photos').createSignedUrl(info.path, 3600, opts);
     if (res.error) throw res.error;
     var url = res.data && res.data.signedUrl;
-    if (url) window.open(url, '_blank', 'noopener'); else showToast('Could not open document','error');
+    if (!url) { showToast('Could not open document','error'); return; }
+    if (info.kind==='image' && typeof viewPhoto==='function') { viewPhoto(url, 'Customer document'); return; }
+    window.open(url, '_blank', 'noopener');
   } catch(e) { showToast('Could not open: '+(e.message||e),'error'); }
 }
 
