@@ -138,12 +138,13 @@ async function _loadCPDocuments(customerId) {
     window._cpDocNames = {};
     window._cpDocs = {};
     list.innerHTML = docs.map(function(d){
-      window._cpDocNames[d.id] = d.name||d.file_name||'';
       var ft = d.file_type||'';
       var isImg = ft.indexOf('image/')===0;
       var isPdf = ft.indexOf('pdf')>=0 || /\.pdf$/i.test(d.file_name||'');
       var kind = isImg?'image':(isPdf?'pdf':'file');
-      window._cpDocs[d.id] = { path:d.file_path||'', file:d.file_name||'', kind:kind };
+      var disp = _cpDocWithExt(d.name||d.file_name||'Document', d.file_name);   // name always carries the real extension
+      window._cpDocNames[d.id] = disp;
+      window._cpDocs[d.id] = { path:d.file_path||'', file:d.file_name||'', name:disp, kind:kind };
       var icon = isImg?'🖼️':(isPdf?'📄':'📎');
       var sizeKb = d.file_size?Math.max(1,Math.round(d.file_size/1024))+' KB':'';
       var when = d.uploaded_at?String(d.uploaded_at).slice(0,10):'';
@@ -151,8 +152,8 @@ async function _loadCPDocuments(customerId) {
       return '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #eef0f4;border-radius:10px;margin-bottom:8px;background:#fff">'+
         '<span style="font-size:22px;flex-shrink:0">'+icon+'</span>'+
         '<div style="flex:1;min-width:0">'+
-          '<div style="font-weight:700;font-size:13px;color:#0d1b2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(d.name||d.file_name||'Document')+'</div>'+
-          '<div style="font-size:11px;color:#90a4ae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml([d.file_name, when, d.uploaded_by, sizeKb].filter(Boolean).join(' · '))+'</div>'+
+          '<div style="font-weight:700;font-size:13px;color:#0d1b2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(disp)+'</div>'+
+          '<div style="font-size:11px;color:#90a4ae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml([(d.file_name?'Original: '+d.file_name:''), when, d.uploaded_by, sizeKb].filter(Boolean).join(' · '))+'</div>'+
         '</div>'+
         '<button class="btn btn-outline btn-sm" style="flex-shrink:0" onclick="openCustomerDoc(\''+d.id+'\')">'+openLbl+'</button>'+
         (canDelete?'<button class="btn btn-sm" style="background:#eef3fb;color:#1565c0;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;flex-shrink:0" title="Rename" onclick="renameCustomerDocument(\''+d.id+'\')">✎ Rename</button>':'')+
@@ -168,7 +169,7 @@ async function openCustomerDoc(id) {
   try {
     // Non-viewable types (Word/Excel/CSV/text) download with their real filename;
     // images open in the in-app viewer; PDFs open inline in a new tab.
-    var opts = (info.kind==='file') ? { download: info.file || true } : undefined;
+    var opts = (info.kind==='file') ? { download: info.name || info.file || true } : undefined;
     var res = await _sb.storage.from('job-photos').createSignedUrl(info.path, 3600, opts);
     if (res.error) throw res.error;
     var url = res.data && res.data.signedUrl;
@@ -230,20 +231,37 @@ async function deleteCustomerDocument(docId) {
   } catch(e) { showToast('Could not remove: '+(e.message||e),'error'); }
 }
 
+// Keep the real file extension on a document's display name: strip a trailing copy
+// (any case) so it never doubles, then append the original file's extension.
+function _cpDocWithExt(name, fileName){
+  name = String(name==null?'':name).trim();
+  var m = /(\.[A-Za-z0-9]{1,8})$/.exec(String(fileName==null?'':fileName));
+  var ext = m ? m[1] : '';
+  if (!ext) return name;
+  if (name.length>=ext.length && name.slice(-ext.length).toLowerCase() === ext.toLowerCase()) return name;
+  return name + ext;
+}
+
 async function renameCustomerDocument(docId) {
   if (typeof _sb==='undefined' || !_sb) return;
   if (typeof hasPermission==='function' && !hasPermission('cust.edit')) { showToast('You do not have permission to rename customer documents','error'); return; }
+  var info = (window._cpDocs && window._cpDocs[docId]) || {};
+  var fileName = info.file || '';
+  var m = /(\.[A-Za-z0-9]{1,8})$/.exec(fileName); var ext = m ? m[1] : '';
   var cur = (window._cpDocNames && window._cpDocNames[docId]) || '';
-  var name = prompt('Document name (what it should read as in the list):', cur);
-  if (name===null) return;                 // cancelled
-  name = name.trim();
-  if (!name) { showToast('Name cannot be blank','error'); return; }
-  if (name===cur) return;                   // unchanged
+  // Show the base name (without the extension) in the prompt — the type is re-added on save.
+  var base = (ext && cur.length>=ext.length && cur.slice(-ext.length).toLowerCase()===ext.toLowerCase()) ? cur.slice(0, cur.length-ext.length) : cur;
+  var entered = prompt(ext ? ('New name for this document — the '+ext+' file type is kept on automatically:') : 'New name for this document:', base);
+  if (entered===null) return;               // cancelled
+  entered = entered.trim();
+  if (!entered) { showToast('Name cannot be blank','error'); return; }
+  var finalName = _cpDocWithExt(entered, fileName);
+  if (finalName===cur) return;              // unchanged
   try {
-    var res = await _sb.from('customer_documents').update({ name:name }).eq('id', docId);
+    var res = await _sb.from('customer_documents').update({ name:finalName }).eq('id', docId);
     if (res.error) throw res.error;
-    if (typeof auditLog==='function') { try { auditLog('doc_renamed','customer',_cpCustomerId,{note:'document renamed to '+name}); } catch(e){} }
-    showToast('Renamed','success');
+    if (typeof auditLog==='function') { try { auditLog('doc_renamed','customer',_cpCustomerId,{note:'document renamed to '+finalName}); } catch(e){} }
+    showToast('Renamed to '+finalName,'success');
     _loadCPDocuments(_cpCustomerId);
   } catch(e) { showToast('Could not rename: '+(e.message||e),'error'); }
 }
