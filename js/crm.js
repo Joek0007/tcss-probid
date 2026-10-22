@@ -149,18 +149,21 @@ async function _loadCPDocuments(customerId) {
       var sizeKb = d.file_size?Math.max(1,Math.round(d.file_size/1024))+' KB':'';
       var when = d.uploaded_at?String(d.uploaded_at).slice(0,10):'';
       var isView = (isImg||isPdf);
-      return '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #eef0f4;border-radius:10px;margin-bottom:8px;background:#fff">'+
-        '<button class="btn btn-sm" title="Download" style="flex-shrink:0;background:#eef3fb;color:#1565c0;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;font-weight:700;line-height:1" onclick="downloadCustomerDoc(\''+d.id+'\')">⬇</button>'+
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #eef0f4;border-radius:10px;margin-bottom:8px;background:#fff">'+
         '<span style="font-size:22px;flex-shrink:0">'+icon+'</span>'+
         '<div style="flex:1;min-width:0">'+
           '<div style="font-weight:700;font-size:13px;color:#0d1b2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(disp)+'</div>'+
           '<div style="font-size:11px;color:#90a4ae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml([(d.file_name?'Original: '+d.file_name:''), when, d.uploaded_by, sizeKb].filter(Boolean).join(' · '))+'</div>'+
         '</div>'+
-        (isView
-          ? '<button class="btn btn-outline btn-sm" style="flex-shrink:0;min-width:78px" onclick="viewCustomerDoc(\''+d.id+'\')">👁 View</button>'
-          : '<span style="min-width:78px;flex-shrink:0;display:inline-block"></span>')+
-        (canDelete?'<button class="btn btn-sm" style="background:#eef3fb;color:#1565c0;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;flex-shrink:0" title="Rename" onclick="renameCustomerDocument(\''+d.id+'\')">✎ Rename</button>':'')+
-        (canDelete?'<button class="btn btn-sm" style="background:#ffebee;color:#c62828;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;flex-shrink:0" title="Remove" onclick="deleteCustomerDocument(\''+d.id+'\')">🗑</button>':'')+
+        // Action cluster — fixed-width columns so every control lines up down the list
+        '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+
+          '<button class="btn btn-outline btn-sm" title="Download" style="width:42px;padding:5px 0;text-align:center;font-size:15px;line-height:1" onclick="downloadCustomerDoc(\''+d.id+'\')">⬇</button>'+
+          (isView
+            ? '<button class="btn btn-outline btn-sm" style="width:80px" onclick="viewCustomerDoc(\''+d.id+'\')">👁 View</button>'
+            : '<span style="width:80px;display:inline-block"></span>')+
+          (canDelete?'<button class="btn btn-sm" style="width:92px;background:#eef3fb;color:#1565c0;border:none;border-radius:6px;padding:5px 0;cursor:pointer" title="Rename" onclick="renameCustomerDocument(\''+d.id+'\')">✎ Rename</button>':'<span style="width:92px;display:inline-block"></span>')+
+          (canDelete?'<button class="btn btn-sm" style="width:42px;background:#ffebee;color:#c62828;border:none;border-radius:6px;padding:5px 0;cursor:pointer" title="Remove" onclick="deleteCustomerDocument(\''+d.id+'\')">🗑</button>':'<span style="width:42px;display:inline-block"></span>')+
+        '</div>'+
       '</div>';
     }).join('');
   } catch(e) { var l=document.getElementById('cp-docs-list'); if(l) l.innerHTML='<div style="padding:20px;color:#c62828">Could not load documents: '+escHtml(e.message||String(e))+'</div>'; }
