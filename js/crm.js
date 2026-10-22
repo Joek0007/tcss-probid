@@ -101,6 +101,118 @@ function switchCPTab(tab) {
   else if (tab==='workorders') content.innerHTML = renderCPWorkOrders();
   else if (tab==='alerts')   content.innerHTML = renderCPAlerts(customer);
   else if (tab==='comms')    content.innerHTML = (typeof renderCPComms === 'function') ? renderCPComms(_cpCustomerId) : '<div style="padding:20px;color:#90a4ae">Loading...</div>';
+  else if (tab==='documents') content.innerHTML = renderCPDocuments(_cpCustomerId);
+}
+
+// ============================================================
+// CUSTOMER DOCUMENTS — account-level file attachments
+// Files that belong to the CUSTOMER (contracts, agreements, tax-exempt forms,
+// site docs) rather than to a single work order. Stored in the private
+// job-photos bucket under customer-docs/<id>/, tracked in customer_documents,
+// loaded on demand when the tab opens, viewed via short-lived signed URLs.
+// ============================================================
+function renderCPDocuments(customerId) {
+  if (typeof hasPermission==='function' && !hasPermission('cust.view'))
+    return '<div style="color:#90a4ae;padding:20px;text-align:center">You do not have permission to view this customer.</div>';
+  var canUpload = (typeof hasPermission!=='function') || hasPermission('cust.edit');
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">'+
+      '<div style="font-size:13px;color:#546e7a;max-width:60ch">Files tied to this customer — contracts, agreements, tax-exempt forms, site docs. Stored on the customer, separate from any work order.</div>'+
+      (canUpload?'<label class="btn btn-primary btn-sm" style="cursor:pointer;flex-shrink:0">⬆ Upload Document'+
+        '<input type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" style="display:none" onchange="onCustomerDocSelected(this)"></label>':'')+
+    '</div>'+
+    '<div id="cp-docs-list"><div style="padding:24px;text-align:center;color:#90a4ae">Loading documents…</div></div>';
+  setTimeout(function(){ _loadCPDocuments(customerId); }, 30);
+  return html;
+}
+
+async function _loadCPDocuments(customerId) {
+  var list = document.getElementById('cp-docs-list'); if(!list) return;
+  if (typeof _sb==='undefined' || !_sb) { list.innerHTML='<div style="padding:20px;color:#90a4ae">Not connected.</div>'; return; }
+  try {
+    var res = await _sb.from('customer_documents').select('*').eq('customer_id', customerId).eq('deleted', false).order('uploaded_at', { ascending:false });
+    if (res.error) throw res.error;
+    var docs = res.data || [];
+    list = document.getElementById('cp-docs-list'); if(!list) return;   // tab switched away during load
+    if (!docs.length) { list.innerHTML='<div style="padding:28px;text-align:center;color:#90a4ae"><div style="font-size:30px;margin-bottom:6px">📁</div>No documents yet. Upload a contract, agreement, or form to keep it on this customer.</div>'; return; }
+    var canDelete = (typeof hasPermission!=='function') || hasPermission('cust.edit');
+    list.innerHTML = docs.map(function(d){
+      var ft = d.file_type||'';
+      var icon = ft.indexOf('image/')===0?'🖼️':(ft.indexOf('pdf')>=0?'📄':'📎');
+      var sizeKb = d.file_size?Math.max(1,Math.round(d.file_size/1024))+' KB':'';
+      var when = d.uploaded_at?String(d.uploaded_at).slice(0,10):'';
+      return '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #eef0f4;border-radius:10px;margin-bottom:8px;background:#fff">'+
+        '<span style="font-size:22px;flex-shrink:0">'+icon+'</span>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-weight:700;font-size:13px;color:#0d1b2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(d.name||d.file_name||'Document')+'</div>'+
+          '<div style="font-size:11px;color:#90a4ae">'+escHtml([when, d.uploaded_by, sizeKb].filter(Boolean).join(' · '))+'</div>'+
+        '</div>'+
+        '<button class="btn btn-outline btn-sm" style="flex-shrink:0" onclick="openCustomerDoc(\''+escHtml(d.file_path||'')+'\')">View</button>'+
+        (canDelete?'<button class="btn btn-sm" style="background:#ffebee;color:#c62828;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;flex-shrink:0" title="Remove" onclick="deleteCustomerDocument(\''+d.id+'\')">🗑</button>':'')+
+      '</div>';
+    }).join('');
+  } catch(e) { var l=document.getElementById('cp-docs-list'); if(l) l.innerHTML='<div style="padding:20px;color:#c62828">Could not load documents: '+escHtml(e.message||String(e))+'</div>'; }
+}
+
+async function openCustomerDoc(path) {
+  if (!path || typeof _sb==='undefined' || !_sb) return;
+  try {
+    var res = await _sb.storage.from('job-photos').createSignedUrl(path, 3600);
+    if (res.error) throw res.error;
+    var url = res.data && res.data.signedUrl;
+    if (url) window.open(url, '_blank', 'noopener'); else showToast('Could not open document','error');
+  } catch(e) { showToast('Could not open: '+(e.message||e),'error'); }
+}
+
+async function onCustomerDocSelected(input) {
+  var file = input.files && input.files[0]; if(!file) return;
+  input.value='';
+  await uploadCustomerDocument(file, _cpCustomerId);
+}
+
+async function uploadCustomerDocument(file, customerId, label) {
+  if (!file || !customerId) return null;
+  if (typeof _sb==='undefined' || !_sb || !_currentUser) { showToast('Not logged in','error'); return null; }
+  if (typeof hasPermission==='function' && !hasPermission('cust.edit')) { showToast('You do not have permission to add customer documents','error'); return null; }
+  if (file.size > 25*1024*1024) { showToast('File is over 25MB — please use a smaller file','error'); return null; }
+  var list = document.getElementById('cp-docs-list');
+  if (list) list.insertAdjacentHTML('afterbegin','<div id="cp-doc-uploading" style="padding:10px 12px;color:#1565c0;font-size:12px">Uploading '+escHtml(file.name)+'…</div>');
+  try {
+    if (typeof compressImage==='function') file = await compressImage(file);   // shrinks photos; PDFs/other pass through
+    var safe = (file.name||'file').replace(/[^a-zA-Z0-9._-]/g,'_');
+    var path = 'customer-docs/'+customerId+'/'+Date.now()+'-'+safe;
+    var up = await _sb.storage.from('job-photos').upload(path, file, { cacheControl:'3600', upsert:false });
+    if (up.error) throw up.error;
+    var pu = _sb.storage.from('job-photos').getPublicUrl(path);
+    var url = (pu && pu.data) ? pu.data.publicUrl : null;
+    var id = 'cdoc-'+Date.now()+'-'+Math.random().toString(36).slice(2,5);
+    var ins = await _sb.from('customer_documents').insert({
+      id:id, customer_id:customerId, name:(label||file.name), file_name:file.name,
+      file_type:(file.type||'application/octet-stream'), file_size:file.size, file_path:path,
+      url:url, doc_type:'office', uploaded_by:(_currentUser.full_name||''), uploaded_at:new Date().toISOString()
+    });
+    if (ins.error) throw ins.error;
+    if (typeof auditLog==='function') { try { auditLog('doc_uploaded','customer',customerId,{note:(label||file.name)+' uploaded by '+(_currentUser.full_name||'')}); } catch(e){} }
+    showToast('Document uploaded','success');
+    _loadCPDocuments(customerId);
+    return id;
+  } catch(e) {
+    var u=document.getElementById('cp-doc-uploading'); if(u) u.remove();
+    showToast('Upload failed: '+(e.message||e),'error');
+    return null;
+  }
+}
+
+async function deleteCustomerDocument(docId) {
+  if (typeof _sb==='undefined' || !_sb) return;
+  if (typeof hasPermission==='function' && !hasPermission('cust.edit')) { showToast('You do not have permission to remove customer documents','error'); return; }
+  if (!confirm('Remove this document from the customer?')) return;
+  try {
+    var res = await _sb.from('customer_documents').update({ deleted:true }).eq('id', docId);
+    if (res.error) throw res.error;
+    if (typeof auditLog==='function') { try { auditLog('doc_deleted','customer',_cpCustomerId,{note:'customer document removed'}); } catch(e){} }
+    showToast('Document removed','info');
+    _loadCPDocuments(_cpCustomerId);
+  } catch(e) { showToast('Could not remove: '+(e.message||e),'error'); }
 }
 
 function renderCPAlerts(customer) {
