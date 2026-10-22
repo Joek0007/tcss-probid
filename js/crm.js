@@ -135,7 +135,9 @@ async function _loadCPDocuments(customerId) {
     list = document.getElementById('cp-docs-list'); if(!list) return;   // tab switched away during load
     if (!docs.length) { list.innerHTML='<div style="padding:28px;text-align:center;color:#90a4ae"><div style="font-size:30px;margin-bottom:6px">📁</div>No documents yet. Upload a contract, agreement, or form to keep it on this customer.</div>'; return; }
     var canDelete = (typeof hasPermission!=='function') || hasPermission('cust.edit');
+    window._cpDocNames = {};
     list.innerHTML = docs.map(function(d){
+      window._cpDocNames[d.id] = d.name||d.file_name||'';
       var ft = d.file_type||'';
       var icon = ft.indexOf('image/')===0?'🖼️':(ft.indexOf('pdf')>=0?'📄':'📎');
       var sizeKb = d.file_size?Math.max(1,Math.round(d.file_size/1024))+' KB':'';
@@ -147,6 +149,7 @@ async function _loadCPDocuments(customerId) {
           '<div style="font-size:11px;color:#90a4ae">'+escHtml([when, d.uploaded_by, sizeKb].filter(Boolean).join(' · '))+'</div>'+
         '</div>'+
         '<button class="btn btn-outline btn-sm" style="flex-shrink:0" onclick="openCustomerDoc(\''+escHtml(d.file_path||'')+'\')">View</button>'+
+        (canDelete?'<button class="btn btn-sm" style="background:#eef3fb;color:#1565c0;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;flex-shrink:0" title="Rename" onclick="renameCustomerDocument(\''+d.id+'\')">✎ Rename</button>':'')+
         (canDelete?'<button class="btn btn-sm" style="background:#ffebee;color:#c62828;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;flex-shrink:0" title="Remove" onclick="deleteCustomerDocument(\''+d.id+'\')">🗑</button>':'')+
       '</div>';
     }).join('');
@@ -213,6 +216,24 @@ async function deleteCustomerDocument(docId) {
     showToast('Document removed','info');
     _loadCPDocuments(_cpCustomerId);
   } catch(e) { showToast('Could not remove: '+(e.message||e),'error'); }
+}
+
+async function renameCustomerDocument(docId) {
+  if (typeof _sb==='undefined' || !_sb) return;
+  if (typeof hasPermission==='function' && !hasPermission('cust.edit')) { showToast('You do not have permission to rename customer documents','error'); return; }
+  var cur = (window._cpDocNames && window._cpDocNames[docId]) || '';
+  var name = prompt('Document name (what it should read as in the list):', cur);
+  if (name===null) return;                 // cancelled
+  name = name.trim();
+  if (!name) { showToast('Name cannot be blank','error'); return; }
+  if (name===cur) return;                   // unchanged
+  try {
+    var res = await _sb.from('customer_documents').update({ name:name }).eq('id', docId);
+    if (res.error) throw res.error;
+    if (typeof auditLog==='function') { try { auditLog('doc_renamed','customer',_cpCustomerId,{note:'document renamed to '+name}); } catch(e){} }
+    showToast('Renamed','success');
+    _loadCPDocuments(_cpCustomerId);
+  } catch(e) { showToast('Could not rename: '+(e.message||e),'error'); }
 }
 
 function renderCPAlerts(customer) {
