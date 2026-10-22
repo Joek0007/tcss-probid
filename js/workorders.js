@@ -3467,8 +3467,11 @@ function renderWODocsTab(woId) {
   var canViewOffice   = canUploadOffice; // only office roles see office docs section
 
   function docCard(d, canDelete, deleteFn) {
-    var isImg = (d.fileType||'').startsWith('image/');
-    var icon  = isImg ? '🖼' : (d.fileType==='application/pdf' ? '📄' : '📎');
+    var ft    = (d.fileType||'');
+    var kind  = ft.indexOf('image/')===0 ? 'image' : ((ft==='application/pdf'||/\.pdf$/i.test(d.fileName||'')) ? 'pdf' : 'file');
+    var isImg = kind==='image';
+    var icon  = isImg ? '🖼' : (kind==='pdf' ? '📄' : '📎');
+    var isView= (kind==='image'||kind==='pdf');
     var kb    = d.fileSize ? (d.fileSize/1024).toFixed(0)+'KB' : '';
     return '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">'+
       (isImg && d.url
@@ -3477,10 +3480,13 @@ function renderWODocsTab(woId) {
       )+
       '<div style="padding:8px 10px">'+
         '<div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(d.name)+'">'+escHtml(d.name)+'</div>'+
-        '<div style="font-size:10px;color:#90a4ae;margin-bottom:6px">'+escHtml(d.uploadedBy||'')+' · '+escHtml(kb)+'</div>'+
-        '<div style="display:flex;gap:5px">'+
-          '<a data-sp="'+escHtml(d.path||'')+'" href="#" target="_blank" rel="noopener" style="flex:1;text-align:center;padding:4px;background:#1565c0;color:#fff;border-radius:4px;font-size:11px;font-weight:700;text-decoration:none">⬇ Open</a>'+
-          (canDelete ? '<button onclick="'+deleteFn+'(\''+d.id+'\')" style="padding:4px 8px;background:#ffebee;color:#c62828;border:none;border-radius:4px;font-size:11px;cursor:pointer">✕</button>' : '')+
+        ((d.fileName&&d.fileName!==d.name)?'<div style="font-size:9px;color:#b0bcc6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(d.fileName)+'">Original: '+escHtml(d.fileName)+'</div>':'')+
+        '<div style="font-size:10px;color:#90a4ae;margin:2px 0 6px">'+escHtml(d.uploadedBy||'')+' · '+escHtml(kb)+'</div>'+
+        '<div class="cpdoc-tray card">'+
+          '<button class="dl" title="Download" onclick="downloadWODoc(\''+d.id+'\')">⬇</button>'+
+          (isView?'<button class="vw" title="View" onclick="viewWODoc(\''+d.id+'\')">👁</button>':'<span class="slot"></span>')+
+          (canDelete?'<button class="rn" title="Rename" onclick="renameWODoc(\''+d.id+'\')">✎</button>':'<span class="slot"></span>')+
+          (canDelete?'<button class="dz" title="Remove" onclick="'+deleteFn+'(\''+d.id+'\')">🗑</button>':'<span class="slot"></span>')+
         '</div>'+
       '</div>'+
     '</div>';
@@ -3583,6 +3589,34 @@ function submitOfficeDoc() { _submitWODocByType('wdoc-o-cam','wdoc-o-file','wdoc
 // Legacy alias - keep working for any calls from expenses receipt upload
 function submitWODoc()     { _submitWODocByType('wdoc-cam','wdoc-file','wdoc-label','wdoc-selected-name','office'); }
 
+function _woDocKind(d){ var ft=(d.fileType||''); return ft.indexOf('image/')===0?'image':((ft==='application/pdf'||/\.pdf$/i.test(d.fileName||''))?'pdf':'file'); }
+async function viewWODoc(docId){
+  var d=(DB.woDocuments||[]).find(function(x){ return x.id===docId; }); if(!d||!d.path||typeof _sb==='undefined'||!_sb) return;
+  try{ var r=await _sb.storage.from('job-photos').createSignedUrl(d.path,3600); if(r.error) throw r.error;
+    var u=r.data&&r.data.signedUrl; if(!u){ showToast('Could not open','error'); return; }
+    if(_woDocKind(d)==='image'&&typeof viewPhoto==='function'){ viewPhoto(u, d.name||'Document'); return; }
+    window.open(u,'_blank','noopener');
+  }catch(e){ showToast('Could not open: '+(e.message||e),'error'); }
+}
+async function downloadWODoc(docId){
+  var d=(DB.woDocuments||[]).find(function(x){ return x.id===docId; }); if(!d||!d.path||typeof _sb==='undefined'||!_sb) return;
+  try{ var r=await _sb.storage.from('job-photos').createSignedUrl(d.path,3600,{ download: d.name||d.fileName||true }); if(r.error) throw r.error;
+    var u=r.data&&r.data.signedUrl; if(!u){ showToast('Could not download','error'); return; }
+    var a=document.createElement('a'); a.href=u; a.download=(d.name||d.fileName||''); a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){ showToast('Could not download: '+(e.message||e),'error'); }
+}
+async function renameWODoc(docId){
+  var d=(DB.woDocuments||[]).find(function(x){ return x.id===docId; }); if(!d) return;
+  var ext=''; var m=(d.fileName||'').match(/\.[^.\/\\]+$/); if(m) ext=m[0];
+  var base=(d.name||d.fileName||''); if(ext&&base.length>=ext.length&&base.slice(-ext.length).toLowerCase()===ext.toLowerCase()) base=base.slice(0,-ext.length);
+  var entered=prompt('Rename document (the file extension stays '+(ext||'the same')+'):', base); if(entered===null) return;
+  entered=entered.trim(); if(!entered) return;
+  var finalName=(typeof _cpDocWithExt==='function')?_cpDocWithExt(entered, d.fileName):entered;
+  d.name=finalName; saveDB();
+  try{ if(_sb) await _sb.from('wo_documents').update({ name:finalName }).eq('id',docId); }catch(e){ showToast('Rename save failed: '+(e.message||e),'error'); }
+  switchWOTab('photos');
+  if(typeof showToast==='function') showToast('Renamed ✓','success');
+}
 function deleteWODoc(docId) {
   if (!confirm('Remove this document?')) return;
   var doc = (DB.woDocuments||[]).find(function(d){ return d.id===docId; });

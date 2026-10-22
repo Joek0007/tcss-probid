@@ -337,17 +337,50 @@ function renderJobPhotosSection(jobId) {
     photos.forEach(function(p) {
       if (!p.url) return;
       var canDel = _officePhoto || (p.uploadedBy && _currentUser && p.uploadedBy === _currentUser.id);
+      var canEdit = canDel;
       html += '<div style="position:relative">'+
         '<img data-sp="'+escHtml(p.filePath||p.file_path||'')+'" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" onclick="if(this.getAttribute(\'src\').indexOf(\'/sign/\')>-1)window.open(this.src,\'_blank\')" '+
         'style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid #e0e7ef;background:#eef2f7" '+
         'title="'+escHtml(p.caption||p.fileName||'')+'" loading="lazy">'+
-        (canDel?'<button onclick="deleteJobPhoto(\''+p.id+'\')" title="Delete photo (moves to Recycle Bin)" style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:13px;line-height:1;cursor:pointer;padding:0">×</button>':'')+
-        (p.caption?'<div style="font-size:9px;color:#546e7a;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(p.caption)+'</div>':'')+
+        '<div class="jp-act">'+
+          '<button title="Download" onclick="downloadJobPhoto(\''+p.id+'\')">⬇</button>'+
+          (canDel?'<button class="del" title="Delete photo (moves to Recycle Bin)" onclick="deleteJobPhoto(\''+p.id+'\')">×</button>':'')+
+        '</div>'+
+        (canEdit
+          ? '<div class="jp-cap"><span class="txt'+(p.caption?'':' empty')+'">'+escHtml(p.caption||'Add caption…')+'</span><button class="ed" title="Edit caption" onclick="editJobPhotoCaption(\''+p.id+'\')">✎</button></div>'
+          : (p.caption?'<div class="jp-cap"><span class="txt">'+escHtml(p.caption)+'</span></div>':''))+
       '</div>';
     });
     html += '</div>';
   }
   el.innerHTML = html;
+  if (typeof hydrateSignedMedia==='function') hydrateSignedMedia(el);
+}
+
+// Edit a job photo's caption (what / where) — label it any time, not just at upload
+function editJobPhotoCaption(id) {
+  var p = (DB.jobPhotos||[]).find(function(x){ return x.id===id; });
+  if (!p) return;
+  var entered = prompt('Caption — what / where is this photo?', p.caption||'');
+  if (entered===null) return;
+  entered = entered.trim();
+  p.caption = entered;
+  saveDB();
+  if (_sb) _sb.from('job_photos').update({ caption: entered||null }).eq('id', id).then(function(r){ if(r&&r.error) console.warn('[Photo caption]', r.error.message); });
+  renderJobPhotosSection(p.jobId);
+  showToast(entered?'Caption saved ✓':'Caption cleared','success');
+}
+
+// Download a job photo with a sensible filename (caption + original extension, else original name)
+async function downloadJobPhoto(id) {
+  var p = (DB.jobPhotos||[]).find(function(x){ return x.id===id; });
+  if (!p || typeof _sb==='undefined' || !_sb) return;
+  var path = p.filePath || p.file_path; if (!path) return;
+  var dlName = p.caption ? ((typeof _cpDocWithExt==='function')?_cpDocWithExt(p.caption, p.fileName||''):p.caption) : (p.fileName||'');
+  try{ var r=await _sb.storage.from('job-photos').createSignedUrl(path,3600,{ download: dlName||true }); if(r.error) throw r.error;
+    var u=r.data&&r.data.signedUrl; if(!u){ showToast('Could not download','error'); return; }
+    var a=document.createElement('a'); a.href=u; a.download=dlName||''; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){ showToast('Download failed: '+(e.message||e),'error'); }
 }
 
 // Soft-delete a job photo → Recycle Bin (restorable). Cloud row flagged deleted=true;

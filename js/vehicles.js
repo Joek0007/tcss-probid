@@ -500,10 +500,13 @@ async function uploadAssetDocument(file, assetId, name, docType){
   }catch(e){ console.error('[Asset doc upload]', e&&e.message); showToast('Upload failed: '+(e&&e.message||''),'error'); return null; }
 }
 
+function _vDocKind(d){ var ft=(d.fileType||''); return ft.indexOf('image/')===0?'image':((ft==='application/pdf'||/\.pdf$/i.test(d.fileName||''))?'pdf':'file'); }
 function _vDocCard(d, canDelete){
-  var isImg=(d.fileType||'').indexOf('image/')===0;
-  var icon=isImg?'🖼':((d.fileType==='application/pdf')?'📄':'📎');
+  var kind=_vDocKind(d);
+  var isImg=kind==='image';
+  var icon=isImg?'🖼':(kind==='pdf'?'📄':'📎');
   var kb=d.fileSize?((d.fileSize/1024).toFixed(0)+'KB'):'';
+  var isView=(kind==='image'||kind==='pdf');
   return '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">'+
     (isImg
       ? '<img data-sp="'+escHtml(d.path||'')+'" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" style="width:100%;height:110px;object-fit:cover;display:block;background:#eef2f7">'
@@ -511,12 +514,44 @@ function _vDocCard(d, canDelete){
     '<div style="padding:8px 10px">'+
       '<div style="font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">'+escHtml(_vehDocTypeLabel(d.docType))+'</div>'+
       '<div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(d.name||'')+'">'+escHtml(d.name||'')+'</div>'+
-      '<div style="font-size:10px;color:#90a4ae;margin-bottom:6px">'+escHtml(d.uploadedBy||'')+' · '+escHtml(kb)+'</div>'+
-      '<div style="display:flex;gap:5px">'+
-        '<a data-sp="'+escHtml(d.path||'')+'" href="#" target="_blank" rel="noopener" style="flex:1;text-align:center;padding:4px;background:#1565c0;color:#fff;border-radius:4px;font-size:11px;font-weight:700;text-decoration:none">⬇ Open</a>'+
-        (canDelete?'<button onclick="delAssetDoc(\''+d.id+'\')" style="padding:4px 8px;background:#ffebee;color:#c62828;border:none;border-radius:4px;font-size:11px;cursor:pointer">✕</button>':'')+
+      ((d.fileName&&d.fileName!==d.name)?'<div style="font-size:9px;color:#b0bcc6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(d.fileName)+'">Original: '+escHtml(d.fileName)+'</div>':'')+
+      '<div style="font-size:10px;color:#90a4ae;margin:2px 0 6px">'+escHtml(d.uploadedBy||'')+' · '+escHtml(kb)+'</div>'+
+      '<div class="cpdoc-tray card">'+
+        '<button class="dl" title="Download" onclick="downloadAssetDoc(\''+d.id+'\')">⬇</button>'+
+        (isView?'<button class="vw" title="View" onclick="viewAssetDoc(\''+d.id+'\')">👁</button>':'<span class="slot"></span>')+
+        (canDelete?'<button class="rn" title="Rename" onclick="renameAssetDoc(\''+d.id+'\')">✎</button>':'<span class="slot"></span>')+
+        (canDelete?'<button class="dz" title="Remove" onclick="delAssetDoc(\''+d.id+'\')">🗑</button>':'<span class="slot"></span>')+
       '</div>'+
     '</div></div>';
+}
+function _vpRerenderDocs(){ var c=document.getElementById('vp-content'); if(!c) return; c.innerHTML=(_vpTab==='photos'?renderVPPhotos():renderVPDocuments()); if(typeof hydrateSignedMedia==='function') hydrateSignedMedia(c); }
+async function viewAssetDoc(id){
+  var d=(_vpDocs||[]).find(function(x){ return x.id===id; }); if(!d||!d.path||typeof _sb==='undefined'||!_sb) return;
+  try{ var r=await _sb.storage.from('job-photos').createSignedUrl(d.path,3600); if(r.error) throw r.error;
+    var u=r.data&&r.data.signedUrl; if(!u){ showToast('Could not open','error'); return; }
+    if(_vDocKind(d)==='image'&&typeof viewPhoto==='function'){ viewPhoto(u, d.name||'Document'); return; }
+    window.open(u,'_blank','noopener');
+  }catch(e){ showToast('Could not open: '+(e.message||e),'error'); }
+}
+async function downloadAssetDoc(id){
+  var d=(_vpDocs||[]).find(function(x){ return x.id===id; }); if(!d||!d.path||typeof _sb==='undefined'||!_sb) return;
+  try{ var r=await _sb.storage.from('job-photos').createSignedUrl(d.path,3600,{ download: d.name||d.fileName||true }); if(r.error) throw r.error;
+    var u=r.data&&r.data.signedUrl; if(!u){ showToast('Could not download','error'); return; }
+    var a=document.createElement('a'); a.href=u; a.download=(d.name||d.fileName||''); a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){ showToast('Could not download: '+(e.message||e),'error'); }
+}
+async function renameAssetDoc(id){
+  if(typeof _vehCanManage==='function'&&!_vehCanManage()){ showToast('No permission to rename','error'); return; }
+  var d=(_vpDocs||[]).find(function(x){ return x.id===id; }); if(!d) return;
+  var ext=''; var m=(d.fileName||'').match(/\.[^.\/\\]+$/); if(m) ext=m[0];
+  var base=(d.name||d.fileName||''); if(ext&&base.length>=ext.length&&base.slice(-ext.length).toLowerCase()===ext.toLowerCase()) base=base.slice(0,-ext.length);
+  var entered=prompt('Rename document (the file extension stays '+(ext||'the same')+'):', base); if(entered===null) return;
+  entered=entered.trim(); if(!entered) return;
+  var finalName=(typeof _cpDocWithExt==='function')?_cpDocWithExt(entered, d.fileName):entered;
+  d.name=finalName;
+  try{ if(_sb) await _sb.from('asset_documents').update({ name:finalName }).eq('id',id); }catch(e){ showToast('Rename save failed: '+(e.message||e),'error'); }
+  _vpRerenderDocs();
+  if(typeof showToast==='function') showToast('Renamed ✓','success');
 }
 
 // ---- Photos tab ----
