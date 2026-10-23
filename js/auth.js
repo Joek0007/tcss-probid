@@ -60,7 +60,8 @@ function init() {
   // manual-login path the gate used to hang off of.
   try {
     var _arrHash = String(window.location.hash || '');
-    window.__pbAuthArrival  = /access_token=|refresh_token=|type=recovery|type=magiclink|type=invite|type=signup/.test(_arrHash);
+    var _arrSearch = String(window.location.search || '');   // PKCE invite/recovery links land as ?code=… in the query, not the hash
+    window.__pbAuthArrival  = /access_token=|refresh_token=|type=recovery|type=magiclink|type=invite|type=signup/.test(_arrHash) || /[?&]code=[^&]/.test(_arrSearch);
     window.__pbAuthRecovery = /type=recovery/.test(_arrHash);
   } catch(e) { window.__pbAuthArrival = false; window.__pbAuthRecovery = false; }
 
@@ -637,6 +638,17 @@ async function loadCurrentUserProfile() {
     // AZ-6 onboarding: a pending (or deactivated) account has NO access — the database
     // denies it everywhere (current_app_role() is null for inactive users). Show a clear
     // blocking screen instead of a half-working UI, and don't establish a session identity.
+    //
+    // BUT first: if this invitee arrived via a one-time magic link and has NEVER chosen a
+    // password, let them set one NOW — before the pending wall. Otherwise the single-use
+    // link is spent on the pending screen and, once an admin approves them, they have no
+    // credential to return with ("log in → nothing happens"). Setting the password first
+    // means that after approval they simply sign in with their email + password.
+    var _sMeta = ((session.data.session.user || {}).user_metadata) || {};
+    if (_sMeta.password_set !== true) {
+      _showSetPasswordGate({ recovery: false, name: res.data.full_name || email });
+      return; // gate saves the password, then re-runs loadCurrentUserProfile → pending screen
+    }
     _currentUser = null;
     _showPendingApprovalScreen(res.data.full_name || email);
     return;
