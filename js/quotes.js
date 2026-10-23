@@ -4686,11 +4686,29 @@ async function renderUserAccessPanel() {
       '<td style="padding:6px 10px;white-space:nowrap;text-align:right">'+
         '<button class="btn btn-primary btn-sm" onclick="uapSetRole(\''+u.id+'\')">'+(pending?'Approve &amp; Set Role':'Save Role')+'</button> '+
         custBtn+
+        (u.email ? '<button class="btn btn-outline btn-sm" onclick="uapSendReset(\''+u.id+'\')" title="Email this person a link to set a new password">✉ Reset PW</button> ' : '')+
         (u.is_active ? '<button class="btn btn-danger btn-sm" onclick="uapDeactivate(\''+u.id+'\',\''+escHtml(safeName)+'\')">Revoke</button>' : '')+
       '</td></tr>';
   });
   html += '</tbody></table>';
   body.innerHTML = html;
+}
+// Owner-triggered password reset: email any login user a link to set a new password.
+// Works for both pending and active users (the recovery link lands them on the
+// "Set Your Password" gate). Same email channel as invites, so it may hit Junk until
+// the sending domain's email auth (SPF/DKIM/DMARC) is configured.
+async function uapSendReset(uid){
+  var u = (_uapRows||[]).find(function(r){ return r.id===uid; });
+  var email = u && u.email;
+  if (!email) { showToast('No email on file for this user','error'); return; }
+  if (typeof confirm==='function' && !confirm('Send a password-reset link to '+email+'?\n\nTell them to check their Junk/Spam folder — reset emails can land there.')) return;
+  var redirectTo = window.location.origin + window.location.pathname;
+  var res;
+  try { res = await _sb.auth.resetPasswordForEmail(email, { redirectTo: redirectTo }); }
+  catch(e){ res = {error:{message:e.message||String(e)}}; }
+  if (res && res.error) { showToast('Could not send reset: '+res.error.message,'error',6000); return; }
+  showToast('✉️ Password-reset link sent to '+email+' ✓','success',5000);
+  try { auditLog('password_reset_sent','user',uid,{note:'Reset link sent to '+email+' by '+((_currentUser&&_currentUser.full_name)||'owner')}); } catch(e){}
 }
 async function uapSetRole(uid){
   var sel = document.getElementById('uap-role-'+uid); if (!sel) return;
