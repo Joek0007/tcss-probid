@@ -4649,8 +4649,15 @@ async function renderUserAccessPanel() {
   var res;
   try { res = await _sb.rpc('list_user_profiles'); }
   catch(e){ res = {error:{message:e.message||String(e)}}; }
+  // An expired/stale login token makes the server see the caller as "not owner" even though
+  // they are (the owner-gated RPC raises that). Renew the session once and retry before giving up
+  // — this is what the owner hit after being idle: in-page Refresh failed but a full reload worked.
+  if (res && res.error && /owner|42501|jwt|token|not authenticated|auth|session/i.test(String((res.error&&res.error.message)||(res.error&&res.error.code)||''))) {
+    try { await _sb.auth.refreshSession(); res = await _sb.rpc('list_user_profiles'); }
+    catch(e){ res = {error:{message:e.message||String(e)}}; }
+  }
   var body = document.getElementById('uap-body'); if (!body) return;
-  if (res.error) { body.innerHTML = '<div style="color:#c62828">Could not load users: '+escHtml(res.error.message)+'</div>'; return; }
+  if (res.error) { body.innerHTML = '<div style="color:#c62828">Could not load users: '+escHtml(res.error.message)+'<div style="margin-top:6px;color:#90a4ae;font-size:12px">If this keeps happening, your sign-in may have timed out — reload the page to refresh it.</div></div>'; return; }
   var rows = res.data || [];
   _uapRows = rows; // cache for the Customize Access editor
   if (!rows.length) { body.innerHTML = '<div style="color:#90a4ae">No login users yet.</div>'; return; }
