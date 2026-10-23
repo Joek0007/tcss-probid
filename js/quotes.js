@@ -4640,8 +4640,11 @@ async function renderUserAccessPanel() {
   if (typeof _sb==='undefined' || !_sb) { el.innerHTML=''; return; }
   el.style.display='';
   el.innerHTML = '<div class="card" style="margin-top:16px">'+
-    '<div class="card-title" style="margin:0">🔑 User Login Access</div>'+
-    '<p style="font-size:12px;color:#546e7a;margin:4px 0 12px">Everyone who has signed in. A new sign-up shows as <strong>⏳ Pending</strong> with no access until you set a role and approve them. Only you (owner) can see or change this.</p>'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
+      '<div class="card-title" style="margin:0">🔑 User Login Access</div>'+
+      '<button class="btn btn-outline btn-sm" onclick="renderUserAccessPanel()" title="Check for newly signed-in team members waiting for approval">↻ Refresh</button>'+
+    '</div>'+
+    '<p style="font-size:12px;color:#546e7a;margin:4px 0 12px">Everyone who has signed in. A new sign-up shows as <strong>⏳ Pending</strong> with no access until you set a role and approve them. Just invited someone and they’re not listed yet? Tap <strong>↻ Refresh</strong>. Only you (owner) can see or change this.</p>'+
     '<div id="uap-body" style="font-size:13px;color:#90a4ae">Loading…</div></div>';
   var res;
   try { res = await _sb.rpc('list_user_profiles'); }
