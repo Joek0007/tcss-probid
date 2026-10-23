@@ -4697,7 +4697,8 @@ async function renderUserAccessPanel() {
         '<button class="btn btn-primary btn-sm" onclick="uapSetRole(\''+u.id+'\')">'+(pending?'Approve &amp; Set Role':'Save Role')+'</button> '+
         custBtn+
         (u.email ? '<button class="btn btn-outline btn-sm" onclick="uapSendReset(\''+u.id+'\')" title="Email this person a link to set a new password">✉ Reset PW</button> ' : '')+
-        (u.is_active ? '<button class="btn btn-danger btn-sm" onclick="uapDeactivate(\''+u.id+'\',\''+escHtml(safeName)+'\')">Revoke</button>' : '')+
+        (u.is_active ? '<button class="btn btn-danger btn-sm" onclick="uapDeactivate(\''+u.id+'\',\''+escHtml(safeName)+'\')" title="Turn off access (reversible — keeps the account)">Revoke</button> ' : '')+
+        (u.role!=='owner' ? '<button class="btn btn-sm" style="background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a;border-radius:6px;padding:5px 10px;cursor:pointer" title="Permanently delete this login account" onclick="uapRemoveLogin(\''+u.id+'\',\''+escHtml(safeName)+'\')">🗑 Remove</button>' : '')+
       '</td></tr>';
   });
   html += '</tbody></table>';
@@ -4719,6 +4720,27 @@ async function uapSendReset(uid){
   if (res && res.error) { showToast('Could not send reset: '+res.error.message,'error',6000); return; }
   showToast('✉️ Password-reset link sent to '+email+' ✓','success',5000);
   try { auditLog('password_reset_sent','user',uid,{note:'Reset link sent to '+email+' by '+((_currentUser&&_currentUser.full_name)||'owner')}); } catch(e){}
+}
+// Owner-only: PERMANENTLY remove a login (auth account + profile) via the secure
+// admin-delete-login edge function. Unlike Revoke (which only disables), this deletes
+// the account — used to clear duplicate / leftover logins for good.
+async function uapRemoveLogin(uid, name){
+  if (!(_currentUser && _currentUser.role==='owner')) { showToast('Only the owner can remove a login','error'); return; }
+  if (uid === (_currentUser && _currentUser.id)) { showToast('You cannot remove your own login','error'); return; }
+  if (typeof confirm==='function' && !confirm('Permanently remove the login for '+(name||'this user')+'?\n\nThis deletes their ProBid sign-in account for good. Their team roster entry (if any) is NOT touched — remove that separately on the Team page. To restore access later, re-invite them.')) return;
+  var res;
+  try { res = await _sb.functions.invoke('admin-delete-login', { body: { user_id: uid } }); }
+  catch(e){ res = { error: { message: e.message||String(e) } }; }
+  if (res && res.error) {
+    var msg = res.error.message || 'Remove failed';
+    try { if (res.error.context && typeof res.error.context.json==='function') { var j = await res.error.context.json(); if (j && j.error) msg = j.error; } } catch(e){}
+    showToast('Could not remove: '+msg,'error',6000); return;
+  }
+  if (res && res.data && res.data.error) { showToast('Could not remove: '+res.data.error,'error',6000); return; }
+  _uapRows = (_uapRows||[]).filter(function(r){ return r.id!==uid; });
+  renderUserAccessPanel();
+  showToast('Login removed ✓','success',4000);
+  try { auditLog('login_removed','user',uid,{note:(name||uid)+' login permanently removed by '+((_currentUser&&_currentUser.full_name)||'owner')}); } catch(e){}
 }
 async function uapSetRole(uid){
   var sel = document.getElementById('uap-role-'+uid); if (!sel) return;
