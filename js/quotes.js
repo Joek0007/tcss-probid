@@ -4670,9 +4670,12 @@ async function renderUserAccessPanel() {
     '<th style="padding:8px 10px"></th></tr></thead><tbody>';
   rows.forEach(function(u){
     var pending = !u.is_active;
-    var badge = pending
+    // Orphan = a login with no matching team member (a duplicate, or a leftover from an email change/typo)
+    var orphan = !!u.email && !(DB.team||[]).some(function(t){ return String(t.email||'').trim().toLowerCase()===String(u.email).trim().toLowerCase(); });
+    var badge = (pending
       ? '<span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⏳ Pending</span>'
-      : '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✓ Active</span>';
+      : '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✓ Active</span>')
+      + (orphan ? ' <span title="This login has no matching team member — likely a duplicate or a leftover from an email change. Safe to remove." style="background:#fdecea;color:#c62828;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⚠ No team record</span>' : '');
     var sel = '<select id="uap-role-'+u.id+'" style="padding:5px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
       roles.map(function(r){ var lbl=(typeof getRoleLabel==='function')?getRoleLabel(r):(_UAP_ROLE_LABELS[r]||r); return '<option value="'+escHtml(r)+'"'+(u.role===r?' selected':'')+'>'+escHtml(lbl)+'</option>'; }).join('')+'</select>';
     var safeName = (u.full_name||'').replace(/["'\\]/g,'');
@@ -4686,7 +4689,7 @@ async function renderUserAccessPanel() {
         'style="border:1px solid '+(seesPay?'#a5d6a7':'#e0e7ef')+';background:'+(seesPay?'#e8f5e9':'#fff')+';color:'+(seesPay?'#2e7d32':'#90a4ae')+';font-size:11px;font-weight:700;border-radius:10px;padding:3px 10px;cursor:pointer">'+
         (seesPay?'✓ Pay ON':'Pay off')+'</button>';
     html += '<tr style="border-bottom:1px solid #f0f4f8">'+
-      '<td style="padding:6px 10px;font-weight:700;font-size:13px">'+escHtml(u.full_name||'(no name)')+'</td>'+
+      '<td style="padding:6px 10px"><div style="font-weight:700;font-size:13px">'+escHtml(u.full_name||'(no name)')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(u.email||'')+'</div></td>'+
       '<td style="padding:6px 10px">'+badge+'</td>'+
       '<td style="padding:6px 10px">'+sel+'</td>'+
       '<td style="padding:6px 10px">'+payCell+'</td>'+
@@ -4901,6 +4904,28 @@ function _buildTeamMemberData() {
   if (!name) { showToast('Name is required','error'); return null; }
   var email = gv('m-tmem');
   var existing = id ? DB.team.find(function(t){return t.id==id;}) : null;
+
+  // ── DUPLICATE / ORPHAN GUARDS (stop a person ending up with two accounts) ──
+  if (email) {
+    var em = email.trim().toLowerCase();
+    // (1) No two team members may share an email.
+    var clash = (DB.team||[]).find(function(t){
+      return t && String(t.id)!==String(id||'') && String(t.email||'').trim().toLowerCase()===em;
+    });
+    if (clash) {
+      showToast('That email is already used by '+(clash.name||'another team member')+'. Open that person’s record instead of creating a second one.','error',7000);
+      return null;
+    }
+    // (2) Don't let changing an email orphan an existing login.
+    if (existing && String(existing.email||'').trim().toLowerCase() !== em) {
+      var hadLogin = !!existing.invitedAt || (typeof _teamHasLogin==='function' && _teamHasLogin(existing));
+      if (hadLogin) {
+        showToast(name+' already has a login under '+(existing.email||'their current email')+'. Changing the email here would leave a duplicate, stranded login. Keep the email, or first remove the old login in Team → User Login Access → Remove.','error',10000);
+        return null;
+      }
+    }
+  }
+
   return {
     id:          id || crypto.randomUUID(),
     name:        name,
