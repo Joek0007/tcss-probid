@@ -3485,6 +3485,12 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <div style="background:#e3f2fd;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1565c0">
     <strong>How login access works:</strong> Each team member needs a login invite to access ProBid. Click <strong>✉️ Invite Member</strong> or edit an existing member and click <strong>Save & Send Invite</strong>. They'll get an email with a link to set their password.
   </div>
+  <div id="team-filter" style="display:flex;gap:6px;align-items:center;margin-bottom:12px">
+    <span style="font-size:12px;color:#90a4ae;font-weight:700;margin-right:2px">Show:</span>
+    <button id="tmf-active" onclick="setTeamFilter('active')" style="border:1px solid #1565c0;background:#1565c0;color:#fff;border-radius:16px;padding:5px 16px;font-size:12px;font-weight:700;cursor:pointer">Active</button>
+    <button id="tmf-inactive" onclick="setTeamFilter('inactive')" style="border:1px solid #cfd6e0;background:#fff;color:#546e7a;border-radius:16px;padding:5px 16px;font-size:12px;font-weight:700;cursor:pointer">Inactive</button>
+    <button id="tmf-all" onclick="setTeamFilter('all')" style="border:1px solid #cfd6e0;background:#fff;color:#546e7a;border-radius:16px;padding:5px 16px;font-size:12px;font-weight:700;cursor:pointer">All</button>
+  </div>
   <div class="card"><table><thead><tr><th>Name</th><th>Title</th><th>Access</th><th>Email</th><th class="team-rate-col">Rate</th><th>Login Status</th><th>Actions</th></tr></thead>
   <tbody id="team-tbl"></tbody></table></div>
   <div id="user-access-panel"></div>
@@ -7162,7 +7168,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
 <script src="js/core.js?v=20261020syncfix"></script>
-<script src="js/quotes.js?v=20261024delcascade"></script>
+<script src="js/quotes.js?v=20261024deactivate"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
 <script src="js/checkouts_db.js?v=20260919ix"></script>

@@ -4577,41 +4577,131 @@ function _ensureLoginEmails(force) {
   }).catch(function(){ /* non-office roles get nothing — badge falls back to No Login */ });
 }
 
+// ── Active / Inactive / All filter for the team roster ──────────────────────────
+// Active members live in DB.team (the pull is is_active=true only). Inactive members
+// are loaded on demand so DB.team (used by pickers/dispatch) stays active-only.
+var _teamFilter = 'active';
+var _teamInactive = null;   // null = not loaded yet
+function setTeamFilter(f){
+  _teamFilter = f || 'active';
+  _syncTeamFilterButtons();
+  if ((_teamFilter==='inactive' || _teamFilter==='all') && _teamInactive===null) {
+    _loadInactiveTeam().then(function(){ renderTeam(); });
+  }
+  renderTeam();
+}
+function _syncTeamFilterButtons(){
+  ['active','inactive','all'].forEach(function(k){
+    var b=document.getElementById('tmf-'+k); if(!b) return;
+    var on=(_teamFilter===k);
+    b.style.background = on?'#1565c0':'#fff';
+    b.style.color      = on?'#fff':'#546e7a';
+    b.style.borderColor= on?'#1565c0':'#cfd6e0';
+  });
+}
+function _mapTeamRow(m){
+  return { id:m.id, name:m.full_name||'', role:m.role||'field', phone:m.phone||'', email:m.email||'',
+           rate:m.rate||65, hireDate:m.hire_date||'', showVacation:!!m.show_vacation, showPTO:!!m.show_pto,
+           active:(m.is_active!==false), smsEnabled:(m.sms_enabled!==false), invitedAt:m.invited_at||null, _inactive:true };
+}
+async function _loadInactiveTeam(){
+  try{
+    var r = await _sb.from('team').select('*').eq('is_active', false).order('full_name');
+    _teamInactive = (r && !r.error && r.data) ? r.data.map(_mapTeamRow) : [];
+  }catch(e){ _teamInactive = []; }
+}
+function _lookupLoginUid(email){
+  if(!email) return Promise.resolve(null);
+  var em=String(email).trim().toLowerCase();
+  if (window._uapRows && _uapRows.length){ var r=_uapRows.find(function(x){return String(x.email||'').toLowerCase()===em;}); if(r) return Promise.resolve(r.id); }
+  return _sb.rpc('list_user_profiles').then(function(res){
+    if(res && !res.error && res.data){ _uapRows=res.data; var r2=res.data.find(function(x){return String(x.email||'').toLowerCase()===em;}); if(r2) return r2.id; }
+    return null;
+  }).catch(function(){ return null; });
+}
+// Deactivate: drop off the active roster + cut the login, keep all history, reversible.
+async function deactivateTeamMember(id){
+  if(!(_currentUser && _currentUser.role==='owner')){ showToast('Only the owner can deactivate team members','error'); return; }
+  var m=(DB.team||[]).find(function(t){return t.id==id;}); if(!m) return;
+  if(!confirm('Deactivate '+(m.name||'this member')+'?\n\nThey drop off the active team and can no longer sign in. ALL their history is kept, and you can Reactivate them anytime.')) return;
+  var tr = await _sb.from('team').update({ is_active:false }).eq('id', id);
+  if(tr && tr.error){ showToast('Could not deactivate: '+tr.error.message,'error',6000); return; }
+  var uid = await _lookupLoginUid(m.email);
+  if(uid){ try{ await _sb.rpc('deactivate_user', { p_user_id: uid }); }catch(e){ console.warn('[Deactivate login]', e.message||e); } }
+  DB.team = (DB.team||[]).filter(function(t){return t.id!=id;}); if(typeof saveDB==='function') saveDB();
+  if(_teamInactive){ m._inactive=true; m.active=false; _teamInactive.unshift(m); }
+  renderTeam();
+  if(typeof renderUserAccessPanel==='function'){ var el=document.getElementById('user-access-panel'); if(el&&el.style.display!=='none') renderUserAccessPanel(); }
+  showToast((m.name||'Member')+' deactivated','info',4000);
+  try{ auditLog('team_deactivated','team',id,{note:(m.name||id)+' deactivated by '+((_currentUser&&_currentUser.full_name)||'owner')}); }catch(e){}
+}
+// Reactivate: back on the active roster + login re-enabled; re-links all their history.
+async function reactivateTeamMember(id){
+  if(!(_currentUser && _currentUser.role==='owner')){ showToast('Only the owner can reactivate team members','error'); return; }
+  var m=(_teamInactive||[]).find(function(t){return t.id==id;});
+  if(!confirm('Reactivate '+((m&&m.name)||'this member')+'?\n\nThey return to the active team and can sign in again.')) return;
+  var rr = await _sb.rpc('restore_team', { p_id: id });
+  if(rr && rr.error){ showToast('Could not reactivate: '+rr.error.message,'error',6000); return; }
+  if(m && m.email){
+    var uid = await _lookupLoginUid(m.email);
+    if(uid){ try{ await _sb.rpc('set_user_role', { p_user_id: uid, p_role: (m.access||m.systemRole||m.role||'helper_tech'), p_active: true }); }catch(e){ console.warn('[Reactivate login]', e.message||e); } }
+  }
+  // clear any legacy delete tombstone so the sync stops hiding them
+  if(DB.deletedIds && DB.deletedIds.team){ var di=DB.deletedIds.team.indexOf(id); if(di>=0) DB.deletedIds.team.splice(di,1); }
+  if(_teamInactive) _teamInactive = _teamInactive.filter(function(t){return t.id!=id;});
+  if(m){ m._inactive=false; m.active=true; if(!(DB.team||[]).some(function(t){return t.id==id;})) DB.team.push(m); if(typeof saveDB==='function') saveDB(); }
+  renderTeam();
+  if(typeof renderUserAccessPanel==='function'){ var el=document.getElementById('user-access-panel'); if(el&&el.style.display!=='none') renderUserAccessPanel(); }
+  showToast(((m&&m.name)||'Member')+' reactivated ✓','success',4000);
+  try{ auditLog('team_reactivated','team',id,{note:((m&&m.name)||id)+' reactivated by '+((_currentUser&&_currentUser.full_name)||'owner')}); }catch(e){}
+}
+
 function renderTeam() {
   var tbody = document.getElementById('team-tbl');
   if (!tbody) return;
   _ensureLoginEmails();               // fires once; re-renders when the login set arrives
-  if (!DB.team.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>No team members yet. Click Invite Member to add your first team member.</p></td></tr>';
-    return;
-  }
+  _syncTeamFilterButtons();
   var isOwner = _currentUser && _currentUser.role === 'owner';
   var canViewPay = (typeof _canViewPay === 'function') ? _canViewPay() : isOwner;
   var canManageTeam = (typeof hasPermission!=='function') || hasPermission('settings.team');
   // Hide the add/invite header buttons unless the user may manage team members.
   var _tAdd = document.getElementById('team-add-btn'); if (_tAdd) _tAdd.style.display = canManageTeam ? '' : 'none';
   var _tInv = document.getElementById('team-invite-btn'); if (_tInv) _tInv.style.display = canManageTeam ? '' : 'none';
-  tbody.innerHTML = DB.team.map(function(t) {
-    // Access = the login/permission role. Seeded team rows carry `role` but not
-    // access/systemRole, so fall back to `role` before defaulting to field — otherwise
-    // everyone (even the owner) mislabels as "Field Tech".
+
+  // Choose the list by the Active / Inactive / All filter.
+  var active = DB.team || [];
+  var inactive = _teamInactive || [];
+  var list = (_teamFilter==='inactive') ? inactive : (_teamFilter==='all') ? active.concat(inactive) : active;
+
+  if (!list.length) {
+    var msg = (_teamFilter==='inactive') ? 'No inactive team members.'
+            : (_teamFilter==='all')      ? 'No team members yet.'
+            : 'No active team members. Click Invite Member to add your first.';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>'+msg+'</p></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(function(t) {
+    var isInactive = (t._inactive === true) || (t.active === false);
     var access    = t.access || t.systemRole || t.role || 'field';
     var accessLbl = _accessLabels[access] || access;
     var invited   = !!t.invitedAt;
-    var hasLogin  = _teamHasLogin(t);   // truthful: email matches a real login account
-    var statusBadge = hasLogin
-      ? '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✓ Active</span>'
-      : invited
-        ? '<span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⏳ Invite Sent</span>'
-        : '<span style="background:#f5f5f5;color:#90a4ae;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">No Login</span>';
-    return '<tr>'+
-      '<td style="font-weight:700;font-size:13px">'+escHtml(t.name||'')+'</td>'+
-      '<td style="font-size:12px;color:#546e7a">'+escHtml(t.role||'')+'</td>'+
-      '<td><span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">'+escHtml(accessLbl)+'</span></td>'+
-      '<td style="font-size:12px">'+escHtml(t.email||'—')+'</td>'+
-      '<td class="team-rate-col">'+(canViewPay ? '$'+escHtml(String(t.rate||'0'))+'/hr' : '—')+'</td>'+
-      '<td>'+statusBadge+'</td>'+
-      '<td style="white-space:nowrap">'+
+    var hasLogin  = _teamHasLogin(t);
+    var statusBadge = isInactive
+      ? '<span style="background:#eceff1;color:#78909c;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">🚫 Inactive</span>'
+      : (hasLogin
+          ? '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✓ Active</span>'
+          : invited
+            ? '<span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⏳ Invite Sent</span>'
+            : '<span style="background:#f5f5f5;color:#90a4ae;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">No Login</span>');
+    var actions;
+    if (isInactive) {
+      actions =
+        '<button class="btn btn-outline btn-sm" onclick="openTechJournalView(\''+escHtml(t.name)+'\')" style="color:#1565c0">📋 Journal</button> '+
+        '<button class="btn btn-outline btn-sm" onclick="openQuarterlyReview(\''+escHtml(t.name)+'\')" style="color:#7b1fa2">📊 Review</button> '+
+        (isOwner ? '<button class="btn btn-sm" style="background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700" title="Bring them back to the active team and re-enable their login" onclick="reactivateTeamMember(\''+t.id+'\')">↩ Reactivate</button>' : '');
+    } else {
+      actions =
         (canManageTeam ? '<button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> ' : '')+
         '<button class="btn btn-outline btn-sm" onclick="openTechJournalView(\''+escHtml(t.name)+'\')" style="color:#1565c0">📋 Journal</button> '+
         '<button class="btn btn-outline btn-sm" onclick="openQuarterlyReview(\''+escHtml(t.name)+'\')" style="color:#7b1fa2">📊 Review</button> '+
@@ -4620,8 +4710,16 @@ function renderTeam() {
             ? '<button class="btn btn-outline btn-sm" data-action="inviteTeamMember" data-id="'+t.id+'">✉ '+(invited?'Re-invite':'Invite')+'</button> '
             : '<button class="btn btn-sm" disabled title="'+(hasLogin?'Already has a login account':'Add an email address first to send an invite')+'" style="background:#eceff1;border:1px solid #607d8b;color:#455a64;cursor:not-allowed">✉ Invite</button> '
         ) : '')+
-        (isOwner ? '<button class="btn btn-danger btn-sm" data-action="delTeamMember" data-id="'+t.id+'">Del</button>' : '')+
-      '</td>'+
+        (isOwner ? '<button class="btn btn-sm" style="background:#fff3e0;color:#e65100;border:1px solid #ffcc80;border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700" title="Deactivate — keeps all history, cuts their login, fully reversible" onclick="deactivateTeamMember(\''+t.id+'\')">Deactivate</button>' : '');
+    }
+    return '<tr'+(isInactive?' style="opacity:.62"':'')+'>'+
+      '<td style="font-weight:700;font-size:13px">'+escHtml(t.name||'')+'</td>'+
+      '<td style="font-size:12px;color:#546e7a">'+escHtml(t.role||'')+'</td>'+
+      '<td><span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">'+escHtml(accessLbl)+'</span></td>'+
+      '<td style="font-size:12px">'+escHtml(t.email||'—')+'</td>'+
+      '<td class="team-rate-col">'+(canViewPay ? '$'+escHtml(String(t.rate||'0'))+'/hr' : '—')+'</td>'+
+      '<td>'+statusBadge+'</td>'+
+      '<td style="white-space:nowrap">'+actions+'</td>'+
     '</tr>';
   }).join('');
 }
