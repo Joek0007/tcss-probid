@@ -4767,12 +4767,23 @@ async function renderUserAccessPanel() {
   // whose email belongs to a deactivated (is_active=false) team member so they stop showing as
   // "Pending" on this screen. A genuine new sign-up (team row still active, or no team row yet)
   // stays visible as Pending so the owner can approve it.
-  var _deactEmails = {};
+  // Hide ONLY people who are genuinely deactivated: their email has an inactive team row
+  // AND no active team row. Emails get reused by old soft-deleted duplicate rows (e.g. a stale
+  // "John Wilson" row left on spam3@tcss.com), so an ACTIVE member must never be hidden just
+  // because a leftover inactive row shares their email. Active logins always show.
+  var _activeEmails = {}, _deactEmails = {};
   try {
-    var _dr = await _sb.from('team').select('email').eq('is_active', false);
-    if (_dr && !_dr.error && _dr.data) _dr.data.forEach(function(t){ var e=String(t.email||'').trim().toLowerCase(); if(e) _deactEmails[e]=1; });
+    var _tr = await _sb.from('team').select('email,is_active');
+    if (_tr && !_tr.error && _tr.data) _tr.data.forEach(function(t){
+      var e=String(t.email||'').trim().toLowerCase(); if(!e) return;
+      if (t.is_active===false) _deactEmails[e]=1; else _activeEmails[e]=1;
+    });
   } catch(e) {}
-  rows = rows.filter(function(u){ return !_deactEmails[String(u.email||'').trim().toLowerCase()]; });
+  rows = rows.filter(function(u){
+    if (u.is_active) return true;                        // an active login is a working user — always show
+    var e = String(u.email||'').trim().toLowerCase();
+    return !(e && _deactEmails[e] && !_activeEmails[e]); // hide only a truly-deactivated person
+  });
   if (!rows.length) { body.innerHTML = '<div style="color:#90a4ae">No pending or active logins. Deactivated people appear in the roster’s <strong>Inactive</strong> filter.</div>'; return; }
   var roles = (typeof getRoles==='function') ? getRoles() : ['owner','manager','back_office','lead_tech','helper_tech'];
   var html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f0f4f8">'+
