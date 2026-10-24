@@ -167,10 +167,11 @@ async function loadEmailEvents(force){
   try { if(typeof renderQuotes==='function' && document.getElementById('quotes-tbl')) renderQuotes(); } catch(e){}
 }
 function _emailFmtTs(t){ try{ var d=new Date(t); return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); }catch(e){ return ''; } }
-function emailStatusBadge(type,id){
-  if(!id) return '';
+function emailStatusBadge(type,id,altId){
+  if(id==null && altId==null) return '';
   if(!_emailEventsCache){ loadEmailEvents(); return ''; }
-  var st=_emailEventsCache[_emailKey(type,id)];
+  // A send is tagged with the record's uuid when it has one, else its number — so match either.
+  var st=(id!=null?_emailEventsCache[_emailKey(type,id)]:null) || (altId!=null?_emailEventsCache[_emailKey(type,altId)]:null);
   if(!st) return '';
   var base='border-radius:9px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap';
   if(st.failed)   return '<span title="Delivery failed '+_emailFmtTs(st.failed)+'" style="'+base+';background:#fdecea;color:#c62828">✖ Delivery failed</span>';

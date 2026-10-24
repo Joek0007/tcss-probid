@@ -616,7 +616,7 @@ function renderQuotes() {
       '<td style="font-weight:700;'+healthColor(q)+'">'+pct(q.achievedMargin||0)+'</td>'+
       '<td><span class="status-badge s-'+(q.status||'draft')+'">'+(q.status||'draft')+'</span>'+fuBadge+
         '<div style="font-size:10px;color:'+prColor+';font-weight:700;margin-top:3px">'+pr.label+'</div>'+
-        (typeof emailStatusBadge==='function' ? (function(){ var _b=emailStatusBadge('quote',q.id); return _b?'<div style="margin-top:3px">'+_b+'</div>':''; })() : '')+
+        (typeof emailStatusBadge==='function' ? (function(){ var _b=emailStatusBadge('quote',q.id,q.num); return _b?'<div style="margin-top:3px">'+_b+'</div>':''; })() : '')+
         '</td>'+
       ageCell+
       '<td style="color:#90a4ae;font-size:11px">'+(q.followupDate?'📅 '+q.followupDate:(q.dt||''))+'</td>'+
