@@ -4606,7 +4606,9 @@ function _mapTeamRow(m){
 }
 async function _loadInactiveTeam(){
   try{
-    var r = await _sb.from('team').select('*').eq('is_active', false).order('full_name');
+    // purged_at rows are leftover/test entries the owner hid from the list — keep the record
+    // (never hard-deleted) but exclude it from the Inactive view.
+    var r = await _sb.from('team').select('*').eq('is_active', false).is('purged_at', null).order('full_name');
     _teamInactive = (r && !r.error && r.data) ? r.data.map(_mapTeamRow) : [];
   }catch(e){ _teamInactive = []; }
 }
@@ -4660,6 +4662,21 @@ async function reactivateTeamMember(id){
   showToast(((m&&m.name)||'Member')+' reactivated ✓','success',4000);
   try{ auditLog('team_reactivated','team',id,{note:((m&&m.name)||id)+' reactivated by '+((_currentUser&&_currentUser.full_name)||'owner')}); }catch(e){}
 }
+// Remove a leftover/test row from the Inactive list. NOT a hard delete — the record is kept
+// (the block_hard_delete guard protects real data from ever being destroyed); this only sets
+// purged_at so the row stops showing in the list. Owner-only, reversible server-side.
+async function purgeTeamFromList(id, name){
+  if(!(_currentUser && _currentUser.role==='owner')){ showToast('Only the owner can do this','error'); return; }
+  if(!confirm('Remove '+(name||'this entry')+' from the Inactive list?\n\nUse this only for leftover or test rows. The record is kept (not destroyed) and no history is deleted — it just stops showing in the list.')) return;
+  var r;
+  try { r = await _sb.rpc('purge_team_from_list', { p_id: id }); }
+  catch(e){ r = {error:{message:e.message||String(e)}}; }
+  if(r && r.error){ showToast('Could not remove: '+r.error.message,'error',6000); return; }
+  if(_teamInactive) _teamInactive = _teamInactive.filter(function(t){return t.id!=id;});
+  renderTeam();
+  showToast((name||'Entry')+' removed from the list','info',4000);
+  try{ auditLog('team_purged_from_list','team',id,{note:(name||id)+' hidden from Inactive list by '+((_currentUser&&_currentUser.full_name)||'owner')}); }catch(e){}
+}
 
 function renderTeam() {
   var tbody = document.getElementById('team-tbl');
@@ -4704,7 +4721,8 @@ function renderTeam() {
       actions =
         '<button class="btn btn-outline btn-sm" onclick="openTechJournalView(\''+escHtml(t.name)+'\')" style="color:#1565c0">📋 Journal</button> '+
         '<button class="btn btn-outline btn-sm" onclick="openQuarterlyReview(\''+escHtml(t.name)+'\')" style="color:#7b1fa2">📊 Review</button> '+
-        (isOwner ? '<button class="btn btn-sm" style="background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700" title="Bring them back to the active team and re-enable their login" onclick="reactivateTeamMember(\''+t.id+'\')">↩ Reactivate</button>' : '');
+        (isOwner ? '<button class="btn btn-sm" style="background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700" title="Bring them back to the active team and re-enable their login" onclick="reactivateTeamMember(\''+t.id+'\')">↩ Reactivate</button> ' : '')+
+        (isOwner ? '<button class="btn btn-sm" style="background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a;border-radius:6px;padding:5px 10px;cursor:pointer" title="Hide this leftover from the Inactive list. The record is kept (never destroyed) — use only for junk/test rows with no real history." onclick="purgeTeamFromList(\''+t.id+'\',\''+escHtml((t.name||'').replace(/[\"\\\\]/g,''))+'\')">✕ Remove from list</button>' : '');
     } else {
       actions =
         (canManageTeam ? '<button class="btn btn-outline btn-sm" data-action="editTeamMember" data-id="'+t.id+'">Edit</button> ' : '')+
