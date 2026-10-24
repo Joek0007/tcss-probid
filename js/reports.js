@@ -561,6 +561,8 @@ function renderQuotes() {
 
   const tbody = document.getElementById('quotes-tbl');
   if (!tbody) return;
+  // Pull Mailgun delivery/open events once; loadEmailEvents re-renders this list when ready.
+  if (typeof loadEmailEvents==='function') loadEmailEvents();
   // Content gate: quote.view is a finer gate beneath the page toggle (page.quotes).
   if (typeof hasPermission==='function' && !hasPermission('quote.view')) {
     tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><p>You do not have permission to view quotes.</p></td></tr>';
@@ -613,7 +615,9 @@ function renderQuotes() {
       '<td style="font-weight:700;white-space:nowrap">'+fmt(q.total||0)+'</td>'+
       '<td style="font-weight:700;'+healthColor(q)+'">'+pct(q.achievedMargin||0)+'</td>'+
       '<td><span class="status-badge s-'+(q.status||'draft')+'">'+(q.status||'draft')+'</span>'+fuBadge+
-        '<div style="font-size:10px;color:'+prColor+';font-weight:700;margin-top:3px">'+pr.label+'</div></td>'+
+        '<div style="font-size:10px;color:'+prColor+';font-weight:700;margin-top:3px">'+pr.label+'</div>'+
+        (typeof emailStatusBadge==='function' ? (function(){ var _b=emailStatusBadge('quote',q.id); return _b?'<div style="margin-top:3px">'+_b+'</div>':''; })() : '')+
+        '</td>'+
       ageCell+
       '<td style="color:#90a4ae;font-size:11px">'+(q.followupDate?'📅 '+q.followupDate:(q.dt||''))+'</td>'+
       '<td style="white-space:nowrap">'+

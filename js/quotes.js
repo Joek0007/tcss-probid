@@ -111,6 +111,13 @@ async function emailInvoiceDirect() {
     fd.append('subject', 'Invoice '+invNum+' from '+(_coInv||'us'));
     fd.append('html', invoiceHTML);
     fd.append('attachment', new File([pdfBlob], pdfName, {type:'application/pdf'}));
+    // Email tracking: turn on open tracking and tag this message with the ProBid record so
+    // Mailgun's delivered/opened/failed webhook (mailgun-events) reports status back to this invoice.
+    fd.append('o:tracking','yes');
+    fd.append('o:tracking-opens','yes');
+    fd.append('v:probid_type','invoice');
+    var _invRecT = (DB.invoices||[]).find(function(i){ return i.num===invNum; });
+    fd.append('v:probid_id', String((_invRecT&&_invRecT.id)||invNum));
 
     var res = await fetch('https://api.mailgun.net/v3/tcss.com/messages', {
       method:'POST',
@@ -130,6 +137,47 @@ async function emailInvoiceDirect() {
     showToast('Failed: '+e.message,'error',5000);
     console.error('[Email Invoice]',e);
   }
+}
+
+// ── Email delivery / open status (populated by Mailgun events → email_events table) ──
+// Office-facing read of how a sent quote/invoice fared: Sent → Delivered → Opened.
+// "Opened" is a soft signal — email privacy features can over- or under-count it.
+var _emailEventsCache = null;
+var _emailEventsLoading = false;
+function _emailKey(type,id){ return String(type)+'|'+String(id); }
+async function loadEmailEvents(force){
+  if (_emailEventsLoading) return;
+  if (_emailEventsCache && !force) return;
+  if (typeof _sb==='undefined' || !_sb) return;
+  _emailEventsLoading = true;
+  try {
+    var r = await _sb.from('email_events').select('probid_type,probid_id,event,event_at').order('event_at',{ascending:true});
+    var map = {};
+    ((r && r.data) || []).forEach(function(e){
+      var k=_emailKey(e.probid_type,e.probid_id);
+      if(!map[k]) map[k]={opens:0,lastOpen:null,delivered:null,failed:null,sent:null};
+      if(e.event==='opened'){ map[k].opens++; map[k].lastOpen=e.event_at; }
+      else if(e.event==='delivered') map[k].delivered=e.event_at;
+      else if(e.event==='accepted') map[k].sent=e.event_at;
+      else if(e.event==='failed'||e.event==='rejected'||e.event==='complained') map[k].failed=e.event_at;
+    });
+    _emailEventsCache = map;
+  } catch(e){ _emailEventsCache = _emailEventsCache || {}; }
+  _emailEventsLoading = false;
+  try { if(typeof renderQuotes==='function' && document.getElementById('quotes-tbl')) renderQuotes(); } catch(e){}
+}
+function _emailFmtTs(t){ try{ var d=new Date(t); return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); }catch(e){ return ''; } }
+function emailStatusBadge(type,id){
+  if(!id) return '';
+  if(!_emailEventsCache){ loadEmailEvents(); return ''; }
+  var st=_emailEventsCache[_emailKey(type,id)];
+  if(!st) return '';
+  var base='border-radius:9px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap';
+  if(st.failed)   return '<span title="Delivery failed '+_emailFmtTs(st.failed)+'" style="'+base+';background:#fdecea;color:#c62828">✖ Delivery failed</span>';
+  if(st.opens>0)  return '<span title="Opened '+st.opens+'×, last '+_emailFmtTs(st.lastOpen)+' — open tracking is approximate" style="'+base+';background:#e8f5e9;color:#2e7d32">👁 Opened'+(st.opens>1?' '+st.opens+'×':'')+'</span>';
+  if(st.delivered)return '<span title="Delivered '+_emailFmtTs(st.delivered)+'" style="'+base+';background:#e3f2fd;color:#1565c0">✓ Delivered</span>';
+  if(st.sent)     return '<span title="Accepted for delivery '+_emailFmtTs(st.sent)+'" style="'+base+';background:#eceff1;color:#607d8b">✉ Sent</span>';
+  return '';
 }
 
 
@@ -2136,6 +2184,11 @@ async function sendQuoteConfirmed(){
     fd.append('html', htmlBody);
     fd.append('text', textBody);
     fd.append('attachment', new File([pdfBlob], pdfName, {type:'application/pdf'}));
+    // Email tracking: open tracking + tag with this quote so Mailgun's webhook reports status back.
+    fd.append('o:tracking','yes');
+    fd.append('o:tracking-opens','yes');
+    fd.append('v:probid_type','quote');
+    fd.append('v:probid_id', String(q.id||q.num||''));
 
     var mgDomain = s.mgDomain || 'tcss.com';
     var res = await fetch('https://api.mailgun.net/v3/'+mgDomain+'/messages', {
