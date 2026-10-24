@@ -80,6 +80,11 @@ function removeCrewMember(job, techName) {
 function setCrewLead(job, techName) {
   if (!job.crew) job.crew = getJobCrew(job);
   job.crew.forEach(function(c){c.role=c.techName===techName?'lead':'helper';});
+  // Move the lead to the front. For WO-backed jobs the crew is rebuilt from
+  // wo.assignedTechs on every render and whoever is FIRST becomes the lead, so the
+  // new lead must be persisted as assignedTechs[0] or the change snaps back.
+  var li = job.crew.findIndex(function(c){ return c.techName===techName; });
+  if (li > 0) { job.crew.unshift(job.crew.splice(li,1)[0]); }
   job.assignedTo = techName;
 }
 
@@ -1053,7 +1058,7 @@ function dispatchSetLead(jobId,techName){
   setCrewLead(job,techName);
   _saveJobToWO(job);
   saveDB();renderDispatchBoard();openDispatchDetail(jobId);
-  showToast(escHtml(techName)+' is now Lead ♛','success');
+  showToast(escHtml(techName)+' is now the crew Lead','success');
 }
 
 function dispatchSetStatus(jobId,status){
