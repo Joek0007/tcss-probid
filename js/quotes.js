@@ -5080,7 +5080,9 @@ function delTeamMember(id){
     showToast('Only an owner or manager can remove team members.', 'error', 5000);
     return;
   }
-  if(!confirm('Remove team member?\n\nThey are hidden and can be restored by an owner or manager.')) return;
+  if(!confirm('Remove team member?\n\nTheir ProBid login (if they have one) is removed too, so no stray login is left behind. The roster entry is hidden and can be restored by an owner or manager — but a restored person would be re-invited for a new login.')) return;
+  var _delMember = (DB.team||[]).find(function(t){ return t.id==id; });
+  var _delEmail  = _delMember && _delMember.email;
   if (!DB.deletedIds) DB.deletedIds = {quotes:[],team:[],customers:[],contacts:[],jobs:[]};
   if (!DB.deletedIds.team) DB.deletedIds.team = [];
   if (DB.deletedIds.team.indexOf(id) < 0) DB.deletedIds.team.push(id);
@@ -5092,11 +5094,23 @@ function delTeamMember(id){
     // that any signed-in user could invoke and the server confirmed.
     _sb.rpc('soft_delete_team', { p_id: id }).then(function(r){
       if (r && r.error) { console.warn('[Delete] soft_delete_team:', r.error.message); showToast('Cloud removal pending ('+r.error.message+') — will retry on next sync.', 'error', 6000); }
+      else if (_delEmail && _role === 'owner') {
+        // Remove the matching LOGIN too, so a deleted member never leaves an orphaned login.
+        // Owner-gated edge function; a no-op if they had no login. (Owner guard inside it.)
+        _sb.functions.invoke('admin-delete-login', { body: { email: _delEmail } }).then(function(fr){
+          if (fr && fr.error) { console.warn('[Delete] login removal:', fr.error.message); }
+          var el=document.getElementById('user-access-panel');
+          if (el && el.style.display!=='none' && typeof renderUserAccessPanel==='function') renderUserAccessPanel();
+        }).catch(function(e){ console.warn('[Delete] login removal:', e.message||e); });
+      }
       if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 300);
     });
   }
   renderTeam();
   showToast('Team member removed (recoverable)', 'info');
+  if (_delEmail && _role === 'manager') {
+    showToast('Heads-up: ask an owner to remove this person’s login in Team → User Login Access (managers can’t delete logins).', 'info', 8000);
+  }
 }
 
 
