@@ -886,10 +886,10 @@ function openDispatchDetail(jobId) {
           '<div class="crew-avatar" style="background:'+bg+';color:#fff">'+escHtml(abb)+'</div>'+
           '<div style="flex:1"><div style="font-weight:700;font-size:12px">'+escHtml(cm.techName||'')+'</div>'+
           '<div style="font-size:10px;color:#546e7a">'+roleTag+(cm.addedDate?' · '+cm.addedDate:'')+'</div></div>'+
-          '<div style="display:flex;gap:4px;align-items:center">'+
+          '<div style="display:flex;gap:6px;align-items:center">'+
             '<button class="dispatch-sms-btn" onclick="dispatchSendSMS(\''+escHtml(cm.techName)+'\',\''+jobId+'\')" title="Text this tech about the job">💬</button>'+
-            (cm.role!=='lead'?'<button class="btn btn-outline btn-sm" style="font-size:9px;padding:3px 7px" title="Make this person the crew lead" onclick="dispatchSetLead(\''+jobId+'\',\''+escHtml(cm.techName)+'\')">Make Lead</button>':'')+
-            '<button class="btn btn-danger btn-sm" style="font-size:10px" onclick="dispatchRemoveCrew(\''+jobId+'\',\''+escHtml(cm.techName)+'\')" title="Remove from crew">✕</button>'+
+            (cm.role!=='lead'?'<button class="btn btn-outline btn-sm" style="font-size:12px;padding:7px 11px;white-space:nowrap" title="Make this person the crew lead" onclick="dispatchSetLead(\''+jobId+'\',\''+escHtml(cm.techName)+'\')">Make Lead</button>':'')+
+            '<button onclick="dispatchRemoveCrew(\''+jobId+'\',\''+escHtml(cm.techName)+'\')" title="Remove from crew" style="width:36px;height:36px;border-radius:7px;border:1px solid #ef9a9a;background:#fdecea;color:#c62828;font-size:17px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>'+
           '</div></div>';
       }).join(''):'<div style="color:#90a4ae;font-size:12px;padding:8px 0">No crew assigned. Drag onto a row or click + Add.</div>')+
     '</div>'+
