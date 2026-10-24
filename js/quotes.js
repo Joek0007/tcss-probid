@@ -4639,12 +4639,17 @@ async function deactivateTeamMember(id){
 async function reactivateTeamMember(id){
   if(!(_currentUser && _currentUser.role==='owner')){ showToast('Only the owner can reactivate team members','error'); return; }
   var m=(_teamInactive||[]).find(function(t){return t.id==id;});
-  if(!confirm('Reactivate '+((m&&m.name)||'this member')+'?\n\nThey return to the active team and can sign in again.')) return;
+  var email=(m&&m.email)||'', role=(m&&(m.access||m.systemRole||m.role))||'', name=(m&&m.name)||'';
+  // Fallback: if the member isn't cached (e.g. list not loaded), read the row so the login still re-enables.
+  if(!email || !role){
+    try{ var tr = await _sb.from('team').select('email,role,full_name').eq('id',id).single(); if(tr && tr.data){ email=email||tr.data.email||''; role=role||tr.data.role||''; name=name||tr.data.full_name||''; } }catch(e){}
+  }
+  if(!confirm('Reactivate '+(name||'this member')+'?\n\nThey return to the active team and can sign in again.')) return;
   var rr = await _sb.rpc('restore_team', { p_id: id });
   if(rr && rr.error){ showToast('Could not reactivate: '+rr.error.message,'error',6000); return; }
-  if(m && m.email){
-    var uid = await _lookupLoginUid(m.email);
-    if(uid){ try{ await _sb.rpc('set_user_role', { p_user_id: uid, p_role: (m.access||m.systemRole||m.role||'helper_tech'), p_active: true }); }catch(e){ console.warn('[Reactivate login]', e.message||e); } }
+  if(email){
+    var uid = await _lookupLoginUid(email);
+    if(uid){ try{ await _sb.rpc('set_user_role', { p_user_id: uid, p_role: (role||'helper_tech'), p_active: true }); }catch(e){ console.warn('[Reactivate login]', e.message||e); } }
   }
   // clear any legacy delete tombstone so the sync stops hiding them
   if(DB.deletedIds && DB.deletedIds.team){ var di=DB.deletedIds.team.indexOf(id); if(di>=0) DB.deletedIds.team.splice(di,1); }
@@ -5072,6 +5077,7 @@ function saveTeamMemberV2() {
   saveDB(); closeModal('modal-team'); renderTeam();
   showToast(data.name+' saved ✓','success');
   _syncLoginRoleFromTeam(data);   // owner-only: push the role onto their login profile too
+  _syncLoginNameFromTeam(data);   // owner-only: push a renamed name onto their login profile too
 }
 
 // When the owner sets a team member's Access Level, mirror it onto their LOGIN role
@@ -5092,6 +5098,20 @@ async function _syncLoginRoleFromTeam(data) {
       showToast(data.name+"'s login access set to "+((typeof getRoleLabel==='function')?getRoleLabel(role):role),'success',4000);
     }
   } catch(e) { console.warn('[RoleSync]', e.message||e); }
+}
+// Owner-only: push a renamed team member's name onto their login profile (no-op without a login),
+// then refresh the access panel if it's on screen so the new name shows immediately.
+async function _syncLoginNameFromTeam(data) {
+  try {
+    if (!_sb || !data || !data.email || !data.name) return;
+    if (!(_currentUser && _currentUser.role==='owner')) return;
+    var res = await _sb.rpc('set_display_name_by_email', { p_email: data.email, p_name: data.name });
+    if (res && res.error) { console.warn('[NameSync]', res.error.message); return; }
+    if (typeof renderUserAccessPanel==='function') {
+      var el=document.getElementById('user-access-panel');
+      if (el && el.style.display!=='none') { _uapRows=null; renderUserAccessPanel(); }
+    }
+  } catch(e) { console.warn('[NameSync]', e.message||e); }
 }
 
 // Keep old name working
