@@ -3638,7 +3638,7 @@ function renderCustomers() {
     var n = escHtml(c.name||'');
     var actCol =
       '<div class="cust-act-col">'+
-        '<div class="cust-act-header"><div style="flex:1"></div><div class="cust-act-col-lbl" style="color:#1565c0">Open</div><div style="width:10px"></div><div class="cust-act-col-lbl">Total</div></div>'+
+        '<div class="cust-act-header"><div class="cust-act-grid"><div class="cust-act-col-lbl" style="color:#1565c0">Open</div><div></div><div class="cust-act-col-lbl">Total</div></div></div>'+
         '<div class="cust-act-row"><span class="cust-act-label">📋 Quotes</span><div class="cust-act-bubbles">'+mkBubbles(c._qOpen,c._qct,'q','quotes',c.name||'')+'</div></div>'+
         '<div class="cust-act-row"><span class="cust-act-label">🔧 Jobs</span><div class="cust-act-bubbles">'+mkBubbles(c._jOpen,c._jct,'j','jobs',c.name||'')+'</div></div>'+
         '<div class="cust-act-row"><span class="cust-act-label">🔨 Work Orders</span><div class="cust-act-bubbles">'+mkBubbles(c._woOpen,c._woct,'wo','workorders',c.name||'')+'</div></div>'+
