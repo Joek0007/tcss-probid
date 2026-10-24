@@ -143,11 +143,14 @@ async function emailInvoiceDirect() {
 // Office-facing read of how a sent quote/invoice fared: Sent → Delivered → Opened.
 // "Opened" is a soft signal — email privacy features can over- or under-count it.
 var _emailEventsCache = null;
+var _emailEventsLoadedAt = 0;
 var _emailEventsLoading = false;
 function _emailKey(type,id){ return String(type)+'|'+String(id); }
 async function loadEmailEvents(force){
   if (_emailEventsLoading) return;
-  if (_emailEventsCache && !force) return;
+  // Re-fetch when forced, or when the cache is older than 20s, so events that arrive
+  // after the page loaded (e.g. a quote emailed just now) show without a full reload.
+  if (!force && _emailEventsCache && (Date.now()-_emailEventsLoadedAt < 20000)) return;
   if (typeof _sb==='undefined' || !_sb) return;
   _emailEventsLoading = true;
   try {
@@ -162,6 +165,7 @@ async function loadEmailEvents(force){
       else if(e.event==='failed'||e.event==='rejected'||e.event==='complained') map[k].failed=e.event_at;
     });
     _emailEventsCache = map;
+    _emailEventsLoadedAt = Date.now();
   } catch(e){ _emailEventsCache = _emailEventsCache || {}; }
   _emailEventsLoading = false;
   try { if(typeof renderQuotes==='function' && document.getElementById('quotes-tbl')) renderQuotes(); } catch(e){}
@@ -2202,6 +2206,10 @@ async function sendQuoteConfirmed(){
     if (res.ok) {
       var allTo = toList.concat(ccList).join(', ');
       showToast('✅ Proposal emailed to '+allTo,'success',5000);
+      // Pull the delivery status in a few seconds so the Sent/Delivered badge appears
+      // on this quote without needing a page reload (events arrive ~2s after send).
+      setTimeout(function(){ if(typeof loadEmailEvents==='function') loadEmailEvents(true); }, 4000);
+      setTimeout(function(){ if(typeof loadEmailEvents==='function') loadEmailEvents(true); }, 14000);
       // mark quote sent (only after a successful send)
       var saved = q.id ? DB.quotes.find(function(x){ return x.id===q.id; }) : null;
       if (saved) {

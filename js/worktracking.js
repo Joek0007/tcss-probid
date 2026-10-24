@@ -8207,7 +8207,7 @@ document.addEventListener('click', function(e) {
     case 'viewQuote': viewQuote(id); break;
     case 'deleteQuote': deleteQuote(id); break;
     case 'copyPortalLink': copyPortalLink(id); break;
-    case 'refreshQuotes': renderQuotes(); break;
+    case 'refreshQuotes': if(typeof loadEmailEvents==='function') loadEmailEvents(true); renderQuotes(); break;
     case 'refreshDash': renderDash(); break;
     case 'editFromView': closeModal('modal-view-quote'); if(_viewingQuoteId) editQuote(_viewingQuoteId); break;
     case 'dupFromView': closeModal('modal-view-quote'); if(_viewingQuoteId) dupQuote(_viewingQuoteId); break;
