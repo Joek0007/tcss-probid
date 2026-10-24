@@ -3657,7 +3657,7 @@ function renderCustomers() {
       '<div>'+wonHtml+'</div>'+
       '<div class="cust-actions">'+
         '<button class="btn btn-primary btn-sm" onclick="openCustomerProfile(\''+c.id+'\')" title="View profile">Profile</button>'+
-        '<button class="btn btn-outline btn-sm" data-action="editCustomer" data-id="'+c.id+'" title="Edit">✏</button>'+
+        '<button class="btn btn-outline btn-sm" data-action="editCustomer" data-id="'+c.id+'" title="Edit"><span style="font-size:16px;line-height:1;vertical-align:-2px">✏️</span></button>'+
         ((typeof hasPermission!=='function' || hasPermission('cust.delete')) ? '<button class="btn btn-danger btn-sm" data-action="delCustomer" data-id="'+c.id+'" title="Delete">✕</button>' : '')+
       '</div>'+
     '</div>';
