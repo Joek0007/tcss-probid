@@ -6483,6 +6483,34 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   </div>
 </div>
 
+<!-- DISPATCH CREW PICKER (multi-select, mirrors the WO Assign Team modal) -->
+<div class="modal-overlay" id="modal-dispatch-crew">
+  <div class="modal-box sm">
+    <div class="modal-head">
+      <h3>👷 Add Crew</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-dispatch-crew">×</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <div style="padding:10px 16px;border-bottom:1px solid #f0f4f8;display:flex;gap:8px;align-items:center">
+        <select id="dcrew-modal-filter" onchange="filterDispatchCrew(document.getElementById('dcrew-modal-search').value)"
+          style="padding:8px 12px;border:2px solid #1565c0;border-radius:6px;font-size:13px;font-weight:700;color:#1565c0;background:#e3f2fd;cursor:pointer;min-width:160px">
+          <option value="techs">Technicians</option>
+          <option value="all">All Employees</option>
+        </select>
+        <input id="dcrew-modal-search" placeholder="Search..." oninput="filterDispatchCrew(this.value)"
+          style="flex:1;padding:8px 10px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">
+        <button class="btn btn-outline btn-sm" onclick="selectAllDispatchCrew()">All</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearAllDispatchCrew()">None</button>
+      </div>
+      <div id="dcrew-modal-list" style="max-height:380px;overflow-y:auto;padding:4px 0"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-dispatch-crew">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDispatchCrewPicker()">✓ Save Crew</button>
+    </div>
+  </div>
+</div>
+
 <!-- SPLIT RECEIVING MODAL -->
 <div class="modal-overlay" id="modal-receiving" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
   <div class="modal-box" style="max-width:900px;width:98%;margin:0 auto">
@@ -7177,7 +7205,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/field.js?v=20260919kb"></script>
 <script src="js/crm.js?v=20261024cpbubbles"></script>
 <script src="js/vehicles.js?v=20261022docroll"></script>
-<script src="js/dispatch.js?v=20261020leadbadge"></script>
+<script src="js/dispatch.js?v=20261024crewpicker"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
 <script src="js/worktracking.js?v=20260919jg"></script>
 <script src="js/calendar.js?v=20261022docroll"></script>

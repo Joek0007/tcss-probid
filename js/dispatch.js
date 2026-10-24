@@ -874,7 +874,7 @@ function openDispatchDetail(jobId) {
     '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-bottom:14px">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
         '<div style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">CREW ('+crew.length+')</div>'+
-        '<button class="btn btn-outline btn-sm" onclick="openAddCrewPanel(\''+jobId+'\')">+ Add</button>'+
+        '<button class="btn btn-outline btn-sm" onclick="openDispatchCrewPicker(\''+jobId+'\')">+ Add</button>'+
       '</div>'+
       (crew.length?crew.map(function(cm,ci){
         var abb=(cm.techName||'?').split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
@@ -889,16 +889,6 @@ function openDispatchDetail(jobId) {
             '<button class="btn btn-danger btn-sm" style="font-size:10px" onclick="dispatchRemoveCrew(\''+jobId+'\',\''+escHtml(cm.techName)+'\')">✕</button>'+
           '</div></div>';
       }).join(''):'<div style="color:#90a4ae;font-size:12px;padding:8px 0">No crew assigned. Drag onto a row or click + Add.</div>')+
-      '<div id="add-crew-panel-'+jobId+'" style="display:none;margin-top:8px">'+
-        '<select id="add-crew-select-'+jobId+'" style="width:100%;padding:7px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;margin-bottom:6px">'+
-          '<option value="">— Select tech —</option>'+
-          (DB.team||[]).filter(function(m){return !isCrewMember(job,m.name);}).map(function(m){return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';}).join('')+
-        '</select>'+
-        '<div style="display:flex;gap:6px">'+
-          '<button class="btn btn-primary btn-sm" onclick="dispatchAddCrewMember(\''+jobId+'\')">Add to Crew</button>'+
-          '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'add-crew-panel-'+jobId+'\').style.display=\'none\'">Cancel</button>'+
-        '</div>'+
-      '</div>'+
     '</div>'+
     // Reschedule
     '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-bottom:14px">'+
@@ -950,16 +940,101 @@ function dspInfoTile(label,val){
   return '<div style="background:#f8f9fa;border-radius:6px;padding:8px"><div style="font-size:9px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'+escHtml(label)+'</div><div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-top:2px">'+escHtml(String(val))+'</div></div>';
 }
 
-function openAddCrewPanel(jobId){var p=document.getElementById('add-crew-panel-'+jobId);if(p)p.style.display=p.style.display==='none'||!p.style.display?'block':'none';}
+// ---- DISPATCH CREW PICKER ----
+// Multi-select crew assignment that mirrors the Work Order "Assign Team" modal:
+// search + Technicians/All filter + a scrollable checkbox list + All/None, and one
+// Save that adds everyone checked and removes anyone unchecked (no more one-at-a-time).
+var _dcrewSel = [];      // names currently checked
+var _dcrewJobId = null;  // job being edited
 
-function dispatchAddCrewMember(jobId){
+function openDispatchCrewPicker(jobId){
   var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})); if(!job) return;
-  var sel=document.getElementById('add-crew-select-'+jobId);
-  var techName=sel?sel.value:''; if(!techName){showToast('Select a team member','error');return;}
-  addCrewMember(job,techName,'helper');
-  _saveJobToWO(job);   // persist crew → assigned_techs + push to cloud (was missing — click-add didn't save)
-  saveDB();renderDispatchBoard();openDispatchDetail(jobId);
-  showToast(escHtml(techName)+' added to crew','success');
+  _dcrewJobId = jobId;
+  _dcrewSel = getJobCrew(job).map(function(c){ return c.techName; });  // pre-check current crew
+  var s=document.getElementById('dcrew-modal-search'); if(s) s.value='';
+  var f=document.getElementById('dcrew-modal-filter'); if(f) f.value='techs';
+  _renderDispatchCrewList(_dcrewSel, '');
+  openModal('modal-dispatch-crew');
+}
+
+function _renderDispatchCrewList(sel, search){
+  var listEl=document.getElementById('dcrew-modal-list'); if(!listEl) return;
+  var filterType=(document.getElementById('dcrew-modal-filter')||{}).value||'techs';
+  var techRoles=['field','lead_tech','helper_tech','subcontractor','project_manager'];
+  var members=(DB.team||[]).filter(function(m){
+    if(!m.active && m.active!==undefined) return false;
+    var role=m.access||m.systemRole||m.role||'field';
+    if(filterType==='techs' && techRoles.indexOf(role)<0) return false;
+    if(search && !(m.name||'').toLowerCase().includes(search.toLowerCase()) &&
+                 !(m.email||'').toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+  listEl.innerHTML=members.map(function(m,i){
+    var isChecked=sel.indexOf(m.name)>=0;
+    var role=m.access||m.systemRole||m.role||'field';
+    var bg=isChecked?'#bbdefb':(i%2===0?'#e8edf4':'#f5f7fa');
+    var border=isChecked?'1px solid #90caf9':'1px solid #d0d9e8';
+    return '<label style="display:flex;align-items:center;gap:10px;padding:7px 14px;cursor:pointer;background:'+bg+';border-bottom:'+border+'">'+
+      '<input type="checkbox" data-name="'+escHtml(m.name)+'" '+(isChecked?'checked':'')+
+      ' onchange="_dispatchCrewCheck(this)" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;accent-color:#1565c0">'+
+      '<span style="font-size:13px;font-weight:'+(isChecked?'700':'600')+';flex:1;color:'+(isChecked?'#0d47a1':'#1a2840')+'">'+escHtml(m.name||'')+'</span>'+
+      '<span style="font-size:11px;font-weight:600;color:'+(isChecked?'#1565c0':'#78909c')+'">'+escHtml(role)+'</span>'+
+    '</label>';
+  }).join('')||'<div style="padding:16px;text-align:center;color:#90a4ae;font-size:13px">No members found</div>';
+}
+
+function _dispatchCrewCheck(cb){
+  var name=cb.getAttribute('data-name'); var row=cb.closest('label');
+  if(cb.checked){ if(_dcrewSel.indexOf(name)<0)_dcrewSel.push(name); if(row)row.style.background='#e3f2fd'; }
+  else { _dcrewSel=_dcrewSel.filter(function(n){return n!==name;}); if(row)row.style.background=''; }
+}
+
+function filterDispatchCrew(val){
+  // preserve current checkbox state across a filter/search re-render
+  document.querySelectorAll('#dcrew-modal-list input[type="checkbox"]').forEach(function(cb){
+    var n=cb.getAttribute('data-name');
+    if(cb.checked && _dcrewSel.indexOf(n)<0)_dcrewSel.push(n);
+    if(!cb.checked)_dcrewSel=_dcrewSel.filter(function(x){return x!==n;});
+  });
+  _renderDispatchCrewList(_dcrewSel, val);
+}
+
+function selectAllDispatchCrew(){
+  document.querySelectorAll('#dcrew-modal-list input[type="checkbox"]').forEach(function(cb){
+    cb.checked=true; var n=cb.getAttribute('data-name'); if(_dcrewSel.indexOf(n)<0)_dcrewSel.push(n);
+    var row=cb.closest('label'); if(row)row.style.background='#e3f2fd';
+  });
+}
+
+function clearAllDispatchCrew(){
+  _dcrewSel=[];
+  document.querySelectorAll('#dcrew-modal-list input[type="checkbox"]').forEach(function(cb){
+    cb.checked=false; var row=cb.closest('label'); if(row)row.style.background='';
+  });
+}
+
+function saveDispatchCrewPicker(){
+  // capture final checkbox state
+  document.querySelectorAll('#dcrew-modal-list input[type="checkbox"]').forEach(function(cb){
+    var n=cb.getAttribute('data-name');
+    if(cb.checked && _dcrewSel.indexOf(n)<0)_dcrewSel.push(n);
+    if(!cb.checked)_dcrewSel=_dcrewSel.filter(function(x){return x!==n;});
+  });
+  var jobId=_dcrewJobId;
+  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;}));
+  if(!job){ closeModal('modal-dispatch-crew'); return; }
+  var before=getJobCrew(job).map(function(c){return c.techName;});
+  var sel=_dcrewSel.slice();
+  // additions (first one onto an empty crew becomes lead; otherwise helper)
+  sel.forEach(function(name){ if(before.indexOf(name)<0){ addCrewMember(job,name,getJobCrew(job).length===0?'lead':'helper'); } });
+  // removals (removeCrewMember reassigns lead if the lead was dropped)
+  before.forEach(function(name){ if(sel.indexOf(name)<0){ removeCrewMember(job,name); } });
+  _saveJobToWO(job);   // persist crew → assigned_techs + push to cloud
+  saveDB();
+  closeModal('modal-dispatch-crew');
+  renderDispatchBoard(); openDispatchDetail(jobId);
+  var n=getJobCrew(job).length;
+  showToast('Crew updated — '+n+' member'+(n===1?'':'s')+' on this job','success');
 }
 
 function dispatchRemoveCrew(jobId,techName){
