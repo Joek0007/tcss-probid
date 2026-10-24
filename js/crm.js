@@ -27,9 +27,9 @@ function openCustomerProfile(customerId) {
 
   var statsEl = document.getElementById('cp-stats');
   if (statsEl) statsEl.innerHTML =
-    cpStat(quotes.length,'Quotes','📋')+
-    cpStat(jobs.length,'Jobs','🔧')+
-    cpStat(contacts.length,'Contacts','👤')+
+    cpStat(quotes.length,'Quotes','📋','quotes','View all quotes')+
+    cpStat(jobs.length,'Jobs','🔧','jobs','View all jobs')+
+    cpStat(contacts.length,'Contacts','👤','contacts','View all contacts')+
     '<div class="cp-stat-card" style="cursor:pointer" title="View invoice history" onclick="switchCPTab(\'invoices\')">'+
       '<div class="cp-stat-val"><span id="cp-inv-count">🧾 …</span></div>'+
       '<div class="cp-stat-lbl">Invoices</div>'+
@@ -64,8 +64,13 @@ function openCustomerProfile(customerId) {
   switchCPTab('overview');
 }
 
-function cpStat(val, label, icon) {
-  return '<div class="cp-stat-card">'+
+function cpStat(val, label, icon, tab, titleText) {
+  // When a tab is given, the bubble becomes clickable and jumps to that section —
+  // same behavior as the Invoices / Work Orders bubbles.
+  var clickAttrs = tab
+    ? ' style="cursor:pointer" title="'+escHtml(titleText||('View '+label.toLowerCase()))+'" onclick="switchCPTab(\''+tab+'\')"'
+    : '';
+  return '<div class="cp-stat-card"'+clickAttrs+'>'+
     '<div class="cp-stat-val">'+icon+' '+escHtml(String(val))+'</div>'+
     '<div class="cp-stat-lbl">'+escHtml(label)+'</div>'+
   '</div>';
