@@ -3202,14 +3202,15 @@ function saveTeamModal() {
       // text for the same tech while this send is still in flight.
       wo.smsNotified.push(techName);
       saveDB();
-      var msg = 'TCSS Dispatch: '+(wo.woNumber||'WO')+' | '+(wo.customerName||'');
-      if (wo.description) msg += '\n'+stripHtmlToText(wo.description).substring(0,80);
-      if (wo.scheduledDate) {
-        var d = new Date(wo.scheduledDate+'T12:00:00');
-        msg += '\nScheduled: '+d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-      }
-      if (wo.siteAddr) msg += '\n'+wo.siteAddr+(wo.siteCity?', '+wo.siteCity:'');
-      msg += '\nReply STOP to opt out.';
+      var msg = (typeof buildDispatchSMS==='function') ? buildDispatchSMS({
+        customer: wo.customerName,
+        jobName:  '',
+        woNumber: wo.woNumber,
+        address:  (wo.siteAddr||'') + (wo.siteCity ? ((wo.siteAddr?', ':'')+wo.siteCity) : ''),
+        date:     wo.scheduledDate,
+        time:     wo.scheduledTime,
+        note:     wo.dispatchNotes
+      }) : ('TCSS Dispatch: '+(wo.woNumber||'WO')+' | '+(wo.customerName||'')+'\nReply STOP to opt out.');
       sendSMS(member.phone, msg).then(function(ok){
         if (!ok) {
           // Send actually failed (e.g. insufficient credit) — un-claim so a

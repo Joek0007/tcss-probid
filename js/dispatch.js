@@ -125,17 +125,16 @@ function _saveJobToWO(job) {
       // sendSMS() call, to close the race window against the workorders.js path.
       wo.smsNotified.push(c.techName);
       saveDB();
-      // Build a rich message
-      var _coD = (typeof coLabel==='function' ? coLabel() : '');
-      var msg = (_coD ? _coD+' ' : '') + 'Dispatch: ' + (wo.woNumber||'Work Order');
-      msg += ' | ' + (wo.customerName||'');
-      if (wo.description) msg += '\n' + stripHtmlToText(wo.description).substring(0,80);
-      if (wo.scheduledDate) {
-        var d = new Date(wo.scheduledDate+'T12:00:00');
-        msg += '\nScheduled: ' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-      }
-      if (wo.siteAddr) msg += '\n' + wo.siteAddr + (wo.siteCity ? ', ' + wo.siteCity : '');
-      msg += '\nReply STOP to opt out.';
+      // Unified message (same builder the manual button + WO modal use)
+      var msg = buildDispatchSMS({
+        customer: wo.customerName || job.customer,
+        jobName:  job.name,
+        woNumber: wo.woNumber,
+        address:  (wo.siteAddr||'') + (wo.siteCity ? ((wo.siteAddr?', ':'')+wo.siteCity) : ''),
+        date:     wo.scheduledDate,
+        time:     wo.scheduledTime,
+        note:     wo.dispatchNotes || job.dispatchNotes
+      });
       sendSMS(member.phone, msg).then(function(ok){
         if (!ok) {
           // Send actually failed — un-claim so a future re-trigger can retry.
@@ -1292,6 +1291,30 @@ function _cleanTouchDrag() {
 // the same working path as the automatic assignment alerts (see sendSMS() in
 // worktracking.js). This deliberately does NOT consult wo.smsNotified, because
 // the user is explicitly asking to (re)send this text right now.
+// Shared builder so EVERY dispatch/assignment text reads identically — the auto
+// crew-add alert (_saveJobToWO), the Work Order team modal (saveTeamModal), and the
+// manual 💬 button all call this. f: {customer, jobName, woNumber, address, date, time, note}
+function _fmtSMSDate(dstr){
+  if(!dstr) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(String(dstr))){
+    try{ return new Date(dstr+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }catch(e){}
+  }
+  return String(dstr);
+}
+function buildDispatchSMS(f){
+  f=f||{};
+  var co=(typeof coLabel==='function'?coLabel():'');
+  var who=f.customer?(f.customer+(f.jobName?' — '+f.jobName:'')):(f.jobName||'Job');
+  var lines=[(co?co+' ':'')+'Dispatch: '+who+(f.woNumber?' (WO #'+f.woNumber+')':'')];
+  if(f.address) lines.push('📍 '+f.address);
+  var ds=_fmtSMSDate(f.date);
+  if(ds) lines.push('🗓 '+ds+(f.time?' at '+f.time:''));
+  else if(f.time) lines.push('🗓 '+f.time);
+  if(f.note){ var nt=(typeof stripHtmlToText==='function'?stripHtmlToText(f.note):String(f.note)).trim(); if(nt) lines.push('Note: '+nt.substring(0,120)); }
+  lines.push('Reply STOP to opt out.');
+  return lines.join('\n');
+}
+
 function dispatchSendSMS(techName, jobId) {
   var job = (typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;}));
   var tech = (DB.team||[]).find(function(m){return m.name===techName;});
@@ -1308,15 +1331,16 @@ function dispatchSendSMS(techName, jobId) {
     return;
   }
 
-  var _coM = (typeof coLabel==='function' ? coLabel() : '');
-  var msg = (_coM ? _coM+' ' : '') + 'Dispatch: You\'ve been assigned to '+
-    (job.name||'a job')+
-    (job.customer?' for '+job.customer:'')+
-    (job.address?' at '+job.address:'')+
-    (job.scheduledDate?' on '+job.scheduledDate:'')+
-    (job.scheduledTime?' at '+job.scheduledTime:'')+'.'+
-    (job.dispatchNotes?' Note: '+job.dispatchNotes:'')+
-    '\nReply STOP to opt out.';
+  var _woMatch = (DB.workOrders||[]).find(function(w){ return w.id===job.id; });
+  var msg = buildDispatchSMS({
+    customer: job.customer,
+    jobName:  job.name,
+    woNumber: _woMatch ? (_woMatch.woNumber||'') : (job.num||''),
+    address:  job.address,
+    date:     job.scheduledDate,
+    time:     job.scheduledTime,
+    note:     job.dispatchNotes
+  });
 
   if (!confirm('Send dispatch SMS to '+techName+' ('+tech.phone+')?\n\n"'+msg+'"')) return;
 
