@@ -879,14 +879,17 @@ function openDispatchDetail(jobId) {
       (crew.length?crew.map(function(cm,ci){
         var abb=(cm.techName||'?').split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
         var bg=avatarColors[ci%avatarColors.length];
+        var roleTag = (cm.role==='lead')
+          ? '<span style="background:#ffc107;color:#5d4037;font-weight:800;border-radius:6px;padding:1px 6px;font-size:9px;letter-spacing:.3px">LEAD</span>'
+          : 'Helper';
         return '<div class="crew-member-row">'+
           '<div class="crew-avatar" style="background:'+bg+';color:#fff">'+escHtml(abb)+'</div>'+
           '<div style="flex:1"><div style="font-weight:700;font-size:12px">'+escHtml(cm.techName||'')+'</div>'+
-          '<div style="font-size:10px;color:#546e7a">'+(cm.role==='lead'?'♛ Lead':'Helper')+(cm.addedDate?' · '+cm.addedDate:'')+'</div></div>'+
-          '<div style="display:flex;gap:4px">'+
-            '<button class="dispatch-sms-btn" onclick="dispatchSendSMS(\''+escHtml(cm.techName)+'\',\''+jobId+'\')" title="Send dispatch SMS">💬</button>'+
-            (cm.role!=='lead'?'<button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="dispatchSetLead(\''+jobId+'\',\''+escHtml(cm.techName)+'\')">♛</button>':'<span style="font-size:12px;color:#1565c0;padding:4px">♛</span>')+
-            '<button class="btn btn-danger btn-sm" style="font-size:10px" onclick="dispatchRemoveCrew(\''+jobId+'\',\''+escHtml(cm.techName)+'\')">✕</button>'+
+          '<div style="font-size:10px;color:#546e7a">'+roleTag+(cm.addedDate?' · '+cm.addedDate:'')+'</div></div>'+
+          '<div style="display:flex;gap:4px;align-items:center">'+
+            '<button class="dispatch-sms-btn" onclick="dispatchSendSMS(\''+escHtml(cm.techName)+'\',\''+jobId+'\')" title="Text this tech about the job">💬</button>'+
+            (cm.role!=='lead'?'<button class="btn btn-outline btn-sm" style="font-size:9px;padding:3px 7px" title="Make this person the crew lead" onclick="dispatchSetLead(\''+jobId+'\',\''+escHtml(cm.techName)+'\')">Make Lead</button>':'')+
+            '<button class="btn btn-danger btn-sm" style="font-size:10px" onclick="dispatchRemoveCrew(\''+jobId+'\',\''+escHtml(cm.techName)+'\')" title="Remove from crew">✕</button>'+
           '</div></div>';
       }).join(''):'<div style="color:#90a4ae;font-size:12px;padding:8px 0">No crew assigned. Drag onto a row or click + Add.</div>')+
     '</div>'+
