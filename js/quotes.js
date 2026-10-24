@@ -4762,8 +4762,18 @@ async function renderUserAccessPanel() {
   var body = document.getElementById('uap-body'); if (!body) return;
   if (res.error) { body.innerHTML = '<div style="color:#c62828">Could not load users: '+escHtml(res.error.message)+'<div style="margin-top:6px;color:#90a4ae;font-size:12px">If this keeps happening, your sign-in may have timed out — reload the page to refresh it.</div></div>'; return; }
   var rows = res.data || [];
-  _uapRows = rows; // cache for the Customize Access editor
-  if (!rows.length) { body.innerHTML = '<div style="color:#90a4ae">No login users yet.</div>'; return; }
+  _uapRows = rows; // cache for the Customize Access editor (FULL list — keeps reactivate/uid lookups working)
+  // Deactivated people are managed from the roster's Inactive view, not here. Hide any login
+  // whose email belongs to a deactivated (is_active=false) team member so they stop showing as
+  // "Pending" on this screen. A genuine new sign-up (team row still active, or no team row yet)
+  // stays visible as Pending so the owner can approve it.
+  var _deactEmails = {};
+  try {
+    var _dr = await _sb.from('team').select('email').eq('is_active', false);
+    if (_dr && !_dr.error && _dr.data) _dr.data.forEach(function(t){ var e=String(t.email||'').trim().toLowerCase(); if(e) _deactEmails[e]=1; });
+  } catch(e) {}
+  rows = rows.filter(function(u){ return !_deactEmails[String(u.email||'').trim().toLowerCase()]; });
+  if (!rows.length) { body.innerHTML = '<div style="color:#90a4ae">No pending or active logins. Deactivated people appear in the roster’s <strong>Inactive</strong> filter.</div>'; return; }
   var roles = (typeof getRoles==='function') ? getRoles() : ['owner','manager','back_office','lead_tech','helper_tech'];
   var html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f0f4f8">'+
     '<th style="text-align:left;padding:8px 10px;font-size:11px;color:#546e7a;text-transform:uppercase">Name</th>'+
@@ -4800,7 +4810,7 @@ async function renderUserAccessPanel() {
         '<button class="btn btn-primary btn-sm" onclick="uapSetRole(\''+u.id+'\')">'+(pending?'Approve &amp; Set Role':'Save Role')+'</button> '+
         custBtn+
         (u.email ? '<button class="btn btn-outline btn-sm" onclick="uapSendReset(\''+u.id+'\')" title="Email this person a link to set a new password">✉ Reset PW</button> ' : '')+
-        (u.is_active ? '<button class="btn btn-danger btn-sm" onclick="uapDeactivate(\''+u.id+'\',\''+escHtml(safeName)+'\')" title="Turn off access (reversible — keeps the account)">Revoke</button> ' : '')+
+        (u.is_active ? '<button class="btn btn-sm" style="background:#fff3e0;color:#e65100;border:1px solid #ffcc80;border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:700" title="Deactivate — keeps all history, cuts their login, fully reversible from the roster’s Inactive filter" onclick="uapDeactivate(\''+u.id+'\',\''+escHtml(safeName)+'\')">Deactivate</button> ' : '')+
         (u.role!=='owner' ? '<button class="btn btn-sm" style="background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a;border-radius:6px;padding:5px 10px;cursor:pointer" title="Permanently delete this login account" onclick="uapRemoveLogin(\''+u.id+'\',\''+escHtml(safeName)+'\')">🗑 Remove</button>' : '')+
       '</td></tr>';
   });
@@ -4944,14 +4954,32 @@ async function saveUserPermsEditor(uid){
   closeUserPermsEditor();
   renderUserAccessPanel();
 }
+// Deactivate from the access screen == roster Deactivate (one consistent concept):
+// cut the login AND drop the team row off the active roster, so the person leaves this
+// screen entirely and lives only in the roster's Inactive view. Fully reversible there.
 async function uapDeactivate(uid, name){
-  if (!confirm('Revoke login access for '+(name||'this user')+'? They will lose access until you reactivate them.')) return;
+  if(!(_currentUser && _currentUser.role==='owner')){ showToast('Only the owner can do this','error'); return; }
+  if (!confirm('Deactivate '+(name||'this user')+'?\n\nThey drop off the active team and can no longer sign in. ALL their history is kept, and you can Reactivate them anytime from the roster’s Inactive filter.')) return;
+  // 1) Cut the login
   var res;
   try { res = await _sb.rpc('deactivate_user', { p_user_id: uid }); }
   catch(e){ res = {error:{message:e.message||String(e)}}; }
-  if (res && res.error) { showToast('Could not revoke: '+res.error.message,'error',5000); return; }
-  showToast('Access revoked','info');
+  if (res && res.error) { showToast('Could not deactivate: '+res.error.message,'error',5000); return; }
+  // 2) Also deactivate the matching team row so they leave the access screen and land in
+  //    the roster's Inactive view. Without this the person would still show as "Pending" here.
+  var u = (_uapRows||[]).find(function(r){ return r.id===uid; });
+  var email = u && u.email ? String(u.email).trim().toLowerCase() : '';
+  if (email) {
+    try { var tr = await _sb.from('team').update({ is_active:false }).ilike('email', email); if (tr && tr.error) console.warn('[Deactivate team]', tr.error.message); }
+    catch(e){ console.warn('[Deactivate team]', e.message||e); }
+    DB.team = (DB.team||[]).filter(function(t){ return String(t.email||'').trim().toLowerCase()!==email; });
+    if (typeof saveDB==='function') saveDB();
+    if (typeof _loadInactiveTeam==='function') { try{ await _loadInactiveTeam(); }catch(e){} }
+  }
+  showToast((name||'User')+' deactivated','info',4000);
+  if (typeof renderTeam==='function') renderTeam();
   renderUserAccessPanel();
+  try{ auditLog('user_deactivated','user',uid,{note:(name||uid)+' deactivated by '+((_currentUser&&_currentUser.full_name)||'owner')}); }catch(e){}
 }
 
 function newTeamMemberV2() {
