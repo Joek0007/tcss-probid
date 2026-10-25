@@ -251,6 +251,9 @@ function getQData(id) {
     pricingMode: currentPricingMode(),
     taxRate: parseFloat((document.getElementById('qq-tx')||{}).value)||0,
     discount: totals.discountAmt,
+    discountType: totals.discountType,
+    discountValue: totals.discountValue,
+    taxableBase: totals.taxableBase,
     totalMaterialCost: totals.totalMaterialCost,
     totalLaborHours: totals.totalLaborHours,
     laborSell: totals.laborSell,
@@ -425,7 +428,7 @@ function editQuote(id) {
   })();
   setV('qq-int', q.intNotes||q.int||'');
   setV('qq-status', q.status||'draft');
-  setV('qq-lr', q.laborRate||100); setV('qq-mk', q.targetMargin!==undefined && q.targetMargin!==null ? q.targetMargin : (q.markup!==undefined && q.markup!==null ? q.markup : 35)); setV('qq-tx', q.taxRate||0); setV('qq-disc', q.discount||0);
+  setV('qq-lr', q.laborRate||100); setV('qq-mk', q.targetMargin!==undefined && q.targetMargin!==null ? q.targetMargin : (q.markup!==undefined && q.markup!==null ? q.markup : 35)); setV('qq-tx', q.taxRate||0); setV('qq-disc', (q.discountType==='pct' ? (q.discountValue!=null?q.discountValue:0) : (q.discount||0))); setV('qq-disc-type', q.discountType||'amt');
   if (typeof refreshAllPaymentTermsDropdowns==='function') refreshAllPaymentTermsDropdowns();
   setV('qq-pt', q.pt||'Due on Receipt');
   // Restore pricing mode (margin/markup) — defaults to margin for older quotes that didn't save this field

@@ -13,9 +13,10 @@ async function emailInvoiceDirect() {
 
   var lineItems = _invItems||[];
   var taxRate = parseFloat((document.getElementById('inv-tax')||{}).value||0);
-  var subtotal = lineItems.reduce(function(a,i){ return a+(parseFloat(i.unitPrice||i.mc||0)*parseFloat(i.qty||1)); },0);
-  var taxAmt = subtotal*(taxRate/100);
-  var grandTotal = subtotal+taxAmt;
+  var _r2inv = function(n){ return Math.round((Number(n)||0)*100)/100; };
+  var subtotal = _r2inv(lineItems.reduce(function(a,i){ return a+(parseFloat(i.unitPrice||i.mc||0)*parseFloat(i.qty||1)); },0));
+  var taxAmt = _r2inv(subtotal*(taxRate/100));
+  var grandTotal = _r2inv(subtotal+taxAmt);
   var billName = (document.getElementById('inv-bill-name')||{}).value||'';
   var invNum   = (document.getElementById('inv-num')||{}).value||'';
   var invDate  = (document.getElementById('inv-date')||{}).value||'';
@@ -237,14 +238,23 @@ function calcTotals() {
   // STEP 5: Material sell = what materials need to sell for (margin burden)
   const materialSell = sellBeforeTax - laborSell;
 
-  // STEP 6: Tax, discount, total
+  // STEP 6: Discount (PRE-TAX), tax, total — discount reduces the taxable base, and everything
+  // is snapped to the cent. Discount is either a flat $ or a % of the pre-tax sell.
+  const _r2 = function(n){ return Math.round((Number(n)||0)*100)/100; };
   const taxRate = (parseFloat((document.getElementById('qq-tx')||{}).value)||0) / 100;
-  const discountAmt = parseFloat((document.getElementById('qq-disc')||{}).value)||0;
-  const taxAmt = sellBeforeTax * taxRate;
-  const totalSell = sellBeforeTax + taxAmt - discountAmt;
+  const discType = (document.getElementById('qq-disc-type')||{}).value || 'amt';
+  const discVal  = parseFloat((document.getElementById('qq-disc')||{}).value)||0;
+  let discountAmt = (discType==='pct') ? (sellBeforeTax * (discVal/100)) : discVal;
+  if (discountAmt < 0) discountAmt = 0;
+  if (discountAmt > sellBeforeTax) discountAmt = sellBeforeTax;   // never drive the total negative
+  discountAmt = _r2(discountAmt);
+  const taxableBase = _r2(sellBeforeTax - discountAmt);
+  const taxAmt = _r2(taxableBase * taxRate);
+  const totalSell = _r2(taxableBase + taxAmt);
 
-  // STEP 7: Achieved margin
-  const achievedMargin = sellBeforeTax > 0 ? (sellBeforeTax - totalCost) / sellBeforeTax : 0;
+  // STEP 7: Achieved margin — on the DISCOUNTED pre-tax revenue, so a discount shows its real
+  // margin hit (no discount ⇒ taxableBase === sellBeforeTax ⇒ unchanged).
+  const achievedMargin = taxableBase > 0 ? (taxableBase - totalCost) / taxableBase : 0;
   const achievedMarginPct = achievedMargin * 100;
 
   // STEP 8: Update display
@@ -343,7 +353,7 @@ function calcTotals() {
     if (svcEn && svcEn.checked) renderSvcTiers();
   }
 
-  return { totalMaterialCost, totalLaborHours, laborSell, totalCost, equipCost, pdCost, sellBeforeTax, materialSell, taxAmt, discountAmt, totalSell, achievedMargin, achievedMarginPct, health, readiness };
+  return { totalMaterialCost, totalLaborHours, laborSell, totalCost, equipCost, pdCost, sellBeforeTax, materialSell, taxAmt, discountAmt, discountType: discType, discountValue: discVal, taxableBase, totalSell, achievedMargin, achievedMarginPct, health, readiness };
 }
 
 // ---- QUOTE NUMBER GENERATOR ----
@@ -1412,8 +1422,8 @@ table{font-size:12.5px}
       (q.perDiemCost > 0 ? '<tr class="sub-row"><td>Per Diem / Travel</td><td style="text-align:right">' + fmt(q.perDiemCost||0) + '</td></tr>' : '') +
       '<tr class="sub-row"><td>Subtotal</td><td style="text-align:right">' + fmt(q.sellBeforeTax||q.subtotal||0) + '</td></tr>'
   ) +
-  (q.taxAmt > 0 ? '<tr class="sub-row"><td>Tax (' + pct(q.taxRate||0) + ')</td><td style="text-align:right">' + fmt(q.taxAmt) + '</td></tr>' : '') +
   (q.discount > 0 ? '<tr class="sub-row"><td>Discount</td><td style="text-align:right;color:#c62828">-' + fmt(q.discount) + '</td></tr>' : '') +
+  (q.taxAmt > 0 ? '<tr class="sub-row"><td>Tax (' + pct(q.taxRate||0) + ')</td><td style="text-align:right">' + fmt(q.taxAmt) + '</td></tr>' : '') +
   '<tr class="total-row"><td>TOTAL INVESTMENT</td><td style="text-align:right">' + fmt(q.total||0) + '</td></tr>' +
   ((!q.taxRate || q.taxRate === 0) ? '<tr><td colspan="2" style="padding:6px 0 0;font-size:11px;color:#90a4ae;font-style:italic;text-align:right">(Applicable taxes not included)</td></tr>' : '') +
   '</table></div>' +
@@ -1807,8 +1817,8 @@ function buildEmailBody(q) {
     lines.push('  Total Investment:   $ ' + (q.total||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','));
   } else {
     if (q.sellBeforeTax) lines.push('  Subtotal:           $ ' + (q.sellBeforeTax||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','));
-    if (q.taxAmt > 0)    lines.push('  Tax:                $ ' + (q.taxAmt||0).toFixed(2));
     if (q.discount > 0)  lines.push('  Discount:          -$ ' + (q.discount||0).toFixed(2));
+    if (q.taxAmt > 0)    lines.push('  Tax:                $ ' + (q.taxAmt||0).toFixed(2));
     lines.push('  Total Investment:   $ ' + (q.total||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','));
   }
   if (q.pt) { lines.push(''); lines.push('  Payment Terms: ' + q.pt); }
@@ -1904,8 +1914,8 @@ function buildEmailBodyHTML(q){
     if (q.lumpSum.label) inv += irow(_emEsc(q.lumpSum.label), '');
   } else {
     if (q.sellBeforeTax) inv += irow('Subtotal', _emMoney(q.sellBeforeTax));
-    if (q.taxAmt > 0)    inv += irow('Tax', _emMoney(q.taxAmt));
     if (q.discount > 0)  inv += irow('Discount', '-'+_emMoney(q.discount));
+    if (q.taxAmt > 0)    inv += irow('Tax', _emMoney(q.taxAmt));
   }
   // total row (navy top border)
   inv += '<tr><td colspan="2" style="border-top:2px solid #0D2B4E;font-size:0;line-height:0;padding:0">&nbsp;</td></tr>'
@@ -3108,10 +3118,11 @@ function addInvLineItem() {
 function refreshInvTotals() {
   var taxRate = parseFloat((document.getElementById('inv-tax')||{}).value)||0;
   var invId   = (document.getElementById('inv-existing-id')||{}).value||'';
-  var subtotal = _invItems.reduce(function(s,li){ return s + (parseFloat(li.unitPrice||li.mc||0))*(parseFloat(li.qty||1)); },0);
-  var taxAmt   = subtotal*(taxRate/100);
-  var payments = invId ? (DB.invoicePayments||[]).filter(function(p){return p.invoiceId===invId;}).reduce(function(s,p){return s+parseFloat(p.amount||0);},0) : 0;
-  var total    = subtotal + taxAmt - payments;
+  var _r2=function(n){return Math.round((Number(n)||0)*100)/100;};
+  var subtotal = _r2(_invItems.reduce(function(s,li){ return s + (parseFloat(li.unitPrice||li.mc||0))*(parseFloat(li.qty||1)); },0));
+  var taxAmt   = _r2(subtotal*(taxRate/100));
+  var payments = _r2(invId ? (DB.invoicePayments||[]).filter(function(p){return p.invoiceId===invId;}).reduce(function(s,p){return s+parseFloat(p.amount||0);},0) : 0);
+  var total    = _r2(subtotal + taxAmt - payments);
 
   var stEl=document.getElementById('inv-subtotal-display'); if(stEl) stEl.textContent=fmt(subtotal);
   var txRow=document.getElementById('inv-tax-row');        if(txRow) txRow.style.display=taxRate>0?'flex':'none';
@@ -3246,9 +3257,10 @@ function openInvoiceModal(job) {
 
 function buildInvoiceData(job) {
   var taxRate = parseFloat((document.getElementById('inv-tax')||{}).value||0);
-  var subtotal = _invItems.reduce(function(s,li){ return s+(parseFloat(li.unitPrice||li.mc||0))*(parseFloat(li.qty||1)); },0);
-  var taxAmt = subtotal*(taxRate/100);
-  var total  = subtotal + taxAmt;
+  var _r2=function(n){return Math.round((Number(n)||0)*100)/100;};
+  var subtotal = _r2(_invItems.reduce(function(s,li){ return s+(parseFloat(li.unitPrice||li.mc||0))*(parseFloat(li.qty||1)); },0));
+  var taxAmt = _r2(subtotal*(taxRate/100));
+  var total  = _r2(subtotal + taxAmt);
   function gv(id){ var el=document.getElementById(id); return el?el.value.trim():''; }
   return {
     id:        (document.getElementById('inv-existing-id')||{}).value || 'inv-'+Date.now(),
