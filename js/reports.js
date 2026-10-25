@@ -1,7 +1,7 @@
 // =============================================
 // STAGE 5: CONTROL + FOLLOW-UP SYSTEM
 // =============================================
-function getTodayISO(){ return new Date().toISOString().split('T')[0]; }
+// getTodayISO() is defined in core.js (first-loaded) so it's available to every module.
 
 // ── Dashboard "Revenue Won" period logic (fiscal-year aware) ──────────────────
 // Fiscal year start month from Company Settings (1-12); defaults to January.
@@ -818,7 +818,7 @@ async function saveJournalEntry() {
     wo_number:      wo ? (wo.woNumber||null) : null,
     entered_by_id:  (typeof wtCurrentUserId==='function'?wtCurrentUserId():null),
     entered_by_name:(typeof wtCurrentUserName==='function'?wtCurrentUserName():''),
-    entry_date:     new Date().toISOString().split('T')[0],
+    entry_date:     getTodayISO(),
   };
 
   var btn = document.querySelector('#tj-modal .btn-primary');
@@ -1023,7 +1023,7 @@ function tjRenderEntryList(entries) {
 async function renderTeamLogRates() {
   var el = document.getElementById('dash-log-rates');
   if (!el) return;
-  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var today = getTodayISO ? getTodayISO() : getTodayISO();
   var monthStart = today.substring(0,7)+'-01';
 
   var fieldTechs = (DB.team||[]).filter(function(m){
@@ -1108,7 +1108,7 @@ async function calcLogCompletionRate(techName, startDate, endDate) {
         .select('log_date')
         .eq('tech_name', techName)
         .gte('log_date', startDate)
-        .lte('log_date', endDate || new Date().toISOString().split('T')[0]);
+        .lte('log_date', endDate || getTodayISO());
       if (data) data.forEach(function(r){ loggedDates[r.log_date] = true; });
     } catch(e) { console.warn('calcLogCompletionRate:', e); }
   }
@@ -1145,7 +1145,7 @@ async function openQuarterlyReview(techName) {
   var member = (DB.team||[]).find(function(m){ return m.name===techName; }) || {};
 
   // Real log completion rate from wo_field_logs vs worked days
-  var logStats = await calcLogCompletionRate(techName, qStart, new Date().toISOString().split('T')[0]);
+  var logStats = await calcLogCompletionRate(techName, qStart, getTodayISO());
   var logRate = logStats.rate;
 
   var qLabel = ['Q1','Q2','Q3','Q4'][Math.floor(now.getMonth()/3)]+' '+now.getFullYear();
@@ -1213,7 +1213,7 @@ async function wtRenderTechDashboard() {
   var _techRole = typeof _currentUser !== 'undefined' && _currentUser ? _currentUser.role : null;
   if (!el || _techRole !== 'helper_tech') return;
 
-  var today     = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var today     = getTodayISO ? getTodayISO() : getTodayISO();
   var myName    = (typeof wtCurrentUserName==='function'?wtCurrentUserName():'');
 
   // Gather all async data FIRST, then build html all at once

@@ -263,7 +263,7 @@ async function _doArriveBackActual(){
       id:            'wd-'+Date.now(),
       techName:      _currentUser ? _currentUser.full_name : 'Unknown',
       techId:        _currentUser ? _currentUser.id : null,
-      date:          new Date().toISOString().split('T')[0],
+      date:          getTodayISO(),
       travelMins:    _clockState.travelOutMins+_clockState.travelBackMins,
       onsiteMins:    _clockState.onsiteMins,
       breakMins:     _clockState.breakMins,
@@ -348,7 +348,7 @@ function submitLunchFlag(){
   var note=(document.getElementById('lf-note')||{}).value||'';
   if(choice==='yes'&&!approver){showToast('Please select who cleared it','error');return;}
   if(!DB.lunchFlags) DB.lunchFlags=[];
-  DB.lunchFlags.push({id:'lf-'+Date.now(),techName:_currentUser?_currentUser.full_name:'Unknown',date:new Date().toISOString().split('T')[0],lunchMins:_clockState.lunchMins,cleared:choice==='yes',approver:approver,note:note,status:'pending_review'});
+  DB.lunchFlags.push({id:'lf-'+Date.now(),techName:_currentUser?_currentUser.full_name:'Unknown',date:getTodayISO(),lunchMins:_clockState.lunchMins,cleared:choice==='yes',approver:approver,note:note,status:'pending_review'});
   saveDB();
   var m=document.getElementById('modal-lunch-flag');if(m)m.remove();
   if(window._lfResolve){window._lfResolve(true);window._lfResolve=null;}
@@ -2009,7 +2009,7 @@ function _showDeparturePrompt(job) {
 // ── Return-to-base nudge ──────────────────────────────────────────────────────
 function _showBaseReturnNudge() {
   // Find any open field log entries for today
-  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var today = getTodayISO ? getTodayISO() : getTodayISO();
   var myName = _currentUser ? _currentUser.full_name : '';
 
   var todayLabor = (DB.woLabor||[]).filter(function(l){

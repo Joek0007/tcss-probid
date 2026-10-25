@@ -3895,7 +3895,7 @@ async function renderWOFieldLogTab(woId) {
   var isTech = typeof wtIsFieldTech === 'function' && wtIsFieldTech();
 
   // Check if tech already logged today
-  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var today = getTodayISO ? getTodayISO() : getTodayISO();
   var myName = typeof wtCurrentUserName === 'function' ? wtCurrentUserName() : (_currentUser?_currentUser.full_name:'');
   var loggedToday = logs.some(function(l){
     return l.log_date === today && l.tech_name === myName;
@@ -4008,7 +4008,7 @@ function renderFieldLogCard(l, woId) {
 // ── Open the log entry modal ──────────────────────────────────────────────────
 function openFieldLogEntry(woId) {
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
-  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var today = getTodayISO ? getTodayISO() : getTodayISO();
   var myName = typeof wtCurrentUserName === 'function' ? wtCurrentUserName() : (_currentUser?_currentUser.full_name:'');
 
   // Pre-populate time from clock if active
@@ -4194,7 +4194,7 @@ async function notifyFollowUpNeeded(woId, techName, notes) {
 
 // ── Clock-out nudge ───────────────────────────────────────────────────────────
 async function checkFieldLogBeforeClockOut(onProceed) {
-  var today = getTodayISO ? getTodayISO() : new Date().toISOString().split('T')[0];
+  var today = getTodayISO ? getTodayISO() : getTodayISO();
   var myName = _currentUser ? _currentUser.full_name : '';
 
   // Find WOs this tech worked today (from labor entries)

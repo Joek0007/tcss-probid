@@ -262,7 +262,7 @@ function renderToolCheckouts() {
     return !c.returnedAt && c.status !== 'pending_verify' && c.status !== 'verified';
   });
   if (!active.length) { tbl.innerHTML='<tr><td colspan="7" class="empty-state"><p>No tools currently checked out.</p></td></tr>'; return; }
-  var today = new Date().toISOString().split('T')[0];
+  var today = getTodayISO();
 
   tbl.innerHTML = active.map(function(c){
     // Resolve tool — for group split records, use the parent tool
@@ -681,7 +681,7 @@ function saveCheckoutModal(toolId, modalId) {
     toolId:         toolId,
     toName:         toName.trim(),
     jobName:        (document.getElementById('tool-co-job')||{}).value||'',
-    date:           new Date().toISOString().split('T')[0],
+    date:           getTodayISO(),
     expectedReturn: (document.getElementById('tool-co-ret')||{}).value||'',
     returnedAt:     null,
     status:         'checked_out',
@@ -769,7 +769,7 @@ function confirmReturn(modalId) {
   var opt  = (document.getElementById('ret-opt')||{}).value||'now';
   var co   = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co) return;
   var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
-  var now  = new Date().toISOString().split('T')[0];
+  var now  = getTodayISO();
 
   if (opt === 'now') {
     // Close this modal and open the full per-item inspection
@@ -829,7 +829,7 @@ function _readTransferGroups(co) {
 // The actual custody move. Closes the sender's checkout, opens the receiver's
 // (stamped with the trail in `meta`), and splits off any parts left behind.
 function _executeTransferMove(co, tool, toName, travelGroups, stayGroups, note, meta) {
-  var now = new Date().toISOString().split('T')[0];
+  var now = getTodayISO();
   meta = meta || {};
   if (co.pendingTransfer) delete co.pendingTransfer;
   co.returnedAt     = now;
@@ -887,7 +887,7 @@ function _sweepExpiredTransfers() {
   var now = Date.now(), changed = false;
   (DB.toolCheckouts||[]).forEach(function(c){
     if (c.pendingTransfer && c.pendingTransfer.expiresAt && c.pendingTransfer.expiresAt < now) {
-      c.transferExpiredNote = 'Hand-off to '+(c.pendingTransfer.to||'')+' expired unaccepted on '+new Date().toISOString().split('T')[0];
+      c.transferExpiredNote = 'Hand-off to '+(c.pendingTransfer.to||'')+' expired unaccepted on '+getTodayISO();
       delete c.pendingTransfer; changed = true; _coPersist(c);
     }
   });
@@ -980,7 +980,7 @@ function sendTransferRequest(modalId, acceptNow) {
     to: toName,
     by: (co.toName)||'',
     byUser: (_currentUser&&_currentUser.full_name)||'',
-    at: new Date().toISOString().split('T')[0],
+    at: getTodayISO(),
     travel: grp.travel,
     stay: grp.stay,
     note: (document.getElementById('tr-note')||{}).value||'',
@@ -1069,7 +1069,7 @@ function confirmAcceptTransfer(coId, modalId) {
   if (!(document.getElementById('acc-ack')||{}).checked) { showToast('You must confirm the parts are present and accept responsibility','error'); return; }
   var pt = co.pendingTransfer;
   var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
-  var now = new Date().toISOString().split('T')[0];
+  var now = getTodayISO();
   var stay = (pt.stay||0) && pt.stay.length;
   var n = _executeTransferMove(co, tool, pt.to, pt.travel||[], pt.stay||[], pt.note||'', {
     mode:'peer', acceptedBy: pt.to, acceptedAt: now,
@@ -1086,7 +1086,7 @@ function disputeTransfer(coId, modalId) {
   var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co||!co.pendingTransfer) return;
   var reason = ((document.getElementById('acc-note')||{}).value||'').trim();
   var pt = co.pendingTransfer;
-  co.transferDispute = { by: pt.to, from: pt.by, at: new Date().toISOString().split('T')[0], reason: reason||'Not accepted' };
+  co.transferDispute = { by: pt.to, from: pt.by, at: getTodayISO(), reason: reason||'Not accepted' };
   delete co.pendingTransfer;
   try{ saveDB(); }catch(e){} _coPersist(co);
   var _dtool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
@@ -1110,7 +1110,7 @@ function brokerTransfer(modalId) {
   var co = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co) return;
   var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
   var grp = _readTransferGroups(co);
-  var now = new Date().toISOString().split('T')[0];
+  var now = getTodayISO();
   var n = _executeTransferMove(co, tool, toName, grp.travel, grp.stay, (document.getElementById('tr-note')||{}).value||'', {
     mode:'brokered', brokeredBy: (_currentUser&&_currentUser.full_name)||'Office', brokeredAt: now,
     approvedBy: cfg.requireApprovalBrokered ? ((_currentUser&&_currentUser.full_name)||'') : ''
@@ -1254,7 +1254,7 @@ function confirmAsIsCheckout(coId, modalId) {
   if (reqApproval && !approver) { showToast('A manager/owner approval name is required','error'); return; }
   var note = ((document.getElementById('asis-note')||{}).value||'').trim();
   var job  = ((document.getElementById('asis-job')||{}).value||'').trim();
-  var now  = new Date().toISOString().split('T')[0];
+  var now  = getTodayISO();
 
   // Resolve the prior unverified drop-off as released as-is (kept on record, leaves Pending Verify).
   co.status         = 'as_is_released';
@@ -1472,7 +1472,7 @@ function confirmVerifyReturn(modalId) {
   var coId = (document.getElementById('vrf-co-id')||{}).value||'';
   var co   = (DB.toolCheckouts||[]).find(function(c){ return c.id===coId; }); if(!co) return;
   var tool = (DB.tools||[]).find(function(t){ return t.id===co.toolId; });
-  var now  = new Date().toISOString().split('T')[0];
+  var now  = getTodayISO();
 
   // Read inspection results
   var items = [];
@@ -1821,7 +1821,7 @@ function submitNeedPost() {
     type:            'need',
     status:          'open',
     postedBy:        requester,
-    postedAt:        new Date().toISOString().split('T')[0],
+    postedAt:        getTodayISO(),
     itemDescription: item,
     whenNeeded:      (document.getElementById('need-when')||{}).value||'',
     jobName:         (document.getElementById('need-job')||{}).value||''
@@ -1904,7 +1904,7 @@ function submitLoanOffer() {
     type:            'offer',
     status:          'open',  // waiting for recipient to accept
     offeredBy:       (_currentUser&&_currentUser.full_name)||'',
-    offeredAt:       new Date().toISOString().split('T')[0],
+    offeredAt:       getTodayISO(),
     offeredToolName: toolName,
     offeredPhotoUrl: photoUrl,
     recipientName:   recipient,
@@ -1966,7 +1966,7 @@ function acceptLoanOffer() {
   var loanId = (document.getElementById('accept-loan-id')||{}).value||'';
   var loan   = getToolLoans().find(function(l){ return l.id===loanId; }); if(!loan) return;
   loan.status     = 'accepted';
-  loan.acceptedAt = new Date().toISOString().split('T')[0];
+  loan.acceptedAt = getTodayISO();
   saveDB();
   closeModal('modal-accept-loan');
   renderToolLoansTab();
@@ -1994,7 +1994,7 @@ function cancelLoan(loanId) {
 function activateLoan(loanId) {
   var loan = getToolLoans().find(function(l){ return l.id===loanId; }); if(!loan) return;
   loan.status='active';
-  loan.pickedUpAt=new Date().toISOString().split('T')[0];
+  loan.pickedUpAt=getTodayISO();
   saveDB();
   renderToolLoansTab();
   showToast('Marked as picked up — loan is now active','success');
@@ -2003,7 +2003,7 @@ function activateLoan(loanId) {
 function returnLoan(loanId) {
   var loan = getToolLoans().find(function(l){ return l.id===loanId; }); if(!loan) return;
   loan.status='returned';
-  loan.returnedAt=new Date().toISOString().split('T')[0];
+  loan.returnedAt=getTodayISO();
   saveDB();
   renderToolLoansTab();
   showToast('Loan returned ✓','success');
@@ -2102,7 +2102,7 @@ function submitBorrowRequest() {
     duration:      duration,
     note:          (document.getElementById('borrow-note')||{}).value||'',
     status:        'pending',
-    requestedAt:   new Date().toISOString().split('T')[0]
+    requestedAt:   getTodayISO()
   });
   saveDB();
   closeModal('modal-borrow-request');
@@ -2113,7 +2113,7 @@ function submitBorrowRequest() {
 function approveBorrowRequest(toolId, requestId) {
   var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; }); if(!tool) return;
   var req  = (tool.personalShareRequests||[]).find(function(r){ return r.id===requestId; }); if(!req) return;
-  req.status='approved'; req.approvedAt=new Date().toISOString().split('T')[0];
+  req.status='approved'; req.approvedAt=getTodayISO();
   saveDB(); renderBorrowRequestsTab();
   showToast('Loan approved — '+req.requesterName+' can pick it up','success');
 }
@@ -2122,7 +2122,7 @@ function denyBorrowRequest(toolId, requestId) {
   var tool = (DB.tools||[]).find(function(t){ return t.id===toolId; }); if(!tool) return;
   var req  = (tool.personalShareRequests||[]).find(function(r){ return r.id===requestId; }); if(!req) return;
   var reason = prompt('Reason for denying (optional):','')||'';
-  req.status='denied'; req.denyReason=reason; req.deniedAt=new Date().toISOString().split('T')[0];
+  req.status='denied'; req.denyReason=reason; req.deniedAt=getTodayISO();
   saveDB(); renderBorrowRequestsTab(); showToast('Request denied','info');
 }
 
@@ -2133,12 +2133,12 @@ function convertBorrowToCheckout(toolId, requestId) {
   var ret=new Date(); ret.setDate(ret.getDate()+7);
   var _borrowCo = {
     id:'co-'+Date.now(), toolId:toolId, toName:req.requesterName, jobName:req.note||'',
-    date:new Date().toISOString().split('T')[0], expectedReturn:ret.toISOString().split('T')[0],
+    date:getTodayISO(), expectedReturn:ret.toISOString().split('T')[0],
     returnedAt:null, status:'checked_out', groupsIncluded:[],
     isPersonalBorrow:true, ownerName:tool.ownerId||'', borrowRequestId:requestId
   };
   DB.toolCheckouts.push(_borrowCo);
-  req.status='picked_up'; req.pickedUpAt=new Date().toISOString().split('T')[0];
+  req.status='picked_up'; req.pickedUpAt=getTodayISO();
   saveDB(); _coPersist(_borrowCo); renderTools();
   showToast(req.requesterName+' picked up '+tool.name,'success');
 }

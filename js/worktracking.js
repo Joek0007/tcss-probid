@@ -4775,7 +4775,7 @@ async function wtSaveAssignments() {
         assigned_to_name: techName,
         assigned_by:      wtCurrentUserId(),
         role_on_project:  (teamMember&&teamMember.role)||'tech',
-        assignment_date:  new Date().toISOString().split('T')[0],
+        assignment_date:  getTodayISO(),
       };
       if (_sb) {
         var { data:newRec, error } = await _sb.from('wt_assignments').insert(rec).select().single();
@@ -5944,7 +5944,7 @@ function submitAbsence() {
     details:      _absenceData.details||'',
     isLate:       _absenceData.isLate,
     submittedAt:  _absenceData.submittedAt||new Date().toISOString(),
-    date:         new Date().toISOString().split('T')[0],
+    date:         getTodayISO(),
     status:       'reported',
     alertSent:    false  // set true once absence alerts are actually wired (see sendAbsenceAlert)
   };
@@ -6020,7 +6020,7 @@ async function sendAbsenceAlert(record) {
 // ---- ABSENCE DASHBOARD (back office) ----
 function renderAbsenceDashboard() {
   var el = document.getElementById('dash-absence-alerts'); if(!el) return;
-  var today = new Date().toISOString().split('T')[0];
+  var today = getTodayISO();
   var todayAbs = (DB.absences||[]).filter(function(a){ return a.date===today; });
   if (!todayAbs.length) { el.style.display='none'; return; }
   el.style.display='block';
@@ -6318,7 +6318,7 @@ function isHoliday(dateStr) {
 function openTimeOffModal() {
   var teamOpts = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
   var dl = document.getElementById('toff-team-list'); if(dl) dl.innerHTML=teamOpts;
-  var today = new Date().toISOString().split('T')[0];
+  var today = getTodayISO();
   ['toff-name','toff-hours','toff-note'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
   var s=document.getElementById('toff-start'); if(s) s.value=today;
   var e=document.getElementById('toff-end');   if(e) e.value=today;
@@ -6347,7 +6347,7 @@ function submitTimeOffRequest() {
     hours:       hours,
     note:        note,
     status:      'pending',
-    submittedAt: new Date().toISOString().split('T')[0]
+    submittedAt: getTodayISO()
   };
   DB.timeOffRequests.push(_newTor);
   saveDB();
@@ -6424,7 +6424,7 @@ function resolveTimeOff(id, status) {
     r.denyReason = reason;
   }
   r.status = status;
-  r.resolvedAt = new Date().toISOString().split('T')[0];
+  r.resolvedAt = getTodayISO();
   r.resolvedBy = _currentUser ? _currentUser.full_name : 'Admin';
   // If approved vacation/PTO, log it as a work day entry
   if (status==='approved' && (r.type==='vacation'||r.type==='pto')) {
@@ -6576,7 +6576,7 @@ function exportPayrollCSV() {
 function renderLiveActivity() {
   var el = document.getElementById('live-activity'); if(!el) return;
   // Pull from DB.workDays for today — incomplete days = still clocked in
-  var today = new Date().toISOString().split('T')[0];
+  var today = getTodayISO();
   var activeToday = (DB.workDays||[]).filter(function(d){
     return d.date===today && !d.totalPaidMins; // no totalPaid means still in progress
   });
@@ -6684,7 +6684,7 @@ function resolveLunchFlag(flagId, action) {
   var flag=(DB.lunchFlags||[]).find(function(f){return f.id===flagId;});
   if(!flag) return;
   flag.status='resolved'; flag.resolution=action;
-  flag.resolvedAt=new Date().toISOString().split('T')[0];
+  flag.resolvedAt=getTodayISO();
   flag.resolvedBy=_currentUser?_currentUser.full_name:'Office';
   saveDB(); loadTimesheets();
   showToast('Flag resolved','success');
@@ -7375,7 +7375,7 @@ function openCloseout(jobId) {
   var matEl    = document.getElementById('co-materials'); if(matEl)     matEl.value     = existing.materials||'';
   var fbEl     = document.getElementById('co-feedback');  if(fbEl)      fbEl.value      = existing.feedback||'';
   var techEl   = document.getElementById('co-tech');      if(techEl)    techEl.value    = existing.tech||job.assignedTo||'';
-  var dateEl   = document.getElementById('co-date');      if(dateEl)    dateEl.value    = existing.date||new Date().toISOString().split('T')[0];
+  var dateEl   = document.getElementById('co-date');      if(dateEl)    dateEl.value    = existing.date||getTodayISO();
 
   _closeoutDifficulty = existing.difficulty||3;
   setDifficulty(_closeoutDifficulty);
@@ -7735,7 +7735,7 @@ function showImportResult(elId, success, message) {
 function exportCatalogCSV() {
   const rows=[['id','name','category','unit','material_cost','labor_hours']];
   (DB.catalog||[]).forEach(function(i){ rows.push([i.id||'',i.name||'',i.cat||'',i.unit||'ea',i.mc!==undefined?i.mc:0,i.lh!==undefined?i.lh:0]); });
-  downloadCSV('tcss-catalog-'+new Date().toISOString().split('T')[0]+'.csv', rows);
+  downloadCSV('tcss-catalog-'+getTodayISO()+'.csv', rows);
 }
 
 // ---- CATALOG IMPORT ----
@@ -7777,7 +7777,7 @@ function exportTemplatesCSV() {
     if(!items.length){rows.push([t.id||'',t.name||'',t.icon||'📐',t.cat||'Custom',t.env||'office',t.margin||35,'','',1,'ea',0,0]);}
     else items.forEach(function(item){rows.push([t.id||'',t.name||'',t.icon||'📐',t.cat||'Custom',t.env||'office',t.margin||35,item.desc||'',item.cat||'',item.qty||1,item.unit||'ea',item.mc||0,item.lh||0]);});
   });
-  downloadCSV('tcss-templates-'+new Date().toISOString().split('T')[0]+'.csv', rows);
+  downloadCSV('tcss-templates-'+getTodayISO()+'.csv', rows);
 }
 
 // ---- TEMPLATES IMPORT ----
@@ -7823,7 +7823,7 @@ function handleTemplatesImport(input) {
 function exportData() {
   const json=JSON.stringify(DB,null,2);
   const blob=new Blob([json],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tcss-probid-backup-'+new Date().toISOString().split('T')[0]+'.json'; a.click();
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tcss-probid-backup-'+getTodayISO()+'.json'; a.click();
   setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
 }
 function importData() {
@@ -8432,12 +8432,12 @@ function calcFollowupDate(quoteDateStr) {
 function isFollowupDue(q) {
   if (!q.followupDate) return false;
   if (q.status === 'approved' || q.status === 'declined') return false;
-  return q.followupDate <= new Date().toISOString().split('T')[0];
+  return q.followupDate <= getTodayISO();
 }
 function isFollowupOverdue(q) {
   if (!q.followupDate) return false;
   if (q.status === 'approved' || q.status === 'declined') return false;
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayISO();
   const threeDaysAgo = new Date();
   threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
   return q.followupDate < threeDaysAgo.toISOString().split('T')[0];
@@ -8617,7 +8617,7 @@ function renderJobs() {
 // =============================================
 function buildAlerts() {
   const alerts = [];
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayISO();
 
   DB.quotes.forEach(function(q) {
     // Follow-ups due

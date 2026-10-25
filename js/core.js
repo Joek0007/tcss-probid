@@ -7,6 +7,11 @@
 // V5-P1: Equipment Rentals, Permits, Margin Floor, Expanded Templates
 // =============================================
 
+// LOCAL today as YYYY-MM-DD. Defined here (first-loaded file) so every later module can use it.
+// NOT new Date().toISOString() — that returns the UTC date, which rolls to tomorrow in the
+// evening for US time zones, making "today" wrong after ~7–8pm Eastern.
+function getTodayISO(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
 // ---- CONSTANTS ----
 const DB_KEY = 'tcssv8';
 const ENV_PRESETS = {
@@ -919,7 +924,7 @@ function goPage(id) {
   if (id==='qq')         { renderTplLibrary(); setTimeout(populateJTDropdown, 150); }
 qqStage4Init();
   if (id==='field')      setTimeout(renderFieldPage, 50);
-  if (id==='timesheet')  { var today=new Date().toISOString().split('T')[0]; var dtEl=document.getElementById('ts-date-filter'); if(dtEl&&!dtEl.value) dtEl.value=today; setTimeout(loadTimesheets,50); }
+  if (id==='timesheet')  { var today=getTodayISO(); var dtEl=document.getElementById('ts-date-filter'); if(dtEl&&!dtEl.value) dtEl.value=today; setTimeout(loadTimesheets,50); }
   if (id==='worktracking') { setTimeout(renderWorkTracking, 50); }
   if (id==='dispatch')     { setTimeout(initDispatchBoard, 50); }
   if (id==='invoices')     { setTimeout(renderInvoicesPage, 50); }
@@ -3363,7 +3368,7 @@ function renderAuditLog() {
     fromEl.value = d.toISOString().split('T')[0];
   }
   if (toEl && !toEl.value) {
-    toEl.value = new Date().toISOString().split('T')[0];
+    toEl.value = getTodayISO();
   }
   filterFrom = (document.getElementById('al-filter-from')||{}).value || '';
   filterTo   = (document.getElementById('al-filter-to')||{}).value   || '';
@@ -4160,7 +4165,7 @@ function _checkLowStockDaily() {
   if (DB.settings.invLowStockDaily === false) return;
 
   // Only run once per calendar day
-  var today = new Date().toISOString().split('T')[0];
+  var today = getTodayISO();
   var lastCheck = localStorage.getItem('tcss_inv_daily_check');
   if (lastCheck === today) return;
   localStorage.setItem('tcss_inv_daily_check', today);

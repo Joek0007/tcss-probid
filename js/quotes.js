@@ -2288,7 +2288,7 @@ async function dupQuote(id) {
 
   // A duplicate is a brand-new draft — it must AGE FROM TODAY, not inherit the
   // original's dates (which made the copy show up already expired / stale).
-  const today = (typeof getTodayISO==='function') ? getTodayISO() : new Date().toISOString().split('T')[0];
+  const today = (typeof getTodayISO==='function') ? getTodayISO() : getTodayISO();
   nq.createdAt   = new Date().toISOString();
   nq.updatedAt   = nq.createdAt;
   nq.dt          = today;   // quote date → today (drives the Age column)
@@ -4514,7 +4514,7 @@ function newJob(){
   ['m-jname','m-jcust','m-jqnum','m-jnotes','m-jid','m-jassign'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});
   const lh=document.getElementById('m-jlh');if(lh)lh.value=0;
   const act=document.getElementById('m-jactual');if(act)act.value=0;
-  const st=document.getElementById('m-jstart');if(st)st.value=new Date().toISOString().split('T')[0];
+  const st=document.getElementById('m-jstart');if(st)st.value=getTodayISO();
   const stat=document.getElementById('m-jstatus');if(stat)stat.value='Scheduled';
   openModal('modal-job');
 }
@@ -6330,7 +6330,7 @@ function renderReports() {
 
   // ---- PIPELINE TAB ----
   if (tab === 'pipeline') {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayISO();
     const pipe  = {draft:0,sent:0,followup:0,approved:0,declined:0};
     const pipeRev = {draft:0,sent:0,followup:0,approved:0,declined:0};
     let overdue = 0;
@@ -6795,7 +6795,7 @@ function exportReportCSV() {
   });
   const csv = rows.map(function(r){ return r.map(function(c){ return '"'+(c+'').replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
   const blob = new Blob([csv],{type:'text/csv'});
-  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tcss-report-'+new Date().toISOString().split('T')[0]+'.csv'; a.click();
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tcss-report-'+getTodayISO()+'.csv'; a.click();
 }
 
 // =============================================
@@ -6956,7 +6956,7 @@ function renderInventory() {
     const coTbl  = document.getElementById('inv-co-tbl');
     if (coTbl) coTbl.innerHTML = active.length>0 ? active.map(function(c){
       const item    = DB.inventory.find(function(i){ return i.id===c.itemId; });
-      const today   = new Date().toISOString().split('T')[0];
+      const today   = getTodayISO();
       const overdue = c.expectedReturn && c.expectedReturn < today;
       return '<tr style="'+(overdue?'background:#fff8f8':'')+'">'+
         '<td><span class="asset-tag">'+escHtml((item&&item.tag)||'—')+'</span></td>'+
@@ -7110,7 +7110,7 @@ function confirmCheckout() {
     to:             to,
     job:            document.getElementById('co-job').value.trim(),
     notes:          document.getElementById('co-notes').value.trim(),
-    checkoutDate:   new Date().toISOString().split('T')[0],
+    checkoutDate:   getTodayISO(),
     expectedReturn: document.getElementById('co-return').value || '',
     returnDate:     null
   };
@@ -7127,7 +7127,7 @@ function checkinItem(logId) {
   const name = item ? item.name : 'item';
   if (!confirm('Return '+log.qty+' × '+name+' from '+log.to+'?')) return;
 
-  log.returnDate = new Date().toISOString().split('T')[0];
+  log.returnDate = getTodayISO();
   if (item) item.qty += log.qty;
   saveDB();
   renderInventory();
@@ -7140,6 +7140,6 @@ function exportInventoryCSV() {
   });
   const csv = rows.map(function(r){ return r.map(function(c){ return '"'+(c+'').replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
   const blob = new Blob([csv],{type:'text/csv'});
-  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tcss-inventory-'+new Date().toISOString().split('T')[0]+'.csv'; a.click();
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tcss-inventory-'+getTodayISO()+'.csv'; a.click();
 }
 

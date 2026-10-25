@@ -930,7 +930,7 @@ function prepareConvertModal(qid) {
   var nm=document.getElementById('ctj-name'); if(nm) nm.value=q.jn||'';
   var cu=document.getElementById('ctj-customer'); if(cu) cu.value=q.cn||'';
   var ad=document.getElementById('ctj-address'); if(ad) ad.value=q.ad||'';
-  var st=document.getElementById('ctj-start'); if(st) st.value=new Date().toISOString().split('T')[0];
+  var st=document.getElementById('ctj-start'); if(st) st.value=getTodayISO();
   // Populate customer datalist
   var cdl=document.getElementById('ctj-cust-list'); if(cdl) cdl.innerHTML=(DB.customers||[]).map(function(c){ return '<option value="'+escHtml(c.name)+'">'; }).join('');
   // Populate tech datalist
@@ -962,7 +962,7 @@ async function confirmConvertJob() {
 
   // Mark quote Won
   q.status    = 'approved';
-  q.wonDate   = new Date().toISOString().split('T')[0];
+  q.wonDate   = getTodayISO();
   q.contactId = contactId;
 
   // Create job — server-authoritative number (migration _17)
