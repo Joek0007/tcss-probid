@@ -959,9 +959,10 @@ function _rcCheckExpirations() {
     if (!c.contractEnd) return;
     if (c.contractEnd > today) return;
     if (c.autoRenew) {
-      var d = new Date(c.contractEnd);
-      d.setFullYear(d.getFullYear() + 1);
-      c.contractEnd = d.toISOString().split('T')[0];
+      // Advance one year using LOCAL Y-M-D (avoids the UTC round-trip day-drift).
+      var _p = String(c.contractEnd).split('-');
+      var d = new Date(parseInt(_p[0],10)+1, parseInt(_p[1],10)-1, parseInt(_p[2],10));
+      c.contractEnd = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
       changed = true;
       _pushRCToSupabase(c);
     } else {

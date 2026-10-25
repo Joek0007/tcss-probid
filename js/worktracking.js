@@ -8425,9 +8425,13 @@ function getFollowupDays() {
   return parseInt(DB.settings.followupDays) || 7;
 }
 function calcFollowupDate(quoteDateStr) {
-  const d = quoteDateStr ? new Date(quoteDateStr) : new Date();
+  // Parse as LOCAL Y-M-D (not new Date("YYYY-MM-DD"), which is UTC and drifts across DST),
+  // add the follow-up days, and format from local components.
+  var p = String(quoteDateStr || getTodayISO()).split('-');
+  var d = new Date(parseInt(p[0],10), parseInt(p[1],10)-1, parseInt(p[2],10));
+  if (isNaN(d.getTime())) d = new Date();
   d.setDate(d.getDate() + getFollowupDays());
-  return d.toISOString().split('T')[0];
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 function isFollowupDue(q) {
   if (!q.followupDate) return false;
@@ -8437,10 +8441,9 @@ function isFollowupDue(q) {
 function isFollowupOverdue(q) {
   if (!q.followupDate) return false;
   if (q.status === 'approved' || q.status === 'declined') return false;
-  const today = getTodayISO();
-  const threeDaysAgo = new Date();
-  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-  return q.followupDate < threeDaysAgo.toISOString().split('T')[0];
+  var _d = new Date(); _d.setDate(_d.getDate() - 3);
+  var threeDaysAgo = _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');
+  return q.followupDate < threeDaysAgo;
 }
 
 // =============================================
