@@ -299,14 +299,26 @@ function printContractTemplate() {
 }
 
 // ── Supabase sync ─────────────────────────────────────────────────────────────
-function _pushContractToSupabase(c) {
+// Hardened (was fire-and-forget with no error check). Confirms the cloud write, marks the
+// record _synced on success, and on failure warns the user and queues a pushAllToCloud retry
+// (which now re-pushes contracts) so a saved contract can never be silently stranded locally.
+async function _pushContractToSupabase(c) {
   if (typeof _sb==='undefined'||!_sb) return;
-  _sb.from('contracts').upsert({
-    id: c.id, number: c.number, type: c.type, client: c.client,
-    project: c.project||null, value: c.value||null, status: c.status,
-    scope: c.scope||null, notes: c.notes||null,
-    date_created: c.dateCreated||null, date_executed: c.dateExecuted||null,
-    date_expires: c.dateExpires||null, wo_id: c.woId||null,
-    parent_contract_id: c.parentContractId||null, created_at: c.createdAt
-  }).then(function(){});
+  try {
+    var r = await _sb.from('contracts').upsert({
+      id: c.id, number: c.number, type: c.type, client: c.client,
+      project: c.project||null, value: c.value||null, status: c.status,
+      scope: c.scope||null, notes: c.notes||null,
+      date_created: c.dateCreated||null, date_executed: c.dateExecuted||null,
+      date_expires: c.dateExpires||null, wo_id: c.woId||null,
+      parent_contract_id: c.parentContractId||null, created_at: c.createdAt
+    }, {onConflict:'id'}).select('id');
+    if (r && r.error) throw new Error(r.error.message);
+    var rec = (DB.contracts||[]).find(function(x){return x.id===c.id;});
+    if (rec) { rec._synced = true; if (typeof saveDB==='function') saveDB(); }
+  } catch(e) {
+    console.warn('[Contract sync]', e.message||e);
+    if (typeof showToast==='function') showToast('Contract saved on this device — cloud sync will retry shortly','warning',4500);
+    if (typeof pushAllToCloud==='function') setTimeout(pushAllToCloud, 1500);
+  }
 }

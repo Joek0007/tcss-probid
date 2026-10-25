@@ -3333,6 +3333,23 @@ async function pushAllToCloud() {
       } catch(rcErr) { console.warn('[Push] RC:', rcErr.message||rcErr); }
     }
 
+    // Push contracts (standalone contract register). Contracts used to reach the cloud ONLY
+    // via a fire-and-forget upsert on save, with no retry — a failed save left the record
+    // stranded on one device. Re-pushing them here, like every other table, makes the sync
+    // self-healing: any contract not yet in the cloud is retried on the next sync.
+    for (var ctr of (DB.contracts||[])) {
+      try {
+        _pushErr('contract '+(ctr.number||ctr.id), await _sb.from('contracts').upsert({
+          id:ctr.id, number:ctr.number||null, type:ctr.type||null, client:ctr.client||null,
+          project:ctr.project||null, value:(ctr.value!=null?ctr.value:null), status:ctr.status||'draft',
+          scope:ctr.scope||null, notes:ctr.notes||null,
+          date_created:ctr.dateCreated||null, date_executed:ctr.dateExecuted||null,
+          date_expires:ctr.dateExpires||null, wo_id:ctr.woId||null,
+          parent_contract_id:ctr.parentContractId||null, created_at:ctr.createdAt||new Date().toISOString()
+        }, {onConflict:'id'}));
+      } catch(ctrErr) { console.warn('[Push] contract:', ctrErr.message||ctrErr); }
+    }
+
     // Persist secondary collections that have no dedicated table (tools & assets,
     // tool checkouts, checkout log, inventory locations/transfers). Stored as whole-
     // collection JSON blobs in app_state so they survive reloads and reach every device.
