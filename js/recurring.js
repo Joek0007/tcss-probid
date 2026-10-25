@@ -34,10 +34,18 @@ function _rcNextNumber() {
 }
 
 function _rcAdvanceDate(dateStr, cycle) {
-  var d = new Date(dateStr);
+  // Parse as explicit LOCAL year-month-day. `new Date("YYYY-MM-DD")` parses as UTC midnight,
+  // and reading/writing it through local getMonth()/toISOString() drifts the day by one when
+  // advancing 3/6 months across a DST boundary (observed: quarterly landed a day early).
+  // Also clamp to the target month's length so Jan 31 + 1mo = Feb 28, not a spill into March.
+  var p = String(dateStr).split('-');
+  var y = parseInt(p[0],10), m = parseInt(p[1],10)-1, day = parseInt(p[2],10);
+  if (isNaN(y) || isNaN(m) || isNaN(day)) return dateStr;
   var months = (RC_CYCLES[cycle]||{months:1}).months;
-  d.setMonth(d.getMonth() + months);
-  return d.toISOString().split('T')[0];
+  var base = new Date(y, m + months, 1);                                   // first of target month (local)
+  var lastDay = new Date(base.getFullYear(), base.getMonth()+1, 0).getDate();
+  base.setDate(Math.min(day, lastDay));
+  return base.getFullYear()+'-'+String(base.getMonth()+1).padStart(2,'0')+'-'+String(base.getDate()).padStart(2,'0');
 }
 
 function _rcTotalMonthly(contract) {
