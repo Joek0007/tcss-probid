@@ -6575,33 +6575,28 @@ function exportPayrollCSV() {
 // ============================================================
 function renderLiveActivity() {
   var el = document.getElementById('live-activity'); if(!el) return;
-  // Pull from DB.workDays for today — incomplete days = still clocked in
-  var today = getTodayISO();
-  var activeToday = (DB.workDays||[]).filter(function(d){
-    return d.date===today && !d.totalPaidMins; // no totalPaid means still in progress
-  });
-  // Also check if current user is clocked in
-  var liveEntries = [];
-  if (_clockState.status!=='out' && _currentUser) {
-    liveEntries.push({
-      name: _currentUser.full_name,
-      status: _clockState.status,
-      job: _clockState.jobName||'—',
-      since: _clockState.dayStart ? _clockState.dayStart.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '—'
-    });
+  // Refresh from the live clock_sessions table if our cache is stale (the fetch repaints us).
+  if (typeof _fetchLiveSessions==='function' && (Date.now()-(typeof _liveSessionsFetchedAt!=='undefined'?_liveSessionsFetchedAt:0))>20000) { _fetchLiveSessions(); }
+  // All currently-open sessions across the whole crew (from clock_sessions, clock_out_at IS NULL).
+  var sessions = (typeof _liveSessions!=='undefined' && Array.isArray(_liveSessions)) ? _liveSessions.slice() : [];
+  // Show THIS device's user immediately even before the first fetch lands.
+  if (_clockState.status!=='out' && _currentUser && !sessions.some(function(s){ return s.user_id===_currentUser.id || (s.user_name&&s.user_name===_currentUser.full_name); })) {
+    var m2s={at_homebase:'at_homebase',traveling:'traveling',onsite:'clocked_in',break:'on_break',lunch:'at_lunch',returning:'returning'};
+    sessions.push({ user_name:_currentUser.full_name, status:m2s[_clockState.status]||'clocked_in', job_name:_clockState.jobName||'—', clock_in_at:_clockState.dayStart?_clockState.dayStart.toISOString():null });
   }
-  if (!liveEntries.length) {
+  if (!sessions.length) {
     el.innerHTML='<div style="color:#90a4ae;font-size:13px;padding:8px 0">No one currently clocked in. Live status syncs when field devices connect.</div>';
     return;
   }
-  var statusLabels={at_homebase:'🏠 At Base',traveling:'🚗 Traveling',onsite:'🔧 On Site',break:'⏸ On Break',lunch:'🍽 At Lunch',returning:'🚗 Returning'};
-  el.innerHTML=liveEntries.map(function(e){
+  var statusLabels={at_homebase:'🏠 At Base',traveling:'🚗 Traveling',clocked_in:'🔧 On Site',on_break:'⏸ On Break',at_lunch:'🍽 At Lunch',returning:'🚗 Returning'};
+  el.innerHTML=sessions.map(function(s){
+    var since = s.clock_in_at ? new Date(s.clock_in_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}) : '—';
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5">'+
       '<div>'+
-        '<div style="font-weight:700;font-size:13px">'+escHtml(e.name)+'</div>'+
-        '<div style="font-size:11px;color:#546e7a">'+escHtml(e.job)+' · Since '+escHtml(e.since)+'</div>'+
+        '<div style="font-weight:700;font-size:13px">'+escHtml(s.user_name||'—')+'</div>'+
+        '<div style="font-size:11px;color:#546e7a">'+escHtml(s.job_name||'—')+' · Since '+escHtml(since)+'</div>'+
       '</div>'+
-      '<span style="font-size:12px;font-weight:700;color:#2e7d32">'+escHtml(statusLabels[e.status]||e.status)+'</span>'+
+      '<span style="font-size:12px;font-weight:700;color:#2e7d32">'+escHtml(statusLabels[s.status]||s.status)+'</span>'+
     '</div>';
   }).join('');
 }

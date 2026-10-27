@@ -1390,6 +1390,84 @@ async function renderBackupHealth() {
   } catch (e) { try { el.style.display='none'; } catch(_){} }
 }
 
+// ── Live field clock status (from the clock_sessions table) ───────────────────
+// The office dashboard used to read clock status from DB.workDays, which is only written
+// at END OF DAY — so anyone currently on the clock showed "Not started." These helpers pull
+// the open clock_sessions (clock_out_at IS NULL) so the dashboard reflects who's live right now.
+var _liveSessions = [];
+var _liveSessionsFetchedAt = 0;
+var _liveSessionsTimer = null;
+
+function _dashLiveStatusFor(member){
+  if(!member) return null;
+  var nm = (member.name||'').trim().toLowerCase();
+  var sess = (_liveSessions||[]).find(function(s){
+    if(member.userId && s.user_id) return s.user_id===member.userId;
+    return s.user_name && nm && String(s.user_name).trim().toLowerCase()===nm;
+  });
+  if(!sess) return null;
+  var map={clocked_in:'onsite',traveling:'traveling',returning:'returning',on_break:'break',at_lunch:'lunch',at_homebase:'traveling'};
+  return { key: map[sess.status]||'onsite', job: sess.job_name||'', since: sess.clock_in_at||null };
+}
+
+function _renderDashFieldActivity(){
+  var fieldEl = document.getElementById('dash-field-activity');
+  if(!fieldEl) return;
+  var today = getTodayISO();
+  var todayDays = (DB.workDays||[]).filter(function(d){ return d.date===today; });
+  var _fstat = function(m){
+    var live = _dashLiveStatusFor(m);
+    if(live) return live.key;                                 // live clock_sessions wins
+    var wd=todayDays.find(function(d){ return d.techName===m.name; });
+    return wd ? (wd.totalPaidMins?'out':wd.currentStatus||'in') : 'out';
+  };
+  var team = (DB.team||[]).filter(function(m){ return m.active!==false; });
+  team.sort(function(a,b){ var ao=_fstat(a)==='out'?1:0, bo=_fstat(b)==='out'?1:0; return ao!==bo ? ao-bo : (a.name||'').localeCompare(b.name||''); });
+  var statusLabels = {in:'Clocked In',out:'Not started',break:'On Break',lunch:'Lunch',traveling:'Traveling',onsite:'On Site',returning:'Returning'};
+  var statusClasses = {in:'in',out:'out',break:'break',lunch:'lunch',traveling:'in',onsite:'in',returning:'in'};
+  fieldEl.innerHTML = team.map(function(m){
+    var status = _fstat(m);
+    var live = _dashLiveStatusFor(m);
+    var wd = todayDays.find(function(d){ return d.techName===m.name; });
+    var job = (live&&live.job) || (wd&&wd.jobName) || '';
+    var initials = (m.name||'?').split(' ').map(function(w){ return w[0]||''; }).slice(0,2).join('').toUpperCase();
+    return '<div class="dash-field-row">'+
+      '<div class="dash-field-avatar" style="background:#1565c0;color:#fff">'+initials+'</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:13px;font-weight:700;color:#0d1b2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(m.name)+'</div>'+
+        (job?'<div style="font-size:11px;color:#546e7a">'+escHtml(job)+'</div>':'')+'</div>'+
+      '<span class="dash-field-status '+(statusClasses[status]||'out')+'">'+escHtml(statusLabels[status]||'Not started')+'</span>'+
+    '</div>';
+  }).join('');
+}
+
+async function _fetchLiveSessions(){
+  try{
+    if(typeof _sb==='undefined' || !_sb) return;
+    // Only sessions started in the last 18h, so a forgotten multi-day-old open session
+    // doesn't haunt the board as "on site" (overnight shifts still covered).
+    var cutoff = new Date(Date.now()-18*3600*1000).toISOString();
+    var res = await _sb.from('clock_sessions')
+      .select('user_id,user_name,status,job_name,clock_in_at')
+      .is('clock_out_at', null).gte('clock_in_at', cutoff);
+    if(res && !res.error && Array.isArray(res.data)){
+      _liveSessions = res.data;
+      _liveSessionsFetchedAt = Date.now();
+      try{ _renderDashFieldActivity(); }catch(e){}
+      try{ if(typeof renderLiveActivity==='function') renderLiveActivity(); }catch(e){}
+    }
+  }catch(e){ /* offline / blocked: keep last known */ }
+}
+
+function _startLiveSessionsRefresh(){
+  if(_liveSessionsTimer) clearInterval(_liveSessionsTimer);
+  _liveSessionsTimer = setInterval(function(){
+    var dash = document.getElementById('dash-field-activity');
+    if(dash && dash.offsetParent!==null){ _fetchLiveSessions(); }   // only while dashboard visible
+    else { clearInterval(_liveSessionsTimer); _liveSessionsTimer=null; }
+  }, 30000);
+}
+
 function renderDash() {
   // Field techs get their own dashboard — check role directly, no dependency on worktracking.js
   var _role = typeof _currentUser !== 'undefined' && _currentUser ? _currentUser.role : null;
@@ -1498,29 +1576,11 @@ function renderDash() {
   var lu = document.getElementById('dash-last-updated');
   if (lu) lu.textContent = 'Updated '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 
-  // ── Field Activity ─────────────────────────────────────────────────────────
-  var fieldEl = document.getElementById('dash-field-activity');
-  if (fieldEl) {
-    var todayDays = workDays.filter(function(d){ return d.date===today; });
-    var _fstat = function(m){ var wd=todayDays.find(function(d){ return d.techName===m.name; }); return wd ? (wd.totalPaidMins?'out':wd.currentStatus||'in') : 'out'; };
-    // Show ALL active members (card scrolls); put anyone clocked in / active at the top.
-    var team = (DB.team||[]).filter(function(m){ return m.active!==false; });
-    team.sort(function(a,b){ var ao=_fstat(a)==='out'?1:0, bo=_fstat(b)==='out'?1:0; return ao!==bo ? ao-bo : (a.name||'').localeCompare(b.name||''); });
-    fieldEl.innerHTML = team.map(function(m){
-      var wd = todayDays.find(function(d){ return d.techName===m.name; });
-      var status = _fstat(m);
-      var statusLabels = {in:'Clocked In',out:'Not started',break:'On Break',lunch:'Lunch',traveling:'Traveling',onsite:'On Site'};
-      var statusClasses = {in:'in',out:'out',break:'break',lunch:'lunch',traveling:'in',onsite:'in'};
-      var initials = (m.name||'?').split(' ').map(function(w){ return w[0]||''; }).slice(0,2).join('').toUpperCase();
-      return '<div class="dash-field-row">'+
-        '<div class="dash-field-avatar" style="background:#1565c0;color:#fff">'+initials+'</div>'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:13px;font-weight:700;color:#0d1b2a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(m.name)+'</div>'+
-          (wd&&wd.jobName?'<div style="font-size:11px;color:#546e7a">'+escHtml(wd.jobName)+'</div>':'')+'</div>'+
-        '<span class="dash-field-status '+(statusClasses[status]||'out')+'">'+escHtml(statusLabels[status]||'Not started')+'</span>'+
-      '</div>';
-    }).join('');
-  }
+  // ── Field Activity (live clock_sessions) ────────────────────────────────────
+  // Paint immediately from whatever we have, then refresh from the live open-sessions table.
+  _renderDashFieldActivity();
+  _fetchLiveSessions();
+  _startLiveSessionsRefresh();
 
   // ── Active Jobs ────────────────────────────────────────────────────────────
   var jobsEl = document.getElementById('dash-jobs-list');
