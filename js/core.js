@@ -610,7 +610,44 @@ function loadDB() {
       if (!t.linkedGroups) t.linkedGroups = [];
       if (t.photoUrl === undefined) t.photoUrl = '';
     });
+
+    // r13 REPAIR (idempotent): re-point WT projects onto their actual Work Order.
+    // See _relinkProjectsToWO below. Runs every load (self-healing) and pushes to cloud.
+    if (typeof _relinkProjectsToWO === 'function') _relinkProjectsToWO();
   } catch(e) { console.warn('Load error', e); }
+}
+
+// r13 REPAIR (idempotent, self-healing): re-point WT projects onto their actual Work Order.
+// Pre-r13 quote approval set project.jobId = a shadow job's id; the WO created alongside
+// carries wo.jobId = that same shadow id. Match on wo.jobId to recover the link, then store
+// the WO id so the tech-access model (_wtWOAssignedToMe) and project<->WO lookups resolve.
+// A project already pointing at a real WO id is skipped, so wizard-created and already-
+// repaired projects are untouched. Returns the number of projects re-linked.
+function _relinkProjectsToWO(opts) {
+  opts = opts || {};
+  var projects = (typeof DB!=='undefined' && DB.wtProjects) ? DB.wtProjects : [];
+  var wos      = (typeof DB!=='undefined' && DB.workOrders) ? DB.workOrders : [];
+  var relinked = 0, rows = [];
+  projects.forEach(function(p){
+    if (!p.jobId) return;
+    if (wos.some(function(w){ return w.id===p.jobId; })) return; // already a real WO id
+    var wo = wos.find(function(w){ return w.jobId && w.jobId===p.jobId; });
+    if (wo) { p.jobId = wo.id; p.woId = wo.id; p.woNumber = wo.woNumber; relinked++; rows.push({ id:p.id, job_id:wo.id }); }
+  });
+  if (relinked > 0) {
+    console.log('[Migration r13] Re-linked '+relinked+' WT project(s) to their Work Order');
+    if (opts.push !== false) {
+      try {
+        if (typeof _sb !== 'undefined' && _sb) {
+          rows.forEach(function(r){
+            _sb.from('wt_projects').update({ job_id: r.job_id }).eq('id', r.id)
+              .then(function(res){ if (res && res.error) console.warn('[Migration r13] project push', res.error.message); });
+          });
+        }
+      } catch(_e){}
+    }
+  }
+  return relinked;
 }
 
 // ---- CURRENCY HELPER ----

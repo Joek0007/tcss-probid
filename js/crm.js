@@ -965,38 +965,54 @@ async function confirmConvertJob() {
   q.wonDate   = getTodayISO();
   q.contactId = contactId;
 
-  // Create job — server-authoritative number (migration _17)
-  const jobFloor = _maxNum(DB.jobs, function(j){ return j.num; }, /J-(\d+)/);
-  const jobN = await allocNumber('job', jobFloor);
-  const job = {
-    id:              Date.now().toString(),
-    num:             'J-' + jobN,
-    name:            name,
-    customer:        customer,
-    contactId:       contactId,
-    contactName:     contactName,
-    qid:             qid,
-    qnum:            q.num||'',
-    env:             q.env||'office',
-    envLabel:        q.envLabel||'',
-    jt:              q.jt||'',
-    address:         address||q.ad||'',
-    assignedTo:      leadTech,
-    estLaborHours:   q.totalLaborHours||0,
-    actualLaborHours:0,
-    estCost:         q.totalCost||0,
-    estTotal:        q.total||0,
-    achievedMargin:  q.achievedMargin||0,
-    items:           q.items ? JSON.parse(JSON.stringify(q.items)) : [],
-    status:          'Scheduled',
-    startDate:       (document.getElementById('ctj-start')||{}).value||'',
-    notes:           (document.getElementById('ctj-notes')||{}).value||'',
-    createdAt:       new Date().toISOString()
+  // r13: The Work Order IS the job now. Quote approval creates ONLY a Work Order —
+  // no shadow job. (The jobs table is retired and DB-insert-locked; a job row here
+  // would be silently rejected and would only create a half-linked record. Everything
+  // the job used to carry is carried on the WO below.)
+  const startDate = (document.getElementById('ctj-start')||{}).value||'';
+  const woNotes   = (document.getElementById('ctj-notes')||{}).value||'';
+
+  if (!DB.workOrders) DB.workOrders = [];
+  var woFloorC = _maxNum(DB.workOrders, function(w){ return w.woNumber; }, /WO-(\d+)/i);
+  var woNC = await allocNumber('wo', woFloorC);
+  var custMatch = (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(customer||'').toLowerCase(); });
+  var wo = {
+    id:            'wo-'+Date.now(),
+    woNumber:      'WO-'+woNC,
+    customerId:    custMatch ? custMatch.id : null,
+    customerName:  customer,
+    contactId:     contactId||null,
+    contactName:   contactName,
+    description:   q.notes||q.scope||name,
+    workPerformed: '',
+    status:        'New',
+    serviceType:   q.jt||'Installation',
+    priority:      'Normal',
+    serviceRep:    leadTech||null,
+    assignedTechs: leadTech ? [leadTech] : [],   // r13: lead tech assigned so the WO shows in the field (was job.assignedTo)
+    siteAddr:      address||q.ad||'',
+    siteCity:      q.adCity||'',
+    siteState:     q.adState||'',
+    siteZip:       q.adZip||'',
+    laborRate:     q.laborRate||125,
+    taxRate:       q.taxRate||0,
+    estLaborHours: q.totalLaborHours||0,          // r13: carry the quote's labor estimate (was held on the job)
+    scheduledDate: startDate,
+    dateRequested: startDate,
+    notes:         woNotes,
+    quoteId:       qid,
+    quoteNumber:   q.num||'',
+    invoiceId:     null,
+    createdBy:     (_currentUser&&_currentUser.id)||null,
+    createdByName: (_currentUser&&_currentUser.full_name)||'System',
+    createdAt:     new Date().toISOString(),
+    updatedAt:     new Date().toISOString()
   };
+  DB.workOrders.unshift(wo);
 
-  DB.jobs.unshift(job);
-
-  // Optionally create WT project
+  // Optionally create WT project — linked straight to the Work Order.
+  // r13: was job.id (a shadow-job id the WO could not be found by, so the tech-access
+  // model and project<->WO lookups silently failed); now wo.id, which resolves correctly.
   if (createWTP) {
     if (!DB.wtProjects) DB.wtProjects=[];
     DB.wtProjects.push({
@@ -1004,62 +1020,23 @@ async function confirmConvertJob() {
       name:      name,
       customer:  customer,
       leadTech:  leadTech,
-      startDate: job.startDate,
+      startDate: startDate,
       address:   address,
-      jobId:     job.id,
+      jobId:     wo.id,     // WO id — the project's link to the Work Order
+      woId:      wo.id,
+      woNumber:  wo.woNumber,
       systems:   [],
       createdAt: new Date().toISOString()
     });
   }
 
-  saveDB();
-  closeModal('modal-convert-job');
-
-  // Auto-create Work Order linked to this job — server-authoritative number (migration _17).
-  // This path was previously a blind counter++ (a top collision risk); now atomic.
-  if (!DB.workOrders) DB.workOrders = [];
-  var woFloorC = _maxNum(DB.workOrders, function(w){ return w.woNumber; }, /WO-(\d+)/i);
-  var woNC = await allocNumber('wo', woFloorC);
-  var wo = {
-    id:           'wo-'+Date.now(),
-    woNumber:     'WO-'+woNC,
-    customerId:   (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(customer||'').toLowerCase(); }) ? (DB.customers.find(function(c){ return (c.name||'').toLowerCase()===(customer||'').toLowerCase(); })).id : null,
-    customerName: customer,
-    contactId:    contactId||null,
-    description:  q.notes||q.scope||name,
-    workPerformed:'',
-    status:       'New',
-    serviceType:  q.jt||'Installation',
-    priority:     'Normal',
-    serviceRep:   leadTech||null,
-    siteAddr:     address||q.ad||'',
-    siteCity:     q.adCity||'',
-    siteState:    q.adState||'',
-    siteZip:      q.adZip||'',
-    laborRate:    q.laborRate||125,
-    taxRate:      q.taxRate||0,
-    dateRequested:job.startDate||'',
-    jobId:        job.id,
-    quoteId:      qid,
-    invoiceId:    null,
-    createdBy:    (_currentUser&&_currentUser.id)||null,
-    createdByName:(_currentUser&&_currentUser.full_name)||'System',
-    createdAt:    new Date().toISOString(),
-    updatedAt:    new Date().toISOString()
-  };
-  DB.workOrders.unshift(wo);
-
-  // Link WO back to job
-  job.woId = wo.id;
-  job.woNumber = wo.woNumber;
-
-  // Write-through to cloud immediately: the quote (now approved), the new job, and the new WO.
+  // Write-through to cloud immediately: the approved quote and the new Work Order.
   if (typeof _pushQuoteToCloud === 'function') _pushQuoteToCloud(q);
-  if (typeof _pushJobToCloud === 'function') _pushJobToCloud(job);
   if (typeof _pushWOToCloud === 'function') _pushWOToCloud(wo);
 
   saveDB();
-  showToast('Job '+job.num+' + Work Order '+wo.woNumber+' created ✓','success',5000);
+  closeModal('modal-convert-job');
+  showToast('Work Order '+wo.woNumber+' created ✓','success',5000);
   renderDash();
   renderJobs();
 }

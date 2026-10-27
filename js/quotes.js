@@ -4531,6 +4531,11 @@ function newJob(){
   openModal('modal-job');
 }
 function editJob(id){
+  // r13: Active Jobs rows are Work Orders now. If this id is a WO, open the WO editor
+  // (the old path looked up DB.jobs, which is retired/empty, and silently no-op'd).
+  if ((DB.workOrders||[]).some(function(w){ return w.id===id; })) {
+    if (typeof openWorkOrder==='function') return openWorkOrder(id);
+  }
   if (typeof hasPermission==='function' && !hasPermission('job.create')) { showToast('You do not have permission to edit jobs','error'); return; }
   const j=DB.jobs.find(function(x){return x.id==id});
   if(!j)return;
@@ -4567,6 +4572,11 @@ function saveJob(){
   saveDB();closeModal('modal-job');renderJobs();renderDash();
 }
 function delJob(id) {
+  // r13: Active Jobs rows are Work Orders now. If this id is a WO, void/delete the WO
+  // (the old path filtered DB.jobs, which is retired/empty, and silently no-op'd).
+  if ((DB.workOrders||[]).some(function(w){ return w.id===id; })) {
+    if (typeof deleteWorkOrder==='function') return deleteWorkOrder(id);
+  }
   if (typeof hasPermission === 'function' && !hasPermission('job.delete')) {
     showToast('Your role is not permitted to delete jobs.', 'error', 5000);
     return;

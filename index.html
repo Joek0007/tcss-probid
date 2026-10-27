@@ -7271,15 +7271,15 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20261025today"></script>
-<script src="js/quotes.js?v=20261025pretaxdisc"></script>
+<script src="js/core.js?v=20261027r13relink"></script>
+<script src="js/quotes.js?v=20261027r13jobroute"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
 <script src="js/checkouts_db.js?v=20260919ix"></script>
 <script src="js/collections_db.js?v=20260919ix"></script>
 <script src="js/tools.js?v=20261025today"></script>
 <script src="js/field.js?v=20261027onsitetimer"></script>
-<script src="js/crm.js?v=20261025today"></script>
+<script src="js/crm.js?v=20261027r13woonly"></script>
 <script src="js/vehicles.js?v=20261022docroll"></script>
 <script src="js/dispatch.js?v=20261024leadfix"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
@@ -8755,7 +8755,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r12';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r13';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-10-27';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;
