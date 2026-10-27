@@ -696,6 +696,9 @@ async function loadCurrentUserProfile() {
   }
   if (res.data) {
     _currentUser = res.data;
+    // r17: cache the profile so identity + role + permissions survive going offline (field techs
+    // with no signal). Restored below when the profiles network call can't be reached.
+    try { localStorage.setItem('probid_profileCache', JSON.stringify({ uid: uid, profile: res.data, at: Date.now() })); } catch(e){}
     // Legacy role alias: office staff were seeded with role 'office', but the permission
     // matrix + role gates standardized on 'back_office'. Without this, an 'office' user
     // fails every hasPermission() check and is locked out of their own job. Normalize to
@@ -726,9 +729,26 @@ async function loadCurrentUserProfile() {
     try { if (window.AppLock) setTimeout(function(){ window.AppLock.onAuthed(); }, 400); } catch (e) {}
   } else {
     console.warn('[Profile] No profile row found. Error:', res.error);
-    // Fallback: create a minimal currentUser from the auth session
-    // so the app doesn't completely break
-    // No profile found — use safe fallback with limited permissions
+    // r17: offline / transient network failure — restore the last-known profile from cache so the
+    // tech keeps their REAL name, role and permissions with no signal (instead of a "?" identity
+    // with helper-tech perms). Only trust a cache entry for THIS same user id.
+    var _cachedProfile = null;
+    try {
+      var _pc = JSON.parse(localStorage.getItem('probid_profileCache') || 'null');
+      if (_pc && _pc.uid === uid && _pc.profile) _cachedProfile = _pc.profile;
+    } catch(e){}
+    if (_cachedProfile) {
+      _currentUser = _cachedProfile;
+      if (_currentUser.role === 'office') _currentUser.role = 'back_office';
+      applyRolePermissions(_currentUser.role);
+      updateUserBadge(_currentUser);
+      if (typeof _applyBootRoute === 'function') setTimeout(_applyBootRoute, 0);
+      console.log('[Profile] Restored from offline cache:', _currentUser.full_name, _currentUser.role);
+      setTimeout(function(){ applyRolePermissions(_currentUser.role); }, 300);
+      try { if (window.AppLock) setTimeout(function(){ window.AppLock.onAuthed(); }, 400); } catch (e) {}
+      return;
+    }
+    // No cache — safe minimal fallback with limited permissions
     _currentUser = {
       id: uid,
       full_name: email.split('@')[0],

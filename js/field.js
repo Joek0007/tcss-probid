@@ -105,15 +105,64 @@ function clearHotelBase() {
   showToast('Hotel base cleared — using office as home base', 'info');
 }
 
-async function logTimeEvent(type,lat,lng,acc,note){
-  if(!_sb||!_currentUser) return;
-  await _sb.from('time_events').insert({
+// ── r17 OFFLINE CLOCK QUEUE ─────────────────────────────────────────────────────
+// Field techs often clock in with no signal. Every clock write (session create/update and
+// time_events) is submitted through ONE FIFO queue: online it drains immediately; offline it
+// persists to localStorage and drains automatically on reconnect. Session ids are generated
+// client-side so a shift is fully tracked with or without signal, and replay uses upsert so a
+// retried op can never duplicate. This is why doStartTravel no longer needs the DB to hand back
+// an id, and why logTimeEvent no longer silently bails when offline.
+var _CLOCK_QUEUE_KEY = 'probid_clockQueue';
+function _clockNewId(){
+  return (typeof makeUUID==='function') ? makeUUID()
+    : 'ce-'+Date.now()+'-'+Math.random().toString(36).slice(2,10);
+}
+function _clockQueueGet(){ try { return JSON.parse(localStorage.getItem(_CLOCK_QUEUE_KEY)||'[]'); } catch(e){ return []; } }
+function _clockQueueSet(a){ try { localStorage.setItem(_CLOCK_QUEUE_KEY, JSON.stringify(a)); } catch(e){} }
+function _clockPending(){ return _clockQueueGet().length; }
+function _clockOnline(){ return !!_sb && (typeof navigator==='undefined' || navigator.onLine !== false); }
+async function _clockApplyOp(op){
+  try {
+    var res;
+    if (op.kind==='session_upsert')      res = await _sb.from('clock_sessions').upsert(op.row);
+    else if (op.kind==='session_update') res = await _sb.from('clock_sessions').update(op.patch).eq('id', op.id);
+    else if (op.kind==='time_event')     res = await _sb.from('time_events').upsert(op.row);
+    else return true; // unknown op — drop it
+    if (res && res.error){ console.warn('[Clock] sync op failed:', op.kind, res.error.message); return false; }
+    return true;
+  } catch(e){ console.warn('[Clock] sync op threw:', op.kind, e && e.message); return false; }
+}
+var _clockFlushing = false;
+async function _clockFlush(){
+  if (_clockFlushing || !_clockOnline()) return;
+  _clockFlushing = true;
+  try {
+    var q = _clockQueueGet();
+    while (q.length){
+      var ok = await _clockApplyOp(q[0]);
+      if (!ok) break;            // keep this op + the rest, in order, for the next attempt
+      q.shift(); _clockQueueSet(q);
+    }
+  } finally { _clockFlushing = false; }
+}
+function _clockSubmit(op){ var q=_clockQueueGet(); q.push(op); _clockQueueSet(q); return _clockFlush(); }
+if (typeof window !== 'undefined'){
+  window.addEventListener('online', function(){ _clockFlush(); });
+  setTimeout(function(){ try { _clockFlush(); } catch(e){} }, 3500); // drain anything left from an offline session
+}
+
+// Record a clock event. Offline → it queues and syncs later (never silently dropped).
+function logTimeEvent(type,lat,lng,acc,note){
+  var row = {
+    id: _clockNewId(),
     session_id:_clockState.sessionId,
-    user_id:_currentUser.id,user_name:_currentUser.full_name,
-    job_id:_clockState.jobId,job_name:_clockState.jobName,
-    event_type:type,lat:lat,lng:lng,accuracy:acc,
-    timestamp:new Date().toISOString(),note:note||''
-  });
+    user_id:_currentUser?_currentUser.id:null,
+    user_name:_currentUser?_currentUser.full_name:'Unknown',
+    job_id:_clockState.jobId, job_name:_clockState.jobName,
+    event_type:type, lat:lat, lng:lng, accuracy:acc,
+    timestamp:new Date().toISOString(), note:note||''
+  };
+  return _clockSubmit({ kind:'time_event', row: row });
 }
 
 // PHASE 0 — START OF DAY (GPS required, must be at office/hotel)
@@ -156,27 +205,20 @@ async function doStartTravel(){
   if(jobSel)jobSel.style.borderColor='';
   getGPS(async function(lat,lng,acc){
     var now=new Date();
-    var session={user_id:_currentUser?_currentUser.id:null,user_name:_currentUser?_currentUser.full_name:'Unknown',
+    // r17: session id is generated on-device so the shift is tracked with or without signal.
+    var sessionId=_clockNewId();
+    var session={id:sessionId,user_id:_currentUser?_currentUser.id:null,user_name:_currentUser?_currentUser.full_name:'Unknown',
       job_id:jobId,job_name:jobName,status:'traveling',clock_in_at:now.toISOString(),
       clock_in_lat:lat,clock_in_lng:lng,date:now.toISOString().split('T')[0]};
-    var sessionId=null; var _clockCloudFailed=false;
-    if(_sb&&_currentUser){
-      var res=await _sb.from('clock_sessions').insert(session).select().single();
-      if(res && res.error){
-        // SF-4: the insert error was ignored, leaving sessionId null — the whole shift
-        // never reached clock_sessions, but the tech still saw a success toast. Surface it.
-        _clockCloudFailed=true;
-        console.warn('[Clock] session insert failed:', res.error.message);
-      } else if(res && res.data){ sessionId=res.data.id; }
-    }
+    await _clockSubmit({kind:'session_upsert', row:session});   // online: writes now; offline: queues + syncs on reconnect
     _clockState.status='traveling';onClockStateChange('traveling');_clockState.sessionId=sessionId;
     _clockState.dayStart=now;_clockState.travelOutStart=now;
     _clockState.jobId=jobId;_clockState.jobName=jobName;
     _clockState.todayEvents.push({type:'travel_start',time:now,lat:lat,lng:lng,label:'Started Travel'});
     await logTimeEvent('travel_start',lat,lng,acc);
     updateClockUI();startClockTimer();
-    if(_clockCloudFailed){
-      showToast('Travel started on this device — but it did NOT reach the cloud, so the office dashboard won’t show it yet. Check your connection; tell the office if this keeps happening.','warning',7000);
+    if(_clockPending()>0){
+      showToast('Travel started — saved on this device. No signal right now, so it will sync to the office automatically when you’re back online.','info',6000);
     } else {
       showToast('Travel started — drive safe!','success');
     }
@@ -202,7 +244,7 @@ async function doArriveOnSite(){
     // discounts breaks taken during THIS leg — not the whole day's. Without this, arriving at a
     // second job after a lunch made the timer sit at 0:00:00 until the new leg exceeded that lunch.
     _clockState.onsiteBreakBase=_clockState.breakMins+_clockState.lunchMins;
-    if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({status:'clocked_in'}).eq('id',_clockState.sessionId);
+    if(_clockState.sessionId) await _clockSubmit({kind:'session_update', id:_clockState.sessionId, patch:{status:'clocked_in'}});
     await logTimeEvent('clock_in',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
     _clockState.status='onsite';onClockStateChange('onsite');
     _clockState.todayEvents.push({type:'clock_in',time:now,lat:lat,lng:lng,label:'Arrived On Site',flagged:geo.reason==='out_of_range'});
@@ -223,7 +265,7 @@ async function doLeaveOnSite(){
     var now=new Date();
     _clockState.onsiteMins+=Math.round((now-_clockState.onsiteStart)/60000);
     _clockState.travelBackStart=now;
-    if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({status:'returning'}).eq('id',_clockState.sessionId);
+    if(_clockState.sessionId) await _clockSubmit({kind:'session_update', id:_clockState.sessionId, patch:{status:'returning'}});
     await logTimeEvent('clock_out',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
     _clockState.status='returning';onClockStateChange('returning');
     _clockState.todayEvents.push({type:'clock_out',time:now,lat:lat,lng:lng,label:'Left Job Site',flagged:geo.reason==='out_of_range'});
@@ -306,7 +348,7 @@ async function doNextJob(){
     // same way arrive/leave/break update status. Without this the session kept the ORIGINAL job,
     // so a refresh (restoreClockSession reads the session) snapped the tech back to the first job,
     // and the office dashboard showed the wrong job too.
-    if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({job_id:nextId,job_name:nextName,status:'traveling'}).eq('id',_clockState.sessionId);
+    if(_clockState.sessionId) await _clockSubmit({kind:'session_update', id:_clockState.sessionId, patch:{job_id:nextId,job_name:nextName,status:'traveling'}});
     await logTimeEvent('job_change',lat,lng,acc,'Left '+prev+' → '+nextName);
     _clockState.todayEvents.push({type:'job_change',time:now,lat:lat,lng:lng,label:'Left '+prev+' → '+nextName});
     updateClockUI();startClockTimer();

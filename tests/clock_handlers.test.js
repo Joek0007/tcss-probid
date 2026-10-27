@@ -16,13 +16,18 @@ const WORKTR = fs.readFileSync(__dirname + '/../js/worktracking.js', 'utf8');
   const pageErrors = [];
   page.on('pageerror', e => pageErrors.push(String(e).split('\n')[0]));
 
-  // Minimal DOM the handlers read directly.
-  await page.setContent(`
+  // The clock offline-queue persists to localStorage, which throws on an opaque origin
+  // (what page.setContent gives). Serve the page over a real http origin via a routed URL so
+  // localStorage works exactly like it does in a real browser.
+  const DOM = `
     <select id="clock-job-select"><option value="">—</option><option value="A">Job A</option><option value="B">Job B</option></select>
     <select id="clock-next-job-select"><option value="">—</option><option value="A">Job A</option><option value="B">Job B</option></select>
     <div id="clock-timer-display"></div><div id="clock-timer-label"></div>
     <div id="geo-alert"></div><div id="ds-travel"></div><div id="ds-worked"></div><div id="ds-break"></div><div id="ds-lunch"></div>
-  `);
+  `;
+  await page.route('https://tcss-test.local/', route =>
+    route.fulfill({ contentType:'text/html', body:'<!doctype html><html><head><meta charset="utf-8"></head><body>'+DOM+'</body></html>' }));
+  await page.goto('https://tcss-test.local/');
 
   // 1) External deps that live in OTHER files (define BEFORE field.js so they exist when called).
   await page.addScriptTag({ content: `
@@ -117,21 +122,37 @@ const WORKTR = fs.readFileSync(__dirname + '/../js/worktracking.js', 'utf8');
   ok('ROUND-TRIP restore job == live (B)', rt.after.jobId, rt.before.jobId);
   ok('ROUND-TRIP restore restarts timer', rt.after.timerRunning, true);
 
-  // ── Failure path: a cloud write that FAILS must be surfaced, not silently lost ─
-  const failRun = await page.evaluate(async () => {
-    // make the next clock_sessions insert return an error
-    const realFrom = window._sb.from.bind(window._sb);
-    window._sb.from = function(t){ var q = realFrom(t); if(t==='clock_sessions'){ var ins=q.insert.bind(q); q.insert=function(x){ ins(x); return { select:()=>({ single:()=>Promise.resolve({data:null, error:{message:'boom'}}) }) }; }; } return q; };
-    // reset to out, start a fresh travel; capture whether the failure flag path ran
-    window._clockState = Object.assign(window._clockState, {status:'out', sessionId:null});
-    window.__cloudFailToast=false; var realToast=window.showToast; window.showToast=function(m,t){ if(t==='warning') window.__cloudFailToast=true; };
+  // ── OFFLINE → RECONNECT (r17): clock-in with no signal queues locally, then syncs ─────
+  // This is Dawn's scenario: no bars at the job site. The shift must advance on-device and
+  // reach the backend intact once signal returns — nothing silently lost.
+  const off = await page.evaluate(async () => {
+    const fresh = window.makeFakeSupabase({clock_sessions:[], time_events:[]});
+    window._sb = null;                               // GO OFFLINE (no client)
+    try { localStorage.removeItem('probid_clockQueue'); } catch(e){}
+    window._clockState = Object.assign(window._clockState, {status:'out', sessionId:null, jobId:null, jobName:null, breakMins:0, lunchMins:0, onsiteBreakBase:0, todayEvents:[]});
     document.getElementById('clock-job-select').value='A';
-    window.__lastGps=null; await doStartTravel(); if(window.__lastGps) await window.__lastGps;
-    window.showToast=realToast; window._sb.from=realFrom;
-    return { sessionId: window._clockState.sessionId, warned: window.__cloudFailToast };
+    window.__lastGps=null; await doStartTravel();  if(window.__lastGps) await window.__lastGps;
+    window.__lastGps=null; await doArriveOnSite();  if(window.__lastGps) await window.__lastGps;
+    const snap = {
+      midSessionId: window._clockState.sessionId,
+      statusOffline: window._clockState.status,
+      queuedOffline: JSON.parse(localStorage.getItem('probid_clockQueue')||'[]').length,
+      dbWritesWhileOffline: fresh._rows('clock_sessions').length + fresh._rows('time_events').length
+    };
+    window._sb = fresh;                              // RECONNECT
+    await _clockFlush();
+    snap.afterFlushQueued = JSON.parse(localStorage.getItem('probid_clockQueue')||'[]').length;
+    snap.sessions = fresh._rows('clock_sessions').map(r=>({id:r.id,status:r.status,job_id:r.job_id}));
+    snap.events   = fresh._rows('time_events').map(r=>r.event_type);
+    return snap;
   });
-  ok('cloud-write failure -> sessionId stays null (not a fake success)', failRun.sessionId, null);
-  ok('cloud-write failure -> user warned', failRun.warned, true);
+  ok('offline -> sessionId still assigned on-device (not null)', off.midSessionId!=null, true);
+  ok('offline -> local clock advances to onsite', off.statusOffline, 'onsite');
+  ok('offline -> NOTHING written to backend yet', off.dbWritesWhileOffline, 0);
+  ok('offline -> 4 ops queued locally (session + travel_start + update + clock_in)', off.queuedOffline, 4);
+  ok('reconnect -> queue fully drained', off.afterFlushQueued, 0);
+  ok('reconnect -> session synced, final status clocked_in', off.sessions, [{id:off.midSessionId,status:'clocked_in',job_id:'A'}]);
+  ok('reconnect -> both events synced in order', off.events, ['travel_start','clock_in']);
 
   await browser.close();
   console.log('\n'+(fail? '✗ '+fail+' FAILED, '+pass+' passed' : 'ALL '+pass+' PASSED'));

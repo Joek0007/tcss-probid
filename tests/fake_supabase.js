@@ -36,6 +36,7 @@
       this._returning = false;      // .select() was called on a write
     }
     Query.prototype.insert = function(rows){ this._op='insert'; this._payload = Array.isArray(rows)?rows:[rows]; return this; };
+    Query.prototype.upsert = function(rows){ this._op='upsert'; this._payload = Array.isArray(rows)?rows:[rows]; return this; };
     Query.prototype.update = function(patch){ this._op='update'; this._payload = patch; return this; };
     Query.prototype.delete = function(){ this._op='delete'; return this; };
     Query.prototype.select = function(cols){ if(!this._op) this._op='select'; this._returning=true; this._cols=cols; return this; };
@@ -63,6 +64,18 @@
         });
         opRec.rows = inserted;
         if (this._returning) result.data = this._single ? inserted[0] : inserted;
+      } else if (this._op==='upsert'){
+        // Upsert on id: replace an existing row with the same id, else insert. Idempotent replay.
+        var upserted = this._payload.map(function(r){
+          var row = Object.assign({}, r);
+          if (row.id===undefined || row.id===null) row.id = 'row_'+(++idCounter);
+          var existing = null;
+          for (var i=0;i<rows.length;i++){ if (rows[i].id===row.id){ existing=rows[i]; break; } }
+          if (existing){ Object.assign(existing, row); return existing; }
+          rows.push(row); return row;
+        });
+        opRec.rows = upserted;
+        if (this._returning) result.data = this._single ? upserted[0] : upserted;
       } else if (this._op==='update'){
         var self=this, changed=[];
         rows.forEach(function(row){ if(matches(row, self._filters)){ Object.assign(row, self._payload); changed.push(row); } });
