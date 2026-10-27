@@ -338,6 +338,29 @@ body:has(#modal-work-order.open){overflow:hidden}
   /* Date grids: two-up with wrapping labels instead of three cramped columns with nowrap labels */
   #modal-work-order .wo-tri-grid{grid-template-columns:1fr 1fr!important}
   #modal-work-order .wo-tri-grid label{white-space:normal!important}
+
+  /* Work Order LIST: the 7-column desktop grid (~660px) runs off the right of a phone,
+     clipping Status / Priority / the ⋮ menu. Reflow each row into a compact card. A
+     '1fr auto' grid never exceeds the screen, so nothing clips and there's no sideways pan. */
+  .wo-list-header{display:none!important}  /* column headers don't apply in card view */
+  .wo-list-row{
+    grid-template-columns:1fr auto!important;
+    grid-template-areas:
+      "num      status"
+      "customer priority"
+      "desc     menu"
+      "techs    techs"!important;
+    column-gap:10px!important;row-gap:3px!important;padding:12px 16px!important;
+    align-items:start!important;
+  }
+  .wo-list-row > *:nth-child(1){grid-area:num;align-self:center}
+  .wo-list-row > *:nth-child(2){grid-area:customer;min-width:0}
+  .wo-list-row > *:nth-child(3){grid-area:desc;min-width:0}
+  .wo-list-row > *:nth-child(4){grid-area:techs;margin-top:2px}
+  .wo-list-row > *:nth-child(5){grid-area:status;justify-self:end;align-self:center}
+  .wo-list-row > *:nth-child(6){grid-area:priority;justify-self:end;align-self:center}
+  .wo-list-row > *:nth-child(7){grid-area:menu;justify-self:end;align-self:center}
+  .wo-list-row .wo-status-badge{white-space:nowrap!important}
 }
 /* Mobile bottom navigation */
 #mobile-nav{
@@ -7241,7 +7264,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/permissions.js?v=20260919ix"></script>
 <script src="js/worktracking.js?v=20261027clockrestore"></script>
 <script src="js/calendar.js?v=20261022docroll"></script>
-<script src="js/workorders.js?v=20261025today"></script>
+<script src="js/workorders.js?v=20261027wolist"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
 <script src="js/purchaseorders.js?v=20260919ix"></script>

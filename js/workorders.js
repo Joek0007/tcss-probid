@@ -339,7 +339,7 @@ function renderWorkOrders() {
   var _canDelWO  = (typeof hasPermission==='function') ? hasPermission('wo.delete') : false;
   var isRole = _canEditWO || _canDelWO;
 
-  var header = '<div style="display:grid;grid-template-columns:'+cols+';padding:9px 16px;background:#f5f7fa;border-bottom:2px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'
+  var header = '<div class="wo-list-header" style="display:grid;grid-template-columns:'+cols+';padding:9px 16px;background:#f5f7fa;border-bottom:2px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'
     +'<span class="wo-sort-hdr" data-field="woNumber" style="cursor:pointer">WO # ⇅</span>'
     +'<span class="wo-sort-hdr" data-field="customerName" style="cursor:pointer">Customer ⇅</span>'
     +'<span>Description · Scheduled</span>'
