@@ -322,6 +322,11 @@ body:has(#modal-work-order.open){overflow:hidden}
    sideways. The modal body is built with inline layout styles, so these must use !important
    to beat them. Triggered on narrow widths OR any touch device (phones/tablets). */
 @media(max-width:768px), (hover:none) and (pointer:coarse){
+  /* Clear the iPhone top frame (status bar / notch / Dynamic Island): push the whole WO
+     box down below the safe area so the header row (title + Create Invoice / Print / Save)
+     isn't hidden under it, and trim its height so the bottom isn't clipped. */
+  #modal-work-order{padding-top:calc(env(safe-area-inset-top,0px) + 8px)!important;padding-bottom:0!important}
+  #modal-work-order .modal-box{max-height:calc(100vh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 16px)!important}
   /* Never let the WO view force a horizontal pan */
   #modal-work-order .modal-body{overflow-x:hidden!important}
   /* Top status bar: stack Customer / Contact / Status each on its own full-width row */
