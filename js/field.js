@@ -9,6 +9,7 @@ var _clockState = {
   homebaseStart: null,
   travelOutStart: null, travelOutMins: 0,
   onsiteStart: null,    onsiteMins: 0,
+  onsiteBreakBase: 0,   // break+lunch mins already banked when THIS on-site leg began
   breakStart: null,     breakMins: 0,
   lunchStart: null,     lunchMins: 0,
   travelBackStart: null,travelBackMins: 0,
@@ -197,11 +198,15 @@ async function doArriveOnSite(){
     setJobAnchor(_clockState.jobId,lat,lng);
     _clockState.travelOutMins=Math.round((now-_clockState.travelOutStart)/60000);
     _clockState.onsiteStart=now;
+    // Baseline the break/lunch already taken earlier today so THIS leg's "On Site" timer only
+    // discounts breaks taken during THIS leg — not the whole day's. Without this, arriving at a
+    // second job after a lunch made the timer sit at 0:00:00 until the new leg exceeded that lunch.
+    _clockState.onsiteBreakBase=_clockState.breakMins+_clockState.lunchMins;
     if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({status:'clocked_in'}).eq('id',_clockState.sessionId);
     await logTimeEvent('clock_in',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
     _clockState.status='onsite';onClockStateChange('onsite');
     _clockState.todayEvents.push({type:'clock_in',time:now,lat:lat,lng:lng,label:'Arrived On Site',flagged:geo.reason==='out_of_range'});
-    updateClockUI();showToast('Clocked in to '+_clockState.jobName,'success');
+    updateClockUI();startClockTimer();showToast('Clocked in to '+_clockState.jobName,'success');
   });
 }
 
@@ -387,12 +392,12 @@ function startClockTimer(){
     var disp=document.getElementById('clock-timer-display');
     var lbl=document.getElementById('clock-timer-label');
     if(_clockState.status==='traveling'){if(disp)disp.textContent=formatMs(now-_clockState.travelOutStart);if(lbl)lbl.textContent='🚗 Travel to Site';}
-    else if(_clockState.status==='onsite'){var offMs=(_clockState.breakMins+_clockState.lunchMins)*60000;if(_clockState.breakStart)offMs+=(now-_clockState.breakStart);if(_clockState.lunchStart)offMs+=(now-_clockState.lunchStart);if(disp)disp.textContent=formatMs(Math.max(0,now-_clockState.onsiteStart-offMs));if(lbl)lbl.textContent='🔧 On Site';}
+    else if(_clockState.status==='onsite'){var offMs=Math.max(0,(_clockState.breakMins+_clockState.lunchMins-(_clockState.onsiteBreakBase||0)))*60000;if(_clockState.breakStart)offMs+=(now-_clockState.breakStart);if(_clockState.lunchStart)offMs+=(now-_clockState.lunchStart);if(disp)disp.textContent=formatMs(Math.max(0,now-_clockState.onsiteStart-offMs));if(lbl)lbl.textContent='🔧 On Site';}
     else if(_clockState.status==='break'){if(disp)disp.textContent=formatMs(now-_clockState.breakStart);if(lbl)lbl.textContent='⏸ On Break';}
     else if(_clockState.status==='lunch'){if(disp)disp.textContent=formatMs(now-_clockState.lunchStart);if(lbl)lbl.textContent='🍽 At Lunch';}
     else if(_clockState.status==='returning'){if(disp)disp.textContent=formatMs(now-_clockState.travelBackStart);if(lbl)lbl.textContent='🚗 Return Travel';}
     var travelMs=(_clockState.travelOutMins*60000)+(_clockState.status==='traveling'?now-_clockState.travelOutStart:0)+(_clockState.travelBackMins*60000)+(_clockState.status==='returning'?now-_clockState.travelBackStart:0);
-    var onsiteMs=(_clockState.onsiteMins*60000)+(_clockState.status==='onsite'?Math.max(0,now-_clockState.onsiteStart-(_clockState.breakMins+_clockState.lunchMins)*60000):0);
+    var onsiteMs=(_clockState.onsiteMins*60000)+(_clockState.status==='onsite'?Math.max(0,now-_clockState.onsiteStart-Math.max(0,(_clockState.breakMins+_clockState.lunchMins-(_clockState.onsiteBreakBase||0)))*60000):0);
     var breakMs=_clockState.breakMins*60000+(_clockState.breakStart?now-_clockState.breakStart:0);
     var lunchMs=_clockState.lunchMins*60000+(_clockState.lunchStart?now-_clockState.lunchStart:0);
     function setDs(id,ms){var el=document.getElementById(id);if(el)el.textContent=formatMs(ms);}

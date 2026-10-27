@@ -6700,7 +6700,7 @@ function _reconstructClockState(events){
     status:'out', sessionId:null, dayStart:null, homebaseStart:null,
     travelOutStart:null, travelOutMins:0, onsiteStart:null, onsiteMins:0,
     travelBackStart:null, travelBackMins:0, breakStart:null, breakMins:0,
-    lunchStart:null, lunchMins:0, lunchCount:0, jobId:null, jobName:null, todayEvents:[]
+    lunchStart:null, lunchMins:0, lunchCount:0, jobId:null, jobName:null, onsiteBreakBase:0, todayEvents:[]
   };
   function ms(x){ return x==null?null:(x instanceof Date?x.getTime():new Date(x).getTime()); }
   function mins(a,b){ return (a==null||b==null)?0:Math.round((b-a)/60000); }
@@ -6722,6 +6722,7 @@ function _reconstructClockState(events){
         s.todayEvents.push({type:'travel_start', time:t, label:'Started Travel'}); break;
       case 'clock_in':
         s.travelOutMins += mins(s.travelOutStart, t); s.onsiteStart=t; s.status='onsite';
+        s.onsiteBreakBase = s.breakMins + s.lunchMins; // this leg discounts only breaks taken AFTER it starts
         if(e.job_id) s.jobId=e.job_id; if(e.job_name) s.jobName=e.job_name;
         s.todayEvents.push({type:'clock_in', time:t, label:'Arrived On Site'}); break;
       case 'clock_out':
@@ -6799,6 +6800,7 @@ async function restoreClockSession(){
     _clockState.lunchStart     = st.lunchStart?new Date(st.lunchStart):null;
     _clockState.lunchMins      = st.lunchMins;
     _clockState.lunchCount     = st.lunchCount;
+    _clockState.onsiteBreakBase= st.onsiteBreakBase||0;
     // Job comes from the EVENT timeline first (job_change events are the source of truth for the
     // current job), falling back to the session row. Previously the session won, so an open session
     // created before a job change (its job_id never updated) reverted the tech to the original job.
