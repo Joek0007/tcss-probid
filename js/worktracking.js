@@ -6708,8 +6708,14 @@ function _reconstructClockState(events){
     var t = ms(e.timestamp);
     switch(e.event_type){
       case 'day_start':
-        s.status='at_homebase'; s.dayStart=t; s.homebaseStart=t;
-        s.todayEvents.push({type:'day_start', time:t, label:'Started Day at Base'}); break;
+        // Honor a day_start only when not already in an active day. A stray/duplicate day_start
+        // mid-shift (seen in real data) must NOT reset an in-progress day back to at_homebase —
+        // otherwise the event replay loses the true status and the restore reverts the tech.
+        if (s.status==='out' || s.status==='at_homebase') {
+          s.status='at_homebase'; s.dayStart=t; s.homebaseStart=t;
+          s.todayEvents.push({type:'day_start', time:t, label:'Started Day at Base'});
+        }
+        break;
       case 'travel_start':
         s.status='traveling'; if(e.session_id) s.sessionId=e.session_id;
         s.dayStart=t; s.travelOutStart=t; s.jobId=e.job_id||s.jobId; s.jobName=e.job_name||s.jobName;
@@ -6769,13 +6775,16 @@ async function restoreClockSession(){
       .order('timestamp',{ascending:true});
     if (evRes.error){ console.warn('[Clock restore] events error', evRes.error.message); return; }
     var st = _reconstructClockState(evRes.data||[]);
-    // 3) Decide whether there is an active day to resume
+    // 3) Decide whether there is an active day to resume.
+    // The EVENT timeline is the source of truth for the current status (it records job changes,
+    // breaks, etc. in order). The session row's status can lag (e.g. a job change mid-shift), so
+    // it's only a fallback for "a shift is open" when the events don't reconstruct an active state.
     var SMAP={traveling:'traveling',clocked_in:'onsite',returning:'returning',on_break:'break',at_lunch:'lunch'};
     var status=null;
-    if (sess && SMAP[sess.status]) status=SMAP[sess.status];   // session is authoritative
-    else if (st.status!=='out') status=st.status;              // fallback: events only
+    if (st.status!=='out') status=st.status;                   // events are authoritative
+    else if (sess && SMAP[sess.status]) status=SMAP[sess.status]; // fallback: session says open
     if (!status) return;                                       // nothing to resume
-    // 4) Apply: reconstructed numbers + session-authoritative status/job/sessionId
+    // 4) Apply: event-reconstructed status/job/numbers; sessionId from the open session row
     _clockState.status = status;
     _clockState.dayStart       = st.dayStart?new Date(st.dayStart):(sess&&sess.clock_in_at?new Date(sess.clock_in_at):null);
     _clockState.homebaseStart  = st.homebaseStart?new Date(st.homebaseStart):null;
