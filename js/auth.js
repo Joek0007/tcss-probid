@@ -3153,8 +3153,13 @@ async function pushAllToCloud() {
     // (js/worktracking.js). The `work_tracking` table is empty and unused. Writing an
     // always-empty array to a dead table did nothing but risk future confusion.
 
-    // Push jobs
-    var _activeJobsForStats = typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]);
+    // Push jobs — DISABLED 2026-10-27 (data-corruption fix). This loop pushed every ACTIVE WORK
+    // ORDER (via _getActiveWOsAsJobs) into the `jobs` table; because a WO id is not a UUID,
+    // ensureUUID minted a NEW id on every pass → a fresh DUPLICATE jobs row on EVERY save. That
+    // generated 10,000+ junk rows (WO descriptions stored as job names). Work Orders are the unit
+    // and are pushed to the work_orders table; nothing should write them to `jobs`, which is being
+    // retired. Feeding the loop an empty list makes it a harmless no-op (dead block removed later).
+    var _activeJobsForStats = [];
   for (var jb of _activeJobsForStats) {
       if (!jb || !jb.name) continue;
       try {
