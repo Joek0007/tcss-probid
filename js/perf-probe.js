@@ -11,9 +11,21 @@
   function now(){ return (window.performance&&performance.now)?performance.now():Date.now(); }
 
   // Total main-thread blocking (any task >50ms) — this IS "the UI froze".
+  // A live meter (top-right) updates on EVERY freeze, so an interaction freeze
+  // (e.g. selecting a customer) shows up without waiting for a sync.
+  P.liveFrozen = 0; P.liveMax = 0;
+  function liveMeter(){
+    var el = document.getElementById('perf-meter') || (function(){ var d=document.createElement('div'); d.id='perf-meter'; document.body.appendChild(d); return d; })();
+    el.style.cssText='position:fixed;right:8px;top:8px;z-index:2147483647;background:#7f0000;color:#fff;font:12px/1.4 ui-monospace,Menlo,monospace;padding:8px 10px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.5)';
+    el.innerHTML='🧊 FROZEN this action: <b>'+Math.round(P.liveFrozen)+'ms</b><br>worst single: '+Math.round(P.liveMax)+'ms <span onclick="window.__perf.liveFrozen=0;window.__perf.liveMax=0;" style="cursor:pointer;background:#1565c0;padding:1px 7px;border-radius:5px;margin-left:6px">reset</span>';
+  }
   try {
     new PerformanceObserver(function(list){
-      list.getEntries().forEach(function(e){ P.longtaskTotal += e.duration; if (e.duration > P.longtaskMax) P.longtaskMax = e.duration; });
+      list.getEntries().forEach(function(e){
+        P.longtaskTotal += e.duration; if (e.duration > P.longtaskMax) P.longtaskMax = e.duration;
+        P.liveFrozen += e.duration; if (e.duration > P.liveMax) P.liveMax = e.duration;
+      });
+      try { liveMeter(); } catch(e){}
     }).observe({ entryTypes:['longtask'] });
   } catch(e){}
 
