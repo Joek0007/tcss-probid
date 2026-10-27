@@ -297,6 +297,11 @@ async function doNextJob(){
     var prev=_clockState.jobName;
     _clockState.jobId=nextId;_clockState.jobName=nextName;
     _clockState.status='traveling';onClockStateChange('traveling');_clockState.travelOutStart=now;_clockState.onsiteStart=null;
+    // Keep the open clock_sessions row truthful: on a job change update its job AND status, the
+    // same way arrive/leave/break update status. Without this the session kept the ORIGINAL job,
+    // so a refresh (restoreClockSession reads the session) snapped the tech back to the first job,
+    // and the office dashboard showed the wrong job too.
+    if(_clockState.sessionId&&_sb) await _sb.from('clock_sessions').update({job_id:nextId,job_name:nextName,status:'traveling'}).eq('id',_clockState.sessionId);
     await logTimeEvent('job_change',lat,lng,acc,'Left '+prev+' → '+nextName);
     _clockState.todayEvents.push({type:'job_change',time:now,lat:lat,lng:lng,label:'Left '+prev+' → '+nextName});
     updateClockUI();startClockTimer();

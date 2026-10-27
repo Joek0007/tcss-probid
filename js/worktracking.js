@@ -6790,8 +6790,11 @@ async function restoreClockSession(){
     _clockState.lunchStart     = st.lunchStart?new Date(st.lunchStart):null;
     _clockState.lunchMins      = st.lunchMins;
     _clockState.lunchCount     = st.lunchCount;
-    _clockState.jobId          = (sess&&sess.job_id)||st.jobId||null;
-    _clockState.jobName        = (sess&&sess.job_name)||st.jobName||null;
+    // Job comes from the EVENT timeline first (job_change events are the source of truth for the
+    // current job), falling back to the session row. Previously the session won, so an open session
+    // created before a job change (its job_id never updated) reverted the tech to the original job.
+    _clockState.jobId          = st.jobId||(sess&&sess.job_id)||null;
+    _clockState.jobName        = st.jobName||(sess&&sess.job_name)||null;
     _clockState.sessionId      = (sess&&sess.id)||st.sessionId||null;
     _clockState.todayEvents    = (st.todayEvents||[]).map(function(e){ return {type:e.type,time:new Date(e.time),label:e.label}; });
     // 5) Ensure the marker for the CURRENT running state exists so the live timer is accurate
