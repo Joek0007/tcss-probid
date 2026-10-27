@@ -361,6 +361,13 @@ body:has(#modal-work-order.open){overflow:hidden}
   .wo-list-row > *:nth-child(6){grid-area:priority;justify-self:end;align-self:center}
   .wo-list-row > *:nth-child(7){grid-area:menu;justify-self:end;align-self:center}
   .wo-list-row .wo-status-badge{white-space:nowrap!important}
+
+  /* Work Order filter bar: four fixed-width, non-shrinking dropdowns + the search box add up
+     to ~730px and don't wrap, forcing the whole page ~2x screen width (and stretching the 1fr
+     list cards with it). Let it wrap: search full-width on its own row, dropdowns two-up. */
+  .wo-filter-bar{flex-wrap:wrap!important}
+  .wo-filter-bar > div:first-child{flex:1 1 100%!important;min-width:0!important}  /* search */
+  .wo-filter-bar > select{flex:1 1 calc(50% - 4px)!important;width:auto!important;min-width:0!important}
 }
 /* Mobile bottom navigation */
 #mobile-nav{
@@ -2577,7 +2584,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     </div>
   </div>
   <!-- Compact filter bar -->
-  <div style="display:flex;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:10px">
+  <div class="wo-filter-bar" style="display:flex;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:10px">
     <div style="display:flex;align-items:center;gap:6px;background:#f5f7fa;border:1px solid #e0e7ef;border-radius:7px;padding:7px 12px;flex:1;min-width:180px">
       <span style="color:#90a4ae">🔍</span>
       <input id="wo-search" placeholder="🔍 Search orders, customers, address..." style="border:none;background:transparent;font-size:13px;outline:none;width:100%" oninput="_woSearch()">
