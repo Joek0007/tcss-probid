@@ -151,6 +151,7 @@ body.nav-rail:not(.is-mobile){--sidebar:42px}            /* drive sidebar+topbar
 body.nav-rail:not(.is-mobile) #sidebar{scrollbar-width:none}
 body.nav-rail:not(.is-mobile) #sidebar::-webkit-scrollbar{display:none}
 body.nav-rail:not(.is-mobile) #sidebar-logo-text-block,
+body.nav-rail:not(.is-mobile) #app-build-sub,
 body.nav-rail:not(.is-mobile) #sidebar-logo-icon,
 body.nav-rail:not(.is-mobile) #sidebar-logo-img-wrap,
 body.nav-rail:not(.is-mobile) #sidebar .textsize-ctrl,
@@ -1559,9 +1560,12 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <div class="logo" id="sidebar-logo-block">
     <div class="logo-icon" id="sidebar-logo-icon">T</div>
     <div id="sidebar-logo-img-wrap" style="display:none;width:100%;overflow:hidden"><img id="sidebar-logo-img" class="sidebar-logo-img" src="" alt="Logo"></div>
-    <div id="sidebar-logo-text-block"><div class="logo-text">TCSS ProBid</div><div class="logo-sub" id="app-build-sub">V9 — Cloud</div></div>
+    <div id="sidebar-logo-text-block"><div class="logo-text">TCSS ProBid</div></div>
     <button id="nav-rail-toggle" type="button" title="Collapse menu" aria-label="Collapse or expand menu" onclick="toggleSidebarRail()">‹</button>
   </div>
+  <!-- Build number — OUTSIDE the logo block so a custom company logo (which hides the logo
+       text block) can never hide the version. Stamped by the build script. -->
+  <div class="logo-sub" id="app-build-sub" style="padding:4px 14px 8px">V9 — Cloud</div>
   <div class="textsize-ctrl">
     <span class="ts-label">Text size</span>
     <button type="button" class="ts-minus" onclick="uiScaleBump(-1)" title="Smaller text" aria-label="Smaller text">A–</button>
@@ -8750,7 +8754,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r3';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r4';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-10-27';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;
