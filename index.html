@@ -294,7 +294,7 @@ body:has(#modal-work-order.open){overflow:hidden}
   #mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:299}
   #mobile-overlay.visible{display:block}
   #content{margin-left:0;padding:16px;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
-  #topbar{left:0;padding:0 12px}
+  #topbar{left:0;padding:env(safe-area-inset-top,0px) 12px 0}
   .form-row.cols2,.form-row.cols3,.form-row.cols4{grid-template-columns:1fr}
   .stat-grid{grid-template-columns:1fr 1fr}
   .modal-box{margin:8px;max-height:var(--modal-maxh,94vh);border-radius:14px}
@@ -309,7 +309,7 @@ body:has(#modal-work-order.open){overflow:hidden}
   #sidebar{transform:translateX(-220px);transition:transform .3s;z-index:300}
   #sidebar.mobile-open{transform:translateX(0);box-shadow:4px 0 20px rgba(0,0,0,.4)}
   #content{margin-left:0;padding:16px;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
-  #topbar{left:0;padding:0 12px}
+  #topbar{left:0;padding:env(safe-area-inset-top,0px) 12px 0}
   #modal-work-order{left:0;width:100%}
   #mobile-nav{display:flex!important}
   #mobile-menu-btn{display:block!important}
