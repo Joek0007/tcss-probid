@@ -159,6 +159,29 @@ const RELINK = CORE.slice(relinkStart, relinkEnd) + '\n  return relinked;\n}';
   ok('repair -> wizard project left untouched', rep.wizardAfter, 'wo-real-1');
   ok('repair -> idempotent (second run re-links nothing)', rep.second, 0);
 
+  // ── 4) Active-WO filter uses the authoritative status model (r14) ────────────
+  const act = await page.evaluate(() => {
+    DB.workOrders = [
+      { id:'w1', status:'NEW',       assignedTechs:['Joe Kucinski'] },
+      { id:'w2', status:'OPEN',      assignedTechs:[] },
+      { id:'w3', status:'Open',      assignedTechs:[] },            // case-insensitive match to OPEN
+      { id:'w4', status:'',          assignedTechs:[] },            // brand-new WO -> open
+      { id:'w5', status:'Invoiced',  assignedTechs:[] },            // legacy import -> closed
+      { id:'w6', status:'No Charge', assignedTechs:[] },            // finished -> closed
+      { id:'w7', status:'Completed', assignedTechs:[] },            // finished -> closed
+      { id:'w8', status:'BILLED',    assignedTechs:[] },            // closed
+      { id:'w9', status:'Void',      assignedTechs:['Joe Kucinski'] }, // closed (even though assigned)
+      { id:'w10',status:'NEW',       assignedTechs:[], deleted:true }  // soft-deleted -> excluded
+    ];
+    return {
+      active: _getActiveWOsAsJobs().map(j=>j.id).sort(),
+      mine:   _getMyWOsAsJobs('Joe Kucinski').map(j=>j.id).sort()
+    };
+  });
+  ok('active filter -> only genuinely-open WOs (NEW/OPEN/Open/empty)', act.active, ['w1','w2','w3','w4']);
+  ok('active filter -> Invoiced + No Charge + Completed excluded', [act.active.includes('w5'),act.active.includes('w6'),act.active.includes('w7')], [false,false,false]);
+  ok('my-WOs -> open + assigned only (Void excluded though assigned)', act.mine, ['w1']);
+
   await browser.close();
   console.log('\n'+(fail? '✗ '+fail+' FAILED, '+pass+' passed' : 'ALL '+pass+' PASSED'));
   process.exit(fail?1:0);

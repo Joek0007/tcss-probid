@@ -70,9 +70,13 @@ function _getActiveWOsAsJobs() {
   return (DB.workOrders||[])
     .filter(function(w){
       if (w.deleted) return false;
-      // Exclude finished states case-insensitively (statuses are stored like "BILLED", "Void (Q-Books ...)")
-      var st = (w.status||'').toLowerCase();
-      return st.indexOf('billed')<0 && st.indexOf('void')<0 && st.indexOf('closed')<0 && st.indexOf('complete')<0;
+      // r14: use the AUTHORITATIVE status model (_getWOStatusDef), not a substring blacklist.
+      // The old filter only screened billed/void/closed/complete, so legacy-import statuses that
+      // don't contain those words — "Invoiced" (6,391 finished WOs) and "No Charge" (671) — were
+      // counted as active and flooded Active Jobs / dispatch / calendar / dashboard. _getWOStatusDef
+      // knows every finished status is closed (not in the open list => open:false), and an empty
+      // status (brand-new WO) stays open, so nothing genuinely open is hidden.
+      return _getWOStatusDef(w.status).open;
     })
     .map(_woToJob);
 }
@@ -82,7 +86,8 @@ function _getMyWOsAsJobs(techName) {
   var name = (techName||'').toLowerCase().trim();
   return (DB.workOrders||[])
     .filter(function(w){
-      if (w.deleted || w.status==='Billed' || w.status==='Void') return false;
+      // r14: authoritative open check (was w.status==='Billed'||'Void', which missed Invoiced/No Charge/etc.)
+      if (w.deleted || !_getWOStatusDef(w.status).open) return false;
       return (w.assignedTechs||[]).some(function(t){
         var n=(typeof t==='string'?t:(t.name||t.full_name||'')).toLowerCase().trim();
         return n===name;
