@@ -1587,8 +1587,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <a class="nav-item" data-page="templates" href="#/templates"><span class="nav-icon">📐</span>Job Templates</a>
   </div>
   <div class="nav-group">
-    <div class="nav-group-title">Jobs</div>
-    <a class="nav-item" data-page="jobs" href="#/jobs"><span class="nav-icon">🔧</span>Active Jobs</a>
+    <div class="nav-group-title">Operations</div>
     <a class="nav-item" data-page="workorders" href="#/workorders"><span class="nav-icon">🔨</span>Work Orders</a>
     <a class="nav-item" data-page="dispatch" href="#/dispatch"><span class="nav-icon">🗂</span>Dispatch Board</a>
     <a class="nav-item" data-page="worktracking" href="#/worktracking"><span class="nav-icon">✅</span>Work Tracking</a>
@@ -1719,10 +1718,10 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <span id="ds-rp-ytd"     onclick="setRevWonPeriod('ytd')"     title="Fiscal year to date"      style="cursor:pointer;font-size:9px;font-weight:800;color:#fff;background:#2e7d32;padding:2px 6px;border-radius:8px">YTD</span>
       </div>
     </div>
-    <div class="dash-stat-tile blue" onclick="goPage('jobs')">
+    <div class="dash-stat-tile blue" onclick="goPage('workorders')">
       <div class="dash-stat-icon">🔧</div>
       <div class="dash-stat-val" id="ds-active-jobs">0</div>
-      <div class="dash-stat-lbl">Active Jobs</div>
+      <div class="dash-stat-lbl">Open Work Orders</div>
     </div>
     <div class="dash-stat-tile purple" onclick="goPage('field')">
       <div class="dash-stat-icon">👷</div>
@@ -1782,8 +1781,8 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <!-- Active Jobs -->
       <div class="card dash-card">
         <div class="dash-card-head">
-          <span class="dash-card-title">🔧 Active Jobs</span>
-          <button class="btn btn-ghost btn-sm" onclick="goPage('jobs')">All Jobs →</button>
+          <span class="dash-card-title">🔧 Open Work Orders</span>
+          <button class="btn btn-ghost btn-sm" onclick="goPage('workorders')">All Work Orders →</button>
         </div>
         <div id="dash-jobs-list"></div>
       </div>
@@ -2945,7 +2944,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <input id="wtp-name" placeholder="e.g. Smithfield Commons Phase 2">
         <div class="form-row cols2" style="margin-top:10px">
           <div><label>Customer</label><input id="wtp-customer" list="wtp-cust-list" placeholder="Customer name"><datalist id="wtp-cust-list"></datalist></div>
-          <div><label>Linked Job (optional)</label><select id="wtp-job-link"><option value="">— None —</option></select></div>
+          <div><label>Linked Work Order (optional)</label><select id="wtp-job-link"><option value="">— None —</option></select></div>
         </div>
         <div class="form-row cols2" style="margin-top:10px">
           <div><label>Start Date</label><input id="wtp-start" type="date"></div>
@@ -4324,9 +4323,9 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       </div>
       <div class="form-row">
         <div>
-          <label>Link to Work Order / Job *</label>
+          <label>Link to Work Order *</label>
           <select id="te-wo" style="width:100%;padding:8px;border:2px solid #1565c0;border-radius:6px;font-size:13px">
-            <option value="office">Office / General (no specific job)</option>
+            <option value="office">Office / General (no specific work order)</option>
           </select>
         </div>
       </div>
@@ -7271,7 +7270,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20261027r13relink"></script>
+<script src="js/core.js?v=20261027r15nojobs"></script>
 <script src="js/quotes.js?v=20261027r13jobroute"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
@@ -7283,7 +7282,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/vehicles.js?v=20261022docroll"></script>
 <script src="js/dispatch.js?v=20261024leadfix"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
-<script src="js/worktracking.js?v=20261027livedash"></script>
+<script src="js/worktracking.js?v=20261027r15wolabel"></script>
 <script src="js/calendar.js?v=20261022docroll"></script>
 <script src="js/workorders.js?v=20261027r14activefilter"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
@@ -8755,7 +8754,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r14';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r15';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-10-27';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

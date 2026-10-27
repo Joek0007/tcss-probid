@@ -851,6 +851,10 @@ function _anyModalVisible(){
 window._anyModalVisible = _anyModalVisible;
 
 function goPage(id) {
+  // r15: "Active Jobs" is retired — the Work Order is the unit. Any navigation to the old
+  // jobs page (dashboard tiles, #/jobs hash, Back/Forward, deep links, stray callers) lands
+  // on Work Orders instead, so nothing dead-ends on the removed listing.
+  if (id === 'jobs') id = 'workorders';
   // ACCESS GUARD — block navigation to a page this role/user can't access (hiding the nav
   // item is not enough; the page is still reachable by hash, Back/Forward, deep link or a
   // stray link). Redirect to the dashboard instead of rendering restricted content.

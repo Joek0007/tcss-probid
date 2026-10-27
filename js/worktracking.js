@@ -3508,7 +3508,7 @@ function wtWizStep1() {
   return '<h4 style="margin:0 0 20px;font-size:16px;font-weight:800">Project Basics</h4>'+
     '<div style="margin-bottom:14px"><label class="wiz-label">PROJECT NAME *</label>'+
       '<input id="wiz-name" class="form-control" placeholder="e.g. Smith Properties Phase 2" value="'+escHtml(_wiz.proj.name||'')+'"></div>'+
-    '<div style="margin-bottom:14px"><label class="wiz-label">LINK TO JOB <span style="font-weight:400;text-transform:none">(optional — connects tracking to your quote)</span></label>'+
+    '<div style="margin-bottom:14px"><label class="wiz-label">LINK TO WORK ORDER <span style="font-weight:400;text-transform:none">(optional — connects tracking to a work order)</span></label>'+
       '<select id="wiz-job" class="form-control" onchange="var j=typeof _findJobOrWO==="function"?_findJobOrWO(this.value):(DB.jobs||[]).find(function(x){return x.id===this.value});if(j&&j.customerName)document.getElementById(\'wiz-cust\').value=j.customerName||\'\'">'+
         '<option value="">— None —</option>'+jobOpts+'</select></div>'+
     '<div style="margin-bottom:20px"><label class="wiz-label">CUSTOMER NAME</label>'+
