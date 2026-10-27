@@ -172,6 +172,47 @@ async function _sbSelectAll(build) {
 }
 
 // ---------------------------------------------------------------------------
+// Jobs delta-sync helpers (top-5 pattern). Pull only rows changed since the last
+// sync and MERGE into DB.jobs instead of re-pulling all ~9k every time. Safe because
+// jobs.updated_at is DEFAULT now() on insert + BEFORE-UPDATE trigger on edit, and
+// deletes are soft (is_active=false, an update that bumps updated_at) — so
+// `updated_at > watermark` catches every insert/edit/delete with no misses. Merging
+// (never replacing) keeps DB.jobs complete, so nothing that scans it breaks.
+// ---------------------------------------------------------------------------
+var _JOB_PULL_STATUS = { 'pending':'Scheduled','active':'In Progress','on_hold':'On Hold','completed':'Complete','invoiced':'Complete','closed':'Closed' };
+function _mapJobRow(j){
+  var custName = j.customer_name || '';
+  if (!custName && j.customer_id) { var cust=(DB.customers||[]).find(function(c){ return c.id===j.customer_id; }); if (cust) custName=cust.name||''; }
+  return {
+    id:j.id, num:j.job_number, name:j.name, customer:custName, customerId:j.customer_id,
+    contactId:j.contact_id, assignedTo:j.assigned_to, crew:j.crew||[],
+    status:_JOB_PULL_STATUS[j.status]||'Scheduled',
+    scheduledDate:j.scheduled_date||(j.scheduled_start?j.scheduled_start:null),
+    scheduledTime:j.scheduled_time, scheduledDuration:j.scheduled_duration,
+    startDate:j.actual_start||j.scheduled_start, endDate:j.actual_end||j.scheduled_end,
+    address:j.address||j.site_address||(j.site_city?[j.site_address,j.site_city,j.site_state].filter(Boolean).join(', '):null),
+    estLaborHours:j.est_labor_hours, actualLaborHours:j.actual_labor_hours, estTotal:j.est_total,
+    notes:j.notes||j.description, dispatchNotes:j.dispatch_notes,
+    quoteId:j.quote_id||j.primary_quote_id, createdAt:j.created_at
+  };
+}
+// Merge changed rows into the existing working set: upsert active, drop soft-deleted.
+function _mergeJobsDelta(existing, deltaRows){
+  var byId={}; (existing||[]).forEach(function(x){ if(x&&x.id!=null) byId[x.id]=x; });
+  (deltaRows||[]).forEach(function(j){
+    if (j.is_active===false || j.deleted===true) { delete byId[j.id]; }
+    else { byId[j.id] = _mapJobRow(j); }
+  });
+  return Object.keys(byId).map(function(k){ return byId[k]; });
+}
+// Next watermark = newest updated_at seen minus a 5s overlap (merge dedupes by id, so
+// re-pulling a few rows is harmless and guards against missing same-second changes).
+function _jobsNextWatermark(rows, prevWM){
+  var maxU=null; (rows||[]).forEach(function(j){ if(j.updated_at && (!maxU || j.updated_at>maxU)) maxU=j.updated_at; });
+  return maxU ? new Date(new Date(maxU).getTime()-5000).toISOString() : (prevWM || new Date(Date.now()-5000).toISOString());
+}
+
+// ---------------------------------------------------------------------------
 // PERF windows (load-on-demand): the sync keeps only a recent working set of the
 // big imported-history tables in memory; older rows load on demand when a specific
 // record is opened. Keeps the browser from holding (and re-compressing) tens of
@@ -1268,52 +1309,23 @@ async function syncAllFromCloud(silent) {
       }
     } catch(e) { errors.push('contacts: '+e.message); }
 
-    // 8. Jobs
+    // 8. Jobs — DELTA sync (see _mergeJobsDelta above). Pull only rows changed since the last
+    // sync and merge; full pull only on a genuine first load (no watermark OR empty jobs cache).
     try {
-      var { data: jobRows, error: je } = await _sbSelectAll(function(){ return _sb.from('jobs').select('*').eq('is_active', true).order('created_at', {ascending:false}); });
-      if (je) { errors.push('jobs: '+je.message); }
-      else if (jobRows && jobRows.length) {
-        var jobPullStatusMap = {
-          'pending':   'Scheduled',
-          'active':    'In Progress',
-          'on_hold':   'On Hold',
-          'completed': 'Complete',
-          'invoiced':  'Complete',
-          'closed':    'Closed'
-        };
-        DB.jobs = jobRows.map(function(j) {
-          // Resolve customer name: Supabase jobs table has no customer_name column
-          // Look it up from DB.customers using customer_id
-          var custName = j.customer_name || '';
-          if (!custName && j.customer_id) {
-            var cust = (DB.customers||[]).find(function(c){ return c.id===j.customer_id; });
-            if (cust) custName = cust.name || '';
-          }
-          return {
-            id:                j.id,
-            num:               j.job_number,
-            name:              j.name,
-            customer:          custName,
-            customerId:        j.customer_id,
-            contactId:         j.contact_id,
-            assignedTo:        j.assigned_to,
-            crew:              j.crew || [],
-            status:            jobPullStatusMap[j.status] || 'Scheduled',
-            scheduledDate:     j.scheduled_date || (j.scheduled_start ? j.scheduled_start : null),
-            scheduledTime:     j.scheduled_time,
-            scheduledDuration: j.scheduled_duration,
-            startDate:         j.actual_start || j.scheduled_start,
-            endDate:           j.actual_end || j.scheduled_end,
-            address:           j.address || j.site_address || (j.site_city ? [j.site_address,j.site_city,j.site_state].filter(Boolean).join(', ') : null),
-            estLaborHours:     j.est_labor_hours,
-            actualLaborHours:  j.actual_labor_hours,
-            estTotal:          j.est_total,
-            notes:             j.notes || j.description,
-            dispatchNotes:     j.dispatch_notes,
-            quoteId:           j.quote_id || j.primary_quote_id,
-            createdAt:         j.created_at
-          };
-        });
+      var _jobWM = null; try { _jobWM = localStorage.getItem('probid_jobsSyncedAt') || null; } catch(e){}
+      // Delta only when we have BOTH a watermark AND an existing cache to merge into — else a
+      // cleared cache with a stale watermark would leave DB.jobs nearly empty.
+      var _jobDelta = !!_jobWM && !!(DB.jobs && DB.jobs.length);
+      var { data: jobRows, error: je } = await _sbSelectAll(_jobDelta
+        ? function(){ return _sb.from('jobs').select('*').gt('updated_at', _jobWM).order('updated_at', {ascending:true}); }
+        : function(){ return _sb.from('jobs').select('*').eq('is_active', true).order('created_at', {ascending:false}); });
+      if (je) { errors.push('jobs: '+je.message); }           // error → keep existing DB.jobs (no wipe)
+      else if (jobRows) {
+        if (!_jobDelta)            DB.jobs = jobRows.map(_mapJobRow);            // first load: full active set
+        else if (jobRows.length)   DB.jobs = _mergeJobsDelta(DB.jobs, jobRows);  // subsequent: merge changes
+        // (delta with 0 changed rows → leave DB.jobs untouched)
+        var _wm = _jobsNextWatermark(jobRows, _jobWM);
+        try { if (_wm) localStorage.setItem('probid_jobsSyncedAt', _wm); } catch(e){}
       }
     } catch(e) { errors.push('jobs: '+e.message); }
 
