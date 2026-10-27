@@ -36,6 +36,9 @@ const WORKTR = fs.readFileSync(__dirname + '/../js/worktracking.js', 'utf8');
     window.getTodayISO = function(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
     window._findJobOrWO = function(){ return null; };
     window.showEodReminder = function(){};
+    window.hideEodReminder = function(){};
+    window.formatMinutes = function(m){ return (m||0)+'m'; };
+    window.checkFieldLogBeforeClockOut = null; // not a function -> doArriveBack goes straight to _doArriveBackActual
     window.hasPermission = function(){ return true; };
     window._currentUser = { id:'u-joe', full_name:'Joe Kucinski', role:'owner' };
     window.DB = { settings:{}, workDays:[], team:[{name:'Joe Kucinski', active:true}], jobs:[] };
@@ -153,6 +156,71 @@ const WORKTR = fs.readFileSync(__dirname + '/../js/worktracking.js', 'utf8');
   ok('reconnect -> queue fully drained', off.afterFlushQueued, 0);
   ok('reconnect -> session synced, final status clocked_in', off.sessions, [{id:off.midSessionId,status:'clocked_in',job_id:'A'}]);
   ok('reconnect -> both events synced in order', off.events, ['travel_start','clock_in']);
+
+  // ── DAY-END closes the cloud session; another device does NOT show "traveling" (r18) ──
+  const dayend = await page.evaluate(async () => {
+    const fresh = window.makeFakeSupabase({clock_sessions:[], time_events:[]});
+    window._sb = fresh;
+    try { localStorage.removeItem('probid_clockQueue'); } catch(e){}
+    window._clockState = Object.assign(window._clockState, {status:'out', sessionId:null, jobId:null, jobName:null, breakMins:0, lunchMins:0, lunchCount:0, onsiteBreakBase:0, travelOutStart:null, onsiteStart:null, travelBackStart:null, todayEvents:[]});
+    document.getElementById('clock-job-select').value='A';
+    window.__lastGps=null; await doStartTravel();  if(window.__lastGps) await window.__lastGps;
+    const sid = window._clockState.sessionId;
+    window.__lastGps=null; await doArriveOnSite();  if(window.__lastGps) await window.__lastGps;
+    window.__lastGps=null; await doLeaveOnSite();    if(window.__lastGps) await window.__lastGps;  // -> returning
+    window.__lastGps=null; await doArriveBack();     if(window.__lastGps) await window.__lastGps;  // -> end day
+    const sessRow = fresh._rows('clock_sessions').find(r=>r.id===sid) || {};
+    const statusAfterEnd = window._clockState.status;
+    // Simulate the OTHER device restoring from the same backend.
+    window._clockState = Object.assign(window._clockState, {status:'out', sessionId:null, jobId:null, jobName:null, todayEvents:[]});
+    await restoreClockSession();
+    return { statusAfterEnd:statusAfterEnd, sessionClosed: sessRow.clock_out_at!=null, restoredStatus: window._clockState.status };
+  });
+  ok('day-end -> local clock goes out', dayend.statusAfterEnd, 'out');
+  ok('day-end -> cloud session CLOSED (clock_out_at set)', dayend.sessionClosed, true);
+  ok('day-end -> other device restore stays OUT (not "traveling")', dayend.restoredStatus, 'out');
+
+  // ── Restore guard: a stale OPEN session must not beat a day_end in the events (r18) ────
+  const guard = await page.evaluate(async () => {
+    window._sb = window.makeFakeSupabase({
+      clock_sessions:[{id:'s-stale', user_id:'u-joe', status:'returning', clock_in_at:new Date(Date.now()-7200000).toISOString(), clock_out_at:null, job_id:'A', job_name:'Job A'}],
+      time_events:[
+        {id:'e1', user_id:'u-joe', event_type:'travel_start', timestamp:new Date(Date.now()-3600000).toISOString(), job_id:'A', job_name:'Job A', session_id:'s-stale'},
+        {id:'e2', user_id:'u-joe', event_type:'day_end', timestamp:new Date(Date.now()-60000).toISOString()}
+      ]
+    });
+    window._clockState = Object.assign(window._clockState, {status:'out', sessionId:null, jobId:null});
+    await restoreClockSession();
+    return { restoredStatus: window._clockState.status };
+  });
+  ok('restore guard -> day_end beats a stale open session (stays out)', guard.restoredStatus, 'out');
+
+  // ── Guard must NOT over-fire: a genuinely open session with no day_end still resumes (r18) ──
+  const resume = await page.evaluate(async () => {
+    window._sb = window.makeFakeSupabase({
+      clock_sessions:[{id:'s-open', user_id:'u-joe', status:'clocked_in', clock_in_at:new Date().toISOString(), clock_out_at:null, job_id:'A', job_name:'Job A'}],
+      time_events:[]
+    });
+    window._clockState = Object.assign(window._clockState, {status:'out', sessionId:null, jobId:null});
+    await restoreClockSession();
+    return { restoredStatus: window._clockState.status };
+  });
+  ok('restore -> open session, no events, still resumes (onsite)', resume.restoredStatus, 'onsite');
+
+  // ── Clock in with NO work order assigned: Office / General works (r18) ────────────────
+  const office = await page.evaluate(async () => {
+    const fresh = window.makeFakeSupabase({clock_sessions:[], time_events:[]});
+    window._sb = fresh;
+    try { localStorage.removeItem('probid_clockQueue'); } catch(e){}
+    window._clockState = Object.assign(window._clockState, {status:'out', sessionId:null, jobId:null, jobName:null, todayEvents:[]});
+    var sel=document.getElementById('clock-job-select');
+    sel.innerHTML='<option value="">—</option><option value="office">Office / General (no specific work order)</option>';
+    sel.value='office';
+    window.__lastGps=null; await doStartTravel(); if(window.__lastGps) await window.__lastGps;
+    return { status: window._clockState.status, sessions: fresh._rows('clock_sessions').map(r=>({job_id:r.job_id,status:r.status})) };
+  });
+  ok('clock-in with no WO -> Office/General starts a session', office.status, 'traveling');
+  ok('clock-in with no WO -> session job_id = office', office.sessions, [{job_id:'office',status:'traveling'}]);
 
   await browser.close();
   console.log('\n'+(fail? '✗ '+fail+' FAILED, '+pass+' passed' : 'ALL '+pass+' PASSED'));

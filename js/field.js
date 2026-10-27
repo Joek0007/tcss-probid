@@ -302,6 +302,10 @@ async function _doArriveBackActual(){
       if(!confirmed) return;
     }
     await logTimeEvent('day_end',lat,lng,acc);
+    // r18: close the cloud session so OTHER devices and the office dashboard see the day is done.
+    // Without this the open session lingered at 'returning' and a second device showed "traveling"
+    // after the tech had already arrived back. Goes through the offline queue so it works with no signal.
+    if(_clockState.sessionId) await _clockSubmit({kind:'session_update', id:_clockState.sessionId, patch:{status:'out', clock_out_at: now.toISOString()}});
     _clockState.todayEvents.push({type:'day_end',time:now,label:'Arrived Back — Day Complete'});
 
     // Persist completed work day to DB for history
@@ -543,6 +547,9 @@ function renderFieldPage(){
     var myJobs=_getMyAssignedJobs();
     // Use WO number + description as display
     myJobs.forEach(function(j){var opt=document.createElement('option');opt.value=j.id;opt.textContent=j.name+(j.customer?' — '+j.customer:'');sel.appendChild(opt);});
+    // r18: always allow clocking in with NO specific work order (office/shop/training days, or when
+    // no WO is assigned yet). 'office' is a valid non-empty job id that doStartTravel accepts.
+    var _og=document.createElement('option'); _og.value='office'; _og.textContent='Office / General (no specific work order)'; sel.appendChild(_og);
     if(_clockState.jobId) sel.value=_clockState.jobId;
   }
 

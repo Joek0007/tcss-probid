@@ -6707,7 +6707,7 @@ function _reconstructClockState(events){
         // mid-shift (seen in real data) must NOT reset an in-progress day back to at_homebase —
         // otherwise the event replay loses the true status and the restore reverts the tech.
         if (s.status==='out' || s.status==='at_homebase') {
-          s.status='at_homebase'; s.dayStart=t; s.homebaseStart=t;
+          s.status='at_homebase'; s.dayStart=t; s.homebaseStart=t; s.dayEnded=false; // new day — clear the terminal flag
           s.todayEvents.push({type:'day_start', time:t, label:'Started Day at Base'});
         }
         break;
@@ -6738,7 +6738,7 @@ function _reconstructClockState(events){
         s.lunchMins += mins(s.lunchStart, t); s.lunchCount+=1; s.lunchStart=null; s.status='onsite';
         s.todayEvents.push({type:'lunch_end', time:t, label:'Back from Lunch'}); break;
       case 'day_end':
-        s.status='out'; s.todayEvents.push({type:'day_end', time:t, label:'Day Complete'}); break;
+        s.status='out'; s.dayEnded=true; s.todayEvents.push({type:'day_end', time:t, label:'Day Complete'}); break;
     }
   });
   return s;
@@ -6778,7 +6778,10 @@ async function restoreClockSession(){
     var SMAP={traveling:'traveling',clocked_in:'onsite',returning:'returning',on_break:'break',at_lunch:'lunch'};
     var status=null;
     if (st.status!=='out') status=st.status;                   // events are authoritative
-    else if (sess && SMAP[sess.status]) status=SMAP[sess.status]; // fallback: session says open
+    // r18: only fall back to an open session row when the event timeline did NOT already end the day.
+    // A completed day (day_end in today's events) must not be resurrected by a stale open session that
+    // was never closed — that's what left a second device showing "traveling" after arriving back.
+    else if (sess && SMAP[sess.status] && !st.dayEnded) status=SMAP[sess.status];
     if (!status) return;                                       // nothing to resume
     // 4) Apply: event-reconstructed status/job/numbers; sessionId from the open session row
     _clockState.status = status;
