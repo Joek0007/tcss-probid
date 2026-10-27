@@ -368,6 +368,10 @@ body:has(#modal-work-order.open){overflow:hidden}
   .wo-filter-bar{flex-wrap:wrap!important}
   .wo-filter-bar > div:first-child{flex:1 1 100%!important;min-width:0!important}  /* search */
   .wo-filter-bar > select{flex:1 1 calc(50% - 4px)!important;width:auto!important;min-width:0!important}
+
+  /* Slide-out menu header sits at top:0, under the iPhone status bar — so the "TCSS ProBid"
+     logo and the build number (v9 · r1) were hidden behind the frame. Drop the logo below it. */
+  #sidebar .logo{padding-top:calc(14px + env(safe-area-inset-top,0px))!important}
 }
 /* Mobile bottom navigation */
 #mobile-nav{
@@ -8740,7 +8744,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r1';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r2';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-10-27';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;
