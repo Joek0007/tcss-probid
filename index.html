@@ -318,6 +318,22 @@ body:has(#modal-work-order.open){overflow:hidden}
   #mobile-nav{display:none!important}
   #mobile-menu-btn{display:none!important}
 }
+/* Work Order detail: reflow to a single mobile column so the field tech never has to pan
+   sideways. The modal body is built with inline layout styles, so these must use !important
+   to beat them. Triggered on narrow widths OR any touch device (phones/tablets). */
+@media(max-width:768px), (hover:none) and (pointer:coarse){
+  /* Never let the WO view force a horizontal pan */
+  #modal-work-order .modal-body{overflow-x:hidden!important}
+  /* Top status bar: stack Customer / Contact / Status each on its own full-width row */
+  #modal-work-order .wo-status-bar{flex-wrap:wrap!important;padding-left:14px!important;padding-right:14px!important}
+  #modal-work-order .wo-status-bar > div{min-width:0!important;flex:1 1 100%!important}
+  #modal-work-order .wo-status-bar select{min-width:0!important;width:100%!important}
+  /* Main body: one column instead of 1.5fr / 1fr */
+  #modal-work-order .wo-main-grid{grid-template-columns:1fr!important;padding:14px!important;gap:12px!important}
+  /* Date grids: two-up with wrapping labels instead of three cramped columns with nowrap labels */
+  #modal-work-order .wo-tri-grid{grid-template-columns:1fr 1fr!important}
+  #modal-work-order .wo-tri-grid label{white-space:normal!important}
+}
 /* Mobile bottom navigation */
 #mobile-nav{
   position:fixed;bottom:0;left:0;right:0;
@@ -6217,7 +6233,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <div class="modal-body" style="padding:0;overflow-y:auto;flex:1 1 auto;min-height:0">
 
       <!-- Status bar: Customer + Contact LEFT | Status + Service Type + Priority RIGHT -->
-      <div style="background:#f8f9fa;padding:10px 20px;border-bottom:1px solid #e0e7ef;display:flex;gap:16px;align-items:flex-start;flex-wrap:nowrap">
+      <div class="wo-status-bar" style="background:#f8f9fa;padding:10px 20px;border-bottom:1px solid #e0e7ef;display:flex;gap:16px;align-items:flex-start;flex-wrap:nowrap">
 
         <!-- Customer (primary path) -->
         <div id="wo-customer-wrap" style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:220px">
@@ -6282,7 +6298,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       </div>
 
       <!-- Main grid: 60% left (address + work) / 40% right (ref + dates + team + notes) -->
-      <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px;padding:20px">
+      <div class="wo-main-grid" style="display:grid;grid-template-columns:1.5fr 1fr;gap:16px;padding:20px">
 
         <!-- LEFT COLUMN -->
         <div style="display:flex;flex-direction:column">
@@ -6363,7 +6379,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           </div>
 
           <!-- Scheduling dates -->
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="wo-tri-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
             <div>
               <label style="font-size:12px;font-weight:700;color:#1565c0;display:block;margin-bottom:4px;white-space:nowrap">📅 Scheduled Date</label>
               <input type="date" id="wo-scheduled-date" style="width:100%;padding:8px;border:1.5px solid #1565c0;border-radius:6px;font-size:13px">
@@ -6390,7 +6406,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           </div>
 
           <!-- Lifecycle dates -->
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+          <div class="wo-tri-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
             <div>
               <label style="font-size:12px;font-weight:700;color:#546e7a;display:block;margin-bottom:4px">📆 Created</label>
               <input type="text" id="wo-created-date" readonly style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;background:#f5f7fa;color:#546e7a">
