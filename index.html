@@ -433,6 +433,12 @@ body:has(#modal-work-order.open){overflow:hidden}
 .mf-approval{background:#e65100;color:#fff;padding:8px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;margin-top:8px;display:none}
 .mf-approval.visible{display:block}
 .version-badge{background:#e8f5e9;color:#2e7d32;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+/* "Update available" bar — shown by the auto-update checker when the server has a newer build.
+   Sits above the mobile bottom nav and clears the iPhone bottom safe-area; centered on desktop. */
+#app-update-bar{position:fixed;left:12px;right:12px;bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:99999;background:#1565c0;color:#fff;padding:13px 16px;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;animation:appUpdIn .25s ease}
+#app-update-bar .au-x{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:700;opacity:.8;padding:0 4px;cursor:pointer}
+@keyframes appUpdIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(min-width:769px) and (hover:hover){#app-update-bar{left:auto;right:20px;bottom:20px;max-width:340px}}
 .mf-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
 .mf-table th{background:#f5f7fa;padding:8px 10px;text-align:left;font-weight:700;color:#455a64;font-size:11px;text-transform:uppercase}
 .mf-table td{padding:7px 10px;border-bottom:1px solid #f0f0f0}
@@ -8744,7 +8750,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r2';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r3';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-10-27';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;
@@ -8755,6 +8761,42 @@ window.getQData = function() {
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', stamp);
   else stamp();
+
+  // ===== Auto-update checker =====
+  // GitHub Pages caches index.html for 10 min and it has no cache token of its own, so a new
+  // deploy can sit invisible on a phone. On launch (and every few minutes) fetch the live
+  // index.html uncached, read its APP_BUILD, and if it differs from what's running, show a
+  // one-tap "Update available" bar that reloads fresh. Never nags: once dismissed for a given
+  // build it stays hidden until an even newer build appears.
+  var _auDismissed = null;
+  function _auBase(){ return location.href.split('#')[0].split('?')[0]; }
+  async function _auCheck(){
+    try{
+      if(location.protocol==='file:') return;              // dev/local, skip
+      var r = await fetch(_auBase() + '?u=' + Date.now(), {cache:'no-store'});
+      if(!r.ok) return;
+      var txt = await r.text();
+      var m = txt.match(/APP_BUILD\s*=\s*'([^']+)'/);
+      var live = m && m[1];
+      if(live && live !== window.APP_BUILD && live !== _auDismissed) _auShowBar(live);
+    }catch(e){ /* offline or blocked — silent */ }
+  }
+  function _auShowBar(live){
+    var ex = document.getElementById('app-update-bar'); if(ex) ex.remove();
+    var bar = document.createElement('div');
+    bar.id = 'app-update-bar';
+    bar.innerHTML = '<span>🔄 Update available (' + live + ') — tap to refresh</span>'
+                  + '<span class="au-x" title="Later">&times;</span>';
+    bar.addEventListener('click', function(e){
+      if(e.target && e.target.classList.contains('au-x')){ _auDismissed = live; bar.remove(); e.stopPropagation(); return; }
+      // Reload fresh: a new query sidesteps the HTML cache; keep the current route (hash).
+      location.href = _auBase() + '?v=' + Date.now() + (location.hash || '');
+    });
+    document.body.appendChild(bar);
+  }
+  function _auStart(){ setTimeout(_auCheck, 3000); setInterval(_auCheck, 5*60*1000); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', _auStart);
+  else _auStart();
 })();
 </script>
 </body>
