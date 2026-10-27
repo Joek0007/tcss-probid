@@ -6691,8 +6691,122 @@ function resolveLunchFlag(flagId, action) {
 }
 
 // RESTORE SESSION ON LOGIN
+// Pure, testable: replay a day's time_events into clock-state fields. Mirrors the live
+// transitions in field.js (doStartDay / doStartTravel / doArriveOnSite / doLeaveOnSite /
+// doNextJob / break+lunch / day_end) so a RESTORED day matches exactly what the tech had.
+// No DOM, no _sb here — so it can be unit-tested directly.
+function _reconstructClockState(events){
+  var s = {
+    status:'out', sessionId:null, dayStart:null, homebaseStart:null,
+    travelOutStart:null, travelOutMins:0, onsiteStart:null, onsiteMins:0,
+    travelBackStart:null, travelBackMins:0, breakStart:null, breakMins:0,
+    lunchStart:null, lunchMins:0, lunchCount:0, jobId:null, jobName:null, todayEvents:[]
+  };
+  function ms(x){ return x==null?null:(x instanceof Date?x.getTime():new Date(x).getTime()); }
+  function mins(a,b){ return (a==null||b==null)?0:Math.round((b-a)/60000); }
+  (events||[]).forEach(function(e){
+    var t = ms(e.timestamp);
+    switch(e.event_type){
+      case 'day_start':
+        s.status='at_homebase'; s.dayStart=t; s.homebaseStart=t;
+        s.todayEvents.push({type:'day_start', time:t, label:'Started Day at Base'}); break;
+      case 'travel_start':
+        s.status='traveling'; if(e.session_id) s.sessionId=e.session_id;
+        s.dayStart=t; s.travelOutStart=t; s.jobId=e.job_id||s.jobId; s.jobName=e.job_name||s.jobName;
+        s.todayEvents.push({type:'travel_start', time:t, label:'Started Travel'}); break;
+      case 'clock_in':
+        s.travelOutMins += mins(s.travelOutStart, t); s.onsiteStart=t; s.status='onsite';
+        if(e.job_id) s.jobId=e.job_id; if(e.job_name) s.jobName=e.job_name;
+        s.todayEvents.push({type:'clock_in', time:t, label:'Arrived On Site'}); break;
+      case 'clock_out':
+        s.onsiteMins += mins(s.onsiteStart, t); s.onsiteStart=null; s.travelBackStart=t; s.status='returning';
+        s.todayEvents.push({type:'clock_out', time:t, label:'Left Job Site'}); break;
+      case 'job_change':
+        s.onsiteMins += mins(s.onsiteStart||t, t); s.jobId=e.job_id||s.jobId; s.jobName=e.job_name||s.jobName;
+        s.status='traveling'; s.travelOutStart=t; s.onsiteStart=null;
+        s.todayEvents.push({type:'job_change', time:t, label:'Traveling to next job'}); break;
+      case 'break_start':
+        s.breakStart=t; s.status='break'; s.todayEvents.push({type:'break_start', time:t, label:'Break Started'}); break;
+      case 'break_end':
+        s.breakMins += mins(s.breakStart, t); s.breakStart=null; s.status='onsite';
+        s.todayEvents.push({type:'break_end', time:t, label:'Break Ended'}); break;
+      case 'lunch_start':
+        s.lunchStart=t; s.status='lunch'; s.todayEvents.push({type:'lunch_start', time:t, label:'Lunch Started'}); break;
+      case 'lunch_end':
+        s.lunchMins += mins(s.lunchStart, t); s.lunchCount+=1; s.lunchStart=null; s.status='onsite';
+        s.todayEvents.push({type:'lunch_end', time:t, label:'Back from Lunch'}); break;
+      case 'day_end':
+        s.status='out'; s.todayEvents.push({type:'day_end', time:t, label:'Day Complete'}); break;
+    }
+  });
+  return s;
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports = { _reconstructClockState: _reconstructClockState }; }
+
+// Restore an in-progress day when the tech reopens the app. Previously a stub — which is why a
+// tech who closed/reopened mid-day lost their clock status (data was safe in the cloud, just not
+// read back). Authoritative source for "is there an active shift + its status/job" is the open
+// clock_session (clock_out_at IS NULL); the running TOTALS are rebuilt from today's time_events.
 async function restoreClockSession(){
-  // Stubbed — will be implemented in time tracking module build
+  try {
+    if (typeof _sb==='undefined' || !_sb || typeof _currentUser==='undefined' || !_currentUser) return;
+    if (typeof _clockState==='undefined') return;
+    if (_clockState.status !== 'out') return; // already live on this device — never clobber
+    var uid = _currentUser.id;
+    // 1) Authoritative: is there an OPEN clock session?
+    var sess=null;
+    try {
+      var sRes = await _sb.from('clock_sessions').select('*').eq('user_id',uid).is('clock_out_at',null).order('clock_in_at',{ascending:false}).limit(1);
+      if (!sRes.error && sRes.data && sRes.data.length) sess = sRes.data[0];
+    } catch(e){}
+    // 2) Pull today's events (from local midnight, or the session start if earlier for overnight shifts)
+    var now=new Date();
+    var floor=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0,0).getTime();
+    if (sess && sess.clock_in_at){ var ci=new Date(sess.clock_in_at).getTime()-60*60000; if(ci<floor) floor=ci; }
+    var evRes = await _sb.from('time_events')
+      .select('event_type,timestamp,job_id,job_name,session_id')
+      .eq('user_id',uid).gte('timestamp', new Date(floor).toISOString())
+      .order('timestamp',{ascending:true});
+    if (evRes.error){ console.warn('[Clock restore] events error', evRes.error.message); return; }
+    var st = _reconstructClockState(evRes.data||[]);
+    // 3) Decide whether there is an active day to resume
+    var SMAP={traveling:'traveling',clocked_in:'onsite',returning:'returning',on_break:'break',at_lunch:'lunch'};
+    var status=null;
+    if (sess && SMAP[sess.status]) status=SMAP[sess.status];   // session is authoritative
+    else if (st.status!=='out') status=st.status;              // fallback: events only
+    if (!status) return;                                       // nothing to resume
+    // 4) Apply: reconstructed numbers + session-authoritative status/job/sessionId
+    _clockState.status = status;
+    _clockState.dayStart       = st.dayStart?new Date(st.dayStart):(sess&&sess.clock_in_at?new Date(sess.clock_in_at):null);
+    _clockState.homebaseStart  = st.homebaseStart?new Date(st.homebaseStart):null;
+    _clockState.travelOutStart = st.travelOutStart?new Date(st.travelOutStart):null;
+    _clockState.travelOutMins  = st.travelOutMins;
+    _clockState.onsiteStart    = st.onsiteStart?new Date(st.onsiteStart):null;
+    _clockState.onsiteMins     = st.onsiteMins;
+    _clockState.travelBackStart= st.travelBackStart?new Date(st.travelBackStart):null;
+    _clockState.travelBackMins = st.travelBackMins;
+    _clockState.breakStart     = st.breakStart?new Date(st.breakStart):null;
+    _clockState.breakMins      = st.breakMins;
+    _clockState.lunchStart     = st.lunchStart?new Date(st.lunchStart):null;
+    _clockState.lunchMins      = st.lunchMins;
+    _clockState.lunchCount     = st.lunchCount;
+    _clockState.jobId          = (sess&&sess.job_id)||st.jobId||null;
+    _clockState.jobName        = (sess&&sess.job_name)||st.jobName||null;
+    _clockState.sessionId      = (sess&&sess.id)||st.sessionId||null;
+    _clockState.todayEvents    = (st.todayEvents||[]).map(function(e){ return {type:e.type,time:new Date(e.time),label:e.label}; });
+    // 5) Ensure the marker for the CURRENT running state exists so the live timer is accurate
+    var ciD = sess&&sess.clock_in_at?new Date(sess.clock_in_at):now;
+    if (status==='onsite'    && !_clockState.onsiteStart)     _clockState.onsiteStart=ciD;
+    if (status==='traveling' && !_clockState.travelOutStart)  _clockState.travelOutStart=ciD;
+    if (status==='returning' && !_clockState.travelBackStart) _clockState.travelBackStart=ciD;
+    if (status==='break'     && !_clockState.breakStart)      _clockState.breakStart=now;
+    if (status==='lunch'     && !_clockState.lunchStart)      _clockState.lunchStart=now;
+    if (typeof onClockStateChange==='function') onClockStateChange(_clockState.status);
+    if (typeof updateClockUI==='function') updateClockUI();
+    if (typeof startClockTimer==='function') startClockTimer();
+    try { showToast('Welcome back — picking up your day where you left off','info',4000); } catch(e){}
+    console.log('[Clock restore] resumed', _clockState.status, 'job:', _clockState.jobName);
+  } catch(e){ console.warn('[Clock restore] failed', e&&e.message); }
 }
 
 // =============================================
