@@ -129,6 +129,10 @@ function _persistQuotaFallback(e){
 function saveDB() {
   // Persist the local cache OFF the main thread (compression in a Web Worker), debounced.
   _scheduleLocalPersist();
+  // r25: if this save happens while offline, the debounced cloud push below will fail and nothing
+  // retries it — so flag that local changes are waiting. _flushLocalChanges() (reconnect + load)
+  // clears this once they reach the cloud.
+  try { if (typeof navigator!=='undefined' && navigator.onLine===false) localStorage.setItem('probid_pendingPush','1'); } catch(e){}
   // Don't schedule a push if we're in the middle of a sync pull — data just came FROM Supabase
   if (window._syncInProgress) return;
   // Debounced cloud push — no recursion

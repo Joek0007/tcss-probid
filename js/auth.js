@@ -630,6 +630,10 @@ async function signIn(email, password) {
     startSessionTimeout();
     startAutoSync();
     startNotifPoll();
+    // r25: if offline edits are pending from a prior session (set by saveDB while offline), push them
+    // up once we're authed + online. Covers the reload-while-offline-then-online case the 'online'
+    // event can't (it never fires if the tab reopens already online).
+    setTimeout(function(){ try { if (localStorage.getItem('probid_pendingPush')) _flushLocalChanges('load-pending'); } catch(e){} }, 5000);
   }
   return result;
 }
@@ -3894,6 +3898,30 @@ else _initPwEyes();
 // ============================================================
 var _autoSyncTimer = null;
 var AUTO_SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
+
+// r25: push local changes UP on reconnect. saveDB schedules a push on every save, but a push that
+// fired while offline just failed and nothing retried it — so an edit made offline (a quote, customer,
+// contact, work order…) sat in local storage until the next ONLINE save. Auto-sync only PULLS, so it
+// never sent them either. Flush on reconnect, and once on load if an offline edit is still pending from
+// a prior session. pushAllToCloud is a guarded, lock-protected upsert reconciler; it no-ops for
+// helper_tech (whose field data syncs via its own clock / WT queues), so this targets office records.
+function _flushLocalChanges(reason){
+  try {
+    if (typeof navigator!=='undefined' && navigator.onLine===false) return;
+    if (typeof _sb==='undefined' || !_sb || typeof _currentUser==='undefined' || !_currentUser) return;
+    if (typeof pushAllToCloud!=='function') return;
+    console.log('[Sync] flushing local changes ('+(reason||'event')+')');
+    pushAllToCloud();
+    try { localStorage.removeItem('probid_pendingPush'); } catch(e){}
+  } catch(e){ console.warn('[Sync] flush failed', e&&e.message); }
+}
+var _reconnectPushTimer = null;
+if (typeof window !== 'undefined'){
+  window.addEventListener('online', function(){
+    clearTimeout(_reconnectPushTimer);
+    _reconnectPushTimer = setTimeout(function(){ _flushLocalChanges('reconnect'); }, 1500);
+  });
+}
 
 function startAutoSync() {
   clearInterval(_autoSyncTimer);
