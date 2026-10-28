@@ -6768,8 +6768,22 @@ async function restoreClockSession(opts){
     // 1) Authoritative: is there an OPEN clock session?
     var sess=null;
     try {
-      var sRes = await _sb.from('clock_sessions').select('*').eq('user_id',uid).is('clock_out_at',null).order('clock_in_at',{ascending:false}).limit(1);
-      if (!sRes.error && sRes.data && sRes.data.length) sess = sRes.data[0];
+      var sRes = await _sb.from('clock_sessions').select('*').eq('user_id',uid).is('clock_out_at',null).order('clock_in_at',{ascending:false});
+      if (!sRes.error && sRes.data && sRes.data.length){
+        sess = sRes.data[0];   // newest open session wins
+        // r21: reconcile a split — if two devices each opened a session offline, there will be more
+        // than one open session for this user. Keep the newest, close the older duplicate(s). Same
+        // user, so RLS-safe; self-healing on the tech's own device. Fire-and-forget.
+        if (sRes.data.length>1){
+          var _nowClose = new Date().toISOString();
+          for (var _di=1; _di<sRes.data.length; _di++){
+            (function(dupId){
+              try { _sb.from('clock_sessions').update({clock_out_at:_nowClose}).eq('id',dupId).then(function(r){ if(r&&r.error) console.warn('[Clock] dup session close', r.error.message); }); } catch(e){}
+            })(sRes.data[_di].id);
+          }
+          console.log('[Clock] reconciled '+(sRes.data.length-1)+' duplicate open session(s)');
+        }
+      }
     } catch(e){}
     // 2) Pull today's events (from local midnight, or the session start if earlier for overnight shifts)
     var now=new Date();

@@ -1395,6 +1395,7 @@ async function renderBackupHealth() {
 // at END OF DAY — so anyone currently on the clock showed "Not started." These helpers pull
 // the open clock_sessions (clock_out_at IS NULL) so the dashboard reflects who's live right now.
 var _liveSessions = [];
+var _liveLatestEvent = {};   // r21: user_id -> that user's latest time_event (for timestamp-correct status)
 var _liveSessionsFetchedAt = 0;
 var _liveSessionsTimer = null;
 
@@ -1406,8 +1407,15 @@ function _dashLiveStatusFor(member){
     return s.user_name && nm && String(s.user_name).trim().toLowerCase()===nm;
   });
   if(!sess) return null;
-  var map={clocked_in:'onsite',traveling:'traveling',returning:'returning',on_break:'break',at_lunch:'lunch',at_homebase:'traveling'};
-  return { key: map[sess.status]||'onsite', job: sess.job_name||'', since: sess.clock_in_at||null };
+  // r21: derive the CURRENT status from the user's LATEST time_event (correct by timestamp), not the
+  // session.status cache — that cache is last-writer-wins and can lag after conflicting offline edits
+  // from two devices. The event log is the source of truth; the latest event is the current state.
+  var SMAP={clocked_in:'onsite',traveling:'traveling',returning:'returning',on_break:'break',at_lunch:'lunch',at_homebase:'traveling'};
+  var EVMAP={travel_start:'traveling',clock_in:'onsite',clock_out:'returning',job_change:'traveling',break_start:'break',break_end:'onsite',lunch_start:'lunch',lunch_end:'onsite',day_start:'traveling',day_end:'out'};
+  var ev = sess.user_id ? _liveLatestEvent[sess.user_id] : null;
+  var key = (ev && EVMAP[ev.event_type]) ? EVMAP[ev.event_type] : (SMAP[sess.status]||'onsite');
+  if(key==='out') return null; // latest action was day_end → they're done, not live
+  return { key: key, job: sess.job_name || (ev&&ev.job_name) || '', since: sess.clock_in_at||null };
 }
 
 function _renderDashFieldActivity(){
@@ -1453,6 +1461,15 @@ async function _fetchLiveSessions(){
     if(res && !res.error && Array.isArray(res.data)){
       _liveSessions = res.data;
       _liveSessionsFetchedAt = Date.now();
+      // r21: also pull recent events so each person's badge reflects their LATEST action by time,
+      // not the session.status cache (which lags after conflicting offline multi-device edits).
+      try {
+        var evRes = await _sb.from('time_events').select('user_id,event_type,timestamp,job_name').gte('timestamp', cutoff).order('timestamp',{ascending:true});
+        if(evRes && !evRes.error && Array.isArray(evRes.data)){
+          var latest={}; evRes.data.forEach(function(e){ if(e.user_id) latest[e.user_id]=e; }); // ascending → last wins
+          _liveLatestEvent = latest;
+        }
+      } catch(e){ /* keep last-known event map */ }
       try{ _renderDashFieldActivity(); }catch(e){}
       try{ if(typeof renderLiveActivity==='function') renderLiveActivity(); }catch(e){}
     }

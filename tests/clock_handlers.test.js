@@ -273,6 +273,31 @@ const WORKTR = fs.readFileSync(__dirname + '/../js/worktracking.js', 'utf8');
   ok('resync -> stale device follows cloud (onsite → break)', resync.afterResync, 'break');
   ok('resync -> blocked while a local punch is still queued (no clobber)', resync.withPending, 'onsite');
 
+  // ── Reconcile duplicate open sessions (r21): two devices opened one shift offline ─────
+  const dedupe = await page.evaluate(async () => {
+    const now=Date.now();
+    const fresh = window.makeFakeSupabase({
+      clock_sessions:[
+        {id:'dupA', user_id:'u-joe', status:'traveling',  clock_in_at:new Date(now-600000).toISOString(), clock_out_at:null, job_id:'A', job_name:'Job A'},
+        {id:'dupB', user_id:'u-joe', status:'clocked_in', clock_in_at:new Date(now-120000).toISOString(), clock_out_at:null, job_id:'B', job_name:'Job B'}
+      ],
+      time_events:[]
+    });
+    window._sb = fresh;
+    try { localStorage.removeItem('probid_clockQueue'); } catch(e){}
+    window._clockState = Object.assign(window._clockState, {status:'out', sessionId:null, jobId:null, jobName:null});
+    await restoreClockSession();
+    await new Promise(r=>setTimeout(r,20)); // let the fire-and-forget dup-close settle
+    return {
+      open:   fresh._rows('clock_sessions').filter(s=>s.clock_out_at==null).map(s=>s.id).sort(),
+      closed: fresh._rows('clock_sessions').filter(s=>s.clock_out_at!=null).map(s=>s.id).sort(),
+      resumed: window._clockState.sessionId
+    };
+  });
+  ok('dedupe -> keeps only the newest open session', dedupe.open, ['dupB']);
+  ok('dedupe -> closes the older duplicate', dedupe.closed, ['dupA']);
+  ok('dedupe -> device resumes the newest session', dedupe.resumed, 'dupB');
+
   await browser.close();
   console.log('\n'+(fail? '✗ '+fail+' FAILED, '+pass+' passed' : 'ALL '+pass+' PASSED'));
   process.exit(fail?1:0);
