@@ -154,10 +154,7 @@ function _updateConnPill(){
   var el = (typeof document!=='undefined') && document.getElementById('conn-pill');
   if (!el) return;
   var online = (typeof navigator==='undefined') || navigator.onLine !== false;
-  // r27: pill reflects ALL un-synced local edits — queued clock punches PLUS dirty office records
-  // (quotes/customers/contacts added or changed offline), not just the clock.
-  var pending = ((typeof _clockPending==='function') ? _clockPending() : 0)
-              + ((typeof _officePendingCount==='function') ? _officePendingCount() : 0);
+  var pending = (typeof _clockPending==='function') ? _clockPending() : 0;
   if (!online){
     el.textContent = '● Offline' + (pending>0 ? ' · '+pending+' to sync' : '');
     el.style.background = '#d81b60';   // pinkish-red so offline is unmistakable
@@ -168,8 +165,7 @@ function _updateConnPill(){
   } else if (el._wasPending){            // just finished draining → brief confirmation
     el.textContent = '● Synced ✓'; el.style.background='#e8f5e9'; el.style.color='#2e7d32';
     setTimeout(function(){ try {
-      var _stillPending = ((typeof _clockPending==='function')?_clockPending():0) + ((typeof _officePendingCount==='function')?_officePendingCount():0);
-      if (_stillPending===0 && (typeof navigator==='undefined'||navigator.onLine!==false)){
+      if (((typeof _clockPending==='function')?_clockPending():0)===0 && (typeof navigator==='undefined'||navigator.onLine!==false)){
         var e2=document.getElementById('conn-pill'); if(e2){ e2.textContent='● Online'; e2.style.background='#e8f5e9'; e2.style.color='#2e7d32'; }
       }
     } catch(e){} }, 2500);
