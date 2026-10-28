@@ -830,7 +830,8 @@ function saveContact() {
     state:       (document.getElementById('m-ct-state')||{}).value||'',
     zip:         (document.getElementById('m-ct-zip')||{}).value||'',
     notes:       (document.getElementById('m-ct-notes')||{}).value||'',
-    customerId:  custId
+    customerId:  custId,
+    updatedAt:   new Date().toISOString()   // r26: stamp every edit for last-writer-wins sync
   };
   if (id) { var idx=DB.contacts.findIndex(function(c){ return c.id==id; }); if(idx>=0) DB.contacts[idx]=data; else DB.contacts.push(data); }
   else DB.contacts.push(data);

@@ -4139,7 +4139,8 @@ function _buildCustomerData(id) {
       invoices:    !!((document.getElementById('m-calert-invoices')||{}).checked),
       customers:   !!((document.getElementById('m-calert-customers')||{}).checked),
       dispatch:    !!((document.getElementById('m-calert-dispatch')||{}).checked),
-    }
+    },
+    updatedAt:    new Date().toISOString()   // r26: stamp every edit for last-writer-wins sync
   };
 }
 function _savePrimaryContact(customerId, customerName) {

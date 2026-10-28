@@ -212,6 +212,24 @@ function _jobsNextWatermark(rows, prevWM){
   return maxU ? new Date(new Date(maxU).getTime()-5000).toISOString() : (prevWM || new Date(Date.now()-5000).toISOString());
 }
 
+// r26: last-writer-wins merge for a PULL. For a record present both locally and in the cloud, keep
+// whichever has the newer updatedAt — so an edit made offline (local newer, not yet pushed) survives
+// the pull instead of being overwritten by the cloud copy, while another user's change to a record you
+// didn't touch (cloud newer, or you have no local edit) comes in. localOnly = records that exist only
+// locally (new/unpushed) and are always kept. Timestamps compared by parsed time (not lexically) so a
+// client "…Z" and a Postgres "…+00:00" for the same instant don't mis-order; ties go to cloud.
+function _tsMs(v){ var t = v ? Date.parse(v) : NaN; return isNaN(t) ? 0 : t; }
+function _lwwMerge(cloudRows, localRows, localOnly){
+  var localById = {};
+  (localRows||[]).forEach(function(r){ if(r && r.id!=null) localById[String(r.id)] = r; });
+  var merged = (cloudRows||[]).map(function(cr){
+    var lr = localById[String(cr.id)];
+    if (lr && _tsMs(lr.updatedAt) > _tsMs(cr.updatedAt)) return lr; // local offline edit is newer → keep it
+    return cr;                                                       // cloud newer/equal, or no local edit
+  });
+  return merged.concat(localOnly||[]);
+}
+
 // ---------------------------------------------------------------------------
 // PERF windows (load-on-demand): the sync keeps only a recent working set of the
 // big imported-history tables in memory; older rows load on demand when a specific
@@ -1221,6 +1239,7 @@ async function syncAllFromCloud(silent) {
             followupDate: q.followup_date || null,
             permits: q.permit_data ? (function(){ try{ return JSON.parse(q.permit_data); }catch(e){ return null; } })() : null,
             proposalSections: (q.proposal_sections === undefined ? null : q.proposal_sections),
+            updatedAt: q.updated_at,
             items: (q.quote_line_items || []).sort(function(a,b){ return a.sort_order - b.sort_order; }).map(function(li) {
               return { _id:li.id, desc:li.description, cat:li.category, qty:li.qty, unit:li.unit, mc:li.material_cost, lh:li.labor_hours };
             })
@@ -1232,7 +1251,7 @@ async function syncAllFromCloud(silent) {
           setTimeout(pushAllToCloud, 500);
         }
         cloudQuotes.forEach(function(cq){ cq._synced = true; }); // mark as known-in-cloud
-        DB.quotes = cloudQuotes.concat(localOnlyQuotes);
+        DB.quotes = _lwwMerge(cloudQuotes, DB.quotes, localOnlyQuotes);  // r26: LWW (keep newer local edits)
         // Clear any stale QQ draft — cloud is now the source of truth. But NOT during a
         // silent background sync: that would wipe an in-progress quote the user is writing.
         try { if (!silent && typeof clearQQDraft === 'function') clearQQDraft(); } catch(e) {}
@@ -1251,10 +1270,10 @@ async function syncAllFromCloud(silent) {
         var cCloudComplete = custs.length > 0;
         var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)) && delC.indexOf(String(c.id)) < 0 && !(c._synced && cCloudComplete); });
         var cloudCusts = custs.map(function(c) {
-          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, partsMarkupPct:(c.parts_markup_pct!=null?c.parts_markup_pct:null), moduleAlerts:c.module_alerts||null, accountNumber:(c.account_number!=null?c.account_number:null), notes:c.notes, active:c.is_active, createdAt:c.created_at };
+          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, partsMarkupPct:(c.parts_markup_pct!=null?c.parts_markup_pct:null), moduleAlerts:c.module_alerts||null, accountNumber:(c.account_number!=null?c.account_number:null), notes:c.notes, active:c.is_active, createdAt:c.created_at, updatedAt:c.updated_at };
         });
         cloudCusts.forEach(function(cc){ cc._synced = true; });
-        DB.customers = cloudCusts.concat(localOnlyCusts);
+        DB.customers = _lwwMerge(cloudCusts, DB.customers, localOnlyCusts);  // r26: LWW (keep newer local edits)
       }
     } catch(e) { errors.push('customers: '+e.message); }
 
@@ -1325,11 +1344,12 @@ async function syncAllFromCloud(silent) {
             contactType: c.contact_type,
             contactPref: c.contact_pref,
             notes:       c.notes,
-            createdAt:   c.created_at
+            createdAt:   c.created_at,
+            updatedAt:   c.updated_at
           };
         });
         cloudConts.forEach(function(cc){ cc._synced = true; });
-        DB.contacts = cloudConts.concat(localOnlyConts);
+        DB.contacts = _lwwMerge(cloudConts, DB.contacts, localOnlyConts);  // r26: LWW (keep newer local edits)
       }
     } catch(e) { errors.push('contacts: '+e.message); }
 
