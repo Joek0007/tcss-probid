@@ -666,21 +666,8 @@ function openNewWorkOrder() {
   var intSection=document.getElementById('wo-internal-notes-section');
   if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?'':'none';
 
-  // Apply WO permissions
-  if(typeof hasPermission==='function'){
-    var _canFin=hasPermission('wo.view_financial');
-    var _canEdit=hasPermission('wo.edit');
-    var _canInv=hasPermission('wo.invoice');
-    var _canCO=hasPermission('wo.change_order');
-    setTimeout(function(){
-      var lb=document.getElementById('wo-labor-rate');if(lb&&lb.closest&&lb.closest('div'))lb.closest('div').style.display=_canFin?'':'none';
-      var tx=document.getElementById('wo-tax-rate');if(tx&&tx.closest&&tx.closest('div'))tx.closest('div').style.display=_canFin?'':'none';
-      var ib=document.getElementById('wo-btn-invoice');if(ib)ib.style.display=_canInv?'':'none';
-      var ib2=document.getElementById('wo-btn-invoice-top');if(ib2)ib2.style.display=_canInv?'':'none';
-      var cb=document.getElementById('wo-btn-co');if(cb)cb.style.display=_canCO?'':'none';
-      if(!_canEdit){document.querySelectorAll('#wo-desc,#wo-site-addr,#wo-site-city,#wo-site-state,#wo-site-zip').forEach(function(el){if(el){el.readOnly=true;el.style.background='#f5f5f5';}});}
-    },300);
-  }
+  // Apply WO permission gating (shared with the existing-WO open path).
+  _applyWOPermissions();
   switchWOTab((typeof wtIsFieldTech==='function'&&wtIsFieldTech())?'fieldlog':'labor');
   setTimeout(function(){var cp=document.getElementById('wo-change-orders-panel');if(cp){var woId=_woCurrentId;cp.innerHTML=renderWOChangeOrders(woId);var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});if(wo&&wo.parentWoId&&wo.isChangeOrder){var par=(DB.workOrders||[]).find(function(w){return w.id===wo.parentWoId;});if(par)_renderParentWOBanner(par);}}},200);
   // New WO: Customer is the path; internal-fleet is collapsed behind its toggle.
@@ -735,6 +722,45 @@ async function woNavWarnSave(){
     if (t && typeof goPage==='function') goPage(t);
   }
   // If the save failed validation (_woDirty still true), stay on the WO — saveWorkOrder already showed the reason.
+}
+
+// Gate the open Work Order modal by role, for BOTH the new-WO and existing-WO open paths. This was
+// previously inline in openNewWorkOrder only, so openWorkOrder (what a field tech uses for their
+// assigned job) applied NO gating — a tech could edit the Description and Resolution. Those two are
+// rich-text contenteditable divs, where readOnly does NOTHING, so we set contenteditable=false and
+// hide their toolbars. Techs READ these; office/management EDIT (wo.edit). Also gates financials
+// (wo.view_financial), invoice (wo.invoice), change orders (wo.change_order), status (wo.change_status).
+function _applyWOPermissions(){
+  if (typeof hasPermission!=='function') return;
+  var canFin=hasPermission('wo.view_financial'), canEdit=hasPermission('wo.edit'),
+      canInv=hasPermission('wo.invoice'), canCO=hasPermission('wo.change_order'),
+      canStatus=hasPermission('wo.change_status');
+  setTimeout(function(){
+    try {
+      var lb=document.getElementById('wo-labor-rate'); if(lb&&lb.closest&&lb.closest('div')) lb.closest('div').style.display=canFin?'':'none';
+      var tx=document.getElementById('wo-tax-rate');   if(tx&&tx.closest&&tx.closest('div')) tx.closest('div').style.display=canFin?'':'none';
+      var ib=document.getElementById('wo-btn-invoice');     if(ib)  ib.style.display=canInv?'':'none';
+      var ib2=document.getElementById('wo-btn-invoice-top');if(ib2) ib2.style.display=canInv?'':'none';
+      var cb=document.getElementById('wo-btn-co');          if(cb)  cb.style.display=canCO?'':'none';
+      if(!canEdit){
+        // Plain inputs → read-only + greyed.
+        ['wo-site-addr','wo-site-city','wo-site-state','wo-site-zip','wo-ref-num','wo-po-number','wo-scheduled-date','wo-scheduled-time','wo-date-requested','wo-date-followup'].forEach(function(idv){
+          var el=document.getElementById(idv); if(el){ try{el.readOnly=true;}catch(e){} el.style.background='#f5f5f5'; }
+        });
+        // Selects / customer+contact pickers → disabled.
+        ['wo-service-type','wo-priority','wo-customer-name','wo-contact-name'].forEach(function(idv){
+          var el=document.getElementById(idv); if(el){ try{el.disabled=true;}catch(e){} el.style.background='#f5f5f5'; }
+        });
+        // Rich-text Description + Resolution/Work-Performed: readOnly has NO effect on a contenteditable
+        // div, so make them truly non-editable and hide the formatting toolbars. Techs can still read them.
+        ['wo-description','wo-work-performed'].forEach(function(idv){
+          var el=document.getElementById(idv); if(el){ el.setAttribute('contenteditable','false'); el.style.background='#f5f5f5'; }
+          var tb=document.getElementById(idv+'-toolbar'); if(tb) tb.style.display='none';
+        });
+      }
+      if(!canStatus){ var st=document.getElementById('wo-status'); if(st){ try{st.disabled=true;}catch(e){} st.style.background='#f5f5f5'; } }
+    } catch(e){}
+  }, 320);
 }
 
 function openWorkOrder(id) {
@@ -824,6 +850,9 @@ function openWorkOrder(id) {
   // Internal notes visibility
   var intSection=document.getElementById('wo-internal-notes-section');
   if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?'':'none';
+
+  // r23: gate editable fields by role (description/resolution read-only for techs, etc.)
+  _applyWOPermissions();
 
   switchWOTab((typeof wtIsFieldTech==='function'&&wtIsFieldTech())?'fieldlog':'labor');
   setTimeout(function(){var cp=document.getElementById('wo-change-orders-panel');if(cp){var woId=_woCurrentId;cp.innerHTML=renderWOChangeOrders(woId);var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});if(wo&&wo.parentWoId&&wo.isChangeOrder){var par=(DB.workOrders||[]).find(function(w){return w.id===wo.parentWoId;});if(par)_renderParentWOBanner(par);}}},200);
@@ -994,6 +1023,19 @@ async function saveWorkOrder() {
   };
   // Clear the CO context after consuming it
   if (isNew) { window._newWOParentId=null; window._newWOCOReason=null; }
+
+  // r23 defense in depth: a user without wo.edit can READ the description / resolution / site fields
+  // but never change them. The UI locks these on open; this also blocks a forced or scripted save by
+  // preserving the existing values. (DB-level RLS remains the hard floor for a determined attacker.)
+  if (!isNew && _existingWO && typeof hasPermission==='function' && !hasPermission('wo.edit')) {
+    data.description         = _existingWO.description;
+    data.descriptionIsHtml   = _existingWO.descriptionIsHtml;
+    data.workPerformed       = _existingWO.workPerformed;
+    data.workPerformedIsHtml = _existingWO.workPerformedIsHtml;
+    data.siteAddr   = _existingWO.siteAddr;   data.siteCity  = _existingWO.siteCity;
+    data.siteState  = _existingWO.siteState;  data.siteZip   = _existingWO.siteZip;
+    data.serviceType= _existingWO.serviceType; data.refNum   = _existingWO.refNum;
+  }
 
   if (isNew) {
     DB.workOrders.push(data);
