@@ -1459,6 +1459,15 @@ async function _fetchLiveSessions(){
   }catch(e){ /* offline / blocked: keep last known */ }
 }
 
+// r19: refresh the office live views immediately on reconnect / tab focus, instead of waiting for
+// the 30s poll. No-op unless the dashboard field-activity is actually on screen.
+function _refreshLiveViews(){
+  try {
+    var dash = document.getElementById('dash-field-activity');
+    if (dash && dash.offsetParent!==null && typeof _fetchLiveSessions==='function') _fetchLiveSessions();
+  } catch(e){}
+}
+
 function _startLiveSessionsRefresh(){
   if(_liveSessionsTimer) clearInterval(_liveSessionsTimer);
   _liveSessionsTimer = setInterval(function(){

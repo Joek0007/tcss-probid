@@ -143,12 +143,47 @@ async function _clockFlush(){
       if (!ok) break;            // keep this op + the rest, in order, for the next attempt
       q.shift(); _clockQueueSet(q);
     }
-  } finally { _clockFlushing = false; }
+  } finally { _clockFlushing = false; _updateConnPill(); }
 }
-function _clockSubmit(op){ var q=_clockQueueGet(); q.push(op); _clockQueueSet(q); return _clockFlush(); }
+function _clockSubmit(op){ var q=_clockQueueGet(); q.push(op); _clockQueueSet(q); _updateConnPill(); return _clockFlush(); }
+
+// r19: global connection indicator (topbar pill), on every page / both devices. Shows Online /
+// Offline, and — the part that matters for a field tech — "Offline · N to sync" / "Syncing… N"
+// when clock punches are queued, then a brief "Synced ✓". Driven by navigator.onLine + queue depth.
+function _updateConnPill(){
+  var el = (typeof document!=='undefined') && document.getElementById('conn-pill');
+  if (!el) return;
+  var online = (typeof navigator==='undefined') || navigator.onLine !== false;
+  var pending = (typeof _clockPending==='function') ? _clockPending() : 0;
+  if (!online){
+    el.textContent = '● Offline' + (pending>0 ? ' · '+pending+' to sync' : '');
+    el.style.background = pending>0 ? '#fff3e0' : '#eceff1';
+    el.style.color      = pending>0 ? '#e65100' : '#607d8b';
+  } else if (pending>0){
+    el.textContent = '● Syncing… '+pending;
+    el.style.background = '#fff8e1'; el.style.color = '#f57f17';
+  } else if (el._wasPending){            // just finished draining → brief confirmation
+    el.textContent = '● Synced ✓'; el.style.background='#e8f5e9'; el.style.color='#2e7d32';
+    setTimeout(function(){ try {
+      if (((typeof _clockPending==='function')?_clockPending():0)===0 && (typeof navigator==='undefined'||navigator.onLine!==false)){
+        var e2=document.getElementById('conn-pill'); if(e2){ e2.textContent='● Online'; e2.style.background='#e8f5e9'; e2.style.color='#2e7d32'; }
+      }
+    } catch(e){} }, 2500);
+  } else {
+    el.textContent = '● Online'; el.style.background='#e8f5e9'; el.style.color='#2e7d32';
+  }
+  el._wasPending = pending>0;
+}
+
 if (typeof window !== 'undefined'){
-  window.addEventListener('online', function(){ _clockFlush(); });
-  setTimeout(function(){ try { _clockFlush(); } catch(e){} }, 3500); // drain anything left from an offline session
+  // Coming back online: update the pill, drain the clock queue, and refresh the office live views now.
+  window.addEventListener('online',  function(){ _updateConnPill(); _clockFlush(); if(typeof _refreshLiveViews==='function') _refreshLiveViews(); });
+  window.addEventListener('offline', function(){ _updateConnPill(); });
+  // Clicking back to the tab refreshes the live dashboard immediately instead of waiting for the poll.
+  window.addEventListener('focus',   function(){ if(typeof _refreshLiveViews==='function') _refreshLiveViews(); });
+  if (typeof document!=='undefined') document.addEventListener('visibilitychange', function(){ if(!document.hidden && typeof _refreshLiveViews==='function') _refreshLiveViews(); });
+  setInterval(function(){ try { _updateConnPill(); } catch(e){} }, 3000); // keep the "N to sync" count honest as the queue drains
+  setTimeout(function(){ try { _updateConnPill(); _clockFlush(); } catch(e){} }, 3500);
 }
 
 // Record a clock event. Offline → it queues and syncs later (never silently dropped).

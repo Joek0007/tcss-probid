@@ -24,6 +24,7 @@ const WORKTR = fs.readFileSync(__dirname + '/../js/worktracking.js', 'utf8');
     <select id="clock-next-job-select"><option value="">—</option><option value="A">Job A</option><option value="B">Job B</option></select>
     <div id="clock-timer-display"></div><div id="clock-timer-label"></div>
     <div id="geo-alert"></div><div id="ds-travel"></div><div id="ds-worked"></div><div id="ds-break"></div><div id="ds-lunch"></div>
+    <span id="conn-pill"></span>
   `;
   await page.route('https://tcss-test.local/', route =>
     route.fulfill({ contentType:'text/html', body:'<!doctype html><html><head><meta charset="utf-8"></head><body>'+DOM+'</body></html>' }));
@@ -221,6 +222,27 @@ const WORKTR = fs.readFileSync(__dirname + '/../js/worktracking.js', 'utf8');
   });
   ok('clock-in with no WO -> Office/General starts a session', office.status, 'traveling');
   ok('clock-in with no WO -> session job_id = office', office.sessions, [{job_id:'office',status:'traveling'}]);
+
+  // ── Connection pill reflects online/offline + queued punches (r19) ───────────────────
+  // Offline with 2 queued punches → tells the tech they're saved and waiting.
+  await page.context().setOffline(true);
+  const pillOffline = await page.evaluate(()=>{
+    try { localStorage.setItem('probid_clockQueue', JSON.stringify([{kind:'a'},{kind:'b'}])); } catch(e){}
+    _updateConnPill(); return document.getElementById('conn-pill').textContent;
+  });
+  ok('pill -> offline shows "Offline · N to sync"', /Offline.*2 to sync/.test(pillOffline), true);
+  await page.context().setOffline(false);
+  await page.waitForTimeout(150); // let the 'online' handler drain the (unknown) queued ops
+  const pillOnline = await page.evaluate(()=>{ _updateConnPill(); return document.getElementById('conn-pill').textContent; });
+  ok('pill -> back online drains queue, shows Online/Synced', /Online|Synced/.test(pillOnline), true);
+  // Online but with punches still queued → "Syncing… N" (deterministic: seed queue, no event toggle).
+  const pillSync = await page.evaluate(()=>{
+    try { localStorage.setItem('probid_clockQueue', JSON.stringify([{kind:'x'},{kind:'y'},{kind:'z'}])); } catch(e){}
+    _updateConnPill(); var t=document.getElementById('conn-pill').textContent;
+    try { localStorage.setItem('probid_clockQueue','[]'); } catch(e){}
+    return t;
+  });
+  ok('pill -> online with queued punches shows "Syncing… N"', /Syncing.*3/.test(pillSync), true);
 
   await browser.close();
   console.log('\n'+(fail? '✗ '+fail+' FAILED, '+pass+' passed' : 'ALL '+pass+' PASSED'));
