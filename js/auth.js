@@ -230,6 +230,85 @@ function _lwwMerge(cloudRows, localRows, localOnly){
   return merged.concat(localOnly||[]);
 }
 
+// r27: CHANGED-ONLY (dirty) push for office records (quotes/customers/contacts).
+// WHY: the background sweep re-pushes EVERY such record in memory ~2s after any saveDB. The push
+// has no per-record timestamp guard, so a record that's been sitting in this client's memory
+// (possibly slightly stale vs the cloud, because another user just edited it) would be re-upserted
+// and could overwrite their newer value. The fix: only push a record whose CONTENT changed since we
+// last saw it in sync with the cloud. We keep a content hash per record in localStorage; on a pull we
+// snapshot the CLOUD version's hash, and on a successful push we update the snapshot to the pushed
+// content. A record whose current hash matches its snapshot is UNTOUCHED locally — skipping it can
+// only ever prevent a clobber, never lose a real edit. The default when a hash is missing/different is
+// "push" (safe: at worst we re-push an unchanged record, exactly the old behavior). This is
+// path-independent — there's no per-edit dirty flag to forget to set anywhere in the UI.
+//
+// SAFETY INVARIANT: we never skip a genuinely-changed record. The hash covers all content fields
+// (everything except _-prefixed internals and the updatedAt/createdAt metadata), so any real edit —
+// including a single line-item change, since `items` is part of the hash — changes the hash and marks
+// the record dirty. A snapshot/runtime shape mismatch can only make a record look dirty (→ push, old
+// behavior), never clean.
+function _recHash(rec){
+  if (!rec || typeof rec !== 'object') return '';
+  var keys = Object.keys(rec).filter(function(k){
+    return k.charAt(0) !== '_' && k !== 'updatedAt' && k !== 'createdAt';
+  }).sort();
+  var parts = [];
+  for (var i=0;i<keys.length;i++){
+    var v = rec[keys[i]];
+    parts.push(keys[i] + '=' + (v === undefined ? '' : JSON.stringify(v)));
+  }
+  return parts.join('|');
+}
+var _syncSnap = null;   // { quotes:{id:hash}, customers:{id:hash}, contacts:{id:hash} }
+function _loadSyncSnap(){
+  if (_syncSnap) return _syncSnap;
+  try { _syncSnap = JSON.parse(localStorage.getItem('probid_syncSnap')) || {}; }
+  catch(e){ _syncSnap = {}; }
+  if (!_syncSnap.quotes)    _syncSnap.quotes = {};
+  if (!_syncSnap.customers) _syncSnap.customers = {};
+  if (!_syncSnap.contacts)  _syncSnap.contacts = {};
+  return _syncSnap;
+}
+var _snapSaveTimer = null;
+function _snapSaveSoon(){
+  if (_snapSaveTimer) return;
+  _snapSaveTimer = setTimeout(function(){
+    _snapSaveTimer = null;
+    try { localStorage.setItem('probid_syncSnap', JSON.stringify(_loadSyncSnap())); } catch(e){}
+  }, 1000);
+}
+// Record that `rec`'s current content is now the known-in-sync version (called after a successful
+// push, and for each cloud row on a pull). Snapshot CLOUD content on pull (never the post-merge
+// local record): if an offline edit is newer and LWW keeps it, its hash won't match the cloud
+// snapshot, so it stays dirty and gets pushed — which is exactly what we want.
+function _officeMarkSynced(table, rec){
+  if (!rec || rec.id==null) return;
+  var snap = _loadSyncSnap();
+  if (!snap[table]) snap[table] = {};
+  snap[table][String(rec.id)] = _recHash(rec);
+  _snapSaveSoon();
+}
+function _officeDirty(table, rec){
+  if (!rec || rec.id==null) return true;   // no id yet → new/unpushed → push
+  var snap = _loadSyncSnap();
+  var prev = snap[table] ? snap[table][String(rec.id)] : undefined;
+  if (prev === undefined) return true;     // never seen in sync → push
+  return _recHash(rec) !== prev;           // changed since last sync → push; unchanged → skip
+}
+// Count of office records with un-pushed local changes — feeds the connection pill so it reflects
+// ALL offline edits, not just queued clock punches. Zero for helper_tech (they never push office
+// records), so their pill never gets stuck on a count that can't drain.
+function _officePendingCount(){
+  try { if (_currentUser && _currentUser.role === 'helper_tech') return 0; } catch(e){}
+  var n = 0, tables = ['quotes','customers','contacts'];
+  for (var t=0;t<tables.length;t++){
+    var arr = DB[tables[t]] || [];
+    for (var i=0;i<arr.length;i++){ if (arr[i] && _officeDirty(tables[t], arr[i])) n++; }
+  }
+  return n;
+}
+try { if (typeof window!=='undefined') window._officePendingCount = _officePendingCount; } catch(e){}
+
 // ---------------------------------------------------------------------------
 // PERF windows (load-on-demand): the sync keeps only a recent working set of the
 // big imported-history tables in memory; older rows load on demand when a specific
@@ -1250,7 +1329,7 @@ async function syncAllFromCloud(silent) {
           console.log('[Sync] Pushing', localOnlyQuotes.length, 'local-only quote(s) to cloud');
           setTimeout(pushAllToCloud, 500);
         }
-        cloudQuotes.forEach(function(cq){ cq._synced = true; }); // mark as known-in-cloud
+        cloudQuotes.forEach(function(cq){ cq._synced = true; _officeMarkSynced('quotes', cq); }); // mark as known-in-cloud + r27 content snapshot
         DB.quotes = _lwwMerge(cloudQuotes, DB.quotes, localOnlyQuotes);  // r26: LWW (keep newer local edits)
         // Clear any stale QQ draft — cloud is now the source of truth. But NOT during a
         // silent background sync: that would wipe an in-progress quote the user is writing.
@@ -1272,7 +1351,7 @@ async function syncAllFromCloud(silent) {
         var cloudCusts = custs.map(function(c) {
           return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, partsMarkupPct:(c.parts_markup_pct!=null?c.parts_markup_pct:null), moduleAlerts:c.module_alerts||null, accountNumber:(c.account_number!=null?c.account_number:null), notes:c.notes, active:c.is_active, createdAt:c.created_at, updatedAt:c.updated_at };
         });
-        cloudCusts.forEach(function(cc){ cc._synced = true; });
+        cloudCusts.forEach(function(cc){ cc._synced = true; _officeMarkSynced('customers', cc); }); // r27 content snapshot
         DB.customers = _lwwMerge(cloudCusts, DB.customers, localOnlyCusts);  // r26: LWW (keep newer local edits)
       }
     } catch(e) { errors.push('customers: '+e.message); }
@@ -1348,7 +1427,7 @@ async function syncAllFromCloud(silent) {
             updatedAt:   c.updated_at
           };
         });
-        cloudConts.forEach(function(cc){ cc._synced = true; });
+        cloudConts.forEach(function(cc){ cc._synced = true; _officeMarkSynced('contacts', cc); }); // r27 content snapshot
         DB.contacts = _lwwMerge(cloudConts, DB.contacts, localOnlyConts);  // r26: LWW (keep newer local edits)
       }
     } catch(e) { errors.push('contacts: '+e.message); }
@@ -2782,6 +2861,7 @@ async function pushAllToCloud() {
     // Push quotes
     for (var q of (DB.quotes || [])) {
       if (!q) continue;
+      if (!_officeDirty('quotes', q)) continue;   // r27: unchanged since last sync → skip (re-pushing could only clobber another user's newer copy)
       try {
         var qId = ensureUUID(q);
         // Map app status values to schema enum values
@@ -2796,7 +2876,7 @@ async function pushAllToCloud() {
           'rejected': 'Rejected', 'Rejected': 'Rejected',
           'expired': 'Expired', 'Expired': 'Expired'
         };
-        _pushErr('quote '+(q.num||qId), await _sb.from('quotes').upsert({
+        var _qUp = await _sb.from('quotes').upsert({
           id: qId,
           quote_number: q.num || null,          customer_name: q.cn || null,
           job_id: null,
@@ -2849,7 +2929,8 @@ async function pushAllToCloud() {
           payment_terms: q.pt || 'Net 30',
           followup_date: q.followupDate || null,
           created_by: _currentUser.id
-        }));
+        });
+        _pushErr('quote '+(q.num||qId), _qUp);
 
         // Push line items ATOMICALLY (SF-1). replace_quote_line_items deletes+reinserts
         // in one transaction, so a failed insert rolls back and the quote keeps its pricing.
@@ -2882,6 +2963,9 @@ async function pushAllToCloud() {
             _pushErrors.push('quote '+(q.num || qId)+' line items: '+_rli.error.message);
           }
         }
+        // r27: record the pushed content as in-sync ONLY if nothing errored (quote upsert AND, if
+        // attempted, the line-items replace). If either failed, leave it dirty so it retries next sweep.
+        if (!(_qUp && _qUp.error) && !(typeof _rli!=='undefined' && _rli && _rli.error)) _officeMarkSynced('quotes', q);
       } catch(qErr) {
         console.warn('[Push] Quote error for', q.num, qErr);
       }
@@ -2952,9 +3036,10 @@ async function pushAllToCloud() {
     // Push customers
     for (var c of (DB.customers || [])) {
       if (!c) continue;
+      if (!_officeDirty('customers', c)) continue;   // r27: unchanged since last sync → skip
       try {
         var cId = ensureUUID(c);
-        _pushErr('customer '+(c.name||cId), await _sb.from('customers').upsert({
+        var _cUp = await _sb.from('customers').upsert({
           id: cId,
           name: c.name || '',
           company: c.company || null,
@@ -2979,7 +3064,9 @@ async function pushAllToCloud() {
           notes: c.notes || null,
           is_active: c.active !== false,
           created_by: _currentUser.id
-        }));
+        });
+        _pushErr('customer '+(c.name||cId), _cUp);
+        if (!(_cUp && _cUp.error)) _officeMarkSynced('customers', c);   // r27
       } catch(cErr) {
         console.warn('[Push] Customer error for', c.name, cErr);
       }
@@ -3049,6 +3136,7 @@ async function pushAllToCloud() {
     // Push contacts
     for (var ct of (DB.contacts || [])) {
       if (!ct || !ct.name) continue;
+      if (!_officeDirty('contacts', ct)) continue;   // r27: unchanged since last sync → skip
       try {
         var ctId = ensureUUID(ct);
         // Try with extended columns first; fall back to base schema if columns not yet added
@@ -3071,10 +3159,14 @@ async function pushAllToCloud() {
         });
         var ctRes = await _sb.from('contacts').upsert(ctFull);
         if (ctRes.error && ctRes.error.message && ctRes.error.message.includes('column')) {
-          _pushErr('contact '+(ct.name||ctId), await _sb.from('contacts').upsert(ctBase));
+          var _ctB = await _sb.from('contacts').upsert(ctBase);
+          _pushErr('contact '+(ct.name||ctId), _ctB);
+          if (!(_ctB && _ctB.error)) _officeMarkSynced('contacts', ct);   // r27
         } else if (ctRes.error) {
           console.warn('[Push] Contact error for', ct.name, ctRes.error.message);
           _pushErrors.push('contact '+(ct.name||ctId)+': '+ctRes.error.message);
+        } else {
+          _officeMarkSynced('contacts', ct);   // r27
         }
       } catch(ctErr) {
         console.warn('[Push] Contact error for', ct.name, ctErr.message || ctErr);
