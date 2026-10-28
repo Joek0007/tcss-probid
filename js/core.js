@@ -854,6 +854,42 @@ function _anyModalVisible(){
 }
 window._anyModalVisible = _anyModalVisible;
 
+// After a cloud sync pulls fresh data, redraw the LIST the user is currently viewing — not just the
+// dashboard. Without this, a record added on another device (or your own edit synced back) lands in
+// memory and localStorage but the on-screen list stays stale until a full app reload — which is why
+// new contacts only appeared after closing and reopening the app. Each mapped renderer rebuilds its
+// table from DB, so calling it again is safe and idempotent.
+// Guards: never redraw while a modal/editor is open (could disrupt an in-progress edit), and only
+// redraw plain list/table pages. Form pages (qq, settings, field) and pages with their own live
+// refresh (workorders, dispatch, tools) are intentionally left out and keep their existing behavior.
+function _rerenderActivePage(){
+  try {
+    if (typeof _anyModalVisible === 'function' && _anyModalVisible()) return;  // user may be editing
+    var id = (typeof _currentPageId === 'function') ? _currentPageId() : '';
+    if (!id) return;
+    var R = {
+      contacts:       function(){ if(typeof renderContacts==='function')    renderContacts(); },
+      customers:      function(){ if(typeof renderCustomers==='function')   renderCustomers(); },
+      quotes:         function(){ if(typeof renderQuotes==='function')      renderQuotes(); },
+      jobs:           function(){ if(typeof renderJobs==='function')        renderJobs(); },
+      team:           function(){ if(typeof renderTeam==='function')        renderTeam(); },
+      vendors:        function(){ if(typeof renderVendors==='function')     renderVendors(); },
+      contracts:      function(){ if(typeof renderContracts==='function')   renderContracts(); },
+      recurring:      function(){ if(typeof renderRecurring==='function')   renderRecurring(); },
+      catalog:        function(){ if(typeof renderCatalog==='function')     renderCatalog(); },
+      templates:      function(){ if(typeof renderTemplates==='function')   renderTemplates(); },
+      inventory:      function(){ if(typeof renderInventory==='function')   renderInventory(); },
+      purchaseorders: function(){ if(typeof renderPOList==='function')      renderPOList(); },
+      invoices:       function(){ if(typeof renderInvoicesPage==='function')renderInvoicesPage(); },
+      reports:        function(){ if(typeof renderReports==='function')     renderReports(); },
+      expenses:       function(){ if(typeof renderExpensesPage==='function')renderExpensesPage(); }
+    };
+    var fn = R[id];
+    if (fn) fn();
+  } catch(e){ /* a redraw must never break the sync */ }
+}
+window._rerenderActivePage = _rerenderActivePage;
+
 function goPage(id) {
   // r15: "Active Jobs" is retired — the Work Order is the unit. Any navigation to the old
   // jobs page (dashboard tiles, #/jobs hash, Back/Forward, deep links, stray callers) lands

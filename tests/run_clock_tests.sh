@@ -9,5 +9,5 @@ echo "── jobs->WO integration (approval=1 WO/0 jobs, project link, repair) �
 echo "── live dashboard status (latest-event wins over stale session cache) ──"; node tests/dash_live_status.test.js
 echo "── WO field permissions (tech reads but can't change description/resolution) ──"; node tests/wo_perms.test.js
 echo "── sync last-writer-wins merge (offline edits survive; no clobber of untouched) ──"; node tests/lww_merge.test.js
-echo "── changed-only push (dirty detection; untouched records skipped; pending count) ──"; node tests/dirty_push.test.js
+echo "── post-sync redraw (new rows show without a full reload; modal-safe) ──"; node tests/rerender_after_sync.test.js
 echo "✅ all tests passed"

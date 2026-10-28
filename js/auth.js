@@ -1851,6 +1851,11 @@ async function syncAllFromCloud(silent) {
   } else {
     if (typeof renderDash === 'function') renderDash();
   }
+  // Redraw the list the user is actually looking at (contacts/quotes/customers/…), not just the
+  // dashboard — otherwise freshly-pulled rows sit in memory but the on-screen list stays stale
+  // until a full app reload. Guarded so it never fires while a modal/editor is open. (fix: new
+  // contact not appearing after sync until close+reopen.)
+  if (typeof _rerenderActivePage === 'function') _rerenderActivePage();
   hideSpinner();
   if (errors.length) {
     console.warn('[Sync] Partial errors:', errors);
