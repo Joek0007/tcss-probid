@@ -2259,16 +2259,25 @@ function woStopTimer() {
 
 // ---- EXPENSES TAB ----
 function renderWOExpensesTab(woId) {
-  var entries = (DB.woExpenses||[]).filter(function(e){ return e.woId===woId; });
+  // r24: expenses are financial, gated by "View Rates & Financials" (wo.view_financial). WITH it, the
+  // user sees ALL expenses on the WO, the grand total, and the per-diem job-cost rollup. WITHOUT it
+  // (field techs by default), they see only the expenses THEY logged — so a tech can still track and
+  // attach their own receipts — with no all-in total and no office job-cost rollup. Flip the toggle
+  // per role to let a company's techs see everything.
+  var canFin = (typeof hasPermission==='function') ? hasPermission('wo.view_financial') : true;
+  var myName = (_currentUser&&_currentUser.full_name)||'';
+  var entries = (DB.woExpenses||[]).filter(function(e){ return e.woId===woId && (canFin || (e.loggedBy||'')===myName); });
   var total   = entries.reduce(function(s,e){ return s+parseFloat(e.amount||0); },0);
   var settings= DB.woSettings||{};
   var cats    = settings.expenseCats||WO_EXPENSE_CATS;
   var payTypes= settings.expensePayTypes||WO_EXPENSE_PAY_TYPES;
 
-  var html = '<div style="margin-bottom:12px"><strong>Total Expenses: $'+total.toFixed(2)+'</strong></div>';
-  // Per-diem linked to this WO (internal job cost; fetched async, filled after render). Not billed.
-  html += '<div id="wo-perdiem-rollup"></div>';
-  if (typeof woPerDiemRollup==='function') setTimeout(function(){ woPerDiemRollup(woId, total); }, 0);
+  var html = '<div style="margin-bottom:12px"><strong>'+(canFin?'Total Expenses':'My Expenses')+': $'+total.toFixed(2)+'</strong></div>';
+  // Per-diem linked to this WO (internal job cost; fetched async). Office-only (financial access).
+  if (canFin) {
+    html += '<div id="wo-perdiem-rollup"></div>';
+    if (typeof woPerDiemRollup==='function') setTimeout(function(){ woPerDiemRollup(woId, total); }, 0);
+  }
   html += '<div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:12px">'+
     '<div style="display:grid;grid-template-columns:1fr 1fr 0.7fr 1fr 0.7fr auto;gap:8px;align-items:end">'+
       '<div><label style="font-size:11px;font-weight:700;color:#546e7a;display:block;margin-bottom:3px">Category</label>'+
@@ -2438,6 +2447,10 @@ function deleteWOExpense(id) {
 function renderWOPartsTab(woId) {
   var parts    = (DB.woParts||[]).filter(function(p){ return p.woId===woId; });
   var isOffice = _currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='lead_tech');
+  // r24: part COSTS are governed by the "View Rates & Financials" toggle (wo.view_financial), separately
+  // from isOffice (who can add/status/delete a part). A role without it (field techs by default) sees the
+  // parts LIST — names, qty, status — but no Unit $ / Total $ / cost total. Flip the toggle per role to show.
+  var canFin = (typeof hasPermission==='function') ? hasPermission('wo.view_financial') : true;
 
   // Counts by status
   var requested = parts.filter(function(p){ return p.status==='requested'; });
@@ -2485,9 +2498,9 @@ function renderWOPartsTab(woId) {
     return html + '<div style="color:#90a4ae;font-size:13px;padding:8px 0">No parts on this work order yet.</div></div>';
   }
 
-  // Parts cost total (qty × unit cost across all parts on this WO)
+  // Parts cost total (qty × unit cost across all parts on this WO) — financial, gated by wo.view_financial.
   var _partsTotal = parts.reduce(function(s,p){ return s + (Number(p.unitCost)||0)*(Number(p.qty)||0); }, 0);
-  html +=
+  if (canFin) html +=
     '<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:12px">'+
       '<span style="font-size:12px;color:#546e7a;text-transform:uppercase;font-weight:700">Parts Total</span>'+
       '<span style="font-size:16px;font-weight:800;color:#2e7d32">$'+_partsTotal.toFixed(2)+'</span>'+
@@ -2514,8 +2527,8 @@ function renderWOPartsTab(woId) {
       '<thead><tr style="background:#f8f9fa">'+
         '<th style="padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Part</th>'+
         '<th style="padding:7px 10px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Qty</th>'+
-        '<th style="padding:7px 10px;text-align:right;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Unit $</th>'+
-        '<th style="padding:7px 10px;text-align:right;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Total $</th>'+
+        (canFin ? '<th style="padding:7px 10px;text-align:right;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Unit $</th>'+
+        '<th style="padding:7px 10px;text-align:right;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Total $</th>' : '')+
         '<th style="padding:7px 10px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">'+
           (label.includes('Received') ? 'Received By / Date' : 'Requested By')+
         '</th>'+
@@ -2537,12 +2550,12 @@ function renderWOPartsTab(woId) {
           (p.notes?'<div style="font-size:11px;color:#546e7a;font-style:italic">'+escHtml(p.notes)+'</div>':'')+
         '</td>'+
         '<td style="padding:9px 10px;text-align:center;font-weight:700">'+escHtml(String(p.qty||1))+'</td>'+
-        '<td style="padding:9px 10px;text-align:right">'+
+        (canFin ? '<td style="padding:9px 10px;text-align:right">'+
           (isOffice
             ? '<input type="number" min="0" step="0.01" value="'+(p.unitCost!=null?p.unitCost:0)+'" onchange="updateWOPartCost(\''+p.id+'\',this.value)" style="width:74px;padding:4px 6px;border:1px solid #e0e7ef;border-radius:4px;font-size:12px;text-align:right">'
             : '<span style="font-size:12px;color:#546e7a">$'+(Number(p.unitCost)||0).toFixed(2)+'</span>')+
         '</td>'+
-        '<td style="padding:9px 10px;text-align:right;font-weight:700">$'+(((Number(p.unitCost)||0)*(Number(p.qty)||0))).toFixed(2)+'</td>'+
+        '<td style="padding:9px 10px;text-align:right;font-weight:700">$'+(((Number(p.unitCost)||0)*(Number(p.qty)||0))).toFixed(2)+'</td>' : '')+
         '<td style="padding:9px 10px;font-size:12px;color:#546e7a">'+escHtml(receivedInfo)+'</td>'+
         (isOffice?
           '<td style="padding:9px 10px;text-align:center">'+
@@ -3369,19 +3382,10 @@ renderWOLaborTab = function(woId) {
 var _origRenderWOExpensesTab = typeof renderWOExpensesTab !== 'undefined' ? renderWOExpensesTab : null;
 if (_origRenderWOExpensesTab) {
   renderWOExpensesTab = function(woId) {
-    var myName = _currentUser ? _currentUser.full_name : '';
-    var myRole = _currentUser ? _currentUser.role : '';
-    var isAdmin = myRole==='owner'||myRole==='office'||myRole==='back_office'||myRole==='manager';
-    var isLead  = myRole==='lead_tech';
-    if (!isAdmin && !isLead && myName) {
-      var origExp = DB.woExpenses;
-      DB.woExpenses = (DB.woExpenses||[]).filter(function(e){
-        return e.woId !== woId || e.loggedBy === myName;
-      });
-      var result = _origRenderWOExpensesTab(woId);
-      DB.woExpenses = origExp;
-      return result;
-    }
+    // r24: expense visibility is now TOGGLE-driven (wo.view_financial), handled inside the base
+    // renderWOExpensesTab — WITH it the viewer sees all expenses + the grand total + job-cost rollup;
+    // WITHOUT it they see only the expenses they logged, with no all-in total. This replaces the old
+    // role-hardcoded own-filter so a company can flip the toggle per role in Settings → Roles.
     return _origRenderWOExpensesTab(woId);
   };
 }

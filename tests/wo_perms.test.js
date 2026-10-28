@@ -30,6 +30,7 @@ const DOM = `
   await page.addScriptTag({ content: `
     window.showToast=function(){}; window.saveDB=function(){}; window.escHtml=function(s){return String(s==null?'':s);};
     window.stripHtmlToText=function(s){return String(s==null?'':s);};
+    window.getTodayISO=function(){return '2026-10-28';};
     window.DB={ workOrders:[], woParts:[], woLabor:[], woExpenses:[], settings:{}, team:[] };
     window._currentUser={ id:'u-tech', full_name:'Pretend Technician Dawn', role:'helper_tech' };
     window.__grants={};
@@ -86,6 +87,37 @@ const DOM = `
   ok('editor -> labor rate visible', office.laborVisible, '');
   ok('editor -> invoice button visible', office.invoiceVisible, '');
   ok('editor -> status control enabled', office.statusDisabled, false);
+
+  // ── r24: financial figures (part costs, expense $) gated by wo.view_financial ─────────
+  const fin = await page.evaluate(() => {
+    DB.woParts = [{ id:'p1', woId:'WO-X', name:'Camera', partNum:'CAM-1', qty:2, unitCost:50, status:'received' }];
+    DB.woExpenses = [
+      { id:'e1', woId:'WO-X', category:'Fuel',    description:'Gas',   amount:40,  paymentType:'Cash', date:'2026-10-28', loggedBy:'Pretend Technician Dawn' },
+      { id:'e2', woId:'WO-X', category:'Lodging', description:'Hotel', amount:120, paymentType:'Card', date:'2026-10-28', loggedBy:'Joe Kucinski' }
+    ];
+    DB.woSettings = { expenseCats:['Fuel','Lodging'], expensePayTypes:['Cash','Card'] };
+    window.__grants={};                              // field tech: no financial access
+    var pTech = renderWOPartsTab('WO-X'), eTech = renderWOExpensesTab('WO-X');
+    window.__grants={'wo.view_financial':true};      // office / financial access
+    var pOff = renderWOPartsTab('WO-X'),  eOff = renderWOExpensesTab('WO-X');
+    return {
+      partsTechHasCost: /Unit \$|Total \$|Parts Total|\$50\.00|\$100\.00/.test(pTech),
+      partsTechHasList: /Camera/.test(pTech),
+      partsOffHasCost:  /Parts Total|\$100\.00/.test(pOff),
+      expTechShowsOwn:  /Gas/.test(eTech),
+      expTechHidesOthers: /Hotel/.test(eTech),
+      expTechLabel:     /My Expenses/.test(eTech),
+      expTechOwnTotal:  /\$40\.00/.test(eTech),
+      expOffShowsAll:   /Hotel/.test(eOff) && /Total Expenses/.test(eOff)
+    };
+  });
+  ok('parts (tech) -> NO cost columns/figures', fin.partsTechHasCost, false);
+  ok('parts (tech) -> still shows the parts list', fin.partsTechHasList, true);
+  ok('parts (office) -> shows costs', fin.partsOffHasCost, true);
+  ok('expenses (tech) -> shows their OWN expense', fin.expTechShowsOwn, true);
+  ok("expenses (tech) -> hides others' expenses", fin.expTechHidesOthers, false);
+  ok('expenses (tech) -> "My Expenses" label + own total only', [fin.expTechLabel, fin.expTechOwnTotal], [true, true]);
+  ok('expenses (office) -> all expenses + grand total', fin.expOffShowsAll, true);
 
   await browser.close();
   console.log('\n'+(fail? '✗ '+fail+' FAILED, '+pass+' passed' : 'ALL '+pass+' PASSED'));
