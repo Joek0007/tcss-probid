@@ -228,9 +228,11 @@ const WORKTR = fs.readFileSync(__dirname + '/../js/worktracking.js', 'utf8');
   await page.context().setOffline(true);
   const pillOffline = await page.evaluate(()=>{
     try { localStorage.setItem('probid_clockQueue', JSON.stringify([{kind:'a'},{kind:'b'}])); } catch(e){}
-    _updateConnPill(); return document.getElementById('conn-pill').textContent;
+    _updateConnPill(); var el=document.getElementById('conn-pill');
+    return { text: el.textContent, bg: el.style.background, color: el.style.color };
   });
-  ok('pill -> offline shows "Offline · N to sync"', /Offline.*2 to sync/.test(pillOffline), true);
+  ok('pill -> offline shows "Offline · N to sync"', /Offline.*2 to sync/.test(pillOffline.text), true);
+  ok('pill -> offline is pinkish-red with white text', [pillOffline.bg, pillOffline.color], ['rgb(216, 27, 96)','rgb(255, 255, 255)']);
   await page.context().setOffline(false);
   await page.waitForTimeout(150); // let the 'online' handler drain the (unknown) queued ops
   const pillOnline = await page.evaluate(()=>{ _updateConnPill(); return document.getElementById('conn-pill').textContent; });
@@ -243,6 +245,33 @@ const WORKTR = fs.readFileSync(__dirname + '/../js/worktracking.js', 'utf8');
     return t;
   });
   ok('pill -> online with queued punches shows "Syncing… N"', /Syncing.*3/.test(pillSync), true);
+
+  // ── Cross-device live resync (r20): a stale device follows the cloud; a queued punch blocks it ──
+  const resync = await page.evaluate(async () => {
+    const now = Date.now();
+    window._sb = window.makeFakeSupabase({
+      clock_sessions:[{id:'s1', user_id:'u-joe', status:'on_break', clock_in_at:new Date(now-3600000).toISOString(), clock_out_at:null, job_id:'A', job_name:'Job A'}],
+      time_events:[
+        {id:'e1',user_id:'u-joe',event_type:'travel_start',timestamp:new Date(now-3000000).toISOString(),job_id:'A',job_name:'Job A',session_id:'s1'},
+        {id:'e2',user_id:'u-joe',event_type:'clock_in',   timestamp:new Date(now-2400000).toISOString(),job_id:'A',job_name:'Job A',session_id:'s1'},
+        {id:'e3',user_id:'u-joe',event_type:'break_start', timestamp:new Date(now-300000).toISOString(), session_id:'s1'}
+      ]
+    });
+    try { localStorage.setItem('probid_clockQueue','[]'); } catch(e){}
+    // This device is STALE: still showing onsite while the cloud timeline has moved to break.
+    window._clockState = Object.assign(window._clockState, {status:'onsite', sessionId:'s1', jobId:'A', jobName:'Job A'});
+    await restoreClockSession({resync:true});
+    const afterResync = window._clockState.status;
+    // Guard: a punch queued on THIS device must block resync from clobbering local state.
+    window._clockState.status='onsite';
+    try { localStorage.setItem('probid_clockQueue', JSON.stringify([{kind:'x'}])); } catch(e){}
+    await restoreClockSession({resync:true});
+    const withPending = window._clockState.status;
+    try { localStorage.setItem('probid_clockQueue','[]'); } catch(e){}
+    return { afterResync, withPending };
+  });
+  ok('resync -> stale device follows cloud (onsite → break)', resync.afterResync, 'break');
+  ok('resync -> blocked while a local punch is still queued (no clobber)', resync.withPending, 'onsite');
 
   await browser.close();
   console.log('\n'+(fail? '✗ '+fail+' FAILED, '+pass+' passed' : 'ALL '+pass+' PASSED'));

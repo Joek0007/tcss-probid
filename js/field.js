@@ -157,8 +157,8 @@ function _updateConnPill(){
   var pending = (typeof _clockPending==='function') ? _clockPending() : 0;
   if (!online){
     el.textContent = '● Offline' + (pending>0 ? ' · '+pending+' to sync' : '');
-    el.style.background = pending>0 ? '#fff3e0' : '#eceff1';
-    el.style.color      = pending>0 ? '#e65100' : '#607d8b';
+    el.style.background = '#d81b60';   // pinkish-red so offline is unmistakable
+    el.style.color      = '#ffffff';   // high-contrast lettering
   } else if (pending>0){
     el.textContent = '● Syncing… '+pending;
     el.style.background = '#fff8e1'; el.style.color = '#f57f17';
@@ -175,14 +175,26 @@ function _updateConnPill(){
   el._wasPending = pending>0;
 }
 
+// r20: keep the Time Clock page honest across devices — re-pull and reconcile the clock from the
+// cloud when this tab regains focus / reconnects, so a second device (or the office watching their
+// own clock) reflects the latest status without a hard refresh. Guarded inside restoreClockSession.
+function _refreshClockView(){
+  try {
+    var fp = (typeof document!=='undefined') && document.getElementById('page-field');
+    var visible = fp && (fp.classList.contains('active') || fp.offsetParent!==null);
+    if (visible && typeof restoreClockSession==='function') restoreClockSession({resync:true});
+  } catch(e){}
+}
+
 if (typeof window !== 'undefined'){
-  // Coming back online: update the pill, drain the clock queue, and refresh the office live views now.
-  window.addEventListener('online',  function(){ _updateConnPill(); _clockFlush(); if(typeof _refreshLiveViews==='function') _refreshLiveViews(); });
+  // Coming back online: update the pill, drain the clock queue, refresh the office live views + this clock.
+  window.addEventListener('online',  function(){ _updateConnPill(); _clockFlush(); if(typeof _refreshLiveViews==='function') _refreshLiveViews(); _refreshClockView(); });
   window.addEventListener('offline', function(){ _updateConnPill(); });
-  // Clicking back to the tab refreshes the live dashboard immediately instead of waiting for the poll.
-  window.addEventListener('focus',   function(){ if(typeof _refreshLiveViews==='function') _refreshLiveViews(); });
-  if (typeof document!=='undefined') document.addEventListener('visibilitychange', function(){ if(!document.hidden && typeof _refreshLiveViews==='function') _refreshLiveViews(); });
+  // Clicking back to the tab refreshes the live dashboard AND this device's clock immediately.
+  window.addEventListener('focus',   function(){ if(typeof _refreshLiveViews==='function') _refreshLiveViews(); _refreshClockView(); });
+  if (typeof document!=='undefined') document.addEventListener('visibilitychange', function(){ if(!document.hidden){ if(typeof _refreshLiveViews==='function') _refreshLiveViews(); _refreshClockView(); } });
   setInterval(function(){ try { _updateConnPill(); } catch(e){} }, 3000); // keep the "N to sync" count honest as the queue drains
+  setInterval(function(){ try { _refreshClockView(); } catch(e){} }, 20000); // light cross-device clock resync while the page is open
   setTimeout(function(){ try { _updateConnPill(); _clockFlush(); } catch(e){} }, 3500);
 }
 

@@ -434,6 +434,9 @@ body:has(#modal-work-order.open){overflow:hidden}
 .mf-approval{background:#e65100;color:#fff;padding:8px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;margin-top:8px;display:none}
 .mf-approval.visible{display:block}
 .version-badge{background:#e8f5e9;color:#2e7d32;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+/* Connection pill — its OWN class (not version-badge) so it stays visible on mobile and in nav-rail. */
+.conn-pill{display:inline-flex;align-items:center;background:#e8f5e9;color:#2e7d32;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;letter-spacing:.3px;white-space:nowrap}
+body.is-mobile #topbar .conn-pill{display:inline-flex!important}
 /* "Update available" bar — shown by the auto-update checker when the server has a newer build.
    Sits above the mobile bottom nav and clears the iPhone bottom safe-area; centered on desktop. */
 #app-update-bar{position:fixed;left:12px;right:12px;bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:99999;background:#1565c0;color:#fff;padding:13px 16px;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;animation:appUpdIn .25s ease}
@@ -1631,7 +1634,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <button id="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
   <div class="page-title" id="topbar-title">Dashboard</div>
   <div class="topbar-right">
-    <span class="version-badge" id="conn-pill" title="Connection status" style="background:#e8f5e9;color:#2e7d32">● Online</span>
+    <span class="conn-pill" id="conn-pill" title="Connection status">● Online</span>
     <span class="version-badge" id="app-build-badge">V9 — Cloud</span>
     <span class="badge-company" id="company-badge">TCSS</span>
     <span id="user-name-badge" style="font-size:12px;color:#546e7a;font-weight:600"></span>
@@ -7281,12 +7284,12 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/checkouts_db.js?v=20260919ix"></script>
 <script src="js/collections_db.js?v=20260919ix"></script>
 <script src="js/tools.js?v=20261025today"></script>
-<script src="js/field.js?v=20261027r19connpill"></script>
+<script src="js/field.js?v=20261028r20resync"></script>
 <script src="js/crm.js?v=20261027r13woonly"></script>
 <script src="js/vehicles.js?v=20261022docroll"></script>
 <script src="js/dispatch.js?v=20261024leadfix"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
-<script src="js/worktracking.js?v=20261027r18restore"></script>
+<script src="js/worktracking.js?v=20261028r20resync"></script>
 <script src="js/calendar.js?v=20261022docroll"></script>
 <script src="js/workorders.js?v=20261027r14activefilter"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
@@ -8768,7 +8771,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r19';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r20';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-10-27';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

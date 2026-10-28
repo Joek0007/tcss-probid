@@ -6749,11 +6749,21 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = { _recon
 // tech who closed/reopened mid-day lost their clock status (data was safe in the cloud, just not
 // read back). Authoritative source for "is there an active shift + its status/job" is the open
 // clock_session (clock_out_at IS NULL); the running TOTALS are rebuilt from today's time_events.
-async function restoreClockSession(){
+async function restoreClockSession(opts){
+  opts = opts || {};
   try {
     if (typeof _sb==='undefined' || !_sb || typeof _currentUser==='undefined' || !_currentUser) return;
     if (typeof _clockState==='undefined') return;
-    if (_clockState.status !== 'out') return; // already live on this device — never clobber
+    // Initial restore runs only when this device is idle (never clobber a live local clock).
+    // r20 resync: allowed to refresh a live-but-stale view (a second device, or the office watching
+    // their own clock), but ONLY when online AND this device has nothing waiting in its offline queue,
+    // so it can never overwrite a punch this device made that hasn't synced yet.
+    if (!opts.resync){
+      if (_clockState.status !== 'out') return;
+    } else {
+      if (typeof navigator!=='undefined' && navigator.onLine===false) return;
+      if (typeof _clockPending==='function' && _clockPending()>0) return;
+    }
     var uid = _currentUser.id;
     // 1) Authoritative: is there an OPEN clock session?
     var sess=null;
@@ -6782,7 +6792,17 @@ async function restoreClockSession(){
     // A completed day (day_end in today's events) must not be resurrected by a stale open session that
     // was never closed — that's what left a second device showing "traveling" after arriving back.
     else if (sess && SMAP[sess.status] && !st.dayEnded) status=SMAP[sess.status];
-    if (!status) return;                                       // nothing to resume
+    if (!status){
+      // r20: on a resync, if the cloud shows the day is over / no open session but THIS device still
+      // displays an active clock, bring it to 'out' so a stale second device doesn't linger.
+      if (opts.resync && _clockState.status!=='out'){
+        try { clearInterval(_clockState.timerInterval); } catch(e){}
+        _clockState.status='out'; _clockState.sessionId=null; _clockState.jobId=null; _clockState.jobName=null;
+        if (typeof onClockStateChange==='function') onClockStateChange('out');
+        if (typeof updateClockUI==='function') updateClockUI();
+      }
+      return;                                                  // nothing to resume
+    }
     // 4) Apply: event-reconstructed status/job/numbers; sessionId from the open session row
     _clockState.status = status;
     _clockState.dayStart       = st.dayStart?new Date(st.dayStart):(sess&&sess.clock_in_at?new Date(sess.clock_in_at):null);
@@ -6816,7 +6836,7 @@ async function restoreClockSession(){
     if (typeof onClockStateChange==='function') onClockStateChange(_clockState.status);
     if (typeof updateClockUI==='function') updateClockUI();
     if (typeof startClockTimer==='function') startClockTimer();
-    try { showToast('Welcome back — picking up your day where you left off','info',4000); } catch(e){}
+    if (!opts.resync){ try { showToast('Welcome back — picking up your day where you left off','info',4000); } catch(e){} }
     console.log('[Clock restore] resumed', _clockState.status, 'job:', _clockState.jobName);
   } catch(e){ console.warn('[Clock restore] failed', e&&e.message); }
 }
