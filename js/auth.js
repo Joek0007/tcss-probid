@@ -1329,25 +1329,12 @@ async function syncAllFromCloud(silent) {
       }
     } catch(e) { errors.push('contacts: '+e.message); }
 
-    // 8. Jobs — DELTA sync (see _mergeJobsDelta above). Pull only rows changed since the last
-    // sync and merge; full pull only on a genuine first load (no watermark OR empty jobs cache).
-    try {
-      var _jobWM = null; try { _jobWM = localStorage.getItem('probid_jobsSyncedAt') || null; } catch(e){}
-      // Delta only when we have BOTH a watermark AND an existing cache to merge into — else a
-      // cleared cache with a stale watermark would leave DB.jobs nearly empty.
-      var _jobDelta = !!_jobWM && !!(DB.jobs && DB.jobs.length);
-      var { data: jobRows, error: je } = await _sbSelectAll(_jobDelta
-        ? function(){ return _sb.from('jobs').select('*').gt('updated_at', _jobWM).order('updated_at', {ascending:true}); }
-        : function(){ return _sb.from('jobs').select('*').eq('is_active', true).order('created_at', {ascending:false}); });
-      if (je) { errors.push('jobs: '+je.message); }           // error → keep existing DB.jobs (no wipe)
-      else if (jobRows) {
-        if (!_jobDelta)            DB.jobs = jobRows.map(_mapJobRow);            // first load: full active set
-        else if (jobRows.length)   DB.jobs = _mergeJobsDelta(DB.jobs, jobRows);  // subsequent: merge changes
-        // (delta with 0 changed rows → leave DB.jobs untouched)
-        var _wm = _jobsNextWatermark(jobRows, _jobWM);
-        try { if (_wm) localStorage.setItem('probid_jobsSyncedAt', _wm); } catch(e){}
-      }
-    } catch(e) { errors.push('jobs: '+e.message); }
+    // 8. Jobs — RETIRED (r22). The jobs table was purged and is DB-insert-locked; the Work Order is
+    // the unit now (see jobs-wo-integration-r13). Pulling it every sync was pure waste — it was part
+    // of the old multi-second sync stall — so we no longer query it at all. DB.jobs stays an empty
+    // array so any legacy `DB.jobs||[]` reader remains safe. (The _mapJobRow / _mergeJobsDelta /
+    // _jobsNextWatermark helpers above are now unused but kept harmless.)
+    if (!DB.jobs) DB.jobs = [];
 
     // 9. Team — pull from team table (Supabase is authoritative — no local merge)
     try {
