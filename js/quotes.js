@@ -1394,11 +1394,14 @@ table{font-size:12.5px}
     var ps = q.proposalSections || {};
     if (ps.showExecSummary === false) return '';
     var text = (q.execSummary && q.execSummary.trim()) ? q.execSummary : getExecSummary();
+    // r30: a custom Executive override may now be rich HTML; the auto summary is still plain text.
+    var _isHtml = /<[a-z!\/][^>]*>/i.test(text);
+    var inner = _isHtml
+      ? cleanScopeHtml(text)
+      : text.split(/\n+/).filter(Boolean).map(function(p){ return '<p>' + p + '</p>'; }).join('');
     return '<div class="prop-section">' +
       '<div class="prop-section-title">Executive Summary</div>' +
-      '<div class="exec-box" id="prop-exec-box">' +
-      text.split(/\n+/).filter(Boolean).map(function(p){ return '<p>' + p + '</p>'; }).join('') +
-      '</div></div>';
+      '<div class="exec-box" id="prop-exec-box">' + inner + '</div></div>';
   })() +
 
   // SCOPE — preserve the pasted (Word/Docs) formatting so the proposal looks like the source doc.
@@ -1450,11 +1453,12 @@ table{font-size:12.5px}
     if (ps.showAssumptions === false) return '';
     var pd = DB.settings.proposalDefaults || {};
     if (pd.showAssumptions === false) return '';
-    var items = pd.assumptions && pd.assumptions.length ? pd.assumptions : DEFAULT_ASSUMPTIONS;
+    // r30: assumptions are free-form rich HTML (legacy arrays convert to a bullet list via clauseToHtml).
+    var aHtml = (typeof clauseToHtml==='function') ? clauseToHtml(pd.assumptions, DEFAULT_ASSUMPTIONS)
+                 : ((pd.assumptions && pd.assumptions.length ? pd.assumptions : DEFAULT_ASSUMPTIONS).map(function(a){return '<li>'+escHtml(a)+'</li>';}).join(''));
+    if (!aHtml) return '';
     return '<div class="prop-section"><div class="prop-section-title">Assumptions</div>' +
-      '<ul class="assumption-list">' +
-      items.map(function(a){ return '<li>' + escHtml(a) + '</li>'; }).join('') +
-      '</ul></div>';
+      '<div class="scope-box assumption-list">' + cleanScopeHtml(aHtml) + '</div></div>';
   })() +
 
   // EXCLUSIONS — respects settings toggle AND per-quote toggle
@@ -1463,11 +1467,12 @@ table{font-size:12.5px}
     if (ps.showExclusions === false) return '';
     var pd = DB.settings.proposalDefaults || {};
     if (pd.showExclusions === false) return '';
-    var items = pd.exclusions && pd.exclusions.length ? pd.exclusions : DEFAULT_EXCLUSIONS;
+    // r30: exclusions are free-form rich HTML (legacy arrays convert to a bullet list via clauseToHtml).
+    var eHtml = (typeof clauseToHtml==='function') ? clauseToHtml(pd.exclusions, DEFAULT_EXCLUSIONS)
+                 : ((pd.exclusions && pd.exclusions.length ? pd.exclusions : DEFAULT_EXCLUSIONS).map(function(e){return '<li>'+escHtml(e)+'</li>';}).join(''));
+    if (!eHtml) return '';
     return '<div class="prop-section"><div class="prop-section-title">Exclusions</div>' +
-      '<ul class="assumption-list">' +
-      items.map(function(e){ return '<li>' + escHtml(e) + '</li>'; }).join('') +
-      '</ul></div>';
+      '<div class="scope-box assumption-list">' + cleanScopeHtml(eHtml) + '</div></div>';
   })() +
 
   // TERMS — respects per-quote toggle
@@ -2464,7 +2469,7 @@ function openSectionEditor(kind) {
     // summary that shows in print preview — so "Edit" never opens blank.
     var _customExec = ((document.getElementById('qq-exec-summary')||{}).value || '').trim();
     ta.value = _customExec ? _customExec : _autoExecSummaryFor(getQData());
-    ta.placeholder = 'Leave blank to auto-generate a summary from the equipment on this quote…';
+    ta.setAttribute('data-placeholder','Leave blank to auto-generate a summary from the equipment on this quote…');
   } else if (kind === 'terms') {
     // Terms is now a full rich editor inline — jump to it instead of the plain popup.
     var _tc = document.getElementById('qq-tc');
@@ -2474,17 +2479,17 @@ function openSectionEditor(kind) {
   } else if (kind === 'assumptions') {
     titleEl.textContent = '✅ Assumptions';
     scopeEl.textContent = 'Default — used on ALL proposals';
-    hintEl.textContent  = 'One assumption per line. This is your standard list applied to every proposal.';
+    hintEl.textContent  = 'Your standard assumptions, applied to every proposal. Format with the toolbar; use the • List button for bullets.';
     var pdA = (typeof getProposalDefaults==='function') ? getProposalDefaults() : (DB.settings.proposalDefaults||{});
-    ta.value = (pdA.assumptions || (typeof DEFAULT_ASSUMPTIONS!=='undefined'?DEFAULT_ASSUMPTIONS:[])).join('\n');
-    ta.placeholder = 'One assumption per line…';
+    ta.value = (typeof clauseToHtml==='function') ? clauseToHtml(pdA.assumptions, (typeof DEFAULT_ASSUMPTIONS!=='undefined'?DEFAULT_ASSUMPTIONS:[])) : (pdA.assumptions||'');
+    ta.setAttribute('data-placeholder','Standard assumptions — use the • List button for bullets…');
   } else if (kind === 'exclusions') {
     titleEl.textContent = '🚫 Exclusions';
     scopeEl.textContent = 'Default — used on ALL proposals';
-    hintEl.textContent  = 'One exclusion per line. This is your standard list applied to every proposal.';
+    hintEl.textContent  = 'Your standard exclusions, applied to every proposal. Format with the toolbar; use the • List button for bullets.';
     var pdE = (typeof getProposalDefaults==='function') ? getProposalDefaults() : (DB.settings.proposalDefaults||{});
-    ta.value = (pdE.exclusions || (typeof DEFAULT_EXCLUSIONS!=='undefined'?DEFAULT_EXCLUSIONS:[])).join('\n');
-    ta.placeholder = 'One exclusion per line…';
+    ta.value = (typeof clauseToHtml==='function') ? clauseToHtml(pdE.exclusions, (typeof DEFAULT_EXCLUSIONS!=='undefined'?DEFAULT_EXCLUSIONS:[])) : (pdE.exclusions||'');
+    ta.setAttribute('data-placeholder','Standard exclusions — use the • List button for bullets…');
   } else { return; }
   openModal('modal-section-editor');
   setTimeout(function(){ try{ ta.focus(); }catch(e){} }, 60);
@@ -2496,26 +2501,29 @@ function saveSectionEditor() {
   if (!ta) { closeModal('modal-section-editor'); return; }
   var val = ta.value;
   if (kind === 'exec') {
-    // Keep "blank = auto": if the text matches the auto-generated summary (unchanged),
-    // store nothing so it keeps regenerating; only save a real override when it differs.
+    // Keep "blank = auto": compare the editor's TEXT (tags stripped) to the auto summary; if it's
+    // unchanged (or empty) store nothing so it keeps regenerating, else store the rich HTML override.
     var _auto = _autoExecSummaryFor(getQData());
-    var _v = val.trim();
+    var _plain = function(s){ return String(s||'').replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim(); };
+    var _vt = _plain(val);
     var h = document.getElementById('qq-exec-summary');
-    if (h) h.value = (_v && _v !== _auto.trim()) ? _v : '';
+    if (h) h.value = (_vt && _vt !== _plain(_auto)) ? val : '';
     if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
   } else if (kind === 'terms') {
     var t = document.getElementById('qq-tc'); if (t) t.value = val;
     if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
   } else if (kind === 'assumptions' || kind === 'exclusions') {
-    var list = val.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+    // r30: store free-form rich HTML (was a one-per-line array). Normalize the OTHER (unedited)
+    // list through clauseToHtml so a legacy array there is migrated too, never left mixed-type.
     var cur = (typeof getProposalDefaults==='function') ? getProposalDefaults() : (DB.settings.proposalDefaults||{});
+    var _toHtml = (typeof clauseToHtml==='function') ? clauseToHtml : function(v){ return (typeof v==='string')?v:''; };
     var pd = {
       showAssumptions: cur.showAssumptions !== false,
       showExclusions:  cur.showExclusions  !== false,
-      assumptions: (cur.assumptions || (typeof DEFAULT_ASSUMPTIONS!=='undefined'?DEFAULT_ASSUMPTIONS:[])).slice(),
-      exclusions:  (cur.exclusions  || (typeof DEFAULT_EXCLUSIONS!=='undefined'?DEFAULT_EXCLUSIONS:[])).slice()
+      assumptions: _toHtml(cur.assumptions, (typeof DEFAULT_ASSUMPTIONS!=='undefined'?DEFAULT_ASSUMPTIONS:[])),
+      exclusions:  _toHtml(cur.exclusions,  (typeof DEFAULT_EXCLUSIONS!=='undefined'?DEFAULT_EXCLUSIONS:[]))
     };
-    if (kind === 'assumptions') pd.assumptions = list; else pd.exclusions = list;
+    if (kind === 'assumptions') pd.assumptions = val; else pd.exclusions = val;
     DB.settings.proposalDefaults = pd;
     if (typeof saveDB === 'function') saveDB();
   }

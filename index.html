@@ -5225,7 +5225,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
       <div class="card ms-full">
     <div class="card-title">📄 Proposal Defaults — Assumptions &amp; Exclusions</div>
-    <p style="font-size:12px;color:#546e7a;margin-bottom:14px">These appear on every client proposal. Edit, reorder, add, or remove lines. Use the toggles to include or exclude each section.</p>
+    <p style="font-size:12px;color:#546e7a;margin-bottom:14px">These appear on every client proposal. Format them with the toolbar (bold, bullets, sizes) — click into a box to edit. Use the toggles to include or exclude each section.</p>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
       <!-- Assumptions -->
@@ -5240,8 +5240,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
             <span class="toggle-value-label on" id="toggle-assumptions-label">YES</span>
           </div>
         </div>
-        <ul class="clause-list" id="assumptions-list"></ul>
-        <button class="clause-add-btn" onclick="addClause('assumptions')">+ Add Assumption</button>
+        <textarea id="assumptions-rich" rows="8" placeholder="Standard assumptions for every proposal — use the • List button for bullets…"></textarea>
       </div>
 
       <!-- Exclusions -->
@@ -5256,8 +5255,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
             <span class="toggle-value-label on" id="toggle-exclusions-label">YES</span>
           </div>
         </div>
-        <ul class="clause-list" id="exclusions-list"></ul>
-        <button class="clause-add-btn" onclick="addClause('exclusions')">+ Add Exclusion</button>
+        <textarea id="exclusions-rich" rows="8" placeholder="Standard exclusions for every proposal — use the • List button for bullets…"></textarea>
       </div>
     </div>
 
@@ -7278,7 +7276,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
 <script src="js/core.js?v=20261028r28redraw"></script>
-<script src="js/quotes.js?v=20261028r26lww"></script>
+<script src="js/quotes.js?v=20261029r30proprich"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
 <script src="js/checkouts_db.js?v=20260919ix"></script>
@@ -7289,7 +7287,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/vehicles.js?v=20261022docroll"></script>
 <script src="js/dispatch.js?v=20261024leadfix"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
-<script src="js/worktracking.js?v=20261028r21dedupe"></script>
+<script src="js/worktracking.js?v=20261029r30proprich"></script>
 <script src="js/calendar.js?v=20261022docroll"></script>
 <script src="js/workorders.js?v=20261028r24wofinancial"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
@@ -8468,6 +8466,11 @@ function _rtfBootWO(){
   // Batch 5: Terms & Conditions (customer-facing — proposal render is HTML-aware)
   woRtfUpgrade('qq-tc', {placeholder:'Terms for this quote — leave blank to use your default T&C...', minHeight:'70px'});
   woRtfUpgrade('s-tc',  {placeholder:'Your standard terms & conditions...', minHeight:'100px'});
+  // r30: proposal sections — Assumptions/Exclusions (Settings) + the section-editor popup (Executive/
+  // Assumptions/Exclusions) get the same rich toolbar as Scope of Work & Terms.
+  woRtfUpgrade('assumptions-rich', {placeholder:'Standard assumptions — use the • List button for bullets…', minHeight:'150px'});
+  woRtfUpgrade('exclusions-rich',  {placeholder:'Standard exclusions — use the • List button for bullets…',  minHeight:'150px'});
+  woRtfUpgrade('sec-ed-text',      {placeholder:'Type here — format with the toolbar…', minHeight:'240px'});
   // Batch 6: remaining ops fields
   woRtfUpgrade('cl-notes',       {placeholder:'Notes...', minHeight:'55px'});
   woRtfUpgrade('sj-notes',       {placeholder:'Dispatch notes...', minHeight:'55px'});
@@ -8771,7 +8774,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r29';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r30';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-10-28';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

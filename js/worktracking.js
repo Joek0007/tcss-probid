@@ -6897,6 +6897,18 @@ function getJtAddendums() {
   return DB.settings.jtAddendums || {};
 }
 
+// r30: Assumptions/Exclusions are now free-form rich HTML (was a one-per-line string[]). This
+// normalizes whatever is stored — a new HTML string, a legacy array, or empty — into HTML for the
+// editors and the proposal render, so existing data keeps working and legacy lists show as bullets
+// until the user edits them.
+function clauseToHtml(val, defaultsArr){
+  if (typeof val === 'string') return val;                       // already HTML (new model)
+  var arr = (Array.isArray(val) && val.length) ? val : (defaultsArr || []);
+  if (!arr.length) return '';
+  return '<ul>' + arr.map(function(s){ return '<li>' + (typeof escHtml==='function'?escHtml(String(s)):String(s)) + '</li>'; }).join('') + '</ul>';
+}
+window.clauseToHtml = clauseToHtml;
+
 function loadProposalDefaultsUI() {
   var pd = getProposalDefaults();
 
@@ -6908,9 +6920,12 @@ function loadProposalDefaultsUI() {
   updateClauseLabel('assumptions', pd.showAssumptions !== false);
   updateClauseLabel('exclusions',  pd.showExclusions  !== false);
 
-  // Lists
-  renderClauseList('assumptions', pd.assumptions || DEFAULT_ASSUMPTIONS.slice());
-  renderClauseList('exclusions',  pd.exclusions  || DEFAULT_EXCLUSIONS.slice());
+  // r30: free-form rich editors (replaced the per-line clause lists). clauseToHtml converts any
+  // legacy array into a starter bullet list so nothing is lost on first load.
+  var aEl = document.getElementById('assumptions-rich');
+  var eEl = document.getElementById('exclusions-rich');
+  if (aEl) aEl.value = clauseToHtml(pd.assumptions, DEFAULT_ASSUMPTIONS);
+  if (eEl) eEl.value = clauseToHtml(pd.exclusions,  DEFAULT_EXCLUSIONS);
 }
 
 function renderClauseList(type, items) {
@@ -6978,11 +6993,16 @@ function readClauseListFromDOM(type) {
 function saveProposalDefaults() {
   var ta = document.getElementById('toggle-assumptions');
   var te = document.getElementById('toggle-exclusions');
+  var aEl = document.getElementById('assumptions-rich');
+  var eEl = document.getElementById('exclusions-rich');
+  var cur = getProposalDefaults();
   var pd = {
     showAssumptions: ta ? ta.checked : true,
     showExclusions:  te ? te.checked : true,
-    assumptions:     readClauseListFromDOM('assumptions'),
-    exclusions:      readClauseListFromDOM('exclusions')
+    // r30: store the rich HTML. Fall back to the normalized current value if an editor is missing,
+    // so we never blank a list we simply failed to read.
+    assumptions:     aEl ? aEl.value : clauseToHtml(cur.assumptions, DEFAULT_ASSUMPTIONS),
+    exclusions:      eEl ? eEl.value : clauseToHtml(cur.exclusions,  DEFAULT_EXCLUSIONS)
   };
   DB.settings.proposalDefaults = pd;
   saveDB();
