@@ -158,6 +158,53 @@ var BACKUP_LASTGOOD_KEY = 'tcss_backup_lastgood';
 var BACKUP_DAILY_KEY    = 'tcss_backup_daily';
 var BACKUP_DL_TS_KEY    = 'tcss_backup_last_download';
 
+// r31: the two full-DB backup snapshots used to live in localStorage (~1.6MB each). Together with the
+// live cache (tcssv8, ~1.6MB) they pushed localStorage to its ~5MB browser cap, leaving almost no
+// headroom — so a save that GREW the data silently failed to persist (QuotaExceededError), and a
+// later reload loaded the STALE cache, after which the background full-push re-sent the stale rows
+// over good cloud edits. (That's the "job name reverts a bit later on its own, on my newest quotes"
+// bug.) Backups now live in IndexedDB, which has far more room, and the old localStorage copies are
+// removed on load to immediately free ~3.2MB for the live cache.
+var _IDB_NAME = 'tcss_probid_v1', _IDB_STORE = 'kv', _idbPromise = null;
+function _idbOpen(){
+  if (_idbPromise) return _idbPromise;
+  _idbPromise = new Promise(function(resolve, reject){
+    try {
+      if (typeof indexedDB === 'undefined') { reject(new Error('no indexedDB')); return; }
+      var req = indexedDB.open(_IDB_NAME, 1);
+      req.onupgradeneeded = function(){ try { req.result.createObjectStore(_IDB_STORE); } catch(e){} };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror   = function(){ reject(req.error || new Error('idb open failed')); };
+    } catch(e){ reject(e); }
+  });
+  return _idbPromise;
+}
+function idbSet(key, val){
+  return _idbOpen().then(function(db){ return new Promise(function(resolve, reject){
+    var tx = db.transaction(_IDB_STORE, 'readwrite');
+    tx.objectStore(_IDB_STORE).put(val, key);
+    tx.oncomplete = function(){ resolve(true); };
+    tx.onerror    = function(){ reject(tx.error); };
+  }); });
+}
+function idbGet(key){
+  return _idbOpen().then(function(db){ return new Promise(function(resolve, reject){
+    var tx = db.transaction(_IDB_STORE, 'readonly');
+    var r  = tx.objectStore(_IDB_STORE).get(key);
+    r.onsuccess = function(){ resolve(r.result == null ? null : r.result); };
+    r.onerror   = function(){ reject(r.error); };
+  }); });
+}
+// One-time migration: drop the old localStorage backup copies (frees ~3.2MB). The app's own code is
+// allowed to clear its own cache; the authoritative data is in Supabase and backups now go to IDB.
+(function _migrateBackupsOffLocalStorage(){
+  try {
+    ['tcss_backup_lastgood','tcss_backup_daily'].forEach(function(k){
+      try { if (localStorage.getItem(k) != null) localStorage.removeItem(k); } catch(e){}
+    });
+  } catch(e){}
+})();
+
 function _backupPayload() {
   return {
     _backupMeta: {
@@ -285,48 +332,51 @@ function restoreFromBackupFile(input) {
 function _saveRestorePoint(tag) {
   try {
     _dbPackAsync({ tag: tag||'snapshot', at: new Date().toISOString(), db: DB }).then(function(packed){
-      try { localStorage.setItem(BACKUP_LASTGOOD_KEY, packed); } catch(e){ console.warn('[Backup] restore-point skipped:', e && e.name); }
+      idbSet(BACKUP_LASTGOOD_KEY, packed).catch(function(e){ console.warn('[Backup] restore-point skipped:', e && e.name); });
     });
   } catch(e) { console.warn('[Backup] restore-point skipped:', e && e.name); }
 }
 
-// Once-a-day rolling local snapshot (runs on login). Quota-guarded. Off-main-thread pack.
+// Once-a-day rolling snapshot (runs on login), now in IndexedDB. Off-main-thread pack.
 function _saveDailySnapshot() {
   try {
-    var raw = localStorage.getItem(BACKUP_DAILY_KEY);
-    if (raw) { var last = _dbUnpack(raw); if (last && last.at && (new Date() - new Date(last.at)) < 20*60*60*1000) return; }
-    _dbPackAsync({ at: new Date().toISOString(), db: DB }).then(function(packed){
-      try { localStorage.setItem(BACKUP_DAILY_KEY, packed); } catch(e){ console.warn('[Backup] daily snapshot skipped:', e && e.name); }
-    });
+    idbGet(BACKUP_DAILY_KEY).then(function(raw){
+      if (raw) { try { var last = _dbUnpack(raw); if (last && last.at && (new Date() - new Date(last.at)) < 20*60*60*1000) return; } catch(e){} }
+      _dbPackAsync({ at: new Date().toISOString(), db: DB }).then(function(packed){
+        idbSet(BACKUP_DAILY_KEY, packed).catch(function(e){ console.warn('[Backup] daily snapshot skipped:', e && e.name); });
+      });
+    }).catch(function(){ /* idb unavailable — skip the daily snapshot, cloud is authoritative */ });
   } catch(e) { console.warn('[Backup] daily snapshot skipped:', e && e.name); }
 }
 
 // Emergency: restore from the most recent local snapshot (additive merge).
 function restoreLastKnownGood() {
-  try {
-    var raw = localStorage.getItem(BACKUP_LASTGOOD_KEY) || localStorage.getItem(BACKUP_DAILY_KEY);
-    if (!raw) { if (typeof showToast==='function') showToast('No local snapshot found.', 'error'); return; }
-    var snap = _dbUnpack(raw); var bdb = snap.db || snap;
-    var addN = _restorableCount(bdb);
-    if (!confirm('Restore local snapshot from ' + (snap.at ? new Date(snap.at).toLocaleString() : 'unknown') + '?\n\nAdds ' + addN + ' missing record(s). Never deletes anything.')) return;
-    var added = _mergeBackupDB(bdb); saveDB();
-    if (typeof showToast==='function') showToast('Local snapshot restored — added ' + added + ' record(s).', 'success');
-    if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 600);
-    setTimeout(function(){ try { if (typeof renderDash==='function') renderDash(); } catch(e){} }, 600);
-  } catch(e) { if (typeof showToast==='function') showToast('Snapshot restore failed: ' + (e && e.message || e), 'error'); }
+  // r31: snapshots live in IndexedDB now (read is async).
+  Promise.all([idbGet(BACKUP_LASTGOOD_KEY), idbGet(BACKUP_DAILY_KEY)]).then(function(res){
+    try {
+      var raw = res[0] || res[1];
+      if (!raw) { if (typeof showToast==='function') showToast('No local snapshot found.', 'error'); return; }
+      var snap = _dbUnpack(raw); var bdb = snap.db || snap;
+      var addN = _restorableCount(bdb);
+      if (!confirm('Restore local snapshot from ' + (snap.at ? new Date(snap.at).toLocaleString() : 'unknown') + '?\n\nAdds ' + addN + ' missing record(s). Never deletes anything.')) return;
+      var added = _mergeBackupDB(bdb); saveDB();
+      if (typeof showToast==='function') showToast('Local snapshot restored — added ' + added + ' record(s).', 'success');
+      if (typeof pushAllToCloud === 'function') setTimeout(pushAllToCloud, 600);
+      setTimeout(function(){ try { if (typeof renderDash==='function') renderDash(); } catch(e){} }, 600);
+    } catch(e) { if (typeof showToast==='function') showToast('Snapshot restore failed: ' + (e && e.message || e), 'error'); }
+  }).catch(function(e){ if (typeof showToast==='function') showToast('Snapshot restore failed: ' + (e && e.message || e), 'error'); });
 }
 
 // Fill the Settings backup panel with last-backup timestamps.
 function updateBackupInfo() {
   var el = document.getElementById('backup-last-info'); if (!el) return;
   var parts = [];
-  try {
-    var d = localStorage.getItem(BACKUP_DL_TS_KEY);
-    if (d) parts.push('Last download: ' + new Date(d).toLocaleString());
-    var snap = localStorage.getItem(BACKUP_DAILY_KEY);
-    if (snap) { var s = _dbUnpack(snap); if (s && s.at) parts.push('Auto snapshot: ' + new Date(s.at).toLocaleString()); }
-  } catch(e) {}
-  el.textContent = parts.length ? parts.join('   •   ') : 'No backup taken yet — download one now to be safe.';
+  try { var d = localStorage.getItem(BACKUP_DL_TS_KEY); if (d) parts.push('Last download: ' + new Date(d).toLocaleString()); } catch(e) {}
+  // r31: the auto snapshot lives in IndexedDB now (async read).
+  idbGet(BACKUP_DAILY_KEY).then(function(snap){
+    try { if (snap) { var s = _dbUnpack(snap); if (s && s.at) parts.push('Auto snapshot: ' + new Date(s.at).toLocaleString()); } } catch(e){}
+    el.textContent = parts.length ? parts.join('   •   ') : 'No backup taken yet — download one now to be safe.';
+  }).catch(function(){ el.textContent = parts.length ? parts.join('   •   ') : 'No backup taken yet — download one now to be safe.'; });
 }
 
 // Lazy-load JSZip (only when a full backup/restore is actually requested).
