@@ -522,7 +522,11 @@ function renderCPContacts(contacts, customer) {
             '</div>'+
           '</div>'+
           '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">'+
-            '<button class="btn btn-outline btn-sm" onclick="editContact(\''+c.id+'\')">Edit</button>'+
+            '<div style="display:flex;gap:4px">'+
+              '<button class="btn btn-outline btn-sm" onclick="editContact(\''+c.id+'\')">Edit</button>'+
+              ((typeof hasPermission!=='function' || hasPermission('cust.delete'))
+                ? '<button class="btn btn-danger btn-sm" title="Delete contact" onclick="_cpDeleteContact(\''+c.id+'\')">✕</button>' : '')+
+            '</div>'+
             (isDefault
               ? '<span style="font-size:10px;color:#1565c0;cursor:pointer" onclick="setContactAsDefault(\''+_cpCustomerId+'\',\'\')">Clear default</span>'
               : '<span style="font-size:10px;color:#90a4ae;cursor:pointer" onclick="setContactAsDefault(\''+_cpCustomerId+'\',\''+c.id+'\')">Set default</span>'
@@ -532,6 +536,20 @@ function renderCPContacts(contacts, customer) {
       }).join('') :
       '<div style="color:#90a4ae;font-size:13px;padding:12px 0">No contacts linked to this customer yet. Add one above.</div>');
 }
+
+// Delete a contact from inside the Customer Profile, then refresh the profile so BOTH the contact
+// list AND the blue "Contacts" count bubble reflect the change. Before this, the bubble was rendered
+// once when the profile opened and never recomputed, so it showed a stale count (8 when the list was
+// 7) after a delete. delContact() handles the confirm, tombstone, soft-delete and cloud push; if the
+// user cancels or lacks permission it is a no-op and the harmless re-render just shows the same data.
+function _cpDeleteContact(id){
+  if (typeof delContact === 'function') delContact(id);
+  if (_cpCustomerId && typeof openCustomerProfile === 'function') {
+    openCustomerProfile(_cpCustomerId);                               // recompute the stat bubbles from current DB
+    if (typeof switchCPTab === 'function') switchCPTab('contacts');   // keep the user on the Contacts tab
+  }
+}
+window._cpDeleteContact = _cpDeleteContact;
 
 function renderCPProjects(projects) {
   if (!projects.length) return '<div style="color:#90a4ae;padding:20px;text-align:center">No work tracking projects for this customer yet.</div>';
