@@ -10,4 +10,5 @@ echo "── live dashboard status (latest-event wins over stale session cache) 
 echo "── WO field permissions (tech reads but can't change description/resolution) ──"; node tests/wo_perms.test.js
 echo "── sync last-writer-wins merge (offline edits survive; no clobber of untouched) ──"; node tests/lww_merge.test.js
 echo "── post-sync redraw (new rows show without a full reload; modal-safe) ──"; node tests/rerender_after_sync.test.js
+echo "── changed-only push r32 (untouched records skipped; edits/new always push) ──"; node tests/changed_push_r32.test.js
 echo "✅ all tests passed"
