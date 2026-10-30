@@ -1882,6 +1882,42 @@ async function syncAllFromCloud(silent) {
 
   }
 
+  // r39 FIELD-TECH WORK ORDERS: helper_tech / lead_tech are intentionally excluded from the office
+  // block above (they don't need quotes/customers/inventory/etc.) — but that block ALSO contained the
+  // ONLY work_orders pull, so a field tech loaded NO work orders at all. Every assigned-WO view
+  // (_getMyWOsAsJobs, the WO list's assigned-only filter, the field clock's job dropdown) reads
+  // DB.workOrders, which stayed empty — so a tech never saw the WOs they were tagged on, no matter how
+  // correctly they were assigned (confirmed root cause of Dawn's "techs can't see their orders"). Load
+  // the WOs assigned to this tech here. We filter by the stored tech NAME (assigned_techs is text[] of
+  // display names, matching _currentUser.full_name); RLS already permits the read. No server-side
+  // status filter — the stored statuses have legacy casing ("NEW"/"OPEN") that a case-sensitive
+  // .in(status) would miss, so we fetch all of the tech's assigned WOs (bounded) and let the
+  // case-insensitive client filter decide what's open. Runs on every sync, so a newly-assigned WO shows
+  // up on the tech's next sync tick (with r28's post-sync re-render) — addressing "it doesn't refresh".
+  if (_currentUser && (_currentUser.role === 'helper_tech' || _currentUser.role === 'lead_tech')) {
+    try {
+      var _myWOName = String((_currentUser.full_name || _currentUser.name || '')).trim();
+      if (_myWOName) {
+        var _twoRes = await _sb.from('work_orders').select('*').contains('assigned_techs', [_myWOName])
+                              .order('created_at', { ascending: false }).limit(1000);
+        if (_twoRes.error) { errors.push('work_orders(tech): '+(_twoRes.error.message||_twoRes.error)); }
+        else {
+          var _delWOt = (DB.deletedIds && DB.deletedIds.workOrders) || [];
+          var _cloudWOt = (_twoRes.data||[]).filter(function(w){ return _delWOt.indexOf(String(w.id)) < 0; })
+            .map(function(w){ var o=_mapWORow(w); o._synced=true; _officeMarkSynced('work_orders', o); return o; });
+          var _cloudWOtIds = {}; _cloudWOt.forEach(function(w){ _cloudWOtIds[String(w.id)] = 1; });
+          // keep genuinely-local WOs (never-synced, or an unsynced local edit) not in this result set
+          var _localOnlyWOt = (DB.workOrders||[]).filter(function(w){
+            return w.id && !_cloudWOtIds[String(w.id)] && _delWOt.indexOf(String(w.id)) < 0
+                && (w._synced !== true || _officeDirty('work_orders', w));
+          });
+          // LWW so a tech's own unsynced edit isn't clobbered (same rule as the office WO pull).
+          DB.workOrders = _lwwMerge(_cloudWOt, DB.workOrders, _localOnlyWOt);
+        }
+      }
+    } catch(e) { errors.push('work_orders(tech): '+(e&&e.message||e)); }
+  }
+
   // Secondary collections (tools, checkouts, inventory locations/transfers) live in the
   // app_state blob store. Only overwrite local when the cloud actually returned an array.
   // ANTI-CLOBBER (build gr): if local blob data has unpushed changes (e.g. a tool just
