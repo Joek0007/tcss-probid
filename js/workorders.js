@@ -2933,7 +2933,7 @@ function saveWOSettings() {
 
 // ---- SUPABASE PUSH ----
 async function _pushWOToCloud(wo) {
-  if(!_sb||!_currentUser) return;
+  if(!_sb||!_currentUser) return null;
   try {
     var { error } = await _sb.from('work_orders').upsert({
       id:            wo.id,
@@ -2978,8 +2978,13 @@ async function _pushWOToCloud(wo) {
       is_change_order:wo.isChangeOrder||false,
       change_order_reason: wo.changeOrderReason||null,
     });
-    if(error) console.warn('[WO Push]',error.message);
-  } catch(e) { console.warn('[WO Push]',e.message); }
+    if(error){ console.warn('[WO Push]',error.message); return error; }
+    // r37: mark this WO clean in the changed-only snapshot ONLY on a real persisted write. If the
+    // version gate suppressed the write (benign no-op result, error===null), do NOT mark it — the
+    // edit isn't in the cloud and must stay dirty so it re-pushes after the stale tab reloads.
+    try { if (typeof _writesBlocked!=='function' || !_writesBlocked()) { if (typeof _officeMarkSynced==='function') _officeMarkSynced('work_orders', wo); } } catch(e){}
+    return null;
+  } catch(e) { console.warn('[WO Push]',e.message); return e; }
 }
 
 // ---- HOT NOTES on customer edit ----

@@ -257,7 +257,22 @@ function _recHash(rec){
   for (var i=0;i<keys.length;i++){ var v = rec[keys[i]]; parts.push(keys[i] + '=' + (v === undefined ? '' : JSON.stringify(v))); }
   return parts.join('|');
 }
-var _officeSnap = { quotes:{}, customers:{}, contacts:{} };   // in-memory: { table: { id: contentHash } }
+// r37: WO content hash for changed-only sync. _recHash can't be reused for work orders: the pull
+// shape (_mapWORow) and the save shape (saveWorkOrder's object) carry DIFFERENT keys — e.g.
+// descriptionIsHtml / workPerformedIsHtml are local-only and never persisted — so an all-keys hash
+// would differ between a pulled WO and the same WO after a local save, making every WO look
+// permanently "dirty" and re-push on every sweep (reintroducing the exact stale-copy clobber r32
+// cured). Hash ONLY the fields that round-trip through the cloud (exactly what _pushWOToCloud sends),
+// with falsy values collapsed to '' to mirror the push's `|| null` coercions, so a value and its
+// cloud round-tripped form hash identically and only a real content change flips the hash.
+var _WO_HASH_KEYS = ['woNumber','customerId','customerName','vehicleId','contactId','description','workPerformed','status','serviceType','priority','serviceRep','refNum','siteAddr','siteCity','siteState','siteZip','laborRate','taxRate','dateRequested','scheduledDate','scheduledTime','scheduledDuration','wtProjectId','jobId','quoteId','dateFollowup','dateOpened','dateClosed','internalNotes','invoiceId','assignedTechs','createdBy','createdByName','parentWoId','isChangeOrder','changeOrderReason'];
+function _woHash(wo){
+  if (!wo || typeof wo !== 'object') return '';
+  var parts = [];
+  for (var i=0;i<_WO_HASH_KEYS.length;i++){ var k=_WO_HASH_KEYS[i]; var v=wo[k]; parts.push(k+'='+(v ? JSON.stringify(v) : '')); }
+  return parts.join('|');
+}
+var _officeSnap = { quotes:{}, customers:{}, contacts:{}, work_orders:{} };   // in-memory: { table: { id: contentHash } }
 // r34: the snapshot is in-memory, so on a fresh load/reload it starts EMPTY → every office record
 // looks "changed" → a background sweep in that window would re-push them all from (possibly stale)
 // localStorage, re-clobbering a value fixed elsewhere (the job-name-paren-comes-back bug). Gate the
@@ -266,13 +281,14 @@ var _officeSnap = { quotes:{}, customers:{}, contacts:{} };   // in-memory: { ta
 var _officeSnapReady = false;
 function _officeMarkSynced(table, rec){
   if (!rec || rec.id==null || !_officeSnap[table]) return;
-  _officeSnap[table][String(rec.id)] = _recHash(rec);
+  _officeSnap[table][String(rec.id)] = (table==='work_orders') ? _woHash(rec) : _recHash(rec);
 }
 function _officeDirty(table, rec){
   if (!rec || rec.id==null || !_officeSnap[table]) return true;   // no id / unknown table → push (safe)
   var prev = _officeSnap[table][String(rec.id)];
   if (prev === undefined) return true;                            // never confirmed in sync → push
-  return _recHash(rec) !== prev;                                  // changed since last sync → push; else skip
+  var h = (table==='work_orders') ? _woHash(rec) : _recHash(rec);
+  return h !== prev;                                              // changed since last sync → push; else skip
 }
 
 // r33 (QUOTES F1): several quote fields the form collects had NO home in the cloud, so they were
@@ -1611,14 +1627,24 @@ async function syncAllFromCloud(silent) {
         var cloudWOIds = new Set(woRows.map(function(w){ return String(w.id); }));
         // keep only genuinely local-only (never pushed) WOs; a synced WO outside the working
         // set lives in the cloud and is dropped from memory (fetched on demand).
-        var localOnlyWOs = (DB.workOrders||[]).filter(function(w){ return w.id && !cloudWOIds.has(String(w.id)) && delWO.indexOf(String(w.id)) < 0 && w._synced !== true; });
         var cloudWOs = woRows.map(function(w){ return _mapWORow(w); });
-        cloudWOs.forEach(function(cw){ cw._synced = true; }); // mark as known-in-cloud
-        // Push any offline-created WOs so they land in the cloud (they were never synced).
+        cloudWOs.forEach(function(cw){ cw._synced = true; _officeMarkSynced('work_orders', cw); }); // known-in-cloud; seed the changed-only snapshot
+        // r37 WO1/WO2: keep genuinely local-only WOs — never-synced (new, created offline) OR
+        // synced-but-locally-edited (dirty) WOs that fell outside the cloud working window — so an
+        // offline edit is never dropped. A synced, UNTOUCHED WO outside the window is still dropped
+        // from memory (fetched on demand), preserving the bounded working set.
+        var localOnlyWOs = (DB.workOrders||[]).filter(function(w){
+          return w.id && !cloudWOIds.has(String(w.id)) && delWO.indexOf(String(w.id)) < 0
+              && (w._synced !== true || _officeDirty('work_orders', w));
+        });
+        // Push any local-only WO not yet confirmed in the cloud (new, or an offline edit) so it lands.
         if (localOnlyWOs.length > 0 && typeof _pushWOToCloud === 'function') {
           localOnlyWOs.forEach(function(w){ try { _pushWOToCloud(w); } catch(e){} });
         }
-        DB.workOrders = cloudWOs.concat(localOnlyWOs);
+        // r37 WO1: LAST-WRITER-WINS instead of cloud-wins — a WO edited locally but newer than its
+        // cloud copy (an offline edit not yet pushed) now survives this pull instead of being
+        // silently overwritten, exactly as quotes/customers/contacts already do (r26).
+        DB.workOrders = _lwwMerge(cloudWOs, DB.workOrders, localOnlyWOs);
       }
     } catch(e) { errors.push('work_orders: '+e.message); }
 
@@ -3455,6 +3481,24 @@ async function pushAllToCloud() {
       } catch(jbErr) {
         console.warn('[Push] Job error for', jb.name, jbErr.message || jbErr);
       }
+    }
+
+    // r37 WO2: push the WORK ORDER PARENT record. Until now pushAllToCloud pushed WO children
+    // (parts/labor/expenses/checklist) but NOT the work_orders row itself — the only WO push was the
+    // fire-and-forget _pushWOToCloud at save time, with no offline queue and no retry. An edit made
+    // offline (or whose immediate push failed transiently) therefore never reached the cloud and was
+    // clobbered by the next cloud-wins pull. This sweep retries it. CHANGED-ONLY (_officeDirty) +
+    // ready-gated (_officeSnapReady), identical to the quote/customer/contact loops, so a long-open
+    // tab never re-pushes a stale WO over a newer edit made elsewhere. _pushWOToCloud marks the WO
+    // clean on a real success, so a clean WO is skipped next sweep.
+    var _woTomb = (DB.deletedIds && DB.deletedIds.workOrders) || [];
+    for (var _swo of (DB.workOrders||[])) {
+      if (!_officeSnapReady) continue;                      // no WO sweep until the first pull rebuilt the snapshot
+      if (!_swo || _swo.id==null) continue;
+      if (_woTomb.indexOf(String(_swo.id)) >= 0) continue;  // being deleted → don't re-create via upsert
+      if (!_officeDirty('work_orders', _swo)) continue;     // unchanged since last sync → skip (prevents stale clobber)
+      try { var _woErr = await _pushWOToCloud(_swo); if (_woErr) _pushErrors.push('work_order '+_swo.id+': '+(_woErr.message||_woErr)); }
+      catch(e){ _pushErrors.push('work_order '+_swo.id+': '+(e&&e.message||e)); }
     }
 
     // SC-3b: Push WO parts. Previously parts were pulled but NEVER pushed, so any part
