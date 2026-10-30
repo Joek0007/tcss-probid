@@ -268,6 +268,41 @@ function _officeDirty(table, rec){
   return _recHash(rec) !== prev;                                  // changed since last sync → push; else skip
 }
 
+// r33 (QUOTES F1): several quote fields the form collects had NO home in the cloud, so they were
+// silently dropped on any cloud-wins sync — equipment, per-diem, service contract, the discount
+// TYPE/VALUE, the custom executive summary, and the sent/won dates. They now travel in a single
+// `quote_extras` JSONB column. These two helpers are the ONE place that defines the bundle, used by
+// BOTH push sites and the pull, so the shape can't drift — and they're unit-tested for round-trip.
+function _quoteExtras(q){
+  q = q || {};
+  return {
+    equipmentRows: q.equipmentRows || [],
+    equipmentCost: q.equipmentCost || 0,
+    perDiem:       (q.perDiem != null ? q.perDiem : null),
+    perDiemCost:   q.perDiemCost || 0,
+    svcContract:   (q.svcContract != null ? q.svcContract : null),
+    discountType:  q.discountType || 'amt',
+    discountValue: (q.discountValue != null ? q.discountValue : 0),
+    execSummary:   q.execSummary || '',
+    sentDate:      q.sentDate || null,
+    wonDate:       q.wonDate || null
+  };
+}
+function _applyQuoteExtras(target, row){
+  var x = (row && row.quote_extras) || {};
+  target.equipmentRows = x.equipmentRows || [];
+  target.equipmentCost = (x.equipmentCost != null ? x.equipmentCost : 0);
+  target.perDiem       = (x.perDiem != null ? x.perDiem : null);
+  target.perDiemCost   = (x.perDiemCost != null ? x.perDiemCost : 0);
+  target.svcContract   = (x.svcContract != null ? x.svcContract : null);
+  target.discountType  = x.discountType || 'amt';
+  target.discountValue = (x.discountValue != null ? x.discountValue : 0);
+  target.execSummary   = x.execSummary || '';
+  target.sentDate      = x.sentDate || null;
+  target.wonDate       = x.wonDate || null;
+  return target;
+}
+
 // ---------------------------------------------------------------------------
 // PERF windows (load-on-demand): the sync keeps only a recent working set of the
 // big imported-history tables in memory; older rows load on demand when a specific
@@ -1227,7 +1262,7 @@ async function syncAllFromCloud(silent) {
         function _qRecentlySaved(q){ var t = _qSaveGrace[q.id] || _qSaveGrace[String(q.id)] || (q.num && _qSaveGrace['num:'+q.num]) || 0; return t && (_qGraceNow - t) < 180000; }
         var localOnlyQuotes = (DB.quotes||[]).filter(function(q){ return q.id && !cloudQuoteIds.has(String(q.id)) && !(q.num && cloudQuoteNums.has(String(q.num))) && delQ.indexOf(String(q.id)) < 0 && (!(q._synced && qCloudComplete) || _qRecentlySaved(q)); });
         var cloudQuotes = quotes.map(function(q) {
-          return {
+          var _q = {
             id: q.id,
             num: q.quote_number,
             cn: q.customer_name,
@@ -1282,6 +1317,8 @@ async function syncAllFromCloud(silent) {
               return { _id:li.id, desc:li.description, cat:li.category, qty:li.qty, unit:li.unit, mc:li.material_cost, lh:li.labor_hours };
             })
           };
+          _applyQuoteExtras(_q, q);   // r33: restore equipment/per-diem/svc/discount-type/exec/dates from quote_extras
+          return _q;
         });
         // Immediately push local-only records so they land in Supabase
         if (localOnlyQuotes.length > 0) {
@@ -2259,6 +2296,7 @@ async function _pushQuoteToCloud(q) {
       proposal_sections: q.proposalSections || null,
       payment_terms: q.pt || 'Net 30',
       followup_date: q.followupDate || null,
+      quote_extras: _quoteExtras(q),
       created_by: _currentUser.id
     });
     if (error) { console.warn('[Quote Push]', error.message); return; }
@@ -2892,6 +2930,7 @@ async function pushAllToCloud() {
           proposal_sections: q.proposalSections || null,
           payment_terms: q.pt || 'Net 30',
           followup_date: q.followupDate || null,
+          quote_extras: _quoteExtras(q),
           created_by: _currentUser.id
         });
         _pushErr('quote '+(q.num||qId), _qUp);
