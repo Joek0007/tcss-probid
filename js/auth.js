@@ -1962,7 +1962,18 @@ var _pushInProgress = false;
 // IMPORTANT: if a mapping below changes, change it in
 // pushAllToCloud too (search the table name) so the two agree.
 // ============================================================
-async function _pushCustomerToCloud(c) {
+
+// r35 VERSION GATE: a browser running an out-of-date build must NOT write to shared cloud data — old
+// code can clobber what newer code fixed (this is the structural guarantee behind the job-name revert
+// staying fixed across everyone's computers, not just ones that refreshed). The auto-updater sets
+// window._appWritesBlocked=true when a strictly-newer build is deployed; every push path checks this
+// first and bails. Edits are still saved LOCALLY (saveDB), so nothing is lost — they sync up once the
+// stale tab reloads onto the current build.
+function _writesBlocked(){
+  try { return (typeof window !== 'undefined' && window._appWritesBlocked === true); } catch(e){ return false; }
+}
+
+async function _pushCustomerToCloud(c) { if (_writesBlocked()) return;
   if (!_sb || !_currentUser || !c) return;
   try {
     var cId = (typeof ensureUUID === 'function') ? ensureUUID(c) : c.id;
@@ -1996,7 +2007,7 @@ async function _pushCustomerToCloud(c) {
   } catch (e) { console.warn('[Customer Push]', e.message || e); }
 }
 
-async function _pushContactToCloud(ct) {
+async function _pushContactToCloud(ct) { if (_writesBlocked()) return;
   if (!_sb || !_currentUser || !ct) return;
   try {
     var ctId = (typeof ensureUUID === 'function') ? ensureUUID(ct) : ct.id;
@@ -2025,7 +2036,7 @@ async function _pushContactToCloud(ct) {
   } catch (e) { console.warn('[Contact Push]', e.message || e); }
 }
 
-async function _pushInvoiceToCloud(inv0) {
+async function _pushInvoiceToCloud(inv0) { if (_writesBlocked()) return;
   if (!_sb || !_currentUser || !inv0 || !inv0.id) return;
   try {
     var _invRow = {
@@ -2044,7 +2055,7 @@ async function _pushInvoiceToCloud(inv0) {
   } catch (e) { console.warn('[Invoice Push]', e.message || e); }
 }
 
-async function _pushWOExpenseToCloud(we) {
+async function _pushWOExpenseToCloud(we) { if (_writesBlocked()) return;
   if (!_sb || !_currentUser || !we || !we.id) return;
   try {
     var { error } = await _sb.from('wo_expenses').upsert({
@@ -2071,7 +2082,7 @@ async function _pushWOExpenseToCloud(we) {
   } catch (e) { console.warn('[Expense Push]', e.message || e); }
 }
 
-async function _pushWOChecklistToCloud(wc) {
+async function _pushWOChecklistToCloud(wc) { if (_writesBlocked()) return;
   if (!_sb || !_currentUser || !wc || !wc.id) return;
   try {
     var { error } = await _sb.from('wo_checklist').upsert({
@@ -2087,7 +2098,7 @@ async function _pushWOChecklistToCloud(wc) {
   } catch (e) { console.warn('[WO Checklist Push]', e.message || e); }
 }
 
-async function _pushWOPartToCloud(wp) {
+async function _pushWOPartToCloud(wp) { if (_writesBlocked()) return;
   if (!_sb || !_currentUser || !wp || !wp.id) return;
   try {
     var { error } = await _sb.from('wo_parts').upsert({
@@ -2140,7 +2151,7 @@ function _deriveInventoryFromCatalog() {
 // Stock-quantity write-through for check-out/in/transfer/receiving. Goes through the
 // adjust_item_stock RPC (SECURITY DEFINER) so ANY active user — including field techs, who cannot
 // write the catalog master directly — can move stock, while price-book fields stay office-only.
-async function _pushStockQtyToCloud(id, locations) {
+async function _pushStockQtyToCloud(id, locations) { if (_writesBlocked()) return;
   if (!id) return;
   var m = (DB.catalog || []).find(function(c){ return String(c.id) === String(id); });
   if (m) { m.locations = locations || {}; m.tracked = true;
@@ -2195,7 +2206,7 @@ async function flushStockSync() {
 // Write a stock item through to the unified master (catalog table). Sets tracked=true and the
 // stock columns; OMITS price-book columns (description/unit/default_hours) so a PostgREST upsert
 // preserves them on update. Also updates the in-memory DB.catalog master + re-derives inventory.
-async function _pushInventoryToCloud(inv) {
+async function _pushInventoryToCloud(inv) { if (_writesBlocked()) return;
   if (!_sb || !_currentUser || !inv || !inv.id) return;
   // Full item-master write-through (office save path). Respects the item type + active flag and the
   // Wave 1d fields (unit, manufacturer, mfr part, vendor, photo). Stock items are tracked; non-stock
@@ -2237,7 +2248,7 @@ async function _pushInventoryToCloud(inv) {
   } catch (e) { console.warn('[Inventory Push]', e.message || e); }
 }
 
-async function _pushQuoteToCloud(q) {
+async function _pushQuoteToCloud(q) { if (_writesBlocked()) return;
   if (!_sb || !_currentUser || !q) return;
   try {
     var qId = (typeof ensureUUID === 'function') ? ensureUUID(q) : q.id;
@@ -2340,7 +2351,7 @@ async function _pushQuoteToCloud(q) {
   } catch (e) { console.warn('[Quote Push]', e.message || e); }
 }
 
-async function _pushJobToCloud(jb) {
+async function _pushJobToCloud(jb) { if (_writesBlocked()) return;
   if (!_sb || !_currentUser || !jb) return;
   try {
     var jbId = (typeof ensureUUID === 'function') ? ensureUUID(jb) : jb.id;
@@ -2646,7 +2657,7 @@ async function _settingsMergePush(){
 
 // Targeted settings-only push (same mapping as pushAllToCloud's company_settings
 // upsert) so a load-time prune can clean the cloud copy without a full sync.
-async function _pushSettingsToCloud() {
+async function _pushSettingsToCloud() { if (_writesBlocked()) return;
   if (!_sb || !DB || !DB.settings) return;
   if (typeof _settingsMerge==='function' && _settingsMerge()) { return _settingsMergePush(); }
   return _sb.from('company_settings').upsert({
@@ -2705,7 +2716,7 @@ function _blobHasUnpushedChanges() {
 }
 
 // Flush the blob collections to the cloud (same mapping pushAllToCloud uses).
-async function _pushBlobsToCloud() {
+async function _pushBlobsToCloud() { if (_writesBlocked()) return;
   if (!_sb || !_currentUser || _currentUser.role === 'helper_tech') return;
   for (var _bk of _BLOB_KEYS) {
     if (_bk==='tools' && typeof _toolsPerRow==='function' && _toolsPerRow()) continue; // (hc) tools are per-row now
@@ -2719,6 +2730,7 @@ async function _pushBlobsToCloud() {
 }
 
 async function pushAllToCloud() {
+  if (_writesBlocked()) return;   // r35: out-of-date build must not write shared data (version gate)
   if (!_sb || !_currentUser) return;
   if (_currentUser.role === 'helper_tech') return;
   _ensureSaveDBWrapped();

@@ -13,4 +13,6 @@ echo "── post-sync redraw (new rows show without a full reload; modal-safe) 
 echo "── changed-only push r32 (untouched records skipped; edits/new always push) ──"; node tests/changed_push_r32.test.js
 echo "── sync convergence net (2 clients: stale session never clobbers; edits+offline survive) ──"; node tests/sync_convergence.test.js
 echo "── quote extras round-trip (equipment/per-diem/svc/discount-type/exec/dates survive sync) ──"; node tests/quote_extras_roundtrip.test.js
+echo "── quote lifecycle 2-device (create/edit/delete/offline converge; no clobber; no resurrect) ──"; node tests/quote_lifecycle.test.js
+echo "── version gate (stale build is blocked from writing shared data; only strictly-newer blocks) ──"; node tests/version_gate.test.js
 echo "✅ all tests passed"
