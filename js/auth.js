@@ -1739,10 +1739,20 @@ async function syncAllFromCloud(silent) {
         var _mappedExp = woExpRows.filter(function(e){ return delWE.indexOf(String(e.id)) < 0; }).map(function(e){
           return { id:e.id, woId:e.wo_id, category:e.category, description:e.description, amount:e.amount, paymentType:e.payment_type, date:e.expense_date, loggedBy:e.logged_by, receiptUrl:e.receipt_url, receiptDocId:e.receipt_doc_id, createdAt:e.created_at };
         });
-        var _expHave = {}; _mappedExp.forEach(function(e){ if(e&&e.id) _expHave[e.id]=1; });
-        // Keep on-demand-loaded older rows (outside the window) that this pull didn't return.
+        var _expHave = {}; _mappedExp.forEach(function(e){ if(e&&e.id){ _expHave[e.id]=1; e._synced=true; } });
+        // Preserve two kinds of local rows this bounded cloud pull didn't return, so a full-replace
+        // doesn't silently drop them:
+        //   (a) on-demand-loaded OLDER rows (outside the 365-day window), as before; and
+        //   (b) r40: RECENT rows that are genuinely local and NOT yet confirmed in the cloud
+        //       (_synced !== true) — a just-added expense whose immediate push hasn't landed (offline,
+        //       failed, or a pull racing the push). Without this, adding an expense then hitting a sync
+        //       made it disappear. A row deleted on another device was pulled before (so _synced===true)
+        //       and is correctly NOT preserved here; tombstoned ids are excluded either way.
         _prevExp.forEach(function(e){
-          if (e && e.id && !_expHave[e.id] && delWE.indexOf(String(e.id))<0 && (!e.createdAt || e.createdAt < _expCut)) _mappedExp.push(e);
+          if (!e || !e.id || _expHave[e.id] || delWE.indexOf(String(e.id)) >= 0) return;
+          var _old = (!e.createdAt || e.createdAt < _expCut);
+          var _localUnsynced = (e._synced !== true);
+          if (_old || _localUnsynced) _mappedExp.push(e);
         });
         DB.woExpenses = _mappedExp;
       }
@@ -2250,8 +2260,12 @@ async function _pushWOExpenseToCloud(we) { if (_writesBlocked()) return;
       reimbursed:    !!we.reimbursed,
       reimbursed_at: we.reimbursedAt || null
     }, { onConflict: 'id' });
-    if (error) console.warn('[Expense Push]', error.message);
-  } catch (e) { console.warn('[Expense Push]', e.message || e); }
+    if (error) { console.warn('[Expense Push]', error.message); return error; }
+    // r40: mark confirmed-in-cloud so the full-replace expense pull preserves genuinely-local
+    // (not-yet-synced) rows but correctly drops ones deleted elsewhere. Not when the gate suppressed it.
+    try { if (typeof _writesBlocked!=='function' || !_writesBlocked()) we._synced = true; } catch(e){}
+    return null;
+  } catch (e) { console.warn('[Expense Push]', e.message || e); return e; }
 }
 
 async function _pushWOChecklistToCloud(wc) { if (_writesBlocked()) return;
@@ -3647,7 +3661,7 @@ async function pushAllToCloud() {
       if (!we || !we.id) continue;
       if (_weTomb.indexOf(String(we.id)) >= 0) continue;
       try {
-        _pushErr('wo_expense '+we.id, await _sb.from('wo_expenses').upsert({
+        var _weRes = _pushErr('wo_expense '+we.id, await _sb.from('wo_expenses').upsert({
           id:            we.id,
           wo_id:         we.woId||null,
           category:      we.category||null,
@@ -3660,6 +3674,8 @@ async function pushAllToCloud() {
           receipt_doc_id:we.receiptDocId||null,
           created_at:    we.createdAt||new Date().toISOString()
         }, {onConflict:'id'}));
+        // r40: mark confirmed-in-cloud so the full-replace expense pull preserves it correctly.
+        if (!(_weRes && _weRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) we._synced = true;
       } catch(weErr) { console.warn('[Push] WO expense:', weErr.message||weErr); }
     }
     var _wcTomb = (DB.deletedIds && DB.deletedIds.woChecklist) || [];

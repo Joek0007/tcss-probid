@@ -1885,14 +1885,14 @@ function printWorkOrder(woId) {
     // Description
     '<div class="section">'+
       '<h2>Description of Work</h2>'+
-      '<div class="desc-box">'+(wo.descriptionIsHtml ? wo.description : esc(wo.description||'').replace(/\n/g,'<br>'))+'</div>'+
+      '<div class="desc-box">'+((wo.descriptionIsHtml || /<[a-z][\s\S]*>/i.test(wo.description||'')) ? wo.description : esc(wo.description||'').replace(/\n/g,'<br>'))+'</div>'+
     '</div>'+
 
     // Work Performed (if filled)
     (wo.workPerformed?
     '<div class="section">'+
       '<h2>Work Performed</h2>'+
-      '<div class="desc-box">'+(wo.workPerformedIsHtml ? wo.workPerformed : esc(wo.workPerformed).replace(/\n/g,'<br>'))+'</div>'+
+      '<div class="desc-box">'+((wo.workPerformedIsHtml || /<[a-z][\s\S]*>/i.test(wo.workPerformed||'')) ? wo.workPerformed : esc(wo.workPerformed).replace(/\n/g,'<br>'))+'</div>'+
     '</div>':'') +
 
     // Labor
