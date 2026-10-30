@@ -334,14 +334,44 @@ async function doArriveBack(){
   _doArriveBackActual();
 }
 
+// r44: compute a clock day's PAID minutes correctly. PAID = the whole clocked span (base/office +
+// travel + on-site + paid breaks) MINUS unpaid lunch. Base/office time — before "Start Travel" — now
+// counts as paid (Joe, 2026-10-30). The OLD formula (travel + onsite + break) was wrong three ways: it
+// dropped base time entirely, never subtracted a lunch taken while on-site, and added break on top of an
+// on-site figure that already contained it (double-count). On Lisa's test day (7:33a start-at-base →
+// 3:46p out, 45m lunch) the old math gave 5h51m; this gives the correct 7h28m. Pure + unit-tested.
+// Returns a consistent breakdown where office + travel + onsite === totalPaid; break/lunch are
+// informational (break is already inside the paid time; lunch is excluded).
+function _computeClockDayTotals(st, endTime){
+  st = st || {};
+  var t0 = st.homebaseStart || st.dayStart;
+  if (!t0 && st.todayEvents && st.todayEvents.length) { try { t0 = new Date(st.todayEvents[0].time); } catch(e){} }
+  if (!t0) t0 = endTime;
+  var spanMins  = Math.max(0, Math.round((endTime - t0)/60000));
+  var lunch     = st.lunchMins || 0;
+  var brk       = st.breakMins || 0;
+  var travel    = (st.travelOutMins||0) + (st.travelBackMins||0);
+  var totalPaid = Math.max(0, spanMins - lunch);          // base + travel + onsite + break paid; lunch unpaid
+  var firstMove = st.travelOutStart || st.onsiteStart || null;
+  var baseMins;
+  if (st.homebaseStart && firstMove)       baseMins = Math.max(0, Math.round((firstMove - st.homebaseStart)/60000));
+  else if (st.homebaseStart && !firstMove) baseMins = totalPaid;   // started at base and never left → whole paid day is base/office
+  else                                     baseMins = 0;           // went straight to travel (no base phase)
+  if (baseMins > totalPaid) baseMins = totalPaid;
+  if (travel  > totalPaid - baseMins) travel = Math.max(0, totalPaid - baseMins);
+  var onsite = Math.max(0, totalPaid - baseMins - travel);        // remainder is on-site (includes any paid break)
+  return { totalPaidMins: totalPaid, officeMins: baseMins, travelMins: travel, onsiteMins: onsite, breakMins: brk, lunchMins: lunch };
+}
+
 async function _doArriveBackActual(){
   getGPS(async function(lat,lng,acc){
     var now=new Date();
     var travelBackMins=_clockState.travelBackStart?Math.round((now-_clockState.travelBackStart)/60000):0;
     _clockState.travelBackMins+=travelBackMins;
-    var totalTravel=_clockState.travelOutMins+_clockState.travelBackMins;
-    var totalOnsite=_clockState.onsiteMins;
-    var totalPaid=totalTravel+totalOnsite+_clockState.breakMins;
+    var _dt=_computeClockDayTotals(_clockState, now);
+    var totalTravel=_dt.travelMins;
+    var totalOnsite=_dt.onsiteMins;
+    var totalPaid=_dt.totalPaidMins;
     // Lunch enforcement — spec Section 5
     var lunchFlag=false;
     if(totalPaid>360&&_clockState.lunchCount===0) lunchFlag=true;
@@ -364,10 +394,11 @@ async function _doArriveBackActual(){
       techName:      _currentUser ? _currentUser.full_name : 'Unknown',
       techId:        _currentUser ? _currentUser.id : null,
       date:          getTodayISO(),
-      travelMins:    _clockState.travelOutMins+_clockState.travelBackMins,
-      onsiteMins:    _clockState.onsiteMins,
-      breakMins:     _clockState.breakMins,
-      lunchMins:     _clockState.lunchMins,
+      travelMins:    _dt.travelMins,
+      onsiteMins:    _dt.onsiteMins,
+      officeMins:    _dt.officeMins,      // r44: base/office time now counted (and paid)
+      breakMins:     _dt.breakMins,       // informational — already inside the paid onsite/office time
+      lunchMins:     _dt.lunchMins,       // informational — unpaid, excluded from totalPaidMins
       totalPaidMins: totalPaid,
       jobName:       _clockState.jobName||'',
       events:        _clockState.todayEvents.map(function(e){ return Object.assign({},e,{time:e.time instanceof Date?e.time.toISOString():e.time}); }),
@@ -839,7 +870,12 @@ async function loadTimesheets() {
         (_clockState.status==='traveling'||_clockState.status==='returning' ? Math.round((now-(_clockState.travelOutStart||_clockState.travelBackStart||now))/60000) : 0);
       var liveOnsiteMins = _clockState.onsiteMins +
         (_clockState.status==='onsite' ? Math.round((now-(_clockState.onsiteStart||now))/60000) : 0);
-      var livePaidMins = liveTravelMins + liveOnsiteMins + _clockState.breakMins;
+      // r44: live "Total Paid" uses the same rule as the finished day — the whole clocked span so far
+      // (base/office + travel + on-site + breaks) minus unpaid lunch — so the running number matches what
+      // gets recorded at clock-out (the old travel+onsite+break estimate dropped base time and mis-handled
+      // break/lunch). On Site / Travel below stay running estimates.
+      var _liveT0 = _clockState.homebaseStart || _clockState.dayStart || now;
+      var livePaidMins = Math.max(0, Math.round((now - _liveT0)/60000) - (_clockState.lunchMins||0));
       todayEl.innerHTML =
         '<div style="background:#e8f5e9;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;color:#2e7d32;font-weight:700">🔴 Currently clocked in — '+(_clockState.jobName||'')+'</div>'+
         '<div class="ts-stat-grid">'+
