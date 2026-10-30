@@ -932,7 +932,17 @@ function _rerenderActivePage(){
       purchaseorders: function(){ if(typeof renderPOList==='function')      renderPOList(); },
       invoices:       function(){ if(typeof renderInvoicesPage==='function')renderInvoicesPage(); },
       reports:        function(){ if(typeof renderReports==='function')     renderReports(); },
-      expenses:       function(){ if(typeof renderExpensesPage==='function')renderExpensesPage(); }
+      expenses:       function(){ if(typeof renderExpensesPage==='function')renderExpensesPage(); },
+      // r42: these were missing, so a sync that pulled new data (e.g. a tech just tagged on a WO, or a
+      // status/assignment change) did NOT redraw while the user sat on the page — it only showed after a
+      // manual reload or navigating away and back. This is the "it doesn't refresh/update" half of Dawn's
+      // tech-assignment report; r39 loads the tech's WOs, this makes them appear on the next sync tick.
+      // Safe to redraw: auto-sync already skips while the user is typing, and the modal guard above bails
+      // if a modal is open. renderWorkOrders only rebuilds the list body (filters/search preserved);
+      // renderFieldPage restores the clock job selection; renderDash is a read-only view.
+      workorders:     function(){ if(typeof renderWorkOrders==='function')  renderWorkOrders(); },
+      field:          function(){ if(typeof renderFieldPage==='function')   renderFieldPage(); },
+      dash:           function(){ if(typeof renderDash==='function')        renderDash(); }
     };
     var fn = R[id];
     if (fn) fn();
