@@ -236,6 +236,7 @@ async function doStartDay() {
     _clockState.gpsLat = lat; _clockState.gpsLng = lng; _clockState.gpsAccuracy = acc;
     _clockState.todayEvents.push({type:'day_start', time:now, lat:lat, lng:lng, label:'Started Day at Base'});
     await logTimeEvent('day_start', lat, lng, acc);
+    _ensureClockDayEntry();   // r43: open the day's itemized timesheet line now (base/office)
     updateClockUI(); startClockTimer();
     showToast('Day started — select a job and start travel when ready', 'success');
     scheduleEodReminder();
@@ -262,6 +263,7 @@ async function doStartTravel(){
     _clockState.dayStart=now;_clockState.travelOutStart=now;
     _clockState.jobId=jobId;_clockState.jobName=jobName;
     _clockState.todayEvents.push({type:'travel_start',time:now,lat:lat,lng:lng,label:'Started Travel'});
+    _ensureClockDayEntry();   // r43: open (or fill the WO on) the day's itemized timesheet line
     await logTimeEvent('travel_start',lat,lng,acc);
     updateClockUI();startClockTimer();
     if(_clockPending()>0){
@@ -380,7 +382,87 @@ async function _doArriveBackActual(){
     _clockState.travelOutMins=0;_clockState.onsiteMins=0;
     _clockState.travelBackMins=0;_clockState.breakMins=0;_clockState.lunchMins=0;_clockState.lunchCount=0;
     _eodReminderShown=false;hideEodReminder();updateClockUI();
+    _closeClockDayEntry(totalPaid);   // r43: stamp the end + total on the day's itemized timesheet line
   });
+}
+
+// r43 PHASE 1 — "the clock IS the timesheet." Clocking in opens ONE itemized time_entries line for the
+// day (in-progress, no end), so the tech's timesheet shows it immediately and they just open it to add
+// what-they-did + materials — never re-typing the time. Clock-out closes it. The line is CLOCK-SOURCED
+// (is_manual=false + clock_in set, plus an in-memory `source:'clock'` flag) and is EXCLUDED from payroll
+// and summary aggregation — those keep reading the clock's authoritative workDay — so this moves ZERO
+// payroll minutes. It starts unverified (is_approved=false) → office "Verify" gate (spec Decision 3).
+function _isClockEntry(e){ return !!(e && (e.source==='clock' || (e.isManual===false && e.clockIn))); }
+function _clockDayEntryId(){
+  var tid = (_currentUser && _currentUser.id) ? _currentUser.id : 'self';
+  return 'te-clock-'+tid+'-'+getTodayISO();
+}
+function _findClockDayEntry(){
+  var id=_clockDayEntryId();
+  return (DB.timeEntries||[]).find(function(e){ return e && e.id===id && !e.deleted; });
+}
+function _hhmm(d){ return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function _ensureClockDayEntry(){
+  try {
+    if (!_currentUser) return;
+    var jid = _clockState.jobId || '';
+    var isOffice = (!jid || jid==='office');
+    var existing = _findClockDayEntry();
+    if (existing){
+      // first real job of the day fills the WO on the day line if it started at base (office)
+      if (!existing.woId && !isOffice){
+        existing.woId=jid; existing.jobId=jid; existing.entryType='work';
+        existing.woLabel=_clockState.jobName||existing.woLabel;
+        saveDB(); if (typeof _pushTimeEntryToSupabase==='function') _pushTimeEntryToSupabase(existing);
+      }
+      return;
+    }
+    var now = new Date();
+    var entry = {
+      id:         _clockDayEntryId(),
+      techName:   _currentUser.full_name || 'Unknown',
+      userId:     _currentUser.id || null,
+      date:       getTodayISO(),
+      entryType:  isOffice ? 'office' : 'work',
+      startTime:  _hhmm(now),
+      endTime:    '',
+      totalHours: 0, totalMins: 0,
+      isPaid:     true,
+      woId:       isOffice ? '' : jid,
+      jobId:      isOffice ? '' : jid,
+      woLabel:    _clockState.jobName || (isOffice ? 'Office / General' : ''),
+      notes:      '',
+      isManual:   false,              // clock-sourced marker (durable; survives cloud round-trip)
+      source:     'clock',            // in-memory convenience marker
+      clockIn:    now.toISOString(),
+      isApproved: false,              // "needs review" until office verifies
+      addedBy:    _currentUser.full_name || 'Unknown',
+      addedAt:    now.toISOString(),
+      auditTrail: [{ action:'clock-day-open', by:(_currentUser.full_name||'self'), at:now.toISOString() }]
+    };
+    if (!DB.timeEntries) DB.timeEntries = [];
+    DB.timeEntries.push(entry);
+    saveDB();
+    if (typeof _pushTimeEntryToSupabase==='function') _pushTimeEntryToSupabase(entry);
+    if (typeof loadTimesheets==='function') { try { loadTimesheets(); } catch(e){} }
+  } catch(e){ console.warn('[clock day entry]', e && e.message); }
+}
+function _closeClockDayEntry(totalPaidMins){
+  try {
+    var entry = _findClockDayEntry();
+    if (!entry) return;
+    var now = new Date();
+    entry.endTime     = _hhmm(now);
+    entry.totalMins   = (totalPaidMins!=null) ? totalPaidMins : (entry.totalMins||0);
+    entry.totalHours  = Math.round((entry.totalMins/60)*100)/100;
+    entry.clockOut    = now.toISOString();
+    entry.breakMinutes= (_clockState.breakMins||0)+(_clockState.lunchMins||0);
+    if (!entry.woLabel && _clockState.jobName) entry.woLabel = _clockState.jobName;
+    (entry.auditTrail=entry.auditTrail||[]).push({ action:'clock-day-close', by:(_currentUser?_currentUser.full_name:'self'), at:now.toISOString() });
+    saveDB();
+    if (typeof _pushTimeEntryToSupabase==='function') _pushTimeEntryToSupabase(entry);
+    if (typeof loadTimesheets==='function') { try { loadTimesheets(); } catch(e){} }
+  } catch(e){ console.warn('[clock day entry close]', e && e.message); }
 }
 
 // NEXT JOB — Done at current site, heading to another job
@@ -1304,6 +1386,7 @@ function saveManualTimeEntry() {
     var idx = DB.timeEntries.findIndex(function(e){ return e.id===editId; });
     if (idx>=0) {
       var orig = DB.timeEntries[idx];
+      var wasClock = _isClockEntry(orig);   // r43: preserve the clock-source marker through an office edit
       if (!orig.auditTrail) orig.auditTrail = [];
       orig.auditTrail.push({
         action: 'edited',
@@ -1324,7 +1407,11 @@ function saveManualTimeEntry() {
       orig.woLabel     = woLabel;
       orig.notes       = notes;
       orig.gpsReason   = gpsReason||null;
-      orig.isManual    = true;
+      // r43: keep a clock-sourced line clock-sourced (is_manual=false + source) so it stays OUT of
+      // payroll/summary aggregation even after an office edit and a cloud round-trip (source is not a
+      // DB column, so the durable signal is is_manual=false + clock_in). A genuinely manual entry → true.
+      orig.isManual    = wasClock ? false : true;
+      if (wasClock) orig.source = 'clock';
       orig.lastEditedBy = adder;
       orig.lastEditedAt = now;
     }
@@ -1514,8 +1601,25 @@ async function _pushTimeEntryToSupabase(entry) {
 function _rebuildDaySummary(techName, date) {
   if (!DB.timeEntries) return;
   var entries = DB.timeEntries.filter(function(e){
-    return e.techName===techName && e.date===date && !e.deleted;
+    // r43: exclude the clock-sourced day line — the clock writes its own authoritative workDay in
+    // _doArriveBackActual; letting this aggregate the single clock line would clobber the travel/onsite
+    // split or double-count. Keeping it out guarantees ZERO payroll movement from Phase 1.
+    return e.techName===techName && e.date===date && !e.deleted && !_isClockEntry(e);
   });
+
+  // r43: with NO non-clock entries, never touch a CLOCK-origin workDay — the clock owns its hours
+  // (set directly in _doArriveBackActual). Only a workDay that was itself built from manual entries
+  // gets cleared when its entries are gone. Without this, opening the clock day-line to add notes
+  // (which calls this) would zero that day's payroll.
+  var _existing0 = (DB.workDays||[]).find(function(d){ return d.techName===techName && d.date===date; });
+  if (entries.length === 0) {
+    if (_existing0 && _existing0.hasManualEntries) {
+      _existing0.onsiteMins=0; _existing0.travelMins=0; _existing0.officeMins=0; _existing0.lunchMins=0;
+      _existing0.ptoMins=0; _existing0.vacationMins=0; _existing0.holidayMins=0; _existing0.totalPaidMins=0;
+      saveDB();
+    }
+    return;
+  }
 
   var workMins   = 0, travelMins = 0, officeMins = 0;
   var lunchMins  = 0, ptoMins    = 0, vacMins    = 0, holMins = 0;
@@ -1694,6 +1798,7 @@ function _renderAllEmployeesSummary(el, entries, workDays, fromDate, toDate, fil
 
   // From timeEntries
   entries.forEach(function(e) {
+    if (_isClockEntry(e)) return;   // r43: clocked days are summed from the authoritative workDay below, not the clock line
     var t = ensureTech(e.techName);
     var m = e.totalMins || Math.round((e.totalHours||0)*60);
     t.days.add(e.date);
@@ -1710,7 +1815,10 @@ function _renderAllEmployeesSummary(el, entries, workDays, fromDate, toDate, fil
 
   // Fill in from workDays for techs with no timeEntries
   workDays.forEach(function(d) {
-    var hasEntries = entries.some(function(e){ return e.techName===d.techName && e.date===d.date; });
+    // r43: a clock-sourced day line does NOT count as "has entries" here — a clocked day's numbers come
+    // from its workDay (correct travel/onsite split), exactly as before Phase 1. Only a real manual entry
+    // suppresses the workDay fill.
+    var hasEntries = entries.some(function(e){ return e.techName===d.techName && e.date===d.date && !_isClockEntry(e); });
     if (!hasEntries) {
       var t = ensureTech(d.techName);
       t.days.add(d.date);
