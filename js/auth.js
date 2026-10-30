@@ -140,6 +140,7 @@ var _syncPending = false;
 function initSupabase() {
   try {
     _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    _installWriteGate(_sb);   // r36: gate the client once so every write app-wide honors the version gate
     return true;
   } catch(e) {
     console.error('Supabase init failed:', e);
@@ -1971,6 +1972,73 @@ var _pushInProgress = false;
 // stale tab reloads onto the current build.
 function _writesBlocked(){
   try { return (typeof window !== 'undefined' && window._appWritesBlocked === true); } catch(e){ return false; }
+}
+
+// r36 VERSION-GATE CHOKEPOINT: the 13 push functions below each check _writesBlocked(), but the app
+// has ~500 scattered Supabase write call sites across every module (workorders.js, worktracking.js,
+// quotes.js, field.js, vehicles.js, …) that all share this one global `_sb` client. Guarding them one
+// by one is unmaintainable and leaks holes (e.g. _pushWOToCloud in workorders.js had none). Instead we
+// gate the CLIENT ITSELF, once, at creation: every write-initiating call (.insert/.update/.upsert/
+// .delete on .from(), and the known write RPCs) becomes a no-op while writes are blocked, so NO stale
+// build anywhere in the app can push to shared data. READS (.select(), read RPCs, auth, storage) are
+// never touched — the user keeps seeing current data and the "refresh to save" bar. This holds the
+// structural guarantee app-wide, not just for the paths that happen to call _writesBlocked() by hand.
+var _WRITE_RPCS = {
+  soft_delete_quote:1, soft_delete_contact:1, soft_delete_team:1, soft_delete_job:1, soft_delete_customer:1,
+  set_user_role:1, set_role_by_email:1, set_display_name_by_email:1, set_pay_visibility:1,
+  set_user_perm_override:1, replace_quote_line_items:1, record_stock_adjustment:1, adjust_item_stock:1,
+  deactivate_user:1, restore_team:1, purge_team_from_list:1, merge_company_settings:1, next_number:1
+};
+// A stand-in for Supabase's PostgrestFilterBuilder: every chained method (.eq/.select/.single/.order/…)
+// returns the same stand-in, and awaiting it yields a benign no-network result, so a suppressed write
+// never throws and never looks like a server error to downstream code.
+function _makeBlockedBuilder(){
+  var res = { data: null, error: null, count: 0, status: 200, statusText: 'suppressed: app out of date' };
+  var proxy = new Proxy(function(){ return proxy; }, {
+    apply: function(){ return proxy; },
+    get: function(t, prop){
+      if (prop === 'then')    return function(onF){ return Promise.resolve(res).then(onF); };
+      if (prop === 'catch')   return function(){ return proxy; };
+      if (prop === 'finally') return function(cb){ try { cb && cb(); } catch(e){} return Promise.resolve(res); };
+      if (prop === Symbol.toPrimitive || prop === 'toJSON') return function(){ return res; };
+      return function(){ return proxy; };   // any other builder method chains on
+    }
+  });
+  return proxy;
+}
+// Wrap a freshly-created Supabase client so writes route through the version gate. Called once from
+// initSupabase(). Only .from()'s write methods and write RPCs are intercepted; reads pass through
+// unchanged, and when writes are NOT blocked every call behaves exactly as the raw client.
+function _installWriteGate(sb){
+  try {
+    if (!sb || sb.__writeGated) return sb;
+    var rawFrom = sb.from.bind(sb);
+    sb.from = function(table){
+      var qb = rawFrom(table);
+      ['insert','update','upsert','delete'].forEach(function(m){
+        if (typeof qb[m] !== 'function') return;
+        var orig = qb[m].bind(qb);
+        qb[m] = function(){
+          if (_writesBlocked()) {
+            try { console.warn('[version-gate] '+m+'() on "'+table+'" suppressed — app out of date; edit saved locally, will sync after refresh'); } catch(e){}
+            return _makeBlockedBuilder();
+          }
+          return orig.apply(qb, arguments);
+        };
+      });
+      return qb;
+    };
+    var rawRpc = sb.rpc.bind(sb);
+    sb.rpc = function(fn, args, opts){
+      if (_writesBlocked() && _WRITE_RPCS[fn]) {
+        try { console.warn('[version-gate] rpc "'+fn+'" suppressed — app out of date; will apply after refresh'); } catch(e){}
+        return _makeBlockedBuilder();
+      }
+      return rawRpc(fn, args, opts);
+    };
+    sb.__writeGated = true;
+  } catch(e){ try { console.error('version-gate install failed', e); } catch(_){} }
+  return sb;
 }
 
 async function _pushCustomerToCloud(c) { if (_writesBlocked()) return;
