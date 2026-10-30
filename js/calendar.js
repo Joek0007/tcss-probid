@@ -530,6 +530,9 @@ async function savePaymentRecord() {
     }
   }
   // Confirmed in the cloud (or offline) — now update local state.
+  // r41: the insert above is cloud-first (we returned on error), so a payment we keep locally is
+  // already in the cloud — mark it synced so the full-replace payments pull preserves/drops correctly.
+  if (_sb && _currentUser && (typeof _writesBlocked!=='function' || !_writesBlocked())) payment._synced = true;
   if (!DB.invoicePayments) DB.invoicePayments = [];
   DB.invoicePayments.push(payment);
   var allPayments = DB.invoicePayments.filter(function(p){ return p.invoiceId===invId; });

@@ -1635,9 +1635,17 @@ async function syncAllFromCloud(silent) {
       var { data: pmtRows, error: pmte } = await _sbSelectAll(function(){ return _sb.from('invoice_payments').select('*').order('created_at', { ascending: false }); });
       if (pmte) { errors.push('invoice_payments: '+pmte.message); }
       else if (pmtRows) {
-        DB.invoicePayments = pmtRows.map(function(p){
-          return { id:p.id, invoiceId:p.invoice_id, amount:p.amount, paymentMethod:p.payment_method, reference:p.reference, notes:p.notes, recordedBy:p.recorded_by, recorderName:p.recorder_name, paymentDate:p.payment_date, createdAt:p.created_at };
+        var _prevPmt = DB.invoicePayments || [];
+        var _pmtDel = (DB.deletedIds && DB.deletedIds.invoicePayments) || [];
+        var _mappedPmt = pmtRows.filter(function(p){ return _pmtDel.indexOf(String(p.id)) < 0; }).map(function(p){
+          return { id:p.id, invoiceId:p.invoice_id, amount:p.amount, paymentMethod:p.payment_method, reference:p.reference, notes:p.notes, recordedBy:p.recorded_by, recorderName:p.recorder_name, paymentDate:p.payment_date, createdAt:p.created_at, _synced:true };
         });
+        // r41 (money, defensive): preserve a locally-recorded payment not yet confirmed in the cloud so a
+        // full-replace can't drop it. recordPayment is cloud-first today (so this is a safety net), but it
+        // future-proofs any offline capture and keeps payments consistent with the other child tables.
+        var _pmtHave = {}; _mappedPmt.forEach(function(p){ if(p&&p.id) _pmtHave[p.id]=1; });
+        _prevPmt.forEach(function(p){ if(p&&p.id&&!_pmtHave[p.id]&&_pmtDel.indexOf(String(p.id))<0&&p._synced!==true) _mappedPmt.push(p); });
+        DB.invoicePayments = _mappedPmt;
       }
     } catch(e) { errors.push('invoice_payments: '+e.message); }
 
@@ -1693,9 +1701,16 @@ async function syncAllFromCloud(silent) {
         // Tombstone-filter: a labor entry deleted locally but not yet confirmed-deleted
         // in the cloud must be excluded from this full-replace pull, or it resurrects on
         // every sync (payroll-adjacent — a resurrected entry could re-inflate an invoice).
-        DB.woLabor = woLaborRows.filter(function(l){ return delWL.indexOf(String(l.id)) < 0; }).map(function(l){
-          return { id:l.id, woId:l.wo_id, techName:l.tech_name, entryType:l.entry_type, clockIn:l.clock_in, clockOut:l.clock_out, hours:l.hours, notes:l.notes, createdAt:l.created_at };
+        var _prevWL = DB.woLabor || [];
+        var _mappedWL = woLaborRows.filter(function(l){ return delWL.indexOf(String(l.id)) < 0; }).map(function(l){
+          return { id:l.id, woId:l.wo_id, techName:l.tech_name, entryType:l.entry_type, clockIn:l.clock_in, clockOut:l.clock_out, hours:l.hours, notes:l.notes, createdAt:l.created_at, _synced:true };
         });
+        // r41: preserve a just-added local labor row not yet confirmed in the cloud (_synced!==true), so
+        // this full-replace doesn't drop it. A row deleted elsewhere was pulled before (_synced===true)
+        // and still drops; tombstoned ids excluded.
+        var _wlHave = {}; _mappedWL.forEach(function(l){ if(l&&l.id) _wlHave[l.id]=1; });
+        _prevWL.forEach(function(l){ if(l&&l.id&&!_wlHave[l.id]&&delWL.indexOf(String(l.id))<0&&l._synced!==true) _mappedWL.push(l); });
+        DB.woLabor = _mappedWL;
       }
     } catch(e) { errors.push('wo_labor: '+e.message); }
 
@@ -1707,11 +1722,17 @@ async function syncAllFromCloud(silent) {
         // SC-3b: this pull FULL-REPLACES DB.woParts, so a part tombstoned locally but
         // not yet confirmed-deleted in the cloud must be filtered out here or it would
         // resurrect on every sync. Mirrors the WO/PO tombstone-filter pattern.
-        DB.woParts = woPartsRows.filter(function(p){ return delWP.indexOf(String(p.id)) < 0; }).map(function(p){
+        var _prevWP = DB.woParts || [];
+        var _mappedWP = woPartsRows.filter(function(p){ return delWP.indexOf(String(p.id)) < 0; }).map(function(p){
           // BUGFIX (Wave 1b): the full pull previously dropped unit_cost, so part costs vanished on a
           // full sync — billing needs it. Also carry the new item-master link + source fields.
-          return { id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, unit:p.unit, unitCost:p.unit_cost, status:p.status, notes:p.notes, requestedBy:p.requested_by, itemId:p.item_id, source:p.source, fromLocation:p.from_location, createdAt:p.created_at };
+          return { id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, unit:p.unit, unitCost:p.unit_cost, status:p.status, notes:p.notes, requestedBy:p.requested_by, itemId:p.item_id, source:p.source, fromLocation:p.from_location, createdAt:p.created_at, _synced:true };
         });
+        // r41: preserve a just-added local part not yet confirmed in the cloud (_synced!==true) so the
+        // full-replace doesn't drop it (a tech adds a part → sync fires before its push lands → gone).
+        var _wpHave = {}; _mappedWP.forEach(function(p){ if(p&&p.id) _wpHave[p.id]=1; });
+        _prevWP.forEach(function(p){ if(p&&p.id&&!_wpHave[p.id]&&delWP.indexOf(String(p.id))<0&&p._synced!==true) _mappedWP.push(p); });
+        DB.woParts = _mappedWP;
       }
     } catch(e) { errors.push('wo_parts: '+e.message); }
 
@@ -1720,9 +1741,15 @@ async function syncAllFromCloud(silent) {
       var { data: woClRows, error: wocle } = await _sbSelectAll(function(){ return _sb.from('wo_checklist').select('*').order('created_at', { ascending: true }); });
       if (wocle) { errors.push('wo_checklist: '+wocle.message); }
       else if (woClRows) {
-        DB.woChecklist = woClRows.filter(function(c){ return delWCl.indexOf(String(c.id)) < 0; }).map(function(c){
-          return { id:c.id, woId:c.wo_id, item:c.item, completed:!!c.completed, completedBy:c.completed_by, completedAt:c.completed_at, createdAt:c.created_at };
+        var _prevWCl = DB.woChecklist || [];
+        var _mappedWCl = woClRows.filter(function(c){ return delWCl.indexOf(String(c.id)) < 0; }).map(function(c){
+          return { id:c.id, woId:c.wo_id, item:c.item, completed:!!c.completed, completedBy:c.completed_by, completedAt:c.completed_at, createdAt:c.created_at, _synced:true };
         });
+        // r41: preserve a just-added local checklist item not yet confirmed in the cloud (_synced!==true)
+        // so the full-replace doesn't drop it.
+        var _wclHave = {}; _mappedWCl.forEach(function(c){ if(c&&c.id) _wclHave[c.id]=1; });
+        _prevWCl.forEach(function(c){ if(c&&c.id&&!_wclHave[c.id]&&delWCl.indexOf(String(c.id))<0&&c._synced!==true) _mappedWCl.push(c); });
+        DB.woChecklist = _mappedWCl;
       }
     } catch(e) { errors.push('wo_checklist: '+e.message); }
 
@@ -2280,8 +2307,10 @@ async function _pushWOChecklistToCloud(wc) { if (_writesBlocked()) return;
       completed_at: wc.completedAt||null,
       created_at:   wc.createdAt||new Date().toISOString()
     }, { onConflict: 'id' });
-    if (error) console.warn('[WO Checklist Push]', error.message);
-  } catch (e) { console.warn('[WO Checklist Push]', e.message || e); }
+    if (error) { console.warn('[WO Checklist Push]', error.message); return error; }
+    try { if (typeof _writesBlocked!=='function' || !_writesBlocked()) wc._synced = true; } catch(e){}  // r41: confirmed-in-cloud for the full-replace pull's local-row preservation
+    return null;
+  } catch (e) { console.warn('[WO Checklist Push]', e.message || e); return e; }
 }
 
 async function _pushWOPartToCloud(wp) { if (_writesBlocked()) return;
@@ -2303,8 +2332,10 @@ async function _pushWOPartToCloud(wp) { if (_writesBlocked()) return;
       from_location:wp.fromLocation||null,
       created_at:   wp.createdAt||new Date().toISOString()
     }, { onConflict: 'id' });
-    if (error) console.warn('[WO Part Push]', error.message);
-  } catch (e) { console.warn('[WO Part Push]', e.message || e); }
+    if (error) { console.warn('[WO Part Push]', error.message); return error; }
+    try { if (typeof _writesBlocked!=='function' || !_writesBlocked()) wp._synced = true; } catch(e){}  // r41: confirmed-in-cloud for the full-replace pull's local-row preservation
+    return null;
+  } catch (e) { console.warn('[WO Part Push]', e.message || e); return e; }
 }
 
 // Unified item master (Step 0): stock is the tracked subset of DB.catalog. This derives the
@@ -3612,7 +3643,7 @@ async function pushAllToCloud() {
       if (!wp || !wp.id) continue;
       if (_wpTomb.indexOf(String(wp.id)) >= 0) continue;
       try {
-        _pushErr('wo_part '+(wp.name||wp.id), await _sb.from('wo_parts').upsert({
+        var _wpRes = _pushErr('wo_part '+(wp.name||wp.id), await _sb.from('wo_parts').upsert({
           id:           wp.id,
           wo_id:        wp.woId||null,
           part_name:    wp.name||null,
@@ -3628,6 +3659,7 @@ async function pushAllToCloud() {
           from_location:wp.fromLocation||null,
           created_at:   wp.createdAt||new Date().toISOString()
         }, {onConflict:'id'}));
+        if (!(_wpRes && _wpRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) wp._synced = true;  // r41
       } catch(wpErr) { console.warn('[Push] WO part:', wpErr.message||wpErr); }
     }
 
@@ -3641,7 +3673,7 @@ async function pushAllToCloud() {
       if (!wl || !wl.id) continue;
       if (_wlTomb.indexOf(String(wl.id)) >= 0) continue;
       try {
-        _pushErr('wo_labor '+wl.id, await _sb.from('wo_labor').upsert({
+        var _wlRes = _pushErr('wo_labor '+wl.id, await _sb.from('wo_labor').upsert({
           id:         wl.id,
           wo_id:      wl.woId||null,
           tech_name:  wl.techName||null,
@@ -3654,6 +3686,7 @@ async function pushAllToCloud() {
           notes:      wl.notes||null,
           created_at: wl.createdAt||new Date().toISOString()
         }, {onConflict:'id'}));
+        if (!(_wlRes && _wlRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) wl._synced = true;  // r41
       } catch(wlErr) { console.warn('[Push] WO labor:', wlErr.message||wlErr); }
     }
     var _weTomb = (DB.deletedIds && DB.deletedIds.woExpenses) || [];
@@ -3683,7 +3716,7 @@ async function pushAllToCloud() {
       if (!wc || !wc.id) continue;
       if (_wcTomb.indexOf(String(wc.id)) >= 0) continue;
       try {
-        _pushErr('wo_checklist '+wc.id, await _sb.from('wo_checklist').upsert({
+        var _wcRes = _pushErr('wo_checklist '+wc.id, await _sb.from('wo_checklist').upsert({
           id:           wc.id,
           wo_id:        wc.woId||null,
           item:         wc.item||null,
@@ -3692,6 +3725,7 @@ async function pushAllToCloud() {
           completed_at: wc.completedAt||null,
           created_at:   wc.createdAt||new Date().toISOString()
         }, {onConflict:'id'}));
+        if (!(_wcRes && _wcRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) wc._synced = true;  // r41
       } catch(wcErr) { console.warn('[Push] WO checklist:', wcErr.message||wcErr); }
     }
 
