@@ -482,6 +482,14 @@ async function savePaymentRecord() {
     showToast('You are not permitted to record payments.', 'error', 5000);
     return;
   }
+  // r38 INV3: never record a payment on an OUT-OF-DATE build. The version-gate chokepoint suppresses
+  // the write and returns a benign {error:null}, which this cloud-first path would read as success —
+  // marking the invoice paid locally while the payment never reached the cloud, so it reverts to unpaid
+  // on the next pull (a money revert). Make the user refresh first so the payment actually persists.
+  if (typeof _writesBlocked === 'function' && _writesBlocked()) {
+    showToast('App is updating — please refresh the page, then record the payment.', 'error', 6000);
+    return;
+  }
   var invId  = (document.getElementById('rp-invoice-id')||{}).value;
   var amount = parseFloat((document.getElementById('rp-amount')||{}).value)||0;
   var date   = (document.getElementById('rp-date')||{}).value;
@@ -537,6 +545,9 @@ async function savePaymentRecord() {
     var remaining = (inv.total||0) - totalPaid;
     showToast('Payment of $'+amount.toLocaleString('en-US',{minimumFractionDigits:2})+' recorded. Balance: $'+remaining.toLocaleString('en-US',{minimumFractionDigits:2}), 'success', 5000);
   }
+  // r38: push the invoice's status change (unpaid→partial/paid) to the cloud immediately, rather than
+  // waiting for the next changed-only sweep, so other devices and A/R reflect the payment at once.
+  if (typeof _pushInvoiceToCloud === 'function') { try { _pushInvoiceToCloud(inv); } catch(e){} }
   saveDB();
   closeModal('modal-record-payment');
   renderInvoicesPage();

@@ -231,6 +231,35 @@ function _lwwMerge(cloudRows, localRows, localOnly){
   return merged.concat(localOnly||[]);
 }
 
+// r38: dirty-aware merge for a PULL, for records that have NO reliable per-edit `updatedAt` (invoices:
+// the in-memory object carries no timestamp that bumps on every edit site, so _lwwMerge would silently
+// degrade to cloud-wins). Instead use the changed-only snapshot as the conflict signal: for a record in
+// both local and cloud, if THIS device has an unsynced local edit (dirty vs the snapshot captured at its
+// last sync) keep local and leave it dirty so the sweep re-pushes it; otherwise take cloud and mark it
+// synced. The dirty check MUST run before marking, so an invoice this device never touched correctly
+// takes another device's newer cloud copy (not clobbered by this device's stale copy).
+function _mergeKeepLocalDirty(table, cloudRows, localRows, localOnly){
+  var snap = _officeSnap[table] || {};
+  var localById = {};
+  (localRows||[]).forEach(function(r){ if(r && r.id!=null) localById[String(r.id)] = r; });
+  var merged = (cloudRows||[]).map(function(cr){
+    var lr = localById[String(cr.id)];
+    // Keep local ONLY when we have a recorded sync baseline for this id AND the local content differs
+    // from it — a genuine unsynced local edit. An ABSENT baseline (fresh reload, empty snapshot) is NOT
+    // treated as dirty here: we have no basis to call stale localStorage an "edit", so we take cloud —
+    // the pull-side analog of the r34 ready-gate that stops an empty snapshot from clobbering. (This is
+    // why we can't reuse _officeDirty, whose fail-safe default for an unknown id is "dirty → push".)
+    if (lr) {
+      var base = snap[String(cr.id)];
+      var h = (table==='work_orders') ? _woHash(lr) : _recHash(lr);
+      if (base !== undefined && h !== base) return lr;   // unsynced local edit → keep it (stays dirty, re-pushes)
+    }
+    _officeMarkSynced(table, cr);                   // took cloud → this id is now clean this session
+    return cr;
+  });
+  return merged.concat(localOnly||[]);
+}
+
 // r32: CHANGED-ONLY push for office records (quotes/customers/contacts). WHY: the background
 // `pushAllToCloud` sweep re-upserts EVERY such record held in memory ~2s after any saveDB. A tab/
 // device left open holds a record as it was when last pulled; when ITS sweep runs it re-pushes that
@@ -272,7 +301,7 @@ function _woHash(wo){
   for (var i=0;i<_WO_HASH_KEYS.length;i++){ var k=_WO_HASH_KEYS[i]; var v=wo[k]; parts.push(k+'='+(v ? JSON.stringify(v) : '')); }
   return parts.join('|');
 }
-var _officeSnap = { quotes:{}, customers:{}, contacts:{}, work_orders:{} };   // in-memory: { table: { id: contentHash } }
+var _officeSnap = { quotes:{}, customers:{}, contacts:{}, work_orders:{}, invoices:{} };   // in-memory: { table: { id: contentHash } }
 // r34: the snapshot is in-memory, so on a fresh load/reload it starts EMPTY → every office record
 // looks "changed" → a background sweep in that window would re-push them all from (possibly stale)
 // localStorage, re-clobbering a value fixed elsewhere (the job-name-paren-comes-back bug). Gate the
@@ -1560,11 +1589,19 @@ async function syncAllFromCloud(silent) {
         var cloudInvIds = new Set(invRows.map(function(r){ return String(r.id); }));
         // keep only genuinely local-only (never pushed) invoices; a synced invoice that
         // isn't in the working set lives in the cloud and is dropped from memory.
+        var cloudInvs = invRows.filter(function(r){ return delInvoices.indexOf(r.id) === -1; })
+          .map(function(r){ var d=r.data||{}; d.id=d.id||r.id; d._synced=true; return d; });
+        // r38 INV1/INV2: keep never-synced OR synced-but-dirty local invoices (an offline edit to an
+        // invoice outside the working window); a synced, untouched invoice outside the window is still
+        // dropped from memory (load-on-demand), exactly as before.
         var localOnlyInv = (DB.invoices||[]).filter(function(i){
-          return i.id && !cloudInvIds.has(String(i.id)) && delInvoices.indexOf(i.id) === -1 && i._synced !== true;
+          return i.id && !cloudInvIds.has(String(i.id)) && delInvoices.indexOf(i.id) === -1
+              && (i._synced !== true || _officeDirty('invoices', i));
         });
-        DB.invoices = invRows.filter(function(r){ return delInvoices.indexOf(r.id) === -1; })
-          .map(function(r){ var d=r.data||{}; d._synced=true; return d; }).concat(localOnlyInv);
+        // r38 INV1: dirty-aware merge instead of cloud-wins concat — a locally-edited invoice not yet
+        // pushed survives this pull instead of being silently reverted to the cloud copy. Also seeds the
+        // changed-only snapshot (INV2) so the sweep below only re-pushes genuinely changed invoices.
+        DB.invoices = _mergeKeepLocalDirty('invoices', cloudInvs, DB.invoices, localOnlyInv);
       }
     } catch(e) { errors.push('app_invoices: '+e.message); }
 
@@ -2145,8 +2182,13 @@ async function _pushInvoiceToCloud(inv0) { if (_writesBlocked()) return;
       updated_at:    new Date().toISOString()
     };
     var { error } = await _sb.from('app_invoices').upsert(_invRow, { onConflict: 'id' });
-    if (error) console.warn('[Invoice Push]', error.message); else inv0._synced = true;
-  } catch (e) { console.warn('[Invoice Push]', e.message || e); }
+    if (error) { console.warn('[Invoice Push]', error.message); return error; }
+    inv0._synced = true;
+    // r38: mark clean in the changed-only snapshot ONLY on a real persisted write (not when the version
+    // gate suppressed it), so a suppressed edit stays dirty and re-pushes after the stale tab reloads.
+    try { if (typeof _writesBlocked!=='function' || !_writesBlocked()) { if (typeof _officeMarkSynced==='function') _officeMarkSynced('invoices', inv0); } } catch(e){}
+    return null;
+  } catch (e) { console.warn('[Invoice Push]', e.message || e); return e; }
 }
 
 async function _pushWOExpenseToCloud(we) { if (_writesBlocked()) return;
@@ -3345,8 +3387,16 @@ async function pushAllToCloud() {
     // Push invoices — migration _16 (RED #4). Whole invoice object as jsonb `data`
     // plus queryable columns, mapped across the three shapes (WO / recurring-MSC /
     // manual). Per-row upsert, deletes handled by the tombstone loop above.
+    // r38 INV2: CHANGED-ONLY + ready-gated, same as quotes/customers/contacts/work_orders. Previously
+    // this re-upserted EVERY invoice in memory on every sweep; because the WHOLE invoice is stored as
+    // `data` jsonb, a long-open stale tab could revert an entire invoice (status, due date, line items)
+    // over an edit made elsewhere — the worst place for the clobber, since this is the money entity.
+    var _invTomb = (DB.deletedIds && DB.deletedIds.invoices) || [];
     for (var inv0 of (DB.invoices || [])) {
       if (!inv0 || !inv0.id) continue;
+      if (!_officeSnapReady) continue;                         // no invoice sweep before the first pull rebuilt the snapshot
+      if (_invTomb.indexOf(String(inv0.id)) >= 0) continue;    // being deleted → don't re-create via upsert
+      if (!_officeDirty('invoices', inv0)) continue;           // unchanged since last sync → skip (prevents stale whole-invoice revert)
       try {
         var _invRow = {
           id:            inv0.id,
@@ -3361,7 +3411,7 @@ async function pushAllToCloud() {
         };
         var { error: invErr } = await _sb.from('app_invoices').upsert(_invRow, {onConflict:'id'});
         if (invErr) { console.warn('[Push] Invoice error:', invErr.message); _pushErrors.push('invoice '+(inv0.id)+': '+invErr.message); }
-        else { inv0._synced = true; }  // pushed → safe in cloud; load-on-demand bounding may drop it from memory
+        else { inv0._synced = true; _officeMarkSynced('invoices', inv0); }  // pushed → clean; load-on-demand bounding may drop it from memory
       } catch(invCatch) { console.warn('[Push] Invoice error:', invCatch.message||invCatch); }
     }
 
