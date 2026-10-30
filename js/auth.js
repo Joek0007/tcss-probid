@@ -257,6 +257,12 @@ function _recHash(rec){
   return parts.join('|');
 }
 var _officeSnap = { quotes:{}, customers:{}, contacts:{} };   // in-memory: { table: { id: contentHash } }
+// r34: the snapshot is in-memory, so on a fresh load/reload it starts EMPTY → every office record
+// looks "changed" → a background sweep in that window would re-push them all from (possibly stale)
+// localStorage, re-clobbering a value fixed elsewhere (the job-name-paren-comes-back bug). Gate the
+// office-record push loops until the first cloud pull has rebuilt the snapshot this session, so the
+// sweep can never push a quote/customer/contact before we know the cloud's current version.
+var _officeSnapReady = false;
 function _officeMarkSynced(table, rec){
   if (!rec || rec.id==null || !_officeSnap[table]) return;
   _officeSnap[table][String(rec.id)] = _recHash(rec);
@@ -1930,6 +1936,7 @@ async function syncAllFromCloud(silent) {
   // dashboard — otherwise freshly-pulled rows sit in memory but the on-screen list stays stale
   // until a full app reload. Guarded so it never fires while a modal/editor is open. (fix: new
   // contact not appearing after sync until close+reopen.)
+  _officeSnapReady = true;   // r34: a pull has rebuilt the changed-only snapshot from the cloud — the office sweep may now run safely
   if (typeof _rerenderActivePage === 'function') _rerenderActivePage();
   hideSpinner();
   if (errors.length) {
@@ -2863,6 +2870,7 @@ async function pushAllToCloud() {
     // Push quotes
     for (var q of (DB.quotes || [])) {
       if (!q) continue;
+      if (!_officeSnapReady) continue;             // r34: no office push until the first pull rebuilt the snapshot (prevents the empty-snapshot reload clobber)
       if (!_officeDirty('quotes', q)) continue;   // r32: unchanged since last sync → skip (re-pushing could only clobber a newer copy)
       try {
         var qId = ensureUUID(q);
@@ -3039,6 +3047,7 @@ async function pushAllToCloud() {
     // Push customers
     for (var c of (DB.customers || [])) {
       if (!c) continue;
+      if (!_officeSnapReady) continue;               // r34: gate until first pull rebuilt the snapshot
       if (!_officeDirty('customers', c)) continue;   // r32: unchanged since last sync → skip
       try {
         var cId = ensureUUID(c);
@@ -3139,6 +3148,7 @@ async function pushAllToCloud() {
     // Push contacts
     for (var ct of (DB.contacts || [])) {
       if (!ct || !ct.name) continue;
+      if (!_officeSnapReady) continue;               // r34: gate until first pull rebuilt the snapshot
       if (!_officeDirty('contacts', ct)) continue;   // r32: unchanged since last sync → skip
       try {
         var ctId = ensureUUID(ct);
