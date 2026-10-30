@@ -1618,9 +1618,94 @@ function _workDayToRow(wd) {
     corrected:          (wd.corrected != null) ? !!wd.corrected : null,
     corrections:        wd.corrections || null,
     events:             wd.events || null,
+    // r46: field-tech work note — tech writes it on My Hours, office/manager can modify from All
+    // Timesheets; once office modifies, note_locked=true locks the tech out. note_audit keeps every change.
+    work_note:          (wd.workNote != null) ? wd.workNote : null,
+    note_locked:        (wd.noteLocked != null) ? !!wd.noteLocked : null,
+    note_audit:         wd.noteAudit || null,
     created_by:         wd.techId || (_currentUser ? _currentUser.id : null),
     updated_at:         new Date().toISOString()
   };
+}
+
+// r46: immediate single-row work-day push so a saved work note lands in the cloud right away
+// (the office sees a tech's note, the tech sees an office edit) without waiting for the next sweep.
+// The r36 write-gate chokepoint still suppresses this on a stale build, so no extra guard needed here.
+async function _pushWorkDayToCloud(wd) {
+  if (!_sb || !wd || !wd.id) return;
+  try {
+    var row = (typeof _workDayToRow === 'function') ? _workDayToRow(wd) : null;
+    if (!row) return;
+    var r = await _sb.from('app_work_days').upsert(row, {onConflict:'id'});
+    if (r && r.error) console.warn('[WorkDay push]', r.error.message);
+  } catch(e) { console.warn('[WorkDay push]', e.message||e); }
+}
+
+// ---- r46: WORK NOTE edit modal (My Hours tech + All Timesheets office) ----
+// Open the note editor for a work day. The textarea is read-only (and Save hidden) when the viewer
+// isn't allowed to edit — a tech viewing a day the office already locked still sees the note.
+function openWorkNoteModal(workDayId){
+  var wd = (DB.workDays||[]).find(function(d){ return d.id===workDayId; });
+  if (!wd) { showToast('Day not found','error'); return; }
+  var myName    = _currentUser ? _currentUser.full_name : '';
+  var canCorrect= (typeof hasPermission==='function') ? hasPermission('time.correct') : false;
+  var isOwner   = myName && wd.techName===myName;
+  var canEdit   = canCorrect || (isOwner && !wd.noteLocked);
+
+  var idEl=document.getElementById('wn-workday-id'); if(idEl) idEl.value=workDayId;
+  var ta=document.getElementById('wn-text'); if(ta){ ta.value=wd.workNote||''; ta.readOnly=!canEdit; ta.style.background=canEdit?'#fff':'#f5f5f5'; }
+  var titleEl=document.getElementById('wn-title'); if(titleEl) titleEl.textContent=(wd.techName||'')+' · '+formatDate(wd.date);
+  var noteEl=document.getElementById('wn-lock-note');
+  if (noteEl){
+    if (!canEdit && isOwner && wd.noteLocked) { noteEl.style.display=''; noteEl.textContent='🔒 The office has reviewed this note, so it is locked. Ask the office/a manager to change it.'; }
+    else if (canCorrect && wd.noteLocked)     { noteEl.style.display=''; noteEl.textContent='ℹ Office-locked. Your edit is logged in the audit trail.'; }
+    else if (canCorrect && isOwner)           { noteEl.style.display=''; noteEl.textContent='ℹ Saving as office will lock this note so the tech can no longer change it.'; }
+    else if (canCorrect)                      { noteEl.style.display=''; noteEl.textContent='ℹ Saving as office will lock this note so the tech can no longer change it.'; }
+    else { noteEl.style.display='none'; }
+  }
+  var saveBtn=document.getElementById('wn-save-btn'); if(saveBtn) saveBtn.style.display=canEdit?'':'none';
+  openModal('modal-work-note');
+}
+
+function saveWorkNote(){
+  if (typeof _writesBlocked==='function' && _writesBlocked()){
+    showToast('A newer version is open on another device — reload before saving.','error'); return;
+  }
+  var id=(document.getElementById('wn-workday-id')||{}).value||'';
+  var text=(document.getElementById('wn-text')||{}).value||'';
+  var wd=(DB.workDays||[]).find(function(d){ return d.id===id; });
+  if (!wd){ showToast('Day not found','error'); return; }
+  var actor={ name:(_currentUser?_currentUser.full_name:''), canCorrect:((typeof hasPermission==='function')?hasPermission('time.correct'):false) };
+  var res=_applyWorkNote(wd, text, actor);
+  if (!res.ok){
+    var msg={ locked:'This note is locked by the office — only a manager can change it.',
+              not_yours:'You can only edit your own work note.',
+              nochange:'No change to save.', not_found:'Day not found.' }[res.reason] || 'Could not save note.';
+    showToast(msg, res.reason==='nochange'?'info':'error');
+    if (res.reason==='nochange') closeModal('modal-work-note');
+    return;
+  }
+  saveDB();
+  _pushWorkDayToCloud(wd);
+  closeModal('modal-work-note');
+  if (typeof loadTimesheets==='function') loadTimesheets();
+  if (typeof renderAllTimesheetsTab==='function') { try { renderAllTimesheetsTab(); } catch(e){} }
+  showToast(res.reason==='office_saved'?'Work note updated (tech is now locked out)':'Work note saved','success');
+}
+
+// Office-only: show the full change history for a day's work note.
+function showWorkNoteHistory(workDayId){
+  var wd=(DB.workDays||[]).find(function(d){ return d.id===workDayId; });
+  if (!wd || !Array.isArray(wd.noteAudit) || !wd.noteAudit.length){ showToast('No note history','info'); return; }
+  var rows=wd.noteAudit.map(function(a){
+    return '<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:12px">'+
+      '<div style="font-weight:700;color:#546e7a">'+escHtml(a.by||'')+' · '+(a.role==='office'?'office':'tech')+' · '+_punchTimeStr(a.at)+'</div>'+
+      '<div style="color:#37474f;white-space:pre-wrap;margin-top:2px">'+escHtml(a.next||'(cleared)')+'</div>'+
+    '</div>';
+  }).join('');
+  var histEl=document.getElementById('wn-history-body'); if(histEl) histEl.innerHTML=rows;
+  var titleEl=document.getElementById('wn-history-title'); if(titleEl) titleEl.textContent='Note history — '+(wd.techName||'')+' · '+formatDate(wd.date);
+  openModal('modal-work-note-history');
 }
 
 async function _pushTimeEntryToSupabase(entry) {
@@ -1994,6 +2079,10 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
             '<div style="font-size:12px;color:#90a4ae;padding:4px 0">No entries</div>'
           )
         )+
+        // r45: office can see the tech's actual clock punches (in/out, travel, break, lunch) for the day.
+        (typeof _punchDetailsHTML==='function' ? _punchDetailsHTML(workDay) : '')+
+        // r46: the tech's work note — office/manager can edit it here (which locks the tech out).
+        (typeof _workNoteHTML==='function' ? _workNoteHTML(workDay) : '')+
       '</div>';
     }).join('');
 

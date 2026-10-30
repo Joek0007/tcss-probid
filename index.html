@@ -4305,6 +4305,43 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   </div>
 </div>
 
+<!-- r46: FIELD-TECH WORK NOTE MODAL -->
+<div class="modal-overlay" id="modal-work-note">
+  <div class="modal-box" style="max-width:520px;width:96%">
+    <div class="modal-head">
+      <h3>📝 Work Note</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-work-note">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="wn-title" style="font-size:13px;font-weight:700;color:#546e7a;margin-bottom:10px"></div>
+      <input type="hidden" id="wn-workday-id">
+      <label style="font-size:12px;color:#546e7a">What did you work on today? Materials used, what you did, anything the office should know.</label>
+      <textarea id="wn-text" rows="6" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #e0e0e0;border-radius:8px;font-size:14px;resize:vertical;margin-top:6px"></textarea>
+      <div id="wn-lock-note" style="display:none;font-size:11px;color:#90a4ae;margin-top:8px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-work-note">Cancel</button>
+      <button class="btn btn-primary" id="wn-save-btn" onclick="saveWorkNote()">Save Note</button>
+    </div>
+  </div>
+</div>
+
+<!-- r46: WORK NOTE HISTORY (office/manager) -->
+<div class="modal-overlay" id="modal-work-note-history">
+  <div class="modal-box" style="max-width:520px;width:96%">
+    <div class="modal-head">
+      <h3 id="wn-history-title">Note history</h3>
+      <button class="close-btn" data-action="closeModal" data-modal="modal-work-note-history">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="wn-history-body"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost btn-sm" data-action="closeModal" data-modal="modal-work-note-history">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- MANUAL TIME CORRECTION MODAL -->
 <div class="modal-overlay" id="modal-time-entry" style="align-items:flex-start;padding:20px 0;overflow-y:auto">
   <div class="modal-box" style="max-width:620px;width:98%;margin:0 auto">
@@ -7282,12 +7319,12 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/checkouts_db.js?v=20260919ix"></script>
 <script src="js/collections_db.js?v=20260919ix"></script>
 <script src="js/tools.js?v=20261025today"></script>
-<script src="js/field.js?v=20261030r44paidhours"></script>
+<script src="js/field.js?v=20261030r46worknote"></script>
 <script src="js/crm.js?v=20261028r29cpcontacts"></script>
 <script src="js/vehicles.js?v=20261022docroll"></script>
 <script src="js/dispatch.js?v=20261024leadfix"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
-<script src="js/worktracking.js?v=20261029r30proprich"></script>
+<script src="js/worktracking.js?v=20261030r46worknote"></script>
 <script src="js/calendar.js?v=20261030r41childdrop"></script>
 <script src="js/workorders.js?v=20261030r40woexpense"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
@@ -7303,7 +7340,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <script src="js/recurring.js?v=20261025dates2"></script>
   <script src="js/seed_managed.js?v=20260919ix"></script>
   <script src="js/applock.js?v=20260919jk"></script>
-  <script src="js/auth.js?v=20261030r41childdrop"></script>
+  <script src="js/auth.js?v=20261030r46worknote"></script>
   <script>
     // Register the service worker so the app LOADS with no signal (field techs offline).
     // Served from the app root as /tcss-probid/sw.js → scope covers the whole app.
@@ -8774,7 +8811,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r44';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r46';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-10-28';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

@@ -6648,19 +6648,125 @@ function saveTimeCorrection() {
 // ============================================================
 // END TIME MANAGEMENT FEATURES
 // ============================================================
+// r45: render a day's actual CLOCK PUNCHES (in/out, travel, on-site, break, lunch) from the stored
+// work-day events, so a tech can see their own clock in/out times on My Hours and the office can see
+// any tech's punch timeline on All Timesheets. Display-only; reads the events already recorded on the
+// day. Handles both Date objects (freshly clocked) and ISO strings (pulled from the cloud).
+function _punchTimeStr(t){
+  try { var d = (t instanceof Date) ? t : new Date(t); if (isNaN(d.getTime())) return ''; return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); }
+  catch(e){ return ''; }
+}
+function _punchTimelineHTML(events){
+  if (!events || !events.length) return '';
+  var rows = events.filter(function(e){ return e && e.time && (e.label||e.type); }).map(function(e){
+    return '<div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;padding:2px 0;color:#546e7a">'+
+             '<span style="font-weight:600">'+escHtml(e.label||e.type)+'</span>'+
+             '<span style="font-variant-numeric:tabular-nums;white-space:nowrap">'+_punchTimeStr(e.time)+'</span>'+
+           '</div>';
+  }).join('');
+  if (!rows) return '';
+  return '<div style="margin-top:6px;padding:8px 10px;background:#f7f9fc;border:1px solid #e7edf3;border-radius:6px">'+
+           '<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Clock punches</div>'+
+           rows+
+         '</div>';
+}
+// Collapsible "🕐 Clock punches" block for a day row (only when the day has recorded punches).
+function _punchDetailsHTML(d){
+  if (!d || !d.events || !d.events.length) return '';
+  return '<details style="margin:-2px 0 8px 2px">'+
+    '<summary style="cursor:pointer;font-size:11px;color:#1565c0;padding:2px 4px">🕐 Clock punches</summary>'+
+    _punchTimelineHTML(d.events)+
+  '</details>';
+}
+
+// ============================================================
+// r46 — FIELD-TECH WORK NOTES (tech-owned, office-correctable, locked once office edits)
+// ============================================================
+// Apply a work-note edit to a work day, enforcing the ownership + lock rules and recording an
+// audit entry for EVERY change. Pure (no DOM, no network) so it is unit-tested directly.
+//   actor = { name, canCorrect }  where canCorrect === hasPermission('time.correct') (office/manager).
+// Rules (per Joe's decision):
+//   • A field tech may edit ONLY their own day's note, and ONLY while it is unlocked.
+//   • Office/manager (canCorrect) may edit any day's note at any time — and doing so LOCKS the
+//     note (note_locked=true) so the tech can no longer change it; only office/manager can after.
+//   • Every change (tech or office) appends {at,by,role,prev,next} to wd.noteAudit.
+// Returns { ok:bool, reason:string }.
+function _applyWorkNote(wd, text, actor){
+  if (!wd) return { ok:false, reason:'not_found' };
+  actor = actor || {};
+  var isOffice = !!actor.canCorrect;
+  var isOwner  = !!(actor.name && wd.techName === actor.name);
+  if (!isOffice){
+    if (!isOwner)      return { ok:false, reason:'not_yours' };
+    if (wd.noteLocked) return { ok:false, reason:'locked' };
+  }
+  var prev = wd.workNote || '';
+  var next = (text==null ? '' : String(text)).replace(/\s+$/,'').replace(/^\s+/,'');
+  if (prev === next) return { ok:false, reason:'nochange' };
+  if (!Array.isArray(wd.noteAudit)) wd.noteAudit = [];
+  wd.noteAudit.push({ at:new Date().toISOString(), by:(actor.name||'Unknown'), role:(isOffice?'office':'tech'), prev:prev, next:next });
+  wd.workNote  = next;
+  if (isOffice) wd.noteLocked = true;   // office/manager edit locks the tech out
+  return { ok:true, reason:(isOffice ? 'office_saved' : 'tech_saved') };
+}
+
+// Render the work-note block for a day. Reads globals (_currentUser, hasPermission) so the same
+// helper serves My Hours (tech) and All Timesheets (office). Shows the note text, who last touched
+// it, a 🔒 marker when locked, and an edit affordance only when the viewer is allowed to edit.
+function _workNoteHTML(d){
+  if (!d || !d.id) return '';
+  var myName    = (typeof _currentUser!=='undefined' && _currentUser) ? _currentUser.full_name : '';
+  var canCorrect= (typeof hasPermission==='function') ? hasPermission('time.correct') : false;
+  var isOwner   = myName && d.techName === myName;
+  var locked    = !!d.noteLocked;
+  var note      = d.workNote || '';
+  // Who may edit from here: office/manager always; a tech only on their own day while unlocked.
+  var canEdit   = canCorrect || (isOwner && !locked);
+  if (!note && !canEdit) return '';   // nothing to show and nothing to do
+  var audit = Array.isArray(d.noteAudit) ? d.noteAudit : [];
+  var last  = audit.length ? audit[audit.length-1] : null;
+  var byLine = last
+    ? '<div style="font-size:10px;color:#90a4ae;margin-top:3px">'+
+        (last.role==='office'?'✎ edited by office':'✎ by '+escHtml(last.by))+
+        ' · '+_punchTimeStr(last.at)+(locked?' · 🔒 locked':'')+
+      '</div>'
+    : '';
+  var historyBtn = (canCorrect && audit.length>1)
+    ? ' <a href="#" onclick="event.preventDefault();showWorkNoteHistory(\''+escHtml(d.id)+'\')" style="font-size:10px;color:#1565c0">history ('+audit.length+')</a>'
+    : '';
+  var editBtn = canEdit
+    ? '<button onclick="openWorkNoteModal(\''+escHtml(d.id)+'\')" style="background:none;border:1px solid #cfe0f5;border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer;color:#1565c0">'+(note?'✏ Edit note':'✏ Add work note')+'</button>'
+    : '';
+  var body = note
+    ? '<div style="font-size:12px;color:#37474f;white-space:pre-wrap;word-break:break-word">'+escHtml(note)+'</div>'
+    : (canEdit ? '<div style="font-size:12px;color:#b0bec5;font-style:italic">No work note yet'+(isOwner&&!canCorrect?' — add what you did today':'')+'.</div>' : '');
+  return '<div style="margin-top:6px;padding:8px 10px;background:#fffdf5;border:1px solid #f0e7cf;border-radius:6px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:'+(body?'4px':'0')+'">'+
+        '<span style="font-size:10px;font-weight:700;color:#a98e3f;text-transform:uppercase;letter-spacing:.5px">📝 Work note'+(locked&&isOwner&&!canCorrect?' (locked)':'')+historyBtn+'</span>'+
+        editBtn+
+      '</div>'+
+      body+
+      byLine+
+  '</div>';
+}
+
 function renderDayRow(d) {
   var flagStr = d.lunchFlagged ? '<span class="ts-flag-chip">⚠ Lunch</span>' : '';
   var otMins = Math.max(0, (d.totalPaidMins||0) - 480);
   var otStr = otMins > 0 ? '<span class="ts-ot-chip">OT +'+fmtMins(otMins)+'</span>' : '';
-  return '<div class="ts-day-row">'+
-    '<span class="ts-day-date">'+formatDate(d.date)+'</span>'+
-    '<div class="ts-day-stats">'+
-      '<span>🔧 '+fmtMins(d.onsiteMins)+'</span>'+
-      '<span>🚗 '+fmtMins(d.travelMins)+'</span>'+
-      (d.lunchMins?'<span>🍽 '+fmtMins(d.lunchMins)+'</span>':'')+
+  return '<div>'+
+    '<div class="ts-day-row">'+
+      '<span class="ts-day-date">'+formatDate(d.date)+'</span>'+
+      '<div class="ts-day-stats">'+
+        '<span>🔧 '+fmtMins(d.onsiteMins)+'</span>'+
+        '<span>🚗 '+fmtMins(d.travelMins)+'</span>'+
+        (d.lunchMins?'<span>🍽 '+fmtMins(d.lunchMins)+'</span>':'')+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:4px">'+flagStr+otStr+'</div>'+
+      '<span class="ts-day-total">'+fmtMins(d.totalPaidMins)+'</span>'+
     '</div>'+
-    '<div style="display:flex;align-items:center;gap:4px">'+flagStr+otStr+'</div>'+
-    '<span class="ts-day-total">'+fmtMins(d.totalPaidMins)+'</span>'+
+    _punchDetailsHTML(d)+
+    _workNoteHTML(d)+        // r46: the tech's own work note (editable on My Hours until office locks it)
   '</div>';
 }
 
@@ -6671,7 +6777,9 @@ function renderDaySummaryCard(d) {
     '<div class="ts-stat"><div class="ts-stat-val">'+fmtMins(d.onsiteMins)+'</div><div class="ts-stat-lbl">On Site</div></div>'+
     '<div class="ts-stat"><div class="ts-stat-val">'+fmtMins(d.travelMins)+'</div><div class="ts-stat-lbl">Travel</div></div>'+
     '<div class="ts-stat"><div class="ts-stat-val">'+fmtMins(d.lunchMins)+'</div><div class="ts-stat-lbl">Lunch</div></div>'+
-  '</div>';
+  '</div>'+
+  _punchTimelineHTML(d.events)+   // r45: show the tech their actual clock in/out punches for today
+  _workNoteHTML(d);               // r46: add/edit today's work note right on My Hours
 }
 
 function resolveLunchFlag(flagId, action) {
