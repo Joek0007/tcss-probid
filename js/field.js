@@ -2274,8 +2274,8 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
       if (workDay && workDay.autoStopped) _flag = '<span style="background:#fdecea;color:#b71c1c;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700" title="Clock ran past 24h and was auto-stopped — review">⚠ Auto-stopped 24h</span>';
       else if (workDay && (workDay.totalPaidMins||0) > 16*60) _flag = '<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700" title="Unusually long day — review">⚠ Long day</span>';
 
-      return '<div style="background:#fff;border:1px solid '+(_lk.locked?'#e6c9c9':(_flag?'#f0d9b5':'#e0e7ef'))+';border-radius:8px;padding:12px;margin-bottom:6px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+      return '<div style="background:#fff;border:1px solid '+(_lk.locked?'#e6c9c9':(_flag?'#f0d9b5':'#e0e7ef'))+';border-radius:8px;padding:9px 11px;margin-bottom:5px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
           '<span style="font-weight:700;font-size:13px">'+escHtml(techName)+' '+_flag+'</span>'+
           '<div style="display:flex;gap:8px;align-items:center">'+
             '<span style="font-weight:700;color:#1565c0">'+fmtMins(totalMins)+'</span>'+
@@ -2317,8 +2317,8 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
       return s+tm;
     }, 0);
 
-    return '<div style="margin-bottom:16px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;background:#f0f4f8;padding:8px 14px;border-radius:8px;margin-bottom:8px">'+
+    return '<div style="margin-bottom:10px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;background:#f0f4f8;padding:6px 12px;border-radius:7px;margin-bottom:5px">'+
         '<span style="font-weight:700;color:#1565c0;font-size:13px">'+escHtml(dayLabel)+'</span>'+
         '<span style="font-size:12px;font-weight:700;color:#546e7a">'+techsOnDay.length+' employee'+(techsOnDay.length!==1?'s':'')+' · '+fmtMins(dayTotal)+' total</span>'+
       '</div>'+

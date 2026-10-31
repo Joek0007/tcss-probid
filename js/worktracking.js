@@ -6779,18 +6779,20 @@ function _workNoteHTML(d){
   var historyBtn = (canEditNotes && audit.length>1)
     ? ' <a href="#" onclick="event.preventDefault();showWorkNoteHistory(\''+escHtml(d.id)+'\')" style="font-size:10px;color:#1565c0">history ('+audit.length+')</a>'
     : '';
+  // r50: when there's NO note, don't render the whole yellow panel on every row — collapse to a single
+  // subtle one-line link. The full box only appears once a note actually exists. Cuts the vertical bloat.
+  if (!note){
+    return '<div style="margin-top:2px"><a href="#" onclick="event.preventDefault();openWorkNoteModal(\''+escHtml(d.id)+'\')" style="font-size:11px;color:#90a4ae;text-decoration:none">📝 '+(isOwner&&!canEditNotes?'Add what you did today':'Add work note')+'</a></div>';
+  }
   var editBtn = canEdit
-    ? '<button onclick="openWorkNoteModal(\''+escHtml(d.id)+'\')" style="background:none;border:1px solid #cfe0f5;border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer;color:#1565c0">'+(note?'✏ Edit note':'✏ Add work note')+'</button>'
+    ? '<button onclick="openWorkNoteModal(\''+escHtml(d.id)+'\')" style="background:none;border:1px solid #cfe0f5;border-radius:5px;padding:1px 7px;font-size:11px;cursor:pointer;color:#1565c0">✏ Edit</button>'
     : '';
-  var body = note
-    ? '<div style="font-size:12px;color:#37474f;white-space:pre-wrap;word-break:break-word">'+escHtml(note)+'</div>'
-    : (canEdit ? '<div style="font-size:12px;color:#b0bec5;font-style:italic">No work note yet'+(isOwner&&!canEditNotes?' — add what you did today':'')+'.</div>' : '');
-  return '<div style="margin-top:6px;padding:8px 10px;background:#fffdf5;border:1px solid #f0e7cf;border-radius:6px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:'+(body?'4px':'0')+'">'+
+  return '<div style="margin-top:4px;padding:6px 9px;background:#fffdf5;border:1px solid #f0e7cf;border-radius:6px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px">'+
         '<span style="font-size:10px;font-weight:700;color:#a98e3f;text-transform:uppercase;letter-spacing:.5px">📝 Work note'+(locked&&isOwner&&!canEditNotes?' (locked)':'')+historyBtn+'</span>'+
         editBtn+
       '</div>'+
-      body+
+      '<div style="font-size:12px;color:#37474f;white-space:pre-wrap;word-break:break-word">'+escHtml(note)+'</div>'+
       byLine+
   '</div>';
 }
