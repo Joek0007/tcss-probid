@@ -6803,6 +6803,9 @@ function renderDayRow(d) {
   var _dproc = (typeof _isDayProcessed==='function') ? _isDayProcessed(d.techName, d.date) : false;
   var _dlock = (typeof _dayIsLocked==='function') ? _dayIsLocked(d, _dproc) : !!(d.dayLocked || d.noteLocked);
   if (_dlock) flagStr += '<span style="background:#eceff1;color:#455a64;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;margin-left:4px">'+(_dproc?'🔒 Sealed':'🔒 Locked')+'</span>';
+  // r49: surface an auto-stopped (24h) or long day so the tech sees why the office may ask about it.
+  if (d.autoStopped) flagStr += '<span style="background:#fdecea;color:#b71c1c;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;margin-left:4px">⚠ Auto-stopped</span>';
+  else if ((d.totalPaidMins||0) > 16*60) flagStr += '<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;margin-left:4px">⚠ Long day</span>';
   return '<div>'+
     '<div class="ts-day-row">'+
       '<span class="ts-day-date">'+formatDate(d.date)+'</span>'+

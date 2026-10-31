@@ -363,6 +363,52 @@ function _computeClockDayTotals(st, endTime){
   return { totalPaidMins: totalPaid, officeMins: baseMins, travelMins: travel, onsiteMins: onsite, breakMins: brk, lunchMins: lunch };
 }
 
+// r49 — split a clock day across LOCAL midnight(s), cap a runaway at 24h, and flag.
+// Fixes two things the 435-hour Dawn record exposed: (1) a forgotten clock-out banked the whole multi-day
+// span as paid, and (2) overnight work belongs partly to each calendar day. Pure + unit-tested.
+//   t0, endTime : Date (span start/end); st : the clock state (for the r44 breakdown).
+//   LONG_DAY_MINS : paid minutes above which a day is flagged for office review (not truncated).
+// Rules: cap the span at 24h (autoStopped); split [t0, end] at each local midnight into one segment per
+// calendar day; allocate the r44 breakdown proportionally by each segment's span (last segment absorbs the
+// rounding remainder, so the pieces sum EXACTLY to the whole). A normal same-day shift → one segment,
+// identical to before. Returns { autoStopped, crossesMidnight, segments:[{date, totalPaidMins, officeMins,
+// travelMins, onsiteMins, breakMins, lunchMins, longDayFlagged}] }.
+function _localDateStr(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function _splitClockDay(t0, endTime, st, LONG_DAY_MINS){
+  LONG_DAY_MINS = LONG_DAY_MINS || (16*60);
+  var MAX = 24*60*60000;
+  var autoStopped = false;
+  if (endTime - t0 > MAX){ endTime = new Date(t0.getTime()+MAX); autoStopped = true; }
+  var full = _computeClockDayTotals(st, endTime);          // breakdown over the (capped) span
+  var totalSpanMs = Math.max(1, endTime - t0);
+  // one segment per local calendar day the span touches
+  var segs = [], cur = new Date(t0.getTime());
+  while (cur < endTime){
+    var nextMid = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate()+1, 0,0,0,0); // next LOCAL midnight
+    var segEnd  = (nextMid < endTime) ? nextMid : endTime;
+    segs.push({ startMs:cur.getTime(), endMs:segEnd.getTime(), date:_localDateStr(cur) });
+    cur = segEnd;
+  }
+  if (!segs.length) segs.push({ startMs:t0.getTime(), endMs:endTime.getTime(), date:_localDateStr(t0) });
+  // proportional allocation; last segment takes the remainder so sums are exact
+  function alloc(total){
+    var out=[], acc=0;
+    for (var i=0;i<segs.length;i++){
+      if (i===segs.length-1){ out.push(Math.max(0, total-acc)); }
+      else { var v=Math.round(total * ((segs[i].endMs-segs[i].startMs)/totalSpanMs)); out.push(v); acc+=v; }
+    }
+    return out;
+  }
+  var paid=alloc(full.totalPaidMins), off=alloc(full.officeMins), trav=alloc(full.travelMins),
+      ons=alloc(full.onsiteMins), brk=alloc(full.breakMins), lun=alloc(full.lunchMins);
+  segs.forEach(function(s,i){
+    s.totalPaidMins=paid[i]; s.officeMins=off[i]; s.travelMins=trav[i];
+    s.onsiteMins=ons[i]; s.breakMins=brk[i]; s.lunchMins=lun[i];
+    s.longDayFlagged = autoStopped || s.totalPaidMins > LONG_DAY_MINS;
+  });
+  return { autoStopped:autoStopped, crossesMidnight:segs.length>1, segments:segs };
+}
+
 async function _doArriveBackActual(){
   getGPS(async function(lat,lng,acc){
     var now=new Date();
@@ -387,25 +433,42 @@ async function _doArriveBackActual(){
     if(_clockState.sessionId) await _clockSubmit({kind:'session_update', id:_clockState.sessionId, patch:{status:'out', clock_out_at: now.toISOString()}});
     _clockState.todayEvents.push({type:'day_end',time:now,label:'Arrived Back — Day Complete'});
 
-    // Persist completed work day to DB for history
+    // Persist completed work day(s) to DB for history. r49: split across local midnight so overnight work
+    // lands on each calendar day, and cap a forgotten clock-out at 24h (flagged) instead of banking the
+    // whole multi-day span. A normal same-day shift yields exactly one workDay, as before.
     if (!DB.workDays) DB.workDays = [];
-    DB.workDays.push({
-      id:            'wd-'+Date.now(),
-      techName:      _currentUser ? _currentUser.full_name : 'Unknown',
-      techId:        _currentUser ? _currentUser.id : null,
-      date:          getTodayISO(),
-      travelMins:    _dt.travelMins,
-      onsiteMins:    _dt.onsiteMins,
-      officeMins:    _dt.officeMins,      // r44: base/office time now counted (and paid)
-      breakMins:     _dt.breakMins,       // informational — already inside the paid onsite/office time
-      lunchMins:     _dt.lunchMins,       // informational — unpaid, excluded from totalPaidMins
-      totalPaidMins: totalPaid,
-      jobName:       _clockState.jobName||'',
-      events:        _clockState.todayEvents.map(function(e){ return Object.assign({},e,{time:e.time instanceof Date?e.time.toISOString():e.time}); }),
-      lunchFlagged:  lunchFlag
+    var _t0 = _clockState.homebaseStart || _clockState.dayStart ||
+              (_clockState.todayEvents && _clockState.todayEvents.length ? new Date(_clockState.todayEvents[0].time) : now);
+    var _evInStartOrder = _clockState.todayEvents.map(function(e){ return Object.assign({},e,{time:e.time instanceof Date?e.time.toISOString():e.time}); });
+    var _split = _splitClockDay(_t0, now, _clockState);
+    var _baseId = 'wd-'+Date.now();
+    _split.segments.forEach(function(seg, i){
+      DB.workDays.push({
+        id:            i===0 ? _baseId : _baseId+'-'+i,
+        techName:      _currentUser ? _currentUser.full_name : 'Unknown',
+        techId:        _currentUser ? _currentUser.id : null,
+        date:          seg.date,
+        travelMins:    seg.travelMins,
+        onsiteMins:    seg.onsiteMins,
+        officeMins:    seg.officeMins,       // r44: base/office time counted (and paid)
+        breakMins:     seg.breakMins,        // informational — already inside the paid onsite/office time
+        lunchMins:     seg.lunchMins,        // informational — unpaid, excluded from totalPaidMins
+        totalPaidMins: seg.totalPaidMins,
+        jobName:       _clockState.jobName||'',
+        // punches go on the FIRST calendar day's record (they describe the one continuous shift)
+        events:        i===0 ? _evInStartOrder : [],
+        lunchFlagged:  lunchFlag && i===0,
+        autoStopped:   !!_split.autoStopped,          // 24h runaway cap hit
+        longDayFlagged:!!seg.longDayFlagged           // over the review threshold → office should eyeball
+      });
     });
+    // r49: report the CAPPED sum across segments (not the raw span) so a 24h-capped runaway doesn't toast
+    // "435h", and an overnight shift's reported total matches the two day records that were written.
+    var _capTotal  = _split.segments.reduce(function(s,x){ return s+x.totalPaidMins; }, 0);
+    var _capOnsite = _split.segments.reduce(function(s,x){ return s+x.onsiteMins;   }, 0);
+    var _capTravel = _split.segments.reduce(function(s,x){ return s+x.travelMins;   }, 0);
     saveDB();
-    showToast('Day complete — '+formatMinutes(totalPaid)+' total paid ('+formatMinutes(totalOnsite)+' on site, '+formatMinutes(totalTravel)+' travel)','success',6000);
+    showToast('Day complete — '+formatMinutes(_capTotal)+' total paid ('+formatMinutes(_capOnsite)+' on site, '+formatMinutes(_capTravel)+' travel)'+(_split.autoStopped?' · ⚠ auto-stopped at 24h — flagged for office':''),'success',6000);
     clearInterval(_clockState.timerInterval);
     _clockState.status='out';onClockStateChange('out');_clockState.sessionId=null;
     _clockState.travelOutStart=null;_clockState.onsiteStart=null;_clockState.travelBackStart=null;
@@ -413,7 +476,7 @@ async function _doArriveBackActual(){
     _clockState.travelOutMins=0;_clockState.onsiteMins=0;
     _clockState.travelBackMins=0;_clockState.breakMins=0;_clockState.lunchMins=0;_clockState.lunchCount=0;
     _eodReminderShown=false;hideEodReminder();updateClockUI();
-    _closeClockDayEntry(totalPaid);   // r43: stamp the end + total on the day's itemized timesheet line
+    _closeClockDayEntry(_capTotal);   // r43/r49: stamp the end + CAPPED total on the day's itemized line
   });
 }
 
@@ -1628,6 +1691,7 @@ function _workDayToRow(wd) {
     approved:           (wd.approved != null) ? !!wd.approved : null,
     approved_by:        wd.approvedBy || null,
     lunch_flagged:      (wd.lunchFlagged != null) ? !!wd.lunchFlagged : null,
+    auto_stopped:       (wd.autoStopped != null) ? !!wd.autoStopped : null,  // r49: 24h runaway cap hit
     has_manual_entries: (wd.hasManualEntries != null) ? !!wd.hasManualEntries : null,
     corrected:          (wd.corrected != null) ? !!wd.corrected : null,
     corrections:        wd.corrections || null,
@@ -2205,10 +2269,14 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
       // r48: lock state drives what's editable in this block.
       var _lk = (typeof _dayLockState==='function') ? _dayLockState(techName, date) : {locked:false, processed:false};
       var _lockCtl = (typeof _dayLockControlHTML==='function') ? _dayLockControlHTML(techName, date) : '';
+      // r49: flag an auto-stopped (24h cap) or unusually long day for the office to eyeball.
+      var _flag = '';
+      if (workDay && workDay.autoStopped) _flag = '<span style="background:#fdecea;color:#b71c1c;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700" title="Clock ran past 24h and was auto-stopped — review">⚠ Auto-stopped 24h</span>';
+      else if (workDay && (workDay.totalPaidMins||0) > 16*60) _flag = '<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700" title="Unusually long day — review">⚠ Long day</span>';
 
-      return '<div style="background:#fff;border:1px solid '+(_lk.locked?'#e6c9c9':'#e0e7ef')+';border-radius:8px;padding:12px;margin-bottom:6px">'+
+      return '<div style="background:#fff;border:1px solid '+(_lk.locked?'#e6c9c9':(_flag?'#f0d9b5':'#e0e7ef'))+';border-radius:8px;padding:12px;margin-bottom:6px">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-          '<span style="font-weight:700;font-size:13px">'+escHtml(techName)+'</span>'+
+          '<span style="font-weight:700;font-size:13px">'+escHtml(techName)+' '+_flag+'</span>'+
           '<div style="display:flex;gap:8px;align-items:center">'+
             '<span style="font-weight:700;color:#1565c0">'+fmtMins(totalMins)+'</span>'+
             _lockCtl+
@@ -2239,7 +2307,15 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
       '</div>';
     }).join('');
 
-    var dayTotal = Object.values(byDate[date]).flat().reduce(function(s,e){ return s+(e.entryType!=='lunch'?(e.totalMins||Math.round((e.totalHours||0)*60)):0); },0);
+    // r49: the day-group total must match the per-tech lines — include a tech's clocked workDay hours when
+    // they have no manual entries (before, this summed only entries, so a clock-only day read "0 total"
+    // while the tech's line showed the real hours).
+    var dayTotal = techsOnDay.reduce(function(s, tn){
+      var te = byDate[date][tn] || [];
+      var tm = te.reduce(function(a,e){ return a+(e.entryType!=='lunch'?(e.totalMins||Math.round((e.totalHours||0)*60)):0); },0);
+      if (!tm){ var wdx=workDays.find(function(d){ return d.techName===tn && d.date===date; }); if(wdx) tm=wdx.totalPaidMins||0; }
+      return s+tm;
+    }, 0);
 
     return '<div style="margin-bottom:16px">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;background:#f0f4f8;padding:8px 14px;border-radius:8px;margin-bottom:8px">'+

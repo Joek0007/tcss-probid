@@ -1556,6 +1556,8 @@ async function syncAllFromCloud(silent) {
             jobName: w.job_name||'', jobId: w.job_id||null, dayType: w.day_type||null,
             approved: (w.approved!=null)?!!w.approved:undefined, approvedBy: w.approved_by||null,
             lunchFlagged: !!w.lunch_flagged, hasManualEntries: !!w.has_manual_entries,
+            autoStopped: !!w.auto_stopped,  // r49: 24h runaway cap flag
+
             corrected: !!w.corrected, corrections: w.corrections||null, events: w.events||null,
             // r46: field-tech work note + its lock + audit (see _workDayToRow).
             workNote: w.work_note||'', noteLocked: !!w.note_locked, noteAudit: w.note_audit||null,
