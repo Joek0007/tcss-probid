@@ -6798,29 +6798,35 @@ function _workNoteHTML(d){
 }
 
 function renderDayRow(d) {
-  var flagStr = d.lunchFlagged ? '<span class="ts-flag-chip">⚠ Lunch</span>' : '';
+  // r53: give My Hours / Pay Period the same structured card as All Timesheets — a status-colored left
+  // accent stripe, date + total on the top line, stats + flags below, and a hairline rule above the
+  // punches/note footer. Laid out so it reads cleanly on a phone.
   var otMins = Math.max(0, (d.totalPaidMins||0) - 480);
-  var otStr = otMins > 0 ? '<span class="ts-ot-chip">OT +'+fmtMins(otMins)+'</span>' : '';
-  // r48: show the tech a lock marker so a day they can't edit reads as locked, not broken.
+  var otStr = otMins > 0 ? '<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">OT +'+fmtMins(otMins)+'</span>' : '';
   var _dproc = (typeof _isDayProcessed==='function') ? _isDayProcessed(d.techName, d.date) : false;
   var _dlock = (typeof _dayIsLocked==='function') ? _dayIsLocked(d, _dproc) : !!(d.dayLocked || d.noteLocked);
-  if (_dlock) flagStr += '<span style="background:#eceff1;color:#455a64;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;margin-left:4px">'+(_dproc?'🔒 Sealed':'🔒 Locked')+'</span>';
-  // r49: surface an auto-stopped (24h) or long day so the tech sees why the office may ask about it.
-  if (d.autoStopped) flagStr += '<span style="background:#fdecea;color:#b71c1c;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;margin-left:4px">⚠ Auto-stopped</span>';
-  else if ((d.totalPaidMins||0) > 16*60) flagStr += '<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;margin-left:4px">⚠ Long day</span>';
-  return '<div>'+
-    '<div class="ts-day-row">'+
-      '<span class="ts-day-date">'+formatDate(d.date)+'</span>'+
-      '<div class="ts-day-stats">'+
-        '<span>🔧 '+fmtMins(d.onsiteMins)+'</span>'+
-        '<span>🚗 '+fmtMins(d.travelMins)+'</span>'+
-        (d.lunchMins?'<span>🍽 '+fmtMins(d.lunchMins)+'</span>':'')+
-      '</div>'+
-      '<div style="display:flex;align-items:center;gap:4px">'+flagStr+otStr+'</div>'+
-      '<span class="ts-day-total">'+fmtMins(d.totalPaidMins)+'</span>'+
+  var _isFlagged = !!(d.autoStopped || (d.totalPaidMins||0) > 16*60);
+  var _accent = (_dproc && _dlock) ? '#c62828' : _dlock ? '#90a4ae' : _isFlagged ? '#ef6c00' : '#1565c0';
+  var chips = '';
+  if (d.lunchFlagged) chips += '<span style="background:#fde8e8;color:#c62828;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">⚠ Lunch</span>';
+  if (_dlock)        chips += '<span style="background:#eceff1;color:#455a64;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">'+(_dproc?'🔒 Sealed':'🔒 Locked')+'</span>';
+  if (d.autoStopped) chips += '<span style="background:#fdecea;color:#b71c1c;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">⚠ Auto-stopped</span>';
+  else if ((d.totalPaidMins||0) > 16*60) chips += '<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">⚠ Long day</span>';
+  var stats = '<span style="font-size:12px;color:#546e7a;white-space:nowrap">🔧 '+fmtMins(d.onsiteMins)+'</span>'+
+              '<span style="font-size:12px;color:#546e7a;white-space:nowrap">🚗 '+fmtMins(d.travelMins)+'</span>'+
+              (d.lunchMins?'<span style="font-size:12px;color:#546e7a;white-space:nowrap">🍽 '+fmtMins(d.lunchMins)+'</span>':'');
+  var secondLine = (stats+chips+otStr)
+    ? '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px">'+stats+chips+otStr+'</div>'
+    : '';
+  var footer = _punchDetailsHTML(d) + _workNoteHTML(d);
+  if (footer) footer = '<div style="border-top:1px solid #eef2f7;margin-top:7px;padding-top:6px">'+footer+'</div>';
+  return '<div style="background:#fff;border:1px solid #e6edf5;border-left:3px solid '+_accent+';border-radius:8px;padding:9px 11px 8px 12px;margin-bottom:6px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+      '<span style="font-weight:700;font-size:14px">'+formatDate(d.date)+'</span>'+
+      '<span style="font-weight:700;color:#1565c0;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap">'+fmtMins(d.totalPaidMins)+'</span>'+
     '</div>'+
-    _punchDetailsHTML(d)+
-    _workNoteHTML(d)+        // r46: the tech's own work note (editable on My Hours until office locks it)
+    secondLine+
+    footer+
   '</div>';
 }
 
@@ -6832,8 +6838,8 @@ function renderDaySummaryCard(d) {
     '<div class="ts-stat"><div class="ts-stat-val">'+fmtMins(d.travelMins)+'</div><div class="ts-stat-lbl">Travel</div></div>'+
     '<div class="ts-stat"><div class="ts-stat-val">'+fmtMins(d.lunchMins)+'</div><div class="ts-stat-lbl">Lunch</div></div>'+
   '</div>'+
-  _punchTimelineHTML(d.events)+   // r45: show the tech their actual clock in/out punches for today
-  _workNoteHTML(d);               // r46: add/edit today's work note right on My Hours
+  // r53: set the punches + note off from the stat tiles with the same hairline rule used elsewhere.
+  (function(){ var f=_punchTimelineHTML(d.events)+_workNoteHTML(d); return f?'<div style="border-top:1px solid #eef2f7;margin-top:8px;padding-top:6px">'+f+'</div>':''; })();
 }
 
 function resolveLunchFlag(flagId, action) {
