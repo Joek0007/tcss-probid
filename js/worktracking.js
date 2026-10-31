@@ -6684,17 +6684,18 @@ function _punchDetailsHTML(d){
 // ============================================================
 // Apply a work-note edit to a work day, enforcing the ownership + lock rules and recording an
 // audit entry for EVERY change. Pure (no DOM, no network) so it is unit-tested directly.
-//   actor = { name, canCorrect }  where canCorrect === hasPermission('time.correct') (office/manager).
+//   actor = { name, canEditNotes }  where canEditNotes === hasPermission('time.editnotes') (office/manager).
 // Rules (per Joe's decision):
 //   • A field tech may edit ONLY their own day's note, and ONLY while it is unlocked.
-//   • Office/manager (canCorrect) may edit any day's note at any time — and doing so LOCKS the
-//     note (note_locked=true) so the tech can no longer change it; only office/manager can after.
+//   • A note-editor (canEditNotes = office/manager) may edit any day's note at any time — and doing so
+//     LOCKS the note (note_locked=true) so the tech can no longer change it; only a note-editor can after.
 //   • Every change (tech or office) appends {at,by,role,prev,next} to wd.noteAudit.
+// r47: note editing is its own permission (time.editnotes), split from time-number corrections (time.correct).
 // Returns { ok:bool, reason:string }.
 function _applyWorkNote(wd, text, actor){
   if (!wd) return { ok:false, reason:'not_found' };
   actor = actor || {};
-  var isOffice = !!actor.canCorrect;
+  var isOffice = !!actor.canEditNotes;
   var isOwner  = !!(actor.name && wd.techName === actor.name);
   if (!isOffice){
     if (!isOwner)      return { ok:false, reason:'not_yours' };
@@ -6715,13 +6716,13 @@ function _applyWorkNote(wd, text, actor){
 // it, a 🔒 marker when locked, and an edit affordance only when the viewer is allowed to edit.
 function _workNoteHTML(d){
   if (!d || !d.id) return '';
-  var myName    = (typeof _currentUser!=='undefined' && _currentUser) ? _currentUser.full_name : '';
-  var canCorrect= (typeof hasPermission==='function') ? hasPermission('time.correct') : false;
-  var isOwner   = myName && d.techName === myName;
-  var locked    = !!d.noteLocked;
-  var note      = d.workNote || '';
-  // Who may edit from here: office/manager always; a tech only on their own day while unlocked.
-  var canEdit   = canCorrect || (isOwner && !locked);
+  var myName      = (typeof _currentUser!=='undefined' && _currentUser) ? _currentUser.full_name : '';
+  var canEditNotes= (typeof hasPermission==='function') ? hasPermission('time.editnotes') : false;
+  var isOwner     = myName && d.techName === myName;
+  var locked      = !!d.noteLocked;
+  var note        = d.workNote || '';
+  // Who may edit from here: a note-editor (office/manager) always; a tech only on their own day while unlocked.
+  var canEdit     = canEditNotes || (isOwner && !locked);
   if (!note && !canEdit) return '';   // nothing to show and nothing to do
   var audit = Array.isArray(d.noteAudit) ? d.noteAudit : [];
   var last  = audit.length ? audit[audit.length-1] : null;
@@ -6731,7 +6732,7 @@ function _workNoteHTML(d){
         ' · '+_punchTimeStr(last.at)+(locked?' · 🔒 locked':'')+
       '</div>'
     : '';
-  var historyBtn = (canCorrect && audit.length>1)
+  var historyBtn = (canEditNotes && audit.length>1)
     ? ' <a href="#" onclick="event.preventDefault();showWorkNoteHistory(\''+escHtml(d.id)+'\')" style="font-size:10px;color:#1565c0">history ('+audit.length+')</a>'
     : '';
   var editBtn = canEdit
@@ -6739,10 +6740,10 @@ function _workNoteHTML(d){
     : '';
   var body = note
     ? '<div style="font-size:12px;color:#37474f;white-space:pre-wrap;word-break:break-word">'+escHtml(note)+'</div>'
-    : (canEdit ? '<div style="font-size:12px;color:#b0bec5;font-style:italic">No work note yet'+(isOwner&&!canCorrect?' — add what you did today':'')+'.</div>' : '');
+    : (canEdit ? '<div style="font-size:12px;color:#b0bec5;font-style:italic">No work note yet'+(isOwner&&!canEditNotes?' — add what you did today':'')+'.</div>' : '');
   return '<div style="margin-top:6px;padding:8px 10px;background:#fffdf5;border:1px solid #f0e7cf;border-radius:6px">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:'+(body?'4px':'0')+'">'+
-        '<span style="font-size:10px;font-weight:700;color:#a98e3f;text-transform:uppercase;letter-spacing:.5px">📝 Work note'+(locked&&isOwner&&!canCorrect?' (locked)':'')+historyBtn+'</span>'+
+        '<span style="font-size:10px;font-weight:700;color:#a98e3f;text-transform:uppercase;letter-spacing:.5px">📝 Work note'+(locked&&isOwner&&!canEditNotes?' (locked)':'')+historyBtn+'</span>'+
         editBtn+
       '</div>'+
       body+

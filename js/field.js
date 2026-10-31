@@ -1647,10 +1647,10 @@ async function _pushWorkDayToCloud(wd) {
 function openWorkNoteModal(workDayId){
   var wd = (DB.workDays||[]).find(function(d){ return d.id===workDayId; });
   if (!wd) { showToast('Day not found','error'); return; }
-  var myName    = _currentUser ? _currentUser.full_name : '';
-  var canCorrect= (typeof hasPermission==='function') ? hasPermission('time.correct') : false;
-  var isOwner   = myName && wd.techName===myName;
-  var canEdit   = canCorrect || (isOwner && !wd.noteLocked);
+  var myName      = _currentUser ? _currentUser.full_name : '';
+  var canEditNotes= (typeof hasPermission==='function') ? hasPermission('time.editnotes') : false;
+  var isOwner     = myName && wd.techName===myName;
+  var canEdit     = canEditNotes || (isOwner && !wd.noteLocked);
 
   var idEl=document.getElementById('wn-workday-id'); if(idEl) idEl.value=workDayId;
   var ta=document.getElementById('wn-text'); if(ta){ ta.value=wd.workNote||''; ta.readOnly=!canEdit; ta.style.background=canEdit?'#fff':'#f5f5f5'; }
@@ -1658,9 +1658,8 @@ function openWorkNoteModal(workDayId){
   var noteEl=document.getElementById('wn-lock-note');
   if (noteEl){
     if (!canEdit && isOwner && wd.noteLocked) { noteEl.style.display=''; noteEl.textContent='🔒 The office has reviewed this note, so it is locked. Ask the office/a manager to change it.'; }
-    else if (canCorrect && wd.noteLocked)     { noteEl.style.display=''; noteEl.textContent='ℹ Office-locked. Your edit is logged in the audit trail.'; }
-    else if (canCorrect && isOwner)           { noteEl.style.display=''; noteEl.textContent='ℹ Saving as office will lock this note so the tech can no longer change it.'; }
-    else if (canCorrect)                      { noteEl.style.display=''; noteEl.textContent='ℹ Saving as office will lock this note so the tech can no longer change it.'; }
+    else if (canEditNotes && wd.noteLocked)   { noteEl.style.display=''; noteEl.textContent='ℹ Office-locked. Your edit is logged in the audit trail.'; }
+    else if (canEditNotes)                    { noteEl.style.display=''; noteEl.textContent='ℹ Saving as office will lock this note so the tech can no longer change it.'; }
     else { noteEl.style.display='none'; }
   }
   var saveBtn=document.getElementById('wn-save-btn'); if(saveBtn) saveBtn.style.display=canEdit?'':'none';
@@ -1675,7 +1674,7 @@ function saveWorkNote(){
   var text=(document.getElementById('wn-text')||{}).value||'';
   var wd=(DB.workDays||[]).find(function(d){ return d.id===id; });
   if (!wd){ showToast('Day not found','error'); return; }
-  var actor={ name:(_currentUser?_currentUser.full_name:''), canCorrect:((typeof hasPermission==='function')?hasPermission('time.correct'):false) };
+  var actor={ name:(_currentUser?_currentUser.full_name:''), canEditNotes:((typeof hasPermission==='function')?hasPermission('time.editnotes'):false) };
   var res=_applyWorkNote(wd, text, actor);
   if (!res.ok){
     var msg={ locked:'This note is locked by the office — only a manager can change it.',
@@ -1978,11 +1977,16 @@ function _renderAllEmployeesSummary(el, entries, workDays, fromDate, toDate, fil
       '<td style="padding:10px 12px;text-align:center;color:'+(otMins>0?'#c62828':'#90a4ae')+'">'+fmtMins(otMins)+'</td>'+
       '<td style="padding:10px 12px;text-align:center;color:#2e7d32">'+fmtMins(leaveMins)+'</td>'+
       (totalPay!==null?'<td style="padding:10px 12px;text-align:right;font-weight:700;color:#2e7d32">$'+totalPay.toFixed(2)+'</td>':'<td style="padding:10px 12px;text-align:right;color:#90a4ae">—</td>')+
-      '<td style="padding:10px 12px"><button class="btn btn-outline btn-sm" onclick="filterTsToTech(\''+escHtml(t.name)+'\')">Detail</button></td>'+
+      '<td style="padding:10px 12px"><button class="btn btn-primary btn-sm" onclick="filterTsToTech(\''+escHtml(t.name)+'\')">Open / Edit ›</button></td>'+
     '</tr>';
   }).join('');
 
   el.innerHTML =
+    // r47: the Summary is a view-only payroll roll-up — editing (time corrections + work notes) lives in
+    // Detail. Say so plainly and make the way in obvious, so it never reads as "I can't edit this".
+    '<div style="background:#eef4fb;border:1px solid #d6e4f5;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#3a5a7a">'+
+      'ℹ This is a view-only roll-up. To edit a person’s hours or add/change their work note, use <strong>Open / Edit</strong> on their row (or switch the view to <strong>Detail</strong>).'+
+    '</div>'+
     '<div style="overflow-x:auto">'+
     '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
     '<thead><tr style="background:#f0f4f8">'+

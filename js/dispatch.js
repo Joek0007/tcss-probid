@@ -1430,6 +1430,9 @@ var PERM_DEFS = [
   {key:'time.clock',      label:'Clock In / Out (own)',        group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
   {key:'time.clockteam',  label:'Clock Team In / Out',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'time.correct',    label:'Edit Time Corrections',       group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  // r47: note editing split off from time.correct so "edit work notes" can be granted separately
+  // from "correct the time numbers". Defaults mirror time.correct so behavior is unchanged until toggled.
+  {key:'time.editnotes',  label:'Edit Work Notes',             group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'time.approveflag',label:'Approve Lunch Flags',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'time.viewall',    label:'View All Timesheets',         group:'Time Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'leave.request',   label:'Request Time Off',            group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
