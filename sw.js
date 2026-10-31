@@ -8,7 +8,10 @@
 //   • Supabase API/auth requests (*.supabase.co) are NEVER intercepted or cached — they must stay
 //     live; offline they fail and the app's own offline queues take over.
 // Bump SHELL_VERSION on each deploy that changes the shell; old shell caches are pruned on activate.
-var SHELL_VERSION = 'r17';
+// r52: SHELL_VERSION bumped + HTML now fetched no-store (true network-first, never a stale HTTP/CDN copy)
+// + on activate the new worker reloads open tabs, so a deploy self-updates in ONE reload instead of the
+// old worker serving stale files through repeated hard-refreshes.
+var SHELL_VERSION = 'r52';
 var SHELL_CACHE   = 'tcss-shell-' + SHELL_VERSION;
 var RUNTIME_CACHE = 'tcss-runtime';           // stable across versions (versioned js URLs self-prune by use)
 var SHELL_ASSETS  = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
@@ -34,6 +37,13 @@ self.addEventListener('activate', function(e){
         return null;
       }));
     }).then(function(){ return self.clients.claim(); })
+     .then(function(){
+       // r52: once this newer worker takes control, reload any open tab so it picks up the fresh shell
+       // immediately (one reload after a deploy), instead of the user hard-refreshing a stale worker.
+       return self.clients.matchAll({ type:'window' }).then(function(cs){
+         cs.forEach(function(c){ try { c.navigate(c.url); } catch(e){} });
+       });
+     })
   );
 });
 
@@ -50,9 +60,11 @@ self.addEventListener('fetch', function(e){
                (req.headers.get('accept') || '').indexOf('text/html') >= 0;
 
   if (isHTML) {
-    // NETWORK-FIRST: online always gets the freshest index.html (auto-updater works); offline → cached shell.
+    // NETWORK-FIRST (r52: no-store so it bypasses the HTTP/CDN cache entirely — a hard-refresh otherwise
+    // could still be handed a stale index.html here, which is what pinned the app to an old build).
+    // Online always gets the freshest index.html; offline → cached shell.
     e.respondWith(
-      fetch(req).then(function(res){
+      fetch(new Request(req.url, { cache:'no-store' })).then(function(res){
         if (res && res.status === 200) {
           var copy = res.clone();
           caches.open(SHELL_CACHE).then(function(c){ c.put('./index.html', copy); });
