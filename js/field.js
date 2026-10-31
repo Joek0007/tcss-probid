@@ -2270,28 +2270,25 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
       var _lk = (typeof _dayLockState==='function') ? _dayLockState(techName, date) : {locked:false, processed:false};
       var _lockCtl = (typeof _dayLockControlHTML==='function') ? _dayLockControlHTML(techName, date) : '';
       // r49: flag an auto-stopped (24h cap) or unusually long day for the office to eyeball.
+      var _isFlagged = !!(workDay && (workDay.autoStopped || (workDay.totalPaidMins||0) > 16*60));
       var _flag = '';
       if (workDay && workDay.autoStopped) _flag = '<span style="background:#fdecea;color:#b71c1c;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700" title="Clock ran past 24h and was auto-stopped — review">⚠ Auto-stopped 24h</span>';
-      else if (workDay && (workDay.totalPaidMins||0) > 16*60) _flag = '<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700" title="Unusually long day — review">⚠ Long day</span>';
-
-      return '<div style="background:#fff;border:1px solid '+(_lk.locked?'#e6c9c9':(_flag?'#f0d9b5':'#e0e7ef'))+';border-radius:8px;padding:9px 11px;margin-bottom:5px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
-          '<span style="font-weight:700;font-size:13px">'+escHtml(techName)+' '+_flag+'</span>'+
-          '<div style="display:flex;gap:8px;align-items:center">'+
-            '<span style="font-weight:700;color:#1565c0">'+fmtMins(totalMins)+'</span>'+
-            _lockCtl+
-            (_lk.locked ? '' : '<button class="btn btn-primary btn-sm" onclick="openAddTimeEntry(\''+escHtml(techName)+'\',\''+date+'\')">+ Entry</button>')+
-          '</div>'+
-        '</div>'+
-        (techEntries.length ?
+      else if (_isFlagged) _flag = '<span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700" title="Unusually long day — review">⚠ Long day</span>';
+      // r51: a thin status-colored accent stripe down the left edge — structures the list AND encodes the
+      // day's state at a glance: red = payroll-sealed, gray = locked, amber = flagged/long, blue = normal.
+      var _accent = (_lk.processed && _lk.locked) ? '#c62828'
+                  : _lk.locked ? '#90a4ae'
+                  : _isFlagged ? '#ef6c00'
+                  : '#1565c0';
+      var _entriesHTML = (techEntries.length ?
           techEntries.sort(function(a,b){ return (a.startTime||'').localeCompare(b.startTime||''); }).map(function(e){
             var m = e.totalMins || Math.round((e.totalHours||0)*60);
             return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:'+(typeColors[e.entryType]||'#f8f9fa')+';border-radius:6px;margin-bottom:3px;font-size:12px">'+
-              '<span style="min-width:90px;font-weight:600;color:#546e7a">'+(e.startTime&&e.endTime?e.startTime+' — '+e.endTime:'')+'</span>'+
+              '<span style="min-width:90px;font-weight:600;color:#546e7a;font-variant-numeric:tabular-nums">'+(e.startTime&&e.endTime?e.startTime+' — '+e.endTime:'')+'</span>'+
               '<span style="font-weight:700;min-width:60px">'+(typeLabels[e.entryType]||e.entryType)+'</span>'+
               (e.woLabel&&e.woLabel!=='Office / General'?'<span style="color:#546e7a;flex:1">'+escHtml(e.woLabel)+'</span>':'<span style="flex:1"></span>')+
               (e.notes?'<span style="color:#90a4ae;font-style:italic;flex:2">'+escHtml(e.notes)+'</span>':'<span style="flex:2"></span>')+
-              '<span style="font-weight:700;min-width:45px;text-align:right">'+fmtMins(m)+'</span>'+
+              '<span style="font-weight:700;min-width:48px;text-align:right;font-variant-numeric:tabular-nums">'+fmtMins(m)+'</span>'+
               (_lk.locked ? '' : '<button onclick="openEditTimeEntry(\''+e.id+'\')" style="background:none;border:1px solid #e0e7ef;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;color:#546e7a">✏</button>')+
             '</div>';
           }).join('') :
@@ -2299,11 +2296,23 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
             '<div style="font-size:12px;color:#90a4ae;padding:4px 0">Legacy clock-in record — '+fmtMins(workDay.totalPaidMins||0)+' total.'+(_lk.locked?'':' <span style="color:#1565c0;cursor:pointer" onclick="openAddTimeEntry(\''+escHtml(techName)+'\',\''+date+'\')">Add detail entries</span>')+'</div>' :
             '<div style="font-size:12px;color:#90a4ae;padding:4px 0">No entries</div>'
           )
-        )+
-        // r45: office can see the tech's actual clock punches (in/out, travel, break, lunch) for the day.
-        (typeof _punchDetailsHTML==='function' ? _punchDetailsHTML(workDay) : '')+
-        // r46: the tech's work note — office/manager can edit it here (which locks the tech out).
-        (typeof _workNoteHTML==='function' ? _workNoteHTML(workDay) : '')+
+        );
+      // r51: punches + work note become a footer, set off from the hours by a hairline rule.
+      var _footer = (typeof _punchDetailsHTML==='function' ? _punchDetailsHTML(workDay) : '')
+                  + (typeof _workNoteHTML==='function' ? _workNoteHTML(workDay) : '');
+      if (_footer) _footer = '<div style="border-top:1px solid #eef2f7;margin-top:7px;padding-top:6px">'+_footer+'</div>';
+
+      return '<div style="background:#fff;border:1px solid #e6edf5;border-left:3px solid '+_accent+';border-radius:8px;padding:9px 11px 8px 12px;margin-bottom:5px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px">'+
+          '<span style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;min-width:0">'+escHtml(techName)+_flag+'</span>'+
+          '<div style="display:flex;gap:8px;align-items:center;justify-content:flex-end;flex:none">'+
+            '<span style="font-weight:700;color:#1565c0;min-width:58px;text-align:right;font-variant-numeric:tabular-nums">'+fmtMins(totalMins)+'</span>'+
+            _lockCtl+
+            (_lk.locked ? '' : '<button class="btn btn-primary btn-sm" onclick="openAddTimeEntry(\''+escHtml(techName)+'\',\''+date+'\')">+ Entry</button>')+
+          '</div>'+
+        '</div>'+
+        _entriesHTML+
+        _footer+
       '</div>';
     }).join('');
 
@@ -2317,10 +2326,11 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
       return s+tm;
     }, 0);
 
-    return '<div style="margin-bottom:10px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;background:#f0f4f8;padding:6px 12px;border-radius:7px;margin-bottom:5px">'+
+    return '<div style="margin-bottom:12px">'+
+      // r51: a thin accent tick on the left makes the day bar read as a section break, not just another row.
+      '<div style="display:flex;justify-content:space-between;align-items:center;background:#f0f4f8;border-left:3px solid #1565c0;padding:6px 12px 6px 10px;border-radius:0 7px 7px 0;margin-bottom:6px">'+
         '<span style="font-weight:700;color:#1565c0;font-size:13px">'+escHtml(dayLabel)+'</span>'+
-        '<span style="font-size:12px;font-weight:700;color:#546e7a">'+techsOnDay.length+' employee'+(techsOnDay.length!==1?'s':'')+' · '+fmtMins(dayTotal)+' total</span>'+
+        '<span style="font-size:12px;font-weight:700;color:#546e7a;font-variant-numeric:tabular-nums">'+techsOnDay.length+' employee'+(techsOnDay.length!==1?'s':'')+' · '+fmtMins(dayTotal)+' total</span>'+
       '</div>'+
       techBlocks+
     '</div>';
