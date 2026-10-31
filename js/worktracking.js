@@ -6685,30 +6685,72 @@ function _punchDetailsHTML(d){
 // Apply a work-note edit to a work day, enforcing the ownership + lock rules and recording an
 // audit entry for EVERY change. Pure (no DOM, no network) so it is unit-tested directly.
 //   actor = { name, canEditNotes }  where canEditNotes === hasPermission('time.editnotes') (office/manager).
-// Rules (per Joe's decision):
-//   • A field tech may edit ONLY their own day's note, and ONLY while it is unlocked.
-//   • A note-editor (canEditNotes = office/manager) may edit any day's note at any time — and doing so
-//     LOCKS the note (note_locked=true) so the tech can no longer change it; only a note-editor can after.
+// Rules:
+//   • A field tech may edit ONLY their own day's note; a note-editor (canEditNotes) may edit any day's note.
 //   • Every change (tech or office) appends {at,by,role,prev,next} to wd.noteAudit.
-// r47: note editing is its own permission (time.editnotes), split from time-number corrections (time.correct).
+// r48: notes no longer auto-lock on an office edit. "Frozen" is now the DAY lock (_applyDayLock / the
+// day-lock gate in saveWorkNote); a locked or payroll-processed day is blocked BEFORE this is called, so
+// this function only enforces ownership + records the change. (time.editnotes split done in r47.)
 // Returns { ok:bool, reason:string }.
 function _applyWorkNote(wd, text, actor){
   if (!wd) return { ok:false, reason:'not_found' };
   actor = actor || {};
   var isOffice = !!actor.canEditNotes;
   var isOwner  = !!(actor.name && wd.techName === actor.name);
-  if (!isOffice){
-    if (!isOwner)      return { ok:false, reason:'not_yours' };
-    if (wd.noteLocked) return { ok:false, reason:'locked' };
-  }
+  if (!isOffice && !isOwner) return { ok:false, reason:'not_yours' };
   var prev = wd.workNote || '';
   var next = (text==null ? '' : String(text)).replace(/\s+$/,'').replace(/^\s+/,'');
   if (prev === next) return { ok:false, reason:'nochange' };
   if (!Array.isArray(wd.noteAudit)) wd.noteAudit = [];
   wd.noteAudit.push({ at:new Date().toISOString(), by:(actor.name||'Unknown'), role:(isOffice?'office':'tech'), prev:prev, next:next });
-  wd.workNote  = next;
-  if (isOffice) wd.noteLocked = true;   // office/manager edit locks the tech out
+  wd.workNote = next;
   return { ok:true, reason:(isOffice ? 'office_saved' : 'tech_saved') };
+}
+
+// ============================================================
+// r48 — DAY LOCK (payroll-integrity lock: Open → soft-locked → payroll-sealed)
+// ============================================================
+// A day is LOCKED (frozen — no edits to hours or note) when it is soft-locked by the office, OR when its
+// pay period has been marked processed and the day has not been deliberately reopened. Pure helper so it
+// is unit-testable: pass `processed` in (computed from DB.payrollLog by the caller, _isDayProcessed).
+function _dayIsLocked(wd, processed){
+  if (!wd) return !!processed;                       // no record yet, but a processed period still seals it
+  if (wd.dayLocked) return true;                     // deliberate soft lock
+  if (processed && !wd.payrollUnlocked) return true; // sealed by payroll unless reopened
+  return false;
+}
+
+// Apply a lock/unlock to a day, enforcing the permission tiers and recording an audit entry. Pure.
+//   action : 'lock' | 'unlock'
+//   actor  : { name, canCorrect, canUnlockProcessed }
+//            canCorrect         === hasPermission('time.correct')   (office — soft lock/unlock)
+//            canUnlockProcessed === hasPermission('payroll.unlock') (reopen a processed/sealed day)
+//   processed : whether this day's pay period is already marked processed (from DB.payrollLog)
+// Rules:
+//   • Lock   → needs canCorrect.
+//   • Unlock a sealed (processed, not-yet-reopened) day → needs canUnlockProcessed; sets payrollUnlocked.
+//   • Unlock a soft-locked (not sealed) day → needs canCorrect.
+// Returns { ok:bool, reason:string }.
+function _applyDayLock(wd, action, actor, processed){
+  if (!wd) return { ok:false, reason:'not_found' };
+  actor = actor || {};
+  if (action === 'lock'){
+    if (!actor.canCorrect) return { ok:false, reason:'no_perm' };
+    wd.dayLocked = true;
+  } else if (action === 'unlock'){
+    if (processed && !wd.payrollUnlocked){
+      if (!actor.canUnlockProcessed) return { ok:false, reason:'need_payroll_unlock' };
+      wd.payrollUnlocked = true; wd.dayLocked = false;
+    } else {
+      if (!actor.canCorrect) return { ok:false, reason:'no_perm' };
+      wd.dayLocked = false;
+    }
+  } else {
+    return { ok:false, reason:'bad_action' };
+  }
+  if (!Array.isArray(wd.lockAudit)) wd.lockAudit = [];
+  wd.lockAudit.push({ at:new Date().toISOString(), by:(actor.name||'Unknown'), action:action, afterProcessed:!!processed });
+  return { ok:true, reason:action };
 }
 
 // Render the work-note block for a day. Reads globals (_currentUser, hasPermission) so the same
@@ -6719,10 +6761,12 @@ function _workNoteHTML(d){
   var myName      = (typeof _currentUser!=='undefined' && _currentUser) ? _currentUser.full_name : '';
   var canEditNotes= (typeof hasPermission==='function') ? hasPermission('time.editnotes') : false;
   var isOwner     = myName && d.techName === myName;
-  var locked      = !!d.noteLocked;
+  // r48: "locked" is now the DAY lock (soft lock or payroll-sealed), not a note-only flag. A locked day
+  // blocks note edits for everyone inline — the office unlocks the day first (separate control).
+  var processed   = (typeof _isDayProcessed==='function') ? _isDayProcessed(d.techName, d.date) : false;
+  var locked      = (typeof _dayIsLocked==='function') ? _dayIsLocked(d, processed) : !!(d.dayLocked || d.noteLocked);
   var note        = d.workNote || '';
-  // Who may edit from here: a note-editor (office/manager) always; a tech only on their own day while unlocked.
-  var canEdit     = canEditNotes || (isOwner && !locked);
+  var canEdit     = !locked && (canEditNotes || isOwner);
   if (!note && !canEdit) return '';   // nothing to show and nothing to do
   var audit = Array.isArray(d.noteAudit) ? d.noteAudit : [];
   var last  = audit.length ? audit[audit.length-1] : null;
@@ -6755,6 +6799,10 @@ function renderDayRow(d) {
   var flagStr = d.lunchFlagged ? '<span class="ts-flag-chip">⚠ Lunch</span>' : '';
   var otMins = Math.max(0, (d.totalPaidMins||0) - 480);
   var otStr = otMins > 0 ? '<span class="ts-ot-chip">OT +'+fmtMins(otMins)+'</span>' : '';
+  // r48: show the tech a lock marker so a day they can't edit reads as locked, not broken.
+  var _dproc = (typeof _isDayProcessed==='function') ? _isDayProcessed(d.techName, d.date) : false;
+  var _dlock = (typeof _dayIsLocked==='function') ? _dayIsLocked(d, _dproc) : !!(d.dayLocked || d.noteLocked);
+  if (_dlock) flagStr += '<span style="background:#eceff1;color:#455a64;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;margin-left:4px">'+(_dproc?'🔒 Sealed':'🔒 Locked')+'</span>';
   return '<div>'+
     '<div class="ts-day-row">'+
       '<span class="ts-day-date">'+formatDate(d.date)+'</span>'+

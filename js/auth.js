@@ -1558,7 +1558,9 @@ async function syncAllFromCloud(silent) {
             lunchFlagged: !!w.lunch_flagged, hasManualEntries: !!w.has_manual_entries,
             corrected: !!w.corrected, corrections: w.corrections||null, events: w.events||null,
             // r46: field-tech work note + its lock + audit (see _workDayToRow).
-            workNote: w.work_note||'', noteLocked: !!w.note_locked, noteAudit: w.note_audit||null
+            workNote: w.work_note||'', noteLocked: !!w.note_locked, noteAudit: w.note_audit||null,
+            // r48: day lock + processed-reopen + lock audit.
+            dayLocked: !!w.day_locked, payrollUnlocked: !!w.payroll_unlocked, lockAudit: w.lock_audit||null
           };
         }).concat(localOnlyWd);
       }

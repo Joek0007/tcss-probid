@@ -1203,6 +1203,8 @@ function openAddTimeEntry(prefillTech, prefillDate, prefillWoId) {
   // (default: owner/manager/back_office/lead_tech — owner can adjust per role in Settings).
   // Replaces the old hardcoded office-only check, which excluded lead techs.
   if (typeof hasPermission==='function' && !hasPermission('time.clockteam')) { showToast('You do not have permission to record time for the team','error'); return; }
+  // r48: can't add time onto a locked / payroll-sealed day.
+  if (prefillTech && prefillDate && typeof _dayEditBlockMsg==='function'){ var _blkA=_dayEditBlockMsg(prefillTech, prefillDate); if(_blkA){ showToast(_blkA,'error'); return; } }
 
   // Clear form
   document.getElementById('te-edit-id').value = '';
@@ -1261,6 +1263,8 @@ function openEditTimeEntry(entryId) {
     : (_currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager'));
   var entry = (DB.timeEntries||[]).find(function(e){ return e.id===entryId; });
   if (!entry) { showToast('Entry not found','error'); return; }
+  // r48: can't edit an entry on a locked / payroll-sealed day.
+  if (typeof _dayEditBlockMsg==='function'){ var _blkE=_dayEditBlockMsg(entry.techName, entry.date); if(_blkE){ showToast(_blkE,'error'); return; } }
 
   document.getElementById('te-modal-title').textContent = 'Edit Time Entry';
   document.getElementById('te-edit-id').value = entryId;
@@ -1388,6 +1392,13 @@ function saveManualTimeEntry() {
   if (!date)     { showToast('Date is required','error'); return; }
   if (!start || !end) { showToast('Start and end time are required','error'); return; }
   if (!notes)    { showToast('Notes are required for manual entries','error'); return; }
+  // r48: block saving onto a locked / payroll-sealed day — both the target day and (for an edit that
+  // moves an entry) the entry's original day.
+  if (typeof _dayEditBlockMsg==='function'){
+    var _blkS=_dayEditBlockMsg(techName, date); if(_blkS){ showToast(_blkS,'error'); return; }
+    if (editId){ var _o=(DB.timeEntries||[]).find(function(e){ return e.id===editId; });
+      if(_o){ var _blkO=_dayEditBlockMsg(_o.techName, _o.date); if(_blkO){ showToast(_blkO,'error'); return; } } }
+  }
 
   var startMins = parseInt(start.split(':')[0])*60 + parseInt(start.split(':')[1]);
   var endMins   = parseInt(end.split(':')[0])*60   + parseInt(end.split(':')[1]);
@@ -1511,6 +1522,9 @@ function deleteTimeEntry() {
   var canDelete = (typeof hasPermission==='function') ? hasPermission('time.correct')
     : (_currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager'));
   if (!canDelete) { showToast('Permission denied','error'); return; }
+  // r48: can't delete an entry on a locked / payroll-sealed day.
+  var _delEntry = (DB.timeEntries||[]).find(function(e){ return e.id===editId; });
+  if (_delEntry && typeof _dayEditBlockMsg==='function'){ var _blkD=_dayEditBlockMsg(_delEntry.techName, _delEntry.date); if(_blkD){ showToast(_blkD,'error'); return; } }
   if (!confirm('Delete this time entry? This is logged in the audit trail.')) return;
 
   var adder = _currentUser ? _currentUser.full_name : 'Unknown';
@@ -1623,6 +1637,11 @@ function _workDayToRow(wd) {
     work_note:          (wd.workNote != null) ? wd.workNote : null,
     note_locked:        (wd.noteLocked != null) ? !!wd.noteLocked : null,
     note_audit:         wd.noteAudit || null,
+    // r48: day lock for payroll integrity — soft lock (office, reversible) hardening to sealed once the
+    // pay period is marked processed; payroll_unlocked records a deliberate reopen of a processed day.
+    day_locked:         (wd.dayLocked != null) ? !!wd.dayLocked : null,
+    payroll_unlocked:   (wd.payrollUnlocked != null) ? !!wd.payrollUnlocked : null,
+    lock_audit:         wd.lockAudit || null,
     created_by:         wd.techId || (_currentUser ? _currentUser.id : null),
     updated_at:         new Date().toISOString()
   };
@@ -1641,6 +1660,128 @@ async function _pushWorkDayToCloud(wd) {
   } catch(e) { console.warn('[WorkDay push]', e.message||e); }
 }
 
+// ---- r48: DAY LOCK — payroll-integrity lock state + lock/unlock actions + the edit gate ----
+// A day's pay period is "processed" once markPayrollProcessed logged it (DB.payrollLog, per tech+period).
+function _isDayProcessed(techName, date){
+  var log = DB.payrollLog || [];
+  return log.some(function(p){ return p && p.tech===techName && date && date>=p.ppStart && date<=p.ppEnd; });
+}
+// Resolve the lock state for a tech/day: the workDay (if any), whether its period is processed, and
+// whether it is currently LOCKED (frozen) per _dayIsLocked.
+function _dayLockState(techName, date){
+  var wd = (DB.workDays||[]).find(function(d){ return d.techName===techName && d.date===date; });
+  var processed = _isDayProcessed(techName, date);
+  var locked = (typeof _dayIsLocked==='function') ? _dayIsLocked(wd, processed)
+             : !!(wd && (wd.dayLocked || wd.noteLocked) || (processed && !(wd&&wd.payrollUnlocked)));
+  return { wd:wd, processed:processed, locked:locked };
+}
+// The single edit gate every timesheet-edit path calls. Returns a user-facing message if the day may NOT
+// be edited, else null. Keeps "data stays secure" in one place.
+function _dayEditBlockMsg(techName, date){
+  var st = _dayLockState(techName, date);
+  if (st.processed && !(st.wd && st.wd.payrollUnlocked))
+    return 'That day is in a processed payroll period and is sealed. Someone with "Unlock Processed Payroll" must reopen it before it can be changed.';
+  if (st.wd && st.wd.dayLocked)
+    return 'That day is locked. Unlock it on the All Timesheets screen before making changes.';
+  return null;
+}
+// Find the workDay carrying a day's data, creating/rebuilding one if the day has entries but no summary yet
+// (so a lock always has a carrier). A day with no data at all gets a minimal stub.
+function _findOrCreateWorkDay(techName, date){
+  var wd = (DB.workDays||[]).find(function(d){ return d.techName===techName && d.date===date; });
+  if (wd) return wd;
+  if (typeof _rebuildDaySummary==='function') { try { _rebuildDaySummary(techName, date); } catch(e){} }
+  wd = (DB.workDays||[]).find(function(d){ return d.techName===techName && d.date===date; });
+  if (!wd) {
+    wd = { id:'wd-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), techName:techName, date:date };
+    (DB.workDays = DB.workDays||[]).push(wd);
+  }
+  return wd;
+}
+function _lockActor(){
+  return {
+    name: _currentUser ? _currentUser.full_name : '',
+    canCorrect: (typeof hasPermission==='function') ? hasPermission('time.correct') : false,
+    canUnlockProcessed: (typeof hasPermission==='function') ? hasPermission('payroll.unlock') : false
+  };
+}
+function _afterLockChange(wd){
+  if (typeof saveDB==='function') saveDB();
+  _pushWorkDayToCloud(wd);
+  if (typeof loadTimesheets==='function') { try { loadTimesheets(); } catch(e){} }
+  if (typeof renderAllTimesheetsTab==='function') { try { renderAllTimesheetsTab(); } catch(e){} }
+}
+function lockDay(techName, date){
+  if (typeof _writesBlocked==='function' && _writesBlocked()){ showToast('A newer version is open elsewhere — reload first.','error'); return; }
+  var wd = _findOrCreateWorkDay(techName, date);
+  var res = _applyDayLock(wd, 'lock', _lockActor(), _isDayProcessed(techName, date));
+  if (!res.ok){ showToast(res.reason==='no_perm'?'You do not have permission to lock timesheets':'Could not lock day','error'); return; }
+  _afterLockChange(wd);
+  showToast('Day locked for '+(techName||'')+' · '+formatDate(date),'success');
+}
+function unlockDay(techName, date){
+  if (typeof _writesBlocked==='function' && _writesBlocked()){ showToast('A newer version is open elsewhere — reload first.','error'); return; }
+  var wd = (DB.workDays||[]).find(function(d){ return d.techName===techName && d.date===date; });
+  if (!wd){ showToast('Day not found','error'); return; }
+  var processed = _isDayProcessed(techName, date);
+  var res = _applyDayLock(wd, 'unlock', _lockActor(), processed);
+  if (!res.ok){
+    var msg = res.reason==='need_payroll_unlock'
+      ? 'This day is in a processed payroll period. Only someone with "Unlock Processed Payroll" can reopen it.'
+      : (res.reason==='no_perm' ? 'You do not have permission to unlock timesheets' : 'Could not unlock day');
+    showToast(msg,'error'); return;
+  }
+  _afterLockChange(wd);
+  showToast((processed?'Processed day reopened for ':'Day unlocked for ')+(techName||'')+' · '+formatDate(date),'success');
+}
+// One-click "Lock all shown" — locks every tech/day currently in the All Timesheets filter range.
+function lockAllShown(){
+  if (typeof hasPermission==='function' && !hasPermission('time.correct')){ showToast('You do not have permission to lock timesheets','error'); return; }
+  if (typeof _writesBlocked==='function' && _writesBlocked()){ showToast('A newer version is open elsewhere — reload first.','error'); return; }
+  var range = (typeof getTsDateRange==='function') ? getTsDateRange() : {};
+  var from = range.from || dateStr(getWeekDates().start);
+  var to   = range.to   || dateStr(getWeekDates().end);
+  var filterTech = (document.getElementById('ts-tech-filter')||{}).value || '';
+  // Distinct tech+date pairs from workDays and time entries in range.
+  var pairs = {};
+  (DB.workDays||[]).forEach(function(d){ if(d.date>=from&&d.date<=to&&(!filterTech||d.techName===filterTech)) pairs[d.techName+'|'+d.date]=1; });
+  (DB.timeEntries||[]).forEach(function(e){ if(!e.deleted&&e.date>=from&&e.date<=to&&(!filterTech||e.techName===filterTech)) pairs[e.techName+'|'+e.date]=1; });
+  var keys = Object.keys(pairs);
+  if (!keys.length){ showToast('No days in view to lock','info'); return; }
+  if (!confirm('Lock all '+keys.length+' day(s) shown ('+formatDate(from)+(from!==to?' — '+formatDate(to):'')+(filterTech?', '+filterTech:'')+')? Techs will no longer be able to edit them. You can unlock any day again.')) return;
+  var actor = _lockActor(), n=0, last=null;
+  keys.forEach(function(k){
+    var i=k.indexOf('|'), t=k.slice(0,i), dt=k.slice(i+1);
+    var wd=_findOrCreateWorkDay(t,dt);
+    var r=_applyDayLock(wd,'lock',actor,_isDayProcessed(t,dt));
+    if(r.ok){ n++; last=wd; }
+  });
+  if (typeof saveDB==='function') saveDB();
+  if (typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
+  if (typeof loadTimesheets==='function') { try { loadTimesheets(); } catch(e){} }
+  if (typeof renderAllTimesheetsTab==='function') { try { renderAllTimesheetsTab(); } catch(e){} }
+  showToast('Locked '+n+' day(s)','success');
+}
+// Badge + Lock/Unlock button for one day in the All Timesheets Detail view.
+function _dayLockControlHTML(techName, date){
+  var st = _dayLockState(techName, date);
+  var a  = _lockActor();
+  var tj = escHtml(techName);
+  if (st.locked){
+    var badge = st.processed
+      ? '<span style="background:#fdeaea;color:#b71c1c;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">🔒 Payroll sealed</span>'
+      : '<span style="background:#eceff1;color:#455a64;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">🔒 Locked</span>';
+    var canUnlock = st.processed ? a.canUnlockProcessed : a.canCorrect;
+    var btn = canUnlock
+      ? '<button class="btn btn-outline btn-sm" onclick="unlockDay(\''+tj+'\',\''+date+'\')">🔓 Unlock</button>'
+      : (st.processed ? '<span style="font-size:10px;color:#90a4ae">needs Unlock-Payroll perm</span>' : '');
+    return '<div style="display:flex;gap:6px;align-items:center">'+badge+btn+'</div>';
+  }
+  return a.canCorrect
+    ? '<button class="btn btn-outline btn-sm" onclick="lockDay(\''+tj+'\',\''+date+'\')">🔒 Lock</button>'
+    : '';
+}
+
 // ---- r46: WORK NOTE edit modal (My Hours tech + All Timesheets office) ----
 // Open the note editor for a work day. The textarea is read-only (and Save hidden) when the viewer
 // isn't allowed to edit — a tech viewing a day the office already locked still sees the note.
@@ -1650,16 +1791,18 @@ function openWorkNoteModal(workDayId){
   var myName      = _currentUser ? _currentUser.full_name : '';
   var canEditNotes= (typeof hasPermission==='function') ? hasPermission('time.editnotes') : false;
   var isOwner     = myName && wd.techName===myName;
-  var canEdit     = canEditNotes || (isOwner && !wd.noteLocked);
+  // r48: a locked / payroll-sealed day blocks note editing for everyone inline — unlock the day first.
+  var st          = (typeof _dayLockState==='function') ? _dayLockState(wd.techName, wd.date) : {locked:!!wd.noteLocked, processed:false};
+  var canEdit     = !st.locked && (canEditNotes || isOwner);
 
   var idEl=document.getElementById('wn-workday-id'); if(idEl) idEl.value=workDayId;
   var ta=document.getElementById('wn-text'); if(ta){ ta.value=wd.workNote||''; ta.readOnly=!canEdit; ta.style.background=canEdit?'#fff':'#f5f5f5'; }
   var titleEl=document.getElementById('wn-title'); if(titleEl) titleEl.textContent=(wd.techName||'')+' · '+formatDate(wd.date);
   var noteEl=document.getElementById('wn-lock-note');
   if (noteEl){
-    if (!canEdit && isOwner && wd.noteLocked) { noteEl.style.display=''; noteEl.textContent='🔒 The office has reviewed this note, so it is locked. Ask the office/a manager to change it.'; }
-    else if (canEditNotes && wd.noteLocked)   { noteEl.style.display=''; noteEl.textContent='ℹ Office-locked. Your edit is logged in the audit trail.'; }
-    else if (canEditNotes)                    { noteEl.style.display=''; noteEl.textContent='ℹ Saving as office will lock this note so the tech can no longer change it.'; }
+    if (st.locked && st.processed)         { noteEl.style.display=''; noteEl.textContent='🔒 This day is in a processed payroll period and is sealed. It must be reopened (Unlock Processed Payroll) before the note can change.'; }
+    else if (st.locked && !canEditNotes)   { noteEl.style.display=''; noteEl.textContent='🔒 This day is locked. Ask the office to unlock it to change the note.'; }
+    else if (st.locked)                    { noteEl.style.display=''; noteEl.textContent='🔒 This day is locked. Unlock it on All Timesheets before editing.'; }
     else { noteEl.style.display='none'; }
   }
   var saveBtn=document.getElementById('wn-save-btn'); if(saveBtn) saveBtn.style.display=canEdit?'':'none';
@@ -1674,10 +1817,12 @@ function saveWorkNote(){
   var text=(document.getElementById('wn-text')||{}).value||'';
   var wd=(DB.workDays||[]).find(function(d){ return d.id===id; });
   if (!wd){ showToast('Day not found','error'); return; }
+  // r48: a locked / payroll-sealed day can't take a note edit — unlock first.
+  if (typeof _dayEditBlockMsg==='function'){ var _blkN=_dayEditBlockMsg(wd.techName, wd.date); if(_blkN){ showToast(_blkN,'error'); return; } }
   var actor={ name:(_currentUser?_currentUser.full_name:''), canEditNotes:((typeof hasPermission==='function')?hasPermission('time.editnotes'):false) };
   var res=_applyWorkNote(wd, text, actor);
   if (!res.ok){
-    var msg={ locked:'This note is locked by the office — only a manager can change it.',
+    var msg={ locked:'This day is locked — unlock it first.',
               not_yours:'You can only edit your own work note.',
               nochange:'No change to save.', not_found:'Day not found.' }[res.reason] || 'Could not save note.';
     showToast(msg, res.reason==='nochange'?'info':'error');
@@ -2057,13 +2202,17 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
       var workDay = workDays.find(function(d){ return d.techName===techName && d.date===date; });
       var totalMins = techEntries.reduce(function(s,e){ return s+(e.entryType!=='lunch'?(e.totalMins||Math.round((e.totalHours||0)*60)):0); },0);
       if (!totalMins && workDay) totalMins = workDay.totalPaidMins||0;
+      // r48: lock state drives what's editable in this block.
+      var _lk = (typeof _dayLockState==='function') ? _dayLockState(techName, date) : {locked:false, processed:false};
+      var _lockCtl = (typeof _dayLockControlHTML==='function') ? _dayLockControlHTML(techName, date) : '';
 
-      return '<div style="background:#fff;border:1px solid #e0e7ef;border-radius:8px;padding:12px;margin-bottom:6px">'+
+      return '<div style="background:#fff;border:1px solid '+(_lk.locked?'#e6c9c9':'#e0e7ef')+';border-radius:8px;padding:12px;margin-bottom:6px">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
           '<span style="font-weight:700;font-size:13px">'+escHtml(techName)+'</span>'+
           '<div style="display:flex;gap:8px;align-items:center">'+
             '<span style="font-weight:700;color:#1565c0">'+fmtMins(totalMins)+'</span>'+
-            '<button class="btn btn-primary btn-sm" onclick="openAddTimeEntry(\''+escHtml(techName)+'\',\''+date+'\')">+ Entry</button>'+
+            _lockCtl+
+            (_lk.locked ? '' : '<button class="btn btn-primary btn-sm" onclick="openAddTimeEntry(\''+escHtml(techName)+'\',\''+date+'\')">+ Entry</button>')+
           '</div>'+
         '</div>'+
         (techEntries.length ?
@@ -2075,11 +2224,11 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
               (e.woLabel&&e.woLabel!=='Office / General'?'<span style="color:#546e7a;flex:1">'+escHtml(e.woLabel)+'</span>':'<span style="flex:1"></span>')+
               (e.notes?'<span style="color:#90a4ae;font-style:italic;flex:2">'+escHtml(e.notes)+'</span>':'<span style="flex:2"></span>')+
               '<span style="font-weight:700;min-width:45px;text-align:right">'+fmtMins(m)+'</span>'+
-              '<button onclick="openEditTimeEntry(\''+e.id+'\')" style="background:none;border:1px solid #e0e7ef;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;color:#546e7a">✏</button>'+
+              (_lk.locked ? '' : '<button onclick="openEditTimeEntry(\''+e.id+'\')" style="background:none;border:1px solid #e0e7ef;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;color:#546e7a">✏</button>')+
             '</div>';
           }).join('') :
           (workDay ?
-            '<div style="font-size:12px;color:#90a4ae;padding:4px 0">Legacy clock-in record — '+fmtMins(workDay.totalPaidMins||0)+' total. <span style="color:#1565c0;cursor:pointer" onclick="openAddTimeEntry(\''+escHtml(techName)+'\',\''+date+'\')">Add detail entries</span></div>' :
+            '<div style="font-size:12px;color:#90a4ae;padding:4px 0">Legacy clock-in record — '+fmtMins(workDay.totalPaidMins||0)+' total.'+(_lk.locked?'':' <span style="color:#1565c0;cursor:pointer" onclick="openAddTimeEntry(\''+escHtml(techName)+'\',\''+date+'\')">Add detail entries</span>')+'</div>' :
             '<div style="font-size:12px;color:#90a4ae;padding:4px 0">No entries</div>'
           )
         )+
@@ -2101,7 +2250,13 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
     '</div>';
   }).join('');
 
-  el.innerHTML = html;
+  // r48: one-click "Lock all shown" for the office — locks every day in the current filter range.
+  var lockAllBar = (typeof hasPermission!=='function' || hasPermission('time.correct'))
+    ? '<div style="display:flex;justify-content:flex-end;margin-bottom:10px">'+
+        '<button class="btn btn-outline btn-sm" onclick="lockAllShown()">🔒 Lock all shown</button>'+
+      '</div>'
+    : '';
+  el.innerHTML = lockAllBar + html;
 }
 // ---- ADD ENTRY BUTTON on the All Timesheets tab ----
 // Add "+ Add Entry for Any Tech" button at top of tab

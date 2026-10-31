@@ -1443,6 +1443,9 @@ var PERM_DEFS = [
   // generic back_office role. Owner/manager keep it.
   {key:'payroll.view',    label:'View Payroll Summary',        group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'payroll.process', label:'Mark Payroll Processed',      group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  // r48: reopening a day whose pay period is already marked processed is a privileged, audited action —
+  // its own toggle, default owner-only, so finalized payroll data stays sealed unless deliberately granted.
+  {key:'payroll.unlock',  label:'Unlock Processed Payroll',    group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'payroll.export',  label:'Export Payroll CSV',          group:'Leave & Payroll',fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'tool.edit',       label:'Add / Edit Tools',            group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'tool.checkout',   label:'Check Out / Return Tools',    group:'Tools',          fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
