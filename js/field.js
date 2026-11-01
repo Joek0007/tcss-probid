@@ -508,6 +508,7 @@ function _ensureClockDayEntry(){
         existing.woId=jid; existing.jobId=jid; existing.entryType='work';
         existing.woLabel=_clockState.jobName||existing.woLabel;
         saveDB(); if (typeof _pushTimeEntryToSupabase==='function') _pushTimeEntryToSupabase(existing);
+        if (typeof autoPromoteWOStatus==='function') autoPromoteWOStatus(jid);   // r54: clock-in → NEW becomes In Progress
       }
       return;
     }
@@ -538,6 +539,7 @@ function _ensureClockDayEntry(){
     DB.timeEntries.push(entry);
     saveDB();
     if (typeof _pushTimeEntryToSupabase==='function') _pushTimeEntryToSupabase(entry);
+    if (!isOffice && jid && typeof autoPromoteWOStatus==='function') autoPromoteWOStatus(jid);   // r54: clock-in → NEW becomes In Progress
     if (typeof loadTimesheets==='function') { try { loadTimesheets(); } catch(e){} }
   } catch(e){ console.warn('[clock day entry]', e && e.message); }
 }

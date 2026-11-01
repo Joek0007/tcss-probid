@@ -123,6 +123,70 @@ function _getWOStatusDef(statusId) {
   }) || {color:'#e0e0e0',open:false};
 }
 
+// ============================================================
+// r54 — WO status workflow: field statuses, auto In-Progress, closed=locked + reopen
+// ============================================================
+// The statuses the current user may SET: full list with wo.change_status (office); only the mobile-flagged
+// ones with wo.status_field (field tech); none otherwise.
+function _statusesSettableByUser(){
+  var all = _getWOStatuses();
+  if (typeof hasPermission !== 'function') return all;
+  if (hasPermission('wo.change_status')) return all;
+  if (hasPermission('wo.status_field'))  return all.filter(function(s){ return !!s.mobile; });
+  return [];
+}
+// A closed (open:false) status locks the WO to view-only; reopening needs wo.reopen.
+function _isWOLocked(wo){
+  if (!wo) return false;
+  var def = _getWOStatusDef(wo.status);
+  return !!(def && def.open === false);
+}
+// The configured "In Progress" status id (mobile + still-open), for auto-advance. Matched by name so it
+// follows the user's own settings; null if they have none.
+function _inProgressStatusId(){
+  var m = _getWOStatuses().find(function(s){ return /in\s*progress/i.test(s.id) && s.open !== false; });
+  return m ? m.id : null;
+}
+// (Auto-advance NEW → In-Progress on a time log lives in autoPromoteWOStatus, already wired into the
+//  clock + manual-time-entry paths; r54 points it at the configured In-Progress status.)
+// Re-open a closed WO back into the active flow (In-Progress). Gated by wo.reopen; logged.
+function reopenWorkOrder(id){
+  if (typeof hasPermission==='function' && !hasPermission('wo.reopen')) { showToast('You do not have permission to reopen a closed work order','error'); return; }
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===id; });
+  if (!wo) return;
+  var prev = wo.status;
+  var ip = _inProgressStatusId() || (_getWOStatuses().find(function(s){ return s.open!==false; })||{}).id || 'NEW';
+  wo.status = ip; wo.dateClosed = null;
+  if (typeof auditWOStatus==='function') { try { auditWOStatus(id, wo.woNumber, prev, ip+' (re-opened)'); } catch(e){} }
+  if (typeof saveDB==='function') saveDB();
+  if (typeof _pushWOToCloud==='function') _pushWOToCloud(wo);
+  showToast('Work order re-opened → '+ip,'success');
+  if (typeof openWorkOrder==='function') openWorkOrder(id);   // reload editable
+}
+// When a WO is locked (closed), make the open modal view-only and offer Re-open to credentialed users.
+function _applyWOLockUI(wo){
+  var modal = document.getElementById('modal-work-order'); if (!modal) return;
+  var old = document.getElementById('wo-lock-banner'); if (old) old.remove();
+  var saveBtns = modal.querySelectorAll('[onclick*="saveWorkOrder"]');
+  if (!_isWOLocked(wo)) { saveBtns.forEach(function(b){ b.style.display=''; }); return; }
+  var canReopen = (typeof hasPermission==='function') ? hasPermission('wo.reopen') : false;
+  setTimeout(function(){
+    try {
+      modal.querySelectorAll('input,select,textarea').forEach(function(el){ try{el.disabled=true; el.readOnly=true;}catch(e){} el.style.background='#f5f5f5'; });
+      modal.querySelectorAll('[contenteditable="true"]').forEach(function(el){ el.setAttribute('contenteditable','false'); el.style.background='#f5f5f5'; });
+      modal.querySelectorAll('[onclick*="saveWorkOrder"]').forEach(function(b){ b.style.display='none'; });
+    } catch(e){}
+  }, 360);
+  var banner = document.createElement('div');
+  banner.id = 'wo-lock-banner';
+  banner.style.cssText = 'background:#fdeaea;border:1px solid #f3c6c6;border-radius:8px;padding:8px 12px;margin:0 0 10px;font-size:13px;color:#b71c1c;display:flex;justify-content:space-between;align-items:center;gap:10px';
+  banner.innerHTML = '<span>🔒 This work order is closed ('+escHtml(wo.status||'')+') — view only.</span>'+
+    (canReopen ? '<button class="btn btn-sm" style="background:#fff;border:1px solid #f3c6c6;color:#b71c1c;font-weight:700;white-space:nowrap" onclick="reopenWorkOrder(\''+escHtml(wo.id)+'\')">↻ Re-open</button>'
+               : '<span style="font-size:11px;color:#90a4ae;white-space:nowrap">Reopen permission required</span>');
+  var body = modal.querySelector('.modal-body') || modal;
+  body.insertBefore(banner, body.firstChild);
+}
+
 var WO_SERVICE_TYPES = [
   'Onsite Service','Remote Support','Installation','Counter Sales',
   'New Contract','TCSS Account Change','Building Maintenance','Vehicle Maintenance'
@@ -502,16 +566,20 @@ function toggleWOMenu(woId) {
 }
 
 function cycleWOStatus(woId) {
-  if (typeof hasPermission==='function' && !hasPermission('wo.change_status')) { showToast('You do not have permission to change work order status','error'); return; }
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
   if (!wo) return;
-  var statuses = _getWOStatuses();
+  // r54: a closed WO is locked — reopen (with rights) to change it.
+  if (typeof _isWOLocked==='function' && _isWOLocked(wo)) { showToast('This work order is closed — reopen it to change status','info'); return; }
+  // r54: cycle only through the statuses this user may set (office = all; field tech = mobile-only).
+  var statuses = (typeof _statusesSettableByUser==='function') ? _statusesSettableByUser() : _getWOStatuses();
+  if (!statuses.length) { showToast('You do not have permission to change work order status','error'); return; }
   var idx = statuses.findIndex(function(s){ return s.id===wo.status; });
   var next = statuses[(idx+1) % statuses.length];
   if (!next) return;
   wo.status = next.id;
   saveDB();
-  if (typeof _sb!=='undefined'&&_sb) _sb.from('work_orders').update({status:next.id}).eq('id',woId).then(function(){});
+  if (typeof _pushWOToCloud==='function') _pushWOToCloud(wo);
+  else if (typeof _sb!=='undefined'&&_sb) _sb.from('work_orders').update({status:next.id}).eq('id',woId).then(function(){});
   renderWorkOrders();
   showToast('Status → '+next.id,'success',2000);
 }
@@ -734,7 +802,8 @@ function _applyWOPermissions(){
   if (typeof hasPermission!=='function') return;
   var canFin=hasPermission('wo.view_financial'), canEdit=hasPermission('wo.edit'),
       canInv=hasPermission('wo.invoice'), canCO=hasPermission('wo.change_order'),
-      canStatus=hasPermission('wo.change_status');
+      // r54: a field tech can set status too (mobile-only list), via wo.status_field — not just wo.change_status.
+      canStatus=hasPermission('wo.change_status')||hasPermission('wo.status_field');
   setTimeout(function(){
     try {
       var lb=document.getElementById('wo-labor-rate'); if(lb&&lb.closest&&lb.closest('div')) lb.closest('div').style.display=canFin?'':'none';
@@ -785,7 +854,7 @@ function openWorkOrder(id) {
   var urgBadge=document.getElementById('wo-urgent-badge');
   if(urgBadge) urgBadge.style.display=wo.priority==='Urgent'?'inline-block':'none';
 
-  _populateWOStatusSelect();
+  _populateWOStatusSelect(wo.status);
   _populateWOServiceTypeSelect();
 
   function sv(id,val){ 
@@ -853,6 +922,8 @@ function openWorkOrder(id) {
 
   // r23: gate editable fields by role (description/resolution read-only for techs, etc.)
   _applyWOPermissions();
+  // r54: a closed WO opens view-only (with a Re-open for wo.reopen holders).
+  if (typeof _applyWOLockUI==='function') _applyWOLockUI(wo);
 
   switchWOTab((typeof wtIsFieldTech==='function'&&wtIsFieldTech())?'fieldlog':'labor');
   setTimeout(function(){var cp=document.getElementById('wo-change-orders-panel');if(cp){var woId=_woCurrentId;cp.innerHTML=renderWOChangeOrders(woId);var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});if(wo&&wo.parentWoId&&wo.isChangeOrder){var par=(DB.workOrders||[]).find(function(w){return w.id===wo.parentWoId;});if(par)_renderParentWOBanner(par);}}},200);
@@ -948,6 +1019,13 @@ async function saveWorkOrder() {
   // Capture existing record BEFORE building data — preserves fields not on the form
   var _existingWO = DB.workOrders.find(function(w){ return w.id===id; }) || {};
 
+  // r54: a CLOSED work order is view-only — block the save unless the user can reopen it.
+  if (!isNew && typeof _isWOLocked==='function' && _isWOLocked(_existingWO) &&
+      !(typeof hasPermission==='function' && hasPermission('wo.reopen'))) {
+    showToast('This work order is closed — view only. Ask someone with reopen rights to re-open it.','error');
+    return;
+  }
+
   function gv(eid){ 
     var el=document.getElementById(eid); 
     if(!el) return '';
@@ -1035,6 +1113,13 @@ async function saveWorkOrder() {
     data.siteAddr   = _existingWO.siteAddr;   data.siteCity  = _existingWO.siteCity;
     data.siteState  = _existingWO.siteState;  data.siteZip   = _existingWO.siteZip;
     data.serviceType= _existingWO.serviceType; data.refNum   = _existingWO.refNum;
+  }
+
+  // r54: status defense-in-depth — a user can only save a status they're allowed to SET. A field tech
+  // (mobile-only) or a no-permission user who somehow submits a disallowed status keeps the existing one.
+  if (!isNew && _existingWO && typeof _statusesSettableByUser==='function' && status !== _existingWO.status) {
+    var _settable = _statusesSettableByUser().map(function(s){ return s.id; });
+    if (_settable.indexOf(status) < 0) { data.status = _existingWO.status; status = _existingWO.status; }
   }
 
   if (isNew) {
@@ -1477,10 +1562,15 @@ function woContactAdd() {
   }
 }
 
-function _populateWOStatusSelect() {
+function _populateWOStatusSelect(currentStatus) {
   var sel=document.getElementById('wo-status');
   if (!sel) return;
-  var statuses = (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length) ? DB.woSettings.statuses : WO_STATUSES;
+  // r54: show only the statuses this user may SET (office = all; field tech = mobile-only). Always include
+  // the WO's current status so it still displays correctly even if the user can't switch to it.
+  var statuses = _statusesSettableByUser();
+  if (!statuses.length) statuses = _getWOStatuses();   // can't set any → show full (dropdown is disabled elsewhere)
+  var ids = statuses.map(function(s){ return s.id; });
+  if (currentStatus && ids.indexOf(currentStatus) < 0) statuses = [{id:currentStatus}].concat(statuses);
   sel.innerHTML=statuses.map(function(s){
     return '<option value="'+escHtml(s.id||s)+'">'+escHtml(s.id||s)+'</option>';
   }).join('');
@@ -3419,19 +3509,29 @@ openWorkOrder = function(woId) {
 function autoPromoteWOStatus(woId) {
   if (!woId) return;
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
-  if (!wo || wo.status !== 'NEW') return;
-  wo.status = 'OPEN';
-  // Update status dropdown if WO modal is open
+  if (!wo) return;
+  var cur = (wo.status||'').trim();
+  if (cur && cur.toUpperCase() !== 'NEW') return;      // r54: promote ONLY from NEW, never backward
+  // r54: promote to the configured "In Progress" status (Joe's lifecycle), not a hardcoded OPEN.
+  var ip = (typeof _inProgressStatusId==='function' && _inProgressStatusId()) || 'OPEN';
+  if (wo.status === ip) return;
+  var prev = wo.status;
+  wo.status = ip;
+  // Reflect it in an open WO modal's dropdown (inject the option if the viewer's list lacks it).
   var sel = document.getElementById('wo-status');
-  if (sel && sel.value === 'NEW') sel.value = 'OPEN';
-  saveDB();
-  // Push to Supabase silently
-  if (_sb && _currentUser) {
-    _sb.from('work_orders').update({ status:'OPEN' }).eq('id', woId).then(function(r){
-      if (r.error) console.warn('[AutoPromote]', r.error.message);
-    });
+  if (sel && (sel.value===cur || sel.value==='NEW' || !sel.value)) {
+    if (!Array.prototype.some.call(sel.options, function(o){ return o.value===ip; })) { var o=document.createElement('option'); o.value=ip; o.textContent=ip; sel.appendChild(o); }
+    sel.value = ip;
   }
-  showToast('WO status updated: NEW → OPEN','info',2000);
+  wo.dateOpened = wo.dateOpened || (typeof getTodayISO==='function' ? getTodayISO() : null);
+  if (typeof auditWOStatus==='function') { try { auditWOStatus(wo.id, wo.woNumber, prev||'(new)', ip); } catch(e){} }
+  saveDB();
+  if (typeof _pushWOToCloud==='function') _pushWOToCloud(wo);
+  else if (_sb && _currentUser) {
+    _sb.from('work_orders').update({ status:ip }).eq('id', woId).then(function(r){ if (r.error) console.warn('[AutoPromote]', r.error.message); });
+  }
+  showToast('WO status: '+(prev||'New')+' → '+ip,'info',2500);
+  if (typeof renderWorkOrders==='function') { try { renderWorkOrders(); } catch(e){} }
 }
 
 // ============================================================
@@ -4067,12 +4167,19 @@ function openFieldLogEntry(woId) {
   var today = getTodayISO ? getTodayISO() : getTodayISO();
   var myName = typeof wtCurrentUserName === 'function' ? wtCurrentUserName() : (_currentUser?_currentUser.full_name:'');
 
-  // Pre-populate time from clock if active
+  // Pre-populate "time on this job" from the live clock so the tech doesn't re-type hours the system
+  // already tracked (Dawn's "why enter time again"). The old code read _clockState.clockInTime, which is
+  // NEVER set anywhere in the clock, so the auto-fill silently did nothing and techs typed it by hand.
+  // Use the real anchors: on-site minutes accumulated today plus the current on-site segment (on-site is
+  // the right proxy for "time on this job" — it excludes travel). The tech can still adjust before saving.
   var timeHint = '';
-  if (typeof _clockState !== 'undefined' && _clockState.status !== 'out' && _clockState.clockInTime) {
-    var elapsed = (Date.now() - new Date(_clockState.clockInTime)) / 3600000;
-    timeHint = elapsed.toFixed(1);
-  }
+  try {
+    if (typeof _clockState !== 'undefined' && _clockState && _clockState.status && _clockState.status !== 'out') {
+      var _flMins = (_clockState.onsiteMins || 0);
+      if (_clockState.onsiteStart) _flMins += Math.max(0, (Date.now() - new Date(_clockState.onsiteStart)) / 60000);
+      if (_flMins > 0) timeHint = (_flMins / 60).toFixed(2);
+    }
+  } catch(e){ /* a dead hint must never block logging */ }
 
   var html = '<div class="modal-overlay open" id="fl-modal" onclick="if(event.target===this)this.remove()">'+
     '<div class="modal-box" style="max-width:560px;max-height:94vh;display:flex;flex-direction:column">'+
