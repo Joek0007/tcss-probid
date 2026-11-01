@@ -135,10 +135,15 @@ function _statusesSettableByUser(){
   if (hasPermission('wo.status_field'))  return all.filter(function(s){ return !!s.mobile; });
   return [];
 }
-// A closed (open:false) status locks the WO to view-only; reopening needs wo.reopen.
+// A closed status locks the WO to view-only; reopening needs wo.reopen. r55: lock ONLY on a status that is
+// EXPLICITLY configured open:false in settings — never on an orphan/legacy value that isn't in the list.
+// (_getWOStatusDef treats any unknown status as closed for filtering; but ~473 legacy WOs carry orphan
+// statuses like "Invoiced"/"Completed"/"OPEN" that aren't in the list — locking those would wrongly freeze
+// active and historical orders. Lock is for the deliberately-configured closed statuses only.)
 function _isWOLocked(wo){
-  if (!wo) return false;
-  var def = _getWOStatusDef(wo.status);
+  if (!wo || !wo.status) return false;
+  var st = String(wo.status);
+  var def = _getWOStatuses().find(function(s){ return s.id===st || (s.id||'').toLowerCase()===st.toLowerCase(); });
   return !!(def && def.open === false);
 }
 // The configured "In Progress" status id (mobile + still-open), for auto-advance. Matched by name so it
