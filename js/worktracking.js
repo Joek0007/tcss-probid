@@ -4853,9 +4853,26 @@ async function wtLoadNotifications() {
     if (data && data.length) {
       WT.notifications = data;
       wtUpdateNotificationBell();
+      // r57 — cross-device freshness. The notification poll (every 45s) is the one
+      // thing that keeps running even when a tech just sits on the Work Orders list and
+      // never backgrounds the app or navigates. When a genuinely NEW notification lands
+      // (e.g. the office just re-assigned this tech to a WO and a text/bell fired), pull
+      // fresh data so the newly-assigned order appears without waiting out the 15-min
+      // auto-sync. Throttled + edit/modal-safe via _syncDataOnReturn. First load only
+      // primes the baseline (no sync) so login's own full sync isn't duplicated.
+      try {
+        var newestId = data[0] && data[0].id;
+        if (typeof _lastNotifSeenId === 'undefined') { window._lastNotifSeenId = null; }
+        if (_lastNotifSeenId !== null && newestId && newestId !== _lastNotifSeenId &&
+            typeof _syncDataOnReturn === 'function') {
+          _syncDataOnReturn();
+        }
+        if (newestId) _lastNotifSeenId = newestId;
+      } catch(e) { /* non-fatal */ }
     }
   } catch(e) { /* silent */ }
 }
+var _lastNotifSeenId;
 
 function wtUpdateNotificationBell() {
   updateNotifBadge();

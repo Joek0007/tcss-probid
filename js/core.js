@@ -1069,6 +1069,13 @@ qqStage4Init();
   if (id==='worktracking') { setTimeout(renderWorkTracking, 50); }
   if (id==='dispatch')     { setTimeout(initDispatchBoard, 50); }
   if (id==='invoices')     { setTimeout(renderInvoicesPage, 50); }
+  // r57 — cross-device freshness. Opening a page where another device may have just
+  // re-assigned work (Work Orders or the field tech's page) pulls the latest from the
+  // cloud immediately instead of waiting out the 15-min auto-sync. Reuses the throttled,
+  // edit/modal-safe return sync; the r42 post-sync redraw repaints the list in place.
+  if ((id==='workorders' || id==='field') && typeof _syncDataOnReturn === 'function') {
+    setTimeout(_syncDataOnReturn, 0);
+  }
   // Sync mobile bottom nav highlight
   var mobilePages = ['dash','qq','field','jobs','inventory'];
   document.querySelectorAll('.mob-nav-item').forEach(function(item){ item.classList.remove('active'); });
