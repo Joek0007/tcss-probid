@@ -146,6 +146,15 @@ function _isWOLocked(wo){
   var def = _getWOStatuses().find(function(s){ return s.id===st || (s.id||'').toLowerCase()===st.toLowerCase(); });
   return !!(def && def.open === false);
 }
+// r56: is this status a FINISHED one (closed/voided/invoiced) that should drop off a field tech's active
+// list? New / anything starting "Open" / RMA stay (active, even legacy orphans like "OPEN"); otherwise a
+// configured-or-legacy closed status (Void, Invoiced, Completed, Closed, Billed, No Charge) counts finished.
+function _woStatusIsFinished(status){
+  var st = (status||'').trim(); if (!st) return false;
+  var low = st.toLowerCase();
+  if (low==='new' || low.indexOf('open')===0 || /rma/i.test(st)) return false;
+  return _getWOStatusDef(st).open === false;
+}
 // The configured "In Progress" status id (mobile + still-open), for auto-advance. Matched by name so it
 // follows the user's own settings; null if they have none.
 function _inProgressStatusId(){
@@ -180,6 +189,8 @@ function _applyWOLockUI(wo){
       modal.querySelectorAll('input,select,textarea').forEach(function(el){ try{el.disabled=true; el.readOnly=true;}catch(e){} el.style.background='#f5f5f5'; });
       modal.querySelectorAll('[contenteditable="true"]').forEach(function(el){ el.setAttribute('contenteditable','false'); el.style.background='#f5f5f5'; });
       modal.querySelectorAll('[onclick*="saveWorkOrder"]').forEach(function(b){ b.style.display='none'; });
+      // r56: a closed order can't be invoiced or get a change order either — hide those actions.
+      ['wo-btn-invoice','wo-btn-invoice-top','wo-btn-co'].forEach(function(bid){ var b=document.getElementById(bid); if(b) b.style.display='none'; });
     } catch(e){}
   }, 360);
   var banner = document.createElement('div');
@@ -319,6 +330,13 @@ function renderWorkOrders() {
     list = list.filter(function(w){
       return _isTechAssignedToWO(myName, w);
     });
+  }
+
+  // r56: a field tech's list shows only ACTIVE orders — hide finished (voided/invoiced/completed/closed)
+  // ones so their list isn't cluttered with work that's done. (Overridden when they pick a status filter.)
+  var _techScoped = isTech || (typeof hasPermission==='function' && hasPermission('wo.view_assigned_only') && _currentUser && _currentUser.role!=='owner');
+  if (_techScoped && !fStatus && !_woUnscheduledFilter) {
+    list = list.filter(function(w){ return !_woStatusIsFinished(w.status); });
   }
 
   if (search) list = list.filter(function(w){
@@ -862,15 +880,23 @@ function openWorkOrder(id) {
   _populateWOStatusSelect(wo.status);
   _populateWOServiceTypeSelect();
 
-  function sv(id,val){ 
-    var el=document.getElementById(id); 
+  // r56: reset the rich-text editors to an editable, clean state BEFORE populating. Without this, opening a
+  // WO that locked them (a tech view, or a closed order) left contenteditable='false', so the next WO's sv
+  // fell through to el.value (a no-op on a div) and the PREVIOUS order's "Work Requested" text lingered.
+  ['wo-description','wo-work-performed'].forEach(function(rid){
+    var rel=document.getElementById(rid);
+    if(rel){ rel.setAttribute('contenteditable','true'); rel.style.background=''; try{ rel.innerHTML=''; }catch(e){} }
+  });
+  function sv(id,val){
+    var el=document.getElementById(id);
     if(!el) return;
-    if(el.contentEditable==='true') {
-      // Rich text field — detect HTML vs plain text
+    // Detect a rich-text editor by its contenteditable attribute (present whether editable or locked), not
+    // by its CURRENT state — otherwise a locked field never refreshes and shows stale content.
+    if(el.hasAttribute('contenteditable')) {
       var isHtml = val && (/<[a-z][\s\S]*>/i.test(val));
-      if(typeof woRtfLoad==='function') woRtfLoad(id, val||'', isHtml);
-    } else { 
-      el.value=val||''; 
+      if(typeof woRtfLoad==='function') woRtfLoad(id, val||'', isHtml); else el.innerHTML = val||'';
+    } else {
+      el.value=val||'';
     }
   }
   // Set status — fall back to NEW if stored value not in current list

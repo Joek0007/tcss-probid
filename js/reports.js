@@ -1295,7 +1295,8 @@ async function wtRenderTechDashboard() {
         myJobs.map(function(j){
           return '<div style="padding:10px 0;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between">'+
             '<div>'+
-              '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(j.name||'Job')+'</div>'+
+              // r56: lead with the WO number so techs can see WHICH order, not just the description.
+              '<div style="font-size:13px;font-weight:700;color:#0d1b2a">'+(j.woNumber?'<span style="color:#1565c0">'+escHtml(j.woNumber)+'</span> · ':'')+escHtml(j.name||'Job')+'</div>'+
               '<div style="font-size:11px;color:#546e7a">'+escHtml(j.customer||j.customerName||'')+(j.siteAddr?' · '+escHtml(j.siteAddr):'')+'</div>'+
             '</div>'+
             '<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;background:#e3f2fd;color:#1565c0">'+escHtml(j.status||'Scheduled')+'</span>'+
@@ -1315,7 +1316,7 @@ async function wtRenderTechDashboard() {
           var pct = items.length ? Math.round(confirmed/items.length*100) : 0;
           return '<div onclick="wtOpenProject(\'+p.id+\')\" style="padding:12px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">'+
             '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'+
-              '<div style="font-size:14px;font-weight:700;color:#0d1b2a">'+escHtml(p.name)+'</div>'+
+              '<div style="font-size:14px;font-weight:700;color:#0d1b2a">'+((p.woNumber||p.woNum)?'<span style="color:#1565c0">'+escHtml(p.woNumber||p.woNum)+'</span> · ':'')+escHtml(p.name)+'</div>'+
               '<span style="font-size:12px;font-weight:700;color:'+(pct===100?'#2e7d32':'#1565c0')+'">'+pct+'%</span>'+
             '</div>'+
             '<div style="background:#e0e0e0;border-radius:3px;height:6px">'+
