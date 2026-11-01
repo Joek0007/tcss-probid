@@ -130,8 +130,56 @@ function init() {
 // V9: SUPABASE CLOUD LAYER
 // =============================================
 
-var SUPABASE_URL = 'https://jzvoksidbelxibzbizvi.supabase.co';
-var SUPABASE_KEY = 'sb_publishable_4qYpNQoz_RXU29p_pkuI-A_H5-rOXDL';
+// ── BACKEND SELECTION (production vs. staging) ───────────────────────────────
+// One codebase, two backends. PRODUCTION is the default and only switches to the
+// throwaway STAGING project when the app is knowingly served as staging — so a
+// normal deploy can NEVER accidentally talk to staging, and staging can never
+// talk to production. "Knowingly staging" means any of:
+//   • the host or path contains "staging" (e.g. a tcss-probid-staging deploy), or
+//   • the URL carries ?env=staging  (sticky: remembered in localStorage), or
+//   • localStorage probid_env === 'staging'.
+// A ?env=prod (or probid_env='prod') forces production back. Publishable keys only
+// (safe in client code) — never a service-role key or a DB connection string.
+var _PROBID_BACKENDS = {
+  prod:    { url:'https://jzvoksidbelxibzbizvi.supabase.co', key:'sb_publishable_4qYpNQoz_RXU29p_pkuI-A_H5-rOXDL' },
+  staging: { url:'https://dkqucgditvcthjgreeqd.supabase.co', key:'sb_publishable_qNv4OK5e7SXNyTFxEWardA_apfE_5mm' }
+};
+function _probidEnv(){
+  var env = 'prod';
+  try {
+    var qs = new URLSearchParams(location.search||'');
+    var q  = (qs.get('env')||'').toLowerCase();
+    if (q==='staging' || q==='prod') { try { localStorage.setItem('probid_env', q); } catch(e){} }
+    var stored = '';
+    try { stored = (localStorage.getItem('probid_env')||'').toLowerCase(); } catch(e){}
+    var hostpath = ((location.hostname||'')+(location.pathname||'')).toLowerCase();
+    if (q==='staging' || stored==='staging' || hostpath.indexOf('staging')>=0) env = 'staging';
+    if (q==='prod' || stored==='prod') env = 'prod';   // explicit prod always wins
+  } catch(e){}
+  return env;
+}
+var PROBID_ENV   = _probidEnv();
+var SUPABASE_URL = _PROBID_BACKENDS[PROBID_ENV].url;
+var SUPABASE_KEY = _PROBID_BACKENDS[PROBID_ENV].key;
+
+// Make staging unmistakable: a fixed amber bar so no one ever confuses the two apps.
+function _showStagingBanner(){
+  try {
+    if (PROBID_ENV!=='staging' || document.getElementById('probid-staging-banner')) return;
+    var b = document.createElement('div');
+    b.id = 'probid-staging-banner';
+    b.textContent = '⚠ STAGING — test data only. Not the live system.';
+    b.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;'+
+      'background:#b26a00;color:#fff;font:600 12px/1.6 system-ui,sans-serif;'+
+      'text-align:center;padding:4px 8px;letter-spacing:.3px;pointer-events:none;'+
+      'box-shadow:0 -1px 6px rgba(0,0,0,.25);';
+    (document.body||document.documentElement).appendChild(b);
+  } catch(e){}
+}
+if (typeof document!=='undefined') {
+  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', _showStagingBanner);
+  else _showStagingBanner();
+}
 
 var _sb = null;        // Supabase client
 var _currentUser = null;  // logged-in profile
