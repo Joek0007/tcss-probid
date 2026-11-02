@@ -1,6 +1,6 @@
 // Unit test: extract the REAL _reconstructClockState from worktracking.js and prove it.
 const fs=require('fs');
-const src=fs.readFile ? fs.readFileSync('/home/claude/tcss-probid/js/worktracking.js','utf8') : '';
+const src=fs.readFile ? fs.readFileSync(__dirname + '/js/worktracking.js','utf8') : '';
 const start=src.indexOf('function _reconstructClockState(events){');
 const endMarker='\nif (typeof module !== ';
 const end=src.indexOf(endMarker, start);
