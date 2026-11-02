@@ -11,7 +11,7 @@
 // r52: SHELL_VERSION bumped + HTML now fetched no-store (true network-first, never a stale HTTP/CDN copy)
 // + on activate the new worker reloads open tabs, so a deploy self-updates in ONE reload instead of the
 // old worker serving stale files through repeated hard-refreshes.
-var SHELL_VERSION = 'r59';
+var SHELL_VERSION = 'r60';
 var SHELL_CACHE   = 'tcss-shell-' + SHELL_VERSION;
 var RUNTIME_CACHE = 'tcss-runtime';           // stable across versions (versioned js URLs self-prune by use)
 var SHELL_ASSETS  = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];

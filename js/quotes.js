@@ -1119,11 +1119,16 @@ function buildPrintHTML(q, mode) {
   function itemsTableHTML() {
     const lumpSum = q.lumpSum && q.lumpSum.enabled;
     // Rate var = margin % in margin mode (capped 0-99%), markup % in markup mode (capped 0-500%)
+    // No Margin (price at cost): force the per-line sell to COST so the client proposal
+    // matches the Pricing Summary / Total (which already honor the bypass). Without this,
+    // a bypassed quote printed each line at the stored markup (e.g. $966) while the total
+    // showed $700 — a customer-visible mismatch. (Q-2069, 2026-11-02.)
+    const _noMargin = !!(q.marginBypass && q.marginBypass.enabled);
     const _isMarkupMode = (q.pricingMode === 'markup');
     const _tm = q.targetMargin !== undefined && q.targetMargin !== null ? q.targetMargin : 35;
-    const margin = _isMarkupMode
+    const margin = _noMargin ? 0 : (_isMarkupMode
       ? Math.min(Math.max(_tm/100, 0), 5.0)
-      : Math.min(Math.max(_tm/100, 0), 0.99);
+      : Math.min(Math.max(_tm/100, 0), 0.99));
 
     // LUMP SUM MODE — total price as one line, optionally list items below without prices
     if (lumpSum) {

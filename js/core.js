@@ -2770,8 +2770,13 @@ function renderLI() {
     return;
   }
   // Determine pricing mode and rate ONCE per render
-  const _isMarkupMode = currentPricingMode() === 'markup';
-  const _rate = getMarginDecimal();
+  // No Margin (price at cost): force rate to 0 so each line's sell shows at COST and the
+  // "≈ x% margin" hint is suppressed — even if the markup field still holds a value. The
+  // field is normally blanked on load, so this is a defensive guard against showing a
+  // marked-up sell (e.g. $966 / "27.5% margin") on a bypassed quote. (Q-2069, 2026-11-02.)
+  const _noMargin = (typeof isNoMarginOn === 'function' && isNoMarginOn());
+  const _isMarkupMode = !_noMargin && currentPricingMode() === 'markup';
+  const _rate = _noMargin ? 0 : getMarginDecimal();
   // In markup mode, compute equivalent margin %: margin = markup / (1 + markup)
   // 25% markup ≈ 20% margin; 35% markup ≈ 25.9% margin; 100% markup = 50% margin
   const _equivMargin = _isMarkupMode && _rate > 0 ? (_rate / (1 + _rate)) * 100 : null;
