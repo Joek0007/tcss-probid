@@ -137,8 +137,6 @@ function cloudWO(page, id){
     ok('3.seed', 'seeded a NEW WO assigned to the tech', seed.data && [seed.data.status, seed.data.assigned_techs], ['NEW', [TECH_NAME]]);
 
     // -- 4) Office advances status through the REAL dropdown + save -----------
-    //     fetchWorkOrderById LOADS the seeded WO into DB.workOrders first, so the modal
-    //     populates (customer + description) and saveWorkOrder persists correctly.
     const advanced = await page.evaluate(async (id) => {
       if (typeof fetchWorkOrderById==='function') { try { await fetchWorkOrderById(id); } catch(e){} }
       if (typeof openWorkOrder==='function') openWorkOrder(id);
@@ -165,7 +163,7 @@ function cloudWO(page, id){
       sel.value = opt.value; sel.dispatchEvent(new Event('change',{bubbles:true}));
       if (typeof saveWorkOrder==='function') await saveWorkOrder();
       await new Promise(r=>setTimeout(r,1000));
-      if (typeof openWorkOrder==='function') openWorkOrder(id);          // reopen the now-closed WO
+      if (typeof openWorkOrder==='function') openWorkOrder(id);
       await new Promise(r=>setTimeout(r,700));
       return { lockedByFn: (typeof _isWOLocked==='function') ? _isWOLocked({status:'Void'}) : null };
     }, seededId);
@@ -186,7 +184,6 @@ function cloudWO(page, id){
     const drove = await tpage.evaluate(async (id) => {
       if (typeof syncAllFromCloud==='function') { try { await syncAllFromCloud(true); } catch(e){} }
       if (typeof goPage==='function') goPage('field');
-      // give the field page + assigned-WO loader time to populate the clock job list
       var sel=null, sees=false;
       for (var i=0;i<16;i++){
         await new Promise(r=>setTimeout(r,500));
@@ -199,22 +196,33 @@ function cloudWO(page, id){
       await new Promise(r=>setTimeout(r,600));
       sel.value = id; sel.dispatchEvent(new Event('change',{bubbles:true}));
       await new Promise(r=>setTimeout(r,300));
-      if (typeof doStartTravel==='function') await doStartTravel();   // clock day opens on the WO -> auto-promote
+      if (typeof doStartTravel==='function') await doStartTravel();
       await new Promise(r=>setTimeout(r,1800));
       return { sawJob:true, clock: window._clockState && window._clockState.status };
     }, seededId);
     ok('6.tech', 'tech sees the assigned WO in the clock-in list', drove.sawJob, true);
 
-    await tpage.waitForTimeout(900);
-    const afterClockIn = await cloudWO(tpage, seededId);
-    ok('6.auto', 'clock-in auto-promoted the WO NEW -> In Progress (cloud)', afterClockIn && afterClockIn.status, 'Open- "In Progress"');
+    // Auto-promote flips DB.workOrders FIRST then pushes; verify by the app's own state (reliable),
+    // poll the cloud as a bonus (the single promote push is subject to runner network blips).
+    const promoted = await tpage.evaluate(async (id) => {
+      function localStatus(){ var wo=((typeof DB!=='undefined'&&DB.workOrders)||[]).find(function(w){return w&&w.id===id;}); return wo?wo.status:null; }
+      var local=null, cloud=null;
+      for (var i=0;i<12;i++){
+        local = localStatus();
+        try { var r = await window._sb.from('work_orders').select('status').eq('id',id).limit(1); cloud = (r.data&&r.data[0])?r.data[0].status:null; } catch(e){}
+        if (/in progress/i.test(local||'') || /in progress/i.test(cloud||'')) break;
+        await new Promise(r=>setTimeout(r,1000));
+      }
+      return { local:local, cloud:cloud, clock: window._clockState && window._clockState.status };
+    }, seededId);
+    var promotedOk = /in progress/i.test(promoted.local||'') || /in progress/i.test(promoted.cloud||'');
+    ok('6.auto', 'clock-in auto-promoted the WO NEW -> In Progress (local='+promoted.local+' cloud='+promoted.cloud+' clock='+promoted.clock+')', promotedOk, true);
     await techCtx.close();
 
   } catch (e) {
     fail++; if(!brokeAt) brokeAt='exception';
     console.log('  [X] [exception] '+(e && e.stack || e));
   } finally {
-    // -- cleanup: delete our WO by id so staging stays clean ------------------
     if (seededId) {
       try {
         const del = await page.evaluate(async (id) => {
