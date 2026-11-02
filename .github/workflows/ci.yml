@@ -1,0 +1,47 @@
+name: CI — ProBid tests
+
+# Runs on every push and PR, and can be launched by hand from the Actions tab.
+# Two jobs:
+#   • logic        — the offline logic + handler suite (the lifecycle logic, sync, clock
+#                    invariants). Fast, deterministic, no network. REQUIRED (blocks red).
+#   • browser-smoke — drives the REAL app on staging through the full office↔field
+#                    lifecycle. Needs GitHub's open network (reaches the live app + staging
+#                    Supabase). Starts as non-blocking (continue-on-error) so a flake can't
+#                    redden a commit while it proves out; flip that off once it's reliably green.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  logic:
+    name: Logic + handler tests (offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:logic
+
+  browser-smoke:
+    name: Browser smoke — full lifecycle on staging
+    runs-on: ubuntu-latest
+    continue-on-error: true   # <-- remove this line to make the browser test block merges once it's green
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser-staging
+        env:
+          # Staging TEST accounts (throwaway project, throwaway data). Safe to keep here; to
+          # rotate without editing the workflow, set these as repo secrets of the same name.
+          PROBID_STAGING_EMAIL: ${{ secrets.PROBID_STAGING_EMAIL || 'owner@tcss.com' }}
+          PROBID_STAGING_PASSWORD: ${{ secrets.PROBID_STAGING_PASSWORD || 'TCSSstaging!2026' }}
+          PROBID_TECH_EMAIL: ${{ secrets.PROBID_TECH_EMAIL || 'tech@tcss.com' }}
+          PROBID_TECH_PASSWORD: ${{ secrets.PROBID_TECH_PASSWORD || 'TCSSstaging!2026' }}

@@ -1,0 +1,14 @@
+{
+  "name": "tcss-probid-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Automated test suite for TCSS ProBid (offline logic + live staging browser smoke).",
+  "scripts": {
+    "test": "bash tests/run_clock_tests.sh",
+    "test:logic": "bash tests/run_clock_tests.sh",
+    "test:browser-staging": "node tests/wo_lifecycle_browser.staging.test.js"
+  },
+  "devDependencies": {
+    "playwright": "1.56.0"
+  }
+}

@@ -15,4 +15,19 @@ echo "── sync convergence net (2 clients: stale session never clobbers; edit
 echo "── quote extras round-trip (equipment/per-diem/svc/discount-type/exec/dates survive sync) ──"; node tests/quote_extras_roundtrip.test.js
 echo "── quote lifecycle 2-device (create/edit/delete/offline converge; no clobber; no resurrect) ──"; node tests/quote_lifecycle.test.js
 echo "── version gate (stale build is blocked from writing shared data; only strictly-newer blocks) ──"; node tests/version_gate.test.js
+echo "── version-gate chokepoint (ALL writes app-wide suppressed on stale build; reads always pass) ──"; node tests/version_gate_chokepoint.test.js
+echo "── WO lifecycle 2-device (offline edit survives pull; stale tab no-clobber; reload gate; hash trap) ──"; node tests/wo_lifecycle.test.js
+echo "── invoice lifecycle 2-device (offline edit survives; cross-device no-revert; stale no-clobber; reload gate) ──"; node tests/invoice_lifecycle.test.js
+echo "── field-tech WO visibility (techs load their assigned work orders; office pull stays gated) ──"; node tests/tech_wo_load.test.js
+echo "── WO expense preserve (a just-added expense is not dropped by the full-replace pull) ──"; node tests/wo_expense_preserve.test.js
+echo "── WO children + payments preserve (just-added parts/labor/checklist/payments not dropped by full-replace pull) ──"; node tests/wo_children_preserve.test.js
+echo "── post-sync redraw covers WO + field + dash (new tag/status appears without a manual reload) ──"; node tests/rerender_pages.test.js
+echo "── clock-is-timesheet Phase 1 (clock-in opens the day line; excluded from payroll; zero movement; edit-safe) ──"; node tests/clock_timesheet_line.test.js
+echo "── clock paid-hours math (base/office paid; lunch subtracted; break not double-counted; Lisa 7h28m) ──"; node tests/clock_paid_hours.test.js
+echo "── clock-punch visibility (My Hours + office show the day's in/out/break/lunch punches) ──"; node tests/punch_timeline.test.js
+echo "── work notes (tech owns own-day note; office edits any; every change audited; r48 no auto-lock) ──"; node tests/work_note.test.js
+echo "── day lock (soft lock=time.correct; processed=sealed; reopen needs payroll.unlock; all audited) ──"; node tests/day_lock.test.js
+echo "── clock day split (overnight splits at midnight; forgot-clock-out capped at 24h+flagged; sums exact) ──"; node tests/clock_day_split.test.js
+echo "── WO status workflow (field=mobile statuses; closed=locked; auto NEW→In-Progress only from NEW) ──"; node tests/wo_status_workflow.test.js
+echo "── ★ PILOT SMOKE: office↔field WO lifecycle end-to-end (create→assign→tech-sees→clock-in auto-status→field→office pricing/invoicing→closed locks+drops; two-device convergence at every hand-off) ──"; node tests/wo_lifecycle_smoke.test.js
 echo "✅ all tests passed"
