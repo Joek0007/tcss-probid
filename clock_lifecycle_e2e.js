@@ -2,7 +2,7 @@
 // reconstruct from the events-so-far (= simulate a refresh/reopen at that moment) and assert
 // the resumed status/job/timer are right. This is the whole chain the piecemeal tests missed.
 const fs=require('fs');
-const src=fs.readFileSync('/home/claude/tcss-probid/js/worktracking.js','utf8');
+const src=fs.readFileSync(__dirname + '/js/worktracking.js','utf8');
 const a=src.indexOf('function _reconstructClockState(events){');
 const b=src.indexOf('\nif (typeof module !== ', a);
 const _reconstructClockState=eval('('+src.slice(a,b)+')');

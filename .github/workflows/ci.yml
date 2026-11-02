@@ -1,13 +1,14 @@
 name: CI — ProBid tests
 
 # Runs on every push and PR, and can be launched by hand from the Actions tab.
-# Two jobs:
-#   • logic        — the offline logic + handler suite (the lifecycle logic, sync, clock
-#                    invariants). Fast, deterministic, no network. REQUIRED (blocks red).
+# Both jobs run INSIDE Playwright's official image, which already has Chromium + all its
+# system libraries installed — so there is no browser-install step that can fail on the
+# runner (that is what broke the first run).
+#   • logic         — offline logic + handler suite (lifecycle logic, sync, clock rules).
+#                     Deterministic, no network. REQUIRED (a real break turns the commit red).
 #   • browser-smoke — drives the REAL app on staging through the full office↔field
-#                    lifecycle. Needs GitHub's open network (reaches the live app + staging
-#                    Supabase). Starts as non-blocking (continue-on-error) so a flake can't
-#                    redden a commit while it proves out; flip that off once it's reliably green.
+#                     lifecycle. continue-on-error until it is reliably green, so it can't
+#                     redden a commit while it proves out; delete that line to make it block.
 on:
   push:
   pull_request:
@@ -17,26 +18,22 @@ jobs:
   logic:
     name: Logic + handler tests (offline)
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.0-jammy
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
       - run: npm install
-      - run: npx playwright install --with-deps chromium
       - run: npm run test:logic
 
   browser-smoke:
     name: Browser smoke — full lifecycle on staging
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.0-jammy
     continue-on-error: true   # <-- remove this line to make the browser test block merges once it's green
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
       - run: npm install
-      - run: npx playwright install --with-deps chromium
       - run: npm run test:browser-staging
         env:
           # Staging TEST accounts (throwaway project, throwaway data). Safe to keep here; to
