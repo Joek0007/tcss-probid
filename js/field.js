@@ -800,27 +800,45 @@ function openWOForTech(woId, opts){
 // "Field Logs Due Today" — WOs the tech clocked into today with no field log yet, each a one-tap
 // "Log Now" straight into the entry form. Attacks the real problem (forgetting / hunting) instead of
 // only shortening the path. Source: the clock's own time entries (where the field clock records the WO).
-async function _renderFieldLogsDue(){
+// Renders INSTANTLY (reminder-first): paint right away from what we already know, load the "already
+// logged?" check in the BACKGROUND, and re-paint so a done one drops off on its own. Never blocks the
+// page; offline/failed loads keep reminding (safer to over-remind than miss one).
+var _fieldLogLoading = {};   // woId -> true while its field logs are loading in the background
+function _workedWoIdsToday(myName, today){
+  var ids = {};
+  (DB.timeEntries||[]).forEach(function(e){
+    if (e && e.techName===myName && e.date===today && e.woId && e.woId!=='office' && (e.source==='clock' || e.isManual===false)) ids[e.woId]=true;
+  });
+  var curWO = (typeof _clockCurrentWOId==='function') ? _clockCurrentWOId() : null;
+  if (curWO) ids[curWO]=true;
+  return Object.keys(ids);
+}
+function _renderFieldLogsDue(){
   try {
     var el = document.getElementById('clock-logs-due');
     if (!el) return;
     var myName = _currentUser ? _currentUser.full_name : '';
     if (!myName) { el.style.display='none'; el.innerHTML=''; return; }
     var today = (typeof getTodayISO==='function') ? getTodayISO() : new Date().toISOString().split('T')[0];
-    var ids = {};
-    (DB.timeEntries||[]).forEach(function(e){
-      if (e && e.techName===myName && e.date===today && e.woId && e.woId!=='office' && (e.source==='clock' || e.isManual===false)) ids[e.woId]=true;
-    });
-    var curWO = (typeof _clockCurrentWOId==='function') ? _clockCurrentWOId() : null;
-    if (curWO) ids[curWO]=true;
-    var woIds = Object.keys(ids);
+    var woIds = _workedWoIdsToday(myName, today);
     if (!woIds.length){ el.style.display='none'; el.innerHTML=''; return; }
-    // Best-effort load of each WO's field logs so the "already logged" check is accurate (offline → cache only).
-    for (var i=0;i<woIds.length;i++){
-      if (!_woFieldLogs[woIds[i]] && typeof loadWOFieldLogs==='function'){ try { await loadWOFieldLogs(woIds[i]); } catch(e){} }
-    }
-    var missing = woIds.filter(function(id){
-      var logs = _woFieldLogs[id] || [];
+    // Kick off background loads for any WO whose logs aren't cached yet; re-paint when each finishes.
+    woIds.forEach(function(id){
+      if (!_woFieldLogs[id] && typeof loadWOFieldLogs==='function' && !_fieldLogLoading[id]){
+        _fieldLogLoading[id] = true;
+        Promise.resolve(loadWOFieldLogs(id)).catch(function(){}).then(function(){ _fieldLogLoading[id]=false; _paintFieldLogsDue(myName, today); });
+      }
+    });
+    _paintFieldLogsDue(myName, today);   // paint NOW, don't wait for the loads
+  } catch(e){ /* non-fatal */ }
+}
+function _paintFieldLogsDue(myName, today){
+  try {
+    var el = document.getElementById('clock-logs-due');
+    if (!el) return;
+    var missing = _workedWoIdsToday(myName, today).filter(function(id){
+      var logs = _woFieldLogs[id];          // not loaded yet (undefined) → still show (reminder-first)
+      if (!logs) return true;
       return !logs.some(function(l){ return l.log_date===today && l.tech_name===myName; });
     }).map(function(id){
       var wo = (DB.workOrders||[]).find(function(w){ return w.id===id; });
