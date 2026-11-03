@@ -2868,6 +2868,9 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <div id="clock-wo-link" style="display:none"></div>
     </div>
 
+    <!-- Field Logs due today (filled by _renderFieldLogsDue; hidden when none) -->
+    <div class="clock-card" id="clock-logs-due" style="display:none;background:#fff8f0;border:1.5px solid #ffcc80"></div>
+
     <!-- My Hours quick view (daily + weekly) -->
     <div class="clock-card" id="clock-hours-card">
       <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">My Hours</div>
@@ -2875,6 +2878,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div class="day-stat"><div class="day-stat-val" id="clk-today-hrs">0h 0m</div><div class="day-stat-lbl">Today</div></div>
         <div class="day-stat"><div class="day-stat-val" id="clk-week-hrs">0h 0m</div><div class="day-stat-lbl">This Week</div></div>
       </div>
+      <div id="clk-ot-note" style="display:none;font-size:12px;font-weight:700;text-align:center;margin-top:10px"></div>
     </div>
 
     <!-- Today's Punch Log -->
@@ -7344,7 +7348,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/checkouts_db.js?v=20260919ix"></script>
 <script src="js/collections_db.js?v=20260919ix"></script>
 <script src="js/tools.js?v=20261025today"></script>
-<script src="js/field.js?v=20261103r61clockhours"></script>
+<script src="js/field.js?v=20261103r62fieldlogdue"></script>
 <script src="js/crm.js?v=20261028r29cpcontacts"></script>
 <script src="js/vehicles.js?v=20261022docroll"></script>
 <script src="js/dispatch.js?v=20261101r54wostatus"></script>
@@ -8836,7 +8840,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r61';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r62';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-01';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

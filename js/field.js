@@ -748,7 +748,7 @@ function updateClockUI(){
     var curWO=_clockCurrentWOId();
     if(curWO){
       woLinkEl.style.display='block';
-      woLinkEl.innerHTML='<button class="clock-btn" style="grid-column:1/-1;width:100%;background:#ede7f6;color:#4527a0;border:2px solid #b39ddb;margin-top:12px" onclick="openWOForTech(\''+escHtml(curWO)+'\')"><span class="btn-icon">📋</span>Open Work Order — Field Log</button>';
+      woLinkEl.innerHTML='<button class="clock-btn" style="grid-column:1/-1;width:100%;background:#ede7f6;color:#4527a0;border:2px solid #b39ddb;margin-top:12px" onclick="openWOForTech(\''+escHtml(curWO)+'\',{entry:true})"><span class="btn-icon">📋</span>Open Work Order — Field Log</button>';
     } else { woLinkEl.style.display='none'; woLinkEl.innerHTML=''; }
   }
   _renderClockHours();
@@ -779,7 +779,8 @@ function _getMyAssignedJobs() {
 // ── Field tech: jump from Time Clock straight to a work order's Field Log ──────
 // Reuses the departure-prompt deep link so a tech can log their day without leaving
 // the clock to go hunt for the order in Work Orders.
-function openWOForTech(woId){
+function openWOForTech(woId, opts){
+  opts = opts || {};
   if (!woId || woId === 'office') { showToast('Office / General day — no specific work order to open.','info',3500); return; }
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId || w.jobId===woId; });
   var realId = wo ? wo.id : woId;
@@ -787,9 +788,56 @@ function openWOForTech(woId){
   setTimeout(function(){
     if (typeof openWorkOrder === 'function') {
       openWorkOrder(realId);
-      setTimeout(function(){ if (typeof switchWOTab === 'function') switchWOTab('fieldlog'); }, 500);
+      setTimeout(function(){
+        if (typeof switchWOTab === 'function') switchWOTab('fieldlog');
+        // opts.entry → drop straight into the log entry form (the tech's goal is to LOG, not just land on the tab).
+        if (opts.entry) setTimeout(function(){ if (typeof openFieldLogEntry === 'function') openFieldLogEntry(realId); }, 350);
+      }, 500);
     }
   }, 300);
+}
+
+// "Field Logs Due Today" — WOs the tech clocked into today with no field log yet, each a one-tap
+// "Log Now" straight into the entry form. Attacks the real problem (forgetting / hunting) instead of
+// only shortening the path. Source: the clock's own time entries (where the field clock records the WO).
+async function _renderFieldLogsDue(){
+  try {
+    var el = document.getElementById('clock-logs-due');
+    if (!el) return;
+    var myName = _currentUser ? _currentUser.full_name : '';
+    if (!myName) { el.style.display='none'; el.innerHTML=''; return; }
+    var today = (typeof getTodayISO==='function') ? getTodayISO() : new Date().toISOString().split('T')[0];
+    var ids = {};
+    (DB.timeEntries||[]).forEach(function(e){
+      if (e && e.techName===myName && e.date===today && e.woId && e.woId!=='office' && (e.source==='clock' || e.isManual===false)) ids[e.woId]=true;
+    });
+    var curWO = (typeof _clockCurrentWOId==='function') ? _clockCurrentWOId() : null;
+    if (curWO) ids[curWO]=true;
+    var woIds = Object.keys(ids);
+    if (!woIds.length){ el.style.display='none'; el.innerHTML=''; return; }
+    // Best-effort load of each WO's field logs so the "already logged" check is accurate (offline → cache only).
+    for (var i=0;i<woIds.length;i++){
+      if (!_woFieldLogs[woIds[i]] && typeof loadWOFieldLogs==='function'){ try { await loadWOFieldLogs(woIds[i]); } catch(e){} }
+    }
+    var missing = woIds.filter(function(id){
+      var logs = _woFieldLogs[id] || [];
+      return !logs.some(function(l){ return l.log_date===today && l.tech_name===myName; });
+    }).map(function(id){
+      var wo = (DB.workOrders||[]).find(function(w){ return w.id===id; });
+      return { id:id, num: wo?(wo.woNumber||'Work Order'):'Work Order', desc: wo?(wo.description||''):'' };
+    });
+    if (!missing.length){ el.style.display='none'; el.innerHTML=''; return; }
+    el.style.display='block';
+    el.innerHTML =
+      '<div style="font-size:12px;font-weight:800;color:#e65100;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">📝 Field Logs Due Today</div>'+
+      missing.map(function(m){
+        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #ffe0b2">'+
+          '<div style="min-width:0"><div style="font-size:13px;font-weight:700;color:#0d1b2a">'+escHtml(m.num)+'</div>'+
+          '<div style="font-size:11px;color:#90a4ae;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml((m.desc||'').substring(0,42))+'</div></div>'+
+          '<button onclick="openWOForTech(\''+escHtml(m.id)+'\',{entry:true})" style="padding:7px 14px;font-size:12px;font-weight:700;border:none;border-radius:8px;background:#e65100;color:#fff;cursor:pointer;white-space:nowrap;flex-shrink:0">Log Now</button>'+
+        '</div>';
+      }).join('');
+  } catch(e){ /* non-fatal */ }
 }
 
 // The work order id for the job the tech is currently clocked into
@@ -833,6 +881,14 @@ function _renderClockHours(){
     var s = _clockHoursSummary();
     if (t) t.textContent = fmtMins(s.todayMins);
     if (w) w.textContent = fmtMins(s.weekMins);
+    // Overtime awareness: techs care because it's money. Over 40h → flag it; within 2h → heads-up.
+    var otEl = document.getElementById('clk-ot-note');
+    if (otEl) {
+      var ot = Math.max(0, s.weekMins - 2400);   // 2400 min = 40h
+      if (ot > 0) { otEl.style.display='block'; otEl.style.color='#e65100'; otEl.textContent='⚠️ '+fmtMins(ot)+' overtime this week (over 40h)'; }
+      else if (s.weekMins >= 2280 && s.weekMins < 2400) { otEl.style.display='block'; otEl.style.color='#90a4ae'; otEl.textContent=fmtMins(2400 - s.weekMins)+' until overtime'; }
+      else { otEl.style.display='none'; otEl.textContent=''; }
+    }
   } catch(e){}
 }
 
@@ -895,6 +951,7 @@ function renderFieldPage(){
 
   if(_clockState.status!=='out'&&!_clockState.timerInterval) startClockTimer();
   updateClockUI();
+  _renderFieldLogsDue();   // "Field Logs Due Today" nudge (async, best-effort)
   getGPS(function(){});
 }
 
