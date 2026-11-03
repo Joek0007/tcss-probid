@@ -673,6 +673,7 @@ function startClockTimer(){
     var lunchMs=_clockState.lunchMins*60000+(_clockState.lunchStart?now-_clockState.lunchStart:0);
     function setDs(id,ms){var el=document.getElementById(id);if(el)el.textContent=formatMs(ms);}
     setDs('ds-travel',travelMs);setDs('ds-worked',onsiteMs);setDs('ds-break',breakMs);setDs('ds-lunch',lunchMs);
+    if(now.getSeconds()%15===0) _renderClockHours();   // keep Today/This Week live without recomputing every tick
   },1000);
 }
 
@@ -741,6 +742,16 @@ function updateClockUI(){
   else if(_clockState.status==='returning'){
     btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doArriveBack()" style="grid-column:1/-1;background:#1565c0"><span class="btn-icon">🏁</span>Arrived Back — End Day</button>';
   }
+  // "Open Work Order — Field Log" shortcut for the job the tech is clocked into.
+  var woLinkEl=document.getElementById('clock-wo-link');
+  if(woLinkEl){
+    var curWO=_clockCurrentWOId();
+    if(curWO){
+      woLinkEl.style.display='block';
+      woLinkEl.innerHTML='<button class="clock-btn" style="grid-column:1/-1;width:100%;background:#ede7f6;color:#4527a0;border:2px solid #b39ddb;margin-top:12px" onclick="openWOForTech(\''+escHtml(curWO)+'\')"><span class="btn-icon">📋</span>Open Work Order — Field Log</button>';
+    } else { woLinkEl.style.display='none'; woLinkEl.innerHTML=''; }
+  }
+  _renderClockHours();
   renderPunchLog();
 }
 
@@ -763,6 +774,66 @@ function _getMyAssignedJobs() {
   // WOs are jobs — return assigned WOs as job objects
   if (typeof _getMyWOsAsJobs === 'function') return _getMyWOsAsJobs(myName);
   return [];
+}
+
+// ── Field tech: jump from Time Clock straight to a work order's Field Log ──────
+// Reuses the departure-prompt deep link so a tech can log their day without leaving
+// the clock to go hunt for the order in Work Orders.
+function openWOForTech(woId){
+  if (!woId || woId === 'office') { showToast('Office / General day — no specific work order to open.','info',3500); return; }
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId || w.jobId===woId; });
+  var realId = wo ? wo.id : woId;
+  goPage('workorders');
+  setTimeout(function(){
+    if (typeof openWorkOrder === 'function') {
+      openWorkOrder(realId);
+      setTimeout(function(){ if (typeof switchWOTab === 'function') switchWOTab('fieldlog'); }, 500);
+    }
+  }, 300);
+}
+
+// The work order id for the job the tech is currently clocked into
+// (null for Office/General, or when not clocked in).
+function _clockCurrentWOId(){
+  var jid = _clockState.jobId;
+  if (!jid || jid === 'office' || _clockState.status === 'out') return null;
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===jid || w.jobId===jid; });
+  return wo ? wo.id : jid;
+}
+
+// Today + this-week PAID minutes for the signed-in tech — same source + math as the
+// My Hours timesheet, so the clock readout and the timesheet always agree.
+function _clockHoursSummary(){
+  var myName = _currentUser ? _currentUser.full_name : '';
+  var todayS = dateStr(new Date());
+  var wk = getWeekDates();
+  var wkStart = dateStr(wk.start), wkEnd = dateStr(wk.end);
+  var days = (DB.workDays||[]).filter(function(d){ return d.techName===myName; });
+  // Week recorded, EXCLUDING today — today is added live/recorded below so there is no double count.
+  var weekRec = days.filter(function(d){ return d.date>=wkStart && d.date<=wkEnd && d.date!==todayS; })
+                    .reduce(function(s,d){ return s+(d.totalPaidMins||0); }, 0);
+  var todayMins;
+  if (_clockState.status !== 'out') {
+    var now = new Date();
+    var t0 = _clockState.homebaseStart || _clockState.dayStart || now;
+    todayMins = Math.max(0, Math.round((now - t0)/60000) - (_clockState.lunchMins||0));
+  } else {
+    var td = days.find(function(d){ return d.date===todayS; });
+    todayMins = td ? (td.totalPaidMins||0) : 0;
+  }
+  return { todayMins: todayMins, weekMins: weekRec + todayMins };
+}
+
+// Paint the Time Clock "My Hours" strip (Today / This Week).
+function _renderClockHours(){
+  try {
+    var t = document.getElementById('clk-today-hrs');
+    var w = document.getElementById('clk-week-hrs');
+    if (!t && !w) return;
+    var s = _clockHoursSummary();
+    if (t) t.textContent = fmtMins(s.todayMins);
+    if (w) w.textContent = fmtMins(s.weekMins);
+  } catch(e){}
 }
 
 function renderFieldPage(){
@@ -795,7 +866,7 @@ function renderFieldPage(){
   if(myJobsEl){
     var active=_getMyAssignedJobs();
     if(!active.length){myJobsEl.innerHTML='<div style="color:#90a4ae;font-size:13px">No active jobs assigned.</div>';}
-    else{myJobsEl.innerHTML=active.map(function(j){var ha=!!j.gpsAnchor;return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5"><div><div style="font-weight:700;font-size:13px">'+escHtml(j.name||'')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(j.customer||'')+(j.address?' · '+escHtml(j.address):'')+' · '+(ha?'<span style="color:#2e7d32">📍 Anchor set</span>':'<span style="color:#90a4ae">No anchor yet</span>')+'</div></div><span class="status-badge '+(j.status==='In Progress'?'s-inprogress':'s-pending')+'" style="font-size:10px">'+escHtml(j.status)+'</span></div>';}).join('');}
+    else{myJobsEl.innerHTML=active.map(function(j){var ha=!!j.gpsAnchor;return '<div onclick="openWOForTech(\''+escHtml(j.id)+'\')" title="Open this work order to enter its Field Log" style="display:flex;align-items:center;justify-content:space-between;padding:10px 4px;border-bottom:1px solid #f5f5f5;cursor:pointer;border-radius:8px"><div><div style="font-weight:700;font-size:13px;color:#1565c0">'+escHtml(j.name||'')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(j.customer||'')+(j.address?' · '+escHtml(j.address):'')+' · '+(ha?'<span style="color:#2e7d32">📍 Anchor set</span>':'<span style="color:#90a4ae">No anchor yet</span>')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span class="status-badge '+(j.status==='In Progress'?'s-inprogress':'s-pending')+'" style="font-size:10px">'+escHtml(j.status)+'</span><span style="color:#90a4ae;font-size:18px;font-weight:700">›</span></div></div>';}).join('');}
   }
 
   // Show recent time off requests for this tech

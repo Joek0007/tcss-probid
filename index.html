@@ -2863,6 +2863,18 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div class="day-stat"><div class="day-stat-val" id="ds-break">0:00</div><div class="day-stat-lbl">Break</div></div>
         <div class="day-stat"><div class="day-stat-val" id="ds-lunch">0:00</div><div class="day-stat-lbl">Lunch</div></div>
       </div>
+
+      <!-- Jump to the work order's Field Log for the job you're clocked into -->
+      <div id="clock-wo-link" style="display:none"></div>
+    </div>
+
+    <!-- My Hours quick view (daily + weekly) -->
+    <div class="clock-card" id="clock-hours-card">
+      <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">My Hours</div>
+      <div class="day-summary" style="display:grid;grid-template-columns:repeat(2,1fr)">
+        <div class="day-stat"><div class="day-stat-val" id="clk-today-hrs">0h 0m</div><div class="day-stat-lbl">Today</div></div>
+        <div class="day-stat"><div class="day-stat-val" id="clk-week-hrs">0h 0m</div><div class="day-stat-lbl">This Week</div></div>
+      </div>
     </div>
 
     <!-- Today's Punch Log -->
@@ -2873,7 +2885,8 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
     <!-- My Jobs -->
     <div class="clock-card">
-      <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">My Assigned Jobs</div>
+      <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px">My Assigned Jobs</div>
+      <div style="font-size:11px;color:#90a4ae;margin-bottom:10px">Tap a job to open its work order &amp; Field Log.</div>
       <div id="field-my-jobs"></div>
     </div>
 
@@ -7331,7 +7344,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/checkouts_db.js?v=20260919ix"></script>
 <script src="js/collections_db.js?v=20260919ix"></script>
 <script src="js/tools.js?v=20261025today"></script>
-<script src="js/field.js?v=20261101r54wostatus"></script>
+<script src="js/field.js?v=20261103r61clockhours"></script>
 <script src="js/crm.js?v=20261028r29cpcontacts"></script>
 <script src="js/vehicles.js?v=20261022docroll"></script>
 <script src="js/dispatch.js?v=20261101r54wostatus"></script>
@@ -8823,7 +8836,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r60';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r61';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-01';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;
