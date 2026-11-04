@@ -872,6 +872,162 @@ function upsertCustomer(q) {
 // markup into clean, consistently-styled HTML so the Scope of Work (and Terms) look the
 // same in the on-screen quote, the emailed PDF, and the customer approval portal.
 // Plain-text input is escaped + line-broken. Needs a browser DOM (document).
+// r64 Proposal Terms: render one assembled card (array of {text,...}) as a plain bullet list.
+// Clause text is plain text (edited via textarea), so escape it. Empty/absent → ''.
+function termClausesHtml(arr){
+  if (!arr || !arr.length) return '';
+  var e = (typeof escHtml === 'function') ? escHtml
+          : function(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  return '<ul>' + arr.map(function(it){ return '<li>' + e(it && it.text ? it.text : '') + '</li>'; }).join('') + '</ul>';
+}
+window.termClausesHtml = termClausesHtml;
+
+// =============================================================================
+// r64 Proposal Terms — per-quote builder controller (powers the #qt-builder card
+// in the quote editor). State lives in QT; qtInit() seeds it on editor open,
+// qtGetClauses()/qtGetSystems() hand the result to getQData() at save time.
+// All qt* functions are global (called from inline onclick in the rendered rows).
+// =============================================================================
+var QT = { active:false, jobType:'New Construction', systemsOn:{}, items:{assumptions:[],exclusions:[],terms:[]}, editing:null };
+
+function qtMarkDirty(){ try { if (typeof _qqDirty !== 'undefined') _qqDirty = true; } catch(e){} }
+
+// Safely quote a JS string for an inline onclick attribute (double-quoted attr, single-quoted arg).
+function qtQ(s){ return "'" + String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'") + "'"; }
+function qtShort(t){ t = String(t||''); return t.length > 64 ? t.slice(0,61) + '…' : t; }
+
+function qtInit(jobType, selectedSystems, existing){
+  QT.active = true;
+  QT.jobType = jobType || 'New Construction';
+  QT.systemsOn = {};
+  (selectedSystems||[]).forEach(function(s){ QT.systemsOn[s] = true; });
+  QT.editing = null;
+  var hasSaved = existing && window.TERM_CARDS && TERM_CARDS.some(function(c){ return (existing[c]||[]).length; });
+  QT.items = hasSaved ? JSON.parse(JSON.stringify(existing))
+                      : assembleQuoteClauses(QT.jobType, Object.keys(QT.systemsOn), null);
+  qtRender();
+}
+function qtGetClauses(){
+  if (!QT.active) return null;   // builder never opened → let render fall back to legacy blobs
+  try { return JSON.parse(JSON.stringify(QT.items)); } catch(e){ return QT.items; }
+}
+function qtGetSystems(){ return QT.active ? Object.keys(QT.systemsOn) : []; }
+
+function qtRender(){
+  var host = document.getElementById('qt-builder'); if (!host) return;
+  var lib = getClauseLibrary();
+  var sysHtml = '<div class="qt-systems">' + TERM_SYSTEMS.map(function(s){
+    var on = !!QT.systemsOn[s];
+    return '<button type="button" class="qt-systog" aria-pressed="'+on+'" onclick="qtToggleSystem('+qtQ(s)+')">'+
+      '<span class="qt-chk">'+(on?'✓':'')+'</span>'+escHtml(s)+
+      '<span class="qt-sc">'+termSystemClauses(s).length+'</span></button>';
+  }).join('') + '</div>';
+  var cards = TERM_CARDS.map(function(card){ return qtCardHtml(card, lib); }).join('');
+  host.innerHTML = sysHtml + cards;
+  if (QT.editing){
+    var ta = document.getElementById('qt-edit-ta');
+    if (ta){ ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e){} }
+  }
+}
+function qtCardHtml(card, lib){
+  var titles = { assumptions:'Assumptions', exclusions:'Exclusions', terms:'Terms & Conditions' };
+  var arr = QT.items[card] || [];
+  var rows = arr.length ? arr.map(function(it,i){ return qtRowHtml(card,it,i); }).join('')
+                        : '<div class="qt-empty">None yet — tick a system above or add one below.</div>';
+  var opts = lib.filter(function(l){ return l.card===card; }).map(function(l){
+    return '<option value="'+escHtml(l.id)+'">'+escHtml(l.sys+' — '+qtShort(l.text))+'</option>';
+  }).join('');
+  var hdr = '<div class="qt-cardhdr"><span class="qt-cardttl">'+titles[card]+'</span>'+
+    (card==='terms' ? '<button type="button" class="qt-reset" onclick="qtResetTemplate()">↻ Reset to '+escHtml(QT.jobType)+' template</button>' : '')+
+    '</div>';
+  var add = '<div class="qt-add"><select onchange="qtAddPick('+qtQ(card)+',this)">'+
+    '<option value="">+ Add clause…</option>'+
+    '<option value="__custom">✎ Write a custom clause</option>'+
+    (opts ? '<optgroup label="From library">'+opts+'</optgroup>' : '')+
+    '</select></div>';
+  return hdr + rows + add;
+}
+function qtRowHtml(card, it, i){
+  var src = it.source || 'custom';
+  var editing = QT.editing && QT.editing.card===card && QT.editing.i===i;
+  if (editing){
+    return '<div class="qt-row"><div style="flex:1">'+
+      '<textarea id="qt-edit-ta" class="qt-edit-ta" rows="3">'+escHtml(it.text||'')+'</textarea>'+
+      '<div class="qt-edit-actions">'+
+        '<button type="button" class="qt-mini pri" onclick="qtSaveEdit('+qtQ(card)+','+i+')">Save</button>'+
+        '<button type="button" class="qt-mini" onclick="qtCancelEdit()">Cancel</button>'+
+      '</div></div></div>';
+  }
+  var tagLabel = src==='core' ? 'Core' : src.charAt(0).toUpperCase()+src.slice(1);
+  var tag = '<span class="qt-tag '+src+'">'+tagLabel+'</span>';
+  var edited = it.edited ? '<span class="qt-edited">✎ edited</span>' : '';
+  var ctrls;
+  if (it.locked){
+    ctrls = '<span class="qt-lock" title="Locked core term — owner-governed">🔒</span>';
+  } else {
+    ctrls = '<div class="qt-ctrls">'+
+      '<button type="button" class="qt-ib" title="Move up" onclick="qtMove('+qtQ(card)+','+i+',-1)">▲</button>'+
+      '<button type="button" class="qt-ib" title="Move down" onclick="qtMove('+qtQ(card)+','+i+',1)">▼</button>'+
+      '<button type="button" class="qt-ib" title="Edit" onclick="qtStartEdit('+qtQ(card)+','+i+')">✎</button>'+
+      '<button type="button" class="qt-ib qt-del" title="Remove" onclick="qtRemove('+qtQ(card)+','+i+')">✕</button>'+
+      '</div>';
+  }
+  var txtClick = it.locked ? '' : ' onclick="qtStartEdit('+qtQ(card)+','+i+')"';
+  return '<div class="qt-row'+(it.locked?' qt-locked':'')+'">'+tag+
+    '<div class="qt-txt"'+txtClick+'>'+escHtml(it.text||'')+edited+'</div>'+ctrls+'</div>';
+}
+function qtToggleSystem(sys){
+  if (QT.systemsOn[sys]){ delete QT.systemsOn[sys]; termDetachSystem(QT.items, sys); }
+  else { QT.systemsOn[sys]=true; termAttachSystem(QT.items, sys); }
+  QT.editing=null; qtMarkDirty(); qtRender();
+}
+function qtMove(card, i, dir){
+  var arr = QT.items[card]; var j = i + dir;
+  if (!arr || j<0 || j>=arr.length) return;
+  var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  QT.editing=null; qtMarkDirty(); qtRender();
+}
+function qtStartEdit(card, i){ QT.editing = { card:card, i:i }; qtRender(); }
+function qtCancelEdit(){
+  if (QT.editing){
+    var e = QT.editing, it = (QT.items[e.card]||[])[e.i];
+    if (it && it.source==='custom' && !(it.text||'').trim()) QT.items[e.card].splice(e.i,1);
+  }
+  QT.editing=null; qtRender();
+}
+function qtSaveEdit(card, i){
+  var ta = document.getElementById('qt-edit-ta'); if (!ta) return;
+  var val = ta.value.trim();
+  var it = QT.items[card][i]; if (!it) return;
+  if (!val){ if (!it.locked) QT.items[card].splice(i,1); QT.editing=null; qtMarkDirty(); qtRender(); return; }
+  if (val !== it.text && it.source!=='custom' && it.source!=='core') it.edited = true;
+  it.text = val; QT.editing=null; qtMarkDirty(); qtRender();
+}
+function qtRemove(card, i){
+  var it = QT.items[card][i]; if (!it || it.locked) return;
+  QT.items[card].splice(i,1); QT.editing=null; qtMarkDirty(); qtRender();
+}
+function qtAddPick(card, sel){
+  var v = sel.value; sel.value = '';
+  if (!v) return;
+  if (v === '__custom'){
+    QT.items[card].push({ text:'', source:'custom' });
+    QT.editing = { card:card, i:QT.items[card].length-1 };
+    qtMarkDirty(); qtRender(); return;
+  }
+  var l = getClauseLibrary().find(function(x){ return x.id === v; });
+  if (!l) return;
+  if (QT.items[card].some(function(it){ return it.libId === l.id; })) return; // de-dupe within card
+  QT.items[card].push({ text:l.text, source:'library', libId:l.id, sys:l.sys });
+  QT.editing=null; qtMarkDirty(); qtRender();
+}
+function qtResetTemplate(){
+  if (!confirm('Reset all three sections to the '+QT.jobType+' template and re-apply the ticked systems? Manual edits and custom clauses on this quote will be lost.')) return;
+  QT.items = assembleQuoteClauses(QT.jobType, Object.keys(QT.systemsOn), null);
+  QT.editing=null; qtMarkDirty(); qtRender();
+}
+window.qtInit = qtInit; window.qtGetClauses = qtGetClauses; window.qtGetSystems = qtGetSystems;
+
 function cleanScopeHtml(raw){
   if (raw == null) return '';
   var s = String(raw);
@@ -1456,6 +1612,13 @@ table{font-size:12.5px}
   (function() {
     var ps = q.proposalSections || {};
     if (ps.showAssumptions === false) return '';
+    // r64: new model — render the per-quote assembled clauses when present.
+    if (q.proposalClauses) {
+      var aNew = termClausesHtml(q.proposalClauses.assumptions);
+      if (!aNew) return '';
+      return '<div class="prop-section"><div class="prop-section-title">Assumptions</div>' +
+        '<div class="scope-box assumption-list">' + aNew + '</div></div>';
+    }
     var pd = DB.settings.proposalDefaults || {};
     if (pd.showAssumptions === false) return '';
     // r30: assumptions are free-form rich HTML (legacy arrays convert to a bullet list via clauseToHtml).
@@ -1470,6 +1633,13 @@ table{font-size:12.5px}
   (function() {
     var ps = q.proposalSections || {};
     if (ps.showExclusions === false) return '';
+    // r64: new model — render the per-quote assembled clauses when present.
+    if (q.proposalClauses) {
+      var eNew = termClausesHtml(q.proposalClauses.exclusions);
+      if (!eNew) return '';
+      return '<div class="prop-section"><div class="prop-section-title">Exclusions</div>' +
+        '<div class="scope-box assumption-list">' + eNew + '</div></div>';
+    }
     var pd = DB.settings.proposalDefaults || {};
     if (pd.showExclusions === false) return '';
     // r30: exclusions are free-form rich HTML (legacy arrays convert to a bullet list via clauseToHtml).
@@ -1484,6 +1654,15 @@ table{font-size:12.5px}
   (function() {
     var ps = q.proposalSections || {};
     if (ps.showTerms === false) return '';
+    // r64: new model — render the per-quote assembled terms (locked core + template + system/custom)
+    // when present. These fully own the Terms section; the legacy global T&C blob below is used only
+    // by pre-feature quotes that have no proposalClauses.
+    if (q.proposalClauses) {
+      var tNew = termClausesHtml(q.proposalClauses.terms);
+      if (!tNew) return '';
+      return '<div class="prop-section"><div class="prop-section-title">Terms &amp; Conditions</div>' +
+        '<div class="scope-box" style="font-size:12px">' + tNew + '</div></div>';
+    }
     // Use quote-level T&C if set, otherwise fall back to global settings T&C
     var baseTC    = (q.tc && q.tc.trim()) ? q.tc : (DB.settings.tc || '');
     var addendums = DB.settings.jtAddendums || {};

@@ -289,6 +289,9 @@ function getQData(id) {
     svcContract: getSvcContractData(),
     execSummary: (function(){ var _e=document.getElementById('qq-exec-summary'); if(_e) return _e.value; return existing && existing.execSummary ? existing.execSummary : ''; })(),
     proposalSections: getProposalSections(),
+    // r64 Proposal Terms: per-quote assembled clauses + ticked systems (null = builder not used → legacy blobs).
+    proposalClauses: (typeof qtGetClauses==='function') ? qtGetClauses() : (existing ? existing.proposalClauses||null : null),
+    selectedSystems: (typeof qtGetSystems==='function') ? qtGetSystems() : (existing ? existing.selectedSystems||[] : []),
     markup: totals.totalMaterialCost > 0 ? ((totals.materialSell / totals.totalMaterialCost - 1)*100).toFixed(1) : '0',
     subtotal: totals.sellBeforeTax,
     margin: totals.achievedMarginPct,
@@ -375,6 +378,8 @@ function clearQQ(skipConfirm) {
   const cqqBody=document.getElementById('cqq-body'); if(cqqBody) cqqBody.classList.remove('expanded');
   const cqqLbl=document.getElementById('cqq-toggle-label'); if(cqqLbl){cqqLbl.textContent='NO';cqqLbl.className='toggle-value-label';}
   resetProposalSectionToggles();
+  // r64 Proposal Terms: seed the per-quote builder fresh for a new quote (New Construction default).
+  if (typeof qtInit==='function') qtInit('New Construction', [], null);
   // Reset pricing mode to default (margin) for a fresh quote
   setPricingMode('margin', { silent: true });
   // No Margin (price at cost): new quotes inherit the company default; the control
@@ -412,6 +417,9 @@ function editQuote(id) {
     if(mct){setV('qq-contact-id',mct.id);}
   }
   setV('qq-jn', q.jn); setV('qq-jt', q.jt); setV('qq-env', q.env||'office');
+  // r64 Proposal Terms: hydrate the per-quote builder from saved clauses, else seed from this
+  // quote's job type (pre-feature quotes get a sensible starting set they can save to adopt).
+  if (typeof qtInit==='function') qtInit(q.jt||'New Construction', q.selectedSystems||[], q.proposalClauses||null);
   setV('qq-dt', q.dt); setV('qq-vu', q.vu); setV('qq-num', q.num); setV('qq-id', q.id||''); setV('qq-followup', q.followupDate || calcFollowupDate(q.dt || getTodayISO()));
   setV('qq-created', q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || getTodayISO());
   setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc); setV('qq-exec-summary', q.execSummary||'');

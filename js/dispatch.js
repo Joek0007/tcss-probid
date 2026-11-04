@@ -1401,6 +1401,7 @@ var PERM_DEFS = [
   {key:'quote.convert',   label:'Convert Quote to Job',       group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'quote.export',    label:'Export Quotes CSV',          group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'quote.bypass',    label:'Bypass Margin Floor',        group:'Quoting',        fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'quote.terms_admin',label:'Manage Proposal Clause Library',group:'Quoting',     fixed:false, defaults:{owner:1,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'cust.view',       label:'View Customers & Contacts',  group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'cust.edit',       label:'Add / Edit Customers',       group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'cust.delete',     label:'Delete Customers',           group:'CRM',            fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},

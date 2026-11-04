@@ -385,7 +385,10 @@ function _quoteExtras(q){
     discountValue: (q.discountValue != null ? q.discountValue : 0),
     execSummary:   q.execSummary || '',
     sentDate:      q.sentDate || null,
-    wonDate:       q.wonDate || null
+    wonDate:       q.wonDate || null,
+    // r64 Proposal Terms: per-quote assembled clause bundle + the systems the estimator ticked.
+    proposalClauses: q.proposalClauses || null,
+    selectedSystems: q.selectedSystems || []
   };
 }
 function _applyQuoteExtras(target, row){
@@ -400,6 +403,9 @@ function _applyQuoteExtras(target, row){
   target.execSummary   = x.execSummary || '';
   target.sentDate      = x.sentDate || null;
   target.wonDate       = x.wonDate || null;
+  // r64 Proposal Terms: null proposalClauses = pre-feature quote (render falls back to legacy blobs).
+  target.proposalClauses = x.proposalClauses || null;
+  target.selectedSystems = x.selectedSystems || [];
   return target;
 }
 

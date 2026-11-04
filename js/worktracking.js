@@ -7094,6 +7094,210 @@ function clauseToHtml(val, defaultsArr){
 }
 window.clauseToHtml = clauseToHtml;
 
+// =============================================================================
+// PROPOSAL TERMS (r64) — type/system-aware assumptions, exclusions & terms.
+// Each quote assembles its proposal terms from four layers, all editable per quote:
+//   1) locked CORE terms (owner-governed, always on)
+//   2) the JOB-TYPE template (assumptions/exclusions/terms for New Construction, etc.)
+//   3) the SYSTEMS the estimator ticks by hand (each attaches its library clauses)
+//   4) the clause LIBRARY (master source + à-la-carte adds)
+// Phase 1 seeds all of this from CODE below. getters fall back to code and only read
+// DB.settings.proposalDefaults.{library,coreTerms,templates} if a future owner-admin UI
+// (Phase 2, gated by quote.terms_admin) has written overrides there — so nothing is
+// persisted into settings_json in Phase 1 (no sync churn, seed text never frozen).
+// =============================================================================
+
+// The 11 low-voltage disciplines the estimator ticks (order = display order).
+var TERM_SYSTEMS = ["Structured Cabling","Cameras","Access Control","Wireless","Network","Outside Plant","AV","Paging / MNS","Fire Alarm","Rack & Ground","Demarc / ISP"];
+
+var TERM_CORE = [
+  {text:"Payment terms: Net 30 from invoice date. Retainage per the prime contract where applicable."},
+  {text:"All changes to scope must be approved in writing before the affected work proceeds."},
+  {text:"One-year warranty on labor; materials carry the manufacturer’s warranty."},
+  {text:"This proposal is valid for 30 days from the date issued."},
+  {text:"Governing law and dispute resolution per Total Communications’ standard agreement."}
+];
+
+var TERM_TEMPLATES = {
+  "New Construction":{
+    assumptions:[
+      "Pricing is based on the drawings, specifications, and material list provided by the Owner and General Contractor. Pricing assumes no pre-bid site walk unless noted.",
+      "Work is coordinated with the General Contractor and other trades; the GC provides overall schedule and sequencing.",
+      "Temporary power, lighting, and safe, unobstructed site access are provided by others.",
+      "Cable is priced at an average run length of 200 ft; pathways are accessible above drop ceilings.",
+      "Work is performed during normal business hours, Monday–Friday."
+    ],
+    exclusions:[
+      "Permits and inspection fees (by others).",
+      "120V power to our devices, backboards, and plywood unless specifically noted.",
+      "Firestopping beyond our own penetrations; patching, painting, and ceiling-tile replacement.",
+      "Core drilling of structural members, trenching, and concrete cutting.",
+      "Prevailing wage / certified payroll unless specified in the bid documents."
+    ],
+    terms:[ "Billed by schedule of values with monthly progress billing." ]
+  },
+  "Remodel":{
+    assumptions:[
+      "Work is performed in an occupied facility; work areas are made available by the Owner on a mutually agreed schedule.",
+      "Existing conditions are assumed serviceable; concealed or unknown conditions are addressed by change order.",
+      "Dust control and after-hours access are coordinated with the Owner."
+    ],
+    exclusions:[
+      "Asbestos or hazardous-material testing or abatement.",
+      "Patching, painting, and finish restoration.",
+      "Repair of undocumented existing cabling or devices."
+    ],
+    terms:[ "After-hours and weekend work in occupied areas billed at 1.5× when required by the Owner’s schedule." ]
+  },
+  "Service Call":{
+    assumptions:[
+      "Time is billed portal-to-portal with a one-hour minimum.",
+      "Diagnostic time is billable; first-visit resolution is not guaranteed.",
+      "Parts are billed at cost plus standard markup."
+    ],
+    exclusions:[
+      "No warranty on pre-existing equipment or on prior work performed by others.",
+      "Permits, if required, are billed separately."
+    ],
+    terms:[ "After-hours, weekend, and holiday labor billed at 1.5× the standard rate." ]
+  },
+  "Upgrade":{
+    assumptions:[
+      "New equipment integrates with the Owner’s existing system as described; existing infrastructure is assumed compatible.",
+      "The Owner provides current system credentials and admin access needed for integration."
+    ],
+    exclusions:[
+      "No warranty on retained existing equipment.",
+      "VLAN or switch changes on Owner-managed network gear (by others)."
+    ],
+    terms:[ "Cutover scheduled to minimize downtime; a maintenance window is coordinated with the Owner." ]
+  },
+  "Addition":{
+    assumptions:[
+      "New systems tie into existing infrastructure at the point of connection designated by the Owner.",
+      "As-built documentation of existing systems is provided by the Owner."
+    ],
+    exclusions:[
+      "Upgrades to existing head-end equipment to support the added capacity.",
+      "Trenching or boring between buildings (by others)."
+    ],
+    terms:[ "Added devices are commissioned and tested with the existing system at completion." ]
+  }
+};
+var TERM_JOB_TYPES = Object.keys(TERM_TEMPLATES);
+
+// Clause library — tagged by System (sys) + target card (assumptions/exclusions/terms).
+var TERM_LIBRARY = [
+  // General — applies across systems
+  {id:"co-basis",   sys:"General",            cat:"Change Orders",  card:"assumptions", text:"This proposal covers only the scope defined in the referenced change document; the prior contract scope is unchanged."},
+  {id:"lift",       sys:"General",            cat:"Equipment",      card:"assumptions", text:"Lift pricing is based on a standard rental lift for overhead work; ceiling height has not been verified. Larger equipment is billed as a change order."},
+  {id:"afterhrs",   sys:"General",            cat:"After-Hours",    card:"terms",       text:"After-hours, weekend, or holiday work is billed at 1.5× the standard rate."},
+  {id:"permits",    sys:"General",            cat:"Permits & Code", card:"exclusions",  text:"Permits and inspection fees are by others."},
+  {id:"deposit",    sys:"General",            cat:"Payment",        card:"terms",       text:"A 50% deposit is required to schedule; the balance is due on completion."},
+  {id:"nowarr",     sys:"General",            cat:"Warranty",       card:"exclusions",  text:"No warranty is provided on existing equipment or on work performed by others."},
+  {id:"coord",      sys:"General",            cat:"Coordination",   card:"assumptions", text:"A pre-installation coordination meeting with the GC is assumed prior to rough-in."},
+  {id:"clean",      sys:"General",            cat:"Site Conditions",card:"assumptions", text:"Prices assume a clean, dry, and accessible work area free of other trades at the time of installation."},
+  {id:"escal",      sys:"General",            cat:"Payment",        card:"assumptions", text:"Material pricing is held firm for 30 days; long-lead items are subject to manufacturer escalation."},
+  {id:"restock",    sys:"General",            cat:"Payment",        card:"terms",       text:"Cancelled orders are subject to manufacturer restocking fees on special-order material."},
+  // Structured Cabling / Data
+  {id:"sc-cert",    sys:"Structured Cabling", cat:"Testing",        card:"assumptions", text:"Copper and fiber are tested and certified to the specified category (Cat6A) and registered under the manufacturer’s certified-installer warranty."},
+  {id:"sc-abandon", sys:"Structured Cabling", cat:"Scope",          card:"exclusions",  text:"Removal or abatement of abandoned cable, unless specifically listed."},
+  {id:"sc-sleeve",  sys:"Structured Cabling", cat:"Pathway",        card:"exclusions",  text:"Fire-rated pathway sleeves and firestopping beyond our own penetrations."},
+  // Cameras / Video Surveillance
+  {id:"cam-fov",    sys:"Cameras",            cat:"Design",         card:"assumptions", text:"Camera locations and fields of view are per the provided camera plan; final aiming is completed at commissioning."},
+  {id:"cam-light",  sys:"Cameras",            cat:"Site Conditions",card:"assumptions", text:"Adequate ambient or IR lighting is assumed for acceptable night-time image quality."},
+  {id:"cam-vms",    sys:"Cameras",            cat:"Licensing",      card:"exclusions",  text:"VMS / cloud subscription fees, monitoring service, and storage beyond the specified retention period."},
+  // Access Control
+  {id:"ac-hardware",sys:"Access Control",     cat:"Coordination",   card:"assumptions", text:"Door hardware, electric strikes / mag locks, and power-transfer hinges are furnished and installed by the door / hardware contractor; we terminate and connect."},
+  {id:"ac-egress",  sys:"Access Control",     cat:"Code",           card:"exclusions",  text:"Door modifications and AHJ egress / relocking compliance (by others)."},
+  {id:"ac-cred",    sys:"Access Control",     cat:"Owner-provided", card:"assumptions", text:"Credentials, cards, and cardholder enrollment are provided by the Owner."},
+  // Wireless / WiFi
+  {id:"wifi-design",sys:"Wireless",           cat:"Design",         card:"assumptions", text:"Access-point count and placement are per the provided predictive design; an on-site validation survey is a separate line item."},
+  {id:"wifi-rf",    sys:"Wireless",           cat:"Licensing",      card:"exclusions",  text:"Controller / cloud licensing and RF remediation for unforeseen interference."},
+  // Network / Active Equipment
+  {id:"net-config", sys:"Network",            cat:"Owner IT",       card:"assumptions", text:"Switches, PoE budget, and configuration are provided by the Owner’s IT unless listed; we provide physical installation and patching."},
+  {id:"net-design", sys:"Network",            cat:"Scope",          card:"exclusions",  text:"VLAN / IP scheme design, firewall rules, and ISP / circuit coordination."},
+  // Outside Plant / Underground
+  {id:"osp-locate", sys:"Outside Plant",      cat:"Site Conditions",card:"assumptions", text:"811 utility locates are completed before any trenching; routes are clear of unmarked private utilities."},
+  {id:"osp-dig",    sys:"Outside Plant",      cat:"Scope",          card:"exclusions",  text:"Trenching, directional boring, concrete / asphalt restoration, handholes, and vaults unless specifically listed."},
+  {id:"osp-rock",   sys:"Outside Plant",      cat:"Change Orders",  card:"terms",       text:"Rock, caliche, or unsuitable soil encountered during boring / trenching is addressed by change order."},
+  // Audio / Visual
+  {id:"av-block",   sys:"AV",                 cat:"Coordination",   card:"assumptions", text:"Wall blocking / backing for heavy displays is provided by others."},
+  {id:"av-prog",    sys:"AV",                 cat:"Scope",          card:"exclusions",  text:"Content / signage subscriptions and control-system programming beyond the listed scope."},
+  // Paging / Mass Notification
+  {id:"pg-zones",   sys:"Paging / MNS",       cat:"Design",         card:"assumptions", text:"Speaker coverage is based on standard zoning; sound-pressure levels are verified at commissioning."},
+  {id:"pg-fa",      sys:"Paging / MNS",       cat:"Coordination",   card:"exclusions",  text:"Integration with the fire alarm system for mass notification (by the fire-alarm contractor / AHJ)."},
+  // Fire Alarm / Life Safety
+  {id:"fa-others",  sys:"Fire Alarm",         cat:"Scope",          card:"exclusions",  text:"All fire alarm and life-safety work, including AHJ-required monitoring, is by others unless specifically contracted."},
+  // Rack & Grounding
+  {id:"rk-ground",  sys:"Rack & Ground",      cat:"Coordination",   card:"assumptions", text:"A dedicated ground bar at each MDF / IDF is provided by the electrician; we bond racks and pathways to it."},
+  {id:"rk-power",   sys:"Rack & Ground",      cat:"Scope",          card:"exclusions",  text:"Dedicated electrical circuits to racks and electrical grounding infrastructure (by others)."},
+  // Demarc / ISP
+  {id:"dm-carrier", sys:"Demarc / ISP",       cat:"Scope",          card:"exclusions",  text:"Carrier / ISP circuits, demarc extensions, and service-provider coordination fees."}
+];
+
+var TERM_CARDS = ['assumptions','exclusions','terms'];
+
+// Getters: owner override in DB.settings.proposalDefaults (Phase 2) else code seed.
+function getClauseLibrary(){ var pd = DB.settings.proposalDefaults || {}; return (Array.isArray(pd.library) && pd.library.length) ? pd.library : TERM_LIBRARY; }
+function getCoreTerms(){ var pd = DB.settings.proposalDefaults || {}; return (Array.isArray(pd.coreTerms) && pd.coreTerms.length) ? pd.coreTerms : TERM_CORE; }
+function getTermTemplates(){ var pd = DB.settings.proposalDefaults || {}; return (pd.templates && Object.keys(pd.templates).length) ? pd.templates : TERM_TEMPLATES; }
+
+// Library clauses for one system (never General — General is à-la-carte only).
+function termSystemClauses(sysName){ return getClauseLibrary().filter(function(l){ return l.sys === sysName; }); }
+
+// Empty card bundle.
+function termEmptyClauses(){ return { assumptions:[], exclusions:[], terms:[] }; }
+
+// Fresh base for a job type: template assumptions/exclusions + core terms then template terms.
+function termBuildBase(jobType){
+  var tpl = getTermTemplates()[jobType] || { assumptions:[], exclusions:[], terms:[] };
+  var out = termEmptyClauses();
+  out.assumptions = (tpl.assumptions||[]).map(function(t){ return { text:t, source:'template' }; });
+  out.exclusions  = (tpl.exclusions ||[]).map(function(t){ return { text:t, source:'template' }; });
+  out.terms = getCoreTerms().map(function(c){ return { text:c.text, source:'core', locked:true }; })
+    .concat((tpl.terms||[]).map(function(t){ return { text:t, source:'template' }; }));
+  return out;
+}
+
+// Attach/detach a ticked system's library clauses (in place), de-duped by libId.
+function termAttachSystem(items, sysName){
+  termSystemClauses(sysName).forEach(function(l){
+    var arr = items[l.card]; if (!arr) return;
+    if (!arr.some(function(it){ return it.libId === l.id; }))
+      arr.push({ text:l.text, source:'system', libId:l.id, sys:l.sys });
+  });
+}
+function termDetachSystem(items, sysName){
+  TERM_CARDS.forEach(function(card){
+    items[card] = (items[card]||[]).filter(function(it){ return !(it.source==='system' && it.sys===sysName); });
+  });
+}
+
+// Build the per-quote clause bundle. If `existing` already has saved clauses, return it
+// unchanged (hydration path — the editor owns edits/order). Otherwise seed from the job
+// type template + core, then attach each ticked system. Used for new quotes and to give
+// pre-feature quotes a sensible preview without forcing a save.
+function assembleQuoteClauses(jobType, selectedSystems, existing){
+  if (existing && TERM_CARDS.some(function(c){ return (existing[c]||[]).length; })) return existing;
+  var items = termBuildBase(jobType || TERM_JOB_TYPES[0]);
+  (selectedSystems || []).forEach(function(s){ termAttachSystem(items, s); });
+  return items;
+}
+
+// Expose for reports.js (collect/hydrate), quotes.js (render), and the quote-editor UI.
+window.TERM_SYSTEMS = TERM_SYSTEMS;
+window.TERM_JOB_TYPES = TERM_JOB_TYPES;
+window.TERM_CARDS = TERM_CARDS;
+window.getClauseLibrary = getClauseLibrary;
+window.getCoreTerms = getCoreTerms;
+window.termSystemClauses = termSystemClauses;
+window.termEmptyClauses = termEmptyClauses;
+window.termBuildBase = termBuildBase;
+window.termAttachSystem = termAttachSystem;
+window.termDetachSystem = termDetachSystem;
+window.assembleQuoteClauses = assembleQuoteClauses;
+
 function loadProposalDefaultsUI() {
   var pd = getProposalDefaults();
 
