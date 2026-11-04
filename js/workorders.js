@@ -13,7 +13,7 @@ var WO_STATUSES = [
   {id:'Open -- Part(s) Ordered',                     color:'#e57ec8',open:true, mobile:false},
   {id:'Open -- Part(s) Received -- Partial',         color:'#ffffff',open:true, mobile:false},
   {id:'Open -- Part(s) Received -- Complete',        color:'#a52fea',open:true, mobile:false},
-  {id:'Open -- Ready For Review',                    color:'#f73e3e',open:true, mobile:false},
+  {id:'Open -- Ready For Review',                    color:'#f73e3e',open:true, mobile:false, techDone:true},
   {id:'Open -- Ready For Pricing',                   color:'#f6c636',open:true, mobile:false},
   {id:'Open -- Partial Invoice (Please Create One)', color:'#ee8b67',open:true, mobile:false},
   {id:'Open -- Partial Invoice Sent (MAILED)',       color:'#7bf363',open:true, mobile:false},
@@ -84,10 +84,13 @@ function _getActiveWOsAsJobs() {
 // Returns WOs assigned to a specific tech as job-compatible objects
 function _getMyWOsAsJobs(techName) {
   var name = (techName||'').toLowerCase().trim();
+  _ensureWOHandoffSeed();
   return (DB.workOrders||[])
     .filter(function(w){
       // r14: authoritative open check (was w.status==='Billed'||'Void', which missed Invoiced/No Charge/etc.)
       if (w.deleted || !_getWOStatusDef(w.status).open) return false;
+      // r67: once handed off to the office (techDone status), it leaves the field clock's job list too.
+      if (_woHiddenFromFieldByHandoff(w.status)) return false;
       return (w.assignedTechs||[]).some(function(t){
         var n=(typeof t==='string'?t:(t.name||t.full_name||'')).toLowerCase().trim();
         return n===name;
@@ -155,6 +158,42 @@ function _woStatusIsFinished(status){
   if (low==='new' || low.indexOf('open')===0 || /rma/i.test(st)) return false;
   return _getWOStatusDef(st).open === false;
 }
+
+// ============================================================
+// r67 — "Hand-off to office" visibility (Dawn's rule, owner-configurable).
+// A status flagged `techDone:true` means a WO sitting in it has LEFT the field tech's hands (e.g.
+// "Ready For Office-Review"). When the company setting woSettings.hideTechDone is on (the DEFAULT),
+// such a WO drops off field techs' queues — the WO list AND the clock job dropdown — until the office
+// moves it back to an active status (any open status), at which point it reappears. Turn the setting
+// off and the whole behavior is gone (techs keep seeing everything, as before). Nothing is hardcoded
+// to a status name: the owner flags which status(es) are the hand-off point in WO Status settings.
+// ============================================================
+function _woHideTechDoneOn(){ return !(DB.woSettings && DB.woSettings.hideTechDone === false); }  // default ON
+function _woStatusIsHandoff(statusId){ var d = _getWOStatusDef(statusId); return !!(d && d.techDone); }
+function _woHiddenFromFieldByHandoff(statusId){ return _woHideTechDoneOn() && _woStatusIsHandoff(statusId); }
+// Is THIS user a field-scoped viewer who should lose handed-off WOs? Helper + lead techs (Joe's call,
+// 2026-11-04), or any non-owner restricted to their assigned WOs. Office/manager/owner are unaffected.
+function _woUserIsFieldScoped(){
+  if (!_currentUser) return false;
+  var r = _currentUser.role;
+  if (r === 'owner') return false;
+  if (r === 'helper_tech' || r === 'lead_tech') return true;
+  return (typeof hasPermission === 'function' && hasPermission('wo.view_assigned_only'));
+}
+// One-time seed for installs whose woSettings.statuses predate the techDone flag: best-effort flag the
+// office-review status (matches "Ready For Review" and "Ready For Office-Review"). Owner can change it
+// in WO Status settings. Only runs once a real status list is loaded; the result syncs via woSettings.
+function _ensureWOHandoffSeed(){
+  if (!DB.woSettings || DB.woSettings._handoffSeeded) return;
+  var list = DB.woSettings.statuses;
+  if (!Array.isArray(list) || !list.length) return;   // settings not loaded yet — retry on a later call
+  var anyFlag = list.some(function(s){ return s && s.techDone != null; });
+  if (!anyFlag) {
+    list.forEach(function(s){ if (s && /ready\s*for\s*(office[-\s]*)?review/i.test(s.id || '')) s.techDone = true; });
+  }
+  DB.woSettings._handoffSeeded = true;
+}
+
 // The configured "In Progress" status id (mobile + still-open), for auto-advance. Matched by name so it
 // follows the user's own settings; null if they have none.
 function _inProgressStatusId(){
@@ -261,6 +300,7 @@ function _woContactPhone(wo){
 
 function renderWorkOrders() {
   if (!DB.workOrders) DB.workOrders = [];
+  _ensureWOHandoffSeed();   // r67: seed the hand-off flag on first run for pre-existing installs
 
   // Build status dropdown from WO_STATUSES so values always match
   var statusSel = document.getElementById('wo-filter-status');
@@ -337,6 +377,14 @@ function renderWorkOrders() {
   var _techScoped = isTech || (typeof hasPermission==='function' && hasPermission('wo.view_assigned_only') && _currentUser && _currentUser.role!=='owner');
   if (_techScoped && !fStatus && !_woUnscheduledFilter) {
     list = list.filter(function(w){ return !_woStatusIsFinished(w.status); });
+  }
+
+  // r67 — hand-off: field-scoped users (helper + lead techs, or any assigned-only role) do NOT see a
+  // work order once it's been handed to the office (a techDone status), until the office moves it back
+  // to an active status. Applies even when they explicitly filter to that status — per Dawn's rule it's
+  // out of their world while the company setting is on. Office/manager/owner are never affected.
+  if (_woUserIsFieldScoped()) {
+    list = list.filter(function(w){ return !_woHiddenFromFieldByHandoff(w.status); });
   }
 
   if (search) list = list.filter(function(w){

@@ -2025,6 +2025,7 @@ function renderMsWOSettings() {
 function renderMsWOStatuses() {
   var el = document.getElementById('ms-wo-statuses-section');
   if (!el) return;
+  if (typeof _ensureWOHandoffSeed === 'function') _ensureWOHandoffSeed();   // r67: seed hand-off flag
   var settings = DB.woSettings || {};
   var statuses = settings.statuses && settings.statuses.length ? settings.statuses : WO_STATUSES;
 
@@ -2039,6 +2040,19 @@ function renderMsWOStatuses() {
       'Open statuses allow time entries and field access. '+
       'Closed statuses lock the WO for billing.'+
     '</p>'+
+    // r67 — company setting: hand-off hides a WO from field techs once they mark it a "Hand-off" status.
+    '<div style="display:flex;align-items:flex-start;gap:10px;background:#f1f8ff;border:1px solid #d6e8fb;border-radius:8px;padding:10px 12px;margin-bottom:14px">'+
+      '<label class="perm-toggle" style="margin-top:1px;flex-shrink:0">'+
+        '<input type="checkbox" '+((settings.hideTechDone!==false)?'checked':'')+' onchange="updateWOHideTechDone(this.checked)">'+
+        '<span class="perm-slider"></span>'+
+      '</label>'+
+      '<div style="font-size:12px;color:#37474f;line-height:1.5">'+
+        '<strong>Remove handed-off work orders from field techs\' queues</strong><br>'+
+        'When on, a work order disappears from a field tech\'s list and clock once they set it to a '+
+        '<em>Hand-off</em> status (e.g. Ready for Review). The office moving it back to an active status '+
+        'returns it. Mark which status(es) are hand-off points with the <strong>Hand-off</strong> column below.'+
+      '</div>'+
+    '</div>'+
     '<table id="wo-status-table" style="width:100%;border-collapse:collapse;font-size:13px">'+
     '<thead><tr style="background:#f0f4f8">'+
       '<th style="padding:8px 6px;width:24px"></th>'+
@@ -2046,6 +2060,7 @@ function renderMsWOStatuses() {
       '<th style="padding:8px 10px;text-align:center;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700">Color</th>'+
       '<th style="padding:8px 10px;text-align:center;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700">Open</th>'+
       '<th style="padding:8px 10px;text-align:center;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700">Mobile</th>'+
+      '<th style="padding:8px 10px;text-align:center;font-size:11px;color:#546e7a;text-transform:uppercase;font-weight:700" title="A WO here drops off field techs\' queues (hand-off to office)">Hand-off</th>'+
       '<th style="padding:8px 10px;width:32px"></th>'+
     '</tr></thead>'+
     '<tbody id="wo-status-tbody">'+
@@ -2073,6 +2088,12 @@ function renderMsWOStatuses() {
         '<td style="padding:8px 10px;text-align:center">'+
           '<label class="perm-toggle" style="margin:0 auto">'+
             '<input type="checkbox" '+(s.mobile?'checked':'')+' onchange="updateWOStatusMobile('+i+',this.checked)">'+
+            '<span class="perm-slider"></span>'+
+          '</label>'+
+        '</td>'+
+        '<td style="padding:8px 10px;text-align:center">'+
+          '<label class="perm-toggle" style="margin:0 auto">'+
+            '<input type="checkbox" '+(s.techDone?'checked':'')+' onchange="updateWOStatusTechDone('+i+',this.checked)">'+
             '<span class="perm-slider"></span>'+
           '</label>'+
         '</td>'+
@@ -2162,6 +2183,23 @@ function updateWOStatusOpen(idx, val) {
 function updateWOStatusMobile(idx, val) {
   var s = _getMsStatuses(); if (!s[idx]) return;
   s[idx].mobile = val; saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase();
+}
+// r67 — mark a status as a field hand-off point (a WO here leaves field techs' queues when the company
+// setting is on). Also stamp _handoffSeeded so the one-time name-based seed never overrides a manual choice.
+function updateWOStatusTechDone(idx, val) {
+  var s = _getMsStatuses(); if (!s[idx]) return;
+  s[idx].techDone = !!val;
+  if (!DB.woSettings) DB.woSettings = {};
+  DB.woSettings._handoffSeeded = true;
+  saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase();
+  if (typeof renderWorkOrders === 'function') { try { renderWorkOrders(); } catch(e){} }
+}
+// r67 — company master toggle: hide handed-off WOs from field techs (default on).
+function updateWOHideTechDone(val) {
+  if (!DB.woSettings) DB.woSettings = {};
+  DB.woSettings.hideTechDone = !!val;
+  saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase();
+  if (typeof renderWorkOrders === 'function') { try { renderWorkOrders(); } catch(e){} }
 }
 function addMsWOStatus() {
   var name = prompt('New status name:'); if (!name||!name.trim()) return;
