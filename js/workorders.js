@@ -3113,7 +3113,7 @@ function saveWOSettings() {
 async function _pushWOToCloud(wo) {
   if(!_sb||!_currentUser) return null;
   try {
-    var { error } = await _sb.from('work_orders').upsert({
+    var _woPayload = {
       id:            wo.id,
       wo_number:     wo.woNumber,
       customer_id:   wo.customerId||null,
@@ -3155,7 +3155,19 @@ async function _pushWOToCloud(wo) {
       parent_wo_id:   wo.parentWoId||null,
       is_change_order:wo.isChangeOrder||false,
       change_order_reason: wo.changeOrderReason||null,
-    });
+    };
+    var { error } = await _sb.from('work_orders').upsert(_woPayload);
+    // r69: a WO whose created_by points at someone who never logged in (not in auth.users) fails the
+    // created_by FK (23503) on EVERY sync and silently strands the row — the WO never reaches the cloud
+    // or other devices. The display name lives separately (created_by_name), so retry once with the
+    // current (always-valid) user as created_by: the row syncs and the name is preserved. Fires ONLY on
+    // the actual FK rejection, so good rows are untouched and no valid cloud value is clobbered (the
+    // failing rows aren't in the cloud to begin with — verified 0 orphans).
+    if (error && error.code === '23503' && /created_by/.test(error.message||'')) {
+      _woPayload.created_by = _currentUser.id;
+      var _woR2 = await _sb.from('work_orders').upsert(_woPayload);
+      error = _woR2.error;
+    }
     if(error){ console.warn('[WO Push]',error.message); return error; }
     // r37: mark this WO clean in the changed-only snapshot ONLY on a real persisted write. If the
     // version gate suppressed the write (benign no-op result, error===null), do NOT mark it — the

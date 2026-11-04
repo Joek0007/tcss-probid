@@ -2067,7 +2067,17 @@ function showWorkNoteHistory(workDayId){
 async function _pushTimeEntryToSupabase(entry) {
   if (!_sb || !_currentUser || !entry) return;
   try {
-    var r = await _sb.from('time_entries').upsert(_timeEntryToRow(entry), {onConflict:'id'}).select('id');
+    var _teRow = _timeEntryToRow(entry);
+    var r = await _sb.from('time_entries').upsert(_teRow, {onConflict:'id'}).select('id');
+    // r69: a time entry whose user_id is a tech who never logged in (not in auth.users) fails the FK
+    // (23503) on every sync and strands the entry — payroll on other devices never sees it. tech_name
+    // carries the real identity (payroll keys on it, not user_id), so retry once with user_id NULL —
+    // honest (no login link) and it syncs. Only on the actual FK rejection, so valid entries (a real
+    // tech's own clock, user_id in auth.users) are never touched; no cloud value clobbered (0 orphans).
+    if (r && r.error && r.error.code === '23503' && /user_id/.test(r.error.message||'')) {
+      _teRow.user_id = null;
+      r = await _sb.from('time_entries').upsert(_teRow, {onConflict:'id'}).select('id');
+    }
     if (r && r.error) console.warn('[TimeEntry push]', r.error.message);
   } catch(e) { console.warn('[TimeEntry push]', e.message); }
 }
