@@ -3141,8 +3141,17 @@ async function pushAllToCloud() {
     }));
     }
 
-    // Push margin floors — upsert each row
-    if (_getMFList) {
+    // r66: only push the owner/back_office-managed reference tables when THIS user's role is
+    // actually allowed to write them server-side. Otherwise every row is rejected by RLS and the
+    // failures pile into the "N changes could not be saved" toast (546 catalog + 32 templates +
+    // 8 margin_floors = the 586 field users were seeing). Non-privileged roles only READ these
+    // tables, so skipping the push is correct — nothing is lost, and the doomed writes stop.
+    var _role66 = (_currentUser && _currentUser.role) || '';
+    var _canWriteRef66    = (_role66 === 'owner' || _role66 === 'back_office');  // catalog + templates
+    var _canWriteFloors66 = (_role66 === 'owner');                               // margin_floors
+
+    // Push margin floors — upsert each row (owner only; RLS blocks everyone else)
+    if (_canWriteFloors66 && _getMFList) {
       var mfList = _getMFList();
       for (var mf of mfList) {
         if (!mf || !mf.jobType) continue;
@@ -3373,8 +3382,8 @@ async function pushAllToCloud() {
       }
     }
 
-    // Push catalog
-    for (var item of (DB.catalog || [])) {
+    // Push catalog (owner / back_office only — RLS blocks others, so don't even try)
+    for (var item of (_canWriteRef66 ? (DB.catalog || []) : [])) {
       if (!item) continue;
       try {
         var itemId = ensureUUID(item);
@@ -3415,8 +3424,8 @@ async function pushAllToCloud() {
       }
     }
 
-    // Push templates
-    for (var t of (DB.templates || [])) {
+    // Push templates (owner / back_office only — RLS blocks others, so don't even try)
+    for (var t of (_canWriteRef66 ? (DB.templates || []) : [])) {
       if (!t) continue;
       try {
         var tId = ensureUUID(t);
