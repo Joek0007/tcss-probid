@@ -112,18 +112,27 @@ function _getWOStatuses() {
   return (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length)
     ? DB.woSettings.statuses : WO_STATUSES;
 }
+// r68 — a handful of ACTIVE statuses come from the dispatch/jobs side (Scheduled, In Progress, On
+// Hold, Paused) and were never added to the WO status list. Without this they fall through to the
+// "unknown ⇒ closed" rule below and get HIDDEN from the assigned field tech (Lisa tagged the pretend
+// tech on 6 "Scheduled" WOs; the text fired and the rows synced, but her app filed them as closed).
+// Recognize this known-active set as open so techs see their assigned work and the orders count as
+// active. Everything else unknown stays closed — legacy Invoiced/Completed/Closed imports must NOT
+// resurface as open.
+var _ACTIVE_UNLISTED_RE = /^(scheduled|in\s*progress|on\s*hold|paused)$/i;
 function _getWOStatusDef(statusId) {
   // Empty status = a brand-new WO still being created → treat as open.
   if (!statusId) return {color:'#e0e0e0',open:true};
   var list = _getWOStatuses();
-  // A status NOT in the configured list is treated as CLOSED. Legacy imports from the old
-  // CRM's invoicing module carry statuses like "Invoiced"/"Completed" (7,000+ finished WOs)
-  // that aren't in the current status list; defaulting unknown→open mislabeled them as open.
-  // Every genuinely-open status (Open/OPEN/NEW) IS in the list (matched case-insensitively),
-  // so unknown→closed cannot hide a real open WO.
-  return list.find(function(s){
+  // A status NOT in the configured list is treated as CLOSED (see note above) — except the known
+  // active dispatch statuses, which are open. Every configured open status (Open/OPEN/NEW) IS in the
+  // list (matched case-insensitively), so unknown→closed cannot hide a real configured-open WO.
+  var found = list.find(function(s){
     return s.id===statusId || s.id.toLowerCase()===statusId.toLowerCase();
-  }) || {color:'#e0e0e0',open:false};
+  });
+  if (found) return found;
+  if (_ACTIVE_UNLISTED_RE.test(String(statusId).trim())) return {color:'#1565c0',open:true};
+  return {color:'#e0e0e0',open:false};
 }
 
 // ============================================================
