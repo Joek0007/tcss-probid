@@ -906,6 +906,7 @@ function qtInit(jobType, selectedSystems, existing){
   QT.items = hasSaved ? JSON.parse(JSON.stringify(existing))
                       : assembleQuoteClauses(QT.jobType, Object.keys(QT.systemsOn), null);
   qtRender();
+  qtApplyCollapseState();   // restore collapsed/expanded preference + summary
 }
 function qtGetClauses(){
   if (!QT.active) return null;   // builder never opened → let render fall back to legacy blobs
@@ -928,6 +929,7 @@ function qtRender(){
     var ta = document.getElementById('qt-edit-ta');
     if (ta){ ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e){} }
   }
+  qtUpdateSummary();   // keep the collapsed-header recap counts current after any change
 }
 function qtCardHtml(card, lib){
   var titles = { assumptions:'Assumptions', exclusions:'Exclusions', terms:'Terms & Conditions' };
@@ -1027,6 +1029,34 @@ function qtResetTemplate(){
   QT.editing=null; qtMarkDirty(); qtRender();
 }
 window.qtInit = qtInit; window.qtGetClauses = qtGetClauses; window.qtGetSystems = qtGetSystems;
+
+// ---- Collapsible card (r65) — keeps the quote editor short; state persists per device ----
+function qtSetCollapsed(collapsed){
+  var body = document.getElementById('qt-body');
+  var chev = document.getElementById('qt-chevron');
+  if (body) body.style.display = collapsed ? 'none' : '';
+  if (chev) chev.textContent = collapsed ? '▸' : '▾';
+  try { localStorage.setItem('qtCollapsed', collapsed ? '1' : '0'); } catch(e){}
+  qtUpdateSummary();
+}
+function toggleProposalTerms(){
+  var body = document.getElementById('qt-body'); if (!body) return;
+  qtSetCollapsed(body.style.display !== 'none');   // if currently shown → collapse it
+}
+function qtApplyCollapseState(){
+  var stored; try { stored = localStorage.getItem('qtCollapsed'); } catch(e){}
+  // Default collapsed so the card doesn't lengthen the editor; once the user expands it, that sticks.
+  qtSetCollapsed(stored == null ? true : stored === '1');
+}
+function qtUpdateSummary(){
+  var el = document.getElementById('qt-summary'); if (!el) return;
+  var body = document.getElementById('qt-body');
+  var collapsed = body && body.style.display === 'none';
+  if (!QT.active || !collapsed){ el.textContent = ''; return; }  // only show the recap when collapsed
+  var a = (QT.items.assumptions||[]).length, e = (QT.items.exclusions||[]).length, t = (QT.items.terms||[]).length;
+  el.textContent = a + ' assump · ' + e + ' excl · ' + t + ' terms';
+}
+window.toggleProposalTerms = toggleProposalTerms;
 
 function cleanScopeHtml(raw){
   if (raw == null) return '';
