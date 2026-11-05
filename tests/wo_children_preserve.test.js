@@ -23,9 +23,15 @@ ok('checklist push marks _synced', /\[WO Checklist Push\][\s\S]{0,300}wc\._synce
 ok('payment marks _synced after confirmed insert', /payment\._synced = true/.test(cal), true);
 
 // (3) each sweep push marks _synced on success
-ok('sweep part marks _synced',      /wp\._synced = true;\s*\/\/ r41/.test(src), true);
-ok('sweep labor marks _synced',     /wl\._synced = true;\s*\/\/ r41/.test(src), true);
-ok('sweep checklist marks _synced', /wc\._synced = true;\s*\/\/ r41/.test(src), true);
+// r75: the sweep still marks _synced, now also seeding the changed-only snapshot (same line).
+ok('sweep part marks _synced + seeds',      /wp\._synced = true; _officeMarkSynced\('wo_parts', wp\);/.test(src), true);
+ok('sweep labor marks _synced + seeds',     /wl\._synced = true; _officeMarkSynced\('wo_labor', wl\);/.test(src), true);
+ok('sweep checklist marks _synced + seeds', /wc\._synced = true; _officeMarkSynced\('wo_checklist', wc\);/.test(src), true);
+// r75: and the sweeps are now gated changed-only (skip unchanged rows).
+ok('sweep parts gated changed-only',     /_officeDirty\('wo_parts', wp\)/.test(src), true);
+ok('sweep labor gated changed-only',     /_officeDirty\('wo_labor', wl\)/.test(src), true);
+ok('sweep expenses gated changed-only',  /_officeDirty\('wo_expenses', we\)/.test(src), true);
+ok('sweep checklist gated changed-only', /_officeDirty\('wo_checklist', wc\)/.test(src), true);
 
 // (4) behavioral: the shared preservation predicate (no old-window clause — these are unbounded pulls)
 function preserve(row, inCloud, tomb){

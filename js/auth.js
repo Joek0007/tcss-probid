@@ -349,22 +349,46 @@ function _woHash(wo){
   for (var i=0;i<_WO_HASH_KEYS.length;i++){ var k=_WO_HASH_KEYS[i]; var v=wo[k]; parts.push(k+'='+(v ? JSON.stringify(v) : '')); }
   return parts.join('|');
 }
-var _officeSnap = { quotes:{}, customers:{}, contacts:{}, work_orders:{}, invoices:{} };   // in-memory: { table: { id: contentHash } }
+var _officeSnap = { quotes:{}, customers:{}, contacts:{}, work_orders:{}, invoices:{},
+  // r75 (WS-3a): WO children join the changed-only model so a long-open/stale tab's sweep can't
+  // re-push an unchanged child over a newer cross-device edit (the push-all clobber r41 flagged).
+  wo_parts:{}, wo_labor:{}, wo_expenses:{}, wo_checklist:{} };   // in-memory: { table: { id: contentHash } }
+// r75: per-child content hash over ONLY the round-tripping (pull-shape) keys, falsy→'' collapsed —
+// same discipline as _woHash — so a cloud-pulled row and the same row after a local save hash
+// IDENTICALLY (null/undefined/'' all collapse), and only a real content change flips the hash.
+// Keys are the local field names the pull mapper produces (the stable post-sync shape).
+var _CHILD_HASH_KEYS = {
+  wo_parts:    ['woId','name','partNum','qty','unit','unitCost','status','notes','requestedBy','itemId','source','fromLocation'],
+  wo_labor:    ['woId','techName','entryType','clockIn','clockOut','hours','notes'],
+  wo_expenses: ['woId','category','description','amount','paymentType','date','loggedBy','receiptUrl','receiptDocId'],
+  wo_checklist:['woId','item','completed','completedBy','completedAt']
+};
+function _childHash(table, row){
+  var keys = _CHILD_HASH_KEYS[table]; if (!keys || !row) return '';
+  var parts = [];
+  for (var i=0;i<keys.length;i++){ var k=keys[i]; var v=row[k]; parts.push(k+'='+(v ? JSON.stringify(v) : '')); }
+  return parts.join('|');
+}
 // r34: the snapshot is in-memory, so on a fresh load/reload it starts EMPTY → every office record
 // looks "changed" → a background sweep in that window would re-push them all from (possibly stale)
 // localStorage, re-clobbering a value fixed elsewhere (the job-name-paren-comes-back bug). Gate the
 // office-record push loops until the first cloud pull has rebuilt the snapshot this session, so the
 // sweep can never push a quote/customer/contact before we know the cloud's current version.
 var _officeSnapReady = false;
+function _officeHashFor(table, rec){
+  if (table==='work_orders') return _woHash(rec);
+  if (_CHILD_HASH_KEYS[table]) return _childHash(table, rec);
+  return _recHash(rec);
+}
 function _officeMarkSynced(table, rec){
   if (!rec || rec.id==null || !_officeSnap[table]) return;
-  _officeSnap[table][String(rec.id)] = (table==='work_orders') ? _woHash(rec) : _recHash(rec);
+  _officeSnap[table][String(rec.id)] = _officeHashFor(table, rec);
 }
 function _officeDirty(table, rec){
   if (!rec || rec.id==null || !_officeSnap[table]) return true;   // no id / unknown table → push (safe)
   var prev = _officeSnap[table][String(rec.id)];
   if (prev === undefined) return true;                            // never confirmed in sync → push
-  var h = (table==='work_orders') ? _woHash(rec) : _recHash(rec);
+  var h = _officeHashFor(table, rec);
   return h !== prev;                                              // changed since last sync → push; else skip
 }
 
@@ -1771,6 +1795,7 @@ async function syncAllFromCloud(silent) {
         var _wlHave = {}; _mappedWL.forEach(function(l){ if(l&&l.id) _wlHave[l.id]=1; });
         _prevWL.forEach(function(l){ if(l&&l.id&&!_wlHave[l.id]&&delWL.indexOf(String(l.id))<0&&l._synced!==true) _mappedWL.push(l); });
         DB.woLabor = _mappedWL;
+        _mappedWL.forEach(function(l){ if(l&&l._synced===true) _officeMarkSynced('wo_labor', l); });  // r75: seed changed-only baseline
       }
     } catch(e) { errors.push('wo_labor: '+e.message); }
 
@@ -1793,6 +1818,7 @@ async function syncAllFromCloud(silent) {
         var _wpHave = {}; _mappedWP.forEach(function(p){ if(p&&p.id) _wpHave[p.id]=1; });
         _prevWP.forEach(function(p){ if(p&&p.id&&!_wpHave[p.id]&&delWP.indexOf(String(p.id))<0&&p._synced!==true) _mappedWP.push(p); });
         DB.woParts = _mappedWP;
+        _mappedWP.forEach(function(p){ if(p&&p._synced===true) _officeMarkSynced('wo_parts', p); });  // r75: seed changed-only baseline
       }
     } catch(e) { errors.push('wo_parts: '+e.message); }
 
@@ -1810,6 +1836,7 @@ async function syncAllFromCloud(silent) {
         var _wclHave = {}; _mappedWCl.forEach(function(c){ if(c&&c.id) _wclHave[c.id]=1; });
         _prevWCl.forEach(function(c){ if(c&&c.id&&!_wclHave[c.id]&&delWCl.indexOf(String(c.id))<0&&c._synced!==true) _mappedWCl.push(c); });
         DB.woChecklist = _mappedWCl;
+        _mappedWCl.forEach(function(c){ if(c&&c._synced===true) _officeMarkSynced('wo_checklist', c); });  // r75: seed changed-only baseline
       }
     } catch(e) { errors.push('wo_checklist: '+e.message); }
 
@@ -1842,6 +1869,7 @@ async function syncAllFromCloud(silent) {
           if (_old || _localUnsynced) _mappedExp.push(e);
         });
         DB.woExpenses = _mappedExp;
+        _mappedExp.forEach(function(e){ if(e&&e._synced===true) _officeMarkSynced('wo_expenses', e); });  // r75: seed changed-only baseline
       }
     } catch(e) { errors.push('wo_expenses: '+e.message); }
 
@@ -2351,7 +2379,7 @@ async function _pushWOExpenseToCloud(we) { if (_writesBlocked()) return;
     if (error) { console.warn('[Expense Push]', error.message); return error; }
     // r40: mark confirmed-in-cloud so the full-replace expense pull preserves genuinely-local
     // (not-yet-synced) rows but correctly drops ones deleted elsewhere. Not when the gate suppressed it.
-    try { if (typeof _writesBlocked!=='function' || !_writesBlocked()) we._synced = true; } catch(e){}
+    try { if (typeof _writesBlocked!=='function' || !_writesBlocked()) { we._synced = true; _officeMarkSynced('wo_expenses', we); } } catch(e){}  // r75: seed so the sweep won't redundantly re-push
     return null;
   } catch (e) { console.warn('[Expense Push]', e.message || e); return e; }
 }
@@ -2369,7 +2397,7 @@ async function _pushWOChecklistToCloud(wc) { if (_writesBlocked()) return;
       created_at:   wc.createdAt||new Date().toISOString()
     }, { onConflict: 'id' });
     if (error) { console.warn('[WO Checklist Push]', error.message); return error; }
-    try { if (typeof _writesBlocked!=='function' || !_writesBlocked()) wc._synced = true; } catch(e){}  // r41: confirmed-in-cloud for the full-replace pull's local-row preservation
+    try { if (typeof _writesBlocked!=='function' || !_writesBlocked()) { wc._synced = true; _officeMarkSynced('wo_checklist', wc); } } catch(e){}  // r41 confirmed-in-cloud + r75 snapshot seed
     return null;
   } catch (e) { console.warn('[WO Checklist Push]', e.message || e); return e; }
 }
@@ -2394,7 +2422,7 @@ async function _pushWOPartToCloud(wp) { if (_writesBlocked()) return;
       created_at:   wp.createdAt||new Date().toISOString()
     }, { onConflict: 'id' });
     if (error) { console.warn('[WO Part Push]', error.message); return error; }
-    try { if (typeof _writesBlocked!=='function' || !_writesBlocked()) wp._synced = true; } catch(e){}  // r41: confirmed-in-cloud for the full-replace pull's local-row preservation
+    try { if (typeof _writesBlocked!=='function' || !_writesBlocked()) { wp._synced = true; _officeMarkSynced('wo_parts', wp); } } catch(e){}  // r41 confirmed-in-cloud + r75 snapshot seed
     return null;
   } catch (e) { console.warn('[WO Part Push]', e.message || e); return e; }
 }
@@ -3713,6 +3741,8 @@ async function pushAllToCloud() {
     for (var wp of (DB.woParts||[])) {
       if (!wp || !wp.id) continue;
       if (_wpTomb.indexOf(String(wp.id)) >= 0) continue;
+      if (!_officeSnapReady) continue;                 // r75: no push before first pull rebuilt the snapshot
+      if (!_officeDirty('wo_parts', wp)) continue;     // r75: unchanged since last sync → skip (prevents stale clobber)
       try {
         var _wpRes = _pushErr('wo_part '+(wp.name||wp.id), await _sb.from('wo_parts').upsert({
           id:           wp.id,
@@ -3730,7 +3760,7 @@ async function pushAllToCloud() {
           from_location:wp.fromLocation||null,
           created_at:   wp.createdAt||new Date().toISOString()
         }, {onConflict:'id'}));
-        if (!(_wpRes && _wpRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) wp._synced = true;  // r41
+        if (!(_wpRes && _wpRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) { wp._synced = true; _officeMarkSynced('wo_parts', wp); }  // r41 + r75
       } catch(wpErr) { console.warn('[Push] WO part:', wpErr.message||wpErr); }
     }
 
@@ -3743,6 +3773,8 @@ async function pushAllToCloud() {
     for (var wl of (DB.woLabor||[])) {
       if (!wl || !wl.id) continue;
       if (_wlTomb.indexOf(String(wl.id)) >= 0) continue;
+      if (!_officeSnapReady) continue;                 // r75
+      if (!_officeDirty('wo_labor', wl)) continue;     // r75: changed-only
       try {
         var _wlRes = _pushErr('wo_labor '+wl.id, await _sb.from('wo_labor').upsert({
           id:         wl.id,
@@ -3757,13 +3789,15 @@ async function pushAllToCloud() {
           notes:      wl.notes||null,
           created_at: wl.createdAt||new Date().toISOString()
         }, {onConflict:'id'}));
-        if (!(_wlRes && _wlRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) wl._synced = true;  // r41
+        if (!(_wlRes && _wlRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) { wl._synced = true; _officeMarkSynced('wo_labor', wl); }  // r41 + r75
       } catch(wlErr) { console.warn('[Push] WO labor:', wlErr.message||wlErr); }
     }
     var _weTomb = (DB.deletedIds && DB.deletedIds.woExpenses) || [];
     for (var we of (DB.woExpenses||[])) {
       if (!we || !we.id) continue;
       if (_weTomb.indexOf(String(we.id)) >= 0) continue;
+      if (!_officeSnapReady) continue;                 // r75
+      if (!_officeDirty('wo_expenses', we)) continue;  // r75: changed-only
       try {
         var _weRes = _pushErr('wo_expense '+we.id, await _sb.from('wo_expenses').upsert({
           id:            we.id,
@@ -3779,13 +3813,15 @@ async function pushAllToCloud() {
           created_at:    we.createdAt||new Date().toISOString()
         }, {onConflict:'id'}));
         // r40: mark confirmed-in-cloud so the full-replace expense pull preserves it correctly.
-        if (!(_weRes && _weRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) we._synced = true;
+        if (!(_weRes && _weRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) { we._synced = true; _officeMarkSynced('wo_expenses', we); }  // r40 + r75
       } catch(weErr) { console.warn('[Push] WO expense:', weErr.message||weErr); }
     }
     var _wcTomb = (DB.deletedIds && DB.deletedIds.woChecklist) || [];
     for (var wc of (DB.woChecklist||[])) {
       if (!wc || !wc.id) continue;
       if (_wcTomb.indexOf(String(wc.id)) >= 0) continue;
+      if (!_officeSnapReady) continue;                   // r75
+      if (!_officeDirty('wo_checklist', wc)) continue;   // r75: changed-only
       try {
         var _wcRes = _pushErr('wo_checklist '+wc.id, await _sb.from('wo_checklist').upsert({
           id:           wc.id,
@@ -3796,7 +3832,7 @@ async function pushAllToCloud() {
           completed_at: wc.completedAt||null,
           created_at:   wc.createdAt||new Date().toISOString()
         }, {onConflict:'id'}));
-        if (!(_wcRes && _wcRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) wc._synced = true;  // r41
+        if (!(_wcRes && _wcRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) { wc._synced = true; _officeMarkSynced('wo_checklist', wc); }  // r41 + r75
       } catch(wcErr) { console.warn('[Push] WO checklist:', wcErr.message||wcErr); }
     }
 
