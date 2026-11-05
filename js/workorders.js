@@ -1797,7 +1797,13 @@ function switchWOTab(tab) {
       '</div>';
     return;
   }
-  if (tab==='labor')     content.innerHTML = renderWOLaborTab(id);
+  if (tab==='labor')     {
+    content.innerHTML = renderWOLaborTab(id);
+    // r77 (WS-3b): lazy-load this WO's older parts/labor/checklist (outside the sync window), then re-render.
+    if (typeof ensureWOChildrenLoaded === 'function') {
+      ensureWOChildrenLoaded(id).then(function(){ if (_woTab==='labor' && _woCurrentId===id) { var c=document.getElementById('wo-tab-content'); if(c) c.innerHTML = renderWOLaborTab(id); } });
+    }
+  }
   if (tab==='expenses')  {
     content.innerHTML = renderWOExpensesTab(id);
     // Lazy-load older expenses (outside the sync window) only when the tab is actually
@@ -1811,8 +1817,18 @@ function switchWOTab(tab) {
       });
     }
   }
-  if (tab==='parts')     content.innerHTML = renderWOPartsTab(id);
-  if (tab==='checklist') content.innerHTML = renderWOChecklistTab(id);
+  if (tab==='parts')     {
+    content.innerHTML = renderWOPartsTab(id);
+    if (typeof ensureWOChildrenLoaded === 'function') {
+      ensureWOChildrenLoaded(id).then(function(){ if (_woTab==='parts' && _woCurrentId===id) { var c=document.getElementById('wo-tab-content'); if(c) c.innerHTML = renderWOPartsTab(id); } });
+    }
+  }
+  if (tab==='checklist') {
+    content.innerHTML = renderWOChecklistTab(id);
+    if (typeof ensureWOChildrenLoaded === 'function') {
+      ensureWOChildrenLoaded(id).then(function(){ if (_woTab==='checklist' && _woCurrentId===id) { var c=document.getElementById('wo-tab-content'); if(c) c.innerHTML = renderWOChecklistTab(id); } });
+    }
+  }
   if (tab==='comments')  content.innerHTML = (typeof renderCommsLog==='function') ? '<div style="margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="openCommsModal(\'\',\''+id+'\')">+ Log Communication</button></div>' + renderCommsLog(null, id) : '';
   if (tab==='photos')    { content.innerHTML = renderWODocsTab(id); }
   if (tab==='fieldlog')  { renderWOFieldLogTab(id); }

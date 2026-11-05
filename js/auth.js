@@ -449,6 +449,7 @@ function _applyQuoteExtras(target, row){
 // thousands of historical rows on every refresh.
 // ---------------------------------------------------------------------------
 var WO_EXPENSE_WINDOW_DAYS = 365;
+var WO_CHILD_WINDOW_DAYS   = 365;   // r77 (WS-3b): parts/labor/checklist bounded like expenses; older load on-demand per WO
 var PO_WINDOW_DAYS         = 365;
 // A PO is kept in the working set unless its status means DONE. Using a CLOSED-list
 // (rather than an open allow-list) is robust to the legacy CRM-import status strings
@@ -521,7 +522,8 @@ async function ensureWOPartsForIds(ids){
         var have = {}; DB.woParts.forEach(function(p){ if(p&&p.id) have[p.id]=1; });
         r.data.forEach(function(p){
           if (have[p.id] || delWP.indexOf(String(p.id))>=0) return;
-          DB.woParts.push({ id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, unit:p.unit, unitCost:p.unit_cost, status:p.status, notes:p.notes, requestedBy:p.requested_by, itemId:p.item_id, source:p.source, fromLocation:p.from_location, createdAt:p.created_at });
+          var _np={ id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, unit:p.unit, unitCost:p.unit_cost, status:p.status, notes:p.notes, requestedBy:p.requested_by, itemId:p.item_id, source:p.source, fromLocation:p.from_location, createdAt:p.created_at, _synced:true };
+          DB.woParts.push(_np); if (typeof _officeMarkSynced==='function') _officeMarkSynced('wo_parts', _np);  // r77: seed so windowed sweep won't re-push on-demand rows
         });
       }
     } catch(e) { /* skip chunk on failure */ }
@@ -542,12 +544,48 @@ async function ensureWOLaborForIds(ids){
         var have = {}; DB.woLabor.forEach(function(l){ if(l&&l.id) have[l.id]=1; });
         r.data.forEach(function(l){
           if (have[l.id] || delWL.indexOf(String(l.id))>=0) return;
-          DB.woLabor.push({ id:l.id, woId:l.wo_id, techName:l.tech_name, techId:l.tech_id, entryType:l.entry_type, clockIn:l.clock_in, clockOut:l.clock_out, hours:l.hours, rate:l.rate, notes:l.notes, createdAt:l.created_at });
+          var _nl={ id:l.id, woId:l.wo_id, techName:l.tech_name, techId:l.tech_id, entryType:l.entry_type, clockIn:l.clock_in, clockOut:l.clock_out, hours:l.hours, rate:l.rate, notes:l.notes, createdAt:l.created_at, _synced:true };
+          DB.woLabor.push(_nl); if (typeof _officeMarkSynced==='function') _officeMarkSynced('wo_labor', _nl);  // r77: seed
         });
       }
     } catch(e) { /* skip chunk on failure */ }
     chunk.forEach(function(id){ _ondemandLaborWOIds[id]=1; });
   }
+}
+
+// r77 (WS-3b): load ALL of one work order's parts/labor/checklist (older rows may be outside the
+// WO_CHILD_WINDOW_DAYS sync window). Called when a WO's Parts/Labor/Checklist tab is opened. Safe to
+// call repeatedly; each WO fetched once per session. Sets _synced:true AND seeds the changed-only
+// snapshot (r75), so a just-loaded old row is NOT seen as dirty and re-pushed by the sweep.
+var _ondemandChildWOIds = {};
+async function ensureWOChildrenLoaded(woId){
+  if (!woId || !_sb) return;
+  if (_ondemandChildWOIds[woId]) return;
+  try {
+    var delWP=(DB.deletedIds&&DB.deletedIds.woParts)||[], delWL=(DB.deletedIds&&DB.deletedIds.woLabor)||[], delWCl=(DB.deletedIds&&DB.deletedIds.woChecklist)||[];
+    var rp = await _sb.from('wo_parts').select('*').eq('wo_id', woId);
+    if (rp && !rp.error && Array.isArray(rp.data)) {
+      if (!DB.woParts) DB.woParts=[]; var haveP={}; DB.woParts.forEach(function(p){ if(p&&p.id) haveP[p.id]=1; });
+      rp.data.forEach(function(p){ if(haveP[p.id]||delWP.indexOf(String(p.id))>=0) return;
+        var _np={ id:p.id, woId:p.wo_id, name:p.part_name, partNum:p.part_num, qty:p.quantity, unit:p.unit, unitCost:p.unit_cost, status:p.status, notes:p.notes, requestedBy:p.requested_by, itemId:p.item_id, source:p.source, fromLocation:p.from_location, createdAt:p.created_at, _synced:true };
+        DB.woParts.push(_np); if (typeof _officeMarkSynced==='function') _officeMarkSynced('wo_parts', _np); });
+    }
+    var rl = await _sb.from('wo_labor').select('*').eq('wo_id', woId);
+    if (rl && !rl.error && Array.isArray(rl.data)) {
+      if (!DB.woLabor) DB.woLabor=[]; var haveL={}; DB.woLabor.forEach(function(l){ if(l&&l.id) haveL[l.id]=1; });
+      rl.data.forEach(function(l){ if(haveL[l.id]||delWL.indexOf(String(l.id))>=0) return;
+        var _nl={ id:l.id, woId:l.wo_id, techName:l.tech_name, techId:l.tech_id, entryType:l.entry_type, clockIn:l.clock_in, clockOut:l.clock_out, hours:l.hours, rate:l.rate, notes:l.notes, createdAt:l.created_at, _synced:true };
+        DB.woLabor.push(_nl); if (typeof _officeMarkSynced==='function') _officeMarkSynced('wo_labor', _nl); });
+    }
+    var rc = await _sb.from('wo_checklist').select('*').eq('wo_id', woId);
+    if (rc && !rc.error && Array.isArray(rc.data)) {
+      if (!DB.woChecklist) DB.woChecklist=[]; var haveC={}; DB.woChecklist.forEach(function(c){ if(c&&c.id) haveC[c.id]=1; });
+      rc.data.forEach(function(c){ if(haveC[c.id]||delWCl.indexOf(String(c.id))>=0) return;
+        var _nc={ id:c.id, woId:c.wo_id, item:c.item, completed:!!c.completed, completedBy:c.completed_by, completedAt:c.completed_at, createdAt:c.created_at, _synced:true };
+        DB.woChecklist.push(_nc); if (typeof _officeMarkSynced==='function') _officeMarkSynced('wo_checklist', _nc); });
+    }
+    _ondemandChildWOIds[woId] = 1;
+  } catch(e) { /* leave as-is on failure */ }
 }
 
 // Single source of truth for mapping a purchase_orders row (+ nested po_line_items) to the
@@ -1790,9 +1828,12 @@ async function syncAllFromCloud(silent) {
       }
     } catch(e) { errors.push('work_orders: '+e.message); }
 
-    // 16. WO Labor
+    // 16. WO Labor — r77 (WS-3b): bounded to a recent window (older rows load on demand per WO via
+    // ensureWOChildrenLoaded). Older on-demand rows already in memory are preserved across this
+    // bounded pull so they don't blank out.
+    var _childCut = new Date(Date.now() - WO_CHILD_WINDOW_DAYS*86400000).toISOString();
     try {
-      var { data: woLaborRows, error: wole } = await _sbSelectAll(function(){ return _sb.from('wo_labor').select('*').order('created_at', { ascending: false }); });
+      var { data: woLaborRows, error: wole } = await _sbSelectAll(function(){ return _sb.from('wo_labor').select('*').gte('created_at', _childCut).order('created_at', { ascending: false }); });
       if (wole) { errors.push('wo_labor: '+wole.message); }
       else if (woLaborRows) {
         // Tombstone-filter: a labor entry deleted locally but not yet confirmed-deleted
@@ -1806,7 +1847,8 @@ async function syncAllFromCloud(silent) {
         // this full-replace doesn't drop it. A row deleted elsewhere was pulled before (_synced===true)
         // and still drops; tombstoned ids excluded.
         var _wlHave = {}; _mappedWL.forEach(function(l){ if(l&&l.id) _wlHave[l.id]=1; });
-        _prevWL.forEach(function(l){ if(l&&l.id&&!_wlHave[l.id]&&delWL.indexOf(String(l.id))<0&&l._synced!==true) _mappedWL.push(l); });
+        // r77: preserve (a) on-demand-loaded OLDER rows outside the window, and (b) local-unsynced rows (r41).
+        _prevWL.forEach(function(l){ if(l&&l.id&&!_wlHave[l.id]&&delWL.indexOf(String(l.id))<0&&((!l.createdAt||l.createdAt<_childCut)||l._synced!==true)) _mappedWL.push(l); });
         DB.woLabor = _mappedWL;
         _mappedWL.forEach(function(l){ if(l&&l._synced===true) _officeMarkSynced('wo_labor', l); });  // r75: seed changed-only baseline
       }
@@ -1814,7 +1856,7 @@ async function syncAllFromCloud(silent) {
 
     // 17. WO Parts
     try {
-      var { data: woPartsRows, error: wope } = await _sbSelectAll(function(){ return _sb.from('wo_parts').select('*').order('created_at', { ascending: false }); });
+      var { data: woPartsRows, error: wope } = await _sbSelectAll(function(){ return _sb.from('wo_parts').select('*').gte('created_at', _childCut).order('created_at', { ascending: false }); });
       if (wope) { errors.push('wo_parts: '+wope.message); }
       else if (woPartsRows) {
         // SC-3b: this pull FULL-REPLACES DB.woParts, so a part tombstoned locally but
@@ -1829,7 +1871,8 @@ async function syncAllFromCloud(silent) {
         // r41: preserve a just-added local part not yet confirmed in the cloud (_synced!==true) so the
         // full-replace doesn't drop it (a tech adds a part → sync fires before its push lands → gone).
         var _wpHave = {}; _mappedWP.forEach(function(p){ if(p&&p.id) _wpHave[p.id]=1; });
-        _prevWP.forEach(function(p){ if(p&&p.id&&!_wpHave[p.id]&&delWP.indexOf(String(p.id))<0&&p._synced!==true) _mappedWP.push(p); });
+        // r77: preserve on-demand-loaded OLDER rows (outside window) + local-unsynced (r41).
+        _prevWP.forEach(function(p){ if(p&&p.id&&!_wpHave[p.id]&&delWP.indexOf(String(p.id))<0&&((!p.createdAt||p.createdAt<_childCut)||p._synced!==true)) _mappedWP.push(p); });
         DB.woParts = _mappedWP;
         _mappedWP.forEach(function(p){ if(p&&p._synced===true) _officeMarkSynced('wo_parts', p); });  // r75: seed changed-only baseline
       }
@@ -1837,7 +1880,7 @@ async function syncAllFromCloud(silent) {
 
     // 17b. WO Checklist
     try {
-      var { data: woClRows, error: wocle } = await _sbSelectAll(function(){ return _sb.from('wo_checklist').select('*').order('created_at', { ascending: true }); });
+      var { data: woClRows, error: wocle } = await _sbSelectAll(function(){ return _sb.from('wo_checklist').select('*').gte('created_at', _childCut).order('created_at', { ascending: true }); });
       if (wocle) { errors.push('wo_checklist: '+wocle.message); }
       else if (woClRows) {
         var _prevWCl = DB.woChecklist || [];
@@ -1847,7 +1890,8 @@ async function syncAllFromCloud(silent) {
         // r41: preserve a just-added local checklist item not yet confirmed in the cloud (_synced!==true)
         // so the full-replace doesn't drop it.
         var _wclHave = {}; _mappedWCl.forEach(function(c){ if(c&&c.id) _wclHave[c.id]=1; });
-        _prevWCl.forEach(function(c){ if(c&&c.id&&!_wclHave[c.id]&&delWCl.indexOf(String(c.id))<0&&c._synced!==true) _mappedWCl.push(c); });
+        // r77: preserve on-demand-loaded OLDER rows (outside window) + local-unsynced (r41).
+        _prevWCl.forEach(function(c){ if(c&&c.id&&!_wclHave[c.id]&&delWCl.indexOf(String(c.id))<0&&((!c.createdAt||c.createdAt<_childCut)||c._synced!==true)) _mappedWCl.push(c); });
         DB.woChecklist = _mappedWCl;
         _mappedWCl.forEach(function(c){ if(c&&c._synced===true) _officeMarkSynced('wo_checklist', c); });  // r75: seed changed-only baseline
       }
