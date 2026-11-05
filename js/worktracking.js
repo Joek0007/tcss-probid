@@ -369,7 +369,7 @@ var WT = {
   wizard:    { open:false, step:1, data:{} },
 };
 
-var WT_OFFLINE_KEY   = 'wt_offline_queue';
+var WT_OFFLINE_KEY   = (typeof _envKey==='function') ? _envKey('wt_offline_queue') : 'wt_offline_queue';  // WS-2: per-env queue
 var WT_CACHE_PREFIX  = 'wt_proj_';
 
 // ─── PHASES ───────────────────────────────────────────────────────────────────
@@ -6082,11 +6082,11 @@ function checkOfflineStatus() {
 }
 
 function loadOfflineQueue() {
-  try { return JSON.parse(localStorage.getItem('tcss_offline_queue')||'[]'); } catch(e){ return []; }
+  try { return JSON.parse(localStorage.getItem((typeof _envKey==='function')?_envKey('tcss_offline_queue'):'tcss_offline_queue')||'[]'); } catch(e){ return []; }
 }
 
 function saveOfflineQueue(q) {
-  try { localStorage.setItem('tcss_offline_queue', JSON.stringify(q)); } catch(e){}
+  try { localStorage.setItem((typeof _envKey==='function')?_envKey('tcss_offline_queue'):'tcss_offline_queue', JSON.stringify(q)); } catch(e){}
 }
 
 function queueOfflineEvent(eventData) {
@@ -8425,7 +8425,7 @@ function importData() {
         if (_sb && _currentUser) {
           showToast('Backup restored — pushing to cloud...','info');
           pushAllToCloud().then(function() {
-            localStorage.setItem('_skipNextPull', '1');
+            localStorage.setItem((typeof _envKey==='function')?_envKey('_skipNextPull'):'_skipNextPull', '1');
             showToast('Pushed to cloud ✓','success');
             location.reload();
           }).catch(function() {

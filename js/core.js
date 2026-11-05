@@ -13,7 +13,23 @@
 function getTodayISO(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
 // ---- CONSTANTS ----
-const DB_KEY = 'tcssv8';
+// WS-2 (r74) — ENVIRONMENT ISOLATION. staging and prod are served from the same URL, so they also
+// shared one browser localStorage. That is how staging/test data bled into prod: records created
+// while the browser was pointed at staging sat in the SAME local DB and got pushed to prod on the
+// next sync (the 194 junk work orders, and the strandings). Fix: namespace every data-bearing
+// localStorage key by environment. PROD KEEPS ITS KEY UNCHANGED ('tcssv8') so no live user is
+// migrated or disturbed; only staging moves to a separate '_staging' store that can never push to prod.
+// Env is read from the same sticky flag auth.js uses (set synchronously in the <head> before this file).
+function _probidEnvKeySuffix(){
+  var env='';
+  try{ var q=(new URLSearchParams(location.search||'').get('env')||'').toLowerCase(); if(q==='staging'||q==='prod') env=q; }catch(e){}
+  if(!env){ try{ env=(localStorage.getItem('probid_env')||'').toLowerCase(); }catch(e){} }
+  if(!env){ try{ if(((location.hostname||'')+(location.pathname||'')).toLowerCase().indexOf('staging')>=0) env='staging'; }catch(e){} }
+  return env==='staging' ? '_staging' : '';
+}
+// Append the env suffix to a base localStorage key (prod → unchanged base; staging → base+'_staging').
+function _envKey(base){ return base + _probidEnvKeySuffix(); }
+const DB_KEY = _envKey('tcssv8');
 const ENV_PRESETS = {
   office:   { label:'Office',          margin:35, laborMult:1.00, riskLevel:'Low' },
   mixed:    { label:'Mixed',           margin:38, laborMult:1.10, riskLevel:'Medium' },
@@ -132,7 +148,7 @@ function saveDB() {
   // r25: if this save happens while offline, the debounced cloud push below will fail and nothing
   // retries it — so flag that local changes are waiting. _flushLocalChanges() (reconnect + load)
   // clears this once they reach the cloud.
-  try { if (typeof navigator!=='undefined' && navigator.onLine===false) localStorage.setItem('probid_pendingPush','1'); } catch(e){}
+  try { if (typeof navigator!=='undefined' && navigator.onLine===false) localStorage.setItem(_envKey('probid_pendingPush'),'1'); } catch(e){}
   // Don't schedule a push if we're in the middle of a sync pull — data just came FROM Supabase
   if (window._syncInProgress) return;
   // Debounced cloud push — no recursion
@@ -590,7 +606,9 @@ function loadDB() {
       if (!DB.deletedIds.contacts)  DB.deletedIds.contacts  = [];
       if (!DB.deletedIds.jobs)      DB.deletedIds.jobs      = [];
     } else {
-      const prev = localStorage.getItem('tcssv7') || localStorage.getItem('tcssv6') || localStorage.getItem('tcssv5') || localStorage.getItem('tcssv4');
+      // WS-2: only migrate from the legacy prod keys when we ARE prod — otherwise a fresh staging
+      // store would wrongly import the prod browser's old data.
+      const prev = (_probidEnvKeySuffix()==='') ? (localStorage.getItem('tcssv7') || localStorage.getItem('tcssv6') || localStorage.getItem('tcssv5') || localStorage.getItem('tcssv4')) : null;
       if (prev) {
         try {
           const oldData = JSON.parse(prev);

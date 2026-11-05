@@ -792,8 +792,8 @@ async function signIn(email, password) {
     await loadCurrentUserProfile();
     hideAuthModal();
     showToast('Welcome back, ' + (_currentUser ? _currentUser.full_name.split(' ')[0] : '') + '!', 'success');
-    if (localStorage.getItem('_skipNextPull') === '1') {
-      localStorage.removeItem('_skipNextPull');
+    if (localStorage.getItem(_envKey('_skipNextPull')) === '1') {
+      localStorage.removeItem(_envKey('_skipNextPull'));
       showToast('Import complete ✓', 'success', 3000);
     } else {
       syncAllFromCloud();
@@ -830,7 +830,7 @@ async function signIn(email, password) {
     // r25: if offline edits are pending from a prior session (set by saveDB while offline), push them
     // up once we're authed + online. Covers the reload-while-offline-then-online case the 'online'
     // event can't (it never fires if the tab reopens already online).
-    setTimeout(function(){ try { if (localStorage.getItem('probid_pendingPush')) _flushLocalChanges('load-pending'); } catch(e){} }, 5000);
+    setTimeout(function(){ try { if (localStorage.getItem(_envKey('probid_pendingPush'))) _flushLocalChanges('load-pending'); } catch(e){} }, 5000);
   }
   return result;
 }
@@ -4368,7 +4368,7 @@ function _flushLocalChanges(reason){
     if (typeof pushAllToCloud!=='function') return;
     console.log('[Sync] flushing local changes ('+(reason||'event')+')');
     pushAllToCloud();
-    try { localStorage.removeItem('probid_pendingPush'); } catch(e){}
+    try { localStorage.removeItem(_envKey('probid_pendingPush')); } catch(e){}
   } catch(e){ console.warn('[Sync] flush failed', e&&e.message); }
 }
 var _reconnectPushTimer = null;
