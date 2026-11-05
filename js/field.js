@@ -2077,6 +2077,12 @@ async function _pushTimeEntryToSupabase(entry) {
     if (r && r.error && r.error.code === '23503' && /user_id/.test(r.error.message||'')) {
       _teRow.user_id = null;
       r = await _sb.from('time_entries').upsert(_teRow, {onConflict:'id'}).select('id');
+      // r70: CONVERGE. r69 lands the row, but the bad id is still on the LOCAL entry, so every sweep
+      // re-attempts it (time_entries push-all) — the row lands each time but logs a harmless FK error
+      // forever. On a SUCCESSFUL retry, clear the bad id locally: _timeEntryToRow then resolves userId
+      // via `|| _currentUser.id` (a valid user) next sweep, so the push stops erroring. tech_name still
+      // carries identity. Guarded to a clean retry so a still-failing push keeps its id to retry later.
+      if (!(r && r.error)) { try { if (entry.userId) { entry.userId = null; if (typeof saveDB==='function') saveDB(); } } catch(e){} }
     }
     if (r && r.error) console.warn('[TimeEntry push]', r.error.message);
   } catch(e) { console.warn('[TimeEntry push]', e.message); }

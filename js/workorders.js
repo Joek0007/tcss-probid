@@ -3167,6 +3167,10 @@ async function _pushWOToCloud(wo) {
       _woPayload.created_by = _currentUser.id;
       var _woR2 = await _sb.from('work_orders').upsert(_woPayload);
       error = _woR2.error;
+      // r70: CONVERGE. On a successful retry, pin the valid id onto the LOCAL wo too, so the changed-only
+      // snapshot below records the pushed state and the WO never re-attempts the bad created_by. The
+      // original creator stays visible via created_by_name.
+      if (!error) { try { wo.createdBy = _currentUser.id; if (typeof saveDB==='function') saveDB(); } catch(e){} }
     }
     if(error){ console.warn('[WO Push]',error.message); return error; }
     // r37: mark this WO clean in the changed-only snapshot ONLY on a real persisted write. If the
