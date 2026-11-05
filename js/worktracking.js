@@ -7481,6 +7481,11 @@ function selectCustomer(id) {
   var stEl=document.getElementById('qq-state');    if(stEl&&!stEl.value) stEl.value=cust.state||'';
   var zipEl=document.getElementById('qq-zip');     if(zipEl&&!zipEl.value) zipEl.value=cust.zip||'';
   var ptEl=document.getElementById('qq-pt');       if(ptEl&&cust.defaultTerms) ptEl.value=cust.defaultTerms;
+  // r72: cascade the customer's default tax rate onto the quote on the PRIMARY customer-pick path
+  // (the autocomplete dropdown → selectCustomer). Tax-exempt wins (→ 0); else the customer's rate if
+  // set; else leave the company-default seed. The qq-tx field stays editable per quote.
+  var txEl=document.getElementById('qq-tx');
+  if(txEl){ if(cust.taxExempt) txEl.value='0'; else if(cust.defaultTaxRate!=null) txEl.value=cust.defaultTaxRate; }
   closeCustomerDropdown();
   // Fire office alert if scoped to quotes
   var isOffice = typeof _currentUser!=='undefined'&&_currentUser&&['owner','manager','back_office','estimator'].includes(_currentUser.role);
