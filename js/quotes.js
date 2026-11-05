@@ -3966,7 +3966,7 @@ function setCustSort(val) {
   if (sel) sel.value = val;
   renderCustomers();
 }
-function _custFieldIds() { return ['m-cname','m-caccount','m-cphone','m-cemail','m-cinvoicing-contact','m-cinvoicing-email','m-cparts-markup','m-cstreet','m-ccity','m-cstate','m-czip','m-cnotes','m-cid']; }
+function _custFieldIds() { return ['m-cname','m-caccount','m-cphone','m-cemail','m-cinvoicing-contact','m-cinvoicing-email','m-cparts-markup','m-ctax-rate','m-cstreet','m-ccity','m-cstate','m-czip','m-cnotes','m-cid']; }
 function _custAddress(c) {
   // Build combined address from split fields for backward compat (quotes display, Supabase, etc)
   var parts = [c.street, c.city && c.state ? c.city+', '+c.state : (c.city||c.state||''), c.zip].filter(Boolean);
@@ -4292,6 +4292,10 @@ function refreshQuoteCustomerFields(custId) {
   sv('qq-state', c.state || '');
   sv('qq-zip', c.zip || '');
   if (c.defaultTerms) sv('qq-pt', c.defaultTerms);
+  // r71: cascade the customer's default tax rate onto the quote. Tax-exempt wins (→ 0); else the
+  // customer's default rate if set; else leave the company-default seed. The qq-tx field stays editable.
+  (function(){ var _tx=document.getElementById('qq-tx'); if(!_tx) return;
+    if (c.taxExempt) _tx.value='0'; else if (c.defaultTaxRate!=null) _tx.value=c.defaultTaxRate; })();
   // If a contact is selected, re-apply it on TOP of the customer values — the contact's
   // name, title, phone, email and address take priority on a quote (same as selecting the
   // contact). This is what makes an edited contact's PHONE/EMAIL actually show on the quote;
@@ -4317,6 +4321,7 @@ function editCustomer(id) {
   sv('m-cnotes',c.notes); sv('m-cid',c.id); sv('m-caccount',c.accountNumber||'');
   var sel=document.getElementById('m-cterms'); if(sel) sel.value=c.defaultTerms||'Due on Receipt';
   var taxEl=document.getElementById(c.taxExempt?'m-ctax-exempt':'m-ctax-taxable'); if(taxEl) taxEl.checked=true;
+  var _txrEl=document.getElementById('m-ctax-rate'); if(_txrEl) _txrEl.value=(c.defaultTaxRate!=null?c.defaultTaxRate:'');
   var htEl=document.getElementById('m-c-hotnote-tech');   if(htEl) htEl.value=c.hotNoteTech||'';
   var hoEl=document.getElementById('m-c-hotnote-office'); if(hoEl) hoEl.value=c.hotNoteOffice||'';
   var scopes = c.officeAlertScope || {quotes:true,workorders:true,invoices:false,customers:false,dispatch:false};
@@ -4355,6 +4360,7 @@ function _buildCustomerData(id) {
     invoicingEmail:   gv('m-cinvoicing-email'),
     accountNumber:    gv('m-caccount'),
     partsMarkupPct:   (function(){ var v=gv('m-cparts-markup'); return (v!=='' && !isNaN(parseFloat(v))) ? parseFloat(v) : null; })(),
+    defaultTaxRate:   (function(){ var v=gv('m-ctax-rate'); return (v!=='' && !isNaN(parseFloat(v))) ? parseFloat(v) : null; })(),
     officeAlertScope: {
       quotes:      !!((document.getElementById('m-calert-quotes')||{}).checked),
       workorders:  !!((document.getElementById('m-calert-workorders')||{}).checked),
@@ -4715,7 +4721,10 @@ function newQuoteForContact(contactId) {
       var ptEl2 = document.getElementById('qq-pt');
       if (ptEl2 && cust.defaultTerms) { refreshAllPaymentTermsDropdowns && refreshAllPaymentTermsDropdowns(); ptEl2.value = cust.defaultTerms; }
       var txEl2 = document.getElementById('qq-tx');
-      if (txEl2 && cust.taxExempt) txEl2.value = '0';
+      if (txEl2) {
+        if (cust.taxExempt) txEl2.value = '0';
+        else if (cust.defaultTaxRate != null) txEl2.value = cust.defaultTaxRate;  // r71 customer default tax
+      }
     }
     // Do NOT dispatch input events — that triggers draft save which can wipe quote data
   }, 300);

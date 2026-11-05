@@ -1451,7 +1451,7 @@ async function syncAllFromCloud(silent) {
         var cCloudComplete = custs.length > 0;
         var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)) && delC.indexOf(String(c.id)) < 0 && !(c._synced && cCloudComplete); });
         var cloudCusts = custs.map(function(c) {
-          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, partsMarkupPct:(c.parts_markup_pct!=null?c.parts_markup_pct:null), moduleAlerts:c.module_alerts||null, accountNumber:(c.account_number!=null?c.account_number:null), notes:c.notes, active:c.is_active, createdAt:c.created_at, updatedAt:c.updated_at };
+          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, defaultTaxRate:(c.default_tax_rate!=null?c.default_tax_rate:null), hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, partsMarkupPct:(c.parts_markup_pct!=null?c.parts_markup_pct:null), moduleAlerts:c.module_alerts||null, accountNumber:(c.account_number!=null?c.account_number:null), notes:c.notes, active:c.is_active, createdAt:c.created_at, updatedAt:c.updated_at };
         });
         cloudCusts.forEach(function(cc){ cc._synced = true; _officeMarkSynced('customers', cc); }); // r32 content snapshot
         DB.customers = _lwwMerge(cloudCusts, DB.customers, localOnlyCusts);  // r26: LWW (keep newer local edits)
@@ -2255,6 +2255,7 @@ async function _pushCustomerToCloud(c) { if (_writesBlocked()) return;
       zip: c.zip || null,
       ...(('defaultTerms' in c) ? { default_terms: c.defaultTerms || 'Due on Receipt' } : {}), /* stale client must not clobber a custom term with the default */
       ...(('taxExempt' in c) ? { tax_exempt: !!c.taxExempt } : {}), /* stale client must not silently un-exempt */
+      ...(('defaultTaxRate' in c) ? { default_tax_rate: (c.defaultTaxRate!=null && c.defaultTaxRate!=='') ? c.defaultTaxRate : null } : {}), /* r71 per-customer default tax; same stale-client guard */
       hot_note_tech: c.hotNoteTech || null,
       hot_note_office: c.hotNoteOffice || null,
       ...((c.accountNumber!=null && c.accountNumber!=='') ? { account_number: String(c.accountNumber) } : {}), /* account# is permanent: only ever SET from client, never null-out — a stale client lacking the field must not wipe the cloud value. DB trigger trg_protect_account_number is the hard backstop. */
@@ -3363,6 +3364,7 @@ async function pushAllToCloud() {
           zip: c.zip || null,
           ...(('defaultTerms' in c) ? { default_terms: c.defaultTerms || 'Due on Receipt' } : {}),
           ...(('taxExempt' in c) ? { tax_exempt: !!c.taxExempt } : {}),
+          ...(('defaultTaxRate' in c) ? { default_tax_rate: (c.defaultTaxRate!=null && c.defaultTaxRate!=='') ? c.defaultTaxRate : null } : {}), /* r71 */
           hot_note_tech:   c.hotNoteTech || null,
           hot_note_office: c.hotNoteOffice || null,
       ...((c.accountNumber!=null && c.accountNumber!=='') ? { account_number: String(c.accountNumber) } : {}), /* account# is permanent: only ever SET from client, never null-out — a stale client lacking the field must not wipe the cloud value. DB trigger trg_protect_account_number is the hard backstop. */
