@@ -29,5 +29,10 @@ echo "── work notes (tech owns own-day note; office edits any; every change 
 echo "── day lock (soft lock=time.correct; processed=sealed; reopen needs payroll.unlock; all audited) ──"; node tests/day_lock.test.js
 echo "── clock day split (overnight splits at midnight; forgot-clock-out capped at 24h+flagged; sums exact) ──"; node tests/clock_day_split.test.js
 echo "── WO status workflow (field=mobile statuses; closed=locked; auto NEW→In-Progress only from NEW) ──"; node tests/wo_status_workflow.test.js
+echo "── WS-1 status gate (every ghost literal → a configured id; unknown untouched; setWOStatus audits+pushes) ──"; node tests/wo_status_gate.test.js
+echo "── WS-2 env storage isolation (prod keeps tcssv8; staging gets its own store; prod key always wins) ──"; node tests/env_storage_isolation.test.js
+echo "── WS-3a child changed-only (pulled===local hash; unchanged skip; edit pushes; payroll too) ──"; node tests/wo_children_changedpush.test.js
+echo "── WS-3b WO-child windowing (pulls bounded; on-demand loader seeds snapshot; no re-push churn) ──"; node tests/wo_child_windowing.test.js
+echo "── ★ HARDENING PROOF SUITE: red-then-green reproductions of every hardened failure (clobber/leak/payroll/status/windowing) ──"; node tests/hardening_proof.test.js
 echo "── ★ PILOT SMOKE: office↔field WO lifecycle end-to-end (create→assign→tech-sees→clock-in auto-status→field→office pricing/invoicing→closed locks+drops; two-device convergence at every hand-off) ──"; node tests/wo_lifecycle_smoke.test.js
 echo "✅ all tests passed"
