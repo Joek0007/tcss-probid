@@ -352,7 +352,9 @@ function _woHash(wo){
 var _officeSnap = { quotes:{}, customers:{}, contacts:{}, work_orders:{}, invoices:{},
   // r75 (WS-3a): WO children join the changed-only model so a long-open/stale tab's sweep can't
   // re-push an unchanged child over a newer cross-device edit (the push-all clobber r41 flagged).
-  wo_parts:{}, wo_labor:{}, wo_expenses:{}, wo_checklist:{} };   // in-memory: { table: { id: contentHash } }
+  wo_parts:{}, wo_labor:{}, wo_expenses:{}, wo_checklist:{},
+  // r76 (WS-3a-ii): payroll tables join the changed-only model too.
+  time_entries:{}, app_work_days:{} };   // in-memory: { table: { id: contentHash } }
 // r75: per-child content hash over ONLY the round-tripping (pull-shape) keys, falsy→'' collapsed —
 // same discipline as _woHash — so a cloud-pulled row and the same row after a local save hash
 // IDENTICALLY (null/undefined/'' all collapse), and only a real content change flips the hash.
@@ -361,7 +363,14 @@ var _CHILD_HASH_KEYS = {
   wo_parts:    ['woId','name','partNum','qty','unit','unitCost','status','notes','requestedBy','itemId','source','fromLocation'],
   wo_labor:    ['woId','techName','entryType','clockIn','clockOut','hours','notes'],
   wo_expenses: ['woId','category','description','amount','paymentType','date','loggedBy','receiptUrl','receiptDocId'],
-  wo_checklist:['woId','item','completed','completedBy','completedAt']
+  wo_checklist:['woId','item','completed','completedBy','completedAt'],
+  // r76: payroll. Hash the substantive, round-tripping fields only — NOT the volatile audit blobs
+  // (auditTrail / corrections / events / noteAudit / lockAudit) or edit-stamp metadata
+  // (lastEditedAt/By, addedAt). A real change always flips a substantive field or a flag that IS
+  // hashed (deleted, isApproved, corrected, dayLocked, …), so excluding the blobs avoids a
+  // permanent-dirty trap that would churn-re-push payroll rows every sweep.
+  time_entries:['techName','date','entryType','startTime','endTime','totalHours','totalMins','isPaid','woId','jobId','woLabel','notes','gpsReason','isManual','userId','teamMemberId','clockIn','clockOut','breakMinutes','gpsLat','gpsLng','isApproved','approvedBy','deleted','deletedBy','deletedAt'],
+  app_work_days:['techName','techId','date','totalPaidMins','onsiteMins','travelMins','breakMins','lunchMins','officeMins','ptoMins','vacationMins','holidayMins','jobName','jobId','dayType','approved','approvedBy','lunchFlagged','hasManualEntries','autoStopped','corrected','workNote','noteLocked','dayLocked','payrollUnlocked']
 };
 function _childHash(table, row){
   var keys = _CHILD_HASH_KEYS[table]; if (!keys || !row) return '';
@@ -738,7 +747,7 @@ async function fetchTimeEntriesCloud(opts){
     var r = await q;
     if (r.error) return { data: [], error: r.error };
     var del = (DB.deletedIds && DB.deletedIds.timeEntries) || [];
-    var rows = (r.data||[]).filter(function(x){ return del.indexOf(String(x.id))<0; }).map(function(x){ var m=_mapTimeRow(x); m._synced=true; return m; });
+    var rows = (r.data||[]).filter(function(x){ return del.indexOf(String(x.id))<0; }).map(function(x){ var m=_mapTimeRow(x); m._synced=true; if (typeof _officeMarkSynced==='function') _officeMarkSynced('time_entries', m); return m; });  // r76: seed so on-demand settled rows aren't re-pushed
     return { data: rows, error: null };
   } catch(e){ return { data: [], error: e.message||e }; }
 }
@@ -1611,7 +1620,9 @@ async function syncAllFromCloud(silent) {
         // keep only genuinely local-only (never pushed) entries; a synced entry outside the
         // working set lives in the cloud and is dropped from memory (fetched on demand).
         var localOnlyTime = (DB.timeEntries||[]).filter(function(t){ return t.id && !cloudTimeIds.has(String(t.id)) && t._synced !== true; });
-        DB.timeEntries = timeRows.map(function(t){ var m=_mapTimeRow(t); m._synced=true; if (delTime.indexOf(String(t.id))>=0) m.deleted=true; return m; }).concat(localOnlyTime);
+        var _mappedTime = timeRows.map(function(t){ var m=_mapTimeRow(t); m._synced=true; if (delTime.indexOf(String(t.id))>=0) m.deleted=true; return m; });
+        _mappedTime.forEach(function(m){ if(m&&m.id) _officeMarkSynced('time_entries', m); });  // r76: seed changed-only baseline
+        DB.timeEntries = _mappedTime.concat(localOnlyTime);
       }
     } catch(e) { errors.push('time_entries: '+e.message); }
 
@@ -1625,7 +1636,7 @@ async function syncAllFromCloud(silent) {
       else if (wdRows) {
         var cloudWdIds = new Set(wdRows.map(function(w){ return String(w.id); }));
         var localOnlyWd = (DB.workDays||[]).filter(function(w){ return w.id && !cloudWdIds.has(String(w.id)); });
-        DB.workDays = wdRows.map(function(w){
+        var _mappedWd = wdRows.map(function(w){
           return {
             id: w.id, techName: w.tech_name||null, techId: w.tech_id||null, date: w.work_date||null,
             totalPaidMins: w.total_paid_mins, onsiteMins: w.onsite_mins, travelMins: w.travel_mins,
@@ -1642,7 +1653,9 @@ async function syncAllFromCloud(silent) {
             // r48: day lock + processed-reopen + lock audit.
             dayLocked: !!w.day_locked, payrollUnlocked: !!w.payroll_unlocked, lockAudit: w.lock_audit||null
           };
-        }).concat(localOnlyWd);
+        });
+        _mappedWd.forEach(function(m){ if(m&&m.id) _officeMarkSynced('app_work_days', m); });  // r76: seed changed-only baseline
+        DB.workDays = _mappedWd.concat(localOnlyWd);
       }
     } catch(e) { errors.push('app_work_days: '+e.message); }
 
@@ -3543,11 +3556,14 @@ async function pushAllToCloud() {
     // push, so both write the identical full column set including the deleted flag.
     for (var te of (DB.timeEntries || [])) {
       if (!te || !te.id) continue;
+      if (!_officeSnapReady) continue;                   // r76: no payroll push before first pull rebuilt the snapshot
+      if (!_officeDirty('time_entries', te)) continue;   // r76: unchanged since last sync → skip (prevents stale clobber of payroll)
       try {
         var teRow = (typeof _timeEntryToRow === 'function') ? _timeEntryToRow(te) : null;
         if (!teRow) continue;
         var { error: teErr } = await _sb.from('time_entries').upsert(teRow, {onConflict:'id'});
         if (teErr) { console.warn('[Push] Time entry error:', teErr.message); _pushErrors.push('time entry '+(te.id)+': '+teErr.message); }
+        else if (typeof _writesBlocked!=='function' || !_writesBlocked()) { te._synced = true; _officeMarkSynced('time_entries', te); }  // r76
       } catch(teCatch) { console.warn('[Push] Time entry error:', teCatch.message||teCatch); }
     }
 
@@ -3556,11 +3572,14 @@ async function pushAllToCloud() {
     // workDays has no delete path, so no tombstones — pure upsert.
     for (var wd of (DB.workDays || [])) {
       if (!wd || !wd.id) continue;
+      if (!_officeSnapReady) continue;                      // r76
+      if (!_officeDirty('app_work_days', wd)) continue;     // r76: unchanged → skip
       try {
         var wdRow = (typeof _workDayToRow === 'function') ? _workDayToRow(wd) : null;
         if (!wdRow) continue;
         var { error: wdErr } = await _sb.from('app_work_days').upsert(wdRow, {onConflict:'id'});
         if (wdErr) { console.warn('[Push] Work day error:', wdErr.message); _pushErrors.push('work day '+(wd.id)+': '+wdErr.message); }
+        else if (typeof _writesBlocked!=='function' || !_writesBlocked()) { _officeMarkSynced('app_work_days', wd); }  // r76
       } catch(wdCatch) { console.warn('[Push] Work day error:', wdCatch.message||wdCatch); }
     }
 

@@ -11,7 +11,7 @@ const src = fs.readFileSync(__dirname + '/../js/auth.js', 'utf8');
 function fn(name){ var s=src.indexOf('function '+name+'('); if(s<0){console.log('✗ missing '+name);process.exit(1);} var e=src.indexOf('\nfunction ', s+10); return src.slice(s, e<0?undefined:e); }
 function objBlock(name){ var s=src.indexOf('var '+name+' = {'); if(s<0){console.log('✗ missing '+name);process.exit(1);} var e=src.indexOf('\n};', s); return src.slice(s, e+3); }
 
-global._officeSnap = { quotes:{}, customers:{}, contacts:{}, work_orders:{}, invoices:{}, wo_parts:{}, wo_labor:{}, wo_expenses:{}, wo_checklist:{} };
+global._officeSnap = { quotes:{}, customers:{}, contacts:{}, work_orders:{}, invoices:{}, wo_parts:{}, wo_labor:{}, wo_expenses:{}, wo_checklist:{}, time_entries:{}, app_work_days:{} };
 global._woHash = function(){ return 'WO'; };           // stub — child tests never hit the work_orders branch
 eval(fn('_recHash'));
 eval(objBlock('_CHILD_HASH_KEYS'));
@@ -63,6 +63,27 @@ ok('expense pull-shape === local-shape', _childHash('wo_expenses', pulledExp), _
 _officeMarkSynced('wo_expenses', pulledExp);
 ok('expense unchanged → not dirty', _officeDirty('wo_expenses', localExp), false);
 ok('expense amount edit → dirty', _officeDirty('wo_expenses', Object.assign({}, localExp, {amount:45})), true);
+
+console.log('\n7. WS-3a-ii payroll tables (time_entries, app_work_days):');
+// time_entries: pull-shape vs local-edit-shape hash identically; substantive edit dirties; audit-blob-only does NOT (documented tradeoff — avoids churning 19k payroll rows).
+var pulledTE = { id:'te-1', techName:'Lisa', date:'2026-11-05', entryType:'regular', startTime:'08:00', endTime:'16:00', totalHours:8, totalMins:480, isPaid:false, woId:'wo-9', jobId:null, woLabel:null, notes:null, gpsReason:null, isManual:false, userId:null, teamMemberId:null, clockIn:null, clockOut:null, breakMinutes:0, gpsLat:null, gpsLng:null, isApproved:false, approvedBy:null, deleted:false, deletedBy:null, deletedAt:null, auditTrail:[{a:1}], lastEditedAt:'t1', createdAt:'c', _synced:true };
+var localTE  = { id:'te-1', techName:'Lisa', date:'2026-11-05', entryType:'regular', startTime:'08:00', endTime:'16:00', totalHours:8, totalMins:480, woId:'wo-9', isManual:false, isApproved:false, breakMinutes:0, createdAt:'c' };
+ok('time_entry pull-shape === local-shape', _childHash('time_entries', pulledTE), _childHash('time_entries', localTE));
+_officeMarkSynced('time_entries', pulledTE);
+ok('time_entry unchanged → not dirty', _officeDirty('time_entries', localTE), false);
+ok('time_entry hours edit → dirty', _officeDirty('time_entries', Object.assign({}, localTE, {totalHours:9, totalMins:540})), true);
+ok('time_entry approval → dirty', _officeDirty('time_entries', Object.assign({}, localTE, {isApproved:true})), true);
+ok('time_entry soft-delete → dirty', _officeDirty('time_entries', Object.assign({}, localTE, {deleted:true})), true);
+ok('time_entry audit-blob-only change → NOT dirty (no churn)', _officeDirty('time_entries', Object.assign({}, localTE, {auditTrail:[{a:1},{b:2}], lastEditedAt:'t2'})), false);
+
+var pulledWD = { id:'wd-1', techName:'Lisa', techId:'tm-3', date:'2026-11-05', totalPaidMins:480, onsiteMins:400, travelMins:60, breakMins:0, lunchMins:30, officeMins:20, ptoMins:0, vacationMins:0, holidayMins:0, jobName:'Acme', jobId:'wo-9', dayType:'work', approved:false, approvedBy:null, lunchFlagged:false, hasManualEntries:false, autoStopped:false, corrected:false, workNote:'', noteLocked:false, dayLocked:false, payrollUnlocked:false, corrections:null, events:[{e:1}], lockAudit:null };
+var localWD  = { id:'wd-1', techName:'Lisa', techId:'tm-3', date:'2026-11-05', totalPaidMins:480, onsiteMins:400, travelMins:60, lunchMins:30, officeMins:20, jobName:'Acme', jobId:'wo-9', dayType:'work' };
+ok('work_day pull-shape === local-shape', _childHash('app_work_days', pulledWD), _childHash('app_work_days', localWD));
+_officeMarkSynced('app_work_days', pulledWD);
+ok('work_day unchanged → not dirty', _officeDirty('app_work_days', localWD), false);
+ok('work_day minutes correction → dirty', _officeDirty('app_work_days', Object.assign({}, localWD, {totalPaidMins:500})), true);
+ok('work_day lock → dirty', _officeDirty('app_work_days', Object.assign({}, localWD, {dayLocked:true})), true);
+ok('work_day corrected flag → dirty', _officeDirty('app_work_days', Object.assign({}, localWD, {corrected:true})), true);
 
 console.log('\n'+(fail===0?('ALL '+pass+' PASSED'):(fail+' FAILED, '+pass+' passed')));
 process.exit(fail===0?0:1);
