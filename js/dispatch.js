@@ -99,7 +99,10 @@ function _saveJobToWO(job) {
   // Sync schedule
   if (job.scheduledDate) wo.scheduledDate = job.scheduledDate;
   if (job.scheduledTime) wo.scheduledTime = job.scheduledTime;
-  if (job.status) wo.status = job.status;
+  // WS-1: route status through the gate so a dispatch-board word (Scheduled/In Progress/On Hold/…)
+  // only ever lands on the WO as a configured status id. We do our own combined cloud update below,
+  // so no save/push here. Reflect the normalized value back onto the job view for the render.
+  if (job.status) { job.status = setWOStatus(wo, job.status, {noSave:true, noPush:true}); }
   if (job.scheduledDuration != null) wo.scheduledDuration = job.scheduledDuration;  // persist timeline duration (WO-backed jobs)
   saveDB();
   // Push to Supabase
@@ -288,10 +291,10 @@ function dispatchResetWO(e) {
   }
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
   if (!wo) return;
-  wo.status='New'; wo.scheduledDate=''; wo.scheduledTime=''; wo.assignedTechs=[];
+  setWOStatus(wo, 'New', {noSave:true, noPush:true}); wo.scheduledDate=''; wo.scheduledTime=''; wo.assignedTechs=[];
   saveDB();
   if (typeof _sb!=='undefined' && _sb) {
-    _sb.from('work_orders').update({status:'New',scheduled_date:null,scheduled_time:null,assigned_techs:[]}).eq('id',wo.id).then(function(){});
+    _sb.from('work_orders').update({status:wo.status,scheduled_date:null,scheduled_time:null,assigned_techs:[]}).eq('id',wo.id).then(function(){});
   }
   showToast('WO reset to New — moved to Unscheduled','success',3000);
   renderDispatchBoard();
@@ -911,8 +914,10 @@ function openDispatchDetail(jobId) {
     '<div style="border-top:1px solid #f0f0f0;padding-top:12px;margin-bottom:14px">'+
       '<div style="font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">QUICK STATUS</div>'+
       '<div style="display:flex;gap:4px;flex-wrap:wrap">'+
-        ['Scheduled','In Progress','Paused','On Hold','Complete'].map(function(s){
-          var active=(job.status||'Scheduled')===s;
+        ['Scheduled','In Progress','On Hold','Complete'].map(function(s){
+          var active=(typeof _normalizeWOStatusId==='function')
+            ? _normalizeWOStatusId(job.status||'Scheduled')===_normalizeWOStatusId(s)
+            : (job.status||'Scheduled')===s;
           var selSty='background:#1565c0;color:#fff;border-color:#1565c0;font-weight:800;box-shadow:0 2px 8px rgba(21,101,192,.45)';
           var offSty='background:#fff;color:#90a4ae;border-color:#cfd8dc;font-weight:600';
           return '<button class="btn btn-sm" style="font-size:10px;'+(active?selSty:offSty)+'" onclick="dispatchSetStatus(\''+jobId+'\',\''+s+'\')">'+(active?'\u2713 ':'')+escHtml(s)+'</button>';
@@ -2026,6 +2031,7 @@ function renderMsWOStatuses() {
   var el = document.getElementById('ms-wo-statuses-section');
   if (!el) return;
   if (typeof _ensureWOHandoffSeed === 'function') _ensureWOHandoffSeed();   // r67: seed hand-off flag
+  if (typeof _ensureWOStatusSeedExtras === 'function') _ensureWOStatusSeedExtras();   // r73: seed Scheduled + On Hold
   var settings = DB.woSettings || {};
   var statuses = settings.statuses && settings.statuses.length ? settings.statuses : WO_STATUSES;
 

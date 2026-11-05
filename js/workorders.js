@@ -5,9 +5,12 @@
 // ---- CONSTANTS ----
 var WO_STATUSES = [
   {id:'NEW',                                         color:'#ddd8d8',open:true, mobile:true },
+  {id:'Scheduled',                                   color:'#2196f3',open:true, mobile:true },
   {id:'OPEN',                                        color:'#4a86e8',open:true, mobile:true },
+  {id:'Open- "In Progress"',                         color:'#4a86e8',open:true, mobile:true },
   {id:'Open -- Waiting on Customer',                 color:'#928b8b',open:true, mobile:true },
   {id:'Open -- Action Needed',                       color:'#ffff00',open:true, mobile:true },
+  {id:'On Hold',                                     color:'#ff9800',open:true, mobile:true },
   {id:'Open -- QUOTE NEEDED',                        color:'#980000',open:true, mobile:false},
   {id:'Open -- Part(s) Needed',                      color:'#f9d1ee',open:true, mobile:true },
   {id:'Open -- Part(s) Ordered',                     color:'#e57ec8',open:true, mobile:false},
@@ -85,6 +88,7 @@ function _getActiveWOsAsJobs() {
 function _getMyWOsAsJobs(techName) {
   var name = (techName||'').toLowerCase().trim();
   _ensureWOHandoffSeed();
+  if (typeof _ensureWOStatusSeedExtras === 'function') _ensureWOStatusSeedExtras();
   return (DB.workOrders||[])
     .filter(function(w){
       // r14: authoritative open check (was w.status==='Billed'||'Void', which missed Invoiced/No Charge/etc.)
@@ -133,6 +137,93 @@ function _getWOStatusDef(statusId) {
   if (found) return found;
   if (_ACTIVE_UNLISTED_RE.test(String(statusId).trim())) return {color:'#1565c0',open:true};
   return {color:'#e0e0e0',open:false};
+}
+
+// ============================================================
+// WS-1 (r73) — ONE status system. Every write to wo.status goes through setWOStatus(),
+// which only ever stores a CONFIGURED status id. The legacy "jobs" Title-Case vocabulary
+// (Scheduled/In Progress/On Hold/Paused/Complete/Closed/Invoiced/Parts Needed + New/Open case
+// variants) that ~15 call sites used to write straight onto the work order is mapped here to its
+// configured equivalent, so an off-list status can never be minted again. Scheduled + On Hold are
+// now REAL configured statuses (Joe approved 2026-11-05), so they resolve to themselves.
+// The _ACTIVE_UNLISTED_RE band-aid stays as a transition backstop: until every device is on r73+,
+// an old client can still write a ghost literal, and the backstop keeps such a WO visible (open)
+// instead of hidden-as-closed. It becomes inert once the fleet is updated + data is normalized.
+var _WO_STATUS_ALIASES = {
+  'new':'NEW',
+  'open':'Open- "In Progress"',
+  'in progress':'Open- "In Progress"',
+  'in-progress':'Open- "In Progress"',
+  'scheduled':'Scheduled',
+  'paused':'On Hold',
+  'on hold':'On Hold',
+  'on-hold':'On Hold',
+  'parts needed':'Open -- Part(s) Needed',
+  'part(s) needed':'Open -- Part(s) Needed',
+  'complete':'Open -- Ready For Office-Review',
+  'completed':'Open -- Ready For Office-Review',
+  'invoiced':'Invoice Sent (By E-MAIL)',
+  'closed':'BILLED'
+};
+// Resolve any raw status string to a canonical configured id. Configured match (exact or
+// case-insensitive) wins first; then the alias map; unknown values are left untouched (the display
+// backstop handles them) — we never invent a status that isn't configured.
+function _normalizeWOStatusId(raw){
+  if (raw == null || raw === '') return raw;
+  var list = _getWOStatuses();
+  var hit = list.find(function(s){ return s.id===raw || (s.id||'').toLowerCase()===String(raw).toLowerCase(); });
+  if (hit) return hit.id;
+  var alias = _WO_STATUS_ALIASES[String(raw).trim().toLowerCase()];
+  if (alias) {
+    var h2 = list.find(function(s){ return s.id===alias || (s.id||'').toLowerCase()===alias.toLowerCase(); });
+    return h2 ? h2.id : alias;
+  }
+  return raw;
+}
+// THE chokepoint. Normalizes, assigns, audits, and (by default) saves + pushes. Callers that do
+// their own combined cloud write (e.g. _saveJobToWO, createInvoiceFromWO) pass {noSave:true,noPush:true}
+// and push the normalized wo.status themselves.
+function setWOStatus(wo, raw, opts){
+  opts = opts || {};
+  if (!wo) return null;
+  var id   = _normalizeWOStatusId(raw);
+  var prev = wo.status;
+  wo.status = id;
+  if (prev !== id && typeof auditWOStatus === 'function') {
+    try { auditWOStatus(wo.id, wo.woNumber || '', prev, id); } catch(e){}
+  }
+  if (!opts.noSave && typeof saveDB === 'function') { try { saveDB(); } catch(e){} }
+  if (!opts.noPush && typeof _pushWOToCloud === 'function') { try { _pushWOToCloud(wo); } catch(e){} }
+  return id;
+}
+// One-time seed so existing installs gain the two new configured statuses (Scheduled, On Hold) if
+// their saved list predates r73. Idempotent (skips by id) and syncs via woSettings; the cloud copy
+// is also updated directly at deploy so the whole fleet gets them immediately.
+function _ensureWOStatusSeedExtras(){
+  if (!DB.woSettings) return;
+  var list = DB.woSettings.statuses;
+  if (!Array.isArray(list) || !list.length) return;   // settings not loaded yet — retry later
+  if (DB.woSettings._ws1StatusSeeded) return;
+  function has(id){ return list.some(function(s){ return s && (s.id===id || (s.id||'').toLowerCase()===id.toLowerCase()); }); }
+  function idx(re){ for (var i=0;i<list.length;i++){ if (list[i] && re.test(list[i].id||'')) return i; } return -1; }
+  var changed = false;
+  if (!has('Scheduled')) {
+    var ni = idx(/^new$/i);
+    var sched = {id:'Scheduled', color:'#2196f3', open:true, mobile:true};
+    if (ni >= 0) list.splice(ni+1, 0, sched); else list.unshift(sched);
+    changed = true;
+  }
+  if (!has('On Hold')) {
+    var ai = idx(/action\s*needed/i);
+    var hold = {id:'On Hold', color:'#ff9800', open:true, mobile:true};
+    if (ai >= 0) list.splice(ai+1, 0, hold); else list.push(hold);
+    changed = true;
+  }
+  DB.woSettings._ws1StatusSeeded = true;
+  if (changed) {
+    try { if (typeof saveDB==='function') saveDB(); } catch(e){}
+    try { if (typeof _settingsMergePush==='function') _settingsMergePush(); } catch(e){}
+  }
 }
 
 // ============================================================
@@ -310,6 +401,7 @@ function _woContactPhone(wo){
 function renderWorkOrders() {
   if (!DB.workOrders) DB.workOrders = [];
   _ensureWOHandoffSeed();   // r67: seed the hand-off flag on first run for pre-existing installs
+  if (typeof _ensureWOStatusSeedExtras === 'function') _ensureWOStatusSeedExtras();   // r73: seed Scheduled + On Hold
 
   // Build status dropdown from WO_STATUSES so values always match
   var statusSel = document.getElementById('wo-filter-status');
@@ -1121,7 +1213,7 @@ async function saveWorkOrder() {
     return el.value.trim(); 
   }
 
-  var status   = gv('wo-status') || 'New';
+  var status   = _normalizeWOStatusId(gv('wo-status') || 'NEW');
   // Auto-advance to Scheduled only if status is New and a scheduled date is set
   var _newSchedDate = gv('wo-scheduled-date');
   if (_newSchedDate && status.toLowerCase() === 'new') {
@@ -2362,7 +2454,7 @@ function addWOLaborEntry() {
   var newLabor = { id:'wol-'+Date.now(), woId:woId, techName:techName.trim(), entryType:'work', hours:hours, notes:notes, clockIn:new Date().toISOString(), createdAt:new Date().toISOString() };
   DB.woLabor.push(newLabor);
   var woRec=(DB.workOrders||[]).find(function(w){return w.id===woId;});
-  if (woRec&&woRec.status==='New'){woRec.status='Open';var sel=document.getElementById('wo-status');if(sel)sel.value='Open';}
+  if (woRec&&String(woRec.status||'').toLowerCase()==='new'){setWOStatus(woRec,'Open- "In Progress"',{noPush:true});var sel=document.getElementById('wo-status');if(sel)sel.value=woRec.status;}
   autoPromoteWOStatus(woId);
   saveDB();
   // Push to Supabase so hours persist across reloads
@@ -2427,7 +2519,7 @@ function woStopTimer() {
   });
   // Auto-set status to Open
   var wo=(DB.workOrders||[]).find(function(w){return w.id===_woCurrentId;});
-  if(wo&&wo.status==='New'){wo.status='Open';var sel=document.getElementById('wo-status');if(sel)sel.value='Open';}
+  if(wo&&String(wo.status||'').toLowerCase()==='new'){setWOStatus(wo,'Open- "In Progress"',{noPush:true});var sel=document.getElementById('wo-status');if(sel)sel.value=wo.status;}
   var disp=document.getElementById('wo-timer-display'); if(disp) disp.textContent='';
   var workBtn=document.getElementById('wo-timer-work-btn'); if(workBtn) workBtn.textContent='▶ Work Timer';
   var travBtn=document.getElementById('wo-timer-travel-btn'); if(travBtn) travBtn.textContent='🚗 Travel Timer';
@@ -2773,9 +2865,9 @@ function addWOPart() {
   var _newPart={ id:'wop-'+Date.now(), woId:woId, name:name.trim(), qty:parseFloat((document.getElementById('wop-qty')||{}).value)||1, unitCost:parseFloat((document.getElementById('wop-cost')||{}).value)||0, notes:(document.getElementById('wop-notes')||{}).value||'', status:'requested', requestedBy:(_currentUser&&_currentUser.full_name)||'Unknown', createdAt:new Date().toISOString() };
   DB.woParts.push(_newPart);
   if (typeof _pushWOPartToCloud === 'function') _pushWOPartToCloud(_newPart);
-  // Auto-update WO status to Parts Needed
+  // Auto-update WO status to Part(s) Needed (only from an early open state)
   var wo=(DB.workOrders||[]).find(function(w){return w.id===woId;});
-  if(wo&&(wo.status==='New'||wo.status==='Open')){wo.status='Parts Needed';var sel=document.getElementById('wo-status');if(sel)sel.value='Parts Needed';}
+  if(wo){var _lc=String(wo.status||'').toLowerCase(); if(_lc==='new'||_lc==='open'||_lc.indexOf('in progress')>=0||_lc.indexOf('in-progress')>=0){setWOStatus(wo,'Open -- Part(s) Needed',{noPush:true});var sel=document.getElementById('wo-status');if(sel)sel.value=wo.status;}}
   saveDB(); switchWOTab('parts');
   showToast('Part requested','success');
 }
@@ -3037,12 +3129,12 @@ async function createWOInvoice() {
   DB.invoices.push(inv);
   // Mark the WO Invoiced + link the invoice. Persist with an AWAITED targeted cloud write so a
   // concurrent pull can't clobber the status back to NEW (the old un-awaited push lost it).
-  wo.status='Invoiced';
+  setWOStatus(wo, 'Invoiced', {noSave:true, noPush:true});   // → configured 'Invoice Sent (By E-MAIL)'
   wo.invoiceId=inv.id;
   wo.invoiceNum=inv.num;
   if (typeof _pushInvoiceToCloud === 'function') { try { await _pushInvoiceToCloud(inv); } catch(e){} }
   if (typeof _sb!=='undefined' && _sb) {
-    try { await _sb.from('work_orders').update({ status:'Invoiced', invoice_id:inv.id, updated_at:new Date().toISOString() }).eq('id', wo.id); } catch(e){}
+    try { await _sb.from('work_orders').update({ status:wo.status, invoice_id:inv.id, updated_at:new Date().toISOString() }).eq('id', wo.id); } catch(e){}
   }
   if (typeof _pushWOToCloud === 'function') { try { _pushWOToCloud(wo); } catch(e){} }
   saveDB(); renderWorkOrders();

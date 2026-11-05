@@ -8008,7 +8008,17 @@ function saveCloseout() {
   // Save to job record
   job.closeout          = closeoutData;
   job.actualLaborHours  = actHrs;
-  if (job.status==='In Progress') job.status = 'Complete'; // auto-advance status
+  // Auto-advance: tech finished → hand off to office review. WS-1: persist through the gate for
+  // WO-backed jobs (configured status id); a plain local job keeps the legacy jobs vocabulary.
+  var _coLc = String(job.status||'').toLowerCase();
+  if (_coLc==='in progress' || _coLc.indexOf('in progress')>=0 || _coLc==='open') {
+    if (job._isWO && typeof setWOStatus==='function') {
+      var _coWO=(DB.workOrders||[]).find(function(w){return w.id===job.id;});
+      if (_coWO) { setWOStatus(_coWO,'Complete'); job.status=_coWO.status; }
+    } else {
+      job.status = 'Complete';
+    }
+  }
 
   saveDB();
   closeModal('modal-closeout');
@@ -8977,7 +8987,12 @@ document.addEventListener('change', function(e) {
   if (e.target.classList.contains('job-status-select')) {
     const jid = e.target.getAttribute('data-jobid');
     const job = typeof _findJobOrWO==="function"?_findJobOrWO(jid):(DB.jobs||[]).find(function(j){return j.id==jid;});
-    if (job) { job.status = e.target.value; saveDB(); renderJobs(); renderDash(); }
+    if (job) {
+      job.status = e.target.value;
+      // WS-1: WO-backed job → persist through the gate (_saveJobToWO normalizes + pushes).
+      if (job._isWO && typeof _saveJobToWO==='function') { _saveJobToWO(job); }
+      saveDB(); renderJobs(); renderDash();
+    }
   }
   // V6: job filter
   if (e.target.id === 'job-filter-status') renderJobs();
@@ -9047,9 +9062,9 @@ function renderJobs() {
   function setS(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
   var _allJobs = typeof _getActiveWOsAsJobs==="function" ? _getActiveWOsAsJobs() : (DB.jobs||[]);
   setS('js-total',     _allJobs.length);
-  setS('js-scheduled', _allJobs.filter(function(j){ return j.status==='Scheduled'; }).length);
-  setS('js-active',    _allJobs.filter(function(j){ return j.status==='In Progress'; }).length);
-  setS('js-onhold',    _allJobs.filter(function(j){ return j.status==='On Hold'; }).length);
+  setS('js-scheduled', _allJobs.filter(function(j){ return String(j.status||'').toLowerCase()==='scheduled'; }).length);
+  setS('js-active',    _allJobs.filter(function(j){ var s=String(j.status||'').toLowerCase(); return s==='in progress'||s.indexOf('in progress')>=0||s.indexOf('in-progress')>=0; }).length);
+  setS('js-onhold',    _allJobs.filter(function(j){ return String(j.status||'').toLowerCase()==='on hold'; }).length);
   var totalVal = _allJobs.reduce(function(s,j){ return s+(j.estTotal||0); },0);
   setS('js-value',    '$'+Math.round(totalVal).toLocaleString());
   setS('js-invoiced', (DB.invoices||[]).length);
@@ -9101,7 +9116,9 @@ function renderJobs() {
     var statusColors = {
       'Scheduled':  {bg:'#e3f2fd',color:'#1565c0'},
       'In Progress':{bg:'#e8f5e9',color:'#2e7d32'},
+      'Open- "In Progress"':{bg:'#e8f5e9',color:'#2e7d32'},
       'On Hold':    {bg:'#fff3e0',color:'#e65100'},
+      'Open -- Ready For Office-Review':{bg:'#fde8e8',color:'#c62828'},
       'Complete':   {bg:'#f5f5f5',color:'#546e7a'},
       'Closed':     {bg:'#f5f5f5',color:'#546e7a'},
     };

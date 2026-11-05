@@ -3140,7 +3140,13 @@ async function saveAndPrintInvoice() {
       var _nEl = document.getElementById('inv-num'); if (_nEl) _nEl.value = invData.num;
     }
     DB.invoices.push(invData);
-    if (job.id) { job.status='Invoiced'; job.invoiced=true; job.invoiceNum=invData.num; }
+    if (job.id) {
+      if (job._isWO && typeof setWOStatus==='function') {
+        var _invWO=(DB.workOrders||[]).find(function(w){return w.id===job.id;});
+        if (_invWO) { setWOStatus(_invWO,'Invoiced'); job.status=_invWO.status; } else { job.status='Invoiced'; }
+      } else { job.status='Invoiced'; }
+      job.invoiced=true; job.invoiceNum=invData.num;
+    }
   }
 
   saveDB();
@@ -3161,7 +3167,13 @@ function markInvoicePaid(invId) {
   inv.paidDate = getTodayISO();
   // Update linked job status
   var job = (typeof _findJobOrWO==="function"?_findJobOrWO(inv.jobId):(DB.jobs||[]).find(function(j){return j.id===inv.jobId;}));
-  if (job) { job.status='Closed'; job.invoicePaid=true; }
+  if (job) {
+    if (job._isWO && typeof setWOStatus==='function') {
+      var _pdWO=(DB.workOrders||[]).find(function(w){return w.id===job.id;});
+      if (_pdWO) { setWOStatus(_pdWO,'Closed'); job.status=_pdWO.status; } else { job.status='Closed'; }
+    } else { job.status='Closed'; }
+    job.invoicePaid=true;
+  }
   saveDB();
   renderInvoicesPage();
   renderJobs();
@@ -3175,7 +3187,7 @@ function voidInvoice(invId) {
   inv.status = 'void';
   inv.voidedDate = getTodayISO();
   inv.voidedBy = (typeof _currentUser!=='undefined' && _currentUser) ? (_currentUser.email||_currentUser.id) : null;
-  if (inv.woId) { var _w=(DB.workOrders||[]).find(function(w){return w.id===inv.woId;}); if(_w && _w.invoiceId===inv.id){ _w.status='Open'; _w.invoiceId=null; _w.invoiceNum=null; if(typeof _pushWOToCloud==='function') _pushWOToCloud(_w); } }
+  if (inv.woId) { var _w=(DB.workOrders||[]).find(function(w){return w.id===inv.woId;}); if(_w && _w.invoiceId===inv.id){ setWOStatus(_w,'Open',{noSave:true,noPush:true}); _w.invoiceId=null; _w.invoiceNum=null; if(typeof _pushWOToCloud==='function') _pushWOToCloud(_w); } }
   if (typeof _pushInvoiceToCloud==='function') _pushInvoiceToCloud(inv);
   saveDB();
   renderInvoicesPage();

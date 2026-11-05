@@ -1004,7 +1004,7 @@ async function confirmConvertJob() {
     contactName:   contactName,
     description:   q.notes||q.scope||name,
     workPerformed: '',
-    status:        'New',
+    status:        'NEW',
     serviceType:   q.jt||'Installation',
     priority:      'Normal',
     serviceRep:    leadTech||null,

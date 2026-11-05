@@ -540,8 +540,11 @@ async function savePaymentRecord() {
   if (totalPaid >= (inv.total||0)) {
     inv.status   = 'paid';
     inv.paidDate = date;
+    // WS-1: paid in full → close the backing WO through the gate (configured 'BILLED').
+    var _payWO=(DB.workOrders||[]).find(function(w){ return w.id===inv.woId || w.id===inv.jobId; });
+    if (_payWO && typeof setWOStatus==='function') { setWOStatus(_payWO,'Closed'); }
     var job = ((typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]))).find(function(j){ return j.id===inv.jobId; });
-    if (job) { job.status='Closed'; job.invoicePaid=true; }
+    if (job) { job.status = _payWO ? _payWO.status : 'Closed'; job.invoicePaid=true; }
     showToast('Invoice fully paid and closed ✓', 'success', 4000);
   } else {
     inv.status = 'partial';
