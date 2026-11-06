@@ -33,6 +33,7 @@ echo "── WS-1 status gate (every ghost literal → a configured id; unknown 
 echo "── WS-2 env storage isolation (prod keeps tcssv8; staging gets its own store; prod key always wins) ──"; node tests/env_storage_isolation.test.js
 echo "── WS-3a child changed-only (pulled===local hash; unchanged skip; edit pushes; payroll too) ──"; node tests/wo_children_changedpush.test.js
 echo "── WS-3b WO-child windowing (pulls bounded; on-demand loader seeds snapshot; no re-push churn) ──"; node tests/wo_child_windowing.test.js
+echo "── #3 dispatch reschedule-follow (a job rescheduled to another day no longer vanishes; board follows it; drag-state reset) ──"; node tests/dispatch_reschedule_follow.test.js
 echo "── #2 clock destination picker (office↔WO two-way; per-destination segments on the workDay; itemized per-leg rows; payroll-excluded; mid-office restore) ──"; node tests/clock_destination_picker.test.js
 echo "── ★ HARDENING PROOF SUITE: red-then-green reproductions of every hardened failure (clobber/leak/payroll/status/windowing/segments) ──"; node tests/hardening_proof.test.js
 echo "── ★ PILOT SMOKE: office↔field WO lifecycle end-to-end (create→assign→tech-sees→clock-in auto-status→field→office pricing/invoicing→closed locks+drops; two-device convergence at every hand-off) ──"; node tests/wo_lifecycle_smoke.test.js

@@ -428,6 +428,15 @@ function dispatchGoToday() {
 }
 
 function renderDispatchBoard() {
+  // #3 (Dawn): belt-and-suspenders — clear any leftover drag state at the start of every render so an
+  // interrupted drag (desktop OR a tablet/phone touch drag whose touchend was lost to a mid-drag
+  // re-render) can never leave a card/row stuck at opacity 0.4 (grayed) or carry a dangling .drag-over
+  // / orphan touch ghost. The board rebuilds its contents below anyway; this also sweeps stragglers.
+  try {
+    document.querySelectorAll('.dispatch-pool-card,.dispatch-job-block').forEach(function(el){ el.style.opacity=''; el.classList.remove('dragging'); });
+    document.querySelectorAll('.dispatch-tech-timeline').forEach(function(el){ el.classList.remove('drag-over'); });
+    var _ghost=document.querySelector('.dispatch-touch-ghost'); if(_ghost) _ghost.remove();
+  } catch(e){}
   var dateEl    = document.getElementById('dispatch-date');
   var boardDate = dateEl ? dateEl.value : getTodayISO();
   var isToday   = boardDate === getTodayISO();
@@ -1096,7 +1105,13 @@ function rescheduleJobFromDetail(jobId){
   var dur=parseFloat((document.getElementById('dsp-new-dur')||{}).value||job.estLaborHours||4);
   if(d) job.scheduledDate=d;if(t) job.scheduledTime=t;if(dur){job.estLaborHours=dur;job.scheduledDuration=dur;}
   _saveJobToWO(job);
-  saveDB();closeDispatchDetail();renderDispatchBoard();showToast('Rescheduled','success');
+  saveDB();closeDispatchDetail();
+  // #3 (Dawn): FOLLOW the job to its new date so it never "disappears" after rescheduling. Without
+  // this the board stayed on the OLD date and the job — now dated elsewhere, with a tech — matched
+  // neither the day's rows (scheduledDate===boardDate) nor the backlog pool (has a date), so it
+  // vanished from view and looked inaccessible. Mirrors scheduleJobFromModal, which already does this.
+  if(d){ var _de=document.getElementById('dispatch-date'); if(_de) _de.value=d; }
+  renderDispatchBoard();showToast('Rescheduled — board moved to '+(d||'the new date'),'success');
 }
 
 function updateNowLine(){
