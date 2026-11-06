@@ -280,6 +280,10 @@ function _woUserIsFieldScoped(){
   if (r === 'helper_tech' || r === 'lead_tech') return true;
   return (typeof hasPermission === 'function' && hasPermission('wo.view_assigned_only'));
 }
+// #4 (Dawn): should THIS status be hidden from a field-scoped user's filters (quick-filter chips +
+// status dropdown)? Office-only statuses (mobile===false) — Ready For Review/Pricing, Invoice Sent,
+// Void, etc. — are out of a tech's world. Shared by both filter builders so they never drift.
+function _woStatusHiddenFromFieldFilter(s){ return _woUserIsFieldScoped() && !!s && s.mobile === false; }
 // One-time seed for installs whose woSettings.statuses predate the techDone flag: best-effort flag the
 // office-review status (matches "Ready For Review" and "Ready For Office-Review"). Owner can change it
 // in WO Status settings. Only runs once a real status list is loaded; the result syncs via woSettings.
@@ -406,10 +410,11 @@ function renderWorkOrders() {
   // Build status dropdown from WO_STATUSES so values always match
   var statusSel = document.getElementById('wo-filter-status');
   if (statusSel && statusSel.options.length <= 1) {
-    var isTechView = _currentUser && _currentUser.role === 'helper_tech';
+    // #4 (Dawn): field-scoped users (helper AND lead techs, or any assigned-only non-owner) only pick
+    // from field statuses — not just helper_tech. Shares _woStatusHiddenFromFieldFilter with the chips.
     var statusList = (DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length)
       ? DB.woSettings.statuses : WO_STATUSES;
-    if (isTechView) statusList = statusList.filter(function(s){ return s.mobile !== false; });
+    statusList = statusList.filter(function(s){ return !(typeof _woStatusHiddenFromFieldFilter==='function' && _woStatusHiddenFromFieldFilter(s)); });
     statusList.forEach(function(s){
       var opt = document.createElement('option');
       opt.value = s.id;
@@ -558,7 +563,11 @@ function renderWorkOrders() {
       return '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:7px;border-radius:9px;background:'+bg+';color:'+fg+';font-size:10px;font-weight:800;line-height:1;vertical-align:middle">'+cnt+'</span>';
     }
     var chipEls = makeChip('', chipFilter===''?'#1565c0':'#e0e7ef', chipFilter===''?'#fff':'#0d1b2a', chipFilter===''?'#1565c0':'#c8d0db', 'All'+woCountBubble(allU.length, '#1565c0', chipFilter===''));
+    // #4 (Dawn): on a field-scoped login (helper/lead tech, or any assigned-only non-owner) the quick
+    // filters must NOT offer office-only statuses (Ready For Review/Pricing, Invoice Sent, Void, …) —
+    // those are out of a tech's world. Gate by the SAME `mobile` flag the status dropdown uses.
     _getWOStatuses().forEach(function(s){
+      if (typeof _woStatusHiddenFromFieldFilter==='function' && _woStatusHiddenFromFieldFilter(s)) return;   // office-only status → no tech chip
       var cnt = sCounts[s.id]||0; if (!cnt) return;
       var col = s.color||'#546e7a';
       var active = chipFilter===s.id;
