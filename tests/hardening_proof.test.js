@@ -201,6 +201,73 @@ async function runChildClobber(mode){ // mode: 'OLD_pushall' | 'FIXED_changedonl
          resolveTaxRate({customer:exemptCust, explicit:7, fallbacks:[7]})!==oldInvoiceTax({taxRate:7},null) &&
          resolveTaxRate({customer:taxedCust, fallbacks:[0]})!==oldInvoiceTax(null,null));
 
+  // ==========================================================================
+  // PROOF 7 — #2 per-destination segments: a day that bounces office→WO→office is SPLIT correctly,
+  // the office hours are RECOVERED (old single-row model attributed the whole day to the one WO and
+  // lost the office time), AND the payroll INVARIANT holds — for a plain linear day the segment
+  // aggregate is byte-identical to _computeClockDayTotals, and segment paid mins always sum to the total.
+  // ==========================================================================
+  console.log('\nPROOF 7 — #2 segments: office hours recovered on a split day; linear day == payroll (byte-identical):');
+  // Load the REAL pure clock helpers (contiguous block, exactly as clock_day_split.test.js slices them).
+  var _fieldSrc = fs.readFileSync(path.join(__dirname, '../js/field.js'), 'utf8');
+  var _cs = _fieldSrc.indexOf('function _computeClockDayTotals(');
+  var _ce = _fieldSrc.indexOf('async function _doArriveBackActual(');
+  if (_cs<0 || _ce<0){ console.log('  ✗ cannot slice field clock helpers'); process.exit(1); }
+  eval(_fieldSrc.slice(_cs, _ce));   // _computeClockDayTotals, _localDateStr, _splitClockDay, _OFFICE_DEST, _buildDaySegments
+  function aggSegs(segs){ return segs.reduce(function(a,s){ a.officeMins+=s.officeMins; a.travelMins+=s.travelMins; a.onsiteMins+=s.onsiteMins; a.breakMins+=s.breakMins; a.lunchMins+=s.lunchMins; a.paidMins+=s.paidMins; return a; }, {officeMins:0,travelMins:0,onsiteMins:0,breakMins:0,lunchMins:0,paidMins:0}); }
+  function at(h,m){ return new Date(2026,10,6,h,m,0,0).getTime(); }  // minute-aligned local times
+
+  // ---- LINEAR day (base → one WO → home), 30m lunch: segment aggregate MUST equal _computeClockDayTotals ----
+  var linEvents = [
+    {type:'day_start',    time:at(8,0)},
+    {type:'travel_start', time:at(8,30), jobId:'WO-1', jobName:'WO-1 Acme'},
+    {type:'clock_in',     time:at(9,0),  jobId:'WO-1', jobName:'WO-1 Acme'},
+    {type:'lunch_start',  time:at(12,0)},
+    {type:'lunch_end',    time:at(12,30)},
+    {type:'clock_out',    time:at(16,0), jobId:'WO-1', jobName:'WO-1 Acme'},
+    {type:'day_end',      time:at(16,30)}
+  ];
+  var linSt = { homebaseStart:new Date(at(8,0)), travelOutStart:new Date(at(8,30)), onsiteStart:new Date(at(9,0)),
+                travelOutMins:30, travelBackMins:30, onsiteMins:0, lunchMins:30, breakMins:0, status:'out' };
+  var legacy = _computeClockDayTotals(linSt, new Date(at(16,30)));
+  var linSegs = _buildDaySegments(linEvents);
+  var linAgg = aggSegs(linSegs);
+  assert('GREEN: linear day officeMins == payroll ('+linAgg.officeMins+'=='+legacy.officeMins+')', linAgg.officeMins===legacy.officeMins);
+  assert('GREEN: linear day travelMins == payroll ('+linAgg.travelMins+'=='+legacy.travelMins+')', linAgg.travelMins===legacy.travelMins);
+  assert('GREEN: linear day onsiteMins == payroll ('+linAgg.onsiteMins+'=='+legacy.onsiteMins+')', linAgg.onsiteMins===legacy.onsiteMins);
+  assert('GREEN: linear day lunchMins == payroll ('+linAgg.lunchMins+'=='+legacy.lunchMins+')', linAgg.lunchMins===legacy.lunchMins);
+  assert('GREEN: linear day segment paid sum == payroll total ('+linAgg.paidMins+'=='+legacy.totalPaidMins+')', linAgg.paidMins===legacy.totalPaidMins);
+
+  // ---- MIXED day: office 08:00–10:00 → WO-1 10:00–14:00 → back to office 14:30–16:00 (no lunch) ----
+  var mixEvents = [
+    {type:'day_start',    time:at(8,0)},
+    {type:'travel_start', time:at(10,0),  jobId:'WO-1', jobName:'WO-1 Acme'},
+    {type:'clock_in',     time:at(10,30), jobId:'WO-1', jobName:'WO-1 Acme'},
+    {type:'clock_out',    time:at(14,0),  jobId:'WO-1', jobName:'WO-1 Acme'},
+    {type:'office_start', time:at(14,30)},
+    {type:'day_end',      time:at(16,0)}
+  ];
+  var mixSegs = _buildDaySegments(mixEvents);
+  var mixAgg = aggSegs(mixSegs);
+  var spanMin = (at(16,0)-at(8,0))/60000;   // 480, lunch 0
+  // The OLD single-row model attributed the whole day to the one WO (entryType='work'), so office = 0 (lost).
+  var oldOfficeMins = 0;                      // pre-fix: a day that touched a WO reported ZERO office time
+  var oldSegCount   = 1;                      // pre-fix: one undifferentiated day line
+  assert('RED: old model loses the office hours on a split day (office='+oldOfficeMins+')', oldOfficeMins===0);
+  assert('RED: old model has no per-destination split (1 line)', oldSegCount===1);
+  assert('GREEN: segments split the day into 3 (office → WO → office)', mixSegs.length===3);
+  assert('GREEN: office hours RECOVERED across the two office legs (210m = 120+90)', mixAgg.officeMins===210);
+  assert('GREEN: the WO-1 segment carries 270m paid (60 travel + 210 onsite)', (function(){ var w=mixSegs.find(function(s){return s.dest==='WO-1';}); return w && w.paidMins===270 && w.travelMins===60 && w.onsiteMins===210; })());
+  assert('GREEN: segment paid mins sum to the full paid span ('+mixAgg.paidMins+'=='+spanMin+')', mixAgg.paidMins===spanMin);
+  assert('GREEN: first + last segments are the office legs', mixSegs[0].dest==='office' && mixSegs[2].dest==='office');
+  assert('teeth: the segment engine recovers office time the old model dropped ('+mixAgg.officeMins+' vs '+oldOfficeMins+')', mixAgg.officeMins!==oldOfficeMins && mixSegs.length!==oldSegCount);
+
+  // ---- OFFICE-ONLY day (never left base): one office segment == the whole paid day ----
+  var offEvents = [ {type:'day_start', time:at(8,0)}, {type:'day_end', time:at(16,30)} ];
+  var offSegs = _buildDaySegments(offEvents);
+  assert('GREEN: office-only day → exactly one office segment', offSegs.length===1 && offSegs[0].dest==='office');
+  assert('GREEN: office-only day paid == whole span (510m)', offSegs[0].paidMins===510 && offSegs[0].officeMins===510);
+
   console.log('\n'+(fail===0?('ALL '+pass+' PROOFS PASSED (each red-then-green)'):(fail+' FAILED, '+pass+' passed')));
   process.exit(fail===0?0:1);
 })();

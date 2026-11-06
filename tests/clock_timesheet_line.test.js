@@ -60,7 +60,11 @@ ok('_rebuildDaySummary guards clock workDay from zeroing', /entries\.length === 
 ok('summary fill rule excludes clock entries',         /hasEntries = entries\.some\([\s\S]{0,120}!_isClockEntry\(e\)/.test(src), true);
 ok('clock-in opens the line (doStartDay)',             /day_start[\s\S]{0,200}_ensureClockDayEntry\(\)/.test(src), true);
 ok('clock-in opens/fills the line (doStartTravel)',    /travel_start[\s\S]{0,120}_ensureClockDayEntry\(\)/.test(src) || /_ensureClockDayEntry\(\);[\s\S]{0,120}logTimeEvent\('travel_start'/.test(src), true);
-ok('clock-out closes the line',                        /_closeClockDayEntry\(_capTotal\)/.test(src), true);
+// #2: clock-out now routes through _writeClockSegmentEntries (splits a bounced day into per-destination
+// rows), which for a plain linear day falls straight through to _closeClockDayEntry(_capTotal) — so the
+// single day line is still closed exactly as before.
+ok('clock-out closes the line',                        /_writeClockSegmentEntries\(_destSegs, _capTotal\)/.test(src), true);
+ok('segment writer still closes the single line for a linear day', /destSegs\.length<=1\)\{ _closeClockDayEntry\(capTotalMins\); return; \}/.test(src), true);
 ok('edit preserves clock-source marker',               /orig\.isManual\s*=\s*wasClock \? false : true/.test(src), true);
 
 console.log('\n'+(fail? '✗ '+fail+' FAILED, '+pass+' passed' : 'ALL '+pass+' PASSED'));

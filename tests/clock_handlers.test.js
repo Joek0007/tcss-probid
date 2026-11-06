@@ -208,20 +208,23 @@ const WORKTR = fs.readFileSync(__dirname + '/../js/worktracking.js', 'utf8');
   });
   ok('restore -> open session, no events, still resumes (onsite)', resume.restoredStatus, 'onsite');
 
-  // ── Clock in with NO work order assigned: Office / General works (r18) ────────────────
+  // ── Clock in with NO work order: "Work at the Office" (#2 destination picker) ──────────
+  // Office is now its own path (doWorkAtOffice), not a fake trip through doStartTravel. It opens a
+  // clock_session (status clocked_in, job office) so the office live board still sees the worker, and
+  // leaves the clock in the dedicated 'office' working state.
   const office = await page.evaluate(async () => {
     const fresh = window.makeFakeSupabase({clock_sessions:[], time_events:[]});
     window._sb = fresh;
     try { localStorage.removeItem('probid_clockQueue'); } catch(e){}
     window._clockState = Object.assign(window._clockState, {status:'out', sessionId:null, jobId:null, jobName:null, todayEvents:[]});
-    var sel=document.getElementById('clock-job-select');
-    sel.innerHTML='<option value="">—</option><option value="office">Office / General (no specific work order)</option>';
-    sel.value='office';
-    window.__lastGps=null; await doStartTravel(); if(window.__lastGps) await window.__lastGps;
-    return { status: window._clockState.status, sessions: fresh._rows('clock_sessions').map(r=>({job_id:r.job_id,status:r.status})) };
+    window.__lastGps=null; await doWorkAtOffice(); if(window.__lastGps) await window.__lastGps;
+    return { status: window._clockState.status,
+             sessions: fresh._rows('clock_sessions').map(r=>({job_id:r.job_id,status:r.status})),
+             events: fresh._rows('time_events').map(r=>r.event_type) };
   });
-  ok('clock-in with no WO -> Office/General starts a session', office.status, 'traveling');
-  ok('clock-in with no WO -> session job_id = office', office.sessions, [{job_id:'office',status:'traveling'}]);
+  ok('Work at Office -> status office',                   office.status, 'office');
+  ok('Work at Office -> session opened (job office, clocked_in)', office.sessions, [{job_id:'office',status:'clocked_in'}]);
+  ok('Work at Office -> office_start event logged',       office.events, ['office_start']);
 
   // ── Connection pill reflects online/offline + queued punches (r19) ───────────────────
   // Offline with 2 queued punches → tells the tech they're saved and waiting.
