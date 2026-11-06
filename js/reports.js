@@ -1233,6 +1233,10 @@ async function wtRenderTechDashboard() {
   });
 
   var myJobs = ((typeof _getActiveWOsAsJobs==="function"?_getActiveWOsAsJobs():(DB.jobs||[]))).filter(function(j){
+    // #5 (Dawn): a WO the tech has already handed to the office (a techDone status like "Ready For
+    // Office-Review") must drop off their Today's Schedule too — exactly like it already drops off their
+    // WO list (r67). Without this, a handed-off order lingered on the tech dashboard and "made no sense".
+    if (typeof _woHiddenFromFieldByHandoff==='function' && _woHiddenFromFieldByHandoff(j.status)) return false;
     return j.scheduledDate === today &&
       (j.assignedTechs||j.techs||[]).some(function(t){
         return (typeof t==='string'?t:t.name||'').toLowerCase() === myName.toLowerCase();
