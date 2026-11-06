@@ -2312,6 +2312,9 @@ function openEmailQuoteModal(q){
   var modal = document.getElementById('modal-email-quote');
   if (!modal) { showToast('Email dialog missing','error'); return; }
   var s = DB.settings || {};
+  // r86: persist the portal token NOW (before the link is ever shown/copied) so the emailed
+  // "Approve Proposal" link always resolves — even if the proposal is sent from Outlook.
+  _ensureApprovalToken(q);
   var toEmail = _quoteRecipientEmail(q);
   var _co = (typeof coLabel==='function' ? coLabel() : (s.cname||'us'));
   var subjectTpl = (s.sgSubject || ('Your Proposal from '+(_co||'us')+' - {quote_num}'));
@@ -2826,19 +2829,45 @@ function _generateToken() {
   });
 }
 
+// r86: Make the approval-portal token BULLETPROOF. The portal (portal.html) resolves a proposal
+// link by matching the URL's token to a quotes row; if that token was never written to the cloud,
+// the customer's click 404s ("Proposal Not Found"). That is exactly what happened to Q-2071: the
+// token was minted into the email link but only ever persisted as a SIDE EFFECT of a successful
+// in-app Mailgun send — so a proposal copied out and sent from Outlook (or any send that didn't
+// complete that exact path) shipped a dead link. _ensureApprovalToken makes the token exist AND be
+// persisted the MOMENT a link is generated (email modal open / copy-link), independent of how the
+// mail actually goes out. Synchronous assign + local mirror (so sync carries it); fire-and-forget
+// cloud write (so the portal can resolve it immediately). Idempotent — reuses an existing token so
+// links already sent stay stable.
+function _ensureApprovalToken(q){
+  if (!q) return null;
+  var saved = (DB.quotes||[]).find(function(x){ return (q.id && x.id===q.id) || (q.num && x.num===q.num); });
+  var tok = q.approvalToken || (saved && saved.approvalToken) || _generateToken();
+  q.approvalToken = tok;
+  if (saved && saved.approvalToken !== tok){ saved.approvalToken = tok; try { if (typeof saveDB==='function') saveDB(); } catch(_e){} }
+  _persistApprovalTokenCloud(saved || q, tok);
+  return tok;
+}
+function _persistApprovalTokenCloud(q, tok){
+  try {
+    var cloudId = q && q.id;
+    if (cloudId && typeof _sb!=='undefined' && _sb && typeof _currentUser!=='undefined' && _currentUser && tok){
+      // two-arg .then (onFulfilled,onRejected) — no .catch chain (keeps the fake-client test honest too)
+      _sb.from('quotes').update({ approval_token: tok }).eq('id', cloudId).then(
+        function(r){ if (r && r.error) console.warn('[approval token] cloud persist error', r.error); },
+        function(e){ console.warn('[approval token] cloud persist failed', e); }
+      );
+    }
+  } catch(_e){ console.warn('[approval token] persist threw', _e); }
+}
+
 async function copyPortalLink(id) {
   var q = DB.quotes.find(function(x){ return x.id === id; });
   if (!q) { showToast('Quote not found', 'error'); return; }
 
-  // Generate token if not already set
-  if (!q.approvalToken) {
-    q.approvalToken = _generateToken();
-    saveDB();
-    // Persist token to Supabase immediately
-    if (_sb && _currentUser) {
-      await _sb.from('quotes').update({ approval_token: q.approvalToken }).eq('id', id);
-    }
-  }
+  // r86: single source of truth for token generation + persistence (local mirror + cloud write),
+  // so the link this builds is always backed by a resolvable row.
+  _ensureApprovalToken(q);
 
   var baseUrl = window.location.origin + window.location.pathname.replace('index.html','').replace(/\/$/, '');
   var portalUrl = baseUrl + '/portal.html?token=' + q.approvalToken;
