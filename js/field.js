@@ -950,14 +950,14 @@ function updateClockUI(){
 
   // Build next-job options for a multi-job day (excludes the current destination).
   var otherJobs=_getMyAssignedJobs().filter(function(j){return j.id!==_clockState.jobId;});
-  var nextJobOpts=otherJobs.map(function(j){return '<option value="'+escHtml(j.id)+'">'+escHtml(j.name+(j.customer?' — '+j.customer:''))+'</option>';}).join('');
+  var nextJobOpts=otherJobs.map(function(j){return '<option value="'+escHtml(j.id)+'">'+escHtml(_fieldJobLabel(j)+(j.customer?' — '+j.customer:''))+'</option>';}).join('');
   var nextJobSel=otherJobs.length
     ? '<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Next Job</div>'+
       '<select id="clock-next-job-select" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px"><option value="">-- Select next job --</option>'+nextJobOpts+'</select></div>'
     : '';
   // #2 — office-state picker: every assigned WO (the office IS the current destination here).
   var allJobs=_getMyAssignedJobs();
-  var officeJobOpts=allJobs.map(function(j){return '<option value="'+escHtml(j.id)+'">'+escHtml(j.name+(j.customer?' — '+j.customer:''))+'</option>';}).join('');
+  var officeJobOpts=allJobs.map(function(j){return '<option value="'+escHtml(j.id)+'">'+escHtml(_fieldJobLabel(j)+(j.customer?' — '+j.customer:''))+'</option>';}).join('');
   var officeJobSel='<div style="margin-top:4px"><div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Travel to a Work Order</div>'+
       '<select id="clock-office-job-select" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px"><option value="">-- Select a work order --</option>'+officeJobOpts+'</select></div>';
 
@@ -1173,13 +1173,30 @@ function _renderClockHours(){
   } catch(e){}
 }
 
+// Dawn: the tech's Time Clock job list was "all jacked up" — _woToJob sets a job's name to the WO
+// DESCRIPTION, falling back to the WO number only when the description is blank. So rows showed EITHER a
+// bare "WO-1474" (no description) OR a description with no WO number — an unscannable mix. These helpers
+// make every row/option read consistently: the WO number first, then the description when there is a
+// real one (matches the dashboard + WO list, r56). Plain-text version for <option>s; HTML for the list.
+function _fieldJobLabel(j){
+  if(!j) return 'Work Order';
+  var wn=j.woNumber||'';
+  var desc=(j.name && j.name!==wn) ? j.name : '';
+  return (wn ? (wn + (desc?' · '+desc:'')) : (desc || 'Work Order'));
+}
+function _fieldJobTitleHtml(j){
+  var wn=escHtml((j&&j.woNumber)||'');
+  var desc=(j&&j.name && j.name!==(j.woNumber||'')) ? escHtml(j.name) : '';
+  return ((wn?'<span style="color:#1565c0">'+wn+'</span>':'')
+    + (desc?((wn?' · ':'')+'<span style="color:#0d1b2a">'+desc+'</span>'):'')) || '<span style="color:#1565c0">Work Order</span>';
+}
 function renderFieldPage(){
   var sel=document.getElementById('clock-job-select');
   if(sel){
     sel.innerHTML='<option value="">-- Choose your job --</option>';
     var myJobs=_getMyAssignedJobs();
     // Use WO number + description as display
-    myJobs.forEach(function(j){var opt=document.createElement('option');opt.value=j.id;opt.textContent=j.name+(j.customer?' — '+j.customer:'');sel.appendChild(opt);});
+    myJobs.forEach(function(j){var opt=document.createElement('option');opt.value=j.id;opt.textContent=_fieldJobLabel(j)+(j.customer?' — '+j.customer:'');sel.appendChild(opt);});
     // r18: always allow clocking in with NO specific work order (office/shop/training days, or when
     // no WO is assigned yet). 'office' is a valid non-empty job id that doStartTravel accepts.
     var _og=document.createElement('option'); _og.value='office'; _og.textContent='Office / General (no specific work order)'; sel.appendChild(_og);
@@ -1203,7 +1220,9 @@ function renderFieldPage(){
   if(myJobsEl){
     var active=_getMyAssignedJobs();
     if(!active.length){myJobsEl.innerHTML='<div style="color:#90a4ae;font-size:13px">No active jobs assigned.</div>';}
-    else{myJobsEl.innerHTML=active.map(function(j){var ha=!!j.gpsAnchor;return '<div onclick="openWOForTech(\''+escHtml(j.id)+'\')" title="Open this work order to enter its Field Log" style="display:flex;align-items:center;justify-content:space-between;padding:10px 4px;border-bottom:1px solid #f5f5f5;cursor:pointer;border-radius:8px"><div><div style="font-weight:700;font-size:13px;color:#1565c0">'+escHtml(j.name||'')+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(j.customer||'')+(j.address?' · '+escHtml(j.address):'')+' · '+(ha?'<span style="color:#2e7d32">📍 Anchor set</span>':'<span style="color:#90a4ae">No anchor yet</span>')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span class="status-badge '+(j.status==='In Progress'?'s-inprogress':'s-pending')+'" style="font-size:10px">'+escHtml(j.status)+'</span><span style="color:#90a4ae;font-size:18px;font-weight:700">›</span></div></div>';}).join('');}
+    else{myJobsEl.innerHTML=active.map(function(j){
+      var ha=!!j.gpsAnchor;
+      return '<div onclick="openWOForTech(\''+escHtml(j.id)+'\')" title="Open this work order to enter its Field Log" style="display:flex;align-items:center;justify-content:space-between;padding:10px 4px;border-bottom:1px solid #f5f5f5;cursor:pointer;border-radius:8px"><div><div style="font-weight:700;font-size:13px">'+_fieldJobTitleHtml(j)+'</div><div style="font-size:11px;color:#90a4ae">'+escHtml(j.customer||'')+(j.address?' · '+escHtml(j.address):'')+' · '+(ha?'<span style="color:#2e7d32">📍 Anchor set</span>':'<span style="color:#90a4ae">No anchor yet</span>')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span class="status-badge '+(j.status==='In Progress'?'s-inprogress':'s-pending')+'" style="font-size:10px">'+escHtml(j.status)+'</span><span style="color:#90a4ae;font-size:18px;font-weight:700">›</span></div></div>';}).join('');}
   }
 
   // Show recent time off requests for this tech
