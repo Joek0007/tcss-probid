@@ -4361,6 +4361,12 @@ function renderFieldLogCard(l, woId) {
       '<div style="font-size:13px;color:#0d1b2a;line-height:1.5;white-space:pre-wrap">'+escHtml(l.issues)+'</div>'+
     '</div>' : '')+
 
+    // Internal comments (r79) — internal-only, flagged so no one mistakes it for customer-facing.
+    (l.internal_comments ? '<div style="margin-bottom:10px;padding:10px;background:#eceff1;border-left:3px solid #607d8b;border-radius:8px">'+
+      '<div style="font-size:11px;font-weight:700;color:#455a64;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">🔒 Internal Comments <span style="font-weight:400;text-transform:none">(not shown to customer)</span></div>'+
+      '<div style="font-size:13px;color:#0d1b2a;line-height:1.5;white-space:pre-wrap">'+escHtml(l.internal_comments)+'</div>'+
+    '</div>' : '')+
+
     // Follow-up notes
     (l.follow_up_needed && l.follow_up_notes ? '<div style="margin-bottom:10px;padding:10px;background:#e3f2fd;border-radius:8px">'+
       '<div style="font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Follow-up Required</div>'+
@@ -4439,6 +4445,13 @@ function openFieldLogEntry(woId) {
             'placeholder="Any problems, obstacles, or things that slowed you down? Missing materials, access issues, rework needed?"></textarea>'+
         '</div>'+
 
+        // Internal comments (r79 — Dawn request): internal-only notes, never shown to the customer.
+        '<div style="margin-bottom:14px">'+
+          '<label class="wiz-label">INTERNAL COMMENTS <span style="font-weight:400;text-transform:none">(optional — internal only, never shown to the customer)</span></label>'+
+          '<textarea id="fl-internal" class="form-control" rows="3" '+
+            'placeholder="Notes for the office/team — anything you want on record internally that is NOT part of the customer-facing report."></textarea>'+
+        '</div>'+
+
         // Toggles row
         '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">'+
           '<label style="display:flex;align-items:center;gap:8px;cursor:pointer">'+
@@ -4486,6 +4499,7 @@ async function saveFieldLogEntry(woId) {
   var date = (document.getElementById('fl-date')||{}).value || getTodayISO();
   var time = parseFloat((document.getElementById('fl-time')||{}).value)||null;
   var issues  = ((document.getElementById('fl-issues')||{}).value||'').trim();
+  var internalComments = ((document.getElementById('fl-internal')||{}).value||'').trim();  // r79
   var custPres = (document.getElementById('fl-customer')||{}).checked||false;
   var followUp = (document.getElementById('fl-followup')||{}).checked||false;
   var followUpNotes = ((document.getElementById('fl-followup-text')||{}).value||'').trim();
@@ -4506,6 +4520,7 @@ async function saveFieldLogEntry(woId) {
     work_performed:  work,
     time_spent:      time,
     issues:          issues || null,
+    internal_comments: internalComments || null,  // r79: internal-only field-log note
     follow_up_needed:followUp,
     follow_up_notes: followUp ? followUpNotes||null : null,
     customer_present:custPres,
