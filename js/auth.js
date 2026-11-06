@@ -75,7 +75,7 @@ function init() {
       _sb.auth.getSession().then(function(result) {
         if (result.data && result.data.session) {
           if (window.__pbAuthArrival && !window.__pbArrivalHandled) { window.__pbArrivalHandled = true; _handleAuthRedirect(); }
-          else { loadCurrentUserProfile().then(function(){ syncAllFromCloud(); restoreClockSession(); }); }
+          else { loadCurrentUserProfile().then(function(){ if (typeof window._hideBootSplash==='function') window._hideBootSplash(); syncAllFromCloud(); restoreClockSession(); }); }
         } else {
           showAuthModal();
         }
@@ -84,7 +84,7 @@ function init() {
       _sb.auth.getSession().then(function(result) {
         if (result.data && result.data.session) {
           if (window.__pbAuthArrival && !window.__pbArrivalHandled) { window.__pbArrivalHandled = true; _handleAuthRedirect(); }
-          else { loadCurrentUserProfile().then(function(){ syncAllFromCloud(); restoreClockSession(); }); }
+          else { loadCurrentUserProfile().then(function(){ if (typeof window._hideBootSplash==='function') window._hideBootSplash(); syncAllFromCloud(); restoreClockSession(); }); }
         } else {
           showAuthModal();
         }
@@ -4048,6 +4048,7 @@ function showToast(msg, type, duration) {
 function showAuthModal() {
   var modal = document.getElementById('modal-auth');
   if (modal) modal.style.display = 'flex';
+  if (typeof window._hideBootSplash === 'function') window._hideBootSplash();   // r85: lift boot splash — login is ready
   showSignIn();
   // Handle magic link / password reset redirect. Use the arrival flag captured at
   // boot (the URL hash may already be stripped by detectSessionInUrl by now).
@@ -4061,6 +4062,7 @@ function showAuthModal() {
 function hideAuthModal() {
   var modal = document.getElementById('modal-auth');
   if (modal) modal.style.display = 'none';
+  if (typeof window._hideBootSplash === 'function') window._hideBootSplash();   // r85: lift boot splash — app is ready
 }
 function showSignIn() {
   var sf = document.getElementById('auth-signin-form');

@@ -40,4 +40,5 @@ echo "── #3 dispatch reschedule-follow (a job rescheduled to another day no 
 echo "── #2 clock destination picker (office↔WO two-way; per-destination segments on the workDay; itemized per-leg rows; payroll-excluded; mid-office restore) ──"; node tests/clock_destination_picker.test.js
 echo "── ★ HARDENING PROOF SUITE: red-then-green reproductions of every hardened failure (clobber/leak/payroll/status/windowing/segments) ──"; node tests/hardening_proof.test.js
 echo "── ★ PILOT SMOKE: office↔field WO lifecycle end-to-end (create→assign→tech-sees→clock-in auto-status→field→office pricing/invoicing→closed locks+drops; two-device convergence at every hand-off) ──"; node tests/wo_lifecycle_smoke.test.js
+echo "── r85 deploy-smoothness (SW install precache parses+caches the app JS, crash-proof; boot splash wired, no white flash) ──"; node tests/sw_precache_boot.test.js
 echo "✅ all tests passed"

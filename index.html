@@ -1515,6 +1515,30 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 </head>
 <body>
 
+<!-- r85: BOOT SPLASH — plain HTML/CSS so it paints INSTANTLY, before the ~1.5MB of app JS downloads.
+     A cold load or a post-deploy service-worker update now shows this branded screen instead of a blank
+     white flash. _hideBootSplash() lifts it the moment the real UI is ready (auth.js shows the login or
+     the app), and a safety timeout guarantees it can never get stuck even if boot errors. -->
+<div id="boot-splash" style="position:fixed;inset:0;z-index:100001;background:linear-gradient(135deg,#0d1b2a 0%,#1565c0 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .4s ease;font-family:Arial,Helvetica,sans-serif">
+  <div style="font-weight:900;font-size:24px;letter-spacing:-.5px;color:#ff3333">TOTAL <span style="color:#fff">COMMUNICATIONS</span></div>
+  <div style="color:rgba(255,255,255,.65);font-size:12px;margin-top:6px;letter-spacing:.5px">Systems &amp; Solutions, Inc.</div>
+  <div style="margin-top:26px;width:36px;height:36px;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:bootspin .8s linear infinite"></div>
+  <div style="color:rgba(255,255,255,.85);font-size:13px;margin-top:18px">Loading…</div>
+  <style>@keyframes bootspin{to{transform:rotate(360deg)}}</style>
+</div>
+<script>
+  // Defined up front so auth.js can lift the splash the instant the real UI is ready.
+  window._hideBootSplash = function(){
+    var s = document.getElementById('boot-splash');
+    if (!s || s.__hiding) return;
+    s.__hiding = true;
+    s.style.opacity = '0';
+    setTimeout(function(){ try { if (s.parentNode) s.parentNode.removeChild(s); } catch(e){} }, 450);
+  };
+  // Safety net — never leave the splash stuck if boot/auth fails to call the hide.
+  setTimeout(function(){ try { window._hideBootSplash(); } catch(e){} }, 10000);
+</script>
+
 <!-- TC Spinner Overlay -->
 <div id="tc-spinner-overlay" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.85);z-index:99999;align-items:center;justify-content:center;flex-direction:column;gap:16px">
   <div style="position:relative;width:72px;height:72px">
@@ -7419,7 +7443,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <script src="js/recurring.js?v=20261025dates2"></script>
   <script src="js/seed_managed.js?v=20260919ix"></script>
   <script src="js/applock.js?v=20260919jk"></script>
-  <script src="js/auth.js?v=20261106r80destpicker"></script>
+  <script src="js/auth.js?v=20261106r85bootsplash"></script>
   <script>
     // Register the service worker so the app LOADS with no signal (field techs offline).
     // Served from the app root as /tcss-probid/sw.js → scope covers the whole app.
@@ -8890,7 +8914,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r84';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r85';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-06';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

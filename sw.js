@@ -11,10 +11,31 @@
 // r52: SHELL_VERSION bumped + HTML now fetched no-store (true network-first, never a stale HTTP/CDN copy)
 // + on activate the new worker reloads open tabs, so a deploy self-updates in ONE reload instead of the
 // old worker serving stale files through repeated hard-refreshes.
-var SHELL_VERSION = 'r84';
+var SHELL_VERSION = 'r85';
 var SHELL_CACHE   = 'tcss-shell-' + SHELL_VERSION;
 var RUNTIME_CACHE = 'tcss-runtime';           // stable across versions (versioned js URLs self-prune by use)
 var SHELL_ASSETS  = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+
+// r85: also precache the app's OWN versioned JS during install, by reading the fresh index.html and
+// pulling every same-origin `js/*.js?v=…` it references. Why: on a deploy the new ?v= URLs aren't cached
+// yet, so the one-reload update had to download ~1.5MB of JS on a blank page (the long white screen Joe
+// saw). Precaching here means the reload serves the whole app from cache — fast. Best-effort + fully
+// guarded: ANY failure is swallowed so it can never abort the install or brick the worker.
+function _precacheAppJS(cache){
+  return fetch(new Request('./index.html', { cache:'no-store' })).then(function(res){
+    if (!res || res.status !== 200) return;
+    return res.text().then(function(html){
+      var re = /<script[^>]+src=["']([^"']+)["']/gi, m, seen = {}, list = [];
+      while ((m = re.exec(html))) {
+        var u = m[1];
+        if (/^(\.\/)?js\//.test(u) && !seen[u]) { seen[u] = 1; list.push(u); }   // same-origin app JS only; skip CDN
+      }
+      return Promise.all(list.map(function(u){
+        return cache.add(new Request(u, { cache:'no-store' })).catch(function(err){ console.warn('[sw] precache js skip', u, err && err.message); });
+      }));
+    });
+  }).catch(function(err){ console.warn('[sw] precache index failed', err && err.message); });
+}
 
 self.addEventListener('install', function(e){
   e.waitUntil(
@@ -22,8 +43,9 @@ self.addEventListener('install', function(e){
       // Don't let one missing asset abort the whole precache.
       return Promise.all(SHELL_ASSETS.map(function(u){
         return cache.add(u).catch(function(err){ console.warn('[sw] precache skip', u, err && err.message); });
-      }));
+      })).then(function(){ return _precacheAppJS(cache); });   // r85: + the app's versioned JS
     }).then(function(){ return self.skipWaiting(); })
+     .catch(function(err){ console.warn('[sw] install precache error', err && err.message); return self.skipWaiting(); })
   );
 });
 
