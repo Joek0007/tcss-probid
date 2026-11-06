@@ -2421,9 +2421,14 @@ async function sendQuoteConfirmed(){
     fd.append('html', htmlBody);
     fd.append('text', textBody);
     fd.append('attachment', new File([pdfBlob], pdfName, {type:'application/pdf'}));
-    // Email tracking: open tracking + tag with this quote so Mailgun's webhook reports status back.
+    // Email tracking: open-tracking (pixel) ON so the webhook reports delivery/opens, but CLICK-tracking
+    // OFF. r87: Mailgun click-tracking rewrites every link through the tracking domain (email.tcss.com);
+    // when that domain isn't resolving, the "Approve Proposal" link dies at the redirect ("can't reach
+    // page") before it ever reaches the portal. A customer's approval must never depend on the tracking
+    // CNAME being healthy, so the approval link ships as the raw portal URL.
     fd.append('o:tracking','yes');
     fd.append('o:tracking-opens','yes');
+    fd.append('o:tracking-clicks','no');
     fd.append('v:probid_type','quote');
     fd.append('v:probid_id', String(q.id||q.num||''));
 
