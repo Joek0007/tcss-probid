@@ -44,4 +44,5 @@ echo "── r85 deploy-smoothness (SW install precache parses+caches the app JS
 echo "── r86 approval-token persistence (portal link always resolves; Q-2071 404 red-then-green; stable/idempotent; offline-safe) ──"; node tests/approval_token_persist.test.js
 echo "── Phase 1 portal e-signature (quote-first write; token-gated signature record w/ PNG+consent+total-at-time; expiry blocks; change-request audited) ──"; node tests/portal_signature.test.js
 echo "── r87 proposal approval link (click-tracking off so the Approve link isn't rewritten through a dead tracking domain) ──"; node tests/proposal_email_link.test.js
+echo "── r88 office signed-approval view (Quote Details shows the customer's signature + audit; scoped to the quote; empty-safe; typed vs drawn) ──"; node tests/office_signed_view.test.js
 echo "✅ all tests passed"

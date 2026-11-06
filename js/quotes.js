@@ -2586,10 +2586,65 @@ function viewQuote(id) {
     '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e0e0e0"><span>Achieved Margin</span><span style="font-weight:700;color:' + healthColor + '">' + pct(q.achievedMargin||0) + '</span></div>' +
     '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e0e0e0"><span>Sell Before Tax</span><span>' + fmt(q.sellBeforeTax||q.subtotal||0) + '</span></div>' +
     '<div style="display:flex;justify-content:space-between;padding:4px 0;font-weight:800;font-size:15px"><span>TOTAL</span><span style="color:#1565c0">' + fmt(q.total||0) + '</span></div></div>' +
-    '</div></div>';
+    '</div></div>' +
+    '<div id="signed-approval-panel"></div>';   // r88: office view of the customer's signed approval
   openModal('modal-view-quote');
+  _loadSignedApproval(id);
   // Prev/next arrows — step through quotes by number (read-only view, no dirty guard)
   if (typeof showDocNav === 'function') showDocNav('quote', id, viewQuote, null, 'modal-view-quote');
+}
+
+// r88 OFFICE-SIDE view of the signed approval. Reads quote_approvals (authenticated office read)
+// for this quote and renders the signature image + the audit block (who/when/method/consent/
+// total-at-approval/device) plus any change requests. Best-effort + fully guarded: a missing table,
+// no cloud, or no rows simply shows nothing — it never disrupts the Quote Details view.
+function _saRow(k, v){ return '<div style="color:#90a4ae;font-weight:700">'+k+'</div><div style="text-align:right">'+v+'</div>'; }
+async function _loadSignedApproval(quoteId){
+  var el = document.getElementById('signed-approval-panel'); if (!el) return;
+  el.innerHTML = '';
+  if (typeof _sb==='undefined' || !_sb || typeof _currentUser==='undefined' || !_currentUser) return;
+  try {
+    var res = await _sb.from('quote_approvals').select('*').eq('quote_id', quoteId).order('created_at', { ascending:false });
+    if (res && res.error) { console.warn('[signed approval] load failed', res.error); return; }
+    var rows = (res && res.data) || [];
+    if (document.getElementById('signed-approval-panel') !== el) return;   // view moved on (prev/next) — don't clobber
+    var approved = rows.filter(function(r){ return r.action==='approved'; });
+    var changes  = rows.filter(function(r){ return r.action==='changes_requested'; });
+    if (!approved.length && !changes.length) return;
+    var html = '';
+    if (approved.length){
+      var a = approved[0];
+      var when = a.created_at ? new Date(a.created_at).toLocaleString('en-US',{dateStyle:'long', timeStyle:'short'}) : '';
+      var sig = (a.method==='draw' && a.signature_png)
+        ? '<img src="'+a.signature_png+'" alt="signature" style="max-height:110px;max-width:100%">'
+        : '<div style="font-family:\'Segoe Script\',\'Brush Script MT\',cursive;font-size:36px;color:#1a2332">'+escHtml(a.signer_name||'')+'</div>';
+      html += '<div class="card" style="background:#f4faf5;border:1px solid #cfe8d4">'
+        + '<div class="card-title" style="color:#2e7d32">✅ Signed Approval</div>'
+        + '<div style="border:1px solid #e0e7ef;border-radius:10px;background:#fff;padding:10px;display:flex;align-items:center;justify-content:center;min-height:90px;margin-bottom:12px">'+sig+'</div>'
+        + '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px">'
+        + _saRow('Signed by', escHtml(a.signer_name||''))
+        + _saRow('Signed', escHtml(when))
+        + _saRow('Method', a.method==='draw'?'Drawn signature':'Typed signature')
+        + _saRow('Consent', a.consent ? 'Agreed to e-signature' : '—')
+        + _saRow('Total at approval', a.total_at_time!=null ? fmt(a.total_at_time) : '—')
+        + (a.margin_at_time!=null ? _saRow('Margin at approval', pct(a.margin_at_time)) : '')
+        + _saRow('Device', escHtml(a.device||'—'))
+        + (a.signer_ip ? _saRow('IP address', escHtml(a.signer_ip)) : '')
+        + '</div></div>';
+    }
+    if (changes.length){
+      html += '<div class="card" style="background:#fff8f0;border:1px solid #ffe0b2">'
+        + '<div class="card-title" style="color:#e65100">📝 Change Requests</div>';
+      changes.forEach(function(c){
+        var cw = c.created_at ? new Date(c.created_at).toLocaleString('en-US',{dateStyle:'medium', timeStyle:'short'}) : '';
+        html += '<div style="font-size:13px;padding:6px 0;border-bottom:1px solid #f0e0d0">'
+          + '<div style="color:#90a4ae">'+escHtml(cw)+(c.signer_name?' · '+escHtml(c.signer_name):'')+'</div>'
+          + escHtml(c.note||'') + '</div>';
+      });
+      html += '</div>';
+    }
+    el.innerHTML = html;
+  } catch(e){ console.warn('[signed approval] load error', e); }
 }
 
 // ---- MODAL HELPERS ----
