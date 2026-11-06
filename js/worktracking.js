@@ -6880,7 +6880,7 @@ function _reconstructClockState(events){
     status:'out', sessionId:null, dayStart:null, homebaseStart:null,
     travelOutStart:null, travelOutMins:0, onsiteStart:null, onsiteMins:0,
     travelBackStart:null, travelBackMins:0, breakStart:null, breakMins:0,
-    lunchStart:null, lunchMins:0, lunchCount:0, jobId:null, jobName:null, onsiteBreakBase:0, todayEvents:[]
+    lunchStart:null, lunchMins:0, lunchCount:0, jobId:null, jobName:null, onsiteBreakBase:0, returnTo:'base', todayEvents:[]
   };
   function ms(x){ return x==null?null:(x instanceof Date?x.getTime():new Date(x).getTime()); }
   function mins(a,b){ return (a==null||b==null)?0:Math.round((b-a)/60000); }
@@ -6899,28 +6899,37 @@ function _reconstructClockState(events){
       case 'travel_start':
         s.status='traveling'; if(e.session_id) s.sessionId=e.session_id;
         s.dayStart=t; s.travelOutStart=t; s.jobId=e.job_id||s.jobId; s.jobName=e.job_name||s.jobName;
-        s.todayEvents.push({type:'travel_start', time:t, label:'Started Travel'}); break;
+        s.todayEvents.push({type:'travel_start', time:t, label:'Started Travel', jobId:s.jobId, jobName:s.jobName}); break;
       case 'clock_in':
         s.travelOutMins += mins(s.travelOutStart, t); s.onsiteStart=t; s.status='onsite';
         s.onsiteBreakBase = s.breakMins + s.lunchMins; // this leg discounts only breaks taken AFTER it starts
         if(e.job_id) s.jobId=e.job_id; if(e.job_name) s.jobName=e.job_name;
-        s.todayEvents.push({type:'clock_in', time:t, label:'Arrived On Site'}); break;
+        s.todayEvents.push({type:'clock_in', time:t, label:'Arrived On Site', jobId:s.jobId, jobName:s.jobName}); break;
       case 'clock_out':
-        s.onsiteMins += mins(s.onsiteStart, t); s.onsiteStart=null; s.travelBackStart=t; s.status='returning';
+        s.onsiteMins += mins(s.onsiteStart, t); s.onsiteStart=null; s.travelBackStart=t; s.status='returning'; s.returnTo='base';
         s.todayEvents.push({type:'clock_out', time:t, label:'Left Job Site'}); break;
+      // #2 — leaving a WO to go BACK to the office (distinct from ending the day).
+      case 'return_office':
+        s.onsiteMins += mins(s.onsiteStart, t); s.onsiteStart=null; s.travelBackStart=t; s.status='returning'; s.returnTo='office';
+        s.todayEvents.push({type:'return_office', time:t, label:'Returning to the office'}); break;
       case 'job_change':
         s.onsiteMins += mins(s.onsiteStart||t, t); s.jobId=e.job_id||s.jobId; s.jobName=e.job_name||s.jobName;
         s.status='traveling'; s.travelOutStart=t; s.onsiteStart=null;
-        s.todayEvents.push({type:'job_change', time:t, label:'Traveling to next job'}); break;
+        s.todayEvents.push({type:'job_change', time:t, label:'Traveling to next job', jobId:s.jobId, jobName:s.jobName}); break;
+      // #2 — office working leg (start-of-day "Work at Office", or "Return to Office" after a WO).
+      case 'office_start':
+        if (s.travelBackStart){ s.travelBackMins += mins(s.travelBackStart, t); s.travelBackStart=null; } // close the return trip
+        s.status='office'; s.jobId='office'; s.jobName='Office / General'; s.onsiteStart=null; s.travelOutStart=null;
+        s.todayEvents.push({type:'office_start', time:t, label:'At the Office', jobId:'office', jobName:'Office / General'}); break;
       case 'break_start':
-        s.breakStart=t; s.status='break'; s.todayEvents.push({type:'break_start', time:t, label:'Break Started'}); break;
+        s.breakStart=t; s.resumeStatus=(s.status==='office'?'office':'onsite'); s.status='break'; s.todayEvents.push({type:'break_start', time:t, label:'Break Started'}); break;
       case 'break_end':
-        s.breakMins += mins(s.breakStart, t); s.breakStart=null; s.status='onsite';
+        s.breakMins += mins(s.breakStart, t); s.breakStart=null; s.status=(s.jobId==='office'?'office':'onsite');
         s.todayEvents.push({type:'break_end', time:t, label:'Break Ended'}); break;
       case 'lunch_start':
-        s.lunchStart=t; s.status='lunch'; s.todayEvents.push({type:'lunch_start', time:t, label:'Lunch Started'}); break;
+        s.lunchStart=t; s.resumeStatus=(s.status==='office'?'office':'onsite'); s.status='lunch'; s.todayEvents.push({type:'lunch_start', time:t, label:'Lunch Started'}); break;
       case 'lunch_end':
-        s.lunchMins += mins(s.lunchStart, t); s.lunchCount+=1; s.lunchStart=null; s.status='onsite';
+        s.lunchMins += mins(s.lunchStart, t); s.lunchCount+=1; s.lunchStart=null; s.status=(s.jobId==='office'?'office':'onsite');
         s.todayEvents.push({type:'lunch_end', time:t, label:'Back from Lunch'}); break;
       case 'day_end':
         s.status='out'; s.dayEnded=true; s.todayEvents.push({type:'day_end', time:t, label:'Day Complete'}); break;
@@ -7024,7 +7033,10 @@ async function restoreClockSession(opts){
     _clockState.jobId          = st.jobId||(sess&&sess.job_id)||null;
     _clockState.jobName        = st.jobName||(sess&&sess.job_name)||null;
     _clockState.sessionId      = (sess&&sess.id)||st.sessionId||null;
-    _clockState.todayEvents    = (st.todayEvents||[]).map(function(e){ return {type:e.type,time:new Date(e.time),label:e.label}; });
+    // #2 — keep jobId/jobName on restored events so _buildDaySegments can split a day that is ended
+    // AFTER a mid-day refresh; also restore the return destination so the "arrived" action is correct.
+    _clockState.todayEvents    = (st.todayEvents||[]).map(function(e){ return {type:e.type,time:new Date(e.time),label:e.label,jobId:e.jobId,jobName:e.jobName}; });
+    _clockState.returnTo       = st.returnTo || 'base';
     // 5) Ensure the marker for the CURRENT running state exists so the live timer is accurate
     var ciD = sess&&sess.clock_in_at?new Date(sess.clock_in_at):now;
     if (status==='onsite'    && !_clockState.onsiteStart)     _clockState.onsiteStart=ciD;

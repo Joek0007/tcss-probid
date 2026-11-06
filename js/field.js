@@ -3,7 +3,8 @@
 // =============================================
 
 var _clockState = {
-  status: 'out',        // out | at_homebase | traveling | onsite | break | lunch | returning
+  status: 'out',        // out | at_homebase | office | traveling | onsite | break | lunch | returning
+  returnTo: 'base',     // #2: when status==='returning', where the tech is headed — 'base' (end day) or 'office' (keep working)
   sessionId: null,
   dayStart: null,
   homebaseStart: null,
@@ -243,27 +244,31 @@ async function doStartDay() {
   });
 }
 
-// PHASE 1 — START TRAVEL (from homebase or from a job to next job)
-async function doStartTravel(){
-  if (typeof hasPermission==='function' && !hasPermission('time.clock')) { showToast('You do not have permission to clock in','error'); return; }
-  var jobSel=document.getElementById('clock-job-select');
-  var jobId=jobSel?jobSel.value:'';
-  var jobName=jobSel&&jobSel.selectedIndex>0?jobSel.options[jobSel.selectedIndex].text:'General';
-  if(!jobId){showToast('Please select a job first','warning');if(jobSel)jobSel.style.borderColor='#c62828';return;}
-  if(jobSel)jobSel.style.borderColor='';
+// PHASE 1 — START TRAVEL (from homebase or from the office, to a work order)
+// #2: shared travel core so travel can begin from the start-of-day base OR mid-day from the office.
+// A FIRST travel of the day opens the clock_session; a mid-day travel (session already open — e.g.
+// office→WO) UPDATES that same session instead of orphaning it with a new id.
+async function _beginTravel(jobId, jobName){
   getGPS(async function(lat,lng,acc){
     var now=new Date();
-    // r17: session id is generated on-device so the shift is tracked with or without signal.
-    var sessionId=_clockNewId();
-    var session={id:sessionId,user_id:_currentUser?_currentUser.id:null,user_name:_currentUser?_currentUser.full_name:'Unknown',
-      job_id:jobId,job_name:jobName,status:'traveling',clock_in_at:now.toISOString(),
-      clock_in_lat:lat,clock_in_lng:lng,date:now.toISOString().split('T')[0]};
-    await _clockSubmit({kind:'session_upsert', row:session});   // online: writes now; offline: queues + syncs on reconnect
-    _clockState.status='traveling';onClockStateChange('traveling');_clockState.sessionId=sessionId;
-    _clockState.dayStart=now;_clockState.travelOutStart=now;
+    var firstTravel = !_clockState.sessionId;
+    if (firstTravel){
+      // r17: session id is generated on-device so the shift is tracked with or without signal.
+      var sessionId=_clockNewId();
+      var session={id:sessionId,user_id:_currentUser?_currentUser.id:null,user_name:_currentUser?_currentUser.full_name:'Unknown',
+        job_id:jobId,job_name:jobName,status:'traveling',clock_in_at:(_clockState.dayStart||now).toISOString(),
+        clock_in_lat:lat,clock_in_lng:lng,date:now.toISOString().split('T')[0]};
+      await _clockSubmit({kind:'session_upsert', row:session});   // online: writes now; offline: queues + syncs on reconnect
+      _clockState.sessionId=sessionId;
+    } else {
+      // mid-day office→WO: keep the open session truthful (same as doNextJob's session_update).
+      await _clockSubmit({kind:'session_update', id:_clockState.sessionId, patch:{job_id:jobId,job_name:jobName,status:'traveling'}});
+    }
+    _clockState.status='traveling';onClockStateChange('traveling');
+    _clockState.dayStart=_clockState.dayStart||now;_clockState.travelOutStart=now;_clockState.onsiteStart=null;
     _clockState.jobId=jobId;_clockState.jobName=jobName;
-    _clockState.todayEvents.push({type:'travel_start',time:now,lat:lat,lng:lng,label:'Started Travel'});
-    _ensureClockDayEntry();   // r43: open (or fill the WO on) the day's itemized timesheet line
+    _clockState.todayEvents.push({type:'travel_start',time:now,lat:lat,lng:lng,label:'Started Travel',jobId:jobId,jobName:jobName});
+    _ensureClockDayEntry();   // r43/#2: open or re-point the day's itemized timesheet line to this destination
     await logTimeEvent('travel_start',lat,lng,acc);
     updateClockUI();startClockTimer();
     if(_clockPending()>0){
@@ -272,6 +277,89 @@ async function doStartTravel(){
       showToast('Travel started — drive safe!','success');
     }
     scheduleEodReminder();
+  });
+}
+async function doStartTravel(){
+  if (typeof hasPermission==='function' && !hasPermission('time.clock')) { showToast('You do not have permission to clock in','error'); return; }
+  // #2: the office state uses its own picker id so both pickers can coexist in the DOM.
+  var jobSel=(_clockState.status==='office' ? document.getElementById('clock-office-job-select') : null)
+             || document.getElementById('clock-job-select');
+  var jobId=jobSel?jobSel.value:'';
+  var jobName=jobSel&&jobSel.selectedIndex>0?jobSel.options[jobSel.selectedIndex].text:'General';
+  if(!jobId || jobId==='office'){showToast('Please select a work order first','warning');if(jobSel)jobSel.style.borderColor='#c62828';return;}
+  if(jobSel)jobSel.style.borderColor='';
+  _beginTravel(jobId, jobName);
+}
+
+// #2 — WORK AT THE OFFICE (from start-of-day base): begin an office working leg with NO travel theater.
+// The day already opened an office/base line at doStartDay; this just moves the UI into a real
+// "working at the office" state the tech can stay in all day or leave for a work order later.
+async function doWorkAtOffice(){
+  if (typeof hasPermission==='function' && !hasPermission('time.clock')) { showToast('You do not have permission to clock in','error'); return; }
+  var now=new Date();
+  // Open (or update) the clock_session so the office LIVE board sees an office worker, exactly like a
+  // field tech — office-only days were previously invisible on the board without a session row.
+  if (!_clockState.sessionId){
+    var sessionId=_clockNewId();
+    var session={id:sessionId,user_id:_currentUser?_currentUser.id:null,user_name:_currentUser?_currentUser.full_name:'Unknown',
+      job_id:'office',job_name:'Office / General',status:'clocked_in',clock_in_at:(_clockState.dayStart||now).toISOString(),
+      clock_in_lat:_clockState.gpsLat,clock_in_lng:_clockState.gpsLng,date:now.toISOString().split('T')[0]};
+    await _clockSubmit({kind:'session_upsert', row:session});
+    _clockState.sessionId=sessionId;
+  } else {
+    await _clockSubmit({kind:'session_update', id:_clockState.sessionId, patch:{job_id:'office',job_name:'Office / General',status:'clocked_in'}});
+  }
+  _clockState.status='office'; onClockStateChange('office');
+  _clockState.jobId='office'; _clockState.jobName='Office / General';
+  _clockState.dayStart=_clockState.dayStart||now;
+  _clockState.todayEvents.push({type:'office_start',time:now,label:'Working at the Office',jobId:'office',jobName:'Office / General'});
+  _ensureClockDayEntry();
+  await logTimeEvent('office_start',_clockState.gpsLat,_clockState.gpsLng,_clockState.gpsAccuracy);
+  updateClockUI(); startClockTimer();
+  showToast('Working at the office — clock is running','success');
+  scheduleEodReminder();
+}
+
+// #2 — RETURN TO OFFICE (from a work order): leave the site and head back to the office to keep
+// working. Mirrors "Leave Site" but marks the return destination so the "Arrived" button lands the
+// tech back in the office working state instead of ending the day.
+async function doReturnToOffice(){
+  getGPS(async function(lat,lng,acc){
+    var enforce=!!(DB.settings&&DB.settings.geofenceEnforce);
+    var geo=checkGeofence(lat,lng,_clockState.jobId);
+    if(geo.reason==='out_of_range'&&enforce){
+      showGeoAlert('🔒 Must be within '+GEO_RADIUS_FT+' ft to clock out. Current distance: <strong>'+geo.distanceFt+' ft</strong>.');
+      return;
+    }
+    clearGeoAlert();
+    var now=new Date();
+    _clockState.onsiteMins+=Math.round((now-(_clockState.onsiteStart||now))/60000);
+    _clockState.travelBackStart=now; _clockState.returnTo='office';
+    if(_clockState.sessionId) await _clockSubmit({kind:'session_update', id:_clockState.sessionId, patch:{status:'returning'}});
+    // distinct event type so a mid-return refresh restores "heading to the office" (not "end day").
+    await logTimeEvent('return_office',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
+    _clockState.status='returning';onClockStateChange('returning');
+    _clockState.todayEvents.push({type:'return_office',time:now,lat:lat,lng:lng,label:'Left site — returning to office'});
+    updateClockUI();startClockTimer();
+    showToast('Heading back to the office','success');
+  });
+}
+
+// #2 — ARRIVED AT THE OFFICE (from the returning state, returnTo==='office'): close the travel-back
+// leg and resume an office working leg. The segment engine attributes the travel-back to the WO just
+// left (it is that job's departure trip), and the fresh office leg starts here.
+async function doArriveAtOffice(){
+  getGPS(async function(lat,lng,acc){
+    var now=new Date();
+    var tb=_clockState.travelBackStart?Math.round((now-_clockState.travelBackStart)/60000):0;
+    _clockState.travelBackMins+=tb; _clockState.travelBackStart=null;
+    _clockState.status='office'; onClockStateChange('office'); _clockState.returnTo='base';
+    _clockState.jobId='office'; _clockState.jobName='Office / General'; _clockState.onsiteStart=null;
+    _clockState.todayEvents.push({type:'office_start',time:now,lat:lat,lng:lng,label:'Back at the Office',jobId:'office',jobName:'Office / General'});
+    _ensureClockDayEntry();
+    await logTimeEvent('office_start',lat,lng,acc);
+    updateClockUI(); startClockTimer();
+    showToast('Back at the office — clock still running','success');
   });
 }
 
@@ -296,7 +384,7 @@ async function doArriveOnSite(){
     if(_clockState.sessionId) await _clockSubmit({kind:'session_update', id:_clockState.sessionId, patch:{status:'clocked_in'}});
     await logTimeEvent('clock_in',lat,lng,acc,geo.reason==='out_of_range'?'Outside geofence':null);
     _clockState.status='onsite';onClockStateChange('onsite');
-    _clockState.todayEvents.push({type:'clock_in',time:now,lat:lat,lng:lng,label:'Arrived On Site',flagged:geo.reason==='out_of_range'});
+    _clockState.todayEvents.push({type:'clock_in',time:now,lat:lat,lng:lng,label:'Arrived On Site',flagged:geo.reason==='out_of_range',jobId:_clockState.jobId,jobName:_clockState.jobName});
     updateClockUI();startClockTimer();showToast('Clocked in to '+_clockState.jobName,'success');
   });
 }
@@ -409,6 +497,92 @@ function _splitClockDay(t0, endTime, st, LONG_DAY_MINS){
   return { autoStopped:autoStopped, crossesMidnight:segs.length>1, segments:segs };
 }
 
+// #2 (per-destination segments) — replay the day's EVENT timeline into ORDERED segments, each
+// attributed to ONE destination (office or a specific WO), so a day that bounces office↔WO↔WO is
+// split for per-job labor costing. PURE + unit-tested. Derived from the SAME event timeline that
+// restoreClockSession replays, so it can never drift from the punches and needs no new offline plumbing.
+//
+// INVARIANT (payroll): for a plain LINEAR day (base → one WO → home) the aggregate officeMins/
+// travelMins/onsiteMins/breakMins/lunchMins across segments is IDENTICAL to _computeClockDayTotals;
+// and sum(segments.paidMins) === span − lunch for ANY day. The clock's own workDay stays the
+// authoritative payroll total — segments are an ADDITIVE breakdown. Proven red-then-green (hardening_proof).
+//
+// events: [{ type|event_type, time|timestamp, jobId|job_id, jobName|job_name }], any order (sorted here).
+//   Types: day_start, office_start, travel_start, clock_in, job_change, clock_out, break_start,
+//   break_end, lunch_start, lunch_end, day_end. `time` may be Date | ms | ISO.
+// A segment: { dest:'office'|'<woId>', woLabel, startMs, endMs,
+//              officeMins, travelMins, onsiteMins, breakMins, lunchMins, paidMins }.
+// Legacy-matching semantics: onsite/office INCLUDE any paid break taken there (break ALSO reported
+// separately, informational); lunch is unpaid and excluded from paidMins.
+var _OFFICE_DEST = 'office';
+function _buildDaySegments(events){
+  function ms(x){ return x==null?null:(x instanceof Date?x.getTime():(typeof x==='number'?x:new Date(x).getTime())); }
+  var evs = (events||[])
+    .map(function(e){ return { type:e.type||e.event_type, t:ms(e.time!=null?e.time:e.timestamp),
+                               jobId:e.jobId||e.job_id||null, jobName:e.jobName||e.job_name||null }; })
+    .filter(function(e){ return e.type && e.t!=null; })
+    .sort(function(a,b){ return a.t-b.t; });
+  if (!evs.length) return [];
+  // Forward-state set BY each event (holds until the next event).
+  function applyEvent(cur, e){
+    switch(e.type){
+      case 'day_start':
+      case 'office_start':  return { dest:_OFFICE_DEST, destLabel:'Office / General', phase:'office' };
+      case 'travel_start':  return { dest:e.jobId||cur.dest, destLabel:e.jobName||cur.destLabel, phase:'travel' };
+      case 'clock_in':      return { dest:e.jobId||cur.dest, destLabel:e.jobName||cur.destLabel, phase:'onsite' };
+      case 'job_change':    return { dest:e.jobId||cur.dest, destLabel:e.jobName||cur.destLabel, phase:'travel' };
+      case 'clock_out':
+      case 'return_office': return { dest:cur.dest, destLabel:cur.destLabel, phase:'travel' };  // departing this WO
+      case 'break_start':   return { dest:cur.dest, destLabel:cur.destLabel, phase:'break' };
+      case 'break_end':     return { dest:cur.dest, destLabel:cur.destLabel, phase:(cur.dest===_OFFICE_DEST?'office':'onsite') };
+      case 'lunch_start':   return { dest:cur.dest, destLabel:cur.destLabel, phase:'lunch' };
+      case 'lunch_end':     return { dest:cur.dest, destLabel:cur.destLabel, phase:(cur.dest===_OFFICE_DEST?'office':'onsite') };
+      case 'day_end':       return { dest:cur.dest, destLabel:cur.destLabel, phase:'ended' };
+      default:              return cur;
+    }
+  }
+  function blank(dest,label,startMs){
+    return { dest:dest, woLabel:(dest===_OFFICE_DEST?'Office / General':(label||'')), startMs:startMs, endMs:startMs,
+             _officeMs:0,_travelMs:0,_onsiteMs:0,_breakMs:0,_lunchMs:0,
+             officeMins:0, travelMins:0, onsiteMins:0, breakMins:0, lunchMins:0, paidMins:0 };
+  }
+  function closeSeg(seg,endMs){
+    seg.endMs = endMs;
+    seg.officeMins = Math.round(seg._officeMs/60000);
+    seg.travelMins = Math.round(seg._travelMs/60000);
+    seg.onsiteMins = Math.round(seg._onsiteMs/60000);
+    seg.breakMins  = Math.round(seg._breakMs/60000);
+    seg.lunchMins  = Math.round(seg._lunchMs/60000);
+    seg.paidMins   = seg.officeMins + seg.travelMins + seg.onsiteMins;   // break already inside onsite/office; lunch unpaid
+    delete seg._officeMs; delete seg._travelMs; delete seg._onsiteMs; delete seg._breakMs; delete seg._lunchMs;
+    return seg;
+  }
+  function accrue(seg, phase, dest, durMs){
+    if (durMs<=0) return;
+    if (phase==='office')      seg._officeMs += durMs;
+    else if (phase==='travel') seg._travelMs += durMs;
+    else if (phase==='onsite') seg._onsiteMs += durMs;
+    else if (phase==='break'){ (dest===_OFFICE_DEST?seg._officeMs+=durMs:seg._onsiteMs+=durMs); seg._breakMs += durMs; }
+    else if (phase==='lunch')  seg._lunchMs += durMs;
+  }
+  var segs=[], cur={dest:null,destLabel:null,phase:null}, seg=null;
+  for (var i=0;i<evs.length;i++){
+    cur = applyEvent(cur, evs[i]);
+    if (cur.dest==null) continue;                 // before the first day_start
+    if (!seg || seg.dest!==cur.dest){             // destination change → boundary
+      if (seg) closeSeg(seg, evs[i].t), segs.push(seg);
+      seg = blank(cur.dest, cur.destLabel, evs[i].t);
+    } else if (cur.dest!==_OFFICE_DEST && cur.destLabel) {
+      seg.woLabel = cur.destLabel;
+    }
+    var nextT = (i+1<evs.length) ? evs[i+1].t : evs[i].t;
+    accrue(seg, cur.phase, cur.dest, Math.max(0, nextT-evs[i].t));
+    seg.endMs = nextT;
+  }
+  if (seg){ closeSeg(seg, seg.endMs); segs.push(seg); }
+  return segs;
+}
+
 async function _doArriveBackActual(){
   getGPS(async function(lat,lng,acc){
     var now=new Date();
@@ -441,9 +615,14 @@ async function _doArriveBackActual(){
               (_clockState.todayEvents && _clockState.todayEvents.length ? new Date(_clockState.todayEvents[0].time) : now);
     var _evInStartOrder = _clockState.todayEvents.map(function(e){ return Object.assign({},e,{time:e.time instanceof Date?e.time.toISOString():e.time}); });
     var _split = _splitClockDay(_t0, now, _clockState);
+    // #2: per-DESTINATION segments (office/WO legs) derived from the SAME event timeline. On a
+    // same-day shift these replace the linear office/travel/onsite split with the ACCURATE breakdown
+    // (pay-neutral — totalPaidMins is unchanged) and ride along for per-job costing + the day ribbon.
+    var _destSegs = _buildDaySegments(_evInStartOrder);
+    var _sameDay = !_split.crossesMidnight;
     var _baseId = 'wd-'+Date.now();
     _split.segments.forEach(function(seg, i){
-      DB.workDays.push({
+      var _rec = {
         id:            i===0 ? _baseId : _baseId+'-'+i,
         techName:      _currentUser ? _currentUser.full_name : 'Unknown',
         techId:        _currentUser ? _currentUser.id : null,
@@ -460,7 +639,19 @@ async function _doArriveBackActual(){
         lunchFlagged:  lunchFlag && i===0,
         autoStopped:   !!_split.autoStopped,          // 24h runaway cap hit
         longDayFlagged:!!seg.longDayFlagged           // over the review threshold → office should eyeball
-      });
+      };
+      if (i===0 && _destSegs.length){
+        if (_sameDay){
+          // accurate per-destination aggregate; reconcile the DISPLAY components to the authoritative
+          // paid total (pay reads totalPaidMins only, so this moves zero pay — proven in hardening_proof #7).
+          var _agg=_destSegs.reduce(function(a,s){ a.o+=s.officeMins;a.t+=s.travelMins;a.n+=s.onsiteMins;a.b+=s.breakMins; return a; },{o:0,t:0,n:0,b:0});
+          var _diff=seg.totalPaidMins-(_agg.o+_agg.t+_agg.n);
+          if(_diff!==0){ if(_agg.n>=_agg.o&&_agg.n>=_agg.t)_agg.n+=_diff; else if(_agg.o>=_agg.t)_agg.o+=_diff; else _agg.t+=_diff; }
+          _rec.officeMins=_agg.o; _rec.travelMins=_agg.t; _rec.onsiteMins=_agg.n; _rec.breakMins=_agg.b;
+        }
+        _rec.segments=_destSegs;   // per-destination breakdown (office/WO) for costing + the day-ribbon board
+      }
+      DB.workDays.push(_rec);
     });
     // r49: report the CAPPED sum across segments (not the raw span) so a 24h-capped runaway doesn't toast
     // "435h", and an overnight shift's reported total matches the two day records that were written.
@@ -475,8 +666,9 @@ async function _doArriveBackActual(){
     _clockState.dayStart=null;_clockState.homebaseStart=null;
     _clockState.travelOutMins=0;_clockState.onsiteMins=0;
     _clockState.travelBackMins=0;_clockState.breakMins=0;_clockState.lunchMins=0;_clockState.lunchCount=0;
+    _clockState.returnTo='base';
     _eodReminderShown=false;hideEodReminder();updateClockUI();
-    _closeClockDayEntry(_capTotal);   // r43/r49: stamp the end + CAPPED total on the day's itemized line
+    _writeClockSegmentEntries(_destSegs, _capTotal);   // r43/r49/#2: close the day line, split into per-destination itemized rows when the day bounced
   });
 }
 
@@ -561,6 +753,50 @@ function _closeClockDayEntry(totalPaidMins){
   } catch(e){ console.warn('[clock day entry close]', e && e.message); }
 }
 
+// #2 — at day-end, materialize the clock-sourced itemized line(s): ONE time_entries row per
+// DESTINATION segment (office or WO), each carrying its own hours + WO so office/costing sees the day
+// broken out by job. Seg 0 REUSES the live open day row (closes it) for backward-compat; extra legs
+// get deterministic ids. All stay clock-sourced (is_manual=false + clockIn) so they remain EXCLUDED
+// from _rebuildDaySummary — zero payroll movement, exactly like the single-row model. A 0/1-segment
+// (plain linear) day falls straight through to the original _closeClockDayEntry, byte-identical.
+function _writeClockSegmentEntries(destSegs, capTotalMins){
+  try {
+    if (!_currentUser){ _closeClockDayEntry(capTotalMins); return; }
+    if (!destSegs || destSegs.length<=1){ _closeClockDayEntry(capTotalMins); return; }
+    if (!DB.timeEntries) DB.timeEntries = [];
+    var base = _findClockDayEntry();            // seg 0 reuses this open row (if present)
+    var who = _currentUser.full_name || 'Unknown';
+    destSegs.forEach(function(sg, i){
+      var isOffice = (sg.dest===_OFFICE_DEST);
+      var sMs=sg.startMs, eMs=sg.endMs;
+      var reuse = (i===0 && base);
+      var row = reuse ? base : {
+        id:        _clockDayEntryId()+(i===0?'':'-s'+i),
+        techName:  who, userId:(_currentUser.id||null), date:getTodayISO(),
+        isPaid:true, isManual:false, source:'clock', isApproved:false,
+        addedBy:who, addedAt:new Date().toISOString(),
+        auditTrail:[{action:'clock-segment-open', by:who, at:new Date(sMs).toISOString()}]
+      };
+      row.entryType  = isOffice?'office':'work';
+      row.startTime  = _hhmm(new Date(sMs));
+      row.endTime    = _hhmm(new Date(eMs));
+      row.totalMins  = sg.paidMins;
+      row.totalHours = Math.round((sg.paidMins/60)*100)/100;
+      row.woId       = isOffice?'':sg.dest;
+      row.jobId      = isOffice?'':sg.dest;
+      row.woLabel    = sg.woLabel || (isOffice?'Office / General':'');
+      row.clockIn    = new Date(sMs).toISOString();
+      row.clockOut   = new Date(eMs).toISOString();
+      row.breakMinutes = sg.breakMins||0;
+      (row.auditTrail=row.auditTrail||[]).push({action:'clock-segment-close', by:who, at:new Date(eMs).toISOString()});
+      if (!reuse) DB.timeEntries.push(row);     // seg 0 is already in DB.timeEntries when reused
+      if (typeof _pushTimeEntryToSupabase==='function') _pushTimeEntryToSupabase(row);
+    });
+    saveDB();
+    if (typeof loadTimesheets==='function') { try { loadTimesheets(); } catch(e){} }
+  } catch(e){ console.warn('[clock segment entries]', e && e.message); }
+}
+
 // NEXT JOB — Done at current site, heading to another job
 async function doNextJob(){
   var sel=document.getElementById('clock-next-job-select');
@@ -579,7 +815,7 @@ async function doNextJob(){
     // and the office dashboard showed the wrong job too.
     if(_clockState.sessionId) await _clockSubmit({kind:'session_update', id:_clockState.sessionId, patch:{job_id:nextId,job_name:nextName,status:'traveling'}});
     await logTimeEvent('job_change',lat,lng,acc,'Left '+prev+' → '+nextName);
-    _clockState.todayEvents.push({type:'job_change',time:now,lat:lat,lng:lng,label:'Left '+prev+' → '+nextName});
+    _clockState.todayEvents.push({type:'job_change',time:now,lat:lat,lng:lng,label:'Left '+prev+' → '+nextName,jobId:nextId,jobName:nextName});
     updateClockUI();startClockTimer();
     showToast('Heading to '+nextName,'success');
   });
@@ -636,16 +872,16 @@ function submitLunchFlag(){
 }
 
 // BREAK & LUNCH
-async function doBreakStart(){var now=new Date();_clockState.breakStart=now;_clockState.status='break';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'on_break'}).eq('id',_clockState.sessionId);await logTimeEvent('break_start',null,null,null);_clockState.todayEvents.push({type:'break_start',time:now,label:'Break Started'});updateClockUI();showToast('Break started','info');}
-async function doBreakEnd(){var now=new Date();_clockState.breakMins+=Math.round((now-_clockState.breakStart)/60000);_clockState.breakStart=null;_clockState.status='onsite';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'clocked_in',break_minutes:_clockState.breakMins}).eq('id',_clockState.sessionId);await logTimeEvent('break_end',null,null,null);_clockState.todayEvents.push({type:'break_end',time:now,label:'Break Ended'});updateClockUI();showToast('Back on the clock','success');}
-async function doLunchStart(){var now=new Date();_clockState.lunchStart=now;_clockState.status='lunch';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'at_lunch'}).eq('id',_clockState.sessionId);await logTimeEvent('lunch_start',null,null,null);_clockState.todayEvents.push({type:'lunch_start',time:now,label:'Lunch Started'});updateClockUI();showToast('Lunch started','info');}
+async function doBreakStart(){var now=new Date();_clockState.resumeStatus=(_clockState.status==='office'?'office':'onsite');_clockState.breakStart=now;_clockState.status='break';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'on_break'}).eq('id',_clockState.sessionId);await logTimeEvent('break_start',null,null,null);_clockState.todayEvents.push({type:'break_start',time:now,label:'Break Started'});updateClockUI();showToast('Break started','info');}
+async function doBreakEnd(){var now=new Date();_clockState.breakMins+=Math.round((now-_clockState.breakStart)/60000);_clockState.breakStart=null;_clockState.status=_clockState.resumeStatus||'onsite';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'clocked_in',break_minutes:_clockState.breakMins}).eq('id',_clockState.sessionId);await logTimeEvent('break_end',null,null,null);_clockState.todayEvents.push({type:'break_end',time:now,label:'Break Ended'});updateClockUI();showToast('Back on the clock','success');}
+async function doLunchStart(){var now=new Date();_clockState.resumeStatus=(_clockState.status==='office'?'office':'onsite');_clockState.lunchStart=now;_clockState.status='lunch';if(_clockState.sessionId&&_sb)await _sb.from('clock_sessions').update({status:'at_lunch'}).eq('id',_clockState.sessionId);await logTimeEvent('lunch_start',null,null,null);_clockState.todayEvents.push({type:'lunch_start',time:now,label:'Lunch Started'});updateClockUI();showToast('Lunch started','info');}
 async function doLunchEnd(){
   getGPS(async function(lat,lng,acc){
     var now=new Date();
     var lunchMins=Math.round((now-_clockState.lunchStart)/60000);
     _clockState.lunchMins+=lunchMins;
     _clockState.lunchCount+=1;
-    _clockState.lunchStart=null;_clockState.status='onsite';
+    _clockState.lunchStart=null;_clockState.status=_clockState.resumeStatus||'onsite';
     await logTimeEvent('lunch_end',lat,lng,acc);
     _clockState.todayEvents.push({type:'lunch_end',time:now,label:'Back from Lunch ('+lunchMins+' min)'});
     if(lunchMins<30){showToast('Lunch was only '+lunchMins+' min — 30 min required. This will be flagged.','warning',5000);}
@@ -664,11 +900,15 @@ function startClockTimer(){
     var lbl=document.getElementById('clock-timer-label');
     if(_clockState.status==='traveling'){if(disp)disp.textContent=formatMs(now-_clockState.travelOutStart);if(lbl)lbl.textContent='🚗 Travel to Site';}
     else if(_clockState.status==='onsite'){var offMs=Math.max(0,(_clockState.breakMins+_clockState.lunchMins-(_clockState.onsiteBreakBase||0)))*60000;if(_clockState.breakStart)offMs+=(now-_clockState.breakStart);if(_clockState.lunchStart)offMs+=(now-_clockState.lunchStart);if(disp)disp.textContent=formatMs(Math.max(0,now-_clockState.onsiteStart-offMs));if(lbl)lbl.textContent='🔧 On Site';}
+    // #2 — office (or at base before choosing): show the paid elapsed since the day began, minus lunch.
+    else if(_clockState.status==='office'||_clockState.status==='at_homebase'){var _t0=_clockState.homebaseStart||_clockState.dayStart||now;var offMs=(_clockState.lunchMins*60000)+(_clockState.lunchStart?now-_clockState.lunchStart:0);if(disp)disp.textContent=formatMs(Math.max(0,now-_t0-offMs));if(lbl)lbl.textContent=(_clockState.status==='office'?'🏢 At the Office':'🏠 At Base');}
     else if(_clockState.status==='break'){if(disp)disp.textContent=formatMs(now-_clockState.breakStart);if(lbl)lbl.textContent='⏸ On Break';}
     else if(_clockState.status==='lunch'){if(disp)disp.textContent=formatMs(now-_clockState.lunchStart);if(lbl)lbl.textContent='🍽 At Lunch';}
-    else if(_clockState.status==='returning'){if(disp)disp.textContent=formatMs(now-_clockState.travelBackStart);if(lbl)lbl.textContent='🚗 Return Travel';}
+    else if(_clockState.status==='returning'){if(disp)disp.textContent=formatMs(now-_clockState.travelBackStart);if(lbl)lbl.textContent=(_clockState.returnTo==='office'?'🚗 Back to Office':'🚗 Return Travel');}
     var travelMs=(_clockState.travelOutMins*60000)+(_clockState.status==='traveling'?now-_clockState.travelOutStart:0)+(_clockState.travelBackMins*60000)+(_clockState.status==='returning'?now-_clockState.travelBackStart:0);
-    var onsiteMs=(_clockState.onsiteMins*60000)+(_clockState.status==='onsite'?Math.max(0,now-_clockState.onsiteStart-Math.max(0,(_clockState.breakMins+_clockState.lunchMins-(_clockState.onsiteBreakBase||0)))*60000):0);
+    // #2 — the "Worked" tile folds in office time (paid non-travel) so an office day visibly counts up.
+    var _officeLiveMs=((_clockState.status==='office'||_clockState.status==='at_homebase')?Math.max(0,now-(_clockState.homebaseStart||_clockState.dayStart||now)-((_clockState.lunchMins*60000)+(_clockState.lunchStart?now-_clockState.lunchStart:0))):0);
+    var onsiteMs=(_clockState.onsiteMins*60000)+(_clockState.status==='onsite'?Math.max(0,now-_clockState.onsiteStart-Math.max(0,(_clockState.breakMins+_clockState.lunchMins-(_clockState.onsiteBreakBase||0)))*60000):0)+_officeLiveMs;
     var breakMs=_clockState.breakMins*60000+(_clockState.breakStart?now-_clockState.breakStart:0);
     var lunchMs=_clockState.lunchMins*60000+(_clockState.lunchStart?now-_clockState.lunchStart:0);
     function setDs(id,ms){var el=document.getElementById(id);if(el)el.textContent=formatMs(ms);}
@@ -690,36 +930,55 @@ function updateClockUI(){
   var punchCard=document.getElementById('punch-log-card');
   var statusMap={
     out:         {cls:'out',   text:'Not Started'},
-    at_homebase: {cls:'in',   text:'🏠 At Base — Ready to Travel'},
+    at_homebase: {cls:'in',   text:'🏠 At Base — Office or a Work Order?'},
+    office:      {cls:'in',   text:'🏢 Working at the Office'},
     traveling:   {cls:'in',   text:'🚗 Traveling to '+(_clockState.jobName||'Job')},
     onsite:      {cls:'in',   text:'🔧 On Site — '+(_clockState.jobName||'')},
     break:       {cls:'break',text:'⏸ On Break'},
     lunch:       {cls:'lunch',text:'🍽 At Lunch'},
-    returning:   {cls:'in',   text:'🚗 Returning to Base'}
+    returning:   {cls:'in',   text:(_clockState.returnTo==='office'?'🚗 Returning to the Office':'🚗 Returning to Base')}
   };
   var s=statusMap[_clockState.status]||statusMap.out;
   if(dot)dot.className='clock-status-dot '+s.cls;
   if(txt)txt.textContent=s.text;
-  // Job wrap — show when out (to select job) or at_homebase (to select job before traveling)
+  // Job wrap — show when out (to select job) or at_homebase (to pick a work order before traveling)
   if(jobWrap)jobWrap.style.display=(_clockState.status==='out'||_clockState.status==='at_homebase')?'block':'none';
   if(daySumm)daySumm.style.display=_clockState.status!=='out'?'grid':'none';
   if(punchCard)punchCard.style.display=_clockState.todayEvents.length?'block':'none';
   if(_clockState.status==='out'){var el=document.getElementById('clock-timer-display');if(el)el.textContent='0:00:00';}
   if(!btnGrid) return;
 
-  // Build next-job options for multi-job day
+  // Build next-job options for a multi-job day (excludes the current destination).
   var otherJobs=_getMyAssignedJobs().filter(function(j){return j.id!==_clockState.jobId;});
   var nextJobOpts=otherJobs.map(function(j){return '<option value="'+escHtml(j.id)+'">'+escHtml(j.name+(j.customer?' — '+j.customer:''))+'</option>';}).join('');
   var nextJobSel=otherJobs.length
     ? '<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Next Job</div>'+
       '<select id="clock-next-job-select" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px"><option value="">-- Select next job --</option>'+nextJobOpts+'</select></div>'
     : '';
+  // #2 — office-state picker: every assigned WO (the office IS the current destination here).
+  var allJobs=_getMyAssignedJobs();
+  var officeJobOpts=allJobs.map(function(j){return '<option value="'+escHtml(j.id)+'">'+escHtml(j.name+(j.customer?' — '+j.customer:''))+'</option>';}).join('');
+  var officeJobSel='<div style="margin-top:4px"><div style="font-size:11px;font-weight:700;color:#546e7a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Travel to a Work Order</div>'+
+      '<select id="clock-office-job-select" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px"><option value="">-- Select a work order --</option>'+officeJobOpts+'</select></div>';
 
   if(_clockState.status==='out'){
     btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doStartDay()" style="grid-column:1/-1"><span class="btn-icon">☀️</span>Start Day at Base</button>';
   }
   else if(_clockState.status==='at_homebase'){
-    btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doStartTravel()" style="grid-column:1/-1"><span class="btn-icon">🚗</span>Start Travel to Site</button>';
+    // #2 — the destination choice at the start of the day: stay and work at the office, or travel to
+    // a work order (pick it in the selector above). No one has to fake a trip to work at the office.
+    btnGrid.innerHTML=
+      '<button class="clock-btn clock-in" onclick="doWorkAtOffice()" style="grid-column:1/-1;background:#00897b"><span class="btn-icon">🏢</span>Work at the Office</button>'+
+      '<button class="clock-btn clock-in" onclick="doStartTravel()" style="grid-column:1/-1;margin-top:8px"><span class="btn-icon">🚗</span>Travel to a Work Order</button>';
+  }
+  else if(_clockState.status==='office'){
+    // #2 — working at the office: break/lunch like any clocked state, leave for a work order at any
+    // time, or end the day right here (no forced round-trip to a job site).
+    btnGrid.innerHTML=
+      '<button class="clock-btn break-start" onclick="doBreakStart()"><span class="btn-icon">⏸</span>Break</button>'+
+      '<button class="clock-btn lunch-start" onclick="doLunchStart()"><span class="btn-icon">🍽</span>Lunch</button>'+
+      (officeJobOpts? officeJobSel+'<button class="clock-btn" onclick="doStartTravel()" style="background:#e3f2fd;color:#1565c0;border:2.5px solid #90caf9;grid-column:1/-1;min-height:72px;font-size:16px"><span class="btn-icon">🚗</span>Travel to a Work Order</button>':'')+
+      '<button class="clock-btn clock-out" onclick="doArriveBack()" style="grid-column:1/-1;margin-top:4px"><span class="btn-icon">🏁</span>End Day</button>';
   }
   else if(_clockState.status==='traveling'){
     btnGrid.innerHTML='<button class="clock-btn clock-in" style="grid-column:1/-1;background:#1565c0" id="btn-arrive-site" onclick="doArriveOnSite()"><span class="btn-icon">📍</span>Arrive On Site — Clock In</button>';
@@ -731,7 +990,8 @@ function updateClockUI(){
       (nextJobOpts
         ? nextJobSel+'<button class="clock-btn" onclick="doNextJob()" style="background:#e3f2fd;color:#1565c0;border:2.5px solid #90caf9;grid-column:1/-1;min-height:80px;font-size:16px"><span class="btn-icon">➡️</span>Go to Next Job</button>'
         : '')+
-      '<button class="clock-btn clock-out" onclick="doLeaveOnSite()" style="grid-column:1/-1;margin-top:4px"><span class="btn-icon">🚗</span>Leave Site — Return to Base</button>';
+      '<button class="clock-btn" onclick="doReturnToOffice()" style="grid-column:1/-1;margin-top:4px;background:#e0f2f1;color:#00695c;border:2px solid #80cbc4"><span class="btn-icon">🏢</span>Return to the Office</button>'+
+      '<button class="clock-btn clock-out" onclick="doLeaveOnSite()" style="grid-column:1/-1;margin-top:4px"><span class="btn-icon">🚗</span>Leave Site — End Day</button>';
   }
   else if(_clockState.status==='break'){
     btnGrid.innerHTML='<button class="clock-btn break-end" style="grid-column:1/-1" onclick="doBreakEnd()"><span class="btn-icon">▶️</span>End Break — Back to Work</button>';
@@ -740,7 +1000,10 @@ function updateClockUI(){
     btnGrid.innerHTML='<button class="clock-btn lunch-end" style="grid-column:1/-1" onclick="doLunchEnd()"><span class="btn-icon">▶️</span>Back from Lunch</button>';
   }
   else if(_clockState.status==='returning'){
-    btnGrid.innerHTML='<button class="clock-btn clock-in" onclick="doArriveBack()" style="grid-column:1/-1;background:#1565c0"><span class="btn-icon">🏁</span>Arrived Back — End Day</button>';
+    // #2 — the "arrived" action lands where the tech is headed: back at the office to keep working, or home to end the day.
+    btnGrid.innerHTML=(_clockState.returnTo==='office')
+      ? '<button class="clock-btn clock-in" onclick="doArriveAtOffice()" style="grid-column:1/-1;background:#00897b"><span class="btn-icon">🏢</span>Arrived at the Office</button>'
+      : '<button class="clock-btn clock-in" onclick="doArriveBack()" style="grid-column:1/-1;background:#1565c0"><span class="btn-icon">🏁</span>Arrived Back — End Day</button>';
   }
   // "Open Work Order — Field Log" shortcut for the job the tech is clocked into.
   var woLinkEl=document.getElementById('clock-wo-link');
@@ -1844,6 +2107,7 @@ function _workDayToRow(wd) {
     corrected:          (wd.corrected != null) ? !!wd.corrected : null,
     corrections:        wd.corrections || null,
     events:             wd.events || null,
+    segments:           wd.segments || null,   // #2: per-destination (office/WO) hour breakdown for costing + day-ribbon
     // r46: field-tech work note — tech writes it on My Hours, office/manager can modify from All
     // Timesheets; once office modifies, note_locked=true locks the tech out. note_audit keeps every change.
     work_note:          (wd.workNote != null) ? wd.workNote : null,
@@ -1862,12 +2126,30 @@ function _workDayToRow(wd) {
 // r46: immediate single-row work-day push so a saved work note lands in the cloud right away
 // (the office sees a tech's note, the tech sees an office edit) without waiting for the next sweep.
 // The r36 write-gate chokepoint still suppresses this on a stale build, so no extra guard needed here.
+// #2 — schema-safe workDay upsert. `segments` is a new column; if a device/DB hasn't had the ALTER
+// yet (e.g. the build deployed a beat before the column was added), PostgREST rejects the whole row
+// with "could not find the 'segments' column" (PGRST204). Payroll must NEVER be blocked by that, so
+// on exactly that error we drop `segments` and retry once — the pay-critical columns still land, and
+// the breakdown simply syncs later once the column exists. Every other error is surfaced as before.
+function _wdRowSchemaErr(err){
+  var m = (err && (err.message||err.msg||'')) + ' ' + (err && (err.code||''));
+  return /segments/i.test(m) && /(column|schema cache|PGRST204|does not exist|find)/i.test(m);
+}
+async function _wdUpsertSafe(row){
+  var r = await _sb.from('app_work_days').upsert(row, {onConflict:'id'});
+  if (r && r.error && _wdRowSchemaErr(r.error) && row && ('segments' in row)){
+    var row2 = Object.assign({}, row); delete row2.segments;
+    console.warn('[WorkDay push] segments column missing — retrying without it (payroll preserved)');
+    r = await _sb.from('app_work_days').upsert(row2, {onConflict:'id'});
+  }
+  return r;
+}
 async function _pushWorkDayToCloud(wd) {
   if (!_sb || !wd || !wd.id) return;
   try {
     var row = (typeof _workDayToRow === 'function') ? _workDayToRow(wd) : null;
     if (!row) return;
-    var r = await _sb.from('app_work_days').upsert(row, {onConflict:'id'});
+    var r = await _wdUpsertSafe(row);
     if (r && r.error) console.warn('[WorkDay push]', r.error.message);
   } catch(e) { console.warn('[WorkDay push]', e.message||e); }
 }

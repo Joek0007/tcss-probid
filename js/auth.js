@@ -370,7 +370,7 @@ var _CHILD_HASH_KEYS = {
   // hashed (deleted, isApproved, corrected, dayLocked, …), so excluding the blobs avoids a
   // permanent-dirty trap that would churn-re-push payroll rows every sweep.
   time_entries:['techName','date','entryType','startTime','endTime','totalHours','totalMins','isPaid','woId','jobId','woLabel','notes','gpsReason','isManual','userId','teamMemberId','clockIn','clockOut','breakMinutes','gpsLat','gpsLng','isApproved','approvedBy','deleted','deletedBy','deletedAt'],
-  app_work_days:['techName','techId','date','totalPaidMins','onsiteMins','travelMins','breakMins','lunchMins','officeMins','ptoMins','vacationMins','holidayMins','jobName','jobId','dayType','approved','approvedBy','lunchFlagged','hasManualEntries','autoStopped','corrected','workNote','noteLocked','dayLocked','payrollUnlocked']
+  app_work_days:['techName','techId','date','totalPaidMins','onsiteMins','travelMins','breakMins','lunchMins','officeMins','ptoMins','vacationMins','holidayMins','jobName','jobId','dayType','approved','approvedBy','lunchFlagged','hasManualEntries','autoStopped','corrected','workNote','noteLocked','dayLocked','payrollUnlocked','segments']
 };
 function _childHash(table, row){
   var keys = _CHILD_HASH_KEYS[table]; if (!keys || !row) return '';
@@ -1686,6 +1686,7 @@ async function syncAllFromCloud(silent) {
             autoStopped: !!w.auto_stopped,  // r49: 24h runaway cap flag
 
             corrected: !!w.corrected, corrections: w.corrections||null, events: w.events||null,
+            segments: w.segments||null,   // #2: per-destination hour breakdown
             // r46: field-tech work note + its lock + audit (see _workDayToRow).
             workNote: w.work_note||'', noteLocked: !!w.note_locked, noteAudit: w.note_audit||null,
             // r48: day lock + processed-reopen + lock audit.
@@ -3621,7 +3622,9 @@ async function pushAllToCloud() {
       try {
         var wdRow = (typeof _workDayToRow === 'function') ? _workDayToRow(wd) : null;
         if (!wdRow) continue;
-        var { error: wdErr } = await _sb.from('app_work_days').upsert(wdRow, {onConflict:'id'});
+        // #2: schema-safe — never let the new `segments` column block a payroll write (see _wdUpsertSafe).
+        var _wdRes = (typeof _wdUpsertSafe==='function') ? await _wdUpsertSafe(wdRow) : await _sb.from('app_work_days').upsert(wdRow, {onConflict:'id'});
+        var wdErr = _wdRes && _wdRes.error;
         if (wdErr) { console.warn('[Push] Work day error:', wdErr.message); _pushErrors.push('work day '+(wd.id)+': '+wdErr.message); }
         else if (typeof _writesBlocked!=='function' || !_writesBlocked()) { _officeMarkSynced('app_work_days', wd); }  // r76
       } catch(wdCatch) { console.warn('[Push] Work day error:', wdCatch.message||wdCatch); }
