@@ -40,6 +40,10 @@ eval(fnFrom(coreSrc,'_envKey'));
 eval(objFrom(woSrc,'_WO_STATUS_ALIASES'));
 eval(fnFrom(woSrc,'_normalizeWOStatusId'));
 eval(fnFrom(woSrc,'setWOStatus'));
+DB.settings = { laborRate:100, taxRate:0 };    // company defaults for the WS-4a resolver proof
+eval(fnFrom(coreSrc,'_numOrNull'));
+eval(fnFrom(coreSrc,'resolveTaxRate'));
+eval(fnFrom(coreSrc,'resolveLaborRate'));
 
 // Generic two-session clobber harness (local-shape rows in a shared cloud) — used for payroll proofs.
 async function runClobberGeneric(table, seedRow, editFn, mode){
@@ -168,6 +172,34 @@ async function runChildClobber(mode){ // mode: 'OLD_pushall' | 'FIXED_changedonl
   assert('RED: unseeded on-demand row looks dirty (would churn-re-push)', redChurn===true);
   assert('GREEN: seeded on-demand row is clean (no churn)', greenChurn===false);
   assert('teeth: red≠green', redChurn!==greenChurn);
+
+  // ==========================================================================
+  // PROOF 6 — WS-4a: the unified tax/labor resolver — exempt wins, customer default reaches invoices,
+  // labor defaults to the company rate (not the stray 125). Old invoice logic ignored the customer.
+  // ==========================================================================
+  console.log('\nPROOF 6 — WS-4a defaults cascade (tax honors customer+exempt; labor uses company default):');
+  // Old invoice tax default (the actual pre-fix expression): wo.taxRate || quote.taxRate || company — no customer.
+  function oldInvoiceTax(wo, quote){ return (wo&&wo.taxRate) || (quote&&quote.taxRate) || (DB.settings&&DB.settings.taxRate) || 0; }
+  var exemptCust = { taxExempt:true, defaultTaxRate:null };
+  var taxedCust  = { taxExempt:false, defaultTaxRate:8.75 };
+  // (a) exempt customer, an upstream WO rate of 7 present:
+  assert('RED: old logic taxes an EXEMPT customer ('+oldInvoiceTax({taxRate:7},null)+'%)', oldInvoiceTax({taxRate:7},null)===7);
+  assert('GREEN: resolver forces 0 for an exempt customer', resolveTaxRate({customer:exemptCust, explicit:7, fallbacks:[7,0]})===0);
+  // (b) customer default 8.75, no upstream/company (company=0):
+  assert('RED: old logic ignores the customer default → '+oldInvoiceTax(null,null)+'%', oldInvoiceTax(null,null)===0);
+  assert('GREEN: resolver applies the customer default (8.75%)', resolveTaxRate({customer:taxedCust, fallbacks:[null,null,0]})===8.75);
+  // (c) explicit document rate wins for a non-exempt customer:
+  assert('GREEN: an explicit document rate (6%) wins over customer default', resolveTaxRate({customer:taxedCust, explicit:6})===6);
+  // (d) labor: when the company rate is unset, OLD code fell back to a hardcoded 125; resolver uses 100.
+  var _savedLR = DB.settings.laborRate; DB.settings.laborRate = null;
+  var oldLabor = parseFloat(({}).laborRate || DB.settings.laborRate || 125);   // the real pre-fix expression
+  assert('RED: old labor fallback is the stray 125 (company rate unset) → '+oldLabor, oldLabor===125);
+  assert('GREEN: resolver falls back to company default 100, not 125', resolveLaborRate({})===100);
+  DB.settings.laborRate = _savedLR;
+  assert('GREEN: resolver respects an explicit document rate (150)', resolveLaborRate({explicit:150})===150);
+  assert('teeth: resolver changes the exempt + customer-default outcomes vs old logic',
+         resolveTaxRate({customer:exemptCust, explicit:7, fallbacks:[7]})!==oldInvoiceTax({taxRate:7},null) &&
+         resolveTaxRate({customer:taxedCust, fallbacks:[0]})!==oldInvoiceTax(null,null));
 
   console.log('\n'+(fail===0?('ALL '+pass+' PROOFS PASSED (each red-then-green)'):(fail+' FAILED, '+pass+' passed')));
   process.exit(fail===0?0:1);

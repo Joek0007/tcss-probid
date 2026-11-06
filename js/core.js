@@ -12,6 +12,33 @@
 // evening for US time zones, making "today" wrong after ~7–8pm Eastern.
 function getTodayISO(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
+// ── WS-4a (r78) — ONE tax + labor default resolver, used everywhere a default is chosen ─────────────
+// Tax precedence (Joe, 2026-11-06): a TAX-EXEMPT customer is NEVER taxed (0, hard override); otherwise a
+// rate EXPLICITLY set on THIS document wins; else the CUSTOMER default; else the ordered fallbacks
+// (upstream doc values, then the company default); else 0. This fixes the invoice path, which never
+// consulted the customer before, so a customer's default tax now reaches invoices directly.
+function _numOrNull(v){ return (v!=null && v!=='' && !isNaN(parseFloat(v))) ? parseFloat(v) : null; }
+function resolveTaxRate(opts){
+  opts = opts || {};
+  var cust = opts.customer || null;
+  if (cust && cust.taxExempt) return 0;                        // exempt wins over everything
+  var e = _numOrNull(opts.explicit); if (e!=null) return e;     // explicit value already on this document
+  if (cust){ var cd = _numOrNull(cust.defaultTaxRate); if (cd!=null) return cd; }  // customer default
+  var fb = opts.fallbacks || [];
+  for (var i=0;i<fb.length;i++){ var f=_numOrNull(fb[i]); if (f!=null) return f; } // upstream / company fallbacks
+  return 0;
+}
+// Labor rate: explicit on the doc → ordered fallbacks → company setting → 100 (the canonical default; the
+// stray hardcoded 125 fallbacks are removed in favor of DB.settings.laborRate).
+function resolveLaborRate(opts){
+  opts = opts || {};
+  var e = _numOrNull(opts.explicit); if (e!=null) return e;
+  var fb = opts.fallbacks || [];
+  for (var i=0;i<fb.length;i++){ var f=_numOrNull(fb[i]); if (f!=null) return f; }
+  var cs = (typeof DB!=='undefined' && DB.settings) ? _numOrNull(DB.settings.laborRate) : null;
+  return (cs!=null) ? cs : 100;
+}
+
 // ---- CONSTANTS ----
 // WS-2 (r74) — ENVIRONMENT ISOLATION. staging and prod are served from the same URL, so they also
 // shared one browser localStorage. That is how staging/test data bled into prod: records created

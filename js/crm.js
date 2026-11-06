@@ -1013,7 +1013,7 @@ async function confirmConvertJob() {
     siteCity:      q.adCity||'',
     siteState:     q.adState||'',
     siteZip:       q.adZip||'',
-    laborRate:     q.laborRate||125,
+    laborRate:     (typeof resolveLaborRate==='function') ? resolveLaborRate({explicit:q.laborRate}) : (q.laborRate||100),  // WS-4a: company default, not stray 125
     taxRate:       q.taxRate||0,
     estLaborHours: q.totalLaborHours||0,          // r13: carry the quote's labor estimate (was held on the job)
     scheduledDate: startDate,

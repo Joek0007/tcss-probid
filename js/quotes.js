@@ -3028,7 +3028,7 @@ function reprintInvoice(invId) {
   // If all items are $0 but we have a linked quote, regenerate items from quote
   if (itemsTotal === 0 && inv.quoteId && quote) {
     var freshItems = [];
-    var laborRate = parseFloat(quote.laborRate||DB.settings.laborRate||125);
+    var laborRate = resolveLaborRate({ explicit:quote.laborRate });  // WS-4a: → company default (100), not stray 125
     var qItems = quote.items || [];
     var laborQItems = qItems.filter(function(li){ return li.lh && parseFloat(li.lh)>0; });
     var matQItems   = qItems.filter(function(li){ return !li.lh || parseFloat(li.lh)===0; });
@@ -3396,7 +3396,7 @@ function openInvoiceModal(job) {
   sv('inv-due',      dueDate);
   sv('inv-terms',    terms);
   sv('inv-po',       job.poNumber||'');
-  sv('inv-tax',      (wo&&wo.taxRate) || (quote&&quote.taxRate) || (DB.settings&&DB.settings.taxRate) || 0);
+  sv('inv-tax',      resolveTaxRate({ customer:cust, fallbacks:[ (wo&&wo.taxRate), (quote&&quote.taxRate), (DB.settings&&DB.settings.taxRate) ] }));  // WS-4a: exempt→0, else customer default, else upstream/company
   sv('inv-notes',    (DB.settings&&DB.settings.invNotes) || (DB.settings&&DB.settings.payTerms) || '');
   sv('inv-job-id',   job.id||'');
   sv('inv-wo-id',    (wo&&wo.id)||'');
@@ -3427,8 +3427,8 @@ function openInvoiceModal(job) {
 
   // Build line items — WO labor/expenses first, then quote, then blank
   var items = [];
-  var laborRate = parseFloat((wo&&wo.laborRate)||(quote&&quote.laborRate)||(DB.settings&&DB.settings.laborRate)||125);
-  var taxRate   = parseFloat((wo&&wo.taxRate)||(quote&&quote.taxRate)||0);
+  var laborRate = resolveLaborRate({ fallbacks:[ (wo&&wo.laborRate), (quote&&quote.laborRate) ] });  // WS-4a: → company default (100), not stray 125
+  var taxRate   = resolveTaxRate({ customer:cust, fallbacks:[ (wo&&wo.taxRate), (quote&&quote.taxRate), (DB.settings&&DB.settings.taxRate) ] });  // WS-4a
   sv('inv-tax', taxRate);
 
   if (wo) {
