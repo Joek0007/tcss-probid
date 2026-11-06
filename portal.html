@@ -88,6 +88,31 @@
   .btn-send-changes { width: 100%; padding: 14px; background: #fff3e0; color: #e65100; border: 2px solid #ffcc80; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 10px; }
   .btn-send-changes:hover { background: #ffe0b2; }
 
+  /* Signature capture (Phase 1) */
+  .sig-seg { display:flex; gap:4px; background:#eef4fb; border:1px solid #d6e6f7; border-radius:11px; padding:4px; margin:6px 0 12px; }
+  .sig-seg button { flex:1; font:inherit; font-weight:700; font-size:14px; color:#607d8b; background:transparent; border:0; border-radius:8px; padding:11px 8px; cursor:pointer; }
+  .sig-seg button[aria-selected="true"] { background:#fff; color:#1565c0; box-shadow:0 1px 3px rgba(0,0,0,.12); }
+  .pad-wrap { position:relative; border:2px dashed #bbdefb; border-radius:12px; background:#fff; overflow:hidden; }
+  canvas#sig-pad { display:block; width:100%; height:200px; touch-action:none; cursor:crosshair; }
+  .pad-base { position:absolute; left:18px; right:18px; bottom:46px; border-top:2px solid #e0e7ef; pointer-events:none; }
+  .pad-x { position:absolute; left:20px; bottom:42px; color:#b0bec5; font-size:16px; pointer-events:none; }
+  .pad-hint { position:absolute; left:0; right:0; bottom:22px; text-align:center; font-size:13px; color:#b0bec5; pointer-events:none; transition:opacity .15s; }
+  .pad-tools { display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:13px; color:#90a4ae; }
+  .pad-clear { font:inherit; font-size:13px; font-weight:700; color:#1565c0; background:none; border:0; cursor:pointer; }
+  .type-preview { min-height:96px; border:2px dashed #bbdefb; border-radius:12px; background:#fff; display:flex; align-items:center; justify-content:center; font-family:'Segoe Script','Brush Script MT',cursive; font-size:40px; color:#1a2332; padding:10px 16px; text-align:center; word-break:break-word; }
+  .type-preview.empty { color:#b0bec5; font-family:inherit; font-size:14px; font-style:italic; }
+  .sig-consent { display:flex; gap:11px; align-items:flex-start; margin:18px 0 4px; font-size:13.5px; color:#37474f; cursor:pointer; line-height:1.5; }
+  .sig-consent input { margin-top:2px; width:20px; height:20px; flex:0 0 auto; accent-color:#2e7d32; }
+  .sig-sub { font-size:12.5px; color:#90a4ae; margin-top:6px; }
+  .changes-prompt { font-size:12.5px; color:#90a4ae; }
+  /* Audit receipt */
+  .receipt-sig { border:1px solid #e0e7ef; border-radius:12px; background:#f8fafc; padding:10px; margin:18px auto 12px; max-width:360px; min-height:90px; display:flex; align-items:center; justify-content:center; }
+  .receipt-sig img { max-height:110px; max-width:100%; }
+  .receipt-sig .typed { font-family:'Segoe Script','Brush Script MT',cursive; font-size:40px; color:#1a2332; }
+  .receipt-rows { max-width:360px; margin:0 auto; text-align:left; display:grid; grid-template-columns:auto 1fr; gap:8px 14px; font-size:13px; }
+  .receipt-rows dt { color:#90a4ae; font-weight:700; }
+  .receipt-rows dd { margin:0; text-align:right; color:#37474f; }
+
   /* Success state */
   .success-card { text-align: center; padding: 48px 32px; }
   .success-icon { font-size: 64px; margin-bottom: 16px; }
@@ -206,10 +231,35 @@
     <div class="approval-section" id="approval-section">
       <h3>✍️ Approve This Proposal</h3>
       <p>By signing below, you authorize <span id="authorize-company">us</span> to proceed with the work described in this proposal under the stated terms and pricing.</p>
-      <label class="sig-label" for="sig-input">Type your full name as your signature *</label>
-      <input type="text" id="sig-input" class="sig-input" placeholder="Your full name here..." autocomplete="name">
-      <button class="btn-approve" id="btn-approve" onclick="approveQuote()">✅ Approve This Proposal</button>
-      <div class="divider">or</div>
+      <label class="sig-label" for="legal-name">Full legal name *</label>
+      <input type="text" id="legal-name" class="sig-input" style="font-style:normal" placeholder="Your full name" autocomplete="name">
+
+      <div class="sig-seg" role="tablist" aria-label="Signature method">
+        <button id="tab-draw" type="button" role="tab" aria-selected="true">✍️ Draw</button>
+        <button id="tab-type" type="button" role="tab" aria-selected="false">⌨️ Type</button>
+      </div>
+
+      <div id="panel-draw">
+        <div class="pad-wrap">
+          <canvas id="sig-pad" aria-label="Signature pad"></canvas>
+          <div class="pad-base"></div><span class="pad-x">✕</span>
+          <div class="pad-hint" id="pad-hint">Sign above the line with your finger or mouse</div>
+        </div>
+        <div class="pad-tools"><span>Draw your signature</span><button class="pad-clear" id="pad-clear" type="button">Clear</button></div>
+      </div>
+
+      <div id="panel-type" style="display:none">
+        <div class="type-preview empty" id="type-preview">Your typed name will appear here as your signature</div>
+        <div class="sig-sub">Your typed name is used as your electronic signature.</div>
+      </div>
+
+      <label class="sig-consent" for="consent">
+        <input type="checkbox" id="consent">
+        <span>I agree that my electronic signature is the legal equivalent of my handwritten signature, and I approve this proposal and its total.</span>
+      </label>
+
+      <button class="btn-approve" id="btn-approve" disabled onclick="approveQuote()">✅ Approve &amp; Sign Proposal</button>
+      <div class="divider">need an adjustment first?</div>
       <button class="btn-changes" onclick="toggleChangesBox()">📝 Request Changes</button>
       <div class="changes-box" id="changes-box">
         <textarea class="changes-textarea" id="changes-text" placeholder="Describe what you'd like changed or clarified..."></textarea>
@@ -221,7 +271,10 @@
     <div class="card success-card" id="state-approved" style="display:none">
       <div class="success-icon">🎉</div>
       <div class="success-title">Proposal Approved!</div>
-      <div class="success-sub">Thank you, <strong id="approved-by-name"></strong>. Your approval has been recorded.<br>A member of the <span id="success-company">team</span> will be in touch shortly to confirm next steps.</div>
+      <div class="success-sub">Thank you, <strong id="approved-by-name"></strong>. Your approval has been recorded.</div>
+      <div class="receipt-sig" id="receipt-sig"></div>
+      <dl class="receipt-rows" id="receipt-rows"></dl>
+      <div class="success-sub" style="margin-top:16px">A member of the <span id="success-company">team</span> will be in touch shortly to confirm next steps. A signed copy is on its way to your email.</div>
     </div>
 
     <!-- Changes sent state -->
@@ -409,6 +462,7 @@ async function loadPortal() {
         var daysAgo = Math.round((today - vu) / 86400000);
         setText('expiry-msg', 'This proposal expired ' + daysAgo + ' day' + (daysAgo===1?'':'s') + ' ago. Please contact ' + (companyName || 'us') + ' for an updated proposal.');
         show('expiry-banner');
+        window._portalExpired = true;
         document.getElementById('btn-approve').disabled = true;
         document.getElementById('btn-approve').textContent = '⛔ Proposal Expired — Contact Us';
       }
@@ -457,6 +511,7 @@ async function loadPortal() {
     // Show proposal
     hide('state-loading');
     show('state-proposal');
+    initSignature();   // Phase 1: wire the draw/type signature pad once the approval UI is visible
 
   } catch(e) {
     console.error('Portal error:', e);
@@ -480,38 +535,145 @@ function toggleChangesBox() {
   box.style.display = box.style.display === 'none' || !box.style.display ? 'block' : 'none';
 }
 
-async function approveQuote() {
-  var sigName = (document.getElementById('sig-input').value||'').trim();
-  if (!sigName) {
-    document.getElementById('sig-input').style.borderColor = '#c62828';
-    document.getElementById('sig-input').focus();
-    return;
+// ----- Phase 1 e-signature: capture (draw/type) + consent + audit record -----
+var _sigMode = 'draw', _sigHasInk = false, _sigPad = null, _sigCtx = null, _sigInit = false;
+var CONSENT_TEXT = 'I agree that my electronic signature is the legal equivalent of my handwritten signature, and I approve this proposal and its total.';
+
+function _deviceLabel(){
+  var ua = navigator.userAgent || '', br = 'Browser', os = 'device';
+  if (/Edg\//.test(ua)) br='Edge'; else if (/Chrome\//.test(ua) && !/Edg\//.test(ua)) br='Chrome';
+  else if (/Firefox\//.test(ua)) br='Firefox'; else if (/Safari\//.test(ua) && /Version\//.test(ua)) br='Safari';
+  if (/iPhone/.test(ua)) os='iPhone'; else if (/iPad/.test(ua)) os='iPad'; else if (/Android/.test(ua)) os='Android';
+  else if (/Macintosh/.test(ua)) os='Mac'; else if (/Windows/.test(ua)) os='Windows';
+  return br + ' on ' + os;
+}
+function _sigReady(){
+  var name = (document.getElementById('legal-name').value||'').trim();
+  return _sigMode==='type' ? !!name : _sigHasInk;
+}
+function _updateApproveGate(){
+  var btn = document.getElementById('btn-approve'); if (!btn) return;
+  if (window._portalExpired) { btn.disabled = true; return; }
+  var name = (document.getElementById('legal-name').value||'').trim();
+  var consent = document.getElementById('consent').checked;
+  btn.disabled = !(name && consent && _sigReady());
+}
+function initSignature(){
+  if (_sigInit) return;
+  var pad = document.getElementById('sig-pad'); if (!pad) return;
+  _sigInit = true; _sigPad = pad; _sigCtx = pad.getContext('2d');
+  var hint = document.getElementById('pad-hint');
+  var dpr = Math.max(1, Math.min(3, window.devicePixelRatio||1)), drawing=false, lastX=0, lastY=0;
+  function sizePad(){
+    var r = pad.getBoundingClientRect(); if (!r.width) return;
+    pad.width = Math.round(r.width*dpr); pad.height = Math.round(r.height*dpr);
+    _sigCtx.setTransform(dpr,0,0,dpr,0,0);
+    _sigCtx.lineWidth = 2.4; _sigCtx.lineCap='round'; _sigCtx.lineJoin='round'; _sigCtx.strokeStyle = '#1a2332';
   }
+  function pos(e){ var r = pad.getBoundingClientRect(); return { x:e.clientX-r.left, y:e.clientY-r.top }; }
+  function down(e){
+    drawing=true; var p=pos(e); lastX=p.x; lastY=p.y;
+    _sigCtx.beginPath(); _sigCtx.arc(lastX,lastY,1.2,0,Math.PI*2); _sigCtx.fillStyle='#1a2332'; _sigCtx.fill();
+    if (!_sigHasInk){ _sigHasInk=true; if(hint) hint.style.opacity='0'; _updateApproveGate(); }
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); e.preventDefault();
+  }
+  function move(e){ if(!drawing) return; var p=pos(e); var mx=(lastX+p.x)/2, my=(lastY+p.y)/2;
+    _sigCtx.beginPath(); _sigCtx.moveTo(lastX,lastY); _sigCtx.quadraticCurveTo(lastX,lastY,mx,my); _sigCtx.stroke();
+    lastX=p.x; lastY=p.y; e.preventDefault(); }
+  function up(){ drawing=false; window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); }
+  (pad.parentNode||pad).addEventListener('pointerdown', down);
+  document.getElementById('pad-clear').addEventListener('click', function(){
+    _sigCtx.clearRect(0,0,pad.width,pad.height); _sigHasInk=false; if(hint) hint.style.opacity=''; _updateApproveGate();
+  });
+  var tD=document.getElementById('tab-draw'), tT=document.getElementById('tab-type');
+  function setMode(m){
+    _sigMode = m; var d = m==='draw';
+    tD.setAttribute('aria-selected', d); tT.setAttribute('aria-selected', !d);
+    document.getElementById('panel-draw').style.display = d ? '' : 'none';
+    document.getElementById('panel-type').style.display = d ? 'none' : '';
+    if (d) requestAnimationFrame(sizePad);
+    _updateApproveGate();
+  }
+  tD.addEventListener('click', function(){ setMode('draw'); });
+  tT.addEventListener('click', function(){ setMode('type'); });
+  var nm=document.getElementById('legal-name'), tp=document.getElementById('type-preview');
+  nm.addEventListener('input', function(){
+    var v = nm.value.trim();
+    if (v){ tp.textContent=v; tp.classList.remove('empty'); }
+    else { tp.textContent='Your typed name will appear here as your signature'; tp.classList.add('empty'); }
+    _updateApproveGate();
+  });
+  document.getElementById('consent').addEventListener('change', _updateApproveGate);
+  window.addEventListener('resize', function(){ if (_sigMode==='draw') sizePad(); });
+  requestAnimationFrame(sizePad); _updateApproveGate();
+}
+
+function _renderReceipt(name, method, png, iso, device){
+  setText('approved-by-name', name);
+  var sigBox = document.getElementById('receipt-sig');
+  if (sigBox){ sigBox.innerHTML='';
+    if (method==='draw' && png){ var img=new Image(); img.src=png; sigBox.appendChild(img); }
+    else { var d=document.createElement('div'); d.className='typed'; d.textContent=name; sigBox.appendChild(d); }
+  }
+  var rows = document.getElementById('receipt-rows');
+  if (rows){
+    var when = new Date(iso).toLocaleString('en-US',{dateStyle:'long', timeStyle:'short'});
+    rows.innerHTML =
+      '<dt>Signed by</dt><dd>'+escHtml(name)+'</dd>' +
+      '<dt>Signed</dt><dd>'+escHtml(when)+'</dd>' +
+      '<dt>Method</dt><dd>'+(method==='draw'?'Drawn signature':'Typed signature')+'</dd>' +
+      '<dt>Device</dt><dd>'+escHtml(device)+'</dd>' +
+      '<dt>Proposal</dt><dd>'+escHtml((_quoteData&&_quoteData.quote_number)||'')+'</dd>';
+  }
+}
+
+async function approveQuote() {
   if (!_quoteData) return;
+  if (window._portalExpired) return;
+  var name = (document.getElementById('legal-name').value||'').trim();
+  if (!name) { var n=document.getElementById('legal-name'); n.style.borderColor='#c62828'; n.focus(); return; }
+  if (!document.getElementById('consent').checked) return;      // gate also enforces this
+  if (!_sigReady()) return;
 
   var btn = document.getElementById('btn-approve');
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  var method = _sigMode;
+  var png = (method==='draw' && _sigPad) ? _sigPad.toDataURL('image/png') : null;
+  var device = _deviceLabel();
+  var totalAtTime  = _quoteData && _quoteData.total_sell != null ? (parseFloat(_quoteData.total_sell) || null) : null;
+  var marginAtTime = _quoteData && _quoteData.gross_margin != null ? (parseFloat(_quoteData.gross_margin) || null)
+                   : (_quoteData && _quoteData.margin_pct != null ? (parseFloat(_quoteData.margin_pct) || null) : null);
 
   try {
     var now = new Date().toISOString();
-    var { error } = await sb.from('quotes').update({
-      approval_status:   'approved',
-      approved_by_name:  sigName,
-      approved_at:       now,
-      status:            'Won'
+    // 1) CRITICAL — flip the quote (the business record). Also stamps method/device/total on the row,
+    //    so the approval survives even if the signature-image write below fails.
+    var upd = await sb.from('quotes').update({
+      approval_status: 'approved', approved_by_name: name, approved_at: now, status: 'Won',
+      approval_method: method, approval_device: device,
+      approval_total_at_time: totalAtTime, approval_margin_at_time: marginAtTime
     }).eq('id', _quoteData.id);
+    if (upd.error) throw upd.error;
 
-    if (error) throw error;
+    // 2) BEST-EFFORT — the full signature record (image + consent + audit). Never fail the approval on this.
+    try {
+      var ins = await sb.from('quote_approvals').insert({
+        quote_id: _quoteData.id, approval_token: _quoteData.approval_token, action: 'approved',
+        signer_name: name, method: method, signature_png: png,
+        consent: true, consent_text: CONSENT_TEXT, device: device,
+        total_at_time: totalAtTime, margin_at_time: marginAtTime
+      });
+      if (ins.error) console.warn('[portal] signature record insert failed (approval still recorded):', ins.error);
+    } catch(se){ console.warn('[portal] signature record insert threw (approval still recorded):', se); }
 
-    setText('approved-by-name', sigName);
+    _renderReceipt(name, method, png, now, device);
     hide('approval-section');
     show('state-approved');
 
   } catch(e) {
     console.error('Approval error:', e);
-    btn.disabled = false;
-    btn.textContent = '✅ Approve This Proposal';
+    btn.disabled = false; btn.textContent = '✅ Approve & Sign Proposal';
     alert('There was an error saving your approval. Please try again or contact ' + (companyName || 'the sender') + ' directly.');
   }
 }
@@ -538,6 +700,16 @@ async function sendChangesRequest() {
       scope_notes:     existing + (existing ? '\n\n' : '') + note
     }).eq('id', _quoteData.id);
     if (error) throw error;
+
+    // best-effort audit row for the change request (never fail the request on it)
+    try {
+      var who = (document.getElementById('legal-name') && document.getElementById('legal-name').value.trim()) || 'Customer';
+      var ci = await sb.from('quote_approvals').insert({
+        quote_id: _quoteData.id, approval_token: _quoteData.approval_token, action: 'changes_requested',
+        signer_name: who, method: 'type', consent: false, device: _deviceLabel(), note: msg
+      });
+      if (ci.error) console.warn('[portal] change-request audit insert failed:', ci.error);
+    } catch(ce){ console.warn('[portal] change-request audit insert threw:', ce); }
 
     hide('approval-section');
     show('state-changes-sent');

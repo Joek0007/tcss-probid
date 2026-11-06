@@ -42,4 +42,5 @@ echo "── ★ HARDENING PROOF SUITE: red-then-green reproductions of every ha
 echo "── ★ PILOT SMOKE: office↔field WO lifecycle end-to-end (create→assign→tech-sees→clock-in auto-status→field→office pricing/invoicing→closed locks+drops; two-device convergence at every hand-off) ──"; node tests/wo_lifecycle_smoke.test.js
 echo "── r85 deploy-smoothness (SW install precache parses+caches the app JS, crash-proof; boot splash wired, no white flash) ──"; node tests/sw_precache_boot.test.js
 echo "── r86 approval-token persistence (portal link always resolves; Q-2071 404 red-then-green; stable/idempotent; offline-safe) ──"; node tests/approval_token_persist.test.js
+echo "── Phase 1 portal e-signature (quote-first write; token-gated signature record w/ PNG+consent+total-at-time; expiry blocks; change-request audited) ──"; node tests/portal_signature.test.js
 echo "✅ all tests passed"
