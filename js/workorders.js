@@ -284,6 +284,17 @@ function _woUserIsFieldScoped(){
 // status dropdown)? Office-only statuses (mobile===false) — Ready For Review/Pricing, Invoice Sent,
 // Void, etc. — are out of a tech's world. Shared by both filter builders so they never drift.
 function _woStatusHiddenFromFieldFilter(s){ return _woUserIsFieldScoped() && !!s && s.mobile === false; }
+// #4a (Dawn): the quick-filter CHIPS hide one more thing than the dropdown does — the hand-off status
+// (techDone:true). A company's "Ready For Office-Review" is configured mobile:true (a tech MUST be able
+// to SET it to hand a job back), yet once set the WO leaves the tech's list, so a chip to FILTER by it
+// points at nothing and shouldn't appear for a field user. This is chips-only: the status DROPDOWN keeps
+// techDone statuses so a tech can still set the hand-off. Keyed on techDone, not mobile, precisely because
+// the configured hand-off status is mobile:true.
+function _woStatusHiddenFromFieldChip(s){
+  if (!s) return false;
+  if (_woStatusHiddenFromFieldFilter(s)) return true;      // office-only (mobile:false) — hidden from both
+  return _woUserIsFieldScoped() && s.techDone === true;    // hand-off status — hidden from field CHIPS only
+}
 // One-time seed for installs whose woSettings.statuses predate the techDone flag: best-effort flag the
 // office-review status (matches "Ready For Review" and "Ready For Office-Review"). Owner can change it
 // in WO Status settings. Only runs once a real status list is loaded; the result syncs via woSettings.
@@ -552,8 +563,13 @@ function renderWorkOrders() {
     allU.forEach(function(w){ sCounts[w.status] = (sCounts[w.status]||0)+1; });
     var chipFilter = (document.getElementById('wo-filter-status')||{}).value||'';
     var chipStyle = 'padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;display:inline-block;border:2px solid;margin-right:2px';
+    // #4b (Dawn): build each chip with a data-attribute, NOT an inline onclick string. A configured status
+    // id can contain a double-quote (e.g. Open- "In Progress"), which prematurely closes the
+    // onclick="woChipClick('…')" HTML attribute — that chip then silently does nothing when tapped (the
+    // status dropdown kept working because it reads .value, with no HTML injection). A delegated click
+    // handler (wired once below) reads data-status, so ANY id — quotes, apostrophes — works.
     function makeChip(status, bg, color, border, label) {
-      return '<span onclick="woChipClick(\'' + status + '\')" style="'+chipStyle+';background:'+bg+';color:'+color+';border-color:'+border+'">'+label+'</span>';
+      return '<span class="wo-chip" data-status="'+escHtml(status)+'" style="'+chipStyle+';background:'+bg+';color:'+color+';border-color:'+border+'">'+label+'</span>';
     }
     // Contrasting count bubble inside each pill: on an unselected (gray) pill it takes the
     // status color; on the selected (colored) pill it flips to white with the color as the number.
@@ -567,7 +583,7 @@ function renderWorkOrders() {
     // filters must NOT offer office-only statuses (Ready For Review/Pricing, Invoice Sent, Void, …) —
     // those are out of a tech's world. Gate by the SAME `mobile` flag the status dropdown uses.
     _getWOStatuses().forEach(function(s){
-      if (typeof _woStatusHiddenFromFieldFilter==='function' && _woStatusHiddenFromFieldFilter(s)) return;   // office-only status → no tech chip
+      if (typeof _woStatusHiddenFromFieldChip==='function' && _woStatusHiddenFromFieldChip(s)) return;   // office-only OR hand-off status → no tech chip
       var cnt = sCounts[s.id]||0; if (!cnt) return;
       var col = s.color||'#546e7a';
       var active = chipFilter===s.id;
@@ -579,6 +595,15 @@ function renderWorkOrders() {
       chipEls += makeChip('__unscheduled__', ua?'#c62828':'#e0e7ef', ua?'#fff':'#0d1b2a', ua?'#c62828':'#c8d0db', '&#9888; Unscheduled'+woCountBubble(unschedCount, '#c62828', ua));
     }
     chipsEl.innerHTML = '<span style="font-size:11px;color:#546e7a;font-weight:700;margin-right:6px">QUICK FILTER:</span>'+chipEls;
+    // #4b: delegated click (wired once — chipsEl persists across re-renders) so every chip filters,
+    // including status ids that contain a quote.
+    if (!chipsEl.dataset.wired) {
+      chipsEl.addEventListener('click', function(ev){
+        var chip = ev.target.closest('.wo-chip'); if (!chip) return;
+        woChipClick(chip.getAttribute('data-status') || '');
+      });
+      chipsEl.dataset.wired = '1';
+    }
   }
 
   // Column layout
@@ -1432,6 +1457,34 @@ function onWOStatusChange(status) {
   var urgBadge=document.getElementById('wo-urgent-badge');
   var invBtn=document.getElementById('wo-btn-invoice');
   if(invBtn) invBtn.style.display=(status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'':'none';
+
+  // #5/#3 (Dawn): persist a status change on the WO DETAIL immediately — exactly like the list-view badge
+  // (cycleWOStatus). Before this, the detail dropdown only saved when the user clicked the modal Save
+  // button, and was silently dropped if they closed the modal (the X) — so office users AND field techs
+  // who expected the instant-save behavior the list trains them on lost the change ("I can change it on
+  // List View" / "does not save any status change"). Now both views save the same way, through the ONE
+  // write path setWOStatus (WS-1 invariant).
+  try {
+    var id = (typeof _woCurrentId!=='undefined') ? _woCurrentId : null;
+    if (!id) return;   // brand-new WO not yet saved — status persists on the first Save
+    var wo = (DB.workOrders||[]).find(function(w){ return w.id===id; });
+    if (!wo || !status || status === wo.status) return;
+    if (typeof _isWOLocked==='function' && _isWOLocked(wo)) return;   // closed WO is view-only (banner offers Re-open)
+    // Defense-in-depth: only a status THIS user may set. A field tech picking one they can't set reverts.
+    if (typeof _statusesSettableByUser==='function') {
+      var settable = _statusesSettableByUser().map(function(s){ return s.id; });
+      if (settable.indexOf(status) < 0) {
+        var sel=document.getElementById('wo-status'); if(sel) sel.value=wo.status;
+        if (typeof showToast==='function') showToast('You don’t have permission to set that status','error');
+        return;
+      }
+    }
+    setWOStatus(wo, status);                 // normalizes + audits + saveDB + _pushWOToCloud (WS-1 single write path)
+    // (Deliberately do NOT clear _woDirty — other fields may still have unsaved edits; the status itself is
+    // already persisted, so even a "discard" on close leaves the saved status intact.)
+    if (typeof renderWorkOrders==='function') renderWorkOrders();   // reflect it on the list (handed-off WO drops for techs)
+    if (typeof showToast==='function') showToast('Status → '+wo.status,'success',1500);
+  } catch(e){}
 }
 function onWOPriorityChange(val) {
   var badge=document.getElementById('wo-urgent-badge');
