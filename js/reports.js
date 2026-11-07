@@ -1507,6 +1507,67 @@ function _startLiveSessionsRefresh(){
   }, 30000);
 }
 
+// ── Needs Action queue (Build 2 / r91) ──────────────────────────────────────
+// A standing, data-driven list of work that must be done, on the office dashboard, kept until it's
+// handled — so a signed proposal can't quietly fall through (the durable bell tells you; this makes
+// sure it gets DONE). Real data, not an ephemeral flag: a SIGNED quote (approval approved) with no
+// Work Order yet = "awaiting a work order"; a quote the customer asked to change = "needs a response".
+// Convert reuses the existing quote→WO flow (openConvertToJob).
+function _woExistsForQuote(qid, qnum, workOrders){
+  return (workOrders||[]).some(function(w){
+    return (w.quoteId && w.quoteId===qid) ||
+           (w.quoteNumber && qnum && w.quoteNumber===qnum) ||
+           (w.quote_number && qnum && w.quote_number===qnum);
+  });
+}
+function _needsActionItems(quotes, workOrders){
+  var signed=[], changes=[];
+  (quotes||[]).forEach(function(q){
+    if (!q) return;
+    var st = q.approval && q.approval.status;
+    if (st==='approved'){ if (!_woExistsForQuote(q.id, q.num, workOrders)) signed.push(q); }
+    else if (st==='changes_requested'){ changes.push(q); }
+  });
+  return { signed: signed, changes: changes };
+}
+function _naMoney(n){ return (typeof fmt==='function') ? fmt(n||0) : ('$'+(parseFloat(n)||0).toFixed(2)); }
+function _renderNeedsAction(){
+  var el = document.getElementById('dash-needs-action'); if(!el) return;
+  var role = (typeof _currentUser!=='undefined' && _currentUser) ? _currentUser.role : null;
+  if (['owner','manager','back_office'].indexOf(role) < 0){ el.style.display='none'; el.innerHTML=''; return; }
+  var items = _needsActionItems(DB.quotes, DB.workOrders);
+  var total = items.signed.length + items.changes.length;
+  if (!total){ el.style.display='none'; el.innerHTML=''; return; }
+  el.style.display='';
+  function row(q, btnLabel, attr){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f1e8d8">'
+      + '<div style="min-width:0;flex:1">'
+        + '<span data-naview="'+escHtml(q.id)+'" style="font-weight:700;color:#1565c0;cursor:pointer">'+escHtml(q.num||'')+'</span>'
+        + ' <span style="color:#b0bec5">·</span> '+escHtml(q.cn||'')
+        + (q.jn? '<div style="font-size:11.5px;color:#546e7a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(q.jn)+'</div>':'')
+      + '</div>'
+      + '<div style="font-weight:700;white-space:nowrap">'+_naMoney(q.total)+'</div>'
+      + '<button '+attr+' style="white-space:nowrap;background:#1565c0;color:#fff;border:0;border-radius:7px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer">'+btnLabel+'</button>'
+      + '</div>';
+  }
+  var h = '<div class="dash-card" style="border:1px solid #ffd9a0;background:#fffdf7">'
+    + '<div class="dash-card-head"><div class="dash-card-title">📋 Needs Action '
+    + '<span style="display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#e65100;color:#fff;font-size:11px;margin-left:4px;vertical-align:middle">'+total+'</span></div></div>';
+  if (items.signed.length){
+    h += '<div style="font-size:12px;font-weight:700;color:#2e7d32;margin:2px 0">✍️ Signed — awaiting a work order ('+items.signed.length+')</div>';
+    h += items.signed.map(function(q){ return row(q, 'Convert to Work Order', 'data-naconvert="'+escHtml(q.id)+'"'); }).join('');
+  }
+  if (items.changes.length){
+    h += '<div style="font-size:12px;font-weight:700;color:#e65100;margin:12px 0 2px">✏️ Changes requested — needs a response ('+items.changes.length+')</div>';
+    h += items.changes.map(function(q){ return row(q, 'Open', 'data-naopen="'+escHtml(q.id)+'"'); }).join('');
+  }
+  h += '</div>';
+  el.innerHTML = h;
+  el.querySelectorAll('[data-naconvert]').forEach(function(b){ b.addEventListener('click', function(){ if(typeof openConvertToJob==='function') openConvertToJob(b.getAttribute('data-naconvert')); }); });
+  el.querySelectorAll('[data-naopen]').forEach(function(b){ b.addEventListener('click', function(){ if(typeof editQuote==='function') editQuote(b.getAttribute('data-naopen')); else if(typeof viewQuote==='function') viewQuote(b.getAttribute('data-naopen')); }); });
+  el.querySelectorAll('[data-naview]').forEach(function(s){ s.addEventListener('click', function(){ if(typeof viewQuote==='function') viewQuote(s.getAttribute('data-naview')); }); });
+}
+
 function renderDash() {
   // Field techs get their own dashboard — check role directly, no dependency on worktracking.js
   var _role = typeof _currentUser !== 'undefined' && _currentUser ? _currentUser.role : null;
@@ -1519,6 +1580,7 @@ function renderDash() {
   // Load journal data for dashboard blip
   setTimeout(loadJournalForDash, 800);
   if (typeof renderBackupHealth === 'function') renderBackupHealth();
+  if (typeof _renderNeedsAction === 'function') _renderNeedsAction();   // Build 2: signed-but-unconverted + change requests
 
   const today = getTodayISO();
 

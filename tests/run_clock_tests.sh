@@ -46,4 +46,5 @@ echo "── Phase 1 portal e-signature (quote-first write; token-gated signatur
 echo "── r87 proposal approval link (click-tracking off so the Approve link isn't rewritten through a dead tracking domain) ──"; node tests/proposal_email_link.test.js
 echo "── r88 office signed-approval view (Quote Details shows the customer's signature + audit; scoped to the quote; empty-safe; typed vs drawn) ──"; node tests/office_signed_view.test.js
 echo "── r89 durable notifications (fragile local approval bell retired; approvals now post to the cross-device wt_notifications feed via DB trigger) ──"; node tests/durable_notifications.test.js
+echo "── r91 Needs Action queue (signed-but-unconverted + change requests surface on the office dashboard; drops off once a WO exists) ──"; node tests/needs_action_queue.test.js
 echo "✅ all tests passed"
