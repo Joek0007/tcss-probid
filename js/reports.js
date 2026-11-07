@@ -631,18 +631,21 @@ function renderQuotes() {
         '</td>'+
       ageCell+
       '<td style="color:#90a4ae;font-size:11px">'+(q.followupDate?'📅 '+q.followupDate:(q.dt||''))+'</td>'+
-      '<td style="min-width:260px"><div class="qa-actions">'+
-        // r97: action buttons now all carry a readable text label (were tiny icon-only squares — "too
-        // small to read"). Same actions/handlers; just labeled + normal-sized like Edit/Approve/Del.
-        '<button class="btn btn-outline btn-sm qa-btn" data-action="viewQuote" data-id="'+q.id+'" title="Preview this quote">👁 View</button> '+
-        '<button class="btn btn-outline btn-sm qa-btn" data-action="editQuote" data-id="'+q.id+'" title="Edit this quote">✏️ Edit</button> '+
-        '<button class="btn btn-outline btn-sm qa-btn" data-action="dupQuote" data-id="'+q.id+'" title="Make a copy of this quote">⧉ Copy</button> '+
+      '<td style="min-width:200px"><div class="qa-actions">'+
+        // r97/r99: action buttons carry readable text labels (were tiny icon-only squares — "too small to
+        // read"), laid out 3 on the top line + 4 on the bottom line. Same actions/handlers.
+        '<div class="qa-line">'+
+          '<button class="btn btn-outline btn-sm qa-btn" data-action="viewQuote" data-id="'+q.id+'" title="Preview this quote">👁 View</button> '+
+          '<button class="btn btn-outline btn-sm qa-btn" data-action="editQuote" data-id="'+q.id+'" title="Edit this quote">✏️ Edit</button> '+
+          '<button class="btn btn-outline btn-sm qa-btn" data-action="dupQuote" data-id="'+q.id+'" title="Make a copy of this quote">⧉ Copy</button> '+
+        '</div>'+
+        '<div class="qa-line">'+
         '<button class="btn btn-sm qa-btn '+(canConvert?'btn-outline-green':'')+'" '+(canConvert?'data-action="convertToJob" data-id="'+q.id+'"':'disabled')+
           ' style="'+(canConvert?'':'background:#eceff1;border:1px solid #607d8b;color:#455a64;cursor:not-allowed;pointer-events:none')+'" title="'+(canConvert?'Mark Won & create the work order/job':'Already converted to a job')+'">'+(canConvert?'▶ Job':'✓ Job')+'</button> '+
         '<button class="btn btn-outline-green btn-sm qa-btn" data-action="emailSavedQuote" data-id="'+q.id+'" title="Email the proposal PDF to the customer">📧 Send</button> '+
         '<button class="btn btn-outline btn-sm qa-btn" data-action="copyPortalLink" data-id="'+q.id+'" title="Email the client an online approval / e-sign link">✍️ Approve</button> '+
         (_canDelQ ? '<button class="btn btn-danger btn-sm qa-btn" data-action="deleteQuote" data-id="'+q.id+'">🗑 Del</button>' : '')+
-      '</div></td>'+
+      '</div></div></td>'+
     '</tr>';
   }).join('');
 }
