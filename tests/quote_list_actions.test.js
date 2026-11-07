@@ -20,15 +20,16 @@ const cell = rp.slice(s-120, e+20);
  ['emailSavedQuote','📧 Send'],['copyPortalLink','✍️ Approve'],['deleteQuote','🗑 Del']].forEach(function(p){
   ok(p[0]+' labeled "'+p[1]+'"', cell.indexOf(p[1])>=0 && cell.indexOf('data-action="'+p[0]+'"')>=0);
 });
-ok('convert button labeled (▶ To Job / ✓ Job)', cell.indexOf('▶ To Job')>=0 && cell.indexOf('✓ Job')>=0);
+ok('convert button labeled (▶ Job / ✓ Job)', cell.indexOf('▶ Job')>=0 && cell.indexOf('✓ Job')>=0);
 
 // no more icon-only squares in the quote action cell
 ok('no btn-ico icon-only buttons left in the action cell', cell.indexOf('btn-ico')<0);
 // handlers unchanged (still data-action delegation, not onclick)
 ok('actions still use data-action delegation', /data-action="convertToJob"/.test(cell) && cell.indexOf('onclick=')<0);
-// wrap container + CSS so the labeled row doesn't force a horizontal scroll
-ok('buttons wrapped in .qa-actions flex container', /<div class="qa-actions">/.test(rp) && rp.indexOf("'</div></td>'")>=0);
-ok('.qa-actions wrap CSS present', /\.qa-actions\{[^}]*flex-wrap:wrap/.test(html));
+// one compact row (not stacked): nowrap flex + tightened button padding/font
+ok('buttons in a single .qa-actions flex row', /<div class="qa-actions">/.test(rp) && rp.indexOf("'</div></td>'")>=0);
+ok('.qa-actions is nowrap (one row, not stacked)', /\.qa-actions\{[^}]*flex-wrap:nowrap/.test(html));
+ok('.qa-btn compacted (smaller padding/font)', /\.qa-actions \.qa-btn\{[^}]*font-size:11px/.test(html));
 
 console.log((fail===0?'✅':'❌')+' quote-list actions: '+pass+' passed, '+fail+' failed');
 process.exit(fail===0?0:1);

@@ -638,7 +638,7 @@ function renderQuotes() {
         '<button class="btn btn-outline btn-sm qa-btn" data-action="editQuote" data-id="'+q.id+'" title="Edit this quote">✏️ Edit</button> '+
         '<button class="btn btn-outline btn-sm qa-btn" data-action="dupQuote" data-id="'+q.id+'" title="Make a copy of this quote">⧉ Copy</button> '+
         '<button class="btn btn-sm qa-btn '+(canConvert?'btn-outline-green':'')+'" '+(canConvert?'data-action="convertToJob" data-id="'+q.id+'"':'disabled')+
-          ' style="'+(canConvert?'':'background:#eceff1;border:1px solid #607d8b;color:#455a64;cursor:not-allowed;pointer-events:none')+'" title="'+(canConvert?'Mark Won & create the work order/job':'Already converted to a job')+'">'+(canConvert?'▶ To Job':'✓ Job')+'</button> '+
+          ' style="'+(canConvert?'':'background:#eceff1;border:1px solid #607d8b;color:#455a64;cursor:not-allowed;pointer-events:none')+'" title="'+(canConvert?'Mark Won & create the work order/job':'Already converted to a job')+'">'+(canConvert?'▶ Job':'✓ Job')+'</button> '+
         '<button class="btn btn-outline-green btn-sm qa-btn" data-action="emailSavedQuote" data-id="'+q.id+'" title="Email the proposal PDF to the customer">📧 Send</button> '+
         '<button class="btn btn-outline btn-sm qa-btn" data-action="copyPortalLink" data-id="'+q.id+'" title="Email the client an online approval / e-sign link">✍️ Approve</button> '+
         (_canDelQ ? '<button class="btn btn-danger btn-sm qa-btn" data-action="deleteQuote" data-id="'+q.id+'">🗑 Del</button>' : '')+
