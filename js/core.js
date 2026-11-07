@@ -4459,30 +4459,15 @@ function _checkClockInAnomalies() {
 // on the very first run it just records current state so old approvals aren't replayed.
 // ============================================================
 function _checkQuoteApprovals() {
-  var isOffice = typeof _currentUser !== 'undefined' && _currentUser &&
-    ['owner','manager','back_office'].includes(_currentUser.role);
-  if (!isOffice) return;
-  var raw = null; try { raw = localStorage.getItem('tcss_approval_seen'); } catch (e) {}
-  var firstRun = (raw === null);
-  var seen; try { seen = JSON.parse(raw || '{}'); } catch (e) { seen = {}; }
-  (DB.quotes || []).forEach(function (q) {
-    var st = q.approval && q.approval.status;
-    if (st !== 'approved' && st !== 'changes_requested') return;
-    var key = q.id || q.num; if (!key) return;
-    if (seen[key] === st) return;                 // already alerted for this state
-    if (!firstRun && typeof addNotification === 'function') {
-      var proj = q.jn ? ('“' + q.jn + '”') : 'the proposal';
-      if (st === 'approved') {
-        addNotification('quote_approved', '✅ Proposal ' + (q.num || '') + ' approved',
-          (q.cn || 'A client') + ' approved ' + proj + '.', 'quotes');
-      } else {
-        addNotification('quote_changes', '✏️ Changes requested — ' + (q.num || ''),
-          (q.cn || 'A client') + ' asked for changes on ' + proj + '. Open it to see their note.', 'quotes');
-      }
-    }
-    seen[key] = st;
-  });
-  try { localStorage.setItem('tcss_approval_seen', JSON.stringify(seen)); } catch (e) {}
+  // r89 — DURABLE NOTIFICATIONS. Proposal approvals / change requests now post to the shared
+  // wt_notifications bell feed server-side, the instant the customer acts, via the DB trigger
+  // `trg_notify_office_bell_on_approval`. That feed is already pulled by wtLoadNotifications on
+  // login + every 45s, shows on every office device, and persists read-state to the cloud — so an
+  // approval can't be silently missed the way Q-2058 was. This old path was browser-local, keyed to
+  // an ephemeral per-browser "seen" map, and suppressed on first run (how Q-2058 slipped by).
+  // Neutralized to a no-op so it can never double-post or mask the durable feed; the schedulers that
+  // still call it are harmless. (Durable feed = the single source now.)
+  return;
 }
 
 // Vehicle registration / insurance expiration — shared helper.
