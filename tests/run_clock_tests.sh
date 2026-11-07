@@ -47,4 +47,5 @@ echo "── r87 proposal approval link (click-tracking off so the Approve link 
 echo "── r88 office signed-approval view (Quote Details shows the customer's signature + audit; scoped to the quote; empty-safe; typed vs drawn) ──"; node tests/office_signed_view.test.js
 echo "── r89 durable notifications (fragile local approval bell retired; approvals now post to the cross-device wt_notifications feed via DB trigger) ──"; node tests/durable_notifications.test.js
 echo "── r91 Needs Action queue (signed-but-unconverted + change requests surface on the office dashboard; drops off once a WO exists) ──"; node tests/needs_action_queue.test.js
+echo "── r92 claim round-trip (Needs Action 'Claim' rides quote_extras; survives sync; unclaimed stays null) ──"; node tests/claim_roundtrip.test.js
 echo "✅ all tests passed"

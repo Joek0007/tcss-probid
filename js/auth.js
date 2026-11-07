@@ -421,7 +421,11 @@ function _quoteExtras(q){
     wonDate:       q.wonDate || null,
     // r64 Proposal Terms: per-quote assembled clause bundle + the systems the estimator ticked.
     proposalClauses: q.proposalClauses || null,
-    selectedSystems: q.selectedSystems || []
+    selectedSystems: q.selectedSystems || [],
+    // r92 Needs Action "Claim": who's handling this item ("I've got this") + when. Rides quote_extras
+    // so it syncs cross-device with no schema change; as a top-level field it also flips _recHash dirty.
+    claimedBy: q.claimedBy || null,
+    claimedAt: q.claimedAt || null
   };
 }
 function _applyQuoteExtras(target, row){
@@ -439,6 +443,9 @@ function _applyQuoteExtras(target, row){
   // r64 Proposal Terms: null proposalClauses = pre-feature quote (render falls back to legacy blobs).
   target.proposalClauses = x.proposalClauses || null;
   target.selectedSystems = x.selectedSystems || [];
+  // r92 Needs Action "Claim"
+  target.claimedBy = x.claimedBy || null;
+  target.claimedAt = x.claimedAt || null;
   return target;
 }
 

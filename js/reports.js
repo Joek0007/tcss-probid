@@ -1540,13 +1540,17 @@ function _renderNeedsAction(){
   if (!total){ el.style.display='none'; el.innerHTML=''; return; }
   el.style.display='';
   function row(q, btnLabel, attr){
-    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f1e8d8">'
-      + '<div style="min-width:0;flex:1">'
+    var claim = q.claimedBy
+      ? '<span title="Claimed '+escHtml(q.claimedAt? new Date(q.claimedAt).toLocaleString() : '')+'" style="white-space:nowrap;font-size:11px;font-weight:700;color:#1565c0;background:#e8f1fc;border-radius:12px;padding:6px 10px">✓ '+escHtml(q.claimedBy)+'</span>'
+      : '<button data-naclaim="'+escHtml(q.id)+'" title="I will handle this Action" style="white-space:nowrap;background:#fff;color:#546e7a;border:1px solid #cfd8dc;border-radius:7px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer">Claim</button>';
+    return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:9px 0;border-bottom:1px solid #f1e8d8">'
+      + '<div style="min-width:0;flex:1 1 180px">'
         + '<span data-naview="'+escHtml(q.id)+'" style="font-weight:700;color:#1565c0;cursor:pointer">'+escHtml(q.num||'')+'</span>'
         + ' <span style="color:#b0bec5">·</span> '+escHtml(q.cn||'')
         + (q.jn? '<div style="font-size:11.5px;color:#546e7a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(q.jn)+'</div>':'')
       + '</div>'
       + '<div style="font-weight:700;white-space:nowrap">'+_naMoney(q.total)+'</div>'
+      + claim
       + '<button '+attr+' style="white-space:nowrap;background:#1565c0;color:#fff;border:0;border-radius:7px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer">'+btnLabel+'</button>'
       + '</div>';
   }
@@ -1566,6 +1570,20 @@ function _renderNeedsAction(){
   el.querySelectorAll('[data-naconvert]').forEach(function(b){ b.addEventListener('click', function(){ if(typeof openConvertToJob==='function') openConvertToJob(b.getAttribute('data-naconvert')); }); });
   el.querySelectorAll('[data-naopen]').forEach(function(b){ b.addEventListener('click', function(){ if(typeof editQuote==='function') editQuote(b.getAttribute('data-naopen')); else if(typeof viewQuote==='function') viewQuote(b.getAttribute('data-naopen')); }); });
   el.querySelectorAll('[data-naview]').forEach(function(s){ s.addEventListener('click', function(){ if(typeof viewQuote==='function') viewQuote(s.getAttribute('data-naview')); }); });
+  el.querySelectorAll('[data-naclaim]').forEach(function(b){ b.addEventListener('click', function(){ _naClaim(b.getAttribute('data-naclaim')); }); });
+}
+
+// r92 — Claim a Needs Action item ("I will handle this Action"). Rides quote_extras so it syncs and
+// other office users see who's on it. One-way (first claim wins); no-op if already claimed.
+function _naClaim(qid){
+  var q = (DB.quotes||[]).find(function(x){ return x.id===qid; });
+  if(!q || q.claimedBy) return;
+  q.claimedBy = (typeof _currentUser!=='undefined' && _currentUser && _currentUser.full_name) || 'Me';
+  q.claimedAt = new Date().toISOString();
+  try{ if(typeof saveDB==='function') saveDB(); }catch(e){}
+  try{ if(typeof _pushQuoteToCloud==='function') _pushQuoteToCloud(q); }catch(e){}
+  try{ if(typeof showToast==='function') showToast('✓ You claimed '+(q.num||'this item'),'success',2500); }catch(e){}
+  _renderNeedsAction();
 }
 
 function renderDash() {
