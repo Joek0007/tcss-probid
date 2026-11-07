@@ -4139,6 +4139,11 @@ function saveNotificationSettings(btn) {
     notifyRep:            ((document.getElementById('ms-notif-quoter-enabled')||{}).value) !== '0', // back-compat alias
     notifyRecipients:     (typeof _readNotifyRecips==='function' ? _readNotifyRecips() : (DB.settings.notifyRecipients||[])),
     notifyEmail:          '', // migrated into notifyRecipients
+    // Escalation — read by the run_quote_escalations() pg_cron job via company_settings.settings_json.
+    // Fail-safe defaults (on / 24h / 48h) so a signed job can never sit unattended; someone must opt OUT.
+    escalationOn:         ((document.getElementById('ms-notif-escalation-enabled')||{}).value) !== '0',
+    escalateFirstHours:   parseInt((document.getElementById('ms-notif-escalate-first')||{}).value,10) || 24,
+    escalateManagerHours: parseInt((document.getElementById('ms-notif-escalate-mgr')||{}).value,10)  || 48,
     // Vehicle issue alerts (emailed via the notify-vehicle-issue edge function)
     vehIssueEmailEnabled: ((document.getElementById('ms-notif-vehissue-enabled')||{}).value) === '1',
     vehIssueEmailTo:      ((document.getElementById('ms-notif-vehissue-to')||{}).value||'').trim(),
@@ -4267,6 +4272,13 @@ function loadNotificationSettings() {
   if (nQuoter) nQuoter.value = _quoterOn ? '1' : '0';
   if (nQEm)   nQEm.checked  = s.notifyQuoterEmail !== false;
   if (nQSms)  nQSms.checked  = s.notifyQuoterSms   !== false;
+  // Escalation controls — fail-safe defaults (on / 24h / 48h) when the keys are absent.
+  var escEn = document.getElementById('ms-notif-escalation-enabled');
+  var escF  = document.getElementById('ms-notif-escalate-first');
+  var escM  = document.getElementById('ms-notif-escalate-mgr');
+  if (escEn) escEn.value = (s.escalationOn !== false) ? '1' : '0';
+  if (escF)  escF.value  = String(s.escalateFirstHours   || 24);
+  if (escM)  escM.value  = String(s.escalateManagerHours || 48);
   // Recipients list (migrate a legacy single notifyEmail into the list if the list is empty)
   if (typeof _renderNotifyRecips === 'function') {
     var _recs = Array.isArray(s.notifyRecipients) ? s.notifyRecipients.slice() : [];

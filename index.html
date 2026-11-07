@@ -5739,6 +5739,24 @@ body.role-lead-tech .page-settings-btn{display:none!important}
               <button type="button" class="btn btn-ghost btn-sm" onclick="addNotifyRecip()">+ Add person manually</button>
             </div>
           </div>
+          <div style="margin-top:16px;border-top:1px solid #eef1f6;padding-top:14px">
+            <label style="display:block;margin-bottom:2px;font-weight:600">⏱️ Escalation — so a signed job never sits unattended</label>
+            <div style="font-size:11px;color:#90a4ae;margin-bottom:10px">If a signed proposal isn't turned into a work order in time, re-nudge the office, then escalate to the owner. <b>On by default.</b></div>
+            <div class="form-row">
+              <div><label>Escalation</label>
+                <select id="ms-notif-escalation-enabled"><option value="1">Enabled</option><option value="0">Disabled</option></select>
+              </div>
+              <div><label>First nudge the office after</label>
+                <select id="ms-notif-escalate-first"><option value="4">4 hours</option><option value="8">8 hours</option><option value="24">24 hours</option><option value="48">48 hours</option></select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div><label>Escalate to the owner after</label>
+                <select id="ms-notif-escalate-mgr"><option value="24">24 hours</option><option value="48">48 hours</option><option value="72">72 hours</option></select>
+              </div>
+              <div></div>
+            </div>
+          </div>
         </div>
       </div>
       <div style="grid-column:span 2">
@@ -7416,7 +7434,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20261107r89durablenotif"></script>
+<script src="js/core.js?v=20261107r93escalationsettings"></script>
 <script src="js/quotes.js?v=20261106r88signedview"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
@@ -8915,7 +8933,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r92';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r93';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-06';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;
