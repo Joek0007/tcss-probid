@@ -294,7 +294,16 @@
 <script>
 const SUPABASE_URL = 'https://jzvoksidbelxibzbizvi.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_4qYpNQoz_RXU29p_pkuI-A_H5-rOXDL';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// r90 — The portal MUST act as an anonymous customer. On a real customer's browser it does. But opened
+// in a browser that's logged into ProBid, the default supabase-js client shares the app's auth session
+// (same localStorage key sb-<ref>-auth-token) and acts as that signed-in office user — so
+// guard_quote_approval_fields REVERTS the approval (approvals must come from anon) and the anon-only
+// quote_approvals insert policy denies the signature: the page shows "approved" but approval_status +
+// the signature never persist and no notification fires. Isolate the portal to its own non-persisted,
+// anon-only auth so it is ALWAYS anonymous regardless of any app login in the same browser.
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-tcss-portal-anon' }
+});
 
 document.getElementById('footer-year').textContent = new Date().getFullYear();
 

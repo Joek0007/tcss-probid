@@ -56,5 +56,11 @@ if (m){
   ok('_deviceLabel maps iPhone Safari', _deviceLabel() === 'Safari on iPhone');
 }
 
+// r90 — the portal must ALWAYS be anonymous. If its supabase client shares the app's auth session
+// (default storageKey), an approval clicked while logged into ProBid runs as that office user, the
+// approval-guard reverts it, and nothing records. Isolate it: non-persisted, anon-only, own storageKey.
+ok('portal supabase client does NOT persist/share a session', /createClient\([\s\S]{0,260}persistSession:\s*false/.test(src));
+ok('portal supabase client uses its own isolated storageKey', /storageKey:\s*'sb-tcss-portal-anon'/.test(src));
+
 console.log((fail===0?'✅':'❌')+' portal e-signature invariants: '+pass+' passed, '+fail+' failed');
 process.exit(fail===0?0:1);
