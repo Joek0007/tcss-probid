@@ -930,6 +930,7 @@ function qtRender(){
     if (ta){ ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e){} }
   }
   qtUpdateSummary();   // keep the collapsed-header recap counts current after any change
+  qtWireDrag();        // r96: wire click-drag reorder (idempotent — guards itself on the host)
 }
 function qtCardHtml(card, lib){
   var titles = { assumptions:'Assumptions', exclusions:'Exclusions', terms:'Terms & Conditions' };
@@ -967,15 +968,16 @@ function qtRowHtml(card, it, i){
   if (it.locked){
     ctrls = '<span class="qt-lock" title="Locked core term — owner-governed">🔒</span>';
   } else {
+    // r96: ▲▼ buttons replaced by a drag handle (qtRowHtml adds the grip). Keep edit + remove.
     ctrls = '<div class="qt-ctrls">'+
-      '<button type="button" class="qt-ib" title="Move up" onclick="qtMove('+qtQ(card)+','+i+',-1)">▲</button>'+
-      '<button type="button" class="qt-ib" title="Move down" onclick="qtMove('+qtQ(card)+','+i+',1)">▼</button>'+
       '<button type="button" class="qt-ib" title="Edit" onclick="qtStartEdit('+qtQ(card)+','+i+')">✎</button>'+
       '<button type="button" class="qt-ib qt-del" title="Remove" onclick="qtRemove('+qtQ(card)+','+i+')">✕</button>'+
       '</div>';
   }
   var txtClick = it.locked ? '' : ' onclick="qtStartEdit('+qtQ(card)+','+i+')"';
-  return '<div class="qt-row'+(it.locked?' qt-locked':'')+'">'+tag+
+  // r96: non-locked rows get a drag handle + data-attrs so they can be click-dragged to reorder (mouse + touch).
+  var grip = it.locked ? '' : '<span class="qt-grip" title="Drag to reorder">⠿</span>';
+  return '<div class="qt-row'+(it.locked?' qt-locked':'')+'" data-qt-card="'+escHtml(card)+'" data-qt-idx="'+i+'">'+grip+tag+
     '<div class="qt-txt"'+txtClick+'>'+escHtml(it.text||'')+edited+'</div>'+ctrls+'</div>';
 }
 function qtToggleSystem(sys){
@@ -987,6 +989,63 @@ function qtMove(card, i, dir){
   var arr = QT.items[card]; var j = i + dir;
   if (!arr || j<0 || j>=arr.length) return;
   var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  QT.editing=null; qtMarkDirty(); qtRender();
+}
+// r96: click-drag reorder for the builder clause lists. Pointer events unify mouse + touch (tablets),
+// so a field user can drag a clause by its ⠿ handle. Reorder is constrained to within the same card
+// (you can't drag an assumption into exclusions), and locked core terms have no handle so they can't be
+// dragged. Wired once on the (stable) #qt-builder host via delegation; survives qtRender re-renders.
+var _qtDrag = null;
+function qtWireDrag(){
+  var host = document.getElementById('qt-builder');
+  if (!host || host._qtDragWired) return;
+  host._qtDragWired = true;
+  function clearInd(){
+    var r = host.querySelectorAll('.qt-drop-before,.qt-drop-after');
+    for (var k=0;k<r.length;k++) r[k].classList.remove('qt-drop-before','qt-drop-after');
+  }
+  host.addEventListener('pointerdown', function(e){
+    var grip = e.target.closest && e.target.closest('.qt-grip'); if (!grip) return;
+    var row = grip.closest('.qt-row'); if (!row) return;
+    var card = row.getAttribute('data-qt-card');
+    var from = parseInt(row.getAttribute('data-qt-idx'),10);
+    if (card==null || isNaN(from)) return;
+    e.preventDefault();
+    _qtDrag = { card:card, from:from, row:row, target:null, after:false };
+    row.classList.add('qt-dragging');
+    try { grip.setPointerCapture(e.pointerId); } catch(_e){}
+  });
+  host.addEventListener('pointermove', function(e){
+    if (!_qtDrag) return;
+    e.preventDefault();
+    clearInd();
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    var over = el && el.closest ? el.closest('.qt-row') : null;
+    if (!over || over===_qtDrag.row) { _qtDrag.target=null; return; }
+    if (over.getAttribute('data-qt-card') !== _qtDrag.card) { _qtDrag.target=null; return; }  // same card only
+    var rect = over.getBoundingClientRect();
+    var after = (e.clientY - rect.top) > rect.height/2;
+    over.classList.add(after ? 'qt-drop-after' : 'qt-drop-before');
+    _qtDrag.target = parseInt(over.getAttribute('data-qt-idx'),10);
+    _qtDrag.after = after;
+  });
+  function finish(){
+    if (!_qtDrag) return;
+    var d = _qtDrag; _qtDrag = null;
+    clearInd();
+    if (d.row) d.row.classList.remove('qt-dragging');
+    if (d.target!=null && !isNaN(d.target)) qtReorder(d.card, d.from, d.target + (d.after?1:0));
+  }
+  host.addEventListener('pointerup', finish);
+  host.addEventListener('pointercancel', finish);
+}
+function qtReorder(card, from, to){
+  var arr = QT.items[card]; if (!arr || from<0 || from>=arr.length) return;
+  var it = arr.splice(from,1)[0];
+  if (to > from) to--;                         // the removed item shifted everything after it down one
+  if (to < 0) to = 0; if (to > arr.length) to = arr.length;
+  if (to === from) { arr.splice(from,0,it); return; }   // no-op drop (dropped on itself)
+  arr.splice(to,0,it);
   QT.editing=null; qtMarkDirty(); qtRender();
 }
 function qtStartEdit(card, i){ QT.editing = { card:card, i:i }; qtRender(); }
