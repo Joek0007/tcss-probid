@@ -196,6 +196,9 @@ body.nav-rail:not(.is-mobile) .nav-item .nav-fav-grip{display:none!important}  /
 .btn-outline-green{background:#fff;color:#2e7d32;border:1.5px solid #2e7d32}.btn-outline-green:hover{background:#e8f5e9}
 .btn-ico{min-width:34px;justify-content:center;padding-left:8px;padding-right:8px}
 .btn-sm{padding:5px 12px;font-size:12px}
+/* r97: quote-list action buttons — labeled + wrap neatly instead of tiny icon squares */
+.qa-actions{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.qa-btn{white-space:nowrap}
 .btn-ghost{background:transparent;color:#607d8b;border:1px solid #e0e0e0}.btn-ghost:hover{background:#f5f5f5}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{background:#f5f7fa;padding:11px 12px;text-align:left;font-weight:700;color:#455a64;border-bottom:2px solid #e0e0e0;font-size:11px;text-transform:uppercase;letter-spacing:.6px}
@@ -7409,7 +7412,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/purchaseorders.js?v=20260919ix"></script>
 <script src="js/inventory_locations_db.js?v=20260919ix"></script>
 <script src="js/inventory.js?v=20261020checklist2"></script>
-<script src="js/reports.js?v=20261107r95termscleanup"></script>
+<script src="js/reports.js?v=20261107r97qactions"></script>
 <script src="js/expenses.js?v=20260919jd"></script>
 <script src="js/perdiem.js?v=20260919kd"></script>
 <script src="js/recyclebin.js?v=20260919ix"></script>
@@ -8888,7 +8891,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r96';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r97';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-06';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

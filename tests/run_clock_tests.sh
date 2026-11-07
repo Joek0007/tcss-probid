@@ -52,4 +52,5 @@ echo "── r93 escalation settings (owner-configurable; fail-safe/opt-out on·
 echo "── r94 WO status-save + chips (Dawn: detail dropdown auto-saves like the list badge; quote-in-id chip filters; hand-off hidden from tech chips but still settable) ──"; node tests/wo_status_save_and_chips.test.js
 echo "── r95 legacy proposal-terms cleanup (old qq-tc/s-tc/assumptions/exclusions/T&C-by-job-type editors removed; builder intact; stored tc not blanked) ──"; node tests/terms_cleanup.test.js
 echo "── r96 Proposal Terms drag-reorder (▲▼ → click-drag handle, mouse+touch; same-card constrained; dead 'edit wording' link/hint removed, Exec Summary link kept) ──"; node tests/qt_drag_reorder.test.js
+echo "── r97 quote-list action buttons (tiny icon squares → readable labeled buttons; same handlers; row wraps) ──"; node tests/quote_list_actions.test.js
 echo "✅ all tests passed"
