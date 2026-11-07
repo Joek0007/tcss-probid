@@ -8095,8 +8095,7 @@ function loadSettings() {
   const cb=document.getElementById('company-badge'); if(cb) cb.textContent=(s.cname||'TCSS').substring(0,12);
   loadMarginFloors();
   applyLogoEverywhere(s.logoDataUrl || null);
-  loadProposalDefaultsUI();
-  loadJtAddendumsUI();
+  // r95: old proposal-defaults / terms-by-job-type editors removed (Proposal Terms builder owns terms now).
 }
 
 // Push full DB.settings to Supabase for persistence across devices/reloads
@@ -8127,7 +8126,7 @@ function saveSettings() {
   // Preserve fields not in the settings form (logo, favorites, usage tracking, etc.)
   DB.settings = Object.assign({}, DB.settings, {
     cname:gv('s-cname'),cabbr:gv('s-cabbr'),cphone:gv('s-cphone'),cemail:gv('s-cemail'),caddr:gv('s-caddr'),clic:gv('s-clic'),cweb:gv('s-cweb'),ctag:gv('s-ctag'),
-    laborRate:parseFloat(gv('s-lr'))||100,targetMargin:parseFloat(gv('s-mk'))||35,taxRate:parseFloat(gv('s-tx'))||0,validDays:parseInt(gv('s-vd'))||30,payTerms:gv('s-pt'),tc:gv('s-tc'),
+    laborRate:parseFloat(gv('s-lr'))||100,targetMargin:parseFloat(gv('s-mk'))||35,taxRate:parseFloat(gv('s-tx'))||0,validDays:parseInt(gv('s-vd'))||30,payTerms:gv('s-pt'), /* r95: base T&C editor (s-tc) removed — omit tc so Object.assign preserves the stored DB.settings.tc for legacy quotes */
     defaultNoMargin: !!(document.getElementById('s-nomargin')||{}).checked, // No Margin (price at cost) company default
     followupDays:parseInt(gv('s-followup-days'))||7,
     perDiemMarkup:parseFloat(gv('s-perdiem-markup'))||0,

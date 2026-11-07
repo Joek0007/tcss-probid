@@ -240,7 +240,7 @@ function getQData(id) {
     vu:  (document.getElementById('qq-vu')||{}).value || '',
     rep: (document.getElementById('qq-rep')||{}).value || '',
     pt:  (document.getElementById('qq-pt')||{}).value || '',
-    tc:  (document.getElementById('qq-tc')||{}).value || '',
+    tc:  (document.getElementById('qq-tc') ? (document.getElementById('qq-tc').value||'') : (existing ? (existing.tc||'') : '')), // r95: qq-tc box removed (Proposal Terms builder owns terms); preserve a legacy quote's stored tc instead of blanking it
     notes: (function(){var _n=document.getElementById('qq-notes'); if(!_n) return ''; var _v=_n.value; if(_v!=null&&_v!=='') return _v; if(_n.isContentEditable||_n.getAttribute('contenteditable')!=null){ if(!(_n.textContent||'').trim()) return ''; return _n.innerHTML||''; } return '';})(),
     intNotes: (document.getElementById('qq-int')||{}).value || '',
     status: (document.getElementById('qq-status')||{}).value || 'draft',
