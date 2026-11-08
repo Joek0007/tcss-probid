@@ -429,7 +429,8 @@ function _quoteExtras(q){
     claimedAt: q.claimedAt || null,
     // r104: proposal itemization presentation — 'combined' (default) | 'split' | 'summary' + hours toggle.
     itemStyle: (q.itemStyle === 'split' || q.itemStyle === 'summary') ? q.itemStyle : 'combined',
-    showLaborHours: !!q.showLaborHours
+    showLaborHours: !!q.showLaborHours,
+    equipSeparateLine: !!q.equipSeparateLine // r109: equipment as its own Pricing Summary line
   };
 }
 function _applyQuoteExtras(target, row){
@@ -454,6 +455,7 @@ function _applyQuoteExtras(target, row){
   // r104: itemization presentation (legacy quotes have neither → 'combined' → original rendering).
   target.itemStyle = (x.itemStyle === 'split' || x.itemStyle === 'summary') ? x.itemStyle : 'combined';
   target.showLaborHours = !!x.showLaborHours;
+  target.equipSeparateLine = !!x.equipSeparateLine; // r109 (legacy → false)
   return target;
 }
 

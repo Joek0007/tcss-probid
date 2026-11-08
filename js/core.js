@@ -2733,6 +2733,27 @@ function toggleShowHours() {
   if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
 }
 
+// r109 — present equipment (rental + delivery) as its own line on the client Pricing Summary,
+// or fold it into "Equipment & Materials". Presentation only; the quote total never changes.
+function getEquipSeparateLine() {
+  var el = document.getElementById('qq-eq-sepline');
+  return !!(el && el.value === '1');
+}
+function refreshEquipLineUI() {
+  var on = getEquipSeparateLine();
+  var c = document.getElementById('eqline-combined-btn');
+  var s = document.getElementById('eqline-separate-btn');
+  if (c) c.classList.toggle('active', !on);
+  if (s) s.classList.toggle('active', on);
+}
+function setEquipSeparateLine(on) {
+  var el = document.getElementById('qq-eq-sepline');
+  if (el) el.value = on ? '1' : '0';
+  refreshEquipLineUI();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'Unsaved changes');
+  if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
+}
+
 // =============================================
 // V6: PER DIEM / TRAVEL FUNCTIONS
 // =============================================

@@ -292,6 +292,7 @@ function getQData(id) {
     // r104: per-quote itemization presentation — 'combined' (default) | 'split' | 'summary' + hours toggle.
     itemStyle: (typeof getItemStyle==='function') ? getItemStyle() : 'combined',
     showLaborHours: (typeof getShowLaborHours==='function') ? getShowLaborHours() : false,
+    equipSeparateLine: (typeof getEquipSeparateLine==='function') ? getEquipSeparateLine() : false, // r109: equipment as its own Pricing Summary line vs folded into Equipment & Materials
     svcContract: getSvcContractData(),
     execSummary: (function(){ var _e=document.getElementById('qq-exec-summary'); if(_e) return _e.value; return existing && existing.execSummary ? existing.execSummary : ''; })(),
     proposalSections: getProposalSections(),
@@ -314,7 +315,7 @@ function qqFieldIds(){
   // qq-id / qq-customer-id / qq-contact-id are the quote's IDENTITY fields and MUST be
   // included: the draft save/restore uses this list, and without them a resumed draft of
   // an existing quote loses its id (saveQQ then creates a DUPLICATE) and its customer link.
-  return ['qq-id','qq-customer-id','qq-contact-id','qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-followup','qq-created','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env','qq-item-style','qq-show-hours','eq-delivery'];
+  return ['qq-id','qq-customer-id','qq-contact-id','qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-followup','qq-created','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env','qq-item-style','qq-show-hours','eq-delivery','qq-eq-sepline'];
 }
 
 function clearQQ(skipConfirm) {
@@ -340,6 +341,9 @@ function clearQQ(skipConfirm) {
   var _isEl = document.getElementById('qq-item-style'); if (_isEl) _isEl.value = 'combined';
   var _shEl = document.getElementById('qq-show-hours'); if (_shEl) _shEl.value = '0';
   if (typeof refreshItemStyleUI === 'function') refreshItemStyleUI();
+  // r109: a fresh quote folds equipment into Materials on the summary (default off).
+  var _esEl = document.getElementById('qq-eq-sepline'); if (_esEl) _esEl.value = '0';
+  if (typeof refreshEquipLineUI === 'function') refreshEquipLineUI();
   const otd = document.getElementById('permit-other-desc'); if(otd) otd.style.display='none';
   const otx = document.getElementById('permit-other-text'); if(otx) otx.value='';
   const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
@@ -439,6 +443,9 @@ function editQuote(id) {
   setV('qq-item-style', (q.itemStyle==='split'||q.itemStyle==='summary') ? q.itemStyle : 'combined');
   setV('qq-show-hours', q.showLaborHours ? '1' : '0');
   if (typeof refreshItemStyleUI==='function') refreshItemStyleUI();
+  // r109: hydrate the equipment summary-line presentation (legacy quotes → off/combined).
+  setV('qq-eq-sepline', q.equipSeparateLine ? '1' : '0');
+  if (typeof refreshEquipLineUI==='function') refreshEquipLineUI();
   setV('qq-created', q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || getTodayISO());
   setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc); setV('qq-exec-summary', q.execSummary||'');
   // qq-notes is contenteditable — load via innerHTML (setV/.value is a no-op on it), or

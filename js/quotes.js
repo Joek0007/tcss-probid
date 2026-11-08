@@ -1822,7 +1822,19 @@ table{font-size:12.5px}
   '<table class="pricing-summary-table">' +
   (q.lumpSum && q.lumpSum.enabled
     ? '<tr class="sub-row"><td>' + escHtml(q.lumpSum.label||'Complete Low Voltage Installation') + '</td><td style="text-align:right">' + fmt(q.sellBeforeTax||q.subtotal||q.total||0) + '</td></tr>'
-    : (function(){ var _mat = (q.materialSell != null) ? (parseFloat(q.materialSell)||0) : Math.max(0, (parseFloat(q.sellBeforeTax||q.total)||0) - (parseFloat(q.laborSell)||0)); return _mat > 0 ? '<tr class="sub-row"><td>Equipment &amp; Materials</td><td style="text-align:right">' + fmt(_mat) + '</td></tr>' : ''; })() +
+    : (function(){
+        var _mat = (q.materialSell != null) ? (parseFloat(q.materialSell)||0) : Math.max(0, (parseFloat(q.sellBeforeTax||q.total)||0) - (parseFloat(q.laborSell)||0));
+        // r109: optionally carve equipment (rental + delivery) out of the Equipment & Materials line
+        // onto its own "Equipment Rental & Delivery" line. The two rows sum to the same _mat, so the
+        // Subtotal and Total are unchanged — presentation only.
+        var _eq = parseFloat(q.equipmentCost)||0;
+        if (q.equipSeparateLine && _eq > 0) {
+          var _matOnly = _mat - _eq;
+          return (_matOnly > 0 ? '<tr class="sub-row"><td>Materials</td><td style="text-align:right">' + fmt(_matOnly) + '</td></tr>' : '') +
+                 '<tr class="sub-row"><td>Equipment Rental &amp; Delivery</td><td style="text-align:right">' + fmt(_eq) + '</td></tr>';
+        }
+        return _mat > 0 ? '<tr class="sub-row"><td>Equipment &amp; Materials</td><td style="text-align:right">' + fmt(_mat) + '</td></tr>' : '';
+      })() +
       ((q.laborSell||0) > 0 ? '<tr class="sub-row"><td>Installation Labor</td><td style="text-align:right">' + fmt(q.laborSell||0) + '</td></tr>' : '') +
       (q.perDiemCost > 0 ? '<tr class="sub-row"><td>Per Diem / Travel</td><td style="text-align:right">' + fmt(q.perDiemCost||0) + '</td></tr>' : '') +
       '<tr class="sub-row"><td>Subtotal</td><td style="text-align:right">' + fmt(q.sellBeforeTax||q.subtotal||0) + '</td></tr>'
