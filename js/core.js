@@ -2801,6 +2801,9 @@ function _qqSecWrap(def){
   var n = headRow.nextSibling;
   while (n){ var next = n.nextSibling; inner.appendChild(n); n = next; }
   sb.appendChild(inner); card.appendChild(sb);
+  // a header that carries its own buttons (Template Library) keeps the chevron at the far right
+  // with those actions just to its left — flag the card so CSS drops the toggle's auto margin.
+  if (title.querySelector('.qq-sec-actions') || title.querySelector('button')) card.classList.add('qq-sec-hasactions');
   // turn the title into the clickable collapse header
   title.classList.add('qq-sec-head');
   title.setAttribute('role','button'); title.setAttribute('tabindex','0');
@@ -2850,7 +2853,15 @@ function qqSecSetState(map){
   qqSecApply(false);
 }
 function qqSecResetExpanded(){ _qqSecState = {}; qqSecApply(false); }
+function _qqSecDirty(){
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'Unsaved changes');
+  if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
+}
+function qqSecExpandAll(){ qqSecInit(); _qqSecState = {}; qqSecApply(true); _qqSecDirty(); }
+function qqSecCollapseAll(){ qqSecInit(); _qqSecState = {}; QQ_SEC_DEFS.forEach(function(d){ _qqSecState[d.key] = true; }); qqSecApply(true); _qqSecDirty(); }
 window.qqSecToggle = qqSecToggle;
+window.qqSecExpandAll = qqSecExpandAll;
+window.qqSecCollapseAll = qqSecCollapseAll;
 
 // =============================================
 // V6: PER DIEM / TRAVEL FUNCTIONS
