@@ -430,7 +430,8 @@ function _quoteExtras(q){
     // r104: proposal itemization presentation — 'combined' (default) | 'split' | 'summary' + hours toggle.
     itemStyle: (q.itemStyle === 'split' || q.itemStyle === 'summary') ? q.itemStyle : 'combined',
     showLaborHours: !!q.showLaborHours,
-    equipSeparateLine: !!q.equipSeparateLine // r109: equipment as its own Pricing Summary line
+    equipSeparateLine: !!q.equipSeparateLine, // r109: equipment as its own Pricing Summary line
+    sectionCollapse: (q.sectionCollapse && typeof q.sectionCollapse==='object') ? q.sectionCollapse : {} // r110: per-quote collapsed-section layout
   };
 }
 function _applyQuoteExtras(target, row){
@@ -456,6 +457,7 @@ function _applyQuoteExtras(target, row){
   target.itemStyle = (x.itemStyle === 'split' || x.itemStyle === 'summary') ? x.itemStyle : 'combined';
   target.showLaborHours = !!x.showLaborHours;
   target.equipSeparateLine = !!x.equipSeparateLine; // r109 (legacy → false)
+  target.sectionCollapse = (x.sectionCollapse && typeof x.sectionCollapse==='object') ? x.sectionCollapse : {}; // r110 (legacy → all expanded)
   return target;
 }
 

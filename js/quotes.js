@@ -555,6 +555,7 @@ function qqCollectDraft(){
       lumpsumShowItems: !!((document.getElementById('lumpsum-show-items')||{}).checked),
       cqqEnabled: !!((document.getElementById('cqq-enabled')||{}).checked)
     },
+    sectionCollapse: (typeof qqSecGetState==='function') ? qqSecGetState() : {}, // r110: remember the fold layout in the local draft too
     savedAt: new Date().toISOString()
   };
 }
@@ -613,6 +614,7 @@ function restoreQQDraft(){
     renderLI();
     calcTotals();
     updateLumpSumPreview();
+    if (typeof qqSecSetState === 'function') qqSecSetState(parsed.sectionCollapse || {}); // r110: restore the fold layout from the draft
     _qqRestoreLock = false;
     // r103: a resumed draft of an EXISTING quote carries its id/num in the restored fields —
     // seed the durable module vars so a later re-render can't drop the id and duplicate it.
@@ -1119,28 +1121,25 @@ function qtResetTemplate(){
 }
 window.qtInit = qtInit; window.qtGetClauses = qtGetClauses; window.qtGetSystems = qtGetSystems;
 
-// ---- Collapsible card (r65) — keeps the quote editor short; state persists per device ----
+// ---- Collapsible card — r110: the Proposal Terms card now folds through the unified per-quote
+// section-collapse engine (qqSec* in core.js), like every other editor section, instead of its
+// old r65 per-device localStorage toggle. These shims keep old call sites working.
 function qtSetCollapsed(collapsed){
-  var body = document.getElementById('qt-body');
-  var chev = document.getElementById('qt-chevron');
-  if (body) body.style.display = collapsed ? 'none' : '';
-  if (chev) chev.textContent = collapsed ? '▸' : '▾';
-  try { localStorage.setItem('qtCollapsed', collapsed ? '1' : '0'); } catch(e){}
+  // legacy shim — the generic engine owns the card now; no live callers. Kept for safety.
   qtUpdateSummary();
 }
 function toggleProposalTerms(){
-  var body = document.getElementById('qt-body'); if (!body) return;
-  qtSetCollapsed(body.style.display !== 'none');   // if currently shown → collapse it
+  if (typeof qqSecToggle === 'function') qqSecToggle('terms');   // delegate to the unified engine
 }
 function qtApplyCollapseState(){
-  var stored; try { stored = localStorage.getItem('qtCollapsed'); } catch(e){}
-  // Default collapsed so the card doesn't lengthen the editor; once the user expands it, that sticks.
-  qtSetCollapsed(stored == null ? true : stored === '1');
+  // r110: collapse state is restored per-quote by the generic engine (editQuote/clearQQ/draft),
+  // not from localStorage. Nothing to do here beyond refreshing the recap text.
+  qtUpdateSummary();
 }
 function qtUpdateSummary(){
   var el = document.getElementById('qt-summary'); if (!el) return;
-  var body = document.getElementById('qt-body');
-  var collapsed = body && body.style.display === 'none';
+  var card = document.querySelector('.card[data-qqsec="terms"]');
+  var collapsed = !!(card && card.classList.contains('qq-collapsed'));
   if (!QT.active || !collapsed){ el.textContent = ''; return; }  // only show the recap when collapsed
   var a = (QT.items.assumptions||[]).length, e = (QT.items.exclusions||[]).length, t = (QT.items.terms||[]).length;
   el.textContent = a + ' assump · ' + e + ' excl · ' + t + ' terms';
@@ -2791,6 +2790,10 @@ async function dupQuote(id) {
   // wrong quote. We still never inherit the original's approval STATUS.
   nq.approval = null;
   nq.approvalToken = (typeof _generateToken === 'function') ? _generateToken() : null;
+
+  // r110: a duplicate is a fresh start — it must NOT inherit which sections the original had
+  // collapsed. Clear the layout so the copy opens with every section expanded.
+  nq.sectionCollapse = {};
 
   // Re-assign fresh _id to every line item to prevent cross-item edit bugs
   if (nq.items) nq.items = nq.items.map(function(item){ return Object.assign({},item,{_id:nextLiId()}); });

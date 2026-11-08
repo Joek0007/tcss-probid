@@ -293,6 +293,7 @@ function getQData(id) {
     itemStyle: (typeof getItemStyle==='function') ? getItemStyle() : 'combined',
     showLaborHours: (typeof getShowLaborHours==='function') ? getShowLaborHours() : false,
     equipSeparateLine: (typeof getEquipSeparateLine==='function') ? getEquipSeparateLine() : false, // r109: equipment as its own Pricing Summary line vs folded into Equipment & Materials
+    sectionCollapse: (typeof qqSecGetState==='function') ? qqSecGetState() : {}, // r110: which editor sections this quote has collapsed (per-quote memory; new/dup start expanded)
     svcContract: getSvcContractData(),
     execSummary: (function(){ var _e=document.getElementById('qq-exec-summary'); if(_e) return _e.value; return existing && existing.execSummary ? existing.execSummary : ''; })(),
     proposalSections: getProposalSections(),
@@ -344,6 +345,8 @@ function clearQQ(skipConfirm) {
   // r109: a fresh quote folds equipment into Materials on the summary (default off).
   var _esEl = document.getElementById('qq-eq-sepline'); if (_esEl) _esEl.value = '0';
   if (typeof refreshEquipLineUI === 'function') refreshEquipLineUI();
+  // r110: a fresh quote opens with every section expanded (never inherits a collapsed layout).
+  if (typeof qqSecResetExpanded === 'function') qqSecResetExpanded();
   const otd = document.getElementById('permit-other-desc'); if(otd) otd.style.display='none';
   const otx = document.getElementById('permit-other-text'); if(otx) otx.value='';
   const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
@@ -446,6 +449,8 @@ function editQuote(id) {
   // r109: hydrate the equipment summary-line presentation (legacy quotes → off/combined).
   setV('qq-eq-sepline', q.equipSeparateLine ? '1' : '0');
   if (typeof refreshEquipLineUI==='function') refreshEquipLineUI();
+  // r110: restore which sections this quote had collapsed (legacy quotes → all expanded).
+  if (typeof qqSecSetState==='function') qqSecSetState(q.sectionCollapse || {});
   setV('qq-created', q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || getTodayISO());
   setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc); setV('qq-exec-summary', q.execSummary||'');
   // qq-notes is contenteditable — load via innerHTML (setV/.value is a no-op on it), or

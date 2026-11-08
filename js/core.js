@@ -2754,6 +2754,104 @@ function setEquipSeparateLine(on) {
   if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
 }
 
+// =====================================================================
+// r110 — Collapsible quote sections. Every editor section folds EXCEPT
+// Line Items and the Pricing Controls rail (deliberately always-open).
+// New & duplicated quotes open fully expanded (never inherit a layout);
+// after that, each quote remembers how the user left it — persisted
+// per-quote via quote_extras (so it syncs across devices). The chevron
+// + "Collapse / Expand" label make it obvious every section can fold.
+// Cards are found by their section-title text (no per-card HTML markers).
+// =====================================================================
+var QQ_SEC_DEFS = [
+  {key:'customer',  match:'Customer & Contact'},
+  {key:'project',   match:'Project Information'},
+  {key:'camera',    match:'Camera System Quick-Build'},
+  {key:'equipment', match:'Equipment Rentals'},
+  {key:'perdiem',   match:'Per Diem / Travel'},
+  {key:'display',   match:'Proposal Display Options'},
+  {key:'terms',     match:'Proposal Terms'},
+  {key:'service',   match:'Service Contract Offer'},
+  {key:'permit',    match:'Permit Compliance'},
+  {key:'template',  match:'Template Library'}
+];
+var _qqSecState = {};      // key -> true when COLLAPSED; absent/false = expanded
+var _qqSecReady = false;
+
+function _qqSecFindCard(def){
+  var grid = document.querySelector('.qq-grid'); if (!grid) return null;
+  var titles = grid.querySelectorAll('.card .section-title');
+  for (var i=0;i<titles.length;i++){
+    if ((titles[i].textContent||'').indexOf(def.match) >= 0){
+      return { title: titles[i], card: (titles[i].closest ? titles[i].closest('.card') : null) };
+    }
+  }
+  return null;
+}
+function _qqSecWrap(def){
+  var hit = _qqSecFindCard(def); if (!hit || !hit.card) return;
+  var card = hit.card, title = hit.title;
+  if (card.getAttribute('data-qqsec')) return;              // already wrapped
+  card.setAttribute('data-qqsec', def.key);
+  // header row = the DIRECT child of the card that contains the title
+  var headRow = title; while (headRow.parentElement && headRow.parentElement !== card){ headRow = headRow.parentElement; }
+  // move every direct child AFTER the header row into a collapsible body wrapper
+  var sb = document.createElement('div'); sb.className = 'qq-secbody';
+  var inner = document.createElement('div'); inner.className = 'qq-secbody-in';
+  var n = headRow.nextSibling;
+  while (n){ var next = n.nextSibling; inner.appendChild(n); n = next; }
+  sb.appendChild(inner); card.appendChild(sb);
+  // turn the title into the clickable collapse header
+  title.classList.add('qq-sec-head');
+  title.setAttribute('role','button'); title.setAttribute('tabindex','0');
+  var tog = document.createElement('span'); tog.className = 'qq-sec-toggle';
+  tog.innerHTML = '<span class="qq-sec-word">Collapse</span><span class="qq-sec-chev" aria-hidden="true">⌄</span>';
+  title.appendChild(tog);
+  title.addEventListener('click', function(){ qqSecToggle(def.key); });
+  title.addEventListener('keydown', function(e){ if (e.key==='Enter' || e.key===' '){ e.preventDefault(); qqSecToggle(def.key); } });
+}
+function qqSecInit(){
+  if (_qqSecReady) return;
+  var grid = document.querySelector('.qq-grid'); if (!grid) return;   // QQ DOM not present yet
+  QQ_SEC_DEFS.forEach(_qqSecWrap);
+  _qqSecReady = true;
+}
+function _qqSecApplyOne(key, animate){
+  var card = document.querySelector('.card[data-qqsec="'+key+'"]'); if (!card) return;
+  var collapsed = !!_qqSecState[key];
+  var sb = card.querySelector('.qq-secbody');
+  if (sb){
+    if (!animate) sb.style.transition = 'none';
+    sb.classList.add('qq-animating');                       // keep overflow hidden during the fold
+    card.classList.toggle('qq-collapsed', collapsed);
+    if (!animate){ void sb.offsetHeight; sb.style.transition = ''; }  // reflow, then restore transition
+    clearTimeout(sb._qqT);
+    sb._qqT = setTimeout(function(){ sb.classList.remove('qq-animating'); }, animate ? 280 : 0);
+  }
+  var word = card.querySelector('.qq-sec-word'); if (word) word.textContent = collapsed ? 'Expand' : 'Collapse';
+  var head = card.querySelector('.qq-sec-head'); if (head) head.setAttribute('aria-expanded', String(!collapsed));
+  if (key === 'terms' && typeof qtUpdateSummary === 'function') qtUpdateSummary();
+}
+function qqSecApply(animate){
+  qqSecInit();
+  QQ_SEC_DEFS.forEach(function(d){ _qqSecApplyOne(d.key, animate); });
+}
+function qqSecToggle(key){
+  qqSecInit();
+  if (_qqSecState[key]) delete _qqSecState[key]; else _qqSecState[key] = true;
+  _qqSecApplyOne(key, true);
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'Unsaved changes');
+  if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
+}
+function qqSecGetState(){ var o = {}; for (var k in _qqSecState){ if (_qqSecState[k]) o[k] = true; } return o; }
+function qqSecSetState(map){
+  _qqSecState = {};
+  if (map && typeof map === 'object'){ for (var k in map){ if (map[k]) _qqSecState[k] = true; } }
+  qqSecApply(false);
+}
+function qqSecResetExpanded(){ _qqSecState = {}; qqSecApply(false); }
+window.qqSecToggle = qqSecToggle;
+
 // =============================================
 // V6: PER DIEM / TRAVEL FUNCTIONS
 // =============================================
