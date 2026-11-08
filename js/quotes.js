@@ -2407,6 +2407,14 @@ function closeEmailQuoteModal(){
 async function sendQuoteConfirmed(){
   var q = _emailQuoteData;
   if (!q) { showToast('No quote loaded','error'); return; }
+  // r102: resolve the quote's canonical SAVED record + id ONCE, up front, by id OR number. A quote sent
+  // from the editor can arrive as a form-built object with an empty id; without this, the email gets
+  // tagged with the quote NUMBER instead of the id AND the "flip to Sent" step silently misses — so the
+  // quote shows Delivered but stays stuck on Draft (that's what happened to Q-2073). Both steps below use
+  // this one stable id so a delivered proposal always flips to Sent.
+  var _savedQuote = (q.id ? (DB.quotes||[]).find(function(x){ return x.id===q.id; }) : null)
+                 || (q.num ? (DB.quotes||[]).find(function(x){ return x.num===q.num; }) : null) || null;
+  var _canonId = (q.id || (_savedQuote && _savedQuote.id) || q.num || '');
   var s = DB.settings || {};
   if (!s.mgKey) { showToast('Mailgun API key not set — go to Settings → Email Settings','error',5000); return; }
 
@@ -2489,7 +2497,7 @@ async function sendQuoteConfirmed(){
     fd.append('o:tracking-opens','yes');
     fd.append('o:tracking-clicks','no');
     fd.append('v:probid_type','quote');
-    fd.append('v:probid_id', String(q.id||q.num||''));
+    fd.append('v:probid_id', String(_canonId));   // r102: canonical id (uuid when saved) so delivery events key to THIS quote
 
     var mgDomain = s.mgDomain || 'tcss.com';
     var res = await fetch('https://api.mailgun.net/v3/'+mgDomain+'/messages', {
@@ -2506,16 +2514,17 @@ async function sendQuoteConfirmed(){
       // on this quote without needing a page reload (events arrive ~2s after send).
       setTimeout(function(){ if(typeof loadEmailEvents==='function') loadEmailEvents(true); }, 4000);
       setTimeout(function(){ if(typeof loadEmailEvents==='function') loadEmailEvents(true); }, 14000);
-      // mark quote sent (only after a successful send)
-      var saved = q.id ? DB.quotes.find(function(x){ return x.id===q.id; }) : null;
+      // mark quote sent (only after a successful send) — use the canonical saved record resolved up top,
+      // so this flips reliably even when the send started from a form-derived quote that had no id.
+      var saved = _savedQuote;
       if (saved) {
-        if (saved.status==='draft' || !saved.status) saved.status='sent';
+        if (!saved.status || String(saved.status).toLowerCase()==='draft') saved.status='sent';
         if (!saved.sentDate) saved.sentDate = getTodayISO();
         saved.emailedTo = allTo; saved.emailedAt = new Date().toISOString();
         if (q.approvalToken) saved.approvalToken = q.approvalToken;
         saveDB(); renderQuotes && renderQuotes(); renderDash && renderDash();
       } else {
-        if (q.status==='draft' || !q.status) q.status='sent';
+        if (!q.status || String(q.status).toLowerCase()==='draft') q.status='sent';
         if (!q.sentDate) q.sentDate = getTodayISO();
       }
       // Persist the approval token to the cloud so the portal link in the email resolves.
