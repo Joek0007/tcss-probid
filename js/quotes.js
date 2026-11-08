@@ -484,12 +484,39 @@ function setQQDirty(flag, note){
 var _autoSaveStubTimer = null;
 var _autoSaveStubDone = false; // reset by _resetAutoSaveStub() when the form is cleared
 
+// r103: single, durable source of truth for WHICH quote the editor is currently on.
+// The hidden #qq-id / #qq-num inputs get WIPED whenever the Quick Quote view re-renders
+// (e.g. a post-sync redraw rebuilds that section's HTML), which made the editor "forget"
+// its quote — so the next save INSERTED a brand-new record (duplicate) and the header
+// reset to "Quote #---". These module vars survive re-renders; _qqCurrentId()/_qqCurrentNum()
+// read "the input OR the remembered value", and _qqSetCurrent() keeps inputs + vars in lockstep.
+var _qqActiveQuoteId  = '';
+var _qqActiveQuoteNum = '';
+function _qqCurrentId(){
+  var el = document.getElementById('qq-id');
+  return ((el && el.value) || _qqActiveQuoteId || '');
+}
+function _qqCurrentNum(){
+  var el = document.getElementById('qq-num');
+  return ((el && el.value) || _qqActiveQuoteNum || '');
+}
+function _qqSetCurrent(id, num){
+  if (id  != null) { _qqActiveQuoteId  = id;  var e = document.getElementById('qq-id');  if (e) e.value = id;  }
+  if (num != null) { _qqActiveQuoteNum = num; var n = document.getElementById('qq-num'); if (n) n.value = num; }
+}
+function _qqClearCurrent(){
+  _qqActiveQuoteId = ''; _qqActiveQuoteNum = '';
+  var e = document.getElementById('qq-id');  if (e) e.value = '';
+  var n = document.getElementById('qq-num'); if (n) n.value = '';
+}
+
 // Reset auto-save protection so the NEXT quote can auto-save again. Called from the
 // authoritative clearQQ (reports.js) whenever the form is cleared/abandoned. Lives
 // here so all auto-save state stays in one module.
 function _resetAutoSaveStub() {
   _autoSaveStubDone = false;
   clearTimeout(_autoSaveStubTimer);
+  _qqClearCurrent(); // r103: a fresh/abandoned form has no active quote — never adopt the last one's id
 }
 
 function _scheduleAutoSaveStub() {
@@ -500,8 +527,7 @@ function _scheduleAutoSaveStub() {
     var cn = (document.getElementById('qq-cn')||{}).value || '';
     var jn = (document.getElementById('qq-jn')||{}).value || '';
     if (!cn.trim() || !jn.trim()) return; // not ready yet
-    var idEl = document.getElementById('qq-id');
-    if (idEl && idEl.value) return; // already has an ID — already saved
+    if (_qqCurrentId()) return; // r103: already has an ID (input OR remembered) — already saved, never re-stub
     // Require real scope before creating a DB row — a line item or an equipment row.
     // Until then the local draft protects the work and we avoid orphan $0 quotes.
     var hasItems = (typeof lineItems !== 'undefined' && lineItems && lineItems.length > 0);
@@ -588,6 +614,9 @@ function restoreQQDraft(){
     calcTotals();
     updateLumpSumPreview();
     _qqRestoreLock = false;
+    // r103: a resumed draft of an EXISTING quote carries its id/num in the restored fields —
+    // seed the durable module vars so a later re-render can't drop the id and duplicate it.
+    _qqSetCurrent((document.getElementById('qq-id')||{}).value || '', (document.getElementById('qq-num')||{}).value || '');
     setQQDirty(true, 'Recovered local draft from this browser');
     updateQQStage3UI();
     return true;
@@ -782,27 +811,28 @@ async function saveQQ() {
     if (!_wasWon && !q.wonDate) q.wonDate = getTodayISO();
   }
 
-  // Assign or reuse quote number
-  var numEl = document.getElementById('qq-num');
-  var idEl  = document.getElementById('qq-id');
-  var existingId  = (idEl  && idEl.value)  || q.id  || '';
-  var existingNum = (numEl && numEl.value)  || q.num || '';
+  // Assign or reuse quote number & id. r103: resolve identity through _qqCurrentId/_qqCurrentNum
+  // (input OR durable module var) so a QQ re-render that wiped the hidden inputs can never make
+  // this save forget its quote and INSERT a duplicate.
+  var existingId  = _qqCurrentId();
+  var existingNum = _qqCurrentNum();
 
   if (!existingNum || existingNum === 'PREVIEW' || existingNum === 'DRAFT') {
     existingNum = await nextQNum();
-    if (numEl) numEl.value = existingNum;
     // Also update the visible Quote #--- header immediately
     var displayEl = document.getElementById('qq-stage4-num');
     if (displayEl) displayEl.textContent = 'Quote #' + existingNum;
   }
-  q.num = existingNum;
 
   // Assign or reuse ID
   if (!existingId) {
     existingId = typeof makeUUID === 'function' ? makeUUID() : 'q-' + Date.now();
-    if (idEl) idEl.value = existingId;
   }
-  q.id = existingId;
+  // Persist identity to BOTH the hidden inputs and the durable module vars, so every
+  // later save/send in this editing session updates THIS record instead of making a new one.
+  _qqSetCurrent(existingId, existingNum);
+  q.num = existingNum;
+  q.id  = existingId;
   q.createdAt = q.createdAt || new Date().toISOString();
   q.updatedAt = new Date().toISOString();
 
@@ -2562,16 +2592,26 @@ function emailQuote() {
   fireEmailQuote(q);
 }
 
-// From QQ toolbar — saves first if unsaved, then emails
-function emailQuoteQQ() {
+// From QQ toolbar — r103: actually SAVE + number the quote first (the old code only claimed to,
+// and emailed an unsaved quote tagged num='DRAFT' — so the delivery could never flip it to Sent,
+// the Q-2073-class "delivered but stuck on Draft" bug from a second trigger). Now we save, then
+// email the real saved+numbered record so sendQuoteConfirmed's canonical-id flip always lands.
+async function emailQuoteQQ() {
   if (typeof hasPermission==='function' && !hasPermission('quote.send')) { showToast('You do not have permission to send quotes','error'); return; }
   const cn = (document.getElementById('qq-cn')||{}).value || '';
   const jn = (document.getElementById('qq-jn')||{}).value || '';
   if (!cn.trim() || !jn.trim()) {
     showToast('Please enter a customer name and job name before emailing.','error'); return;
   }
-  const q = getQData();
-  q.num = (document.getElementById('qq-num')||{}).value || 'DRAFT';
+  // Save first if this quote has no id yet, so it exists in DB.quotes with a real number
+  // before the email goes out. saveQQ is idempotent now (r103 identity fix) — a quote that is
+  // already saved just updates in place, no duplicate.
+  if (!_qqCurrentId() && typeof saveQQ === 'function') { await saveQQ(); }
+  const id = _qqCurrentId();
+  const saved = id ? (DB.quotes||[]).find(function(x){ return x.id === id; }) : null;
+  // Prefer the saved record; fall back to form data (never a 'DRAFT'-numbered stub).
+  const q = saved || getQData();
+  if (!saved) q.num = _qqCurrentNum() || '';
   fireEmailQuote(q);
 }
 
@@ -4861,6 +4901,9 @@ function newQuoteForContact(contactId) {
   var cust = c.customerId ? (DB.customers||[]).find(function(x){ return x.id===c.customerId; }) : null;
   goPage('qq');
   setTimeout(function(){
+    // r103: this starts a NEW quote — drop any remembered id so the first save creates a fresh
+    // record instead of overwriting whatever quote was open before.
+    if (typeof _qqClearCurrent==='function') _qqClearCurrent();
     var cnEl  = document.getElementById('qq-cn');
     var cidEl = document.getElementById('qq-customer-id');
     var ctEl  = document.getElementById('qq-contact-name');

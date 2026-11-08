@@ -207,12 +207,14 @@ function getQData(id) {
   const env = (document.getElementById('qq-env')||{}).value || 'office';
   const envLabel = ENV_PRESETS[env] ? ENV_PRESETS[env].label : 'Office';
   var existing = null;
-  // Use hidden ID field first — most reliable
-  var qqIdVal = (document.getElementById('qq-id')||{}).value || '';
+  // r103: resolve identity through _qqCurrentId/_qqCurrentNum (the hidden input OR the durable
+  // module var) so a QQ re-render that wiped #qq-id can't make us lose the link to the saved
+  // quote — which would drop preserved fields (approvalToken/sentDate/createdAt/marginBypass).
+  var qqIdVal = (typeof _qqCurrentId==='function') ? _qqCurrentId() : ((document.getElementById('qq-id')||{}).value || '');
   if (qqIdVal) existing = DB.quotes.find(function(q){ return q.id===qqIdVal; }) || null;
   // Fallback: by number only if no ID stored
   if (!existing) {
-    var numVal = (document.getElementById('qq-num')||{}).value || '';
+    var numVal = (typeof _qqCurrentNum==='function') ? _qqCurrentNum() : ((document.getElementById('qq-num')||{}).value || '');
     if (numVal) existing = DB.quotes.find(function(q){ return q.num===numVal; }) || null;
   }
   var createdVal = (document.getElementById('qq-created')||{}).value || (existing ? (existing.createdDate || (existing.createdAt||'').split('T')[0]) : getTodayISO());
@@ -421,6 +423,9 @@ function editQuote(id) {
   // quote's job type (pre-feature quotes get a sensible starting set they can save to adopt).
   if (typeof qtInit==='function') qtInit(q.jt||'New Construction', q.selectedSystems||[], q.proposalClauses||null);
   setV('qq-dt', q.dt); setV('qq-vu', q.vu); setV('qq-num', q.num); setV('qq-id', q.id||''); setV('qq-followup', q.followupDate || calcFollowupDate(q.dt || getTodayISO()));
+  // r103: remember WHICH quote we're editing in the durable module vars, so a re-render that
+  // wipes the hidden #qq-id can't make the next save duplicate this quote.
+  if (typeof _qqSetCurrent==='function') _qqSetCurrent(q.id||'', q.num||'');
   setV('qq-created', q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || getTodayISO());
   setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc); setV('qq-exec-summary', q.execSummary||'');
   // qq-notes is contenteditable — load via innerHTML (setV/.value is a no-op on it), or
