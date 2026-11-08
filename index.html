@@ -1411,12 +1411,16 @@ body.offline .top-bar{border-top:3px solid #e65100}
 .qq-stage3-progress-bar{height:10px;background:linear-gradient(90deg,#1565c0,#42a5f5);width:0;transition:width .25s ease}
 .qq-stage3-help{font-size:12px;color:#546e7a;line-height:1.5}
 .qq-invalid{border-color:#c62828!important;box-shadow:0 0 0 3px rgba(198,40,40,.12)!important;background:#fffafb}
-.qq-sticky-bar{position:sticky;bottom:10px;z-index:90;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:rgba(13,27,42,.96);color:#fff;border-radius:14px;padding:12px 14px;margin-top:14px;box-shadow:0 12px 28px rgba(13,27,42,.28)}
+/* r106: fixed to the viewport bottom so Total + Save stay visible while scrolling the quote.
+   (position:sticky failed here because #content has overflow-x:auto, which makes it the sticky
+   scroll container instead of the window.) left follows --sidebar so it never sits under the rail. */
+.qq-sticky-bar{position:fixed;left:calc(var(--sidebar) + 20px);right:20px;bottom:14px;z-index:90;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:rgba(13,27,42,.96);color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 14px 34px rgba(13,27,42,.34);transition:left .18s ease}
+#page-qq{padding-bottom:96px}
 .qq-sticky-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .qq-sticky-metric{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700}
 .qq-sticky-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .qq-sticky-right .btn{box-shadow:none}
-@media(max-width:768px){.qq-stage3-top{align-items:flex-start}.qq-sticky-bar{bottom:72px}.qq-sticky-right{width:100%}.qq-sticky-right .btn{flex:1;justify-content:center}}
+@media(max-width:768px){.qq-stage3-top{align-items:flex-start}.qq-sticky-bar{left:14px;right:14px;bottom:calc(72px + env(safe-area-inset-bottom,0px))}#page-qq{padding-bottom:calc(150px + env(safe-area-inset-bottom,0px))}.qq-sticky-right{width:100%}.qq-sticky-right .btn{flex:1;justify-content:center}}
 
 
 
@@ -2542,7 +2546,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           </div>
         </div>
         <div class="form-row cols2" style="margin-bottom:10px">
-          <div><label>Tax Rate (%)</label><input id="qq-tx" type="number" value="0" min="0" step=".1"></div>
+          <div><label>Tax Rate (%)</label><input id="qq-tx" type="number" value="0" min="0" step="0.01" inputmode="decimal"></div>
           <div><label>Discount</label>
             <div style="display:flex;gap:4px">
               <input id="qq-disc" type="number" value="0" min="0" step="10" style="flex:1" oninput="calcTotals()">
@@ -7420,8 +7424,8 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20261108r105lumpexcl"></script>
-<script src="js/quotes.js?v=20261108r104itemsplit"></script>
+<script src="js/core.js?v=20261108r106taxfooter"></script>
+<script src="js/quotes.js?v=20261108r106taxfooter"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
 <script src="js/checkouts_db.js?v=20260919ix"></script>
@@ -8919,7 +8923,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r105';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r106';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-08';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

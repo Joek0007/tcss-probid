@@ -48,7 +48,7 @@ async function emailInvoiceDirect() {
         +'<th style="padding:10px 14px;text-align:right;font-size:11px;color:#fff;width:100px">Unit Price</th>'
         +'<th style="padding:10px 14px;text-align:right;font-size:11px;color:#fff;width:100px">Amount</th>'
       +'</tr></thead><tbody>'+lineRows+'</tbody>'
-      +'<tfoot>'+(taxAmt>0?'<tr><td colspan="3" style="padding:10px 14px;text-align:right;color:#546e7a">Tax ('+taxRate+'%):</td><td style="padding:10px 14px;text-align:right">$'+taxAmt.toFixed(2)+'</td></tr>':'')
+      +'<tfoot>'+(taxAmt>0?'<tr><td colspan="3" style="padding:10px 14px;text-align:right;color:#546e7a">Tax ('+pctTax(taxRate)+'):</td><td style="padding:10px 14px;text-align:right">$'+taxAmt.toFixed(2)+'</td></tr>':'')
         +'<tr style="background:#e3f2fd"><td colspan="3" style="padding:14px;text-align:right;font-size:14px;font-weight:700">Total Due:</td>'
         +'<td style="padding:14px;text-align:right;font-size:20px;font-weight:900;color:#1565c0">$'+grandTotal.toFixed(2)+'</td></tr>'
       +'</tfoot></table>'
@@ -1791,7 +1791,7 @@ table{font-size:12.5px}
       '<tr class="sub-row"><td>Subtotal</td><td style="text-align:right">' + fmt(q.sellBeforeTax||q.subtotal||0) + '</td></tr>'
   ) +
   (q.discount > 0 ? '<tr class="sub-row"><td>Discount</td><td style="text-align:right;color:#c62828">-' + fmt(q.discount) + '</td></tr>' : '') +
-  (q.taxAmt > 0 ? '<tr class="sub-row"><td>Tax (' + pct(q.taxRate||0) + ')</td><td style="text-align:right">' + fmt(q.taxAmt) + '</td></tr>' : '') +
+  (q.taxAmt > 0 ? '<tr class="sub-row"><td>Tax (' + pctTax(q.taxRate||0) + ')</td><td style="text-align:right">' + fmt(q.taxAmt) + '</td></tr>' : '') +
   '<tr class="total-row"><td>TOTAL INVESTMENT</td><td style="text-align:right">' + fmt(q.total||0) + '</td></tr>' +
   ((!q.taxRate || q.taxRate === 0) ? '<tr><td colspan="2" style="padding:6px 0 0;font-size:11px;color:#90a4ae;font-style:italic;text-align:right">(Applicable taxes not included)</td></tr>' : '') +
   '</table></div>' +
@@ -3991,7 +3991,7 @@ function buildInvoiceHTML(inv) {
     /* Totals */
     '<div class="totals-wrap"><div class="totals-table">'+
       '<div class="tot-row"><span>Subtotal</span><span>'+fmt(inv.subtotal)+'</span></div>'+
-      (inv.taxRate>0?'<div class="tot-row"><span>Tax ('+inv.taxRate+'%)</span><span>'+fmt(inv.taxAmt)+'</span></div>':'')+
+      (inv.taxRate>0?'<div class="tot-row"><span>Tax ('+pctTax(inv.taxRate)+')</span><span>'+fmt(inv.taxAmt)+'</span></div>':'')+
       (totalPaid>0?'<div class="tot-row paid"><span>Payments Applied</span><span>-'+fmt(totalPaid)+'</span></div>':'')+
       '<div class="tot-final"><span>Total Due</span><span>'+fmt(balanceDue)+'</span></div>'+
     '</div></div>'+

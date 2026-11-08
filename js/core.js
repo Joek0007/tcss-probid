@@ -753,6 +753,9 @@ function _relinkProjectsToWO(opts) {
 function fmt(n) { return '$ ' + (isFinite(n) ? Math.abs(n).toFixed(2) : '0.00').replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 function fmtSigned(n) { return (n < 0 ? '-' : '') + fmt(n); }
 function pct(n) { return (isFinite(n) ? n.toFixed(1) : '0.0') + '%'; }
+// r106: tax rates run in quarter points (6.00 / 6.25 / 6.50 / 6.75) — show them with TWO decimals
+// so they read exactly as entered, instead of rounding to tenths like the margin pct() does.
+function pctTax(n) { return (isFinite(n) ? Number(n).toFixed(2) : '0.00') + '%'; }
 
 // ---- UUID ----
 function makeUUID() {
