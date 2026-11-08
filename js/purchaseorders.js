@@ -192,7 +192,7 @@ function renderPOList() {
   // Date/Total/Status are fixed so whitespace doesn't pool in the middle. Status centered.
   var GRID='90px 2fr 1.1fr 108px 120px 116px 250px';
   var header='<div style="display:grid;grid-template-columns:'+GRID+';gap:8px;padding:10px 16px;background:#f8f9fa;border-bottom:1px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'+
-    '<div>PO #</div><div>Vendor</div><div>Job / WO</div><div>Date</div><div style="text-align:right">Total</div><div style="text-align:center">Status</div><div style="text-align:right">Actions</div></div>';
+    '<div>PO #</div><div>Vendor</div><div>Job / WO</div><div>Date</div><div style="text-align:right">Total</div><div style="text-align:center">Status</div><div>Actions</div></div>';
 
   var rows=list.map(function(po){
     var sc=statusColors[po.status]||{bg:'#f5f5f5',color:'#546e7a'};
@@ -206,14 +206,16 @@ function renderPOList() {
       '<div style="font-size:12px;color:#546e7a">'+escHtml(po.date||'—')+'</div>'+
       '<div style="font-weight:700;font-size:13px;text-align:right">$'+parseFloat(po.total||0).toLocaleString('en-US',{minimumFractionDigits:2})+'</div>'+
       '<div style="text-align:center"><span style="background:'+sc.bg+';color:'+sc.color+';padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700">'+escHtml(po.status||'')+'</span></div>'+
-      '<div style="display:flex;gap:4px;justify-content:flex-end">'+
+      '<div style="display:flex;gap:4px;justify-content:flex-start;align-items:center">'+
         '<button class="btn btn-outline btn-sm" onclick="openPO(\''+po.id+'\')">Open</button>'+
-        // Receive is conditional; when absent, reserve its exact slot so the columns stay aligned.
+        // r100: Receive shows only when the PO can be received. Previously an INVISIBLE full-size Receive
+        // button was reserved on every other row "to keep columns aligned" — that reserved blank slot was
+        // the big empty gap. Buttons now just group tightly at the right.
         ((['Sent','Partially Received'].includes(po.status))
           ? '<button class="btn btn-success btn-sm" onclick="openReceiving(\''+po.id+'\')">📥 Receive</button>'
-          : '<button class="btn btn-success btn-sm" style="visibility:hidden;pointer-events:none" tabindex="-1" aria-hidden="true">📥 Receive</button>')+
-        '<button class="btn btn-outline btn-sm" onclick="printPOById(\''+po.id+'\')">🖨</button>'+
-        ((typeof _canDeleteOfficeRecords==='function' ? _canDeleteOfficeRecords() : (_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'<button class="btn btn-danger btn-sm" onclick="deletePO(\''+po.id+'\')">✕</button>':'')+
+          : '')+
+        '<button class="btn btn-outline btn-sm" onclick="printPOById(\''+po.id+'\')" title="Print PO">🖨</button>'+
+        ((typeof _canDeleteOfficeRecords==='function' ? _canDeleteOfficeRecords() : (_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'<button class="btn btn-danger btn-sm" onclick="deletePO(\''+po.id+'\')" title="Delete PO">✕</button>':'')+
       '</div>'+
     '</div>';
   }).join('');
