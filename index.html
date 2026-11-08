@@ -2269,6 +2269,29 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 
         <div style="height:1px;background:#f0f0f0;margin:10px 0"></div>
 
+        <!-- r104: Material + Labor itemization (presentation only) -->
+        <input type="hidden" id="qq-item-style" value="combined">
+        <input type="hidden" id="qq-show-hours" value="0">
+        <style>
+          .istyle-btn{font-size:12px;font-weight:600;color:#37474f;background:#fff;border:1.5px solid #cfd8dc;border-radius:8px;padding:7px 11px;cursor:pointer;transition:.12s;line-height:1.2}
+          .istyle-btn:hover{border-color:#1565c0}
+          .istyle-btn.active{background:#1565c0;border-color:#1565c0;color:#fff}
+          .istyle-hint{font-size:11px;color:#90a4ae;margin:5px 0 0;line-height:1.5}
+          #show-hours-btn.active{background:#b45309;border-color:#b45309;color:#fff}
+        </style>
+        <div style="font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Line Item Pricing</div>
+        <div style="display:flex;flex-wrap:wrap;gap:7px">
+          <button type="button" class="istyle-btn active" data-style="combined" onclick="setItemStyle('combined')">Combined price</button>
+          <button type="button" class="istyle-btn" data-style="split" onclick="setItemStyle('split')">Material + Labor columns</button>
+          <button type="button" class="istyle-btn" data-style="summary" onclick="setItemStyle('summary')">Material + Labor summary</button>
+        </div>
+        <div class="istyle-hint">Breaks each line into its material price and its installation-labor price. Your totals never change &mdash; this is presentation only.</div>
+        <div id="show-hours-row" style="display:none;margin-top:9px">
+          <button type="button" class="istyle-btn" id="show-hours-btn" onclick="toggleShowHours()">Show install hours on each labor price</button>
+        </div>
+
+        <div style="height:1px;background:#f0f0f0;margin:10px 0"></div>
+
         <!-- Proposal section toggles -->
         <div style="font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Include in Proposal</div>
         <style>
@@ -7397,8 +7420,8 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20261107r93escalationsettings"></script>
-<script src="js/quotes.js?v=20261108r103idretain"></script>
+<script src="js/core.js?v=20261108r104itemsplit"></script>
+<script src="js/quotes.js?v=20261108r104itemsplit"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
 <script src="js/checkouts_db.js?v=20260919ix"></script>
@@ -7417,7 +7440,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/purchaseorders.js?v=20261108r101porecv"></script>
 <script src="js/inventory_locations_db.js?v=20260919ix"></script>
 <script src="js/inventory.js?v=20261020checklist2"></script>
-<script src="js/reports.js?v=20261108r103idretain"></script>
+<script src="js/reports.js?v=20261108r104itemsplit"></script>
 <script src="js/expenses.js?v=20260919jd"></script>
 <script src="js/perdiem.js?v=20260919kd"></script>
 <script src="js/recyclebin.js?v=20260919ix"></script>
@@ -7425,7 +7448,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <script src="js/recurring.js?v=20261025dates2"></script>
   <script src="js/seed_managed.js?v=20260919ix"></script>
   <script src="js/applock.js?v=20260919jk"></script>
-  <script src="js/auth.js?v=20261107r92claim"></script>
+  <script src="js/auth.js?v=20261108r104itemsplit"></script>
   <script>
     // Register the service worker so the app LOADS with no signal (field techs offline).
     // Served from the app root as /tcss-probid/sw.js → scope covers the whole app.
@@ -8896,7 +8919,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r103';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r104';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-08';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

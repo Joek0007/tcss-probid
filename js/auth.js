@@ -425,7 +425,10 @@ function _quoteExtras(q){
     // r92 Needs Action "Claim": who's handling this item ("I've got this") + when. Rides quote_extras
     // so it syncs cross-device with no schema change; as a top-level field it also flips _recHash dirty.
     claimedBy: q.claimedBy || null,
-    claimedAt: q.claimedAt || null
+    claimedAt: q.claimedAt || null,
+    // r104: proposal itemization presentation — 'combined' (default) | 'split' | 'summary' + hours toggle.
+    itemStyle: (q.itemStyle === 'split' || q.itemStyle === 'summary') ? q.itemStyle : 'combined',
+    showLaborHours: !!q.showLaborHours
   };
 }
 function _applyQuoteExtras(target, row){
@@ -446,6 +449,9 @@ function _applyQuoteExtras(target, row){
   // r92 Needs Action "Claim"
   target.claimedBy = x.claimedBy || null;
   target.claimedAt = x.claimedAt || null;
+  // r104: itemization presentation (legacy quotes have neither → 'combined' → original rendering).
+  target.itemStyle = (x.itemStyle === 'split' || x.itemStyle === 'summary') ? x.itemStyle : 'combined';
+  target.showLaborHours = !!x.showLaborHours;
   return target;
 }
 

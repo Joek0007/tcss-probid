@@ -2676,6 +2676,47 @@ function getLaborBannerOn() {
 }
 
 // =============================================
+// r104: Material + Labor itemization (presentation only — never changes the math)
+// Style + hours ride two hidden inputs so they round-trip through the local draft (qqFieldIds)
+// and save cleanly via getQData. The visible controls are pill buttons that write those inputs.
+// =============================================
+function getItemStyle() {
+  var el = document.getElementById('qq-item-style');
+  var v = el ? el.value : '';
+  return (v === 'split' || v === 'summary') ? v : 'combined';
+}
+function getShowLaborHours() {
+  var el = document.getElementById('qq-show-hours');
+  return !!(el && el.value === '1');
+}
+function refreshItemStyleUI() {
+  var style = getItemStyle();
+  document.querySelectorAll('.istyle-btn').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-style') === style);
+  });
+  // Hours toggle only matters when labor is broken out
+  var hoursRow = document.getElementById('show-hours-row');
+  if (hoursRow) hoursRow.style.display = (style === 'combined') ? 'none' : '';
+  var hoursBtn = document.getElementById('show-hours-btn');
+  if (hoursBtn) hoursBtn.classList.toggle('active', getShowLaborHours());
+}
+function setItemStyle(style) {
+  if (style !== 'split' && style !== 'summary') style = 'combined';
+  var el = document.getElementById('qq-item-style');
+  if (el) el.value = style;
+  refreshItemStyleUI();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'Unsaved changes');
+  if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
+}
+function toggleShowHours() {
+  var el = document.getElementById('qq-show-hours');
+  if (el) el.value = (el.value === '1') ? '0' : '1';
+  refreshItemStyleUI();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'Unsaved changes');
+  if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
+}
+
+// =============================================
 // V6: PER DIEM / TRAVEL FUNCTIONS
 // =============================================
 function getPerDiemMarkup() {

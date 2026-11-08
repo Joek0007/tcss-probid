@@ -1499,6 +1499,95 @@ function buildPrintHTML(q, mode) {
     return rows;
   }
 
+  // r104 — Material + Labor itemization. Same per-line math as the itemized branch above, but the
+  // material sell and the installation labor are shown in their OWN columns instead of one combined
+  // line total. style 'split' = columns only; 'summary' = a materials-vs-labor band + the columns.
+  // q.showLaborHours adds the install hours beside each labor price. Totals still live in the
+  // Pricing Summary section below, so this changes presentation only — never the math.
+  function splitItemsSectionHTML(style) {
+    if (!q.items || q.items.length === 0) return '<p style="color:#666">No line items recorded.</p>';
+    var _noMargin = !!(q.marginBypass && q.marginBypass.enabled);
+    var _isMarkup = (q.pricingMode === 'markup');
+    var _tm = (q.targetMargin !== undefined && q.targetMargin !== null) ? q.targetMargin : 35;
+    var margin = _noMargin ? 0 : (_isMarkup ? Math.min(Math.max(_tm/100,0),5.0) : Math.min(Math.max(_tm/100,0),0.99));
+    var _laborRate = parseFloat(q.laborRate) || 100;
+    var showHrs = !!q.showLaborHours;
+    var matTot = 0, labTot = 0, rows = '', n = 0;
+    q.items.forEach(function(item){
+      var qty = parseFloat(item.qty)||0, mc = parseFloat(item.mc)||0, lh = parseFloat(item.lh)||0;
+      var unitSell = mc > 0 ? (_isMarkup ? mc*(1+margin) : (margin < 1 ? mc/(1-margin) : mc)) : 0;
+      var matSell = unitSell * qty;
+      var labor = qty * lh * _laborRate;
+      if (matSell <= 0 && labor <= 0) return;
+      matTot += matSell; labTot += labor; n++;
+      var hrsTxt = (showHrs && labor > 0) ? ' <span style="color:#90a4ae;font-weight:400;font-size:11px">&middot; ' + (Math.round(qty*lh*10)/10) + ' hrs</span>' : '';
+      rows += '<tr>' +
+        '<td style="padding:8px 12px;color:#888;width:34px">' + n + '</td>' +
+        '<td style="padding:8px 12px"><strong style="color:#0d1b2a">' + escHtml(item.desc||'Item') + '</strong>' +
+          '<span style="display:block;font-size:11px;color:#90a4ae">' + qty + ' ' + escHtml(item.unit||'ea') + '</span></td>' +
+        '<td style="padding:8px 12px;text-align:right;color:#1565c0;font-weight:600">' + (matSell > 0 ? fmt(matSell) : '&mdash;') + '</td>' +
+        '<td style="padding:8px 12px;text-align:right;color:#b45309;font-weight:600">' + (labor > 0 ? (fmt(labor) + hrsTxt) : '&mdash;') + '</td>' +
+        '<td style="padding:8px 12px;text-align:right;font-weight:700;color:#0d1b2a">' + fmt(matSell + labor) + '</td>' +
+      '</tr>';
+    });
+    // Per diem / travel keeps its own row (amount in the total column) to match the Pricing Summary.
+    var pd = q.perDiem, pdAfter = pd ? (pd.afterMarkup || q.perDiemCost || 0) : (q.perDiemCost || 0);
+    if (pdAfter > 0) {
+      n++;
+      rows += '<tr style="background:#f9f6ff">' +
+        '<td style="padding:8px 12px;color:#888">' + n + '</td>' +
+        '<td style="padding:8px 12px;color:#4527a0"><strong>Per Diem / Travel</strong></td>' +
+        '<td style="padding:8px 12px;text-align:right;color:#b0bec5">&mdash;</td>' +
+        '<td style="padding:8px 12px;text-align:right;color:#b0bec5">&mdash;</td>' +
+        '<td style="padding:8px 12px;text-align:right;font-weight:700;color:#4527a0">' + fmt(pdAfter) + '</td>' +
+      '</tr>';
+    }
+    var table = '<table class="items-table"><thead><tr>' +
+      '<th>#</th><th>Description</th>' +
+      '<th style="text-align:right">Materials</th>' +
+      '<th style="text-align:right">Install Labor</th>' +
+      '<th style="text-align:right">Item Total</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    var legend = '<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:11.5px;color:#607d8b;margin:2px 0 8px">' +
+      '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#1565c0;margin-right:5px;vertical-align:middle"></span>Equipment &amp; materials</span>' +
+      '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#b45309;margin-right:5px;vertical-align:middle"></span>Professional installation labor</span></div>';
+    if (style === 'summary') {
+      var sysTot = matTot + labTot;
+      var labPct = sysTot > 0 ? Math.round(labTot / sysTot * 100) : 0;
+      var matPct = 100 - labPct;
+      var band = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">' +
+        '<div style="flex:1;min-width:190px;border:1px solid #e6edf2;border-top:4px solid #1565c0;border-radius:8px;padding:12px 15px">' +
+          '<div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#1565c0">Equipment &amp; Materials</div>' +
+          '<div style="font-size:24px;font-weight:800;color:#0d1b2a;line-height:1.1;margin-top:3px">' + fmt(matTot) + '</div>' +
+          '<div style="font-size:11px;color:#90a4ae;margin-top:2px">Cameras, controllers, cabling &amp; hardware</div></div>' +
+        '<div style="flex:1;min-width:190px;border:1px solid #e6edf2;border-top:4px solid #b45309;border-radius:8px;padding:12px 15px">' +
+          '<div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#b45309">Professional Installation</div>' +
+          '<div style="font-size:24px;font-weight:800;color:#0d1b2a;line-height:1.1;margin-top:3px">' + fmt(labTot) + '</div>' +
+          '<div style="font-size:11px;color:#90a4ae;margin-top:2px">Mounting, terminations, programming &amp; commissioning</div></div></div>' +
+        '<div style="height:12px;border-radius:999px;overflow:hidden;display:flex;border:1px solid #e6edf2;margin-bottom:3px">' +
+          '<div style="width:' + matPct + '%;background:#1565c0"></div><div style="width:' + labPct + '%;background:#b45309"></div></div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:11px;color:#90a4ae;margin-bottom:10px"><span>Materials ' + matPct + '%</span><span>Labor ' + labPct + '%</span></div>';
+      return band + table;
+    }
+    return legend + table;
+  }
+
+  // r104 — the Equipment/Materials/Installation section, rendered per the quote's itemization style.
+  // Lump sum and the default 'combined' style keep the EXACT original table (backward compatible).
+  function itemsSectionHTML() {
+    var isLump = !!(q.lumpSum && q.lumpSum.enabled);
+    var style = isLump ? 'combined' : (q.itemStyle || 'combined');
+    var inner;
+    if (style === 'split' || style === 'summary') {
+      inner = splitItemsSectionHTML(style);
+    } else {
+      inner = '<table class="items-table"><thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Unit</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th></tr></thead><tbody>' + itemsTableHTML() + '</tbody></table>';
+    }
+    return '<div class="prop-section"><div class="prop-section-title">Equipment, Materials &amp; Installation</div>' +
+      inner +
+      (getLaborBannerOn() ? '<div style="background:#e8f5e9;padding:10px 16px;margin-top:8px;border-radius:6px;font-size:13px;color:#1b5e20"><strong>Installation Labor included</strong> &mdash; All labor necessary for professional installation of the above scope is included in this proposal.</div>' : '') +
+    '</div>';
+  }
+
   // Internal section (only shown in internal mode)
   function internalSectionHTML() {
     if (mode !== 'internal') return '';
@@ -1687,13 +1776,9 @@ table{font-size:12.5px}
   // SCOPE — preserve the pasted (Word/Docs) formatting so the proposal looks like the source doc.
   (q.notes ? '<div class="prop-section"><div class="prop-section-title">Scope of Work</div><div class="scope-box">' + sanitizeScopePreserve(q.notes) + '</div></div>' : '') +
 
-  // EQUIPMENT & MATERIALS + LABOR
-  '<div class="prop-section"><div class="prop-section-title">Equipment, Materials &amp; Installation</div>' +
-  '<table class="items-table"><thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Unit</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th></tr></thead><tbody>' +
-  itemsTableHTML() +
-  '</tbody></table>' +
-  (getLaborBannerOn() ? '<div style="background:#e8f5e9;padding:10px 16px;margin-top:8px;border-radius:6px;font-size:13px;color:#1b5e20"><strong>Installation Labor included</strong> — All labor necessary for professional installation of the above scope is included in this proposal.</div>' : '') +
-  '</div>' +
+  // EQUIPMENT & MATERIALS + LABOR — r104: rendered per the quote's itemization style
+  // (combined [default] / split columns / summary band). Lump sum still wins when enabled.
+  itemsSectionHTML() +
 
   // PRICING SUMMARY (CLIENT)
   '<div class="prop-section"><div class="prop-section-title">Pricing Summary</div>' +

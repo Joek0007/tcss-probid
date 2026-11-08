@@ -288,6 +288,9 @@ function getQData(id) {
     perDiemCost: totals.pdCost || 0,
     lumpSum: getLumpSumState(),
     showLaborBanner: typeof getLaborBannerOn==='function' ? getLaborBannerOn() : true,
+    // r104: per-quote itemization presentation — 'combined' (default) | 'split' | 'summary' + hours toggle.
+    itemStyle: (typeof getItemStyle==='function') ? getItemStyle() : 'combined',
+    showLaborHours: (typeof getShowLaborHours==='function') ? getShowLaborHours() : false,
     svcContract: getSvcContractData(),
     execSummary: (function(){ var _e=document.getElementById('qq-exec-summary'); if(_e) return _e.value; return existing && existing.execSummary ? existing.execSummary : ''; })(),
     proposalSections: getProposalSections(),
@@ -310,7 +313,7 @@ function qqFieldIds(){
   // qq-id / qq-customer-id / qq-contact-id are the quote's IDENTITY fields and MUST be
   // included: the draft save/restore uses this list, and without them a resumed draft of
   // an existing quote loses its id (saveQQ then creates a DUPLICATE) and its customer link.
-  return ['qq-id','qq-customer-id','qq-contact-id','qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-followup','qq-created','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env'];
+  return ['qq-id','qq-customer-id','qq-contact-id','qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-followup','qq-created','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env','qq-item-style','qq-show-hours'];
 }
 
 function clearQQ(skipConfirm) {
@@ -331,6 +334,10 @@ function clearQQ(skipConfirm) {
   ['permit-lv','permit-elec','permit-other','permit-none'].forEach(function(id){ const el=document.getElementById(id); if(el) el.checked=false; });
   // Default to "No Permit" when starting a fresh quote
   const pnDef = document.getElementById('permit-none'); if (pnDef) pnDef.checked = true;
+  // r104: a fresh quote defaults to the combined line-item price with hours hidden.
+  var _isEl = document.getElementById('qq-item-style'); if (_isEl) _isEl.value = 'combined';
+  var _shEl = document.getElementById('qq-show-hours'); if (_shEl) _shEl.value = '0';
+  if (typeof refreshItemStyleUI === 'function') refreshItemStyleUI();
   const otd = document.getElementById('permit-other-desc'); if(otd) otd.style.display='none';
   const otx = document.getElementById('permit-other-text'); if(otx) otx.value='';
   const pco = document.getElementById('permit-coord'); if(pco) pco.value='';
@@ -426,6 +433,10 @@ function editQuote(id) {
   // r103: remember WHICH quote we're editing in the durable module vars, so a re-render that
   // wipes the hidden #qq-id can't make the next save duplicate this quote.
   if (typeof _qqSetCurrent==='function') _qqSetCurrent(q.id||'', q.num||'');
+  // r104: hydrate the itemization style + install-hours toggle (presentation only).
+  setV('qq-item-style', (q.itemStyle==='split'||q.itemStyle==='summary') ? q.itemStyle : 'combined');
+  setV('qq-show-hours', q.showLaborHours ? '1' : '0');
+  if (typeof refreshItemStyleUI==='function') refreshItemStyleUI();
   setV('qq-created', q.createdDate || ((q.createdAt||'').split('T')[0]) || q.dt || getTodayISO());
   setV('qq-rep', q.rep); setV('qq-pt', q.pt); setV('qq-tc', q.tc); setV('qq-exec-summary', q.execSummary||'');
   // qq-notes is contenteditable — load via innerHTML (setV/.value is a no-op on it), or
