@@ -2658,6 +2658,13 @@ function toggleLumpSum() {
   const on = cb.checked;
   body.classList.toggle('expanded', on);
   if (label) { label.textContent = on ? 'YES' : 'NO'; label.className = 'toggle-value-label' + (on ? ' on' : ''); }
+  // r105: turning lump sum ON snaps Line Item Pricing back to "Combined price" (highlighted) —
+  // the Material+Labor styles don't apply when the proposal is shown as a single lump-sum line.
+  if (on) {
+    var _isEl = document.getElementById('qq-item-style');
+    if (_isEl) _isEl.value = 'combined';
+    if (typeof refreshItemStyleUI === 'function') refreshItemStyleUI();
+  }
   updateLumpSumPreview();
 }
 
@@ -2704,6 +2711,12 @@ function setItemStyle(style) {
   if (style !== 'split' && style !== 'summary') style = 'combined';
   var el = document.getElementById('qq-item-style');
   if (el) el.value = style;
+  // r105: lump sum shows ONE price, so it's mutually exclusive with a Material+Labor style.
+  // Choosing columns/summary switches "Present as lump sum" OFF so the proposal can't try both.
+  if (style === 'split' || style === 'summary') {
+    var lump = document.getElementById('lumpsum-toggle');
+    if (lump && lump.checked) { lump.checked = false; if (typeof toggleLumpSum === 'function') toggleLumpSum(); }
+  }
   refreshItemStyleUI();
   if (typeof setQQDirty === 'function') setQQDirty(true, 'Unsaved changes');
   if (typeof scheduleQQDraftSave === 'function') scheduleQQDraftSave();
