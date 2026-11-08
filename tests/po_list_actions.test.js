@@ -1,26 +1,42 @@
-// r100 — PO list action area: removed the INVISIBLE reserved "Receive" button that left a big empty
-// gap on every PO that can't be received. Receive now renders only for Sent / Partially Received;
-// buttons group tightly and left-align after the Status column.
+// r101 — PO list Receive button. Keeps the SAME footprint on every row so the Actions column stays in
+// line (fixing the original "big empty gap" which was a reserved INVISIBLE button). A PO that's ready to
+// receive (Sent / Partially Received) shows a solid DARK-GREEN clickable Receive; every other row shows a
+// light GREEN-OUTLINE placeholder that's inert (holds the line, not clickable).
 const fs = require('fs');
 const po = fs.readFileSync(__dirname + '/../js/purchaseorders.js', 'utf8');
+const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
 
 let pass=0, fail=0;
 function ok(n,c){ if(c){pass++;console.log('  ✓ '+n);} else {fail++;console.log('  ✗ '+n);} }
 
-console.log('── r100 PO-list action layout (no reserved blank Receive slot) ──');
+console.log('── r101 PO-list Receive (dark-green active / green-outline placeholder, aligned) ──');
 
-// slice the PO list action div
-const s = po.indexOf("justify-content:flex-start;align-items:center");
-const e = po.indexOf("'</div>'+", s);
-const cell = po.slice(s-60, e+40);
+// no more INVISIBLE reserved button (that was the empty-gap bug)
+ok('no visibility:hidden reserved button', po.indexOf('visibility:hidden')<0);
 
-ok('no invisible/visibility:hidden Receive placeholder left anywhere', po.indexOf('visibility:hidden')<0);
-ok('no aria-hidden reserved button', po.indexOf('aria-hidden="true"')<0 || po.indexOf('📥 Receive</button>')>=0 && po.indexOf('aria-hidden')<0);
-ok('Receive renders ONLY for Sent / Partially Received, with an EMPTY else (no reserved button)',
-   /\['Sent','Partially Received'\]\.includes\(po\.status\)/.test(po) && /openReceiving/.test(po) && /:\s*''\)\+/.test(po));
-ok('buttons left-aligned (flex-start), not floating right', cell.indexOf('justify-content:flex-start')>=0);
-ok('Open / Print / Delete still present with handlers', /onclick="openPO/.test(cell) && /onclick="printPOById/.test(cell) && /onclick="deletePO/.test(po));
-ok('Actions header no longer right-aligned', po.indexOf('text-align:right">Actions<')<0);
+// active Receive = solid dark green (btn-success), clickable, only for Sent / Partially Received
+ok('receivable PO → solid dark-green clickable Receive',
+   /\['Sent','Partially Received'\]\.includes\(po\.status\)/.test(po) &&
+   /\? '<button class="btn btn-success btn-sm po-recv" onclick="openReceiving/.test(po));
 
-console.log((fail===0?'✅':'❌')+' PO-list actions: '+pass+' passed, '+fail+' failed');
+// every other row → green-outline placeholder, inert (not clickable), same class footprint
+ok('non-receivable PO → green-outline placeholder button (po-recv-ph)',
+   /: '<button class="btn btn-sm po-recv po-recv-ph"[^>]*>Receive<\/button>'/.test(po));
+ok('placeholder is inert (no onclick, aria-hidden, pointer-events:none via CSS)',
+   /po-recv-ph"[^>]*aria-hidden="true"/.test(po) && /\.po-recv-ph\{[^}]*pointer-events:none/.test(html));
+
+// identical footprint keeps the columns aligned
+ok('both states share .po-recv with a fixed min-width', /\.po-recv\{[^}]*min-width:104px/.test(po)===false && /\.po-recv\{[^}]*min-width:104px/.test(html));
+
+// placeholder styled as a light green outline (white bg, green text + border)
+ok('placeholder = green outline (not dark fill)', /\.po-recv-ph\{[^}]*color:#2e7d32;border:1\.5px solid #66bb6a/.test(html));
+
+// buttons right-aligned, header right-aligned (back in line)
+ok('action group right-aligned (flex-end)', /justify-content:flex-end;align-items:center">'\+\s*'<button class="btn btn-outline btn-sm" onclick="openPO/.test(po));
+ok('Actions header right-aligned', /Status<\/div><div style="text-align:right">Actions<\/div>/.test(po));
+
+// handlers intact
+ok('Open / Receive / Print / Delete handlers intact', /onclick="openPO/.test(po) && /onclick="openReceiving/.test(po) && /onclick="printPOById/.test(po) && /onclick="deletePO/.test(po));
+
+console.log((fail===0?'✅':'❌')+' PO-list Receive: '+pass+' passed, '+fail+' failed');
 process.exit(fail===0?0:1);
