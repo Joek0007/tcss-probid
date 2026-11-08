@@ -411,6 +411,7 @@ function _quoteExtras(q){
   return {
     equipmentRows: q.equipmentRows || [],
     equipmentCost: q.equipmentCost || 0,
+    equipDelivery: q.equipDelivery || 0, // r108: equipment delivery & pickup charge
     perDiem:       (q.perDiem != null ? q.perDiem : null),
     perDiemCost:   q.perDiemCost || 0,
     svcContract:   (q.svcContract != null ? q.svcContract : null),
@@ -435,6 +436,7 @@ function _applyQuoteExtras(target, row){
   var x = (row && row.quote_extras) || {};
   target.equipmentRows = x.equipmentRows || [];
   target.equipmentCost = (x.equipmentCost != null ? x.equipmentCost : 0);
+  target.equipDelivery = (x.equipDelivery != null ? x.equipDelivery : 0); // r108
   target.perDiem       = (x.perDiem != null ? x.perDiem : null);
   target.perDiemCost   = (x.perDiemCost != null ? x.perDiemCost : 0);
   target.svcContract   = (x.svcContract != null ? x.svcContract : null);

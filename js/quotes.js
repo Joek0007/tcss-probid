@@ -1588,6 +1588,40 @@ function buildPrintHTML(q, mode) {
     '</div>';
   }
 
+  // r108 — CLIENT proposal: show equipment rental + delivery/pickup as a visible section so the
+  // customer sees what the equipment portion is (it's already inside the Total Investment via
+  // calcTotals). Rentals and the one-time Delivery & Pickup each get their own line. Hidden for
+  // lump-sum (single-price) presentations, and skipped in internal mode (that copy has its own).
+  function equipmentClientSectionHTML() {
+    var rows = q.equipmentRows || [];
+    var deliv = parseFloat(q.equipDelivery) || 0;
+    var anyRental = rows.some(function(r){ return (parseFloat(r.days)||0)*(parseFloat(r.dailyRate)||0) > 0; });
+    if (!anyRental && deliv <= 0) return '';
+    var body = '', sub = 0;
+    rows.forEach(function(r){
+      var days = parseFloat(r.days)||0, rate = parseFloat(r.dailyRate)||0, cost = days*rate;
+      if (cost <= 0) return;
+      sub += cost;
+      var typeInfo = EQUIPMENT_TYPES.find(function(t){ return t.id === r.type; });
+      var name = typeInfo ? typeInfo.name : (r.type || 'Equipment');
+      body += '<tr style="border-bottom:1px solid #e8e8e8">' +
+        '<td style="padding:8px 12px">' + escHtml(name) + '</td>' +
+        '<td style="padding:8px 12px;text-align:center">' + days + ' day' + (days===1?'':'s') + '</td>' +
+        '<td style="padding:8px 12px;text-align:right">' + fmt(rate) + '/day</td>' +
+        '<td style="padding:8px 12px;text-align:right;font-weight:600">' + fmt(cost) + '</td></tr>';
+    });
+    if (deliv > 0) {
+      sub += deliv;
+      body += '<tr style="border-bottom:1px solid #e8e8e8;background:#f0f7ff">' +
+        '<td style="padding:8px 12px" colspan="3">🚚 Delivery &amp; Pickup</td>' +
+        '<td style="padding:8px 12px;text-align:right;font-weight:600">' + fmt(deliv) + '</td></tr>';
+    }
+    return '<div class="prop-section"><div class="prop-section-title">Equipment Rental &amp; Delivery</div>' +
+      '<table class="items-table"><thead><tr><th>Item</th><th style="text-align:center">Duration</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead><tbody>' + body + '</tbody>' +
+      '<tfoot><tr><td colspan="3" style="padding:8px 12px;text-align:right;font-weight:700">Equipment Subtotal</td><td style="padding:8px 12px;text-align:right;font-weight:800;color:#1565c0">' + fmt(sub) + '</td></tr></tfoot></table>' +
+      '<div style="font-size:11px;color:#607d8b;margin-top:6px;font-style:italic">Equipment rental and delivery/pickup are included in the Total Investment below.</div></div>';
+  }
+
   // Internal section (only shown in internal mode)
   function internalSectionHTML() {
     if (mode !== 'internal') return '';
@@ -1779,6 +1813,9 @@ table{font-size:12.5px}
   // EQUIPMENT & MATERIALS + LABOR — r104: rendered per the quote's itemization style
   // (combined [default] / split columns / summary band). Lump sum still wins when enabled.
   itemsSectionHTML() +
+
+  // r108: equipment rental + delivery/pickup breakdown on the client proposal (not lump sum, not internal)
+  ((mode !== 'internal' && !(q.lumpSum && q.lumpSum.enabled)) ? equipmentClientSectionHTML() : '') +
 
   // PRICING SUMMARY (CLIENT)
   '<div class="prop-section"><div class="prop-section-title">Pricing Summary</div>' +

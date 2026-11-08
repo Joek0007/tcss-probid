@@ -269,6 +269,7 @@ function getQData(id) {
     readiness: totals.readiness,
     equipmentRows: JSON.parse(JSON.stringify(equipmentRows)),
     equipmentCost: totals.equipCost || 0,
+    equipDelivery: (typeof getEquipDelivery==='function') ? getEquipDelivery() : 0, // r108: delivery/pickup (part of equipmentCost; stored separately so the proposal can line-item it)
     permits: getPermitData(),
     marginFloor: getMarginFloor((document.getElementById('qq-jt')||{}).value || 'New Construction'),
     belowMarginFloor: (typeof isNoMarginOn==='function' && isNoMarginOn()) ? false : (totals.achievedMarginPct < getMarginFloor((document.getElementById('qq-jt')||{}).value || 'New Construction')),
@@ -313,7 +314,7 @@ function qqFieldIds(){
   // qq-id / qq-customer-id / qq-contact-id are the quote's IDENTITY fields and MUST be
   // included: the draft save/restore uses this list, and without them a resumed draft of
   // an existing quote loses its id (saveQQ then creates a DUPLICATE) and its customer link.
-  return ['qq-id','qq-customer-id','qq-contact-id','qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-followup','qq-created','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env','qq-item-style','qq-show-hours'];
+  return ['qq-id','qq-customer-id','qq-contact-id','qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-followup','qq-created','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env','qq-item-style','qq-show-hours','eq-delivery'];
 }
 
 function clearQQ(skipConfirm) {
@@ -328,6 +329,7 @@ function clearQQ(skipConfirm) {
   if (typeof _resetAutoSaveStub === 'function') _resetAutoSaveStub();
   lineItems = [];
   equipmentRows = [];
+  var _edClr = document.getElementById('eq-delivery'); if (_edClr) _edClr.value = 0;   // r108
   renderEquipRows();
   const eqCb = document.getElementById('equipment-enabled'); const eqBody = document.getElementById('equipment-body'); const eqLbl = document.getElementById('equipment-toggle-label');
   if (eqCb) eqCb.checked = false; if (eqBody) eqBody.classList.remove('expanded'); if (eqLbl) { eqLbl.textContent='NO'; eqLbl.className='toggle-value-label'; }
@@ -471,8 +473,9 @@ function editQuote(id) {
   lineItems.forEach(function(item){ if(!item._id) item._id = nextLiId(); });
   equipmentRows = q.equipmentRows ? JSON.parse(JSON.stringify(q.equipmentRows)) : [];
   equipmentRows.forEach(function(r){ if(!r._id) r._id = eqSeq++; });
+  setV('eq-delivery', q.equipDelivery||0);   // r108: hydrate the delivery/pickup charge
   renderEquipRows();
-  const hasEquip = equipmentRows.length > 0;
+  const hasEquip = equipmentRows.length > 0 || (parseFloat(q.equipDelivery)||0) > 0;   // r108: delivery-only still counts as equipment
   const eqCb2 = document.getElementById('equipment-enabled'); const eqBody2 = document.getElementById('equipment-body'); const eqLbl2 = document.getElementById('equipment-toggle-label');
   if (eqCb2) eqCb2.checked = hasEquip; if (eqBody2) eqBody2.classList.toggle('expanded', hasEquip); if (eqLbl2) { eqLbl2.textContent = hasEquip ? 'YES' : 'NO'; eqLbl2.className = 'toggle-value-label' + (hasEquip ? ' on' : ''); }
   loadPermitData(q.permits || null);

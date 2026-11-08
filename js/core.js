@@ -2580,9 +2580,10 @@ function toggleEquipment() {
   const on = cb.checked;
   body.classList.toggle('expanded', on);
   if (label) { label.textContent = on ? 'YES' : 'NO'; label.className = 'toggle-value-label' + (on ? ' on' : ''); }
-  // If turning off, clear equipment rows and recalc
+  // If turning off, clear equipment rows (and the delivery/pickup charge) and recalc
   if (!on) {
     equipmentRows = [];
+    var _ed = document.getElementById('eq-delivery'); if (_ed) _ed.value = 0;   // r108
     renderEquipRows();
     calcTotals();
   }
@@ -3205,14 +3206,25 @@ function renderEquipRows() {
   }).join('');
   updateEquipTotal();
 }
+// r108: one-time Delivery & Pickup charge for the equipment (drop-off + pick-up).
+function getEquipDelivery() {
+  var el = document.getElementById('eq-delivery');
+  return el ? (parseFloat(el.value)||0) : 0;
+}
+// r108: live handler for the Delivery & Pickup input — keep the equipment total + quote total in sync.
+function onEquipDeliveryInput() {
+  updateEquipTotal();
+  calcTotals();
+}
 function updateEquipTotal() {
-  let total = equipmentRows.reduce(function(s, r){ return s + (parseFloat(r.days)||0) * (parseFloat(r.dailyRate)||0); }, 0);
+  var total = getEquipmentCost();   // r108: rentals + delivery & pickup
   const el = document.getElementById('eq-total');
   if (el) el.textContent = fmt(total);
   return total;
 }
 function getEquipmentCost() {
-  return equipmentRows.reduce(function(s, r){ return s + (parseFloat(r.days)||0) * (parseFloat(r.dailyRate)||0); }, 0);
+  var rentals = equipmentRows.reduce(function(s, r){ return s + (parseFloat(r.days)||0) * (parseFloat(r.dailyRate)||0); }, 0);
+  return rentals + getEquipDelivery();   // r108: delivery & pickup is part of equipment cost → flows into the quote total
 }
 function checkEquipWarn(equipCost, totalSell) {
   const warn = document.getElementById('eq-warn');
