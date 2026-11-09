@@ -56,6 +56,28 @@
     return (typeof hasPermission==='function') ? hasPermission('notifications.manage') : false;
   }
   function mod(k){ for(var i=0;i<MODULES.length;i++){ if(MODULES[i].key===k) return MODULES[i]; } return MODULES[0]; }
+  // Status options a rule can match. For Work Orders these must be the REAL configured
+  // statuses (the exact string stored in work_orders.status, which the server-side dispatch
+  // trigger compares against) — never the mockup guesses — or a rule would never fire.
+  // Source of truth mirrors workorders.js: DB.woSettings.statuses (objects keyed by .id),
+  // falling back to the built-in WO_STATUSES. Other modules keep their placeholder list until
+  // their own trigger is wired (Phase 2), at which point each is pinned to its stored value.
+  function modStatuses(k){
+    if(k==='wo'){
+      try{
+        var list=(window.DB&&DB.woSettings&&DB.woSettings.statuses&&DB.woSettings.statuses.length)
+          ? DB.woSettings.statuses
+          : (typeof WO_STATUSES!=='undefined'?WO_STATUSES:[]);
+        var out=[];
+        for(var i=0;i<list.length;i++){
+          var id=list[i]&&(list[i].id!=null?list[i].id:list[i]);
+          if(id!=null&&out.indexOf(id)<0) out.push(id);
+        }
+        if(out.length) return out;
+      }catch(e){}
+    }
+    return mod(k).statuses||[];
+  }
   function evt(k){ for(var i=0;i<EVENTS.length;i++){ if(EVENTS[i].key===k) return EVENTS[i]; } return EVENTS[0]; }
   function initials(s){ var w=(s||'?').replace(/[^A-Za-z ]/g,'').split(' ').filter(Boolean).slice(0,2).map(function(x){return x[0];}).join('').toUpperCase(); return w||'•'; }
   function sVal(k,d){ return (window.DB && DB.settings && DB.settings[k]!=null) ? DB.settings[k] : d; }
@@ -277,7 +299,8 @@
     var ru=editing, m=mod(ru.module), e=evt(ru.event);
     var modOpts=MODULES.map(function(x){return '<option value="'+x.key+'"'+(x.key===ru.module?' selected':'')+'>'+x.emoji+' '+x.label+'</option>';}).join('');
     var evOpts=EVENTS.map(function(x){return '<option value="'+x.key+'"'+(x.key===ru.event?' selected':'')+'>'+x.label+'</option>';}).join('');
-    var statusSel = e.needsStatus&&m.statuses.length ? '<select id="nr-b-status">'+['<option value="">any status</option>'].concat(m.statuses.map(function(s){return '<option'+(s===ru.status?' selected':'')+'>'+esc(s)+'</option>';})).join('')+'</select>' : '';
+    var mstat = modStatuses(ru.module);
+    var statusSel = e.needsStatus&&mstat.length ? '<select id="nr-b-status">'+['<option value="">any status</option>'].concat(mstat.map(function(s){return '<option'+(s===ru.status?' selected':'')+'>'+esc(s)+'</option>';})).join('')+'</select>' : '';
     b.innerHTML=''+
       '<div class="nr-bhead"><input class="nr-bname" id="nr-b-name" placeholder="Name this rule…" value="'+attr(ru.name)+'"><button class="nr-x" onclick="nrCloseBuilder()">×</button></div>'+
       '<div class="nr-bbody">'+
@@ -305,7 +328,7 @@
         '<button class="nr-btn" onclick="nrCloseBuilder()">Cancel</button>'+
         '<button class="nr-btn pri" id="nr-save-btn" onclick="nrSaveFromBuilder()">Save rule</button>'+
       '</div>';
-    document.getElementById('nr-b-module').addEventListener('change',function(){ editing.module=this.value; var mm=mod(this.value); if(mm.statuses.indexOf(editing.status)<0) editing.status=''; renderBuilder(); });
+    document.getElementById('nr-b-module').addEventListener('change',function(){ editing.module=this.value; if(modStatuses(this.value).indexOf(editing.status)<0) editing.status=''; renderBuilder(); });
     document.getElementById('nr-b-event').addEventListener('change',function(){ editing.event=this.value; renderBuilder(); });
     var st=document.getElementById('nr-b-status'); if(st) st.addEventListener('change',function(){ editing.status=this.value; updateSummary(); });
     document.getElementById('nr-b-name').addEventListener('input',function(){ editing.name=this.value; });
