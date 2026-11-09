@@ -209,34 +209,31 @@ function calcTotals() {
   const pdCost     = getPerDiemCost();
   const totalCost  = totalMaterialCost + laborSell + equipCost + pdCost;
 
-  // STEP 4: Target margin OR markup → required sell before tax
-  // - Markup mode: material × (1 + markup %), labor/equipment/per-diem PASS THROUGH at cost.
-  //   This is true T&M behavior — customer pays your hourly rate × hours, your material cost + markup, your actual equipment/per-diem cost.
-  // - Margin mode: total sell = total cost / (1 - margin %). Margin spread across everything.
-  // No Margin (price at cost) override — permission quote.bypass. Prices at cost
-  // (no margin/markup) and, below, suppresses the floor warning + approval. Distinct
-  // from the "Lump Sum" customer-presentation feature.
+  // STEP 4: Price the MATERIALS to the target; labor, equipment and per-diem PASS THROUGH at their
+  // rate/cost in BOTH modes. Your labor already bills at your hourly rate (it is revenue, not a cost to
+  // be re-margined), so the margin/markup applies to materials only — the SAME per-line math the
+  // itemized proposal uses, so the summary band, the line items and the subtotal all reconcile.
+  //   - Markup mode:  material sell = material cost × (1 + markup%)   [labor/equip/per-diem pass through]
+  //   - Margin mode:  material sell = material cost ÷ (1 − margin%)   [labor/equip/per-diem pass through]
+  // No-Margin override (quote.bypass) prices everything at cost and suppresses the floor warning.
+  // NOTE: this replaced the old margin-mode behavior that grossed the WHOLE bundle (labor included)
+  // up by the margin and then buried that labor uplift inside the materials line — which overstated
+  // the customer's total. "Margin" here means the margin on materials; labor bills at your rate.
   const isNoMargin = (typeof isNoMarginOn === 'function' && isNoMarginOn());
   const targetRate = isNoMargin ? 0 : getMarginDecimal();
   const isMarkup = !isNoMargin && currentPricingMode() === 'markup';
-  let sellBeforeTax = 0;
+  let materialSell;
   if (isMarkup) {
-    // Markup mode: ONLY material gets marked up. Labor + equipment + per diem pass through.
-    const materialSellMarkup = totalMaterialCost * (1 + Math.max(targetRate, 0));
-    sellBeforeTax = materialSellMarkup + laborSell + equipCost + pdCost;
+    materialSell = totalMaterialCost * (1 + Math.max(targetRate, 0));
+  } else if (targetRate >= 0.99) {
+    materialSell = totalMaterialCost * 100;          // cap at 99% margin
+  } else if (targetRate <= 0) {
+    materialSell = totalMaterialCost;                // price at cost
   } else {
-    // Margin mode: original behavior (margin applied to whole bundle)
-    if (targetRate >= 0.99) {
-      sellBeforeTax = totalCost * 100; // cap at 99%
-    } else if (targetRate <= 0) {
-      sellBeforeTax = totalCost;
-    } else {
-      sellBeforeTax = totalCost / (1 - targetRate);
-    }
+    materialSell = totalMaterialCost / (1 - targetRate);
   }
-
-  // STEP 5: Material sell = what materials need to sell for (margin burden)
-  const materialSell = sellBeforeTax - laborSell;
+  // STEP 5: Sell before tax = marked-up materials + labor (at rate) + equipment + per-diem (pass-through)
+  const sellBeforeTax = materialSell + laborSell + equipCost + pdCost;
 
   // STEP 6: Discount (PRE-TAX), tax, total — discount reduces the taxable base, and everything
   // is snapped to the cent. Discount is either a flat $ or a % of the pre-tax sell.
@@ -252,9 +249,13 @@ function calcTotals() {
   const taxAmt = _r2(taxableBase * taxRate);
   const totalSell = _r2(taxableBase + taxAmt);
 
-  // STEP 7: Achieved margin — on the DISCOUNTED pre-tax revenue, so a discount shows its real
-  // margin hit (no discount ⇒ taxableBase === sellBeforeTax ⇒ unchanged).
-  const achievedMargin = taxableBase > 0 ? (taxableBase - totalCost) / taxableBase : 0;
+  // STEP 7: Achieved margin — measured on the MATERIALS, the portion the target actually applies to.
+  // Labor / equipment / per-diem pass through at cost/rate and carry no margin, so including them would
+  // understate it. A discount is charged proportionally against the materials' share of the sale. With
+  // no discount this equals the target (25% target ⇒ 25% achieved), so target and achieved reconcile.
+  const _discOnMat = sellBeforeTax > 0 ? discountAmt * (materialSell / sellBeforeTax) : 0;
+  const _netMatSell = Math.max(0, materialSell - _discOnMat);
+  const achievedMargin = _netMatSell > 0 ? (_netMatSell - totalMaterialCost) / _netMatSell : 0;
   const achievedMarginPct = achievedMargin * 100;
 
   // STEP 8: Update display
