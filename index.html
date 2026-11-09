@@ -1696,6 +1696,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <a class="nav-item" data-page="recyclebin" href="#/recyclebin"><span class="nav-icon">♻️</span>Recycle Bin</a>
     <a class="nav-item" data-page="settings" href="#/settings"><span class="nav-icon">⚙️</span>Settings</a>
     <a class="nav-item" data-page="notifrules" href="#/notifrules"><span class="nav-icon">🔔</span>Notification Rules</a>
+    <a class="nav-item" data-page="notiflog" href="#/notiflog"><span class="nav-icon">📬</span>Delivery Log</a>
   </div>
   <div class="nav-customize" id="nav-customize-btn" onclick="openCustomizeMenu()"><span class="nav-icon">⚙</span>Customize Menu</div>
 </div>
@@ -3921,6 +3922,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <div class="page" id="page-expenses" style="padding:16px 20px"></div>
 <div class="page" id="page-perdiem" style="padding:16px 20px"></div>
 <div class="page" id="page-notifrules" style="padding:16px 20px"><div id="nr-root"></div></div>
+<div class="page" id="page-notiflog" style="padding:16px 20px"><div id="nl-root"></div></div>
 
 <div class="page" id="page-reports">
   <div class="page-header"><h2>📈 Reports &amp; Analytics</h2>
@@ -7467,7 +7469,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20261109r112notifrules"></script>
+<script src="js/core.js?v=20261109r114dlog"></script>
 <script src="js/quotes.js?v=20261108r111secbar"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/tools_db.js?v=20260919ix"></script>
@@ -7491,12 +7493,13 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/expenses.js?v=20260919jd"></script>
 <script src="js/perdiem.js?v=20260919kd"></script>
 <script src="js/notifrules.js?v=20261109r113wostatus"></script>
+<script src="js/notiflog.js?v=20261109r114dlog"></script>
 <script src="js/recyclebin.js?v=20260919ix"></script>
 <script src="js/contracts.js?v=20261025ctrsync"></script>
   <script src="js/recurring.js?v=20261025dates2"></script>
   <script src="js/seed_managed.js?v=20260919ix"></script>
   <script src="js/applock.js?v=20260919jk"></script>
-  <script src="js/auth.js?v=20261109r112notifrules"></script>
+  <script src="js/auth.js?v=20261109r114dlog"></script>
   <script>
     // Register the service worker so the app LOADS with no signal (field techs offline).
     // Served from the app root as /tcss-probid/sw.js → scope covers the whole app.
@@ -8967,7 +8970,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r113';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r114';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-09';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

@@ -1178,7 +1178,7 @@ function enforceNavPermissions() {
       'calendar':'page.calendar','inventory':'page.inventory','scanner':'page.scanner',
       'tools':'page.tools','field':'page.timeclock','timesheet':'page.timesheet',
       'worktracking':'page.worktracking','settings':'page.settings','contracts':'page.contracts','recurring':'page.recurring',
-      'expenses':'page.expenses','perdiem':'page.perdiem','notifrules':'notifications.manage'
+      'expenses':'page.expenses','perdiem':'page.perdiem','notifrules':'notifications.manage','notiflog':'notifications.manage'
     };
     Object.keys(pageMap).forEach(function(page){
       var key = pageMap[page];
