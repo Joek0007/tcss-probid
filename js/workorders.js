@@ -938,7 +938,7 @@ function openNewWorkOrder() {
 
   // Internal notes only for office/owner
   var intSection=document.getElementById('wo-internal-notes-section');
-  if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?'':'none';
+  if(intSection) intSection.style.display=(typeof hasPermission==='function'&&hasPermission('wo.internal_notes'))?'':'none';
 
   // Apply WO permission gating (shared with the existing-WO open path).
   _applyWOPermissions();
@@ -1128,11 +1128,11 @@ function openWorkOrder(id) {
 
   // Show/hide invoice button
   var invBtn = document.getElementById('wo-btn-invoice');
-  if(invBtn) invBtn.style.display=(wo.status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'':'none';
+  if(invBtn) invBtn.style.display=(wo.status==='Ready for Pricing'&&(typeof hasPermission==='function'&&hasPermission('wo.invoice')))?'':'none';
 
   // Internal notes visibility
   var intSection=document.getElementById('wo-internal-notes-section');
-  if(intSection) intSection.style.display=(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?'':'none';
+  if(intSection) intSection.style.display=(typeof hasPermission==='function'&&hasPermission('wo.internal_notes'))?'':'none';
 
   // r23: gate editable fields by role (description/resolution read-only for techs, etc.)
   _applyWOPermissions();
@@ -1303,7 +1303,7 @@ async function saveWorkOrder() {
     dateClosed:   (!_getWOStatusDef(status).open)?today:(isNew?null:(_existingWO.dateClosed||null)),
     laborRate:    parseFloat(gv('wo-labor-rate'))||125,
     taxRate:      parseFloat(gv('wo-tax-rate'))||0,
-    internalNotes:(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'))?gv('wo-internal-notes'):'',
+    internalNotes:(typeof hasPermission==='function'&&hasPermission('wo.internal_notes'))?gv('wo-internal-notes'):'',
     createdAt:    isNew ? new Date().toISOString() : (_existingWO.createdAt||new Date().toISOString()),
     updatedAt:    new Date().toISOString(),
     createdBy:    isNew ? ((_currentUser&&_currentUser.id)||null) : (_existingWO.createdBy||null),
@@ -1346,7 +1346,7 @@ async function saveWorkOrder() {
 
   // Update invoice button visibility
   var invBtn=document.getElementById('wo-btn-invoice');
-  if(invBtn) invBtn.style.display=(status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'':'none';
+  if(invBtn) invBtn.style.display=(status==='Ready for Pricing'&&(typeof hasPermission==='function'&&hasPermission('wo.invoice')))?'':'none';
 
   // Urgent notification
   if (priority==='Urgent') _triggerUrgentAlert(data);
@@ -1456,7 +1456,7 @@ function deleteWorkOrder(id) {
 function onWOStatusChange(status) {
   var urgBadge=document.getElementById('wo-urgent-badge');
   var invBtn=document.getElementById('wo-btn-invoice');
-  if(invBtn) invBtn.style.display=(status==='Ready for Pricing'&&(_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'':'none';
+  if(invBtn) invBtn.style.display=(status==='Ready for Pricing'&&(typeof hasPermission==='function'&&hasPermission('wo.invoice')))?'':'none';
 
   // #5/#3 (Dawn): persist a status change on the WO DETAIL immediately — exactly like the list-view badge
   // (cycleWOStatus). Before this, the detail dropdown only saved when the user clicked the modal Save

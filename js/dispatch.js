@@ -1444,6 +1444,7 @@ var PERM_DEFS = [
   // everyone; only this permission can re-open one, and every re-open is logged.
   {key:'wo.reopen',        label:'Reopen Closed Work Order',   group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'wo.invoice',       label:'Create Invoices from WO',    group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'wo.internal_notes',label:'View/Edit WO Internal Notes (office)', group:'Work Orders', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wo.change_order',  label:'Create Change Orders',       group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wo.settings',      label:'Access WO Settings',         group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'wo.view_assigned_only',label:'See Only Assigned WOs',  group:'Work Orders',    fixed:false, defaults:{owner:0,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:1,project_manager:0,subcontractor:1}},
