@@ -949,7 +949,7 @@ function openWTCheckoffModal(itemId, phase) {
               '✅ Confirmed by '+escHtml(co.confirmed_by_name||'')+'<br>'+
               '<span style="font-size:11px;font-weight:400">'+(co.confirmed_at?new Date(co.confirmed_at).toLocaleString():'')+'</span>'+
             '</div>'+
-            ((_currentUser&&(_currentUser.role==='admin'||_currentUser.role==='owner'))
+            ((typeof hasPermission==='function'&&hasPermission('wt.reopen'))
               ? '<button class="btn btn-outline btn-sm" style="margin-top:12px;width:100%" onclick="wtUnlockCheckoff(\''+itemId+'\',\''+phase+'\')">🔓 Back Office Unlock</button>'
               : '')
           : '<div>'+
@@ -987,7 +987,7 @@ function openWTCheckoffModal(itemId, phase) {
                 (!wtIsFieldTech()&&co&&(co.status==='complete'||co.status==='in_progress')&&canVerify
                   ? '<button class="btn btn-success" style="flex:1" onclick="wtConfirmCheckoff(\''+itemId+'\',\''+phase+'\')" >&#x2705; Confirm</button>'
                   : '')+
-                (!wtIsFieldTech()&&co&&co.status!=='rejected'&&co.status!=='confirmed'&&(_currentUser&&(_currentUser.role==='admin'||_currentUser.role==='owner'||_currentUser.role==='lead_tech'))
+                (!wtIsFieldTech()&&co&&co.status!=='rejected'&&co.status!=='confirmed'&&(typeof hasPermission==='function'&&hasPermission('wt.confirm'))
                   ? '<button class="btn btn-outline" onclick="wtRejectCheckoffPrompt(\''+itemId+'\',\''+phase+'\')">Reject</button>'
                   : '')+
               '</div>'+
