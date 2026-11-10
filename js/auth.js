@@ -3071,9 +3071,11 @@ async function _pushSettingsToCloud() { if (_writesBlocked()) return;
 // stale/empty local copy never overwrites good cloud data.
 // ============================================================
 var _BLOB_KEYS = ['tools','toolCheckouts','checkoutLog','invLocations','invTransfers','absences',
-  'lunchFlags','payrollLog','timeCorrections','leaveForfeiture','toolLoans'];
+  'lunchFlags','payrollLog','timeCorrections','leaveForfeiture'];
+// NOTE: 'toolLoans' intentionally removed — tool loans now live in their OWN table (tool_loans),
+// written directly via _sb from tools.js (works for field techs, who can't use this blob path).
 // (build ii) low-churn blob collections moved to the generic per-row store (CollectionsDB).
-var _COLLECTION_KEYS = ['invTransfers','checkoutLog','toolLoans','absences','lunchFlags','timeCorrections','payrollLog','leaveForfeiture'];
+var _COLLECTION_KEYS = ['invTransfers','checkoutLog','absences','lunchFlags','timeCorrections','payrollLog','leaveForfeiture'];
 function _isCollKey(k){ return _COLLECTION_KEYS.indexOf(k) >= 0 && typeof _collectionsPerRow==='function' && _collectionsPerRow() && !!window.CollectionsDB; }
 if (!window.__collBaselines) window.__collBaselines = {};
 if (typeof window.__blobDirtyAt !== 'number')  window.__blobDirtyAt = 0;

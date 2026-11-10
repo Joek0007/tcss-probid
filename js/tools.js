@@ -1702,7 +1702,35 @@ function onOwnerTypeChange() {
 //   declinedBy, declineReason
 // }]
 
-function getToolLoans() { return DB.toolLoans || []; }
+// ---- Tool Loans data layer: a DEDICATED per-row Supabase table (tool_loans), read/written DIRECTLY
+// via _sb. This deliberately bypasses the blob/collection sync (pushAllToCloud/_pushBlobsToCloud),
+// which refuses to push for helper_tech — the reason a field tech's loan never reached anyone. Table
+// RLS is role-agnostic (is_active_user), so any active user, techs included, can post/offer/accept.
+var _tlRows=[], _tlLoaded=false, _tlLoading=false;
+function getToolLoans() { return _tlRows; }
+function _tlSbc(){ return window._sb; }
+async function _tlLoad(){
+  var sb=_tlSbc(); if(!sb){ _tlLoaded=true; return; }
+  _tlLoading=true;
+  try{
+    var r=await sb.from('tool_loans').select('*').order('created_at',{ascending:true});
+    if(r.error) throw r.error;
+    _tlRows=(r.data||[]).map(function(row){ return Object.assign({}, row.data||{}, {id:row.id, type:row.type, status:row.status}); });
+    DB.toolLoans=_tlRows; // mirror so any legacy reader stays consistent
+  }catch(e){ console.warn('[toolLoans load]', (e&&e.message)||e); }
+  _tlLoaded=true; _tlLoading=false;
+}
+async function _tlSave(loan){
+  var sb=_tlSbc(); if(!sb){ if(typeof showToast==='function') showToast('Not connected — change not saved','error',4000); return false; }
+  var row={ id:loan.id, type:loan.type||'need', status:loan.status||'open', data:loan, updated_at:new Date().toISOString() };
+  try{
+    var r=await sb.from('tool_loans').upsert(row,{onConflict:'id'});
+    if(r.error) throw r.error;
+    var i=_tlRows.findIndex(function(x){return x.id===loan.id;});
+    if(i>=0) _tlRows[i]=loan; else _tlRows.push(loan);
+    return true;
+  }catch(e){ console.warn('[toolLoans save]', (e&&e.message)||e); if(typeof showToast==='function') showToast('Could not save loan — '+((e&&e.message)||e),'error',4500); return false; }
+}
 // Loan identity must ride a STABLE key (email/id), never a typed display name — "Lisa Lamonds"
 // vs "Lisa Lammonds", or a team name that differs from a login name, must still resolve to the
 // same person. We store recipientEmail / offeredByEmail / postedByEmail at write time and match on
@@ -1728,6 +1756,7 @@ function _tlTeamByAny(v){
 function renderToolLoansTab() {
   var container = document.getElementById('tool-loans-list');
   if (!container) return;
+  if (!_tlLoaded) { container.innerHTML='<div style="text-align:center;padding:24px;color:#90a4ae">Loading loans…</div>'; _tlLoad().then(renderToolLoansTab); return; }
   var loans = getToolLoans().slice().reverse();
   if (!loans.length) {
     container.innerHTML =
@@ -1836,8 +1865,7 @@ function submitNeedPost() {
   var requester = ((document.getElementById('need-requester')||{}).value||'').trim();
   if (!item)      { showToast('Please describe what you need','error'); return; }
   if (!requester) { showToast('Please enter your name','error'); return; }
-  if (!DB.toolLoans) DB.toolLoans = [];
-  DB.toolLoans.push({
+  var loan = {
     id:              'tl-'+Date.now(),
     type:            'need',
     status:          'open',
@@ -1848,11 +1876,12 @@ function submitNeedPost() {
     itemDescription: item,
     whenNeeded:      (document.getElementById('need-when')||{}).value||'',
     jobName:         (document.getElementById('need-job')||{}).value||''
+  };
+  _tlSave(loan).then(function(ok){ if(!ok) return;
+    closeModal('modal-post-need');
+    switchToolTab('borrows');
+    showToast('Need posted — the team can now offer their tools','success');
   });
-  saveDB();
-  closeModal('modal-post-need');
-  switchToolTab('borrows');
-  showToast('Need posted — the team can now offer their tools','success');
 }
 
 // SCENARIO B — Initiate a Loan Offer (lender starts it)
@@ -1921,8 +1950,7 @@ function submitLoanOffer() {
   var rm = _tlTeamByAny(recipientVal);
   if (!rm)       { showToast('Please select who you are loaning to','error'); return; }
   if (!toolName)  { showToast('Please describe the tool','error'); return; }
-  if (!DB.toolLoans) DB.toolLoans=[];
-  DB.toolLoans.push({
+  var loan = {
     id:              'tl-'+Date.now(),
     type:            'offer',
     status:          'open',  // waiting for recipient to accept
@@ -1937,11 +1965,12 @@ function submitLoanOffer() {
     recipientEmail:  (rm.email||'').trim().toLowerCase(),
     expectedReturn:  (document.getElementById('offer-return')||{}).value||'',
     note:            (document.getElementById('offer-note')||{}).value||''
+  };
+  _tlSave(loan).then(function(ok){ if(!ok) return;
+    closeModal('modal-offer-loan');
+    switchToolTab('borrows');
+    showToast('Loan offer sent to '+(rm.name||'')+' — waiting for acceptance','success');
   });
-  saveDB();
-  closeModal('modal-offer-loan');
-  switchToolTab('borrows');
-  showToast('Loan offer sent to '+(rm.name||'')+' — waiting for acceptance','success');
 }
 
 // Someone offers on a posted need
@@ -1995,10 +2024,11 @@ function acceptLoanOffer() {
   var loan   = getToolLoans().find(function(l){ return l.id===loanId; }); if(!loan) return;
   loan.status     = 'accepted';
   loan.acceptedAt = getTodayISO();
-  saveDB();
-  closeModal('modal-accept-loan');
-  renderToolLoansTab();
-  showToast('Loan accepted — click Mark as Picked Up when you have it','success');
+  _tlSave(loan).then(function(ok){ if(!ok) return;
+    closeModal('modal-accept-loan');
+    renderToolLoansTab();
+    showToast('Loan accepted — click Mark as Picked Up when you have it','success');
+  });
 }
 
 function declineLoan(loanId) {
@@ -2006,35 +2036,37 @@ function declineLoan(loanId) {
   loan.status = loan.type==='need' ? 'open' : 'cancelled';
   if (loan.type==='need') { loan.offeredBy=''; loan.offeredPhotoUrl=''; loan.offeredToolName=''; loan.status='open'; }
   else loan.status = 'cancelled';
-  saveDB();
-  renderToolLoansTab();
-  showToast('Offer declined','info');
+  _tlSave(loan).then(function(ok){ if(!ok) return;
+    renderToolLoansTab();
+    showToast('Offer declined','info');
+  });
 }
 
 function cancelLoan(loanId) {
   var loan = getToolLoans().find(function(l){ return l.id===loanId; }); if(!loan) return;
   if (!confirm('Cancel this loan/need?')) return;
   loan.status='cancelled';
-  saveDB();
-  renderToolLoansTab();
+  _tlSave(loan).then(function(ok){ if(ok) renderToolLoansTab(); });
 }
 
 function activateLoan(loanId) {
   var loan = getToolLoans().find(function(l){ return l.id===loanId; }); if(!loan) return;
   loan.status='active';
   loan.pickedUpAt=getTodayISO();
-  saveDB();
-  renderToolLoansTab();
-  showToast('Marked as picked up — loan is now active','success');
+  _tlSave(loan).then(function(ok){ if(!ok) return;
+    renderToolLoansTab();
+    showToast('Marked as picked up — loan is now active','success');
+  });
 }
 
 function returnLoan(loanId) {
   var loan = getToolLoans().find(function(l){ return l.id===loanId; }); if(!loan) return;
   loan.status='returned';
   loan.returnedAt=getTodayISO();
-  saveDB();
-  renderToolLoansTab();
-  showToast('Loan returned ✓','success');
+  _tlSave(loan).then(function(ok){ if(!ok) return;
+    renderToolLoansTab();
+    showToast('Loan returned ✓','success');
+  });
 }
 
 // ---- END TOOL LOAN SYSTEM ----
