@@ -1811,7 +1811,7 @@ function onTeTypeChange() {
   if (woSel) {
     var currentVal = woSel.value;
     var myName2  = (document.getElementById('te-tech')||{}).value || '';
-    var isAdmin2 = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager'||_currentUser.role==='back_office');
+    var isAdmin2 = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
 
     // Get open statuses from settings or defaults. Compare case-insensitively — legacy
     // imports use "Open" (title case) while the configured id is "OPEN", so a case-sensitive
@@ -2523,7 +2523,7 @@ function renderAllTimesheetsTab() {
   var allEl = document.getElementById('ts-all-content');
   if (!allEl) return;
   var myRole = _currentUser ? _currentUser.role : '';
-  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='manager'||myRole==='back_office';
+  var isAdmin = (typeof hasPermission==='function') ? hasPermission('time.viewall') : (myRole==='owner'||myRole==='manager'||myRole==='back_office');
   if (!isAdmin) {
     allEl.innerHTML='<div style="color:#90a4ae;padding:20px;text-align:center">Admin access required.</div>';
     return;
@@ -2814,7 +2814,7 @@ function _renderDetailView(el, entries, workDays, fromDate, toDate, filterTech) 
 function initAllTimesheetsTab() {
   var container = document.getElementById('ts-all-content');
   if (!container) return;
-  var isAdmin = _currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager');
+  var isAdmin = (typeof hasPermission==='function') ? hasPermission('time.correct') : (_currentUser && (_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='manager'));
   if (!isAdmin) return;
 }
 

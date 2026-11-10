@@ -3443,7 +3443,7 @@ function _isTechAssignedToWO(techName, wo) {
 function _canViewWO(wo) {
   if (!_currentUser) return false;
   var role = _currentUser.role;
-  if (role==='owner'||role==='office'||role==='manager'||role==='back_office') return true;
+  if (role==='owner'||role==='manager'||role==='back_office') return true;
   var myProfile = (DB.team||[]).find(function(m){ return m.name===_currentUser.full_name; });
   var seeAll = myProfile && myProfile.woViewMode === 'all';
   if (seeAll) return true;
@@ -3735,7 +3735,7 @@ var _origRenderWOLaborTab = renderWOLaborTab;
 renderWOLaborTab = function(woId) {
   var myName = _currentUser ? _currentUser.full_name : '';
   var myRole = _currentUser ? _currentUser.role : '';
-  var isAdmin = myRole==='owner'||myRole==='office'||myRole==='back_office'||myRole==='manager';
+  var isAdmin = myRole==='owner'||myRole==='back_office'||myRole==='manager';
   var isLead  = myRole==='lead_tech';
 
   // Field techs see only their own entries
