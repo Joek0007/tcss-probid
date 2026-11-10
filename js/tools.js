@@ -1703,6 +1703,27 @@ function onOwnerTypeChange() {
 // }]
 
 function getToolLoans() { return DB.toolLoans || []; }
+// Loan identity must ride a STABLE key (email/id), never a typed display name — "Lisa Lamonds"
+// vs "Lisa Lammonds", or a team name that differs from a login name, must still resolve to the
+// same person. We store recipientEmail / offeredByEmail / postedByEmail at write time and match on
+// those; a normalized-name compare is only a fallback for rows written before this.
+function _tlEmail(){ return String((_currentUser&&_currentUser.email)||'').trim().toLowerCase(); }
+function _tlNorm(s){ return String(s==null?'':s).trim().toLowerCase(); }
+function _tlMyName(){ return (_currentUser&&_currentUser.full_name)||''; }
+function _tlIsForMe(l){
+  var em=_tlEmail();
+  if (l.recipientEmail && em) return _tlNorm(l.recipientEmail)===em;
+  return _tlNorm(l.recipientName)===_tlNorm(_tlMyName());
+}
+function _tlIsMine(l){
+  var em=_tlEmail();
+  if (em && (l.postedByEmail || l.offeredByEmail)) return _tlNorm(l.postedByEmail)===em || _tlNorm(l.offeredByEmail)===em;
+  return _tlNorm(l.postedBy)===_tlNorm(_tlMyName()) || _tlNorm(l.offeredBy)===_tlNorm(_tlMyName());
+}
+function _tlTeamByAny(v){
+  var vv=_tlNorm(v); if(!vv) return null;
+  return (DB.team||[]).find(function(m){ return String(m.id)===String(v) || _tlNorm(m.name)===vv || _tlNorm(m.email)===vv; }) || null;
+}
 
 function renderToolLoansTab() {
   var container = document.getElementById('tool-loans-list');
@@ -1757,19 +1778,19 @@ function renderToolLoansTab() {
     var myName = _currentUser && _currentUser.full_name;
     if (l.status === 'open' && !isNeed) {
       // Recipient hasn't accepted yet
-      if (l.recipientName === myName) {
+      if (_tlIsForMe(l)) {
         actions = '<button class="btn btn-success btn-sm" onclick="openAcceptLoanModal(\''+l.id+'\')">✓ Accept & Take Responsibility</button> '+
                   '<button class="btn btn-outline btn-sm" onclick="declineLoan(\''+l.id+'\')">Decline</button>';
       }
     } else if (l.status === 'open' && isNeed) {
       // Anyone can offer
       actions = '<button class="btn btn-primary btn-sm" onclick="openOfferOnNeedModal(\''+l.id+'\')">🤝 Offer My Tool</button>';
-      if (l.postedBy === myName) {
+      if (_tlIsMine(l)) {
         actions += ' <button class="btn btn-outline btn-sm" onclick="cancelLoan(\''+l.id+'\')">Cancel Need</button>';
       }
     } else if (l.status === 'offered' && isNeed) {
       // Need has an offer — poster accepts or declines
-      if (l.postedBy === myName) {
+      if (_tlIsMine(l)) {
         actions = '<button class="btn btn-success btn-sm" onclick="openAcceptLoanModal(\''+l.id+'\')">✓ Accept Offer</button> '+
                   '<button class="btn btn-outline btn-sm" onclick="declineLoan(\''+l.id+'\')">Decline Offer</button>';
       }
@@ -1821,6 +1842,8 @@ function submitNeedPost() {
     type:            'need',
     status:          'open',
     postedBy:        requester,
+    postedById:      (_currentUser&&_currentUser.id)||'',
+    postedByEmail:   _tlEmail(),
     postedAt:        getTodayISO(),
     itemDescription: item,
     whenNeeded:      (document.getElementById('need-when')||{}).value||'',
@@ -1834,7 +1857,7 @@ function submitNeedPost() {
 
 // SCENARIO B — Initiate a Loan Offer (lender starts it)
 function openInitiateLoanModal() {
-  var teamOpts = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>'; }).join('');
+  var teamOpts = (DB.team||[]).map(function(m){ return '<option value="'+escHtml(m.id)+'">'+escHtml(m.name)+'</option>'; }).join('');
   // List personal tools owned by current user
   var myTools = (DB.tools||[]).filter(function(t){ return t.ownerType==='personal' && t.ownerId===(_currentUser&&_currentUser.full_name); });
   var myToolOpts = myTools.length
@@ -1844,8 +1867,7 @@ function openInitiateLoanModal() {
   document.getElementById('modal-offer-loan-body').innerHTML =
     '<p style="font-size:13px;color:#546e7a;margin-bottom:14px">You\'re offering to loan a tool to a colleague. They\'ll need to accept and take responsibility before it\'s official.</p>'+
     '<label>Who are you loaning to? *</label>'+
-    '<input id="offer-recipient" list="offer-team-list" placeholder="Colleague\'s name">'+
-    '<datalist id="offer-team-list">'+teamOpts+'</datalist>'+
+    '<select id="offer-recipient" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:6px"><option value="">— Select a team member —</option>'+teamOpts+'</select>'+
     '<div style="margin-top:12px"><label>What are you loaning? *</label>'+
     (myTools.length
       ? '<div style="margin-bottom:6px"><select id="offer-tool-select" onchange="onOfferToolSelect(this)" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:6px"><option value="">— Select from your tools or describe below —</option>'+myToolOpts+'</select></div>'
@@ -1856,7 +1878,7 @@ function openInitiateLoanModal() {
       '<div id="offer-photo-preview" onclick="document.getElementById(\'offer-photo-input\').click()" style="width:64px;height:64px;border:2px dashed #e0e0e0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:26px;cursor:pointer;overflow:hidden;background:#f8f9fa">📷</div>'+
       '<div>'+
         '<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById(\'offer-photo-input\').click()">📷 Take or Upload Photo</button>'+
-        '<input type="file" id="offer-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onOfferPhotoSelected(this)">'+
+        '<input type="file" id="offer-photo-input" accept="image/*" style="display:none" onchange="onOfferPhotoSelected(this)">'+
         '<div style="font-size:11px;color:#90a4ae;margin-top:4px">A photo helps the recipient confirm they got the right item.</div>'+
       '</div>'+
     '</div>'+
@@ -1893,28 +1915,33 @@ async function onOfferPhotoSelected(input) {
 }
 
 function submitLoanOffer() {
-  var recipient = ((document.getElementById('offer-recipient')||{}).value||'').trim();
+  var recipientVal = ((document.getElementById('offer-recipient')||{}).value||'').trim();
   var toolName  = ((document.getElementById('offer-tool-name')||{}).value||'').trim();
   var photoUrl  = (document.getElementById('offer-photo-url')||{}).value||'';
-  if (!recipient) { showToast('Please enter who you are loaning to','error'); return; }
+  var rm = _tlTeamByAny(recipientVal);
+  if (!rm)       { showToast('Please select who you are loaning to','error'); return; }
   if (!toolName)  { showToast('Please describe the tool','error'); return; }
   if (!DB.toolLoans) DB.toolLoans=[];
   DB.toolLoans.push({
     id:              'tl-'+Date.now(),
     type:            'offer',
     status:          'open',  // waiting for recipient to accept
-    offeredBy:       (_currentUser&&_currentUser.full_name)||'',
+    offeredBy:       _tlMyName(),
+    offeredById:     (_currentUser&&_currentUser.id)||'',
+    offeredByEmail:  _tlEmail(),
     offeredAt:       getTodayISO(),
     offeredToolName: toolName,
     offeredPhotoUrl: photoUrl,
-    recipientName:   recipient,
+    recipientName:   rm.name||'',
+    recipientId:     rm.id||'',
+    recipientEmail:  (rm.email||'').trim().toLowerCase(),
     expectedReturn:  (document.getElementById('offer-return')||{}).value||'',
     note:            (document.getElementById('offer-note')||{}).value||''
   });
   saveDB();
   closeModal('modal-offer-loan');
   switchToolTab('borrows');
-  showToast('Loan offer sent to '+recipient+' — waiting for acceptance','success');
+  showToast('Loan offer sent to '+(rm.name||'')+' — waiting for acceptance','success');
 }
 
 // Someone offers on a posted need
@@ -1924,7 +1951,8 @@ function openOfferOnNeedModal(loanId) {
   openInitiateLoanModal();
   setTimeout(function(){
     var recip = document.getElementById('offer-recipient');
-    if (recip) recip.value = loan.postedBy;
+    var pm = _tlTeamByAny(loan.postedById||loan.postedByEmail||loan.postedBy);
+    if (recip) recip.value = pm ? pm.id : '';
     var note = document.getElementById('offer-note');
     if (note) note.value = 'Responding to need: '+loan.itemDescription;
     // Store the need loan id so we can link them on submit
