@@ -2794,7 +2794,11 @@ function deleteWOExpense(id) {
 // ---- PARTS TAB ----
 function renderWOPartsTab(woId) {
   var parts    = (DB.woParts||[]).filter(function(p){ return p.woId===woId; });
-  var isOffice = _currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office'||_currentUser.role==='lead_tech');
+  // Parts office toolset (Add Item, Unit $ edit, Create PO, status dropdown, delete) is gated by the
+  // CENTRAL permission wo.parts_manage — NOT a hardcoded role list (which silently omitted 'manager').
+  // Grant it per role in Roles & Permissions; field techs without it still get the simple "Request a
+  // Part" form below. (Joe's standing rule: every gate is a key in the central matrix.)
+  var isOffice = (typeof hasPermission==='function') ? hasPermission('wo.parts_manage') : true;
   // r24: part COSTS are governed by the "View Rates & Financials" toggle (wo.view_financial), separately
   // from isOffice (who can add/status/delete a part). A role without it (field techs by default) sees the
   // parts LIST — names, qty, status — but no Unit $ / Total $ / cost total. Flip the toggle per role to show.

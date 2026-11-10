@@ -1435,6 +1435,7 @@ var PERM_DEFS = [
   {key:'wo.edit',          label:'Edit WO Details',            group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wo.delete',        label:'Delete Work Orders',         group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'wo.view_financial',label:'View Rates & Financials',    group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'wo.parts_manage',  label:'Manage WO Parts (add, price, PO, status, delete)', group:'Work Orders', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'wo.change_status', label:'Change WO Status (all)',      group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
   // r54: field techs set only the mobile-flagged statuses (New → In Progress → … → Ready For Office-Review)
   // on jobs they're assigned to. Default on for lead + helper tech so the crew can move a job forward.
