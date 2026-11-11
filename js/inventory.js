@@ -224,9 +224,14 @@ function _populateScannerLocSelect() {
 function onScanInput(val) {
   if (!val || !val.trim()) return;
   val = val.trim();
-  // Find item by barcode, tag, or name
+  // Find item by barcode, tag, or name. (fix hg) exact match first, then a normalized compare
+  // (letters+digits only, uppercased) so a scanned tag with stray spaces/dashes still links. UPC/
+  // numeric barcodes are unaffected (normalize keeps digits identical).
+  var _norm = function(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); };
+  var _w = _norm(val);
   var item = (DB.inventory||[]).find(function(i){
-    return (i.barcode&&i.barcode===val) || (i.tag&&i.tag===val) || (i.name||'').toLowerCase()===val.toLowerCase();
+    return (i.barcode&&i.barcode===val) || (i.tag&&i.tag===val) || (i.name||'').toLowerCase()===val.toLowerCase()
+        || (_w && i.barcode && _norm(i.barcode)===_w) || (_w && i.tag && _norm(i.tag)===_w);
   });
   if (!item) {
     // Unknown barcode — ask to identify
@@ -417,6 +422,18 @@ if (typeof window !== 'undefined' && !window.__stockSyncWired) {
 var _cameraStream = null;
 
 function openCameraScanner() {
+  // (fix hg, 2026-11-11) Use the shared cross-platform scanner (ProBidScan) so inventory camera
+  // scanning also works on iPhone/iPad — the legacy _startBarcodeDetection path below used the
+  // native BarcodeDetector, which Safari does not have, so iOS silently never decoded. The decoded
+  // value flows into the SAME match/link logic via onScanInput (barcode → item, or link/create).
+  if (window.ProBidScan) {
+    ProBidScan.open({ title:'📷 Scan Inventory Barcode', onCode:function(code){
+      var inp=document.getElementById('scan-input'); if(inp) inp.value=code;
+      if (typeof onScanInput==='function') onScanInput(code);
+    }});
+    return;
+  }
+  // Fallback only if the shared scanner module failed to load: the legacy Android-only path.
   var overlay = document.getElementById('camera-scan-overlay');
   if (overlay) overlay.style.display = 'flex';
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })

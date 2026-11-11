@@ -2256,9 +2256,16 @@ function lookupBarcode(val) {
   if (!tag) return;
   var result=document.getElementById('barcode-result'); if(!result) return;
 
+  // (fix hg) tolerant match: a scanned Code128 tag ("TCSS -011") must find the tool whose tag is
+  // "TCSS -011" even if spacing / case / dashes drift between the sticker and the stored value.
+  // Exact (case-insensitive) first, then a normalized compare (letters+digits only, uppercased).
+  var _tagNorm=function(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); };
+  var _want=_tagNorm(tag);
   var tool=(DB.tools||[]).find(function(t){
     return (t.tag||'').toLowerCase()===tag.toLowerCase()||
-           t.id===tag;
+           t.id===tag||
+           (_want && _tagNorm(t.tag)===_want)||
+           (_want && _tagNorm(t.id)===_want);
   });
 
   if (!tool) {
@@ -2283,26 +2290,19 @@ function lookupBarcode(val) {
   '</div>';
 }
 
-async function toggleCamera() {
-  var wrap=document.getElementById('barcode-camera-wrap');
-  if (!wrap) return;
-  if (_cameraStream) {
-    stopCamera();
-    wrap.style.display='none';
-    var btn=document.getElementById('btn-toggle-camera'); if(btn) btn.textContent='📷 Camera';
+function toggleCamera() {
+  // (fix hg, 2026-11-11) REAL camera decoding via the shared scanner (ProBidScan): native
+  // BarcodeDetector on Android, bundled ZXing fallback on iPhone/iPad. Decodes the Code128
+  // "TCSS -001" asset stickers and feeds the tag straight into the existing lookup. This replaces
+  // the old camera that only showed a video feed and never decoded (it literally noted "Full
+  // barcode decoding requires a library like ZXing"). USB/typed entry below is unchanged.
+  if (window.ProBidScan) {
+    ProBidScan.open({ title:'📷 Scan Asset Tag', onCode:function(code){
+      var inp=document.getElementById('barcode-input'); if(inp) inp.value=code;
+      if (typeof lookupBarcode==='function') lookupBarcode(code);
+    }});
   } else {
-    try {
-      _cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-      var video=document.getElementById('barcode-video');
-      if(video){video.srcObject=_cameraStream;}
-      wrap.style.display='block';
-      var btn=document.getElementById('btn-toggle-camera'); if(btn) btn.textContent='⏹ Stop Camera';
-      showToast('Camera active — point at barcode. USB scanner also works.','info',3000);
-      // Note: Full barcode decoding requires a library like ZXing
-      // For now, camera view is shown and user can type/scan via USB
-    } catch(e) {
-      showToast('Camera access denied — use USB scanner or type tag manually','warning',3000);
-    }
+    showToast('Scanner unavailable — type the tag or use the USB scanner','warning',3000);
   }
 }
 
