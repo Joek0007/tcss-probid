@@ -26,6 +26,10 @@
     {key:'quote',label:'Quote',          emoji:'📄', statuses:['Draft','Sent','Approved','Changes Requested','Won','Lost']},
     {key:'job',  label:'Job / Project',  emoji:'🏗️', statuses:['Open','In Progress','On Hold','Complete']},
     {key:'ct',   label:'Contract',       emoji:'📜', statuses:['Draft','Active','Expiring','Expired']},
+    // 'tool' statuses are the RAW stored enum values (tool_status) so a rule's status
+    // matches NEW.status::text in the fn_notif_tool_status trigger. Do NOT prettify
+    // these strings here or matching breaks (same discipline as the WO status ids).
+    {key:'tool', label:'Tool',           emoji:'🧰', statuses:['checked_out','pending_verification','closed_verified','closed_with_discrepancy','damaged','lost','available']},
     {key:'any',  label:'Anything',       emoji:'✨', statuses:[]}
   ];
   var EVENTS = [

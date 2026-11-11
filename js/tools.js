@@ -8,6 +8,12 @@
 
 function getTools() { return DB.tools || []; }
 function getToolCheckouts() { return DB.toolCheckouts || []; }
+// Identity on custody actions: a person without tool.checkout_other (i.e. a field tech) can only
+// ever act as THEMSELVES — the name fields are locked to their login name and forced on save, so a
+// tech can't check a tool out to, or return it in, anyone else's name. Office/leads (the permission)
+// may act on behalf of others.
+function _toolActForOthers(){ return (typeof hasPermission==='function') ? hasPermission('tool.checkout_other') : false; }
+function _toolMyName(){ return (_currentUser&&_currentUser.full_name)||''; }
 
 // (build ib) PER-ROW checkout persistence. When _checkoutsPerRow() is on, every
 // created/mutated checkout is written to its OWN row via CheckoutsDB (optimistic
@@ -641,8 +647,10 @@ function checkoutTool(toolId) {
         '</div>'+
         '<div class="form-row cols2">'+
           '<div><label>Checked Out To *</label>'+
-            '<input id="tool-co-to" list="tool-co-team" placeholder="Technician name">'+
-            '<datalist id="tool-co-team">'+teamOpts+'</datalist></div>'+
+            (_toolActForOthers()
+              ? '<select id="tool-co-to"><option value="">— Select team member —</option>'+teamOpts+'</select>'
+              : '<input id="tool-co-to" value="'+escHtml(_toolMyName())+'" readonly title="Field techs can only check out tools to themselves" style="background:#f1f5f9;color:#546e7a">')+
+          '</div>'+
           '<div><label>Expected Return</label>'+
             '<input id="tool-co-ret" type="date" value="'+retStr+'"></div>'+
         '</div>'+
@@ -660,6 +668,7 @@ function checkoutTool(toolId) {
 function saveCheckoutModal(toolId, modalId) {
   var tool = (DB.tools||[]).find(function(t){ return t.id==toolId; }); if(!tool) return;
   var toName = (document.getElementById('tool-co-to')||{}).value||'';
+  if (!_toolActForOthers()) toName = _toolMyName();   // techs: always themselves — no impersonation
   if (!toName.trim()) { showToast('Please enter who is checking this out','error'); return; }
   var groupsIncluded = (tool.linkedGroups||[]).map(function(g){
     var cb = document.getElementById('cog-'+g.id);
@@ -729,10 +738,10 @@ function checkinTool(checkoutId) {
         '</div>'+
         '<div id="ret-now-fields">'+
           '<label>Verifier Name *</label>'+
-          '<input id="ret-verifier" value="'+((_currentUser&&_currentUser.full_name)||'')+'">'+
+          '<input id="ret-verifier" value="'+escHtml(_toolMyName())+'"'+(_toolActForOthers()?'':' readonly title="Locked to your own name" style="background:#f1f5f9;color:#546e7a"')+'>'+
         '</div>'+
         '<div id="ret-later-fields" style="display:none">'+
-          '<label>Submitted By *</label><input id="ret-submitter" placeholder="Person dropping it off">'+
+          '<label>Submitted By *</label><input id="ret-submitter" value="'+escHtml(_toolMyName())+'"'+(_toolActForOthers()?' placeholder="Person dropping it off"':' readonly title="Locked to your own name" style="background:#f1f5f9;color:#546e7a"')+'>'+
           '<div style="margin-top:10px"><label>Drop-Off Location / Note</label>'+
           '<input id="ret-dropoff" placeholder="Front office / shop shelf"></div>'+
         '</div>'+
@@ -777,14 +786,14 @@ function confirmReturn(modalId) {
     co.status            = 'pending_verify';
     co.returnedAt        = now;
     co.returnSubmittedAt = now;
-    co.returnSubmittedBy = (document.getElementById('ret-verifier')||{}).value||(_currentUser&&_currentUser.full_name)||'Office';
+    co.returnSubmittedBy = !_toolActForOthers() ? _toolMyName() : ((document.getElementById('ret-verifier')||{}).value||_toolMyName()||'Office');
     co.dropoffLocation   = 'Direct verify';
     saveDB(); _coPersist(co);
     var m = document.getElementById(modalId); if(m) m.remove();
     // Open inspection modal immediately
     verifyToolReturn(coId);
   } else {
-    var submitter = ((document.getElementById('ret-submitter')||{}).value||'').trim();
+    var submitter = !_toolActForOthers() ? _toolMyName() : ((document.getElementById('ret-submitter')||{}).value||'').trim();
     if (!submitter) { showToast('Please enter who is dropping it off','error'); return; }
     co.returnedAt         = now;
     co.status             = 'pending_verify';
