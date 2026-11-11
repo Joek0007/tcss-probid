@@ -509,6 +509,8 @@ function saveToolItem() {
 
   var data = {
     id:           id || Date.now().toString(),
+    _new:         !id,   // (fix hf) brand-new tool: nothing references its temp Date.now id yet,
+                         // so it must store NO legacy_id → its app-id stays its stable uuid on reload
     name:         name,
     tag:          tag,
     cat:          document.getElementById('tool-cat').value||'Other',

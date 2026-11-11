@@ -2130,19 +2130,23 @@ async function syncAllFromCloud(silent) {
     var { data: stateRows } = await _sbSelectAll(function(){ return _sb.from('app_state').select('key,data'); });
     if (stateRows && stateRows.length) {
       stateRows.forEach(function(row){ if (row && row.key && Array.isArray(row.data)) { if (row.key==='tools' && typeof _toolsPerRow==='function' && _toolsPerRow()) return; if (row.key==='toolCheckouts' && typeof _checkoutsPerRow==='function' && _checkoutsPerRow()) return; if (row.key==='invLocations' && typeof _invLocPerRow==='function' && _invLocPerRow()) return; if (typeof _isCollKey==='function' && _isCollKey(row.key)) return; DB[row.key] = row.data; } });
-      // (build hc) per-row tools: load from real tables instead of the clobber-prone blob
-      if (typeof _toolsPerRow==='function' && _toolsPerRow() && window.ToolsDB) { try { DB.tools = await ToolsDB.load(); } catch(e){ errors.push('toolsdb load: '+(e&&e.message)); } }
-      // (build ib) per-row checkouts/custody: load from the real table (maps tool_id back via DB.tools loaded just above)
-      if (typeof _checkoutsPerRow==='function' && _checkoutsPerRow() && window.CheckoutsDB) { try { DB.toolCheckouts = await CheckoutsDB.load(); } catch(e){ errors.push('checkoutsdb load: '+(e&&e.message)); } }
-      // (build ie) per-row inventory locations: load the shop/truck list from its real table
-      if (typeof _invLocPerRow==='function' && _invLocPerRow() && window.InvLocationsDB) { try { var _il = await InvLocationsDB.load(); if (_il && _il.length) DB.invLocations = _il; } catch(e){ errors.push('invlocdb load: '+(e&&e.message)); } }
-      // (build ii) generic per-row store: load the small leftover collections + snapshot baselines
-      if (typeof _collectionsPerRow==='function' && _collectionsPerRow() && window.CollectionsDB) {
-        for (var _ck=0; _ck<_COLLECTION_KEYS.length; _ck++){
-          var _cname = _COLLECTION_KEYS[_ck];
-          try { DB[_cname] = await CollectionsDB.load(_cname); window.__collBaselines[_cname] = (DB[_cname]||[]).map(function(x){ return String(x && x.id); }); }
-          catch(e){ errors.push('collectionsdb load '+_cname+': '+(e&&e.message)); }
-        }
+    }
+    // (fix hf, 2026-11-11) PER-ROW collections load INDEPENDENTLY of the blob store.
+    // These were previously nested inside the `stateRows.length` guard above, so if app_state ever
+    // returned ZERO rows — exactly what the per-row cutover trends toward as blobs are dropped —
+    // tools / checkouts / inventory / collections silently never loaded (a latent "all tools
+    // vanished" failure). Each block keeps its own perRow()+window.*DB guard and try/catch, so
+    // running them unconditionally is strictly safer: when app_state DOES have rows (today's live
+    // state) the execution is identical to before — this only ADDS the empty-blob case. Order
+    // matters: tools BEFORE checkouts, because custody maps tool_id back through DB.tools above.
+    if (typeof _toolsPerRow==='function' && _toolsPerRow() && window.ToolsDB) { try { DB.tools = await ToolsDB.load(); } catch(e){ errors.push('toolsdb load: '+(e&&e.message)); } }
+    if (typeof _checkoutsPerRow==='function' && _checkoutsPerRow() && window.CheckoutsDB) { try { DB.toolCheckouts = await CheckoutsDB.load(); } catch(e){ errors.push('checkoutsdb load: '+(e&&e.message)); } }
+    if (typeof _invLocPerRow==='function' && _invLocPerRow() && window.InvLocationsDB) { try { var _il = await InvLocationsDB.load(); if (_il && _il.length) DB.invLocations = _il; } catch(e){ errors.push('invlocdb load: '+(e&&e.message)); } }
+    if (typeof _collectionsPerRow==='function' && _collectionsPerRow() && window.CollectionsDB) {
+      for (var _ck=0; _ck<_COLLECTION_KEYS.length; _ck++){
+        var _cname = _COLLECTION_KEYS[_ck];
+        try { DB[_cname] = await CollectionsDB.load(_cname); window.__collBaselines[_cname] = (DB[_cname]||[]).map(function(x){ return String(x && x.id); }); }
+        catch(e){ errors.push('collectionsdb load '+_cname+': '+(e&&e.message)); }
       }
     }
   } catch(e) { errors.push('app_state: '+e.message); }

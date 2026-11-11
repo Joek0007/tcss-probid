@@ -137,6 +137,11 @@
       toolUuid = r.data[0].id; t._rev = r.data[0].updated_at;
     } else {
       toolUuid = (window.crypto&&crypto.randomUUID)?crypto.randomUUID():(''+Date.now()+Math.random());
+      // (fix hf) A brand-new tool (flagged _new by the add form) has no prior custody referencing
+      // its temporary Date.now id, so DO NOT persist that as legacy_id — otherwise _toolFromRow
+      // returns id=legacy_id on reload and the tool's app-id churns off its uuid (which orphaned
+      // a just-created checkout during the r124 live test). Blob migrations keep their legacy_id.
+      if (t._new) row.legacy_id = null;
       var ins = await sb.from('tools').insert(Object.assign({id:toolUuid}, row)).select();
       if (ins.error) return {error:ins.error.message};
       t._uuid = toolUuid; t.id = toolUuid; if(ins.data&&ins.data[0]) t._rev = ins.data[0].updated_at;
