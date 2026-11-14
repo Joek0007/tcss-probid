@@ -127,8 +127,11 @@ function renderTools() {
 function _renderToolsInner() {
   try { if (typeof _sweepExpiredTransfers==='function') _sweepExpiredTransfers(); } catch(e){}
   // Hide the "+ Add Tool" button for roles without tool.edit (field techs check out/in only).
+  var _canEditTools = (typeof hasPermission!=='function' || hasPermission('tool.edit'));
   var _addBtn = document.getElementById('tool-add-btn');
-  if (_addBtn) _addBtn.style.display = (typeof hasPermission!=='function' || hasPermission('tool.edit')) ? '' : 'none';
+  if (_addBtn) _addBtn.style.display = _canEditTools ? '' : 'none';
+  var _ptBtn = document.getElementById('tool-printtags-btn');   // (hh) batch tag printing — managers only
+  if (_ptBtn) _ptBtn.style.display = _canEditTools ? '' : 'none';
   var search   = ((document.getElementById('tool-search')||{}).value||'').toLowerCase();
   var catF     = (document.getElementById('tool-cat-filter')||{}).value||'';
   var tools    = getTools().slice();
@@ -228,7 +231,8 @@ function _renderToolsInner() {
     // Edit/Delete only for roles that can manage tools (tool.edit). Field techs get
     // Check Out / Return / Transfer only — not create/edit/delete.
     if (typeof hasPermission !== 'function' || hasPermission('tool.edit')) {
-      actions += '<button class="btn btn-outline btn-sm" data-action="editTool" data-id="'+t.id+'">Edit</button> '+
+      actions += '<button class="btn btn-outline btn-sm" onclick="printToolTag(\''+t.id+'\')" title="Print or reprint this tool\'s barcode asset tag (same number)">🏷️ Tag</button> '+
+                 '<button class="btn btn-outline btn-sm" data-action="editTool" data-id="'+t.id+'">Edit</button> '+
                  '<button class="btn btn-danger btn-sm" data-action="delTool" data-id="'+t.id+'">Del</button>';
     }
 
