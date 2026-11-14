@@ -606,8 +606,10 @@ function checkoutTool(toolId) {
       '<div style="font-size:11px;color:#90a4ae;margin-top:4px">Back office can resolve these flags in the tool\'s edit screen.</div>'+
     '</div>';
   }
-  var teamOpts = (DB.team||[]).map(function(m){
-    return '<option value="'+escHtml(m.name)+'">'+escHtml(m.name)+'</option>';
+  // (fix hj) Checkout recipients come from the ACTIVE Team roster, and the option VALUE is the
+  // roster member id — so a checkout binds to a real roster record, not a loose name string.
+  var teamOpts = (DB.team||[]).filter(function(m){ return m.active!==false && m.is_active!==false; }).map(function(m){
+    return '<option value="'+escHtml(m.id)+'">'+escHtml(m.name)+'</option>';
   }).join('');
   var today = new Date(); var ret = new Date(today); ret.setDate(ret.getDate()+7);
   var retStr = ret.toISOString().split('T')[0];
@@ -668,7 +670,7 @@ function checkoutTool(toolId) {
         '<div class="form-row cols2">'+
           '<div><label>Checked Out To *</label>'+
             (_toolActForOthers()
-              ? '<select id="tool-co-to"><option value="">— Select team member —</option>'+teamOpts+'</select>'
+              ? '<select id="tool-co-to" required><option value="">— Select team member (required) —</option>'+teamOpts+'</select>'
               : '<input id="tool-co-to" value="'+escHtml(_toolMyName())+'" readonly title="Field techs can only check out tools to themselves" style="background:#f1f5f9;color:#546e7a">')+
           '</div>'+
           '<div><label>Expected Return</label>'+
@@ -687,9 +689,21 @@ function checkoutTool(toolId) {
 
 function saveCheckoutModal(toolId, modalId) {
   var tool = (DB.tools||[]).find(function(t){ return t.id==toolId; }); if(!tool) return;
-  var toName = (document.getElementById('tool-co-to')||{}).value||'';
-  if (!_toolActForOthers()) toName = _toolMyName();   // techs: always themselves — no impersonation
-  if (!toName.trim()) { showToast('Please enter who is checking this out','error'); return; }
+  // (fix hj, 2026-11-14) HARD RULE — a tool can NEVER be checked out to no one. It must be assigned
+  // to a real person on the ACTIVE Team roster. Office picks from the roster (select value = roster
+  // member id); a field tech is resolved to their OWN roster record (by email, then name). No roster
+  // match → no checkout, with a clear message. This is the single save path for BOTH the tool list
+  // and the scanner, so every checkout route is covered here.
+  var member;
+  if (_toolActForOthers()) {
+    member = _tlTeamByAny((document.getElementById('tool-co-to')||{}).value||'');
+    if (!member) { showToast('Pick who is taking this tool — a checkout must be assigned to someone on the Team roster.','error'); return; }
+  } else {
+    member = _tlTeamByAny(_tlEmail()) || _tlTeamByAny(_toolMyName());   // techs: themselves, must be on the roster
+    if (!member) { showToast('You are not on the Team roster yet — ask the office to add you before checking out tools.','error'); return; }
+  }
+  var toName = (member.name||'').trim();
+  if (!toName) { showToast('That roster person has no name set — fix their Team roster entry first.','error'); return; }
   var groupsIncluded = (tool.linkedGroups||[]).map(function(g){
     var cb = document.getElementById('cog-'+g.id);
     return { groupId:g.id, label:g.label, included: g.mode==='required'||(cb&&cb.checked), mode:g.mode };
@@ -708,6 +722,7 @@ function saveCheckoutModal(toolId, modalId) {
   var _newCo = {
     id:             Date.now().toString(),
     toolId:         toolId,
+    checkedOutToId: member.id,          // (fix hj) bind to the roster record, not just a name string
     toName:         toName.trim(),
     jobName:        (document.getElementById('tool-co-job')||{}).value||'',
     date:           getTodayISO(),
