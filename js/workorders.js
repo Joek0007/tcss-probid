@@ -2858,11 +2858,14 @@ function renderWOPartsTab(woId) {
       '<span style="font-size:16px;font-weight:800;color:#2e7d32">$'+_partsTotal.toFixed(2)+'</span>'+
     '</div>';
 
-  // Create PO button if there are requested parts
-  if (isOffice && requested.length) {
+  // Create PO button — show whenever ANY part still needs ordering (not just status 'requested'),
+  // since the review dialog now lets you pick used/reserved parts too. Was gated on requested.length,
+  // which hid the button entirely on a WO whose orderable parts were all marked 'used'.
+  var _poCandidates = parts.filter(function(p){ return p.status!=='ordered' && p.status!=='received'; });
+  if (isOffice && _poCandidates.length) {
     html +=
       '<div style="margin-bottom:12px">'+
-        '<button class="btn btn-outline btn-sm" onclick="createPOFromWOParts(\''+woId+'\')">📦 Create PO from '+requested.length+' Requested Part'+(requested.length!==1?'s':'')+' </button>'+
+        '<button class="btn btn-outline btn-sm" onclick="createPOFromWOParts(\''+woId+'\')">📦 Create PO ('+_poCandidates.length+' part'+(_poCandidates.length!==1?'s':'')+' need ordering)</button>'+
       '</div>';
   }
 
@@ -2900,6 +2903,7 @@ function renderWOPartsTab(woId) {
           '<div style="font-weight:600">'+escHtml(p.name||'')+'</div>'+
           (p.partNum?'<div style="font-size:11px;color:#90a4ae">'+escHtml(p.partNum)+'</div>':'')+
           (p.notes?'<div style="font-size:11px;color:#546e7a;font-style:italic">'+escHtml(p.notes)+'</div>':'')+
+          (function(){ var _pi=_woPartPOInfo(p); return _pi ? '<div style="font-size:11px;margin-top:2px"><a onclick="if(event&&event.stopPropagation)event.stopPropagation();openPO(\''+escHtml(_pi.poId)+'\')" style="color:#1565c0;cursor:pointer;font-weight:700">📦 '+escHtml(_pi.poNumber)+'</a></div>' : ''; })()+
         '</td>'+
         '<td style="padding:9px 10px;text-align:center;font-weight:700">'+
           (isOffice
@@ -3398,6 +3402,21 @@ function _woPOStatusBadge(st) {
   };
   var m = map[st] || [st||'—','#546e7a','#eceff1'];
   return '<span style="background:'+m[2]+';color:'+m[1]+';padding:1px 7px;border-radius:9px;font-size:10px;font-weight:700;white-space:nowrap">'+escHtml(m[0])+'</span>';
+}
+
+// (feat hl r134) Which PO is this WO part on? Derived from the loaded PO list via the persisted
+// po_line_items.wo_part_id link (see _mapPORow), so "ordered on PO-xxxx" survives reload without
+// denormalizing onto the part row. Returns null if the part isn't on any loaded PO.
+function _woPartPOInfo(part){
+  if(!part||!part.id) return null;
+  var pos=DB.purchaseOrders||[];
+  for(var i=0;i<pos.length;i++){
+    var po=pos[i]; if(!po||!po.items) continue;
+    for(var j=0;j<po.items.length;j++){
+      if(po.items[j] && po.items[j]._woPartId===part.id) return {poId:po.id, poNumber:po.poNumber};
+    }
+  }
+  return null;
 }
 
 function createPOFromWOParts(woId) {

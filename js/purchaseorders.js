@@ -546,9 +546,9 @@ async function savePO() {
       if (!li._woPartId) return;
       var wp = (DB.woParts||[]).find(function(p){ return p.id===li._woPartId; });
       if (wp && wp.status!=='received' && wp.status!=='partial') {
-        wp.status   = 'ordered';
-        wp.poId     = po.id;
-        wp.poNumber = po.poNumber;
+        wp.status = 'ordered';   // status is a real wo_parts column → persists. The "which PO" link
+                                 // is carried by po_line_items.wo_part_id and derived at display time
+                                 // (see _woPartPOInfo in workorders.js), so no non-persisting stamp here.
         if (typeof _pushWOPartToCloud==='function') _pushWOPartToCloud(wp);
       }
     });
@@ -585,7 +585,9 @@ async function _pushPOToCloud(po) {
         id:crypto.randomUUID(),po_id:po.id,description:li.desc||null,
         part_num:li.partNum||null,qty_ordered:li.qtyOrdered||1,
         qty_received:li.qtyReceived||0,unit_cost:li.unitCost||0,
-        total_cost:(li.unitCost||0)*(li.qtyOrdered||1),sort_order:i
+        total_cost:(li.unitCost||0)*(li.qtyOrdered||1),sort_order:i,
+        wo_part_id:li._woPartId||null   // (feat hl r134) persists the WO-part→PO link so a part's
+                                        // "ordered on PO-xxxx" survives reload (derived at display time)
       });
     }
   } catch(e){console.warn('[PO Push]',e.message);}

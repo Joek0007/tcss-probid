@@ -621,7 +621,7 @@ function _mapPORow(p){
     readyToPay:!!p.ready_to_pay, createdBy:p.created_by, createdByName:p.created_by_name,
     createdAt:p.created_at, updatedAt:p.updated_at,
     items:(p.po_line_items||[]).sort(function(a,b){return (a.sort_order||0)-(b.sort_order||0);}).map(function(li){
-      return { id:li.id, desc:li.description, partNum:li.part_num, qtyOrdered:li.qty_ordered, qtyReceived:li.qty_received, unitCost:li.unit_cost };
+      return { id:li.id, desc:li.description, partNum:li.part_num, qtyOrdered:li.qty_ordered, qtyReceived:li.qty_received, unitCost:li.unit_cost, _woPartId:li.wo_part_id||null };
     })
   };
 }
