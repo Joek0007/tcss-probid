@@ -84,7 +84,8 @@
 
   // Fields with no dedicated column — genuine history detail — ride in legacy_extra.
   var _EXTRA_KEYS = ['returnedAt','itemInspection','asIsReleasedTo','asIsReleasedAt','asIsReleasedBy',
-    'asIsNote','transferredTo','transferExpiredNote','isPersonalBorrow','ownerName','borrowRequestId'];
+    'asIsNote','transferredTo','transferExpiredNote','isPersonalBorrow','ownerName','borrowRequestId',
+    'woId','woNumber','woCustomer'];   // (feat hk) optional work-order link on a checkout
   function _extra(co){
     var e={};
     _EXTRA_KEYS.forEach(function(k){ if(co[k]!=null && co[k]!=='') e[k]=co[k]; });

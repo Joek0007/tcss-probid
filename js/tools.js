@@ -611,6 +611,15 @@ function checkoutTool(toolId) {
   var teamOpts = (DB.team||[]).filter(function(m){ return m.active!==false && m.is_active!==false; }).map(function(m){
     return '<option value="'+escHtml(m.id)+'">'+escHtml(m.name)+'</option>';
   }).join('');
+  // (feat hk) optional Work Order link — active (New / Scheduled / all Open) work orders, via the
+  // authoritative open-status model (_getActiveWOsAsJobs excludes Billed/Invoiced/Void/No-Charge/etc).
+  // Newest first. The checkout can also be left unlinked (the blank "optional" default option).
+  var _activeWOs = (typeof _getActiveWOsAsJobs==='function') ? _getActiveWOsAsJobs().slice() : [];
+  _activeWOs.sort(function(a,b){ return String(b.woNumber||'').localeCompare(String(a.woNumber||''), undefined, {numeric:true}); });
+  var woOpts = _activeWOs.map(function(w){
+    var lbl = (w.woNumber||w.id) + ((w.customerName||w.customer) ? ' — '+(w.customerName||w.customer) : '') + (w.status ? ' ['+w.status+']' : '');
+    return '<option value="'+escHtml(w.id)+'">'+escHtml(lbl)+'</option>';
+  }).join('');
   var today = new Date(); var ret = new Date(today); ret.setDate(ret.getDate()+7);
   var retStr = ret.toISOString().split('T')[0];
 
@@ -676,7 +685,9 @@ function checkoutTool(toolId) {
           '<div><label>Expected Return</label>'+
             '<input id="tool-co-ret" type="date" value="'+retStr+'"></div>'+
         '</div>'+
-        '<div style="margin-top:10px"><label>Job / Purpose</label><input id="tool-co-job" placeholder="Job name or purpose (optional)"></div>'+
+        '<div style="margin-top:10px"><label>Work Order</label>'+
+          '<select id="tool-co-wo"><option value="">— Optional: not tied to a work order —</option>'+woOpts+'</select></div>'+
+        '<div style="margin-top:10px"><label>Job / Purpose <span style="font-weight:400;color:#90a4ae">(optional note)</span></label><input id="tool-co-job" placeholder="Job name or purpose (optional)"></div>'+
         groupsHtml+
       '</div>'+
       '<div class="modal-foot">'+
@@ -718,6 +729,12 @@ function saveCheckoutModal(toolId, modalId) {
       if (!confirm('Packing reminder \u2014 you didn\'t add any of the optional items for this tool:\n\n'+_names+'\n\nThese are just reminders, not required. Check out without them?')) return;
     }
   }
+  // (feat hk) optional Work Order link resolved from the dropdown (job_id stays null in the DB — a
+  // WO id is text, not a jobs-FK uuid, so it's safe; the link rides in woId/woNumber/woCustomer).
+  var _woId = (document.getElementById('tool-co-wo')||{}).value||'';
+  var _woJob = (_woId && typeof _getActiveWOsAsJobs==='function') ? _getActiveWOsAsJobs().find(function(w){ return w.id===_woId; }) : null;
+  var _freeJob = (document.getElementById('tool-co-job')||{}).value||'';
+  var _jobName = _woJob ? ((_woJob.woNumber||'') + ((_woJob.customerName||_woJob.customer) ? ' — '+(_woJob.customerName||_woJob.customer) : '')) : _freeJob;
   if (!DB.toolCheckouts) DB.toolCheckouts=[];
   var _newCo = {
     id:             Date.now().toString(),
@@ -727,7 +744,11 @@ function saveCheckoutModal(toolId, modalId) {
     // id there fails the FK and silently drops the whole checkout. The enforced roster NAME (below) is
     // the record of who has it; checked_out_to_id stays null, exactly as every prior checkout.
     toName:         toName.trim(),
-    jobName:        (document.getElementById('tool-co-job')||{}).value||'',
+    jobName:        _jobName,
+    jobPurpose:     _woJob ? _freeJob : undefined,
+    woId:           _woJob ? _woJob.id : undefined,
+    woNumber:       _woJob ? (_woJob.woNumber||'') : undefined,
+    woCustomer:     _woJob ? (_woJob.customerName||_woJob.customer||'') : undefined,
     date:           getTodayISO(),
     expectedReturn: (document.getElementById('tool-co-ret')||{}).value||'',
     returnedAt:     null,
