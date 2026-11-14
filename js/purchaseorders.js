@@ -538,6 +538,22 @@ async function savePO() {
     }
   }
 
+  // (feat hl) Parts put on this PO from a WO's "needs ordering" review dialog carry _woPartId.
+  // On the FIRST save, flip each of those WO parts to "Ordered" and stamp the PO number, so the
+  // WO Parts tab stops showing them as red "Needs Ordering" and nobody double-orders them.
+  if (isNew) {
+    _poItems.forEach(function(li){
+      if (!li._woPartId) return;
+      var wp = (DB.woParts||[]).find(function(p){ return p.id===li._woPartId; });
+      if (wp && wp.status!=='received' && wp.status!=='partial') {
+        wp.status   = 'ordered';
+        wp.poId     = po.id;
+        wp.poNumber = po.poNumber;
+        if (typeof _pushWOPartToCloud==='function') _pushWOPartToCloud(wp);
+      }
+    });
+  }
+
   // Push to Supabase
   _pushPOToCloud(po);
   saveDB();

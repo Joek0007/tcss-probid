@@ -3381,34 +3381,160 @@ function getCustomerHotNotes() {
   };
 }
 
+// (feat hl) Create-PO REVIEW DIALOG — the old one-click flow dumped you on a blank-vendor PO with
+// only status==='requested' parts and $0 prices. Now a dialog opens over the WO: pick the vendor,
+// see every part that still needs ordering (requested/used/reserved/etc.) as a checklist with
+// editable qty + unit cost, uncheck any you don't want on THIS PO (so one WO can split across two
+// vendors), then it builds the PO already filled in and linked to the WO. On save the chosen parts
+// flip to "Ordered" and get stamped with the PO number (see savePO) so the WO reflects reality.
+function _woPOStatusBadge(st) {
+  var map = {
+    requested:['Requested','#c62828','#ffebee'],
+    used:     ['Used',     '#00695c','#e0f2f1'],
+    reserved: ['Reserved', '#6a1b9a','#f3e5f5'],
+    partial:  ['Partial',  '#e65100','#fff3e0'],
+    ordered:  ['Ordered',  '#1565c0','#e3f2fd'],
+    received: ['Received', '#2e7d32','#e8f5e9']
+  };
+  var m = map[st] || [st||'—','#546e7a','#eceff1'];
+  return '<span style="background:'+m[2]+';color:'+m[1]+';padding:1px 7px;border-radius:9px;font-size:10px;font-weight:700;white-space:nowrap">'+escHtml(m[0])+'</span>';
+}
+
 function createPOFromWOParts(woId) {
   var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
   if (!wo) return;
-  var requestedParts = (DB.woParts||[]).filter(function(p){ return p.woId===woId && p.status==='requested'; });
-  if (!requestedParts.length) { showToast('No requested parts to create PO from','info'); return; }
-  // Pre-populate PO with these parts
   if (typeof openNewPO !== 'function') { showToast('Purchase Orders module not loaded','error'); return; }
+  // Candidates = every part on the WO that isn't already ordered/received (those don't need a new PO).
+  var candidates = (DB.woParts||[]).filter(function(p){
+    return p.woId===woId && p.status!=='ordered' && p.status!=='received';
+  });
+  if (!candidates.length) { showToast('No parts on this work order still need ordering','info'); return; }
+
+  var vendors = (DB.vendors||[]).filter(function(v){ return v.active!==false; });
+  var modalId = 'modal-wo-po-review';
+  var existing = document.getElementById(modalId); if (existing) existing.remove();
+
+  var rowsHtml = candidates.map(function(p){
+    var checked = (p.status==='requested') ? ' checked' : '';
+    var cost = (p.unitCost!=null?p.unitCost:0);
+    var qty  = (p.qty!=null?p.qty:1);
+    return '<tr data-pid="'+escHtml(p.id)+'" style="border-bottom:1px solid #f0f4f8">'+
+      '<td style="padding:8px 6px;text-align:center"><input type="checkbox" class="wopo-chk" onchange="_woPOReviewRecalc()"'+checked+' style="width:18px;height:18px;accent-color:#2e7d32"></td>'+
+      '<td style="padding:8px 6px">'+
+        '<div style="font-weight:600;font-size:13px">'+escHtml(p.name||'')+'</div>'+
+        (p.partNum?'<div style="font-size:11px;color:#90a4ae">'+escHtml(p.partNum)+'</div>':'')+
+      '</td>'+
+      '<td style="padding:8px 6px;text-align:center">'+_woPOStatusBadge(p.status)+'</td>'+
+      '<td style="padding:8px 6px;text-align:center"><input type="number" class="wopo-qty" min="0" step="1" value="'+qty+'" oninput="_woPOReviewRecalc()" style="width:56px;padding:4px 6px;border:1px solid #e0e7ef;border-radius:4px;font-size:12px;text-align:center"></td>'+
+      '<td style="padding:8px 6px;text-align:right"><input type="number" class="wopo-cost" min="0" step="0.01" value="'+Number(cost).toFixed(2)+'" oninput="_woPOReviewRecalc()" style="width:84px;padding:4px 6px;border:1px solid #e0e7ef;border-radius:4px;font-size:12px;text-align:right"></td>'+
+    '</tr>';
+  }).join('');
+
+  var vendorHtml = vendors.length
+    ? '<select id="wopo-vendor" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px">'+
+        '<option value="">— Select Vendor —</option>'+
+        vendors.map(function(v){ return '<option value="'+escHtml(v.id)+'">'+escHtml(v.name||'')+'</option>'; }).join('')+
+      '</select>'
+    : '<div style="font-size:12px;color:#c62828;padding:6px 0">No vendors yet — you can still create the PO and pick a vendor on the next screen.</div>';
+
+  var div = document.createElement('div');
+  div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
+  div.innerHTML =
+    '<div class="modal-box" style="max-width:640px">'+
+      '<div class="modal-head"><h3>📦 Create PO — '+escHtml(wo.woNumber||'Work Order')+'</h3>'+
+        '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
+      '<div class="modal-body">'+
+        '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">Vendor</label>'+vendorHtml+'</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin-bottom:6px">Parts to order — check the ones for THIS PO</div>'+
+        '<table style="width:100%;border-collapse:collapse">'+
+          '<thead><tr style="background:#f8f9fa">'+
+            '<th style="padding:7px 6px;width:34px"></th>'+
+            '<th style="padding:7px 6px;text-align:left;font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase">Part</th>'+
+            '<th style="padding:7px 6px;text-align:center;font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase">On WO</th>'+
+            '<th style="padding:7px 6px;text-align:center;font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase">Qty</th>'+
+            '<th style="padding:7px 6px;text-align:right;font-size:10px;font-weight:700;color:#546e7a;text-transform:uppercase">Unit $</th>'+
+          '</tr></thead><tbody>'+rowsHtml+'</tbody>'+
+        '</table>'+
+        '<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:2px solid #eceff1">'+
+          '<span style="font-size:12px;color:#546e7a;text-transform:uppercase;font-weight:700">PO Total (<span id="wopo-count">0</span> parts)</span>'+
+          '<span id="wopo-total" style="font-size:16px;font-weight:800;color:#2e7d32">$0.00</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="modal-foot">'+
+        '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="_submitWOPOReview(\''+escHtml(woId)+'\',\''+modalId+'\')">Create Purchase Order →</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+  _woPOReviewRecalc();
+}
+
+// Live PO total + count as the office ticks parts / edits qty & cost in the review dialog.
+function _woPOReviewRecalc() {
+  var rows = document.querySelectorAll('#modal-wo-po-review tbody tr');
+  var total = 0, count = 0;
+  rows.forEach(function(tr){
+    var chk = tr.querySelector('.wopo-chk');
+    if (!chk || !chk.checked) return;
+    count++;
+    var q = parseFloat((tr.querySelector('.wopo-qty')||{}).value)||0;
+    var c = parseFloat((tr.querySelector('.wopo-cost')||{}).value)||0;
+    total += q*c;
+  });
+  var cEl=document.getElementById('wopo-count'); if(cEl) cEl.textContent=count;
+  var tEl=document.getElementById('wopo-total'); if(tEl) tEl.textContent='$'+total.toFixed(2);
+}
+
+function _submitWOPOReview(woId, modalId) {
+  var wo = (DB.workOrders||[]).find(function(w){ return w.id===woId; });
+  if (!wo) return;
+  var vendorId = ((document.getElementById('wopo-vendor')||{}).value)||'';
+  var rows = document.querySelectorAll('#'+modalId+' tbody tr');
+  var selected = [];
+  rows.forEach(function(tr){
+    var chk = tr.querySelector('.wopo-chk');
+    if (!chk || !chk.checked) return;
+    var pid = tr.getAttribute('data-pid');
+    var part = (DB.woParts||[]).find(function(p){ return p.id===pid; });
+    if (!part) return;
+    var qty  = parseFloat((tr.querySelector('.wopo-qty')||{}).value)||0;
+    var cost = parseFloat((tr.querySelector('.wopo-cost')||{}).value)||0;
+    selected.push({ part:part, qty:qty, cost:cost });
+  });
+  if (!selected.length) { showToast('Check at least one part to put on the PO','error'); return; }
+
   openNewPO();
-  // Set job link
-  var job = (DB.jobs||[]).find(function(j){ return j.woId===woId||j.id===wo.jobId; });
-  if (job) {
-    var jobSel = document.getElementById('po-job');
-    if (jobSel) { jobSel.value = job.id; onPOJobChange(job.id); }
+  // Vendor
+  if (vendorId) {
+    var vSel=document.getElementById('po-vendor');
+    if (vSel) { vSel.value=vendorId; if (typeof onPOVendorChange==='function') onPOVendorChange(vendorId); }
   }
-  // Populate line items
-  _poItems = requestedParts.map(function(p,i){
-    // (fix hl) carry the unit cost the office already set on the part instead of zeroing it,
-    // so prices don't have to be re-typed on the PO. Notes ride along too.
-    return { _eid:i, desc:p.name||'', partNum:p.partNum||p.partNumber||'', qtyOrdered:parseFloat(p.qty||1), qtyReceived:0, unitCost:(parseFloat(p.unitCost)||0), notes:p.notes||'' };
+  // Job link — prefer a real job tied to the WO, else the WO-as-job entry.
+  var jobSel=document.getElementById('po-job');
+  var realJob=(DB.jobs||[]).find(function(j){ return j.woId===woId || j.id===wo.jobId; });
+  if (jobSel) {
+    var linkId = realJob ? realJob.id : woId;
+    jobSel.value = linkId;
+    if (typeof onPOJobChange==='function') onPOJobChange(linkId);
+  }
+  // Ensure the WO link is set LAST (onPOJobChange may have cleared it when no job matched).
+  var woHid=document.getElementById('po-wo-id-hidden'); if (woHid) woHid.value=woId;
+  var chainEl=document.getElementById('po-source-chain');
+  if (chainEl) chainEl.innerHTML = '📎 From WO: '+escHtml(wo.woNumber||'');
+
+  // Line items — carry _woPartId so savePO can flip these parts to "Ordered" + stamp the PO number.
+  _poItems = selected.map(function(s,i){
+    return { _eid:i, desc:s.part.name||'', partNum:s.part.partNum||s.part.partNumber||'',
+             qtyOrdered:s.qty, qtyReceived:0, unitCost:s.cost, notes:s.part.notes||'',
+             _woPartId:s.part.id };
   });
   renderPOItems();
   refreshPOTotals();
-  // Update source chain
-  var chainEl = document.getElementById('po-source-chain');
-  if (chainEl) chainEl.innerHTML = '📎 From WO: '+escHtml(wo.woNumber||'');
-  showToast('PO pre-populated with '+requestedParts.length+' part request(s) — select vendor and save','info',4000);
+
+  var m=document.getElementById(modalId); if(m) m.remove();
   closeModal('modal-work-order');
   goPage('purchaseorders');
+  showToast('Review the PO and hit Save — parts flip to "Ordered" once it’s saved','info',4500);
 }
 
 function openNewWOForCustomer(customerId, customerName) {
