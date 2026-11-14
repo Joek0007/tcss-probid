@@ -497,6 +497,20 @@ function editTool(id) {
   openModal('modal-tool-item');
 }
 
+// (hi, 2026-11-14) Scan a physical barcode tag (McAuley/etc.) straight into the asset-tag field
+// while adding/editing a tool, via the shared cross-platform scanner (ProBidScan). One scan instead
+// of typing the number — the fast way to map each physical sticker to its tool. Save-time format
+// validation below still applies to whatever lands here.
+function scanFillToolTag() {
+  if (!window.ProBidScan) { showToast('Scanner unavailable — type the tag or use the USB scanner','warning'); return; }
+  ProBidScan.open({ title:'📷 Scan Asset Tag', onCode:function(code){
+    var el=document.getElementById('tool-tag');
+    if (el) { el.value=(code||'').trim(); try{ el.focus(); }catch(e){} }
+    var dupe=(DB.tools||[]).find(function(t){ return (t.tag||'')===(code||'').trim(); });
+    if (dupe) showToast('Heads up: '+(code||'').trim()+' is already on "'+(dupe.name||'')+'"','warning',3500);
+  }});
+}
+
 function saveToolItem() {
   if (typeof hasPermission==='function' && !hasPermission('tool.edit')) { showToast('You do not have permission to add or edit tools','error'); return; }
   var id   = document.getElementById('tool-id').value;
