@@ -2901,7 +2901,11 @@ function renderWOPartsTab(woId) {
           (p.partNum?'<div style="font-size:11px;color:#90a4ae">'+escHtml(p.partNum)+'</div>':'')+
           (p.notes?'<div style="font-size:11px;color:#546e7a;font-style:italic">'+escHtml(p.notes)+'</div>':'')+
         '</td>'+
-        '<td style="padding:9px 10px;text-align:center;font-weight:700">'+escHtml(String(p.qty||1))+'</td>'+
+        '<td style="padding:9px 10px;text-align:center;font-weight:700">'+
+          (isOffice
+            ? '<input type="number" min="0" step="1" value="'+(p.qty!=null?p.qty:1)+'" onchange="updateWOPartQty(\''+p.id+'\',this.value)" style="width:56px;padding:4px 6px;border:1px solid #e0e7ef;border-radius:4px;font-size:12px;text-align:center;font-weight:700">'
+            : escHtml(String(p.qty||1)))+
+        '</td>'+
         (canFin ? '<td style="padding:9px 10px;text-align:right">'+
           (isOffice
             ? '<input type="number" min="0" step="0.01" value="'+(p.unitCost!=null?p.unitCost:0)+'" onchange="updateWOPartCost(\''+p.id+'\',this.value)" style="width:74px;padding:4px 6px;border:1px solid #e0e7ef;border-radius:4px;font-size:12px;text-align:right">'
@@ -2912,7 +2916,9 @@ function renderWOPartsTab(woId) {
         (isOffice?
           '<td style="padding:9px 10px;text-align:center">'+
             '<select onchange="updateWOPartStatus(\''+p.id+'\',this.value)" style="padding:4px 6px;border:1px solid #e0e7ef;border-radius:4px;font-size:11px">'+
-              ['requested','ordered','received','partial'].map(function(s){
+              // (fix hl) include the part's own status so e.g. 'used'/'reserved' parts don't fall back
+              // to showing the first option ("Requested"), which misreported their real state.
+              (function(){ var _st=['requested','ordered','received','partial']; if(p.status && _st.indexOf(p.status)<0) _st.push(p.status); return _st; })().map(function(s){
                 return '<option value="'+s+'"'+(p.status===s?' selected':'')+'>'+s.charAt(0).toUpperCase()+s.slice(1)+'</option>';
               }).join('')+
             '</select>'+
@@ -2963,6 +2969,17 @@ function updateWOPartCost(id,val) {
   var part=(DB.woParts||[]).find(function(p){return p.id===id;});
   if(part){
     part.unitCost=parseFloat(val)||0;
+    if(typeof _pushWOPartToCloud==='function') _pushWOPartToCloud(part);
+    saveDB(); switchWOTab('parts');
+    if(typeof refreshWOQuickStats==='function') refreshWOQuickStats(_woCurrentId);
+  }
+}
+// (feat hl) editable part quantity inline — mirrors updateWOPartCost; re-renders so the row's
+// Total $ and the Parts Total recompute.
+function updateWOPartQty(id,val) {
+  var part=(DB.woParts||[]).find(function(p){return p.id===id;});
+  if(part){
+    var q=parseFloat(val); part.qty=(isNaN(q)||q<0)?0:q;
     if(typeof _pushWOPartToCloud==='function') _pushWOPartToCloud(part);
     saveDB(); switchWOTab('parts');
     if(typeof refreshWOQuickStats==='function') refreshWOQuickStats(_woCurrentId);
@@ -3380,7 +3397,9 @@ function createPOFromWOParts(woId) {
   }
   // Populate line items
   _poItems = requestedParts.map(function(p,i){
-    return { _eid:i, desc:p.name||'', partNum:p.partNum||p.partNumber||'', qtyOrdered:parseFloat(p.qty||1), qtyReceived:0, unitCost:0 };
+    // (fix hl) carry the unit cost the office already set on the part instead of zeroing it,
+    // so prices don't have to be re-typed on the PO. Notes ride along too.
+    return { _eid:i, desc:p.name||'', partNum:p.partNum||p.partNumber||'', qtyOrdered:parseFloat(p.qty||1), qtyReceived:0, unitCost:(parseFloat(p.unitCost)||0), notes:p.notes||'' };
   });
   renderPOItems();
   refreshPOTotals();
