@@ -3178,9 +3178,9 @@ async function copyPortalLink(id) {
   var baseUrl = window.location.origin + window.location.pathname.replace('index.html','').replace(/\/$/, '');
   var portalUrl = baseUrl + '/portal.html?token=' + q.approvalToken;
 
-  // Send the approval link as an email instead of making the user copy/paste it — same path
-  // the proposal email uses: SendGrid direct-send when configured, otherwise open the user's
-  // email client pre-composed. Clipboard is only the last resort when there's no email on file.
+  // Send the approval link by opening the user's email client pre-composed; clipboard is the last
+  // resort when there's no email on file. (Direct Mailgun send is the main proposal Email flow;
+  // this quick action just composes the link.)
   var toEmail = _quoteRecipientEmail(q);
   var toName  = q.contactName || q.cn || '';
   var cname   = (DB.settings && DB.settings.cname) || 'TCSS';
@@ -3195,15 +3195,6 @@ async function copyPortalLink(id) {
     + 'full details and approve it online here:\n\n' + portalUrl + '\n\n'
     + 'If you have any questions, just reply to this email.\n\nThank you,\n' + sender;
 
-  if ((DB.settings || {}).sgKey) {                     // SendGrid configured → send directly
-    if (!toEmail) { showToast('No customer email on file for ' + (q.cn||'this quote'), 'error'); return; }
-    showToast('Sending approval link to ' + toEmail + '…', 'info', 2500);
-    sendViaSendGrid(toEmail, toName, subject, body, null).then(function (ok) {
-      if (ok) showToast('Approval link emailed to ' + toEmail, 'success', 4000);
-      else showToast('Send failed — check email settings', 'error', 4000);
-    });
-    return;
-  }
   if (!toEmail) {                                      // no email → keep the old copy behavior
     try { await navigator.clipboard.writeText(portalUrl); showToast('No email on file — approval link copied to clipboard', 'info', 5000); }
     catch (e) { prompt('Approval link for your customer:', portalUrl); }

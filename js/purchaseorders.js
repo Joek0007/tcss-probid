@@ -703,8 +703,7 @@ function _printPOHTML(po) {
 }
 
 // (r135) Inline-styled PO as an email body (email clients strip <style> blocks, so everything is
-// inline). This is what the vendor actually receives — the old email claimed "attached" but the
-// SendGrid helper has no attachment parameter, so nothing was ever sent with it.
+// inline). This is what the vendor actually receives in the email.
 function _poEmailHTML(po){
   var s=DB.settings||{};
   var vendor=(DB.vendors||[]).find(function(v){return v.id===po.vendorId;})||{};
@@ -757,27 +756,41 @@ function _poEmailHTML(po){
   '</div>';
 }
 
-function emailPO() {
+async function emailPO() {
   if(!_poCurrentId){showToast('Save the PO first','error');return;}
   var po=(DB.purchaseOrders||[]).find(function(p){return p.id===_poCurrentId;});
   if(!po) return;
   var vendor=(DB.vendors||[]).find(function(v){return v.id===po.vendorId;})||{};
   var toEmail=vendor.email||'';
   if(!toEmail){showToast('No email on file for this vendor — add it to the vendor record','error');return;}
+  var s=DB.settings||{};
   var _coPO = (typeof coFullName==='function' ? coFullName() : '') || 'us';
   var subject='Purchase Order '+po.poNumber+' from '+_coPO;
-  // Plain-text fallback body — the full PO rides in the HTML body below, so no false "attached" claim.
   var textBody='Purchase Order '+po.poNumber+' from '+_coPO+'.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2)+(po.dateNeeded?'\nDate Needed: '+po.dateNeeded:'')+'\n\nThe full purchase order is shown below.';
-  if((DB.settings||{}).sgKey){
+  // (r136) Send via Mailgun — the app's configured email provider (same path quotes/invoices use).
+  // Multi-tenant: from-domain reads mgDomain/mgFrom from settings (tcss.com default), consistent with
+  // the invoice sender — per-tenant verified domains are the email-infra layer.
+  if(s.mgKey){
     showToast('Sending PO to '+toEmail+'...','info',2000);
-    var htmlBody=(typeof _poEmailHTML==='function')?_poEmailHTML(po):null;   // (r135) the actual PO, inline
-    sendViaSendGrid(toEmail,vendor.name||'',subject,textBody,htmlBody).then(function(ok){
-      if(ok){po.status='Sent';saveDB();renderPOList();showToast('PO emailed to '+toEmail+' ✓','success',4000);}
-      else{showToast('PO email failed to send — check SendGrid settings','error',4000);}
-    });
+    try{
+      var htmlBody=(typeof _poEmailHTML==='function')?_poEmailHTML(po):textBody.replace(/\n/g,'<br>');
+      var mgDomain=s.mgDomain||'tcss.com';
+      var fd=new FormData();
+      fd.append('from', s.mgFrom || ('TCSS Purchasing <purchasing@'+mgDomain+'>'));
+      fd.append('to', toEmail);
+      if(s.cemail) fd.append('h:Reply-To', s.cemail);   // vendor replies reach the office
+      fd.append('subject', subject);
+      fd.append('text', textBody);
+      fd.append('html', htmlBody);
+      fd.append('o:tracking','yes'); fd.append('o:tracking-opens','yes');
+      fd.append('v:probid_type','po'); fd.append('v:probid_id', String(po.id));
+      var res=await fetch('https://api.mailgun.net/v3/'+mgDomain+'/messages',{method:'POST',headers:{'Authorization':'Basic '+btoa('api:'+s.mgKey)},body:fd});
+      var data=await res.json().catch(function(){return {};});
+      if(res.ok){ po.status='Sent'; po.emailedTo=toEmail; po.emailedAt=new Date().toISOString(); if(typeof _pushPOToCloud==='function')_pushPOToCloud(po); saveDB(); renderPOList(); showToast('PO emailed to '+toEmail+' ✓','success',4000); }
+      else{ showToast('Mailgun error: '+(data.message||('Status '+res.status)),'error',6000); console.error('[PO Email]',data); }
+    }catch(e){ showToast('PO email failed: '+e.message,'error',5000); console.error('[PO Email]',e); }
   } else {
-    // No email integration configured → open the user's mail client with a summary (mailto can't
-    // carry HTML/attachments). Printing the PO (🖨) gives a PDF to attach manually.
+    // No email provider configured → open the user's mail client with a summary.
     window.location.href='mailto:'+encodeURIComponent(toEmail)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(textBody+'\n\n(Printed PO can be attached from the Print button.)');
     po.status='Sent';
     saveDB();
