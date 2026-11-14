@@ -234,6 +234,7 @@ function openNewPO() {
   sv('po-id',''); sv('po-date',today); sv('po-date-needed',''); sv('po-notes','');
   sv('po-vendor',''); sv('po-job',''); sv('po-job-id-hidden',''); sv('po-wo-id-hidden','');
   sv('po-vendor-inv-num',''); sv('po-vendor-inv-amt','');
+  sv('po-tax',''); sv('po-freight','');   // (r135)
   sv('po-ship-name',DB.settings.cname||'TCSS');
   sv('po-ship-addr',DB.settings.caddr||'');
   sv('po-ship-city',''); sv('po-ship-state',''); sv('po-ship-zip','');
@@ -284,6 +285,8 @@ function openPO(id) {
   sv('po-ship-zip',po.shipZip||'');
   sv('po-vendor-inv-num',po.vendorInvNum||'');
   sv('po-vendor-inv-amt',po.vendorInvAmt||'');
+  sv('po-tax',(po.tax!=null&&po.tax!==0)?po.tax:'');         // (r135)
+  sv('po-freight',(po.freight!=null&&po.freight!==0)?po.freight:'');
   sv('po-job-id-hidden',po.jobId||'');
   sv('po-wo-id-hidden',po.woId||'');
 
@@ -417,10 +420,16 @@ function addPOFromCatalog() {
   }
 }
 
+// (r135) PO total now includes Tax + Freight so it matches what the vendor will actually invoice.
+function _poSubtotal(){ return _poItems.reduce(function(s,li){return s+(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));},0); }
+function _poTaxVal(){ return parseFloat((document.getElementById('po-tax')||{}).value)||0; }
+function _poFreightVal(){ return parseFloat((document.getElementById('po-freight')||{}).value)||0; }
+function _poGrandTotal(){ return _poSubtotal()+_poTaxVal()+_poFreightVal(); }
 function refreshPOTotals() {
-  var subtotal=_poItems.reduce(function(s,li){return s+(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));},0);
+  var subtotal=_poSubtotal();
+  var total=subtotal+_poTaxVal()+_poFreightVal();
   var stEl=document.getElementById('po-subtotal-display');if(stEl)stEl.textContent='$'+subtotal.toFixed(2);
-  var totEl=document.getElementById('po-total-display');if(totEl)totEl.textContent='$'+subtotal.toFixed(2);
+  var totEl=document.getElementById('po-total-display');if(totEl)totEl.textContent='$'+total.toFixed(2);
 }
 
 function checkReceivingStatus() {
@@ -439,23 +448,24 @@ function checkReceivingStatus() {
 
 function checkPOMatch() {
   var vendorAmt=parseFloat((document.getElementById('po-vendor-inv-amt')||{}).value)||0;
-  var subtotal=_poItems.reduce(function(s,li){return s+(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));},0);
-  var received=_poItems.reduce(function(s,li){return s+(parseFloat(li.unitCost||0))*(parseFloat(li.qtyReceived||0));},0);
+  // (r135) Compare the vendor invoice to the PO GRAND TOTAL (subtotal + tax + freight), not the bare
+  // material subtotal — otherwise every real invoice (which includes tax/freight) flagged a false
+  // discrepancy.
+  var poTotal=_poGrandTotal();
   var resultEl=document.getElementById('po-match-result');
   var badgeEl=document.getElementById('po-match-badge');
   if(!resultEl||!vendorAmt) return;
 
-  var poMatch=Math.abs(subtotal-vendorAmt)<0.02;
-  var recMatch=received>0&&Math.abs(received-vendorAmt)<0.02;
+  var poMatch=Math.abs(poTotal-vendorAmt)<0.02;
 
   if(poMatch){
-    resultEl.innerHTML='<span style="color:#2e7d32;font-weight:700">✅ PO amount matches vendor invoice — ready to approve</span>';
+    resultEl.innerHTML='<span style="color:#2e7d32;font-weight:700">✅ PO total matches vendor invoice — ready to approve</span>';
     if(badgeEl){badgeEl.style.display='inline-block';badgeEl.style.background='#e8f5e9';badgeEl.style.color='#2e7d32';badgeEl.style.padding='3px 10px';badgeEl.style.borderRadius='20px';badgeEl.style.fontSize='11px';badgeEl.style.fontWeight='700';badgeEl.textContent='✅ Matched';}
     var statusEl=document.getElementById('po-status');
     if(statusEl&&statusEl.value==='Received') statusEl.value='Matched';
   } else {
-    var diff=vendorAmt-subtotal;
-    resultEl.innerHTML='<span style="color:#c62828;font-weight:700">⚠️ Discrepancy: Vendor invoice is $'+Math.abs(diff).toFixed(2)+(diff>0?' over':' under')+' PO amount — investigate before approving</span>';
+    var diff=vendorAmt-poTotal;
+    resultEl.innerHTML='<span style="color:#c62828;font-weight:700">⚠️ Discrepancy: Vendor invoice is $'+Math.abs(diff).toFixed(2)+(diff>0?' over':' under')+' the PO total ($'+poTotal.toFixed(2)+') — check tax/freight or line items before approving</span>';
     if(badgeEl){badgeEl.style.display='inline-block';badgeEl.style.background='#ffebee';badgeEl.style.color='#c62828';badgeEl.style.padding='3px 10px';badgeEl.style.borderRadius='20px';badgeEl.style.fontSize='11px';badgeEl.style.fontWeight='700';badgeEl.textContent='⚠️ Mismatch';}
   }
 }
@@ -487,6 +497,9 @@ async function savePO() {
     poNumber = ((DB.purchaseOrders||[]).find(function(p){return p.id===_poCurrentId;})||{}).poNumber || 'PO-?';
   }
   var subtotal=_poItems.reduce(function(s,li){return s+(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));},0);
+  var taxAmt=parseFloat(gv('po-tax'))||0;          // (r135) tax + freight roll into the PO total
+  var freightAmt=parseFloat(gv('po-freight'))||0;
+  var grandTotal=subtotal+taxAmt+freightAmt;
   var jobId=gv('po-job-id-hidden');
   var job=jobId?(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})):null;
 
@@ -511,7 +524,9 @@ async function savePO() {
     vendorInvAmt:parseFloat(gv('po-vendor-inv-amt'))||0,
     readyToPay:  !!(document.getElementById('po-ready-to-pay')||{}).checked,
     subtotal:    subtotal,
-    total:       subtotal,
+    tax:         taxAmt,
+    freight:     freightAmt,
+    total:       grandTotal,
     items:       _poItems.map(function(li){return Object.assign({},li);}),
     createdBy:   isNew?((_currentUser&&_currentUser.id)||null):((DB.purchaseOrders||[]).find(function(p){return p.id===id;})||{}).createdBy,
     createdByName:isNew?((_currentUser&&_currentUser.full_name)||'Unknown'):((DB.purchaseOrders||[]).find(function(p){return p.id===id;})||{}).createdByName,
@@ -570,7 +585,7 @@ async function _pushPOToCloud(po) {
       job_id:po.jobId||null,wo_id:po.woId||null,status:po.status||'Draft',
       ship_to_name:po.shipName||null,ship_to_address:po.shipAddr||null,
       ship_to_city:po.shipCity||null,ship_to_state:po.shipState||null,ship_to_zip:po.shipZip||null,
-      subtotal:po.subtotal||0,total:po.total||0,date_needed:po.dateNeeded||null,
+      subtotal:po.subtotal||0,total:po.total||0,tax_amount:po.tax||0,freight_amount:po.freight||0,date_needed:po.dateNeeded||null,
       notes:po.notes||null,vendor_invoice_num:po.vendorInvNum||null,
       vendor_invoice_amount:po.vendorInvAmt||null,ready_to_pay:!!po.readyToPay,
       created_by:po.createdBy||_currentUser.id,created_by_name:po.createdByName||null,
@@ -641,6 +656,14 @@ function _printPOHTML(po) {
     '</tr>';
   }).join('');
 
+  // (r135) totals breakdown — show Subtotal/Tax/Freight above the PO Total when tax or freight apply.
+  var _poSub=(po.subtotal!=null)?parseFloat(po.subtotal):((po.items||[]).reduce(function(s,li){return s+(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));},0));
+  var _poTax=parseFloat(po.tax||0), _poFr=parseFloat(po.freight||0);
+  var _totRows=(_poTax||_poFr)
+    ? '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span style="color:#546e7a">Subtotal</span><span>$'+_poSub.toFixed(2)+'</span></div>'+
+      (_poTax?'<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span style="color:#546e7a">Tax</span><span>$'+_poTax.toFixed(2)+'</span></div>':'')+
+      (_poFr?'<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px"><span style="color:#546e7a">Freight / Shipping</span><span>$'+_poFr.toFixed(2)+'</span></div>':'')
+    : '';
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PO '+escHtml(po.poNumber||'')+'</title>'+
     '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1a1a1a;font-size:13px;padding:40px 48px}'+
     '.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:3px solid #1565c0}'+
@@ -670,13 +693,68 @@ function _printPOHTML(po) {
       '<div class="addr-block"><label>PO Details</label><div class="val"><strong>Date:</strong> '+escHtml(po.date||'')+(po.dateNeeded?'<br><strong>Needed By:</strong> '+escHtml(po.dateNeeded):'')+(po.jobName?'<br><strong>Job:</strong> '+escHtml(po.jobName):'')+'</div></div>'+
     '</div>'+
     '<table><thead><tr><th style="width:45%">Description</th><th style="width:12%">Part #</th><th style="width:8%;text-align:center">Qty</th><th style="width:15%;text-align:right">Unit Cost</th><th style="width:15%;text-align:right">Total</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-    '<div class="totals"><div class="totals-table"><div class="tot-final"><span>PO Total</span><span>$'+parseFloat(po.total||0).toLocaleString('en-US',{minimumFractionDigits:2})+'</span></div></div></div>'+
+    '<div class="totals"><div class="totals-table">'+_totRows+'<div class="tot-final"><span>PO Total</span><span>$'+parseFloat(po.total||0).toLocaleString('en-US',{minimumFractionDigits:2})+'</span></div></div></div>'+
     (po.notes?'<div style="background:#f8f9fa;border-left:4px solid #1565c0;padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:24px;font-size:12px;color:#37474f"><strong>Notes:</strong> '+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(po.notes):escHtml(po.notes))+'</div>':'')+
     '<div class="footer">Total Communications Systems &amp; Solutions, Inc. · '+escHtml(po.poNumber||'')+'</div>'+
   '</body></html>';
 
   var win=window.open('','_blank','width=900,height=700');
   if(win){win.document.write(html);win.document.close();setTimeout(function(){win.print();},500);}
+}
+
+// (r135) Inline-styled PO as an email body (email clients strip <style> blocks, so everything is
+// inline). This is what the vendor actually receives — the old email claimed "attached" but the
+// SendGrid helper has no attachment parameter, so nothing was ever sent with it.
+function _poEmailHTML(po){
+  var s=DB.settings||{};
+  var vendor=(DB.vendors||[]).find(function(v){return v.id===po.vendorId;})||{};
+  var rows=(po.items||[]).map(function(li){
+    var lt=(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));
+    return '<tr>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px">'+escHtml(li.desc||'')+'</td>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center">'+escHtml(li.partNum||'')+'</td>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center">'+parseFloat(li.qtyOrdered||1)+'</td>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:right">$'+parseFloat(li.unitCost||0).toFixed(2)+'</td>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:right;font-weight:700">$'+lt.toFixed(2)+'</td>'+
+    '</tr>';
+  }).join('');
+  var _poSub=(po.subtotal!=null)?parseFloat(po.subtotal):((po.items||[]).reduce(function(a,li){return a+(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));},0));
+  var _poTax=parseFloat(po.tax||0), _poFr=parseFloat(po.freight||0);
+  var totRows=(_poTax||_poFr)
+    ? '<tr><td colspan="4" style="text-align:right;padding:4px 10px;color:#546e7a;font-size:13px">Subtotal</td><td style="text-align:right;padding:4px 10px;font-size:13px">$'+_poSub.toFixed(2)+'</td></tr>'+
+      (_poTax?'<tr><td colspan="4" style="text-align:right;padding:4px 10px;color:#546e7a;font-size:13px">Tax</td><td style="text-align:right;padding:4px 10px;font-size:13px">$'+_poTax.toFixed(2)+'</td></tr>':'')+
+      (_poFr?'<tr><td colspan="4" style="text-align:right;padding:4px 10px;color:#546e7a;font-size:13px">Freight / Shipping</td><td style="text-align:right;padding:4px 10px;font-size:13px">$'+_poFr.toFixed(2)+'</td></tr>':'')
+    : '';
+  var addr=function(name,street,city,st,zip){return '<strong>'+escHtml(name||'')+'</strong>'+(street?'<br>'+escHtml(street):'')+((city||st)?'<br>'+[city,st].filter(Boolean).map(escHtml).join(', ')+(zip?' '+escHtml(zip):''):'');};
+  return ''+
+  '<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;padding:16px">'+
+    '<div style="border-bottom:3px solid #1565c0;padding-bottom:14px;margin-bottom:16px">'+
+      '<table width="100%"><tr>'+
+        '<td style="vertical-align:top"><div style="font-size:20px;font-weight:900"><span style="color:#cc0000">TOTAL </span><span style="color:#1565c0">COMMUNICATIONS</span></div>'+
+          '<div style="font-size:11px;color:#546e7a">Systems &amp; Solutions, Inc.</div>'+
+          '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.6">'+(s.caddr?escHtml(s.caddr)+'<br>':'')+(s.cphone?escHtml(s.cphone)+'<br>':'')+(s.cemail?escHtml(s.cemail):'')+'</div></td>'+
+        '<td style="vertical-align:top;text-align:right"><div style="font-size:22px;font-weight:900;color:#1565c0;letter-spacing:1px">PURCHASE ORDER</div><div style="font-size:14px;color:#546e7a;font-weight:700;margin-top:4px">'+escHtml(po.poNumber||'')+'</div></td>'+
+      '</tr></table>'+
+    '</div>'+
+    '<table width="100%" style="margin-bottom:16px"><tr>'+
+      '<td style="vertical-align:top;width:50%;font-size:12px;line-height:1.6"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#90a4ae;margin-bottom:4px">Vendor</div>'+addr(vendor.name||po.vendorName,vendor.address,vendor.city,vendor.state,vendor.zip)+'</td>'+
+      '<td style="vertical-align:top;width:50%;font-size:12px;line-height:1.6"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#90a4ae;margin-bottom:4px">Ship To</div>'+addr(po.shipName,po.shipAddr,po.shipCity,po.shipState,po.shipZip)+'</td>'+
+    '</tr></table>'+
+    '<div style="font-size:12px;color:#546e7a;margin-bottom:12px">'+
+      '<strong>Date:</strong> '+escHtml(po.date||'')+(po.dateNeeded?' &nbsp;&middot;&nbsp; <strong>Needed By:</strong> '+escHtml(po.dateNeeded):'')+(po.jobName?' &nbsp;&middot;&nbsp; <strong>Job:</strong> '+escHtml(po.jobName):'')+'</div>'+
+    '<table width="100%" style="border-collapse:collapse;margin-bottom:12px">'+
+      '<thead><tr style="background:#1565c0;color:#fff">'+
+        '<th style="padding:8px 10px;text-align:left;font-size:11px">Description</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-size:11px">Part #</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-size:11px">Qty</th>'+
+        '<th style="padding:8px 10px;text-align:right;font-size:11px">Unit</th>'+
+        '<th style="padding:8px 10px;text-align:right;font-size:11px">Total</th>'+
+      '</tr></thead><tbody>'+rows+totRows+
+        '<tr><td colspan="4" style="text-align:right;padding:10px;font-size:16px;font-weight:900;color:#1565c0;border-top:2px solid #1565c0">PO Total</td><td style="text-align:right;padding:10px;font-size:16px;font-weight:900;color:#1565c0;border-top:2px solid #1565c0">$'+parseFloat(po.total||0).toFixed(2)+'</td></tr>'+
+      '</tbody></table>'+
+    (po.notes?'<div style="background:#f8f9fa;border-left:4px solid #1565c0;padding:10px 14px;font-size:12px;color:#37474f;margin-bottom:12px"><strong>Notes:</strong> '+(typeof stripHtmlToText==='function'?escHtml(stripHtmlToText(po.notes)):escHtml(po.notes))+'</div>':'')+
+    '<div style="font-size:11px;color:#90a4ae;border-top:1px solid #e0e0e0;padding-top:10px">Total Communications Systems &amp; Solutions, Inc. &middot; '+escHtml(po.poNumber||'')+'</div>'+
+  '</div>';
 }
 
 function emailPO() {
@@ -687,18 +765,23 @@ function emailPO() {
   var toEmail=vendor.email||'';
   if(!toEmail){showToast('No email on file for this vendor — add it to the vendor record','error');return;}
   var _coPO = (typeof coFullName==='function' ? coFullName() : '') || 'us';
+  var subject='Purchase Order '+po.poNumber+' from '+_coPO;
+  // Plain-text fallback body — the full PO rides in the HTML body below, so no false "attached" claim.
+  var textBody='Purchase Order '+po.poNumber+' from '+_coPO+'.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2)+(po.dateNeeded?'\nDate Needed: '+po.dateNeeded:'')+'\n\nThe full purchase order is shown below.';
   if((DB.settings||{}).sgKey){
     showToast('Sending PO to '+toEmail+'...','info',2000);
-    var subject='Purchase Order '+escHtml(po.poNumber)+' from '+_coPO;
-    var body='Please find attached Purchase Order '+po.poNumber+' from '+_coPO+'.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2)+'\n'+(po.dateNeeded?'Date Needed: '+po.dateNeeded+'\n':'')+(po.notes?'\nNotes: '+(typeof stripHtmlToText==='function'?stripHtmlToText(po.notes):po.notes):'');
-    sendViaSendGrid(toEmail,vendor.name||'',subject,body,null).then(function(ok){
+    var htmlBody=(typeof _poEmailHTML==='function')?_poEmailHTML(po):null;   // (r135) the actual PO, inline
+    sendViaSendGrid(toEmail,vendor.name||'',subject,textBody,htmlBody).then(function(ok){
       if(ok){po.status='Sent';saveDB();renderPOList();showToast('PO emailed to '+toEmail+' ✓','success',4000);}
+      else{showToast('PO email failed to send — check SendGrid settings','error',4000);}
     });
   } else {
-    window.location.href='mailto:'+encodeURIComponent(toEmail)+'?subject='+encodeURIComponent('Purchase Order '+po.poNumber+' from '+_coPO)+'&body='+encodeURIComponent('Please find attached Purchase Order '+po.poNumber+'.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2));
+    // No email integration configured → open the user's mail client with a summary (mailto can't
+    // carry HTML/attachments). Printing the PO (🖨) gives a PDF to attach manually.
+    window.location.href='mailto:'+encodeURIComponent(toEmail)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(textBody+'\n\n(Printed PO can be attached from the Print button.)');
     po.status='Sent';
     saveDB();
     renderPOList();
-    showToast('Email client opened — attach the PO PDF','info',4000);
+    showToast('Email client opened with the PO summary','info',4000);
   }
 }

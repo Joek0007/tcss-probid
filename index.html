@@ -6321,11 +6321,13 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           </div>
           <div id="po-items-rows"></div>
         </div>
-        <!-- Totals -->
+        <!-- Totals (r135: Tax + Freight are editable so the PO total matches what the vendor will
+             actually invoice — otherwise the invoice-match flagged every real invoice as a mismatch) -->
         <div style="margin-top:12px;display:flex;justify-content:flex-end">
-          <div style="width:280px">
-            <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f0f0f0"><span style="color:#546e7a">Subtotal</span><span id="po-subtotal-display" style="font-weight:600">$0.00</span></div>
-            <div id="po-tax-row-display" style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f0f0f0;display:none"><span style="color:#546e7a">Tax</span><span id="po-tax-display" style="font-weight:600">$0.00</span></div>
+          <div style="width:300px">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px;border-bottom:1px solid #f0f0f0"><span style="color:#546e7a">Subtotal</span><span id="po-subtotal-display" style="font-weight:600">$0.00</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px;border-bottom:1px solid #f0f0f0"><span style="color:#546e7a">Tax</span><input type="number" id="po-tax" min="0" step="0.01" placeholder="0.00" oninput="refreshPOTotals();checkPOMatch()" style="width:110px;text-align:right;padding:5px 8px;border:1px solid #e0e7ef;border-radius:4px;font-size:12px"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px;border-bottom:1px solid #f0f0f0"><span style="color:#546e7a">Freight / Shipping</span><input type="number" id="po-freight" min="0" step="0.01" placeholder="0.00" oninput="refreshPOTotals();checkPOMatch()" style="width:110px;text-align:right;padding:5px 8px;border:1px solid #e0e7ef;border-radius:4px;font-size:12px"></div>
             <div style="display:flex;justify-content:space-between;padding:10px 0 0;font-size:18px;font-weight:900;color:#1565c0;border-top:2px solid #1565c0;margin-top:4px"><span>PO Total</span><span id="po-total-display">$0.00</span></div>
           </div>
         </div>
@@ -7490,7 +7492,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/workorders.js?v=20261114r134popersist"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
-<script src="js/purchaseorders.js?v=20261114r134popersist"></script>
+<script src="js/purchaseorders.js?v=20261115r135potax"></script>
 <script src="js/inventory_locations_db.js?v=20260919ix"></script>
 <script src="js/inventory.js?v=20261111r126scanner"></script>
 <script src="js/reports.js?v=20261108r111secbar"></script>
@@ -7503,7 +7505,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <script src="js/recurring.js?v=20261025dates2"></script>
   <script src="js/seed_managed.js?v=20260919ix"></script>
   <script src="js/applock.js?v=20260919jk"></script>
-  <script src="js/auth.js?v=20261114r134popersist"></script>
+  <script src="js/auth.js?v=20261115r135potax"></script>
   <script>
     // Register the service worker so the app LOADS with no signal (field techs offline).
     // Served from the app root as /tcss-probid/sw.js → scope covers the whole app.
@@ -8974,7 +8976,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r134';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r135';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-14';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

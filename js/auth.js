@@ -616,7 +616,7 @@ function _mapPORow(p){
     jobId:p.job_id, woId:p.wo_id, status:p.status, date:p.created_at?p.created_at.split('T')[0]:'',
     dateNeeded:p.date_needed, shipName:p.ship_to_name, shipAddr:p.ship_to_address,
     shipCity:p.ship_to_city, shipState:p.ship_to_state, shipZip:p.ship_to_zip,
-    subtotal:p.subtotal, total:p.total, notes:p.notes,
+    subtotal:p.subtotal, total:p.total, tax:p.tax_amount, freight:p.freight_amount, notes:p.notes,
     vendorInvNum:p.vendor_invoice_num, vendorInvAmt:p.vendor_invoice_amount,
     readyToPay:!!p.ready_to_pay, createdBy:p.created_by, createdByName:p.created_by_name,
     createdAt:p.created_at, updatedAt:p.updated_at,
