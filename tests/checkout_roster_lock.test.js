@@ -24,7 +24,7 @@ function resolveCheckoutMember(opts){
   }
   var toName=(member.name||'').trim();
   if (!toName) return { blocked:'roster person has no name' };
-  return { member:member, toName:toName, checkedOutToId:member.id };
+  return { member:member, toName:toName, memberId:member.id };
 }
 
 var TEAM = [
@@ -37,17 +37,17 @@ var o_blank = resolveCheckoutMember({team:TEAM, actForOthers:true, selectVal:''}
 ok('office: blank selection is BLOCKED (no checkout to no one)', !!o_blank.blocked);
 
 var o_pick = resolveCheckoutMember({team:TEAM, actForOthers:true, selectVal:'tm-2'});
-ok('office: picking a roster id resolves to that person', o_pick.toName==='Perry Tech' && o_pick.checkedOutToId==='tm-2' && !o_pick.blocked);
+ok('office: picking a roster id resolves to that person', o_pick.toName==='Perry Tech' && o_pick.memberId==='tm-2' && !o_pick.blocked);
 
 var o_bogus = resolveCheckoutMember({team:TEAM, actForOthers:true, selectVal:'tm-999'});
 ok('office: a non-roster id is BLOCKED', !!o_bogus.blocked);
 
 // ---- TECH path (actForOthers = false) — must be themselves AND on the roster ----
 var t_ok = resolveCheckoutMember({team:TEAM, actForOthers:false, myEmail:'perryt@tcss.com', myName:'Perry Tech'});
-ok('tech on roster (email match) resolves to self', t_ok.toName==='Perry Tech' && t_ok.checkedOutToId==='tm-2' && !t_ok.blocked);
+ok('tech on roster (email match) resolves to self', t_ok.toName==='Perry Tech' && t_ok.memberId==='tm-2' && !t_ok.blocked);
 
 var t_namematch = resolveCheckoutMember({team:TEAM, actForOthers:false, myEmail:'nomatch@x.com', myName:'Lisa Lammonds'});
-ok('tech on roster (name fallback) resolves to self', t_namematch.checkedOutToId==='tm-1' && !t_namematch.blocked);
+ok('tech on roster (name fallback) resolves to self', t_namematch.memberId==='tm-1' && !t_namematch.blocked);
 
 var t_notroster = resolveCheckoutMember({team:TEAM, actForOthers:false, myEmail:'ghost@x.com', myName:'Ghost Tech'});
 ok('tech NOT on roster is BLOCKED', !!t_notroster.blocked);

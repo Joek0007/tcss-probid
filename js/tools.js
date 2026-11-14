@@ -722,7 +722,10 @@ function saveCheckoutModal(toolId, modalId) {
   var _newCo = {
     id:             Date.now().toString(),
     toolId:         toolId,
-    checkedOutToId: member.id,          // (fix hj) bind to the roster record, not just a name string
+    // NOTE (fix hj2): do NOT set checkedOutToId to the team-roster id — tool_checkouts.checked_out_to_id
+    // is a FK to profiles(id) (login users), and many roster people have no login profile, so a roster
+    // id there fails the FK and silently drops the whole checkout. The enforced roster NAME (below) is
+    // the record of who has it; checked_out_to_id stays null, exactly as every prior checkout.
     toName:         toName.trim(),
     jobName:        (document.getElementById('tool-co-job')||{}).value||'',
     date:           getTodayISO(),
