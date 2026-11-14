@@ -14,6 +14,24 @@ function getToolCheckouts() { return DB.toolCheckouts || []; }
 // may act on behalf of others.
 function _toolActForOthers(){ return (typeof hasPermission==='function') ? hasPermission('tool.checkout_other') : false; }
 function _toolMyName(){ return (_currentUser&&_currentUser.full_name)||''; }
+// (feat hk-polish) clickable Work Order chip for the Checked-Out / History rows. Falls back to the
+// plain job/purpose text when a checkout isn't linked to a WO.
+function _woChipHtml(c){
+  if (c && c.woNumber && c.woId){
+    return '<a href="javascript:void(0)" onclick="event.stopPropagation();openWorkOrder(\''+String(c.woId).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')" '+
+      'style="display:inline-block;background:#e3f2fd;color:#0d47a1;border:1px solid #bbdefb;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;text-decoration:none" '+
+      'title="Open work order '+escHtml(c.woNumber)+(c.woCustomer?' — '+escHtml(c.woCustomer):'')+'">\uD83D\uDD27 '+escHtml(c.woNumber)+'</a>'+
+      (c.woCustomer?' <span style="font-size:11px;color:#607d8b">'+escHtml(c.woCustomer)+'</span>':'');
+  }
+  return escHtml((c&&c.jobName)||'—');
+}
+// (feat hk-polish) live type-to-search on the checkout Work Order dropdown (filters by WO # OR
+// customer, anywhere in the label). The blank "optional" option (index 0) always stays visible.
+function _toolWoFilter(q){
+  var sel=document.getElementById('tool-co-wo'); if(!sel) return;
+  var s=String(q||'').trim().toLowerCase();
+  for(var i=1;i<sel.options.length;i++){ var o=sel.options[i]; o.hidden = !!s && o.text.toLowerCase().indexOf(s)<0; }
+}
 
 // (build ib) PER-ROW checkout persistence. When _checkoutsPerRow() is on, every
 // created/mutated checkout is written to its OWN row via CheckoutsDB (optimistic
@@ -330,7 +348,7 @@ function renderToolCheckouts() {
       '<td>'+assetTag+'</td>'+
       '<td>'+toolPhotoHtml+toolNameHtml+groupsHtml+'</td>'+
       '<td>'+escHtml(c.toName||'')+'</td>'+
-      '<td style="font-size:12px">'+escHtml(c.jobName||'—')+'</td>'+
+      '<td style="font-size:12px">'+_woChipHtml(c)+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.date||'')+'</td>'+
       '<td style="font-size:12px;'+(overdue?'color:#c62828;font-weight:700':'')+'">'+escHtml(c.expectedReturn||'—')+(overdue?' ⚠️':'')+'</td>'+
       '<td>'+(c.pendingTransfer
@@ -421,7 +439,7 @@ function renderToolHistory() {
       '<td>'+escHtml(c.toName||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.date||'')+'</td>'+
       '<td style="font-size:12px">'+escHtml(c.returnedAt||'—')+'</td>'+
-      '<td style="font-size:12px">'+escHtml(c.jobName||'—')+'</td>'+
+      '<td style="font-size:12px">'+_woChipHtml(c)+'</td>'+
       '<td>'+statusBadge+'</td>'+
     '</tr>';
   }).join('');
@@ -686,6 +704,7 @@ function checkoutTool(toolId) {
             '<input id="tool-co-ret" type="date" value="'+retStr+'"></div>'+
         '</div>'+
         '<div style="margin-top:10px"><label>Work Order</label>'+
+          '<input id="tool-co-wo-search" placeholder="🔍 Filter by WO # or customer…" oninput="_toolWoFilter(this.value)" style="margin-bottom:4px">'+
           '<select id="tool-co-wo"><option value="">— Optional: not tied to a work order —</option>'+woOpts+'</select></div>'+
         '<div style="margin-top:10px"><label>Job / Purpose <span style="font-weight:400;color:#90a4ae">(optional note)</span></label><input id="tool-co-job" placeholder="Job name or purpose (optional)"></div>'+
         groupsHtml+
