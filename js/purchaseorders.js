@@ -803,7 +803,11 @@ function renderPOAttachments(poId){
     return '<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid #eef2f6;border-radius:6px;margin-bottom:6px">'+
       '<span style="font-size:18px">'+_poAttachIcon(a.fileType)+'</span>'+
       '<div style="flex:1;min-width:0">'+
-        '<a href="'+escHtml(a.url||'#')+'" target="_blank" rel="noopener" style="font-size:13px;font-weight:600;color:#1565c0;text-decoration:none">'+escHtml(a.name||a.fileName||'file')+'</a>'+
+        // r144 — never render a bounce-out href="#": an attachment with a missing/failed URL must
+        // NOT be a clickable link (clicking "#" inside the SPA kicks the user out of the PO modal).
+        (a.url
+          ? '<a href="'+escHtml(a.url)+'" target="_blank" rel="noopener" style="font-size:13px;font-weight:600;color:#1565c0;text-decoration:none">'+escHtml(a.name||a.fileName||'file')+'</a>'
+          : '<span title="File unavailable — re-upload this attachment" style="font-size:13px;font-weight:600;color:#78909c;cursor:default">'+escHtml(a.name||a.fileName||'file')+' · ⚠ file unavailable</span>')+
         '<div style="font-size:11px;color:#90a4ae">'+_poAttachKindLabel(a.kind)+sz+(a.uploadedBy?' · '+escHtml(a.uploadedBy):'')+'</div>'+
       '</div>'+
       (canDel?'<button class="btn btn-danger btn-sm" title="Remove" onclick="deletePOAttachment(\''+escHtml(a.id)+'\')">✕</button>':'')+
