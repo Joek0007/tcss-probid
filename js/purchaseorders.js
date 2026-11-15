@@ -513,6 +513,29 @@ function checkPOMatch() {
   }
 }
 
+// (r141) PO status lock. The statuses below are reached only through their action (approval /
+// receiving / invoice match / the Ready-to-Pay checkbox), never by hand-picking the dropdown — that
+// was the integrity hole (mark "Received"/"Ready to Pay" without doing the steps). A manual jump is
+// reverted with a short explanation. Programmatic setters (checkReceivingStatus, checkPOMatch,
+// onPOReadyToPay, savePO's approval force) assign statusEl.value directly — that does NOT fire
+// onchange — so the real workflow still sets them.
+var _poStatusPrev = null;
+var _PO_STATUS_LOCKED = {
+  'Pending Approval':   '"Pending Approval" is set automatically for POs over the approval threshold.',
+  'Partially Received': 'Use the Receive button to record items received - this is not set by hand.',
+  'Received':           'Use the Receive button to record items received - this is not set by hand.',
+  'Matched':            '"Invoice Matched" is set automatically when the vendor invoice matches the PO total.',
+  'Ready to Pay':       'Use the "Mark as Ready to Pay" checkbox below to set this.'
+};
+function onPOStatusChange(sel){
+  if(!sel) return;
+  var v=sel.value;
+  if(_PO_STATUS_LOCKED[v]){
+    sel.value = (_poStatusPrev!=null ? _poStatusPrev : 'Draft');   // bounce the manual jump back
+    if(typeof showToast==='function') showToast(_PO_STATUS_LOCKED[v],'info',4500);
+  }
+}
+
 function onPOReadyToPay(checked) {
   if(!checked) return;
   var statusEl=document.getElementById('po-status');
