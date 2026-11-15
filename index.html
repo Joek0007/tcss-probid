@@ -6336,6 +6336,24 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           </div>
         </div>
       </div>
+      <!-- (r142) Attachments: vendor quote, packing slip, receipt -->
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+          <label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px">Attachments</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="po-attach-kind" style="padding:5px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">
+              <option value="quote">Vendor Quote</option>
+              <option value="packing_slip">Packing Slip</option>
+              <option value="receipt">Receipt</option>
+              <option value="other">Other</option>
+            </select>
+            <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0">📎 Attach
+              <input type="file" id="po-attach-file" accept="image/*,application/pdf" style="display:none" onchange="onPOAttachFile(this)">
+            </label>
+          </div>
+        </div>
+        <div id="po-attachments-list"></div>
+      </div>
       <datalist id="po-catalog-list"></datalist><!-- (r140) line-item description catalog type-ahead -->
       <input type="hidden" id="po-id">
       <input type="hidden" id="po-job-id-hidden">
@@ -7497,7 +7515,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/workorders.js?v=20261114r134popersist"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
-<script src="js/purchaseorders.js?v=20261115r141statuslock"></script>
+<script src="js/purchaseorders.js?v=20261115r142attach"></script>
 <script src="js/inventory_locations_db.js?v=20260919ix"></script>
 <script src="js/inventory.js?v=20261111r126scanner"></script>
 <script src="js/reports.js?v=20261108r111secbar"></script>
@@ -8981,7 +8999,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r141';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r142';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-14';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

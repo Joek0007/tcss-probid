@@ -253,6 +253,7 @@ function openNewPO() {
   refreshPOTotals();
   if(typeof _renderPOApprovalBar==='function') _renderPOApprovalBar(null);   // (r138) no approval bar on a blank PO
   if(typeof _fillPOCatalogDatalist==='function') _fillPOCatalogDatalist();   // (r140) catalog type-ahead
+  if(typeof renderPOAttachments==='function') renderPOAttachments(null);     // (r142) prompt to save first
   openModal('modal-po');
 }
 
@@ -313,6 +314,8 @@ function openPO(id) {
   checkPOMatch();
   if(typeof _renderPOApprovalBar==='function') _renderPOApprovalBar(po);   // (r138)
   if(typeof _fillPOCatalogDatalist==='function') _fillPOCatalogDatalist();   // (r140) catalog type-ahead
+  if(typeof renderPOAttachments==='function') renderPOAttachments(po.id);     // (r142) show cached, then refresh
+  if(typeof ensurePOAttachmentsLoaded==='function') ensurePOAttachmentsLoaded(po.id).then(function(){ renderPOAttachments(po.id); });
   openModal('modal-po');
 }
 
@@ -764,6 +767,95 @@ function deletePO(id) {
   if(_sb&&_currentUser&&typeof pushAllToCloud==='function') setTimeout(pushAllToCloud,300);
   renderPOList();
   showToast('PO deleted','info');
+}
+
+// ============================================================
+// (r142) PO ATTACHMENTS — vendor quotes, packing slips, receipts. Mirrors uploadWODocument: compress
+// images, upload to the shared 'job-photos' bucket under po-docs/<poId>/, record in the per-record
+// po_attachments table. Office-managed (the PO modal is office-only); delete gated like PO delete.
+// ============================================================
+function _poAttachKindLabel(k){ return ({quote:'Vendor Quote',packing_slip:'Packing Slip',receipt:'Receipt',other:'Other'})[k]||'Other'; }
+function _poAttachIcon(ft){ return (ft&&ft.indexOf('image')>=0)?'🖼️':((ft&&ft.indexOf('pdf')>=0)?'📄':'📎'); }
+
+async function ensurePOAttachmentsLoaded(poId){
+  if(!poId || !_sb) return;
+  try{
+    var r=await _sb.from('po_attachments').select('*').eq('po_id',poId).eq('deleted',false).order('uploaded_at',{ascending:true});
+    if(r && !r.error && Array.isArray(r.data)){
+      if(!DB.poAttachments) DB.poAttachments=[];
+      var have={}; DB.poAttachments.forEach(function(a){ if(a&&a.id) have[a.id]=1; });
+      r.data.forEach(function(a){
+        if(have[a.id]) return;
+        DB.poAttachments.push({ id:a.id, poId:a.po_id, name:a.name, fileName:a.file_name, fileType:a.file_type, fileSize:a.file_size, path:a.file_path, url:a.url, kind:a.kind||'other', uploadedBy:a.uploaded_by, uploadedAt:a.uploaded_at, deleted:!!a.deleted });
+      });
+    }
+  }catch(e){ /* leave as-is on failure */ }
+}
+
+function renderPOAttachments(poId){
+  var el=document.getElementById('po-attachments-list'); if(!el) return;
+  if(!poId){ el.innerHTML='<div style="font-size:12px;color:#90a4ae;padding:6px 0">Save the PO first, then attach files.</div>'; return; }
+  var list=(DB.poAttachments||[]).filter(function(a){ return a.poId===poId && !a.deleted; });
+  if(!list.length){ el.innerHTML='<div style="font-size:12px;color:#90a4ae;padding:6px 0">No attachments yet — attach the vendor quote, a packing slip, or a receipt.</div>'; return; }
+  var canDel=(typeof _canDeleteOfficeRecords==='function')?_canDeleteOfficeRecords():true;
+  el.innerHTML=list.map(function(a){
+    var sz=a.fileSize?(' · '+Math.round(a.fileSize/1024)+' KB'):'';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid #eef2f6;border-radius:6px;margin-bottom:6px">'+
+      '<span style="font-size:18px">'+_poAttachIcon(a.fileType)+'</span>'+
+      '<div style="flex:1;min-width:0">'+
+        '<a href="'+escHtml(a.url||'#')+'" target="_blank" rel="noopener" style="font-size:13px;font-weight:600;color:#1565c0;text-decoration:none">'+escHtml(a.name||a.fileName||'file')+'</a>'+
+        '<div style="font-size:11px;color:#90a4ae">'+_poAttachKindLabel(a.kind)+sz+(a.uploadedBy?' · '+escHtml(a.uploadedBy):'')+'</div>'+
+      '</div>'+
+      (canDel?'<button class="btn btn-danger btn-sm" title="Remove" onclick="deletePOAttachment(\''+escHtml(a.id)+'\')">✕</button>':'')+
+    '</div>';
+  }).join('');
+}
+
+async function onPOAttachFile(input){
+  if(!input||!input.files||!input.files[0]) return;
+  if(!_poCurrentId){ showToast('Save the PO first, then attach files','error'); input.value=''; return; }
+  var kind=(document.getElementById('po-attach-kind')||{}).value||'other';
+  var file=input.files[0];
+  input.value='';
+  showToast('Uploading '+file.name+'…','info',2500);
+  var rec=await uploadPOAttachment(file,_poCurrentId,kind);
+  if(rec){ renderPOAttachments(_poCurrentId); showToast('Attached: '+escHtml(rec.name),'success'); }
+}
+
+async function uploadPOAttachment(file, poId, kind){
+  if(!file||!poId) return null;
+  if(!_sb||!_currentUser){ showToast('Not logged in','error'); return null; }
+  try{
+    if(typeof compressImage==='function') file=await compressImage(file);   // shrink photos; PDFs pass through
+    var safe=(file.name||'file').replace(/[^a-zA-Z0-9._-]/g,'_');
+    var path='po-docs/'+poId+'/'+Date.now()+'-'+safe;
+    var up=await _sb.storage.from('job-photos').upload(path,file,{cacheControl:'3600',upsert:false});
+    if(up.error) throw up.error;
+    var urlData=_sb.storage.from('job-photos').getPublicUrl(path);
+    var url=(urlData.data||{}).publicUrl||'';
+    var rec={ id:'poatt-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), poId:poId, name:file.name, fileName:file.name,
+      fileType:file.type||'application/octet-stream', fileSize:file.size, path:path, url:url, kind:kind||'other',
+      uploadedBy:(_currentUser.full_name||''), uploadedAt:new Date().toISOString(), deleted:false };
+    if(!DB.poAttachments) DB.poAttachments=[];
+    DB.poAttachments.push(rec);
+    await _sb.from('po_attachments').insert({ id:rec.id, po_id:poId, name:rec.name, file_name:rec.fileName, file_type:rec.fileType,
+      file_size:rec.fileSize, file_path:path, url:url, kind:rec.kind, uploaded_by:rec.uploadedBy, uploaded_at:rec.uploadedAt, deleted:false });
+    saveDB();
+    if(typeof auditLog==='function') auditLog('po_attachment','purchase_order',poId,{note:rec.name+' ('+_poAttachKindLabel(rec.kind)+') by '+rec.uploadedBy});
+    return rec;
+  }catch(e){ console.error('[PO attach]',e&&e.message); showToast('Upload failed: '+((e&&e.message)||'error'),'error',5000); return null; }
+}
+
+async function deletePOAttachment(id){
+  if(typeof _canDeleteOfficeRecords==='function' && !_canDeleteOfficeRecords()){ showToast('You cannot remove attachments','error'); return; }
+  var a=(DB.poAttachments||[]).find(function(x){ return x.id===id; });
+  if(!a) return;
+  if(!confirm('Remove "'+(a.name||a.fileName||'this file')+'" from the PO?')) return;
+  a.deleted=true;
+  try{ if(_sb) await _sb.from('po_attachments').update({deleted:true}).eq('id',id); }catch(e){ console.warn('[PO attach del]',e&&e.message); }
+  saveDB();
+  renderPOAttachments(a.poId);
+  showToast('Attachment removed','info');
 }
 
 // ---- PRINT PO ----
