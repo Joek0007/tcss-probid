@@ -803,10 +803,10 @@ function renderPOAttachments(poId){
     return '<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid #eef2f6;border-radius:6px;margin-bottom:6px">'+
       '<span style="font-size:18px">'+_poAttachIcon(a.fileType)+'</span>'+
       '<div style="flex:1;min-width:0">'+
-        // r144 — never render a bounce-out href="#": an attachment with a missing/failed URL must
-        // NOT be a clickable link (clicking "#" inside the SPA kicks the user out of the PO modal).
-        (a.url
-          ? '<a href="'+escHtml(a.url)+'" target="_blank" rel="noopener" style="font-size:13px;font-weight:600;color:#1565c0;text-decoration:none">'+escHtml(a.name||a.fileName||'file')+'</a>'
+        // r149 — job-photos is a PRIVATE bucket, so the stored public URL never loads. Open via a
+        // signed URL generated on click (openPOAttachment). A plain span, no href → no bounce-out.
+        ((a.path||a.url)
+          ? '<span onclick="openPOAttachment(\''+escHtml(a.id)+'\')" title="Open" style="font-size:13px;font-weight:600;color:#1565c0;text-decoration:underline;cursor:pointer">'+escHtml(a.name||a.fileName||'file')+'</span>'
           : '<span title="File unavailable — re-upload this attachment" style="font-size:13px;font-weight:600;color:#78909c;cursor:default">'+escHtml(a.name||a.fileName||'file')+' · ⚠ file unavailable</span>')+
         '<div style="font-size:11px;color:#90a4ae">'+_poAttachKindLabel(a.kind)+sz+(a.uploadedBy?' · '+escHtml(a.uploadedBy):'')+'</div>'+
       '</div>'+
@@ -849,6 +849,26 @@ async function uploadPOAttachment(file, poId, kind){
     return rec;
   }catch(e){ console.error('[PO attach]',e&&e.message); showToast('Upload failed: '+((e&&e.message)||'error'),'error',5000); return null; }
 }
+
+// (r149) Open a PO attachment. The job-photos bucket is PRIVATE, so the stored public URL does not
+// load — generate a short-lived SIGNED url on click, exactly like viewWODoc / CRM / vehicle docs.
+async function openPOAttachment(id){
+  var a=(DB.poAttachments||[]).find(function(x){ return x.id===id; });
+  if(!a){ showToast('Attachment not found','error'); return; }
+  if(a.path && typeof _sb!=='undefined' && _sb){
+    try{
+      var r=await _sb.storage.from('job-photos').createSignedUrl(a.path,3600);
+      if(r.error) throw r.error;
+      var u=r.data&&r.data.signedUrl;
+      if(!u){ showToast('Could not open the file','error'); return; }
+      window.open(u,'_blank','noopener');
+      return;
+    }catch(e){ showToast('Could not open: '+((e&&e.message)||e),'error',5000); return; }
+  }
+  if(a.url){ window.open(a.url,'_blank','noopener'); return; }   // legacy fallback
+  showToast('This file has no stored location — re-upload it','error',5000);
+}
+window.openPOAttachment=openPOAttachment;
 
 async function deletePOAttachment(id){
   if(typeof _canDeleteOfficeRecords==='function' && !_canDeleteOfficeRecords()){ showToast('You cannot remove attachments','error'); return; }
