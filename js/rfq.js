@@ -113,8 +113,10 @@ function _openRFQEditor(r){
           '<textarea id="rfq-notes" rows="2" style="width:100%;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px;box-sizing:border-box;resize:vertical">'+escHtml(r.notes||'')+'</textarea></div>'+
         '<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">'+
           (!isNew?'<span style="margin-right:auto">'+_rfqStatusBadge(r.status)+'</span>':'')+
+          (!isNew?'<button class="btn btn-danger btn-sm" onclick="deleteRFQ(\''+escHtml(_rfqCurrentId)+'\')">🗑 Delete</button>':'')+
           (!isNew && r.status!=='Closed'?'<button class="btn btn-outline btn-sm" onclick="closeRFQ(\''+escHtml(_rfqCurrentId)+'\')">Close RFQ</button>':'')+
           (!isNew && r.status!=='Closed' && r.status!=='Converted'?'<button class="btn btn-success btn-sm" onclick="openRFQSendDialog(\''+escHtml(_rfqCurrentId)+'\')">📤 Send to Vendors</button>':'')+
+          (!isNew && (r.vendors||[]).some(function(v){return v.respondedAt;})?'<button class="btn btn-primary btn-sm" onclick="openRFQCompare(\''+escHtml(_rfqCurrentId)+'\')">📊 Compare &amp; Award</button>':'')+
           '<button class="btn btn-outline" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" onclick="saveRFQ()">💾 Save</button>'+
         '</div>'+
@@ -429,6 +431,134 @@ async function _rfqSendNow(modalId){
   else showToast('RFQ '+r.rfqNumber+' sent to '+sentOk+' vendor'+(sentOk===1?'':'s')+' ✓','success',4000);
 }
 
+// ======================= PHASE 4: COMPARE & AWARD + DELETE =======================
+function _rfqExt(unit, qty){ var u=parseFloat(unit); if(isNaN(u)) return null; var q=parseFloat(qty); return u*(isNaN(q)?1:q); }
+function _rfqVendorPrice(rfq, itemId, vendorId){ return (((rfq.prices||{})[itemId])||{})[vendorId]; }
+function _rfqVendorLanded(rfq, vendorId){
+  var mat=0, any=false;
+  (rfq.items||[]).forEach(function(it){
+    var p=_rfqVendorPrice(rfq, it.id, vendorId);
+    if(p && p.unit!=null && p.unit!==''){ var e=_rfqExt(p.unit, it.qty); if(e!=null){ mat+=e; any=true; } }
+  });
+  var v=(rfq.vendors||[]).find(function(x){return x.vendorId===vendorId;})||{};
+  var fr=parseFloat(v.freight)||0;
+  return { material:mat, freight:fr, landed:mat+fr, any:any };
+}
+function _rfqLowestVendor(rfq, itemId, vendorIds){
+  var best=null, bestV=null;
+  vendorIds.forEach(function(vid){ var p=_rfqVendorPrice(rfq,itemId,vid); if(p&&p.unit!=null&&p.unit!==''){ var u=parseFloat(p.unit); if(!isNaN(u)&&(best===null||u<best)){best=u;bestV=vid;} } });
+  return bestV;
+}
+
+function openRFQCompare(id){
+  var r=_rfqById(id); if(!r){ showToast('RFQ not found','error'); return; }
+  _rfqCurrentId=id;
+  var quoted=(r.vendors||[]).filter(function(v){ return v.respondedAt || _rfqVendorLanded(r, v.vendorId).any; });
+  if(!quoted.length){ showToast('No vendor has submitted pricing yet.','info'); return; }
+  var vids=quoted.map(function(v){return v.vendorId;});
+  var award=Object.assign({}, r.lineAward||{});
+  (r.items||[]).forEach(function(it){ if(!award[it.id]){ var lo=_rfqLowestVendor(r,it.id,vids); if(lo) award[it.id]=lo; } });
+  window._rfqCmp={ id:id, award:award, vids:vids };
+  var canAward=(typeof hasPermission==='function')?hasPermission('rfq.award'):true;
+
+  var head='<tr style="background:#1565c0;color:#fff"><th style="padding:8px 10px;text-align:left;font-size:11px;position:sticky;left:0;background:#1565c0">Item</th>'+
+    quoted.map(function(v){ return '<th style="padding:8px 10px;text-align:center;font-size:11px">'+escHtml(v.name||'')+'</th>'; }).join('')+
+    '<th style="padding:8px 10px;text-align:center;font-size:11px">Award to</th></tr>';
+  var body=(r.items||[]).map(function(it){
+    var lo=_rfqLowestVendor(r,it.id,vids);
+    var cells=quoted.map(function(v){
+      var p=_rfqVendorPrice(r,it.id,v.vendorId);
+      if(!p||p.unit==null||p.unit===''){ return '<td style="padding:6px 8px;text-align:center;color:#cfd8dc;border-bottom:1px solid #eef2f6">—</td>'; }
+      var ext=_rfqExt(p.unit, it.qty);
+      var isLo=(v.vendorId===lo);
+      return '<td style="padding:6px 8px;text-align:center;border-bottom:1px solid #eef2f6;'+(isLo?'background:#e8f5e9;font-weight:700':'')+'">'+
+        '$'+parseFloat(p.unit).toFixed(2)+(ext!=null?'<div style="font-size:10px;color:#90a4ae">ext $'+ext.toFixed(2)+'</div>':'')+
+        (p.lead?'<div style="font-size:10px;color:#546e7a">'+escHtml(p.lead)+'</div>':'')+
+        (p.note?'<div style="font-size:10px;color:#ef6c00">'+escHtml(p.note)+'</div>':'')+'</td>';
+    }).join('');
+    var opts=vids.filter(function(vid){ var p=_rfqVendorPrice(r,it.id,vid); return p&&p.unit!=null&&p.unit!==''; })
+      .map(function(vid){ var vn=(quoted.find(function(v){return v.vendorId===vid;})||{}).name||''; return '<option value="'+escHtml(vid)+'"'+(award[it.id]===vid?' selected':'')+'>'+escHtml(vn)+'</option>'; }).join('');
+    var awardSel='<select onchange="_rfqSetAward(\''+escHtml(it.id)+'\',this.value)" style="padding:5px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px"><option value="">—</option>'+opts+'</select>';
+    return '<tr><td style="padding:6px 10px;border-bottom:1px solid #eef2f6;position:sticky;left:0;background:#fff;font-size:12px"><strong>'+escHtml(it.desc||'')+'</strong><div style="color:#90a4ae">Qty '+(it.qty!=null?it.qty:1)+' '+escHtml(it.uom||'ea')+'</div></td>'+cells+'<td style="padding:6px 8px;text-align:center;border-bottom:1px solid #eef2f6">'+awardSel+'</td></tr>';
+  }).join('');
+  // totals
+  var landedArr=quoted.map(function(v){ return _rfqVendorLanded(r,v.vendorId); });
+  var bestLanded=null; landedArr.forEach(function(l){ if(l.any&&(bestLanded===null||l.landed<bestLanded)) bestLanded=l.landed; });
+  var totals='<tr style="background:#f8fafc;font-weight:700"><td style="padding:8px 10px;position:sticky;left:0;background:#f8fafc;font-size:11px">Materials / Freight / <span style="color:#1565c0">LANDED</span></td>'+
+    quoted.map(function(v,i){ var l=landedArr[i]; var isBest=(l.any&&l.landed===bestLanded);
+      return '<td style="padding:8px 10px;text-align:center;font-size:12px;'+(isBest?'background:#e8f5e9':'')+'">$'+l.material.toFixed(2)+' / $'+l.freight.toFixed(2)+'<div style="color:#1565c0;font-size:14px">$'+l.landed.toFixed(2)+(isBest?' ✓':'')+'</div></td>'; }).join('')+
+    '<td></td></tr>';
+
+  var modalId='modal-rfq-compare';
+  var ex=document.getElementById(modalId); if(ex) ex.remove();
+  var div=document.createElement('div');
+  div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
+  div.innerHTML=
+    '<div class="modal-box" style="max-width:960px;width:97%">'+
+      '<div class="modal-head"><h3>📊 Compare &amp; Award — '+escHtml(r.rfqNumber||'')+'</h3>'+
+        '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
+      '<div class="modal-body">'+
+        '<div style="font-size:12px;color:#546e7a;margin-bottom:8px">Lowest unit price per line is highlighted. Pick the winning vendor per item (defaults to lowest). Award can be split across vendors.</div>'+
+        '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">'+
+          quoted.map(function(v){ return '<button class="btn btn-outline btn-sm" onclick="_rfqAwardAllTo(\''+escHtml(v.vendorId)+'\')">Award all → '+escHtml(v.name||'')+'</button>'; }).join('')+
+          '<button class="btn btn-outline btn-sm" onclick="_rfqAwardAllLowest()">Award all → lowest</button>'+
+        '</div>'+
+        '<div style="overflow:auto;border:1px solid #eef2f6;border-radius:8px;max-height:60vh"><table style="width:100%;border-collapse:collapse;min-width:520px"><thead>'+head+'</thead><tbody>'+body+totals+'</tbody></table></div>'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">'+
+          '<button class="btn btn-outline" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
+          (canAward?'<button class="btn btn-success" onclick="saveRFQAward()">✓ Award &amp; Save</button>':'<span style="font-size:12px;color:#90a4ae;align-self:center">You can review but not award (needs the Award RFQs permission).</span>')+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+}
+function _rfqSetAward(itemId, vendorId){ if(window._rfqCmp){ if(vendorId) window._rfqCmp.award[itemId]=vendorId; else delete window._rfqCmp.award[itemId]; } }
+function _rfqAwardAllTo(vendorId){
+  var r=_rfqById(_rfqCurrentId); if(!r||!window._rfqCmp) return;
+  (r.items||[]).forEach(function(it){ var p=_rfqVendorPrice(r,it.id,vendorId); if(p&&p.unit!=null&&p.unit!==''){ window._rfqCmp.award[it.id]=vendorId; } });
+  openRFQCompare(_rfqCurrentId);
+}
+function _rfqAwardAllLowest(){
+  var r=_rfqById(_rfqCurrentId); if(!r||!window._rfqCmp) return;
+  (r.items||[]).forEach(function(it){ var lo=_rfqLowestVendor(r,it.id,window._rfqCmp.vids); if(lo) window._rfqCmp.award[it.id]=lo; });
+  openRFQCompare(_rfqCurrentId);
+}
+async function saveRFQAward(){
+  if(typeof hasPermission==='function' && !hasPermission('rfq.award')){ showToast('You do not have permission to award RFQs','error'); return; }
+  var r=_rfqById(_rfqCurrentId); if(!r||!window._rfqCmp) return;
+  r.lineAward=Object.assign({}, window._rfqCmp.award||{});
+  var vals=(r.items||[]).map(function(it){return r.lineAward[it.id];}).filter(Boolean);
+  r.awardVendorId=(vals.length && vals.every(function(v){return v===vals[0];}))?vals[0]:null;
+  r.status='Awarded'; r.updatedAt=new Date().toISOString();
+  _pushRFQToCloud(r); saveDB();
+  if(typeof auditLog==='function') auditLog('rfq_award','rfq',r.id,{note:(r.rfqNumber||'')+' awarded ('+(r.awardVendorId?'single vendor':'split')+')'});
+  renderRFQList();
+  var m=document.getElementById('modal-rfq-compare'); if(m) m.remove();
+  var m2=document.getElementById('modal-rfq'); if(m2) m2.remove();
+  showToast('RFQ '+(r.rfqNumber||'')+' awarded ✓'+(r.awardVendorId?'':' (split)'),'success',4500);
+}
+
+async function deleteRFQ(id){
+  var canDel=(typeof _canDeleteOfficeRecords==='function')?_canDeleteOfficeRecords():(typeof hasPermission==='function'?hasPermission('rfq.manage'):true);
+  if(!canDel){ showToast('You do not have permission to delete RFQs','error'); return; }
+  var r=_rfqById(id); if(!r) return;
+  if(!confirm('Delete RFQ '+(r.rfqNumber||'')+' permanently? This cannot be undone.')) return;
+  try{ if(_sb){ await _sb.from('wt_notifications').delete().eq('ref_id', id); await _sb.from('rfqs').delete().eq('id', id); } }
+  catch(e){ console.warn('[RFQ delete]', e&&e.message); }
+  if(DB.rfqs) DB.rfqs=DB.rfqs.filter(function(x){return x.id!==id;});
+  saveDB();
+  if(typeof auditLog==='function') auditLog('rfq_delete','rfq',id,{note:(r.rfqNumber||'')+' deleted'});
+  renderRFQList();
+  var m=document.getElementById('modal-rfq'); if(m) m.remove();
+  showToast('RFQ '+(r.rfqNumber||'')+' deleted','info');
+}
+
+window.openRFQCompare=openRFQCompare;
+window._rfqSetAward=_rfqSetAward;
+window._rfqAwardAllTo=_rfqAwardAllTo;
+window._rfqAwardAllLowest=_rfqAwardAllLowest;
+window.saveRFQAward=saveRFQAward;
+window.deleteRFQ=deleteRFQ;
 window.openRFQSendDialog=openRFQSendDialog;
 window._rfqSendNow=_rfqSendNow;
 window._rfqEmailHTML=_rfqEmailHTML;
