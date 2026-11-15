@@ -252,6 +252,7 @@ function openNewPO() {
   renderPOItems();
   refreshPOTotals();
   if(typeof _renderPOApprovalBar==='function') _renderPOApprovalBar(null);   // (r138) no approval bar on a blank PO
+  if(typeof _fillPOCatalogDatalist==='function') _fillPOCatalogDatalist();   // (r140) catalog type-ahead
   openModal('modal-po');
 }
 
@@ -311,6 +312,7 @@ function openPO(id) {
   refreshPOTotals();
   checkPOMatch();
   if(typeof _renderPOApprovalBar==='function') _renderPOApprovalBar(po);   // (r138)
+  if(typeof _fillPOCatalogDatalist==='function') _fillPOCatalogDatalist();   // (r140) catalog type-ahead
   openModal('modal-po');
 }
 
@@ -373,7 +375,7 @@ function renderPOItems() {
     var lineTotal=(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));
     var recColor=parseFloat(li.qtyReceived||0)>0?'#2e7d32':'#90a4ae';
     return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 1fr 80px 36px;gap:4px;padding:8px 12px;border-top:1px solid #f0f4f8;align-items:center">'+
-      '<input value="'+escHtml(li.desc||'')+'" oninput="updatePOItem('+i+',\'desc\',this.value)" placeholder="Description..." style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
+      '<input value="'+escHtml(li.desc||'')+'" list="po-catalog-list" oninput="updatePOItem('+i+',\'desc\',this.value)" onchange="poCatalogFill('+i+',this.value)" placeholder="Description / search catalog..." style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
       '<input value="'+escHtml(li.partNum||'')+'" oninput="updatePOItem('+i+',\'partNum\',this.value)" placeholder="Part #" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
       '<input type="number" value="'+(li.qtyOrdered||1)+'" min="0.01" step="0.01" oninput="updatePOItem('+i+',\'qtyOrdered\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:center">'+
       '<input type="number" value="'+(li.qtyReceived||0)+'" min="0" step="0.01" oninput="updatePOItem('+i+',\'qtyReceived\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:center;color:'+recColor+'">'+
@@ -408,20 +410,55 @@ function addPOLineItem() {
   refreshPOTotals();
 }
 
+// (r140) Catalog part # + cost for a line. Prefer an exact catalog match on the description; fall back
+// to a loose contains-match. Returns {desc,partNum,unitCost} or null.
+function _poCatalogMatch(val){
+  if(!val) return null;
+  var q=String(val).toLowerCase().trim();
+  var cat=DB.catalog||[];
+  var item = cat.find(function(c){ return ((c.name||c.desc||'').toLowerCase().trim())===q; })
+          || cat.find(function(c){ return (c.name||c.desc||'').toLowerCase().indexOf(q)>=0; });
+  if(!item) return null;
+  return { desc:item.name||item.desc||'', partNum:item.part||item.partNum||'', unitCost:parseFloat(item.mc!=null?item.mc:(item.cost||0))||0 };
+}
+
+// (r140) Populate the shared catalog datalist the line-item description inputs type-ahead against.
+function _fillPOCatalogDatalist(){
+  var dl=document.getElementById('po-catalog-list'); if(!dl) return;
+  dl.innerHTML=(DB.catalog||[]).map(function(c){
+    var label=(c.name||c.desc||''); if(!label) return '';
+    return '<option value="'+escHtml(label)+'">'+escHtml(c.part||c.partNum||'')+'</option>';
+  }).join('');
+}
+
+// (r140) When a line's description matches a catalog item, auto-fill its part # and unit cost (only
+// when those are still blank, so a manual override is never clobbered). This is the type-ahead fix
+// that replaces the old prompt()-based From-Catalog flow which dropped the part number.
+function poCatalogFill(idx,val){
+  if(!_poItems[idx]) return;
+  var m=_poCatalogMatch(val);
+  if(!m) return;
+  _poItems[idx].desc=m.desc;
+  if(!_poItems[idx].partNum) _poItems[idx].partNum=m.partNum;
+  if(!parseFloat(_poItems[idx].unitCost||0)) _poItems[idx].unitCost=m.unitCost;
+  renderPOItems();
+  refreshPOTotals();
+}
+
+// Kept for the "+ From Catalog" button — now a proper picker that carries desc + part # + cost (the
+// old version hardcoded partNum:'' and lost the number).
 function addPOFromCatalog() {
-  var name=prompt('Enter part name to search catalog:','');
+  var name=prompt('Type part name / description to find in your catalog:','');
   if(!name) return;
-  var item=(DB.catalog||[]).find(function(c){return (c.name||c.desc||'').toLowerCase().includes(name.toLowerCase());});
-  if(item){
-    _poItems.push({_eid:_poItems.length,desc:item.name||item.desc||'',partNum:'',qtyOrdered:1,qtyReceived:0,unitCost:parseFloat(item.mc||0)});
-    renderPOItems();
-    refreshPOTotals();
-    showToast('Added: '+escHtml(item.name||item.desc||''),'success');
+  var m=_poCatalogMatch(name);
+  if(m){
+    _poItems.push({_eid:_poItems.length,desc:m.desc,partNum:m.partNum,qtyOrdered:1,qtyReceived:0,unitCost:m.unitCost});
+    renderPOItems(); refreshPOTotals();
+    showToast('Added from catalog: '+escHtml(m.desc)+(m.partNum?' ('+escHtml(m.partNum)+')':''),'success');
   } else {
-    if(confirm('No exact match found for "'+name+'". Add as new item?')){
+    if(confirm('No catalog match for "'+name+'". Add it as a new line anyway?')){
       _poItems.push({_eid:_poItems.length,desc:name,partNum:'',qtyOrdered:1,qtyReceived:0,unitCost:0});
-      renderPOItems();
-      refreshPOTotals();
+      renderPOItems(); refreshPOTotals();
     }
   }
 }
@@ -478,10 +515,12 @@ function checkPOMatch() {
 
 function onPOReadyToPay(checked) {
   if(!checked) return;
-  // In-app notification to Victoria
-  showToast('PO marked Ready to Pay — Victoria has been notified','success',4000);
   var statusEl=document.getElementById('po-status');
   if(statusEl) statusEl.value='Ready to Pay';
+  // (r140) No hardcoded recipient, no false "notified" claim. The office is notified through the
+  // notification engine when the PO is SAVED with status 'Ready to Pay' (trg_notif_po_status → the
+  // configurable "PO ready to pay" rule — owner edits who/how in Settings → Notifications).
+  showToast('Marked Ready to Pay — save to notify the office','info',3500);
 }
 
 // (r138) Approval routing — approve a PO that is awaiting approval so it can be sent.
@@ -861,7 +900,7 @@ async function emailPO() {
       var htmlBody=(typeof _poEmailHTML==='function')?_poEmailHTML(po):textBody.replace(/\n/g,'<br>');
       var mgDomain=s.mgDomain||'tcss.com';
       var fd=new FormData();
-      fd.append('from', s.mgFrom || ('TCSS Purchasing <purchasing@'+mgDomain+'>'));
+      fd.append('from', s.mgFrom || ((s.cname||'Purchasing')+' Purchasing <purchasing@'+mgDomain+'>'));
       fd.append('to', toEmail);
       var poReply=s.poReplyTo||s.cemail||s.uemail||'';   // (r137) PO replies go to the configured PO
       if(poReply) fd.append('h:Reply-To', poReply);       // contact (e.g. dispatch@), fallback company email
