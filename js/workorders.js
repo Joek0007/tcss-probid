@@ -2819,6 +2819,11 @@ function renderWOPartsTab(woId) {
     var _woPO = (DB.purchaseOrders||[]).find(function(p){ return p.woId===woId && p.status!=='Void' && p.status!=='Closed'; });
     html += '<div style="margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="openPackingSlipCapture('+(_woPO?("'"+escHtml(_woPO.id)+"'"):"null")+')">📦 Packing Slip / Delivery Photo</button></div>';
   }
+  // (r150) Get Quotes — start an RFQ from this WO's parts (office/RFQ managers). createRFQFromWOParts
+  // lives in rfq.js (global); it prefills the item list from the WO's parts and links back to the WO.
+  if (typeof hasPermission==='function' && hasPermission('rfq.manage')) {
+    html += '<div style="margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="createRFQFromWOParts(\''+escHtml(woId)+'\')">📝 Get Quotes (RFQ) from these parts</button></div>';
+  }
 
   // Add-Item picker (office/lead): from stock / order / non-stock / one-off (Wave 1b)
   if (isOffice) {

@@ -779,7 +779,7 @@ function ensureUUID(obj) {
 }
 
 // ---- NAVIGATION ----
-const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',vehicles:'Vehicles',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log',recyclebin:'Recycle Bin',contracts:'Contracts',recurring:'Managed Services',expenses:'Expenses',perdiem:'Per-Diem',notifrules:'Notification Rules',notiflog:'Delivery Log'};
+const PAGE_TITLES = {dash:'Dashboard',qq:'Quick Quote',quotes:'Quotes',jobs:'Active Jobs',customers:'Customers',vehicles:'Vehicles',contacts:'Contacts',team:'Team',catalog:'Price Catalog',templates:'Job Templates',reports:'Reports & Analytics',inventory:'Inventory',tools:'Tools',settings:'Settings',field:'Time Clock',timesheet:'Timesheets',worktracking:'Work Tracking',dispatch:'Dispatch Board',invoices:'Invoices',workorders:'Work Orders','wo-settings':'WO Settings',calendar:'Calendar',purchaseorders:'Purchase Orders',rfq:'Request for Quote',vendors:'Vendors',scanner:'Scanner',auditlog:'Audit Log',recyclebin:'Recycle Bin',contracts:'Contracts',recurring:'Managed Services',expenses:'Expenses',perdiem:'Per-Diem',notifrules:'Notification Rules',notiflog:'Delivery Log'};
 
 // ============================================================
 // DOCUMENT PREV/NEXT NAVIGATOR
@@ -920,7 +920,7 @@ function docNavGo(dir){
 // all funnel through goPage, so gating here is the real access control.
 var _PAGE_PERM_MAP = {
   'qq':'page.qq','quotes':'page.quotes','jobs':'page.jobs','dispatch':'page.dispatch',
-  'invoices':'page.invoices','workorders':'page.workorders','purchaseorders':'page.purchaseorders',
+  'invoices':'page.invoices','workorders':'page.workorders','purchaseorders':'page.purchaseorders','rfq':'page.rfq',
   'vendors':'page.vendors','customers':'page.customers','vehicles':'page.vehicles',
   'contacts':'page.contacts','team':'page.team','catalog':'page.catalog','templates':'page.templates',
   'reports':'page.reports','auditlog':'page.auditlog','calendar':'page.calendar','inventory':'page.inventory',
@@ -1097,6 +1097,7 @@ function goPage(id) {
   if (id==='workorders') { if (typeof initWorkOrdersPage === 'function') initWorkOrdersPage(); }
   if (id==='wo-settings'){ if (typeof renderWOSettingsPage === 'function') renderWOSettingsPage(); }
   if (id==='purchaseorders') { if (typeof renderPOList === 'function') renderPOList(); }
+  if (id==='rfq')            { if (typeof renderRFQList === 'function') renderRFQList(); }
   if (id==='vendors')    { if (typeof renderVendors === 'function') renderVendors(); }
   if (id==='scanner')    { if (typeof renderScannerPage === 'function') renderScannerPage(); }
   if (id==='dash')       { if (typeof renderDashReorderAlert === 'function') setTimeout(renderDashReorderAlert, 200); }

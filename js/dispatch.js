@@ -1454,6 +1454,11 @@ var PERM_DEFS = [
   // (r143) Field techs submit packing slips / delivery photos against a PO from the field (job
   // delivery or vendor pickup). Lead + helper techs on by default, plus office.
   {key:'po.attach_field',  label:'Submit PO Packing Slips (field)', group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
+  // (r150) Request for Quote (RFQ → compare → PO). Office creates/manages; awarding and converting to
+  // a PO are higher-trust steps (own keys so the owner can restrict them independently).
+  {key:'rfq.manage',       label:'Create / Manage RFQs',       group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
+  {key:'rfq.award',        label:'Award RFQs',                 group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'rfq.convert',      label:'Convert RFQ to PO',          group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'wt.create',       label:'Create WT Projects',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wt.viewall',      label:'View All WT Projects',       group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wt.checkoff',     label:'Field Check-off Items',      group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},
@@ -1519,6 +1524,7 @@ var PERM_DEFS = [
   {key:'page.workorders',  label:'Work Orders Page',      group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
   {key:'page.vehicles',    label:'Vehicles Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'page.purchaseorders',label:'Purchase Orders Page',group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  {key:'page.rfq',         label:'Request for Quote Page',group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'page.vendors',     label:'Vendors Page',          group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'page.customers',   label:'Customers Page',        group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'page.contacts',    label:'Contacts Page',         group:'Page Access', fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:1,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},

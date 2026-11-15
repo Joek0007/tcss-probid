@@ -1172,7 +1172,7 @@ function enforceNavPermissions() {
     var pageMap = {
       'qq':'page.qq','quotes':'page.quotes','jobs':'page.jobs',
       'dispatch':'page.dispatch','invoices':'page.invoices',
-      'workorders':'page.workorders','purchaseorders':'page.purchaseorders',
+      'workorders':'page.workorders','purchaseorders':'page.purchaseorders','rfq':'page.rfq',
       'vendors':'page.vendors','customers':'page.customers','vehicles':'page.vehicles',
       'contacts':'page.contacts','team':'page.team','catalog':'page.catalog',
       'templates':'page.templates','reports':'page.reports','auditlog':'page.auditlog',
@@ -2082,6 +2082,22 @@ async function syncAllFromCloud(silent) {
         DB.purchaseOrders = cloudPOs.concat(localOnlyPOs);
       }
     } catch(e) { errors.push('purchase_orders: '+e.message); }
+
+    // (r150) RFQ pull — office-only, same block. One jsonb table, full pull (new/low-volume);
+    // preserve local-only (offline-created) RFQs the way POs do.
+    try {
+      var _rfqRes = await _sbSelectAll(function(){ return _sb.from('rfqs').select('*').order('created_at', { ascending: false }); });
+      if (_rfqRes.error) { errors.push('rfqs: '+_rfqRes.error.message); }
+      else if (Array.isArray(_rfqRes.data) && typeof _mapRFQRow === 'function') {
+        var _rfqCloudIds = new Set(_rfqRes.data.map(function(r){ return String(r.id); }));
+        var _rfqLocalOnly = (DB.rfqs||[]).filter(function(r){ return r.id && !_rfqCloudIds.has(String(r.id)) && !r._synced; });
+        var _rfqCloud = _rfqRes.data.map(_mapRFQRow);
+        if (_rfqLocalOnly.length && typeof _pushRFQToCloud === 'function') {
+          _rfqLocalOnly.forEach(function(r){ try { _pushRFQToCloud(r); } catch(e){} });
+        }
+        DB.rfqs = _rfqCloud.concat(_rfqLocalOnly);
+      }
+    } catch(e) { errors.push('rfqs: '+e.message); }
 
   }
 
