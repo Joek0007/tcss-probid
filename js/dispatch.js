@@ -1451,6 +1451,9 @@ var PERM_DEFS = [
   // (r138) PO approval routing — who can approve a Purchase Order that is at/over the approval
   // threshold so it can be sent to the vendor. Central matrix key (owner/manager default).
   {key:'po.approve',       label:'Approve Purchase Orders',    group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  // (r143) Field techs submit packing slips / delivery photos against a PO from the field (job
+  // delivery or vendor pickup). Lead + helper techs on by default, plus office.
+  {key:'po.attach_field',  label:'Submit PO Packing Slips (field)', group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
   {key:'wt.create',       label:'Create WT Projects',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wt.viewall',      label:'View All WT Projects',       group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wt.checkoff',     label:'Field Check-off Items',      group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},

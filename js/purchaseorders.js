@@ -858,6 +858,54 @@ async function deletePOAttachment(id){
   showToast('Attachment removed','info');
 }
 
+// (r143) FIELD PACKING-SLIP CAPTURE — tech-facing, reachable from the Work Order (PO pre-filled) or
+// standalone from the WO list (tech picks the PO). Snaps a photo/PDF → saves as a 'packing_slip'
+// attachment on the PO → the DB trigger fires the configurable "Packing slip submitted" notification.
+function openPackingSlipCapture(prefillPoId){
+  if (typeof hasPermission==='function' && !hasPermission('po.attach_field')) { showToast('You do not have permission to submit packing slips','error'); return; }
+  var modalId='modal-packing-slip';
+  var ex=document.getElementById(modalId); if(ex) ex.remove();
+  var opens=(DB.purchaseOrders||[]).filter(function(p){ return p.status!=='Void' && p.status!=='Closed'; })
+    .sort(function(a,b){ return String(b.poNumber||'').localeCompare(String(a.poNumber||''),undefined,{numeric:true}); });
+  var opts=opens.map(function(p){
+    var lbl=(p.poNumber||'')+' - '+(p.vendorName||'')+(p.jobName?' ('+p.jobName+')':'');
+    return '<option value="'+escHtml(p.id)+'"'+(p.id===prefillPoId?' selected':'')+'>'+escHtml(lbl)+'</option>';
+  }).join('');
+  var div=document.createElement('div');
+  div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
+  div.innerHTML=
+    '<div class="modal-box" style="max-width:480px">'+
+      '<div class="modal-head"><h3>📦 Submit Packing Slip</h3>'+
+        '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
+      '<div class="modal-body">'+
+        '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">Which purchase order?</label>'+
+          (opens.length? '<select id="ps-po" style="width:100%;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px"><option value="">- Select a PO -</option>'+opts+'</select>'
+                        : '<div style="font-size:13px;color:#c62828">No open purchase orders to attach to.</div>')+
+        '</div>'+
+        (opens.length? '<div style="margin-bottom:4px"><label class="btn btn-primary" style="display:block;box-sizing:border-box;text-align:center;cursor:pointer;padding:14px;margin:0">📷 Take / Choose Photo or PDF'+
+          '<input type="file" id="ps-file" accept="image/*,application/pdf" capture="environment" style="display:none" onchange="submitPackingSlip(\''+modalId+'\')"></label></div>'+
+        '<div style="font-size:11px;color:#90a4ae;text-align:center;margin-top:6px">Pick the PO, then snap the packing slip. The office is notified automatically.</div>' : '')+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+}
+
+async function submitPackingSlip(modalId){
+  var poSel=document.getElementById('ps-po');
+  var poId=poSel?poSel.value:'';
+  if(!poId){ showToast('Pick which PO this packing slip is for','error'); return; }
+  var fileEl=document.getElementById('ps-file');
+  if(!fileEl||!fileEl.files||!fileEl.files[0]){ showToast('No file chosen','error'); return; }
+  var file=fileEl.files[0];
+  showToast('Uploading packing slip...','info',3000);
+  var rec=await uploadPOAttachment(file, poId, 'packing_slip');
+  if(rec){
+    var m=document.getElementById(modalId); if(m) m.remove();
+    showToast('Packing slip submitted - the office has been notified','success',4000);
+    if(_poCurrentId===poId && typeof renderPOAttachments==='function') renderPOAttachments(poId);
+  }
+}
+
 // ---- PRINT PO ----
 
 function printPO() {

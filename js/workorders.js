@@ -2812,6 +2812,14 @@ function renderWOPartsTab(woId) {
 
   var html = '<div>';
 
+  // (r143) Field packing-slip capture — any tech with po.attach_field can snap a delivery/pickup
+  // packing slip; it attaches to this WO's open PO (pre-filled) and notifies the office through the
+  // engine. openPackingSlipCapture lives in purchaseorders.js (global).
+  if (typeof hasPermission==='function' && hasPermission('po.attach_field')) {
+    var _woPO = (DB.purchaseOrders||[]).find(function(p){ return p.woId===woId && p.status!=='Void' && p.status!=='Closed'; });
+    html += '<div style="margin-bottom:12px"><button class="btn btn-outline btn-sm" onclick="openPackingSlipCapture('+(_woPO?("'"+escHtml(_woPO.id)+"'"):"null")+')">📦 Packing Slip / Delivery Photo</button></div>';
+  }
+
   // Add-Item picker (office/lead): from stock / order / non-stock / one-off (Wave 1b)
   if (isOffice) {
     html += '<div style="margin-bottom:12px"><button class="btn btn-primary btn-sm" onclick="openWOAddItem()">+ Add Item &nbsp;<span style="font-weight:400;opacity:.8">from stock · catalog · one-off</span></button></div>';
