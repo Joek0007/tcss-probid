@@ -1042,6 +1042,9 @@ function _poEmailHTML(po){
   '</div>';
 }
 
+// (r146) The Email button no longer fires instantly. It opens a compose/confirm dialog where the
+// user reviews and edits the recipient(s), adds an optional CC, edits the subject, and can add a
+// message to the vendor. Nothing is sent until they click Send in that dialog.
 async function emailPO() {
   if(!_poCurrentId){showToast('Save the PO first','error');return;}
   var po=(DB.purchaseOrders||[]).find(function(p){return p.id===_poCurrentId;});
@@ -1051,26 +1054,79 @@ async function emailPO() {
     showToast('This PO needs approval before it can be sent to the vendor.','error',5000);
     return;
   }
-  var vendor=(DB.vendors||[]).find(function(v){return v.id===po.vendorId;})||{};
-  var toEmail=vendor.email||'';
-  if(!toEmail){showToast('No email on file for this vendor — add it to the vendor record','error');return;}
+  openPOEmailDialog(po);
+}
+
+function _poEmailField(label,id,val,ph){
+  return '<div style="margin-bottom:10px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">'+escHtml(label)+'</label>'+
+    '<input type="text" id="'+id+'" value="'+(val||'')+'" placeholder="'+escHtml(ph||'')+'" style="width:100%;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px;box-sizing:border-box"></div>';
+}
+
+// (r146) Compose + confirm before a PO is emailed.
+function openPOEmailDialog(po){
   var s=DB.settings||{};
-  var _coPO = (typeof coFullName==='function' ? coFullName() : '') || 'us';
+  var vendor=(DB.vendors||[]).find(function(v){return v.id===po.vendorId;})||{};
+  var _coPO=(typeof coFullName==='function'?coFullName():'')||'us';
+  var toEmail=vendor.email||'';
   var subject='Purchase Order '+po.poNumber+' from '+_coPO;
-  var textBody='Purchase Order '+po.poNumber+' from '+_coPO+'.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2)+(po.dateNeeded?'\nDate Needed: '+po.dateNeeded:'')+'\n\nThe full purchase order is shown below.';
-  // (r136) Send via Mailgun — the app's configured email provider (same path quotes/invoices use).
-  // Multi-tenant: from-domain reads mgDomain/mgFrom from settings (tcss.com default), consistent with
-  // the invoice sender — per-tenant verified domains are the email-infra layer.
+  var total=parseFloat(po.total||0).toFixed(2);
+  var replyTo=s.poReplyTo||s.cemail||s.uemail||'';
+  var modalId='modal-po-email';
+  var ex=document.getElementById(modalId); if(ex) ex.remove();
+  var div=document.createElement('div');
+  div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
+  div.innerHTML=
+    '<div class="modal-box" style="max-width:520px">'+
+      '<div class="modal-head"><h3>✉️ Send Purchase Order '+escHtml(po.poNumber||'')+'</h3>'+
+        '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
+      '<div class="modal-body">'+
+        (toEmail?'':'<div style="font-size:12px;color:#c62828;margin-bottom:8px">No email is on file for this vendor — enter one below.</div>')+
+        _poEmailField('To','pe-to',escHtml(toEmail),'vendor@example.com')+
+        _poEmailField('CC (optional)','pe-cc','','name@example.com')+
+        _poEmailField('Subject','pe-subject',escHtml(subject),'')+
+        '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">Message (optional)</label>'+
+          '<textarea id="pe-msg" rows="4" placeholder="Add a note to the vendor — appears at the top of the email." style="width:100%;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px;box-sizing:border-box;resize:vertical"></textarea></div>'+
+        '<div style="font-size:11px;color:#90a4ae;margin-bottom:12px">The full purchase order (PO '+escHtml(po.poNumber||'')+', total $'+total+') is included below your message.'+(replyTo?' Replies go to '+escHtml(replyTo)+'.':'')+'</div>'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+          '<button class="btn btn-outline" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
+          '<button class="btn btn-primary" onclick="_sendPOEmailNow(\''+modalId+'\')">✉️ Send</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+  setTimeout(function(){ var t=document.getElementById(toEmail?'pe-msg':'pe-to'); if(t) t.focus(); },50);
+}
+
+// (r146) Actually send, using the (possibly edited) recipients/subject and the optional message.
+async function _sendPOEmailNow(modalId){
+  var po=(DB.purchaseOrders||[]).find(function(p){return p.id===_poCurrentId;});
+  if(!po){ showToast('PO not found','error'); return; }
+  var g=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+  var toRaw=g('pe-to'), ccRaw=g('pe-cc'), subject=g('pe-subject'), note=g('pe-msg');
+  var splitEmails=function(x){ return (x||'').split(/[;,]/).map(function(e){return e.trim();}).filter(Boolean); };
+  var validEmail=function(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); };
+  var toList=splitEmails(toRaw), ccList=splitEmails(ccRaw);
+  if(!toList.length){ showToast('Enter at least one recipient email','error'); return; }
+  var bad=toList.concat(ccList).filter(function(e){ return !validEmail(e); });
+  if(bad.length){ showToast('Check this email address: '+bad[0],'error',5000); return; }
+  if(!subject){ subject='Purchase Order '+(po.poNumber||''); }
+  var s=DB.settings||{};
+  var _coPO=(typeof coFullName==='function'?coFullName():'')||'us';
+  var baseText='Purchase Order '+po.poNumber+' from '+_coPO+'.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2)+(po.dateNeeded?'\nDate Needed: '+po.dateNeeded:'')+'\n\nThe full purchase order is shown below.';
+  var textBody=(note?note+'\n\n----------\n\n':'')+baseText;
+  var poHtml=(typeof _poEmailHTML==='function')?_poEmailHTML(po):baseText.replace(/\n/g,'<br>');
+  var noteHtml=note?'<div style="font-family:Arial,Helvetica,sans-serif;max-width:680px;margin:0 auto;padding:0 16px"><div style="background:#f5f8fc;border-left:3px solid #1565c0;padding:12px 14px;border-radius:4px;color:#1a1a1a;font-size:14px;white-space:pre-wrap;margin-bottom:8px">'+escHtml(note)+'</div></div>':'';
+  var htmlBody=noteHtml+poHtml;
+  var btn=document.querySelector('#'+modalId+' .btn-primary'); if(btn){ btn.disabled=true; btn.textContent='Sending…'; }
   if(s.mgKey){
-    showToast('Sending PO to '+toEmail+'...','info',2000);
     try{
-      var htmlBody=(typeof _poEmailHTML==='function')?_poEmailHTML(po):textBody.replace(/\n/g,'<br>');
       var mgDomain=s.mgDomain||'tcss.com';
       var fd=new FormData();
       fd.append('from', s.mgFrom || ((s.cname||'Purchasing')+' Purchasing <purchasing@'+mgDomain+'>'));
-      fd.append('to', toEmail);
-      var poReply=s.poReplyTo||s.cemail||s.uemail||'';   // (r137) PO replies go to the configured PO
-      if(poReply) fd.append('h:Reply-To', poReply);       // contact (e.g. dispatch@), fallback company email
+      fd.append('to', toList.join(','));
+      if(ccList.length) fd.append('cc', ccList.join(','));
+      var poReply=s.poReplyTo||s.cemail||s.uemail||'';   // (r137) PO replies go to the configured PO contact
+      if(poReply) fd.append('h:Reply-To', poReply);
       fd.append('subject', subject);
       fd.append('text', textBody);
       fd.append('html', htmlBody);
@@ -1078,15 +1134,21 @@ async function emailPO() {
       fd.append('v:probid_type','po'); fd.append('v:probid_id', String(po.id));
       var res=await fetch('https://api.mailgun.net/v3/'+mgDomain+'/messages',{method:'POST',headers:{'Authorization':'Basic '+btoa('api:'+s.mgKey)},body:fd});
       var data=await res.json().catch(function(){return {};});
-      if(res.ok){ po.status='Sent'; po.emailedTo=toEmail; po.emailedAt=new Date().toISOString(); if(typeof _pushPOToCloud==='function')_pushPOToCloud(po); saveDB(); renderPOList(); showToast('PO emailed to '+toEmail+' ✓','success',4000); }
-      else{ showToast('Mailgun error: '+(data.message||('Status '+res.status)),'error',6000); console.error('[PO Email]',data); }
-    }catch(e){ showToast('PO email failed: '+e.message,'error',5000); console.error('[PO Email]',e); }
+      if(res.ok){
+        po.status='Sent'; po.emailedTo=toList.join(', '); po.emailedAt=new Date().toISOString();
+        if(typeof _pushPOToCloud==='function')_pushPOToCloud(po); saveDB(); renderPOList();
+        var m=document.getElementById(modalId); if(m) m.remove();
+        showToast('PO emailed to '+toList.join(', ')+' ✓','success',4000);
+      } else {
+        showToast('Mailgun error: '+(data.message||('Status '+res.status)),'error',6000); console.error('[PO Email]',data);
+        if(btn){ btn.disabled=false; btn.textContent='✉️ Send'; }
+      }
+    }catch(e){ showToast('PO email failed: '+e.message,'error',5000); console.error('[PO Email]',e); if(btn){ btn.disabled=false; btn.textContent='✉️ Send'; } }
   } else {
-    // No email provider configured → open the user's mail client with a summary.
-    window.location.href='mailto:'+encodeURIComponent(toEmail)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(textBody+'\n\n(Printed PO can be attached from the Print button.)');
-    po.status='Sent';
-    saveDB();
-    renderPOList();
-    showToast('Email client opened with the PO summary','info',4000);
+    var mailto='mailto:'+encodeURIComponent(toList.join(','))+'?'+(ccList.length?'cc='+encodeURIComponent(ccList.join(','))+'&':'')+'subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(textBody+'\n\n(Printed PO can be attached from the Print button.)');
+    window.location.href=mailto;
+    po.status='Sent'; po.emailedTo=toList.join(', '); po.emailedAt=new Date().toISOString(); saveDB(); renderPOList();
+    var m2=document.getElementById(modalId); if(m2) m2.remove();
+    showToast('Email client opened with the PO','info',4000);
   }
 }
