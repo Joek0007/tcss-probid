@@ -210,6 +210,8 @@ function wtOpenNotifTarget(mod, id){
       if (canPage('workorders') && typeof openWorkOrder==='function'){ goPage('workorders'); setTimeout(function(){ try{ openWorkOrder(id); }catch(e){} }, 300); }
     } else if (mod==='tool') {
       if (canPage('tools')){ goPage('tools'); }
+    } else if (mod==='rfq') {
+      if (canPage('rfq') && typeof openRFQ==='function'){ goPage('rfq'); setTimeout(function(){ try{ openRFQ(id); }catch(e){} }, 300); }
     }
   } catch(e){ /* never let a tap throw */ }
 }

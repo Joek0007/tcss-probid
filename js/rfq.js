@@ -114,6 +114,7 @@ function _openRFQEditor(r){
         '<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">'+
           (!isNew?'<span style="margin-right:auto">'+_rfqStatusBadge(r.status)+'</span>':'')+
           (!isNew && r.status!=='Closed'?'<button class="btn btn-outline btn-sm" onclick="closeRFQ(\''+escHtml(_rfqCurrentId)+'\')">Close RFQ</button>':'')+
+          (!isNew && r.status!=='Closed' && r.status!=='Converted'?'<button class="btn btn-success btn-sm" onclick="openRFQSendDialog(\''+escHtml(_rfqCurrentId)+'\')">📤 Send to Vendors</button>':'')+
           '<button class="btn btn-outline" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" onclick="saveRFQ()">💾 Save</button>'+
         '</div>'+
@@ -286,6 +287,138 @@ function createRFQFromWOParts(woId){
   openNewRFQ({ title:('Parts for '+jobName), items:items, woId:woId, jobId:wo.jobId||null, jobName:jobName });
 }
 
+// ======================= PHASE 2: SEND TO VENDORS =======================
+// Branded, price-less "Request for Quote" email with a blank price/lead-time column for the vendor to
+// fill in their reply. Sends per-vendor (each gets their own, so replies come back per vendor to
+// dispatch). Stamps vendor.sentAt, flips RFQ status→Sent (DB trigger fires the office bell).
+function _rfqEmailHTML(rfq, message){
+  var s=DB.settings||{};
+  var rows=(rfq.items||[]).map(function(it){
+    return '<tr>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px">'+escHtml(it.desc||'')+'</td>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center">'+escHtml(it.partNum||'')+'</td>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center">'+(it.qty!=null?it.qty:1)+'</td>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center">'+escHtml(it.uom||'ea')+'</td>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:right;color:#b0bec5">$ ________</td>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center;color:#b0bec5">________</td>'+
+    '</tr>';
+  }).join('');
+  var replyTo=s.poReplyTo||s.cemail||s.uemail||'';
+  return '<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;padding:16px">'+
+    '<div style="border-bottom:3px solid #1565c0;padding-bottom:14px;margin-bottom:16px">'+
+      '<table width="100%"><tr>'+
+        '<td style="vertical-align:top"><div style="font-size:20px;font-weight:900"><span style="color:#cc0000">TOTAL </span><span style="color:#1565c0">COMMUNICATIONS</span></div>'+
+          '<div style="font-size:11px;color:#546e7a">Systems &amp; Solutions, Inc.</div>'+
+          '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.6">'+(s.caddr?escHtml(s.caddr)+'<br>':'')+(s.cphone?escHtml(s.cphone)+'<br>':'')+(replyTo?escHtml(replyTo):'')+'</div></td>'+
+        '<td style="vertical-align:top;text-align:right"><div style="font-size:20px;font-weight:900;color:#1565c0;letter-spacing:1px">REQUEST FOR QUOTE</div><div style="font-size:14px;color:#546e7a;font-weight:700;margin-top:4px">'+escHtml(rfq.rfqNumber||'')+'</div></td>'+
+      '</tr></table>'+
+    '</div>'+
+    '<div style="font-size:12px;color:#546e7a;margin-bottom:12px">'+
+      (rfq.jobName?'<strong>Project:</strong> '+escHtml(rfq.jobName)+' &nbsp;&middot;&nbsp; ':'')+
+      (rfq.needBy?'<strong>Needed by:</strong> '+escHtml(rfq.needBy):'')+'</div>'+
+    (message?'<div style="background:#f5f8fc;border-left:3px solid #1565c0;padding:12px 14px;border-radius:4px;font-size:14px;white-space:pre-wrap;margin-bottom:12px">'+escHtml(message)+'</div>':'')+
+    '<p style="font-size:14px;line-height:1.5">Please provide your <strong>pricing and availability (lead time)</strong> for the following. Reply to this email with your quote — thank you.</p>'+
+    '<table width="100%" style="border-collapse:collapse;margin-bottom:12px">'+
+      '<thead><tr style="background:#1565c0;color:#fff">'+
+        '<th style="padding:8px 10px;text-align:left;font-size:11px">Description</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-size:11px">Part #</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-size:11px">Qty</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-size:11px">Unit</th>'+
+        '<th style="padding:8px 10px;text-align:right;font-size:11px">Your Price</th>'+
+        '<th style="padding:8px 10px;text-align:center;font-size:11px">Lead Time</th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<div style="font-size:11px;color:#90a4ae;border-top:1px solid #e0e0e0;padding-top:10px">Total Communications Systems &amp; Solutions, Inc. &middot; '+escHtml(rfq.rfqNumber||'')+(replyTo?' &middot; Reply to '+escHtml(replyTo):'')+'</div>'+
+  '</div>';
+}
+
+function openRFQSendDialog(rfqId){
+  var r=_rfqById(rfqId); if(!r){ showToast('RFQ not found','error'); return; }
+  _rfqCurrentId=rfqId;
+  var withEmail=(r.vendors||[]).filter(function(v){ return v.email && v.email.trim(); });
+  var noEmail=(r.vendors||[]).filter(function(v){ return !(v.email && v.email.trim()); });
+  if(!withEmail.length){ showToast('None of the selected vendors has an email — add one to the vendor record, or print the RFQ.','error',6000); return; }
+  var modalId='modal-rfq-send';
+  var ex=document.getElementById(modalId); if(ex) ex.remove();
+  var rows=withEmail.map(function(v){
+    var sent=v.sentAt?(' · <span style="color:#2e7d32">sent '+escHtml(String(v.sentAt).split('T')[0])+'</span>'):'';
+    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13px;cursor:pointer;border-bottom:1px solid #f4f7fa">'+
+      '<input type="checkbox" class="rfq-send-v" value="'+escHtml(v.vendorId)+'" '+(v.sentAt?'':'checked')+' style="width:15px;height:15px">'+
+      '<span style="font-weight:600">'+escHtml(v.name||'')+'</span><span style="color:#90a4ae">'+escHtml(v.email)+'</span>'+sent+'</label>';
+  }).join('');
+  var div=document.createElement('div');
+  div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
+  div.innerHTML=
+    '<div class="modal-box" style="max-width:560px">'+
+      '<div class="modal-head"><h3>📤 Send RFQ '+escHtml(r.rfqNumber||'')+' to vendors</h3>'+
+        '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
+      '<div class="modal-body">'+
+        '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin-bottom:4px">Send to (already-sent vendors are unchecked — check to re-send)</div>'+
+        '<div style="border:1px solid #eef2f6;border-radius:8px;padding:6px 10px;margin-bottom:6px">'+rows+'</div>'+
+        (noEmail.length?'<div style="font-size:11px;color:#c62828;margin-bottom:10px">⚠ No email on file (skipped): '+noEmail.map(function(v){return escHtml(v.name);}).join(', ')+'</div>':'')+
+        '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">Message to vendors (optional)</label>'+
+          '<textarea id="rfq-send-msg" rows="3" placeholder="e.g. Please quote your best delivered price and lead time. Thanks!" style="width:100%;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px;box-sizing:border-box;resize:vertical"></textarea></div>'+
+        '<div style="font-size:11px;color:#90a4ae;margin-bottom:12px">Each vendor gets their own copy of RFQ '+escHtml(r.rfqNumber||'')+' ('+((r.items||[]).length)+' items). Replies go to '+escHtml((DB.settings||{}).poReplyTo||(DB.settings||{}).cemail||'the office')+'.</div>'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+          '<button class="btn btn-outline" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
+          '<button class="btn btn-primary" onclick="_rfqSendNow(\''+modalId+'\')">📤 Send</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+}
+
+async function _rfqSendNow(modalId){
+  var r=_rfqById(_rfqCurrentId); if(!r){ showToast('RFQ not found','error'); return; }
+  var checks=Array.prototype.slice.call(document.querySelectorAll('#'+modalId+' .rfq-send-v:checked'));
+  var vids=checks.map(function(c){ return c.value; });
+  if(!vids.length){ showToast('Pick at least one vendor to send to','error'); return; }
+  var msg=(document.getElementById('rfq-send-msg')||{}).value||'';
+  var s=DB.settings||{};
+  var btn=document.querySelector('#'+modalId+' .btn-primary'); if(btn){ btn.disabled=true; btn.textContent='Sending…'; }
+  var html=_rfqEmailHTML(r, msg.trim());
+  var textLines=(r.items||[]).map(function(it){ return '• '+(it.qty!=null?it.qty:1)+' '+(it.uom||'ea')+'  '+(it.desc||'')+(it.partNum?'  ['+it.partNum+']':''); }).join('\n');
+  var text='Request for Quote '+r.rfqNumber+(r.jobName?(' — '+r.jobName):'')+(r.needBy?('\nNeeded by: '+r.needBy):'')+'\n\n'+(msg.trim()?msg.trim()+'\n\n':'')+'Please provide pricing and availability for:\n'+textLines+'\n\nReply with your quote. Thank you.';
+  var sentOk=0, failed=[];
+  for(var i=0;i<vids.length;i++){
+    var vid=vids[i];
+    var ven=(r.vendors||[]).find(function(v){ return v.vendorId===vid; }); if(!ven||!ven.email) continue;
+    if(s.mgKey){
+      try{
+        var mgDomain=s.mgDomain||'tcss.com';
+        var fd=new FormData();
+        fd.append('from', s.mgFrom || ((s.cname||'Purchasing')+' Purchasing <purchasing@'+mgDomain+'>'));
+        fd.append('to', ven.email);
+        var replyTo=s.poReplyTo||s.cemail||s.uemail||''; if(replyTo) fd.append('h:Reply-To', replyTo);
+        fd.append('subject', 'Request for Quote '+r.rfqNumber+(r.jobName?(' — '+r.jobName):''));
+        fd.append('text', text);
+        fd.append('html', html);
+        fd.append('o:tracking','yes'); fd.append('o:tracking-opens','yes');
+        fd.append('v:probid_type','rfq'); fd.append('v:probid_id', String(r.id)); fd.append('v:probid_vendor', String(vid));
+        var res=await fetch('https://api.mailgun.net/v3/'+mgDomain+'/messages',{method:'POST',headers:{'Authorization':'Basic '+btoa('api:'+s.mgKey)},body:fd});
+        if(res.ok){ ven.sentAt=new Date().toISOString(); ven.status='invited'; sentOk++; }
+        else { var ed=await res.json().catch(function(){return {};}); failed.push(ven.name+': '+(ed.message||('HTTP '+res.status))); }
+      }catch(e){ failed.push(ven.name+': '+(e.message||e)); }
+    } else {
+      // no provider — stamp as sent so the office can track; office emails manually
+      ven.sentAt=new Date().toISOString(); ven.status='invited'; sentOk++;
+    }
+  }
+  if(sentOk>0){
+    if(r.status==='Draft') r.status='Sent';   // status change fires the office bell via the DB trigger
+    r.updatedAt=new Date().toISOString();
+    _pushRFQToCloud(r); saveDB();
+    if(typeof auditLog==='function') auditLog('rfq_sent','rfq',r.id,{note:r.rfqNumber+' sent to '+sentOk+' vendor(s)'});
+    renderRFQList();
+  }
+  if(btn){ btn.disabled=false; btn.textContent='📤 Send'; }
+  var m=document.getElementById(modalId); if(m) m.remove();
+  if(failed.length) showToast('Sent to '+sentOk+'; '+failed.length+' failed: '+failed[0],'error',7000);
+  else showToast('RFQ '+r.rfqNumber+' sent to '+sentOk+' vendor'+(sentOk===1?'':'s')+' ✓','success',4000);
+}
+
+window.openRFQSendDialog=openRFQSendDialog;
+window._rfqSendNow=_rfqSendNow;
+window._rfqEmailHTML=_rfqEmailHTML;
 window.renderRFQList=renderRFQList;
 window.openNewRFQ=openNewRFQ;
 window.openRFQ=openRFQ;
