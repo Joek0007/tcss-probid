@@ -954,7 +954,7 @@ function _printPOHTML(po) {
     '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1a1a1a;font-size:13px;padding:40px 48px}'+
     '.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:20px;border-bottom:3px solid #1565c0}'+
     '.co-name .red{color:#cc0000;font-size:26px;font-weight:900}.co-name .blue{color:#1565c0;font-size:26px;font-weight:900}'+
-    '.po-label{font-size:32px;font-weight:900;color:#1565c0;letter-spacing:2px}'+
+    '.po-label{font-size:24px;font-weight:900;color:#1565c0;letter-spacing:2px}'+
     '.addr-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;margin-bottom:24px}'+
     '.addr-block label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#90a4ae;display:block;margin-bottom:6px;border-bottom:1px solid #e0e0e0;padding-bottom:4px}'+
     '.addr-block .val{font-size:13px;line-height:1.7}'+
@@ -990,7 +990,9 @@ function _printPOHTML(po) {
 
 // (r135) Inline-styled PO as an email body (email clients strip <style> blocks, so everything is
 // inline). This is what the vendor actually receives in the email.
-function _poEmailHTML(po){
+// (r148) hidePricing → emit a parts-and-quantities-only PO (no unit cost / line total / totals),
+// for the "have the vendor confirm pricing" workflow. Default (no arg) is the full priced PO.
+function _poEmailHTML(po, hidePricing){
   var s=DB.settings||{};
   var vendor=(DB.vendors||[]).find(function(v){return v.id===po.vendorId;})||{};
   var rows=(po.items||[]).map(function(li){
@@ -999,8 +1001,8 @@ function _poEmailHTML(po){
       '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px">'+escHtml(li.desc||'')+'</td>'+
       '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center">'+escHtml(li.partNum||'')+'</td>'+
       '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center">'+parseFloat(li.qtyOrdered||1)+'</td>'+
-      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:right">$'+parseFloat(li.unitCost||0).toFixed(2)+'</td>'+
-      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:right;font-weight:700">$'+lt.toFixed(2)+'</td>'+
+      (hidePricing?'':'<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:right">$'+parseFloat(li.unitCost||0).toFixed(2)+'</td>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:right;font-weight:700">$'+lt.toFixed(2)+'</td>')+
     '</tr>';
   }).join('');
   var _poSub=(po.subtotal!=null)?parseFloat(po.subtotal):((po.items||[]).reduce(function(a,li){return a+(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));},0));
@@ -1032,10 +1034,10 @@ function _poEmailHTML(po){
         '<th style="padding:8px 10px;text-align:left;font-size:11px">Description</th>'+
         '<th style="padding:8px 10px;text-align:center;font-size:11px">Part #</th>'+
         '<th style="padding:8px 10px;text-align:center;font-size:11px">Qty</th>'+
-        '<th style="padding:8px 10px;text-align:right;font-size:11px">Unit</th>'+
-        '<th style="padding:8px 10px;text-align:right;font-size:11px">Total</th>'+
-      '</tr></thead><tbody>'+rows+totRows+
-        '<tr><td colspan="4" style="text-align:right;padding:10px;font-size:16px;font-weight:900;color:#1565c0;border-top:2px solid #1565c0">PO Total</td><td style="text-align:right;padding:10px;font-size:16px;font-weight:900;color:#1565c0;border-top:2px solid #1565c0">$'+parseFloat(po.total||0).toFixed(2)+'</td></tr>'+
+        (hidePricing?'':'<th style="padding:8px 10px;text-align:right;font-size:11px">Unit</th>'+
+        '<th style="padding:8px 10px;text-align:right;font-size:11px">Total</th>')+
+      '</tr></thead><tbody>'+rows+(hidePricing?'':totRows+
+        '<tr><td colspan="4" style="text-align:right;padding:10px;font-size:16px;font-weight:900;color:#1565c0;border-top:2px solid #1565c0">PO Total</td><td style="text-align:right;padding:10px;font-size:16px;font-weight:900;color:#1565c0;border-top:2px solid #1565c0">$'+parseFloat(po.total||0).toFixed(2)+'</td></tr>')+
       '</tbody></table>'+
     (po.notes?'<div style="background:#f8f9fa;border-left:4px solid #1565c0;padding:10px 14px;font-size:12px;color:#37474f;margin-bottom:12px"><strong>Notes:</strong> '+(typeof stripHtmlToText==='function'?escHtml(stripHtmlToText(po.notes)):escHtml(po.notes))+'</div>':'')+
     '<div style="font-size:11px;color:#90a4ae;border-top:1px solid #e0e0e0;padding-top:10px">Total Communications Systems &amp; Solutions, Inc. &middot; '+escHtml(po.poNumber||'')+'</div>'+
@@ -1086,7 +1088,10 @@ function openPOEmailDialog(po){
         _poEmailField('Subject','pe-subject',escHtml(subject),'')+
         '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">Message (optional)</label>'+
           '<textarea id="pe-msg" rows="4" placeholder="Add a note to the vendor — appears at the top of the email." style="width:100%;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px;box-sizing:border-box;resize:vertical"></textarea></div>'+
-        '<div style="font-size:11px;color:#90a4ae;margin-bottom:12px">The full purchase order (PO '+escHtml(po.poNumber||'')+', total $'+total+') is included below your message.'+(replyTo?' Replies go to '+escHtml(replyTo)+'.':'')+'</div>'+
+        '<div style="margin-bottom:12px;background:#f8fafc;border:1px solid #eef2f6;border-radius:6px;padding:10px 12px">'+
+          '<label style="display:flex;align-items:center;gap:8px;font-size:14px;color:#263238;cursor:pointer;font-weight:600"><input type="checkbox" id="pe-withprice" checked style="width:16px;height:16px;cursor:pointer"> Include item pricing (unit costs &amp; totals)</label>'+
+          '<div style="font-size:11px;color:#90a4ae;margin-top:5px;margin-left:24px">Uncheck to send the vendor parts &amp; quantities only — e.g. when you want them to confirm pricing.</div></div>'+
+        '<div style="font-size:11px;color:#90a4ae;margin-bottom:12px">The full purchase order ('+escHtml(po.poNumber||'')+') is included below your message.'+(replyTo?' Replies go to '+escHtml(replyTo)+'.':'')+'</div>'+
         '<div style="display:flex;gap:8px;justify-content:flex-end">'+
           '<button class="btn btn-outline" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" onclick="_sendPOEmailNow(\''+modalId+'\')">✉️ Send</button>'+
@@ -1103,6 +1108,7 @@ async function _sendPOEmailNow(modalId){
   if(!po){ showToast('PO not found','error'); return; }
   var g=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
   var toRaw=g('pe-to'), ccRaw=g('pe-cc'), subject=g('pe-subject'), note=g('pe-msg');
+  var hidePricing=(function(){ var c=document.getElementById('pe-withprice'); return c?!c.checked:false; })();  // (r148)
   var splitEmails=function(x){ return (x||'').split(/[;,]/).map(function(e){return e.trim();}).filter(Boolean); };
   var validEmail=function(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); };
   var toList=splitEmails(toRaw), ccList=splitEmails(ccRaw);
@@ -1112,9 +1118,9 @@ async function _sendPOEmailNow(modalId){
   if(!subject){ subject='Purchase Order '+(po.poNumber||''); }
   var s=DB.settings||{};
   var _coPO=(typeof coFullName==='function'?coFullName():'')||'us';
-  var baseText='Purchase Order '+po.poNumber+' from '+_coPO+'.\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2)+(po.dateNeeded?'\nDate Needed: '+po.dateNeeded:'')+'\n\nThe full purchase order is shown below.';
+  var baseText='Purchase Order '+po.poNumber+' from '+_coPO+'.'+(hidePricing?'':'\n\nPO Total: $'+parseFloat(po.total||0).toFixed(2))+(po.dateNeeded?'\nDate Needed: '+po.dateNeeded:'')+'\n\nThe full purchase order is shown below.';
   var textBody=(note?note+'\n\n----------\n\n':'')+baseText;
-  var poHtml=(typeof _poEmailHTML==='function')?_poEmailHTML(po):baseText.replace(/\n/g,'<br>');
+  var poHtml=(typeof _poEmailHTML==='function')?_poEmailHTML(po, hidePricing):baseText.replace(/\n/g,'<br>');
   var noteHtml=note?'<div style="font-family:Arial,Helvetica,sans-serif;max-width:680px;margin:0 auto;padding:0 16px"><div style="background:#f5f8fc;border-left:3px solid #1565c0;padding:12px 14px;border-radius:4px;color:#1a1a1a;font-size:14px;white-space:pre-wrap;margin-bottom:8px">'+escHtml(note)+'</div></div>':'';
   var htmlBody=noteHtml+poHtml;
   var btn=document.querySelector('#'+modalId+' .btn-primary'); if(btn){ btn.disabled=true; btn.textContent='Sending…'; }
