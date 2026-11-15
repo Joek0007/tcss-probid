@@ -1448,6 +1448,9 @@ var PERM_DEFS = [
   {key:'wo.change_order',  label:'Create Change Orders',       group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wo.settings',      label:'Access WO Settings',         group:'Work Orders',    fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'wo.view_assigned_only',label:'See Only Assigned WOs',  group:'Work Orders',    fixed:false, defaults:{owner:0,manager:0,back_office:0,estimator:0,lead_tech:0,helper_tech:1,project_manager:0,subcontractor:1}},
+  // (r138) PO approval routing — who can approve a Purchase Order that is at/over the approval
+  // threshold so it can be sent to the vendor. Central matrix key (owner/manager default).
+  {key:'po.approve',       label:'Approve Purchase Orders',    group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:0,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   {key:'wt.create',       label:'Create WT Projects',         group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wt.viewall',      label:'View All WT Projects',       group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
   {key:'wt.checkoff',     label:'Field Check-off Items',      group:'Work Tracking',  fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:1}},

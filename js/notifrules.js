@@ -21,7 +21,7 @@
   // ---------- reference data ----------
   var MODULES = [
     {key:'wo',   label:'Work Order',     emoji:'🔧', statuses:['New','Scheduled','In Progress','Ready for Review','On Hold','Closed']},
-    {key:'po',   label:'Purchase Order', emoji:'📦', statuses:['Draft','Ordered','Partially Received','Received','Closed']},
+    {key:'po',   label:'Purchase Order', emoji:'📦', statuses:['Draft','Pending Approval','Ordered','Partially Received','Received','Closed']},
     {key:'inv',  label:'Invoice',        emoji:'🧾', statuses:['Draft','Sent','Partially Paid','Paid','Overdue','Void']},
     {key:'quote',label:'Quote',          emoji:'📄', statuses:['Draft','Sent','Approved','Changes Requested','Won','Lost']},
     {key:'job',  label:'Job / Project',  emoji:'🏗️', statuses:['Open','In Progress','On Hold','Complete']},

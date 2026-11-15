@@ -8079,9 +8079,11 @@ function loadSettings() {
     if (s.csUser && s.csKey) { csBadge.textContent='✅ Connected'; csBadge.style.background='#e8f5e9'; csBadge.style.color='#2e7d32'; }
     else { csBadge.textContent='⏳ Not configured'; csBadge.style.background='#fff3e0'; csBadge.style.color='#e65100'; }
   }
-  // Proposal email templates (subject/body). Email itself sends via Mailgun — no provider key here.
+  // Proposal email templates (subject/body) + PO reply-to. Email itself sends via Mailgun — no key.
   sv('s-sgsubject',  s.sgSubject||'Your Proposal from TCSS — {quote_num}');
   sv('s-sgbody',     s.sgBody||'Please find attached your proposal for {job_name}. We appreciate the opportunity to earn your business.');
+  sv('s-po-replyto', s.poReplyTo||'');
+  sv('s-po-approval-threshold', (s.poApprovalThreshold!=null?s.poApprovalThreshold:0));   // (r138)
   const cb=document.getElementById('company-badge'); if(cb) cb.textContent=(s.cname||'TCSS').substring(0,12);
   loadMarginFloors();
   applyLogoEverywhere(s.logoDataUrl || null);
@@ -8121,6 +8123,7 @@ function saveSettings() {
     followupDays:parseInt(gv('s-followup-days'))||7,
     perDiemMarkup:parseFloat(gv('s-perdiem-markup'))||0,
     partsMarkupPct:parseFloat(gv('s-parts-markup'))||0, // Wave 1c: WO-invoice parts markup default
+    poApprovalThreshold:parseFloat(gv('s-po-approval-threshold'))||0, // (r138) PO approval threshold ($); 0 = off
     fiscalYearStartMonth:parseInt(gv('s-fiscal-month'))||1,
     uname:gv('s-uname'),utitle:gv('s-utitle'),uphone:gv('s-uphone'),uemail:gv('s-uemail')
   });
@@ -8137,6 +8140,7 @@ function saveEmailTemplates() {
   DB.settings = DB.settings || {};
   DB.settings.sgSubject  = gv('s-sgsubject') || 'Your Proposal from TCSS — {quote_num}';
   DB.settings.sgBody     = gv('s-sgbody');
+  DB.settings.poReplyTo  = gv('s-po-replyto');   // (r137) PO reply-to / contact email
   saveDB();
   if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
   loadSettings();

@@ -213,7 +213,11 @@ function renderPOList() {
         // other row shows a light GREEN-OUTLINE placeholder (inert — just holds the line).
         ((['Sent','Partially Received'].includes(po.status))
           ? '<button class="btn btn-success btn-sm po-recv" onclick="openReceiving(\''+po.id+'\')">📥 Receive</button>'
-          : '<button class="btn btn-sm po-recv po-recv-ph" tabindex="-1" aria-hidden="true">Receive</button>')+
+          // (r138) A PO awaiting approval shows an Approve button (for approvers) in the Receive slot —
+          // keeps the Actions column width identical. Others keep the inert placeholder.
+          : ((po.approvalRequired && !po.approved && (typeof hasPermission==='function'?hasPermission('po.approve'):true))
+             ? '<button class="btn btn-success btn-sm po-recv" onclick="event.stopPropagation&&event.stopPropagation();approvePO(\''+po.id+'\')" title="Approve this PO">✅ Approve</button>'
+             : '<button class="btn btn-sm po-recv po-recv-ph" tabindex="-1" aria-hidden="true">Receive</button>'))+
         '<button class="btn btn-outline btn-sm" onclick="printPOById(\''+po.id+'\')" title="Print PO">🖨</button>'+
         ((typeof _canDeleteOfficeRecords==='function' ? _canDeleteOfficeRecords() : (_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'<button class="btn btn-danger btn-sm" onclick="deletePO(\''+po.id+'\')" title="Delete PO">✕</button>':'')+
       '</div>'+
@@ -247,6 +251,7 @@ function openNewPO() {
   _populatePOJobSelect(null);
   renderPOItems();
   refreshPOTotals();
+  if(typeof _renderPOApprovalBar==='function') _renderPOApprovalBar(null);   // (r138) no approval bar on a blank PO
   openModal('modal-po');
 }
 
@@ -305,6 +310,7 @@ function openPO(id) {
   renderPOItems();
   refreshPOTotals();
   checkPOMatch();
+  if(typeof _renderPOApprovalBar==='function') _renderPOApprovalBar(po);   // (r138)
   openModal('modal-po');
 }
 
@@ -478,6 +484,43 @@ function onPOReadyToPay(checked) {
   if(statusEl) statusEl.value='Ready to Pay';
 }
 
+// (r138) Approval routing — approve a PO that is awaiting approval so it can be sent.
+function approvePO(id){
+  if (typeof hasPermission==='function' && !hasPermission('po.approve')) { showToast('You do not have permission to approve purchase orders','error'); return; }
+  var po=(DB.purchaseOrders||[]).find(function(p){return p.id===id;});
+  if(!po) return;
+  po.approved=true;
+  po.approvedByName=(_currentUser&&_currentUser.full_name)||'Approver';
+  po.approvedAt=new Date().toISOString();
+  if(po.status==='Pending Approval') po.status='Draft';
+  po.updatedAt=new Date().toISOString();
+  if(typeof _pushPOToCloud==='function') _pushPOToCloud(po);
+  saveDB();
+  renderPOList();
+  if(_poCurrentId===id){
+    var statusEl=document.getElementById('po-status'); if(statusEl) statusEl.value=po.status;
+    _renderPOApprovalBar(po);
+  }
+  showToast('PO '+(po.poNumber||'')+' approved ✓','success',3500);
+}
+
+// Renders the approval banner inside the open PO modal (awaiting-approval + Approve button, or the
+// approved stamp). Hidden entirely when the PO doesn't require approval.
+function _renderPOApprovalBar(po){
+  var bar=document.getElementById('po-approval-bar'); if(!bar) return;
+  if(!po || !po.approvalRequired){ bar.style.display='none'; bar.innerHTML=''; return; }
+  bar.style.display='block';
+  if(po.approved){
+    bar.innerHTML='<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:8px 12px;font-size:12px;color:#2e7d32;font-weight:700">✅ Approved'+(po.approvedByName?' by '+escHtml(po.approvedByName):'')+(po.approvedAt?' · '+escHtml(String(po.approvedAt).split('T')[0]):'')+'</div>';
+  } else {
+    var canApprove = (typeof hasPermission==='function') ? hasPermission('po.approve') : true;
+    bar.innerHTML='<div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:8px;padding:8px 12px;font-size:12px;color:#e65100;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:10px">'+
+      '<span>⏳ Awaiting approval — this PO is at/over the approval threshold and can’t be sent to the vendor until approved.</span>'+
+      (canApprove?'<button class="btn btn-success btn-sm" onclick="approvePO(\''+escHtml(po.id)+'\')">✅ Approve</button>':'')+
+    '</div>';
+  }
+}
+
 // ---- SAVE PO ----
 
 async function savePO() {
@@ -503,6 +546,33 @@ async function savePO() {
   var jobId=gv('po-job-id-hidden');
   var job=jobId?(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;})):null;
 
+  // (r138) PO approval routing. Threshold is tenant config (poApprovalThreshold); 0/unset = OFF, so
+  // no PO is ever blocked until the owner sets a dollar amount. A PO at/over the threshold needs
+  // approval before it can be emailed to the vendor. Someone with po.approve self-approves (their own
+  // POs aren't blocked); anyone else's over-threshold PO lands in "Pending Approval". Existing/prior
+  // approval is preserved on edit so an already-approved PO doesn't bounce back to pending.
+  var _poPrior = isNew ? null : (DB.purchaseOrders||[]).find(function(p){return p.id===id;});
+  var _poThreshold = parseFloat((DB.settings||{}).poApprovalThreshold)||0;
+  var _poNeedsApproval = _poThreshold>0 && grandTotal >= _poThreshold;
+  var _poCanApprove = (typeof hasPermission==='function') ? hasPermission('po.approve') : true;
+  // Preserve a PRIOR approval only if the PO was already approved UNDER an approval requirement —
+  // a PO that was below-threshold carries approved=true by default, which must NOT count as a real
+  // approval when the PO later crosses the threshold (that needs fresh approval).
+  var _poPriorReallyApproved = !!(_poPrior && _poPrior.approvalRequired && _poPrior.approved);
+  var _poApproved, _poApprovedByName, _poApprovedAt;
+  if (!_poNeedsApproval) {
+    _poApproved = true;
+    _poApprovedByName = _poPriorReallyApproved ? _poPrior.approvedByName : null;
+    _poApprovedAt     = _poPriorReallyApproved ? _poPrior.approvedAt : null;
+  } else if (_poCanApprove) {
+    if (_poPriorReallyApproved) { _poApproved=true; _poApprovedByName=_poPrior.approvedByName; _poApprovedAt=_poPrior.approvedAt; }
+    else { _poApproved=true; _poApprovedByName=(_currentUser&&_currentUser.full_name)||'Approver'; _poApprovedAt=new Date().toISOString(); }
+  } else {
+    _poApproved       = _poPriorReallyApproved;
+    _poApprovedByName = _poPriorReallyApproved ? _poPrior.approvedByName : null;
+    _poApprovedAt     = _poPriorReallyApproved ? _poPrior.approvedAt : null;
+  }
+
   var po={
     id:          id,
     poNumber:    poNumber,
@@ -511,7 +581,7 @@ async function savePO() {
     jobId:       jobId||null,
     jobName:     job?job.name:'',
     woId:        gv('po-wo-id-hidden')||null,
-    status:      gv('po-status')||'Draft',
+    status:      (_poNeedsApproval && !_poApproved) ? 'Pending Approval' : (gv('po-status')||'Draft'),
     date:        gv('po-date'),
     dateNeeded:  gv('po-date-needed'),
     shipName:    gv('po-ship-name'),
@@ -527,6 +597,10 @@ async function savePO() {
     tax:         taxAmt,
     freight:     freightAmt,
     total:       grandTotal,
+    approvalRequired: _poNeedsApproval,   // (r138) approval routing
+    approved:         _poApproved,
+    approvedByName:   _poApprovedByName,
+    approvedAt:       _poApprovedAt,
     items:       _poItems.map(function(li){return Object.assign({},li);}),
     createdBy:   isNew?((_currentUser&&_currentUser.id)||null):((DB.purchaseOrders||[]).find(function(p){return p.id===id;})||{}).createdBy,
     createdByName:isNew?((_currentUser&&_currentUser.full_name)||'Unknown'):((DB.purchaseOrders||[]).find(function(p){return p.id===id;})||{}).createdByName,
@@ -574,7 +648,12 @@ async function savePO() {
   saveDB();
   document.getElementById('po-modal-title').textContent='Purchase Order';
   renderPOList();
-  showToast('PO '+po.poNumber+' saved ✓','success');
+  // (r138) reflect approval state in the open modal + a clear save message when it needs approval.
+  var _psEl=document.getElementById('po-status'); if(_psEl) _psEl.value=po.status;
+  if(typeof _renderPOApprovalBar==='function') _renderPOApprovalBar(po);
+  showToast((po.approvalRequired && !po.approved)
+    ? ('PO '+po.poNumber+' saved — awaiting approval before it can be sent')
+    : ('PO '+po.poNumber+' saved ✓'),'success',4000);
 }
 
 async function _pushPOToCloud(po) {
@@ -586,6 +665,7 @@ async function _pushPOToCloud(po) {
       ship_to_name:po.shipName||null,ship_to_address:po.shipAddr||null,
       ship_to_city:po.shipCity||null,ship_to_state:po.shipState||null,ship_to_zip:po.shipZip||null,
       subtotal:po.subtotal||0,total:po.total||0,tax_amount:po.tax||0,freight_amount:po.freight||0,date_needed:po.dateNeeded||null,
+      approval_required:!!po.approvalRequired,approved:po.approved!==false,approved_by_name:po.approvedByName||null,approved_at:po.approvedAt||null,
       notes:po.notes||null,vendor_invoice_num:po.vendorInvNum||null,
       vendor_invoice_amount:po.vendorInvAmt||null,ready_to_pay:!!po.readyToPay,
       created_by:po.createdBy||_currentUser.id,created_by_name:po.createdByName||null,
@@ -684,7 +764,7 @@ function _printPOHTML(po) {
     '<div class="header">'+
       '<div><div class="co-name"><span class="red">TOTAL </span><span class="blue">COMMUNICATIONS</span></div>'+
       '<div style="font-size:12px;color:#546e7a;margin-top:2px">Systems &amp; Solutions, Inc.</div>'+
-      '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.7">'+(s.caddr?escHtml(s.caddr)+'<br>':'')+(s.cphone?'📞 '+escHtml(s.cphone)+'<br>':'')+(s.cemail?'✉️ '+escHtml(s.cemail):'')+'</div></div>'+
+      '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.7">'+(s.caddr?escHtml(s.caddr)+'<br>':'')+(s.cphone?'📞 '+escHtml(s.cphone)+'<br>':'')+((s.poReplyTo||s.cemail)?'✉️ '+escHtml(s.poReplyTo||s.cemail):'')+'</div></div>'+
       '<div style="text-align:right"><div class="po-label">PURCHASE ORDER</div><div style="font-size:14px;color:#546e7a;font-weight:700;margin-top:4px">'+escHtml(po.poNumber||'')+'</div></div>'+
     '</div>'+
     '<div class="addr-grid">'+
@@ -731,7 +811,7 @@ function _poEmailHTML(po){
       '<table width="100%"><tr>'+
         '<td style="vertical-align:top"><div style="font-size:20px;font-weight:900"><span style="color:#cc0000">TOTAL </span><span style="color:#1565c0">COMMUNICATIONS</span></div>'+
           '<div style="font-size:11px;color:#546e7a">Systems &amp; Solutions, Inc.</div>'+
-          '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.6">'+(s.caddr?escHtml(s.caddr)+'<br>':'')+(s.cphone?escHtml(s.cphone)+'<br>':'')+(s.cemail?escHtml(s.cemail):'')+'</div></td>'+
+          '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.6">'+(s.caddr?escHtml(s.caddr)+'<br>':'')+(s.cphone?escHtml(s.cphone)+'<br>':'')+((s.poReplyTo||s.cemail)?escHtml(s.poReplyTo||s.cemail):'')+'</div></td>'+
         '<td style="vertical-align:top;text-align:right"><div style="font-size:22px;font-weight:900;color:#1565c0;letter-spacing:1px">PURCHASE ORDER</div><div style="font-size:14px;color:#546e7a;font-weight:700;margin-top:4px">'+escHtml(po.poNumber||'')+'</div></td>'+
       '</tr></table>'+
     '</div>'+
@@ -760,6 +840,11 @@ async function emailPO() {
   if(!_poCurrentId){showToast('Save the PO first','error');return;}
   var po=(DB.purchaseOrders||[]).find(function(p){return p.id===_poCurrentId;});
   if(!po) return;
+  // (r138) Approval gate — an at/over-threshold PO can't be emailed to the vendor until approved.
+  if(po.approvalRequired && !po.approved){
+    showToast('This PO needs approval before it can be sent to the vendor.','error',5000);
+    return;
+  }
   var vendor=(DB.vendors||[]).find(function(v){return v.id===po.vendorId;})||{};
   var toEmail=vendor.email||'';
   if(!toEmail){showToast('No email on file for this vendor — add it to the vendor record','error');return;}
@@ -778,7 +863,8 @@ async function emailPO() {
       var fd=new FormData();
       fd.append('from', s.mgFrom || ('TCSS Purchasing <purchasing@'+mgDomain+'>'));
       fd.append('to', toEmail);
-      if(s.cemail) fd.append('h:Reply-To', s.cemail);   // vendor replies reach the office
+      var poReply=s.poReplyTo||s.cemail||s.uemail||'';   // (r137) PO replies go to the configured PO
+      if(poReply) fd.append('h:Reply-To', poReply);       // contact (e.g. dispatch@), fallback company email
       fd.append('subject', subject);
       fd.append('text', textBody);
       fd.append('html', htmlBody);
