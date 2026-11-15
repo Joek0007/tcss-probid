@@ -129,6 +129,7 @@ function wtGetAllNotifications() {
     return { id:'wt_'+n.id, type:n.type, title:n.title, body:n.message||'',
       time:n.created_at, read:n.read||false, source:'supabase',
       action:null, project_id:n.project_id||null, item_id:n.item_id||null,
+      ref_module:n.ref_module||null, ref_id:n.ref_id||null,   // r145 — deep-link target
       raw_id:n.id };
   });
   var all = local.concat(remote);
@@ -154,6 +155,8 @@ function renderNotifPanel() {
       'data-nid="'+n.id+'" data-src="'+n.source+'" '+
       (n.raw_id?'data-rid="'+n.raw_id+'" ':'')+
       (n.project_id?'data-pid="'+n.project_id+'" ':'')+
+      (n.ref_module?'data-refmod="'+escHtml(n.ref_module)+'" ':'')+
+      (n.ref_id?'data-refid="'+escHtml(n.ref_id)+'" ':'')+
       'onclick="wtReadNotifEl(this)" '+
       'style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">'+
       '<span style="font-size:18px;flex-shrink:0;margin-top:2px">'+icon+'</span>'+
@@ -167,7 +170,7 @@ function renderNotifPanel() {
   }).join('');
 }
 
-function wtReadNotif(id, source, rawId, projectId) {
+function wtReadNotif(id, source, rawId, projectId, refMod, refId) {
   // Mark local notification as read
   if (source === 'local') {
     var n = _notifications.find(function(x){ return x.id===id; });
@@ -176,20 +179,41 @@ function wtReadNotif(id, source, rawId, projectId) {
   // Mark Supabase notification as read
   if (source === 'supabase' && rawId && _sb) {
     _sb.from('wt_notifications').update({read:true}).eq('id',rawId).then(function(){});
-    if (WT.notifications) {
-      var wn = WT.notifications.find(function(x){ return x.id===rawId; });
-      if (wn) wn.read = true;
-    }
+    // r145 — drop it from the live feed immediately so a tapped bell clears from the panel right
+    // away instead of lingering (greyed) until a reload. The 45s poll also now reassigns
+    // WT.notifications unconditionally (see wtLoadNotifications); this just makes the tap feel instant.
+    if (WT.notifications) { WT.notifications = WT.notifications.filter(function(x){ return x.id!==rawId; }); }
   }
   updateNotifBadge();
   renderNotifPanel();
-  // Navigate to relevant screen
-  if (projectId) {
+  // r145 — deep-link: tapping an engine notification now opens its source record (PO/WO/tool).
+  if (refMod && refId && typeof wtOpenNotifTarget==='function') {
+    wtOpenNotifTarget(refMod, refId);
+  } else if (projectId) {
     document.getElementById('notif-panel').classList.remove('open');
     goPage('worktracking');
     setTimeout(function(){ if(typeof wtOpenProject==='function') wtOpenProject(projectId); }, 300);
   }
 }
+
+// r145 — route a tapped engine notification to its source record. Guarded so a user who can't
+// access the target page (or a module without a record opener) simply no-ops instead of breaking.
+// Modules today: po (openPO), wo (openWorkOrder), tool (tools list — the tool trigger's rec_id is
+// the loan row, not the tool, so we land on the page rather than guess a record).
+function wtOpenNotifTarget(mod, id){
+  try {
+    var panel = document.getElementById('notif-panel'); if(panel) panel.classList.remove('open');
+    var canPage = (typeof _canAccessPage==='function') ? _canAccessPage : function(){ return true; };
+    if (mod==='po') {
+      if (canPage('purchaseorders') && typeof openPO==='function'){ goPage('purchaseorders'); setTimeout(function(){ try{ openPO(id); }catch(e){} }, 300); }
+    } else if (mod==='wo') {
+      if (canPage('workorders') && typeof openWorkOrder==='function'){ goPage('workorders'); setTimeout(function(){ try{ openWorkOrder(id); }catch(e){} }, 300); }
+    } else if (mod==='tool') {
+      if (canPage('tools')){ goPage('tools'); }
+    }
+  } catch(e){ /* never let a tap throw */ }
+}
+window.wtOpenNotifTarget = wtOpenNotifTarget;
 
 function readNotif(id) { wtReadNotif(id,'local',null,null); }
 
@@ -198,7 +222,9 @@ function wtReadNotifEl(el) {
   var src = el.getAttribute('data-src') || 'local';
   var rid = el.getAttribute('data-rid') || null;
   var pid = el.getAttribute('data-pid') || null;
-  wtReadNotif(id, src, rid, pid);
+  var rmod= el.getAttribute('data-refmod') || null;   // r145
+  var rfid= el.getAttribute('data-refid') || null;    // r145
+  wtReadNotif(id, src, rid, pid, rmod, rfid);
 }
 
 function markAllNotifsRead() {
@@ -207,7 +233,7 @@ function markAllNotifsRead() {
   var unreadIds = (WT.notifications||[]).filter(function(n){return !n.read;}).map(function(n){return n.id;});
   if (unreadIds.length && _sb) {
     _sb.from('wt_notifications').update({read:true}).in('id',unreadIds).then(function(){});
-    (WT.notifications||[]).forEach(function(n){ n.read=true; });
+    WT.notifications = [];   // r145 — empty the live feed immediately so the panel clears at once
   }
   updateNotifBadge();
   renderNotifPanel();
@@ -4850,9 +4876,12 @@ async function wtLoadNotifications() {
       .order('created_at', { ascending: false })
       .limit(20);
     if (error) throw error;
+    // r145 — ALWAYS reassign the feed, even when the unread set is now empty. Previously this was
+    // guarded by `if (data && data.length)`, so reading your LAST unread notification left the stale
+    // (now-read) row stuck in the panel until a full reload. Unconditional assignment clears it.
+    WT.notifications = data || [];
+    wtUpdateNotificationBell();
     if (data && data.length) {
-      WT.notifications = data;
-      wtUpdateNotificationBell();
       // r57 — cross-device freshness. The notification poll (every 45s) is the one
       // thing that keeps running even when a tech just sits on the Work Orders list and
       // never backgrounds the app or navigates. When a genuinely NEW notification lands
