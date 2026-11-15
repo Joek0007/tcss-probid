@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Request for Quote — Total Communications</title>
+<style>
+  :root{ --blue:#1565c0; --ink:#1a1a1a; --muted:#607d8b; --line:#e3e8ee; --bg:#eef2f6; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--ink);padding:16px;line-height:1.45}
+  .wrap{max-width:720px;margin:0 auto}
+  .card{background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.08);padding:20px;margin-bottom:16px}
+  .brand{font-size:18px;font-weight:900}.brand .r{color:#cc0000}.brand .b{color:var(--blue)}
+  .hd{border-bottom:3px solid var(--blue);padding-bottom:14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+  .rfqtag{font-size:13px;font-weight:900;color:var(--blue);letter-spacing:1px;text-align:right}
+  .rfqtag small{display:block;color:var(--muted);font-weight:700}
+  h1{font-size:17px;margin-bottom:4px}
+  .sub{font-size:13px;color:var(--muted);margin-bottom:4px}
+  .item{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+  .item .desc{font-weight:700;font-size:14px}
+  .item .meta{font-size:12px;color:var(--muted);margin:2px 0 10px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .fld{flex:1;min-width:120px}
+  label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+  input,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:16px;font-family:inherit}
+  input:focus,textarea:focus{outline:none;border-color:var(--blue)}
+  .price-in{position:relative}.price-in input{padding-left:22px}.price-in .dollar{position:absolute;left:10px;top:11px;color:var(--muted)}
+  .btn{display:block;width:100%;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:15px;font-size:16px;font-weight:800;cursor:pointer}
+  .btn:disabled{opacity:.6}
+  .note{font-size:12px;color:var(--muted);text-align:center;margin-top:10px}
+  .state{text-align:center;padding:40px 16px}
+  .state .ic{font-size:44px;margin-bottom:10px}
+  .ok{color:#2e7d32}.err{color:#c62828}
+  .muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="root">
+    <div class="state"><div class="ic">⏳</div><div class="muted">Loading your request…</div></div>
+  </div>
+  <div class="note">Total Communications Systems &amp; Solutions, Inc.</div>
+</div>
+<script>
+(function(){
+  var FN="https://jzvoksidbelxibzbizvi.supabase.co/functions/v1/rfq-quote";
+  var ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6dm9rc2lkYmVseGliemJpenZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MjQ3MTQsImV4cCI6MjA5NDIwMDcxNH0.DfZZsGXnRgPqG0alp8PXuB7d_2AOJnsRMX3nHYVhGE8";
+  var q=new URLSearchParams(location.search), R=q.get("r"), T=q.get("t");
+  var root=document.getElementById("root");
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+  function call(payload){
+    return fetch(FN,{method:"POST",headers:{"Content-Type":"application/json","apikey":ANON,"Authorization":"Bearer "+ANON},body:JSON.stringify(payload)})
+      .then(function(r){return r.json();});
+  }
+  function stateMsg(ic,cls,msg){ root.innerHTML='<div class="state"><div class="ic">'+ic+'</div><div class="'+cls+'" style="font-size:16px;font-weight:700">'+esc(msg)+'</div></div>'; }
+  if(!R||!T){ stateMsg("⚠️","err","This link is incomplete. Please use the link from your email."); return; }
+
+  var DATA=null;
+  function render(){
+    var d=DATA;
+    var itemsHtml=d.items.map(function(it){
+      var mp=(d.myPrices&&d.myPrices[it.id])||{};
+      return '<div class="item" data-id="'+esc(it.id)+'">'+
+        '<div class="desc">'+esc(it.desc||"")+'</div>'+
+        '<div class="meta">'+(it.partNum?("Part #: "+esc(it.partNum)+" &middot; "):"")+"Qty: "+esc(it.qty!=null?it.qty:1)+" "+esc(it.uom||"ea")+'</div>'+
+        '<div class="row">'+
+          '<div class="fld" style="max-width:150px"><label>Your Unit Price</label><div class="price-in"><span class="dollar">$</span><input type="number" step="any" min="0" class="v-unit" inputmode="decimal" value="'+(mp.unit!=null?esc(mp.unit):"")+'" placeholder="0.00"></div></div>'+
+          '<div class="fld" style="max-width:150px"><label>Lead Time</label><input type="text" class="v-lead" value="'+esc(mp.lead||"")+'" placeholder="e.g. in stock / 2 wks"></div>'+
+          '<div class="fld"><label>Note / Substitution (optional)</label><input type="text" class="v-note" value="'+esc(mp.note||"")+'" placeholder="alt part, pack size…"></div>'+
+        '</div></div>';
+    }).join("");
+    root.innerHTML=
+      '<div class="hd"><div><div class="brand"><span class="r">TOTAL </span><span class="b">COMMUNICATIONS</span></div>'+
+        '<div class="sub">Systems &amp; Solutions, Inc.</div></div>'+
+        '<div class="rfqtag">REQUEST FOR QUOTE<small>'+esc(d.rfqNumber||"")+'</small></div></div>'+
+      '<h1>Hello '+esc(d.vendorName||"")+'</h1>'+
+      '<div class="sub">'+(d.title?esc(d.title)+" &middot; ":"")+(d.needBy?("Needed by "+esc(d.needBy)):"")+'</div>'+
+      (d.alreadyQuoted?'<div class="sub ok" style="font-weight:700;margin-bottom:8px">✓ You already submitted a quote — you can update it below and resend.</div>':'')+
+      '<p style="font-size:14px;margin:10px 0 14px">Please enter your <strong>price and lead time</strong> for each item, then submit. Thank you.</p>'+
+      itemsHtml+
+      '<div class="item"><div class="row">'+
+        '<div class="fld" style="max-width:170px"><label>Freight / Shipping ($)</label><div class="price-in"><span class="dollar">$</span><input type="number" step="any" min="0" id="v-freight" inputmode="decimal" value="'+(d.freight!=null?esc(d.freight):"")+'" placeholder="0.00"></div></div>'+
+        '<div class="fld"><label>Minimum order / other notes (optional)</label><input type="text" id="v-min" value="'+esc(d.minNote||"")+'" placeholder="e.g. $250 min order, freight prepaid…"></div>'+
+      '</div></div>'+
+      '<button class="btn" id="v-submit">Submit My Quote</button>'+
+      '<div class="note">Your prices go only to Total Communications for this request.</div>';
+    document.getElementById("v-submit").addEventListener("click",submit);
+  }
+  function submit(){
+    var btn=document.getElementById("v-submit"); btn.disabled=true; btn.textContent="Sending…";
+    var lines=[].slice.call(document.querySelectorAll(".item[data-id]")).map(function(el){
+      return { itemId:el.getAttribute("data-id"),
+        unit:(el.querySelector(".v-unit")||{}).value||"",
+        lead:(el.querySelector(".v-lead")||{}).value||"",
+        note:(el.querySelector(".v-note")||{}).value||"" };
+    });
+    call({ action:"submit", rfq:R, token:T, lines:lines,
+      freight:(document.getElementById("v-freight")||{}).value||"",
+      minNote:(document.getElementById("v-min")||{}).value||"" })
+      .then(function(res){
+        if(res&&res.ok){ stateMsg("✅","ok","Thank you! Your quote for "+(DATA.rfqNumber||"this request")+" has been sent to Total Communications."); }
+        else { btn.disabled=false; btn.textContent="Submit My Quote"; alert((res&&res.error)||"Could not submit. Please try again."); }
+      })
+      .catch(function(){ btn.disabled=false; btn.textContent="Submit My Quote"; alert("Network error. Please try again."); });
+  }
+  call({ action:"get", rfq:R, token:T }).then(function(res){
+    if(!res){ stateMsg("⚠️","err","Could not load this request."); return; }
+    if(res.closed){ stateMsg("🔒","muted","This quote request is closed. Please contact Total Communications."); return; }
+    if(res.error){ stateMsg("⚠️","err",res.error); return; }
+    DATA=res; render();
+  }).catch(function(){ stateMsg("⚠️","err","Could not load this request. Check your connection and try the link again."); });
+})();
+</script>
+</body>
+</html>

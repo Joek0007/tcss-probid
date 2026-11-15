@@ -291,7 +291,18 @@ function createRFQFromWOParts(woId){
 // Branded, price-less "Request for Quote" email with a blank price/lead-time column for the vendor to
 // fill in their reply. Sends per-vendor (each gets their own, so replies come back per vendor to
 // dispatch). Stamps vendor.sentAt, flips RFQ status→Sent (DB trigger fires the office bell).
-function _rfqEmailHTML(rfq, message){
+// (r153) Generate an unguessable per-vendor token + the public vendor-quote page link.
+function _rfqToken(){
+  try{ if(crypto&&crypto.randomUUID) return crypto.randomUUID().replace(/-/g,''); }catch(e){}
+  return 'tk'+Date.now().toString(36)+Math.random().toString(36).slice(2,12)+Math.random().toString(36).slice(2,12);
+}
+function _rfqVendorPageBase(){
+  // same folder as the app (…/tcss-probid/vendor-quote.html)
+  return (location.origin+location.pathname).replace(/[^/]*$/,'')+'vendor-quote.html';
+}
+function _rfqVendorLink(rfqId, token){ return _rfqVendorPageBase()+'?r='+encodeURIComponent(rfqId)+'&t='+encodeURIComponent(token); }
+
+function _rfqEmailHTML(rfq, message, vendorLink){
   var s=DB.settings||{};
   var rows=(rfq.items||[]).map(function(it){
     return '<tr>'+
@@ -299,8 +310,6 @@ function _rfqEmailHTML(rfq, message){
       '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center">'+escHtml(it.partNum||'')+'</td>'+
       '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center">'+(it.qty!=null?it.qty:1)+'</td>'+
       '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center">'+escHtml(it.uom||'ea')+'</td>'+
-      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:right;color:#b0bec5">$ ________</td>'+
-      '<td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:13px;text-align:center;color:#b0bec5">________</td>'+
     '</tr>';
   }).join('');
   var replyTo=s.poReplyTo||s.cemail||s.uemail||'';
@@ -310,22 +319,24 @@ function _rfqEmailHTML(rfq, message){
         '<td style="vertical-align:top"><div style="font-size:20px;font-weight:900"><span style="color:#cc0000">TOTAL </span><span style="color:#1565c0">COMMUNICATIONS</span></div>'+
           '<div style="font-size:11px;color:#546e7a">Systems &amp; Solutions, Inc.</div>'+
           '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.6">'+(s.caddr?escHtml(s.caddr)+'<br>':'')+(s.cphone?escHtml(s.cphone)+'<br>':'')+(replyTo?escHtml(replyTo):'')+'</div></td>'+
-        '<td style="vertical-align:top;text-align:right"><div style="font-size:20px;font-weight:900;color:#1565c0;letter-spacing:1px">REQUEST FOR QUOTE</div><div style="font-size:14px;color:#546e7a;font-weight:700;margin-top:4px">'+escHtml(rfq.rfqNumber||'')+'</div></td>'+
+        '<td style="vertical-align:top;text-align:right"><div style="font-size:14px;font-weight:900;color:#1565c0;letter-spacing:1px">REQUEST FOR QUOTE</div><div style="font-size:14px;color:#546e7a;font-weight:700;margin-top:4px">'+escHtml(rfq.rfqNumber||'')+'</div></td>'+
       '</tr></table>'+
     '</div>'+
     '<div style="font-size:12px;color:#546e7a;margin-bottom:12px">'+
       (rfq.jobName?'<strong>Project:</strong> '+escHtml(rfq.jobName)+' &nbsp;&middot;&nbsp; ':'')+
       (rfq.needBy?'<strong>Needed by:</strong> '+escHtml(rfq.needBy):'')+'</div>'+
     (message?'<div style="background:#f5f8fc;border-left:3px solid #1565c0;padding:12px 14px;border-radius:4px;font-size:14px;white-space:pre-wrap;margin-bottom:12px">'+escHtml(message)+'</div>':'')+
-    '<p style="font-size:14px;line-height:1.5">Please provide your <strong>pricing and availability (lead time)</strong> for the following. Reply to this email with your quote — thank you.</p>'+
+    (vendorLink
+      ? '<div style="text-align:center;margin:8px 0 18px"><a href="'+escHtml(vendorLink)+'" style="display:inline-block;background:#1565c0;color:#fff;text-decoration:none;font-weight:800;font-size:16px;padding:14px 28px;border-radius:8px">Enter Your Quote Online →</a>'+
+        '<div style="font-size:12px;color:#90a4ae;margin-top:8px">Type your prices &amp; lead times — no login needed. Or just reply to this email with your pricing.</div></div>'
+      : '<p style="font-size:14px;line-height:1.5">Please provide your <strong>pricing and availability (lead time)</strong> for the following by replying to this email. Thank you.</p>')+
+    '<p style="font-size:13px;color:#546e7a;margin:0 0 6px">Items requested:</p>'+
     '<table width="100%" style="border-collapse:collapse;margin-bottom:12px">'+
       '<thead><tr style="background:#1565c0;color:#fff">'+
         '<th style="padding:8px 10px;text-align:left;font-size:11px">Description</th>'+
         '<th style="padding:8px 10px;text-align:center;font-size:11px">Part #</th>'+
         '<th style="padding:8px 10px;text-align:center;font-size:11px">Qty</th>'+
         '<th style="padding:8px 10px;text-align:center;font-size:11px">Unit</th>'+
-        '<th style="padding:8px 10px;text-align:right;font-size:11px">Your Price</th>'+
-        '<th style="padding:8px 10px;text-align:center;font-size:11px">Lead Time</th>'+
       '</tr></thead><tbody>'+rows+'</tbody></table>'+
     '<div style="font-size:11px;color:#90a4ae;border-top:1px solid #e0e0e0;padding-top:10px">Total Communications Systems &amp; Solutions, Inc. &middot; '+escHtml(rfq.rfqNumber||'')+(replyTo?' &middot; Reply to '+escHtml(replyTo):'')+'</div>'+
   '</div>';
@@ -375,13 +386,15 @@ async function _rfqSendNow(modalId){
   var msg=(document.getElementById('rfq-send-msg')||{}).value||'';
   var s=DB.settings||{};
   var btn=document.querySelector('#'+modalId+' .btn-primary'); if(btn){ btn.disabled=true; btn.textContent='Sending…'; }
-  var html=_rfqEmailHTML(r, msg.trim());
   var textLines=(r.items||[]).map(function(it){ return '• '+(it.qty!=null?it.qty:1)+' '+(it.uom||'ea')+'  '+(it.desc||'')+(it.partNum?'  ['+it.partNum+']':''); }).join('\n');
-  var text='Request for Quote '+r.rfqNumber+(r.jobName?(' — '+r.jobName):'')+(r.needBy?('\nNeeded by: '+r.needBy):'')+'\n\n'+(msg.trim()?msg.trim()+'\n\n':'')+'Please provide pricing and availability for:\n'+textLines+'\n\nReply with your quote. Thank you.';
   var sentOk=0, failed=[];
   for(var i=0;i<vids.length;i++){
     var vid=vids[i];
     var ven=(r.vendors||[]).find(function(v){ return v.vendorId===vid; }); if(!ven||!ven.email) continue;
+    if(!ven.token) ven.token=_rfqToken();                     // (r153) per-vendor secret for the quote link
+    var vlink=_rfqVendorLink(r.id, ven.token);
+    var html=_rfqEmailHTML(r, msg.trim(), vlink);
+    var text='Request for Quote '+r.rfqNumber+(r.jobName?(' — '+r.jobName):'')+(r.needBy?('\nNeeded by: '+r.needBy):'')+'\n\n'+(msg.trim()?msg.trim()+'\n\n':'')+'Enter your quote online: '+vlink+'\n\n(Or reply to this email with your pricing.)\n\nItems requested:\n'+textLines+'\n\nThank you.';
     if(s.mgKey){
       try{
         var mgDomain=s.mgDomain||'tcss.com';
