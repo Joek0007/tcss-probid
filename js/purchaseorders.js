@@ -78,6 +78,12 @@ function saveVendor() {
   if (typeof probidCheckContactFields==='function' && !probidCheckContactFields('modal-vendor')) return;
   function gv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
   var id=gv('v-id');
+  // (r156) Duplicate guard — on a NEW vendor, warn if an active vendor with the same name already
+  // exists (case-insensitive), so the vendor list can't quietly accumulate duplicates.
+  if(!id){
+    var _dupV=(DB.vendors||[]).find(function(v){ return v.active!==false && (v.name||'').trim().toLowerCase()===name.trim().toLowerCase(); });
+    if(_dupV && !confirm('A vendor named "'+name.trim()+'" already exists in your list.\n\nAdd another one anyway?')) return;
+  }
   var data={
     id:       id||crypto.randomUUID(),
     name:     name,
