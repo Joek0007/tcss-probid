@@ -520,6 +520,15 @@ function renderReceivingModal(po) {
   if (po.woId) { var wo=(DB.workOrders||[]).find(function(w){return w.id===po.woId;}); if(wo) woLabel=wo.woNumber||''; }
   else if (po.jobId) { var j=(typeof _findJobOrWO==="function"?_findJobOrWO(po.jobId):(DB.jobs||[]).find(function(x){return x.id===po.jobId;})); if(j) woLabel=j.num||''; }
 
+  // Instructions reflect what's actually on screen. "Arriving" is pre-filled to the full remaining,
+  // so the common "it all came in" case is just Confirm; lower a number to receive a partial.
+  var instrEl = document.getElementById('receiving-instructions');
+  if (instrEl) {
+    instrEl.innerHTML = hasWO
+      ? '<strong>Arriving</strong> is pre-filled to the full order — lower any line to receive a partial, or leave it to receive all. Split what arrives between the job ('+escHtml(woLabel||'Work Order')+') and stock, pick a stock location, then <strong>Confirm Receiving</strong>.'
+      : '<strong>Arriving</strong> is pre-filled to the full order — lower any line to receive a partial, or leave it to receive all. It all goes into stock at the location you pick, then <strong>Confirm Receiving</strong>.';
+  }
+
   var rows = _receivingLines.map(function(rl,i){
     // Wave 2d: if this item buys in a different unit than it stocks, show the conversion so the receiver
     // knows the entered (purchase-unit) qty becomes qty×factor in stock.
@@ -542,11 +551,15 @@ function renderReceivingModal(po) {
           'oninput="updateReceivingLine('+i+',\'toWO\',this.value)" '+
           'style="width:70px;padding:6px;border:1px solid #e0e7ef;border-radius:4px;text-align:center;font-size:13px;color:#1565c0">'+
         '</td>':'')+
-      '<td style="padding:10px 12px;text-align:center">'+
-        '<input id="recv-stk-'+i+'" type="number" value="'+rl.toStock+'" min="0" step="1" '+
-        'oninput="updateReceivingLine('+i+',\'toStock\',this.value)" '+
-        'style="width:70px;padding:6px;border:1px solid #e0e7ef;border-radius:4px;text-align:center;font-size:13px;color:#2e7d32">'+
-      '</td>'+
+      // → Stock QUANTITY is only a real choice when there's a WO to split against; without one, all of
+      // Arriving goes to stock (toStock tracks Arriving automatically), so the column is hidden to avoid
+      // the "two boxes that mirror each other" confusion.
+      (hasWO?
+        '<td style="padding:10px 12px;text-align:center">'+
+          '<input id="recv-stk-'+i+'" type="number" value="'+rl.toStock+'" min="0" step="1" '+
+          'oninput="updateReceivingLine('+i+',\'toStock\',this.value)" '+
+          'style="width:70px;padding:6px;border:1px solid #e0e7ef;border-radius:4px;text-align:center;font-size:13px;color:#2e7d32">'+
+        '</td>':'')+
       '<td style="padding:10px 12px">'+
         '<select oninput="updateReceivingLine('+i+',\'stockLocId\',this.value)" style="padding:6px;border:1px solid #e0e7ef;border-radius:4px;font-size:12px">'+locOpts+'</select>'+
       '</td>'+
@@ -562,7 +575,7 @@ function renderReceivingModal(po) {
       '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Recv’d</th>'+
       '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Arriving</th>'+
       (hasWO?'<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase">→ '+escHtml(woLabel)+'</th>':'')+
-      '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#2e7d32;text-transform:uppercase">→ Stock</th>'+
+      (hasWO?'<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#2e7d32;text-transform:uppercase">→ Stock</th>':'')+
       '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Stock Location</th>'+
     '</tr></thead><tbody>'+rows+'</tbody></table>';
 }
