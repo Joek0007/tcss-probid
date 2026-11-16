@@ -733,6 +733,7 @@ async function _pushPOToCloud(po) {
       approval_required:!!po.approvalRequired,approved:po.approved!==false,approved_by_name:po.approvedByName||null,approved_at:po.approvedAt||null,
       notes:po.notes||null,vendor_invoice_num:po.vendorInvNum||null,
       vendor_invoice_amount:po.vendorInvAmt||null,ready_to_pay:!!po.readyToPay,
+      rfq_id:po.rfqId||null,   // (r155) two-way link when a PO was converted from an awarded RFQ
       created_by:po.createdBy||_currentUser.id,created_by_name:po.createdByName||null,
       updated_at:new Date().toISOString()
     });

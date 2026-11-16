@@ -98,6 +98,7 @@ function _openRFQEditor(r){
           '<div style="flex:1;min-width:140px">'+_rfqField('Need by','rfq-needby',escHtml(r.needBy||''),'',"date")+'</div>'+
         '</div>'+
         (r.jobName?'<div style="font-size:12px;color:#546e7a;margin-bottom:10px">🔗 Linked to: <strong>'+escHtml(r.jobName)+'</strong></div>':'')+
+        ((r.convertedPoIds&&r.convertedPoIds.length)?'<div style="font-size:12px;color:#6a1b9a;margin-bottom:10px">🔁 Converted to: <strong>'+r.convertedPoIds.map(function(x){return escHtml(x.poNumber);}).join(', ')+'</strong></div>':'')+
         // Items
         '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin:6px 0 4px">Items to price</div>'+
         '<div id="rfq-items-wrap"></div>'+
@@ -117,6 +118,7 @@ function _openRFQEditor(r){
           (!isNew && r.status!=='Closed'?'<button class="btn btn-outline btn-sm" onclick="closeRFQ(\''+escHtml(_rfqCurrentId)+'\')">Close RFQ</button>':'')+
           (!isNew && r.status!=='Closed' && r.status!=='Converted'?'<button class="btn btn-success btn-sm" onclick="openRFQSendDialog(\''+escHtml(_rfqCurrentId)+'\')">📤 Send to Vendors</button>':'')+
           (!isNew && (r.vendors||[]).some(function(v){return v.respondedAt;})?'<button class="btn btn-primary btn-sm" onclick="openRFQCompare(\''+escHtml(_rfqCurrentId)+'\')">📊 Compare &amp; Award</button>':'')+
+          (!isNew && (r.status==='Awarded'||r.status==='Converted')?'<button class="btn btn-success btn-sm" onclick="convertRFQToPO(\''+escHtml(_rfqCurrentId)+'\')">🔁 Convert to PO(s)</button>':'')+
           '<button class="btn btn-outline" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" onclick="saveRFQ()">💾 Save</button>'+
         '</div>'+
@@ -558,6 +560,120 @@ window._rfqSetAward=_rfqSetAward;
 window._rfqAwardAllTo=_rfqAwardAllTo;
 window._rfqAwardAllLowest=_rfqAwardAllLowest;
 window.saveRFQAward=saveRFQAward;
+// ======================= PHASE 5: CONVERT AWARDED RFQ → PO(s) =======================
+// One PO per winning vendor, carrying that vendor's awarded items + awarded unit prices + freight +
+// the job/WO link + the WO-part link (so WO parts flip to "Ordered"). Lands in the normal PO flow
+// (approval threshold, email, receive, invoice match). Two-way link: rfq.convertedPoIds ↔ po.rfqId.
+async function _createPOFromRFQ(rfq, vendorId){
+  var vendor=(rfq.vendors||[]).find(function(v){return v.vendorId===vendorId;})||{};
+  var vrec=(DB.vendors||[]).find(function(x){return x.id===vendorId;})||{};
+  var awardedItems=(rfq.items||[]).filter(function(it){ return (rfq.lineAward||{})[it.id]===vendorId; });
+  if(!awardedItems.length) return null;
+  var poItems=awardedItems.map(function(it){
+    var p=(((rfq.prices||{})[it.id])||{})[vendorId]||{};
+    return { id:crypto.randomUUID(), desc:it.desc||'', partNum:it.partNum||'', qtyOrdered:parseFloat(it.qty)||1, qtyReceived:0, unitCost:parseFloat(p.unit)||0, _woPartId:it.woPartId||null };
+  });
+  var subtotal=poItems.reduce(function(s,li){return s+li.unitCost*li.qtyOrdered;},0);
+  var freight=parseFloat(vendor.freight)||0;
+  var total=subtotal+freight;
+  var floor=(typeof _maxNum==='function')?_maxNum(DB.purchaseOrders, function(p){return p.poNumber;}, /PO-(\d+)/):0;
+  var poN=await allocNumber('po', floor);
+  var poNumber='PO-'+poN;
+  var id=crypto.randomUUID();
+  var threshold=parseFloat((DB.settings||{}).poApprovalThreshold)||0;
+  var needsApproval=threshold>0 && total>=threshold;
+  var canApprove=(typeof hasPermission==='function')?hasPermission('po.approve'):true;
+  var approved=true, approvedByName=null, approvedAt=null;
+  if(needsApproval){
+    if(canApprove){ approved=true; approvedByName=(_currentUser&&_currentUser.full_name)||'Approver'; approvedAt=new Date().toISOString(); }
+    else { approved=false; }
+  }
+  var po={
+    id:id, poNumber:poNumber, vendorId:vendorId, vendorName:vendor.name||vrec.name||'',
+    jobId:rfq.jobId||null, jobName:rfq.jobName||'', woId:rfq.woId||null,
+    status:(needsApproval&&!approved)?'Pending Approval':'Draft',
+    date:(new Date()).toISOString().split('T')[0], dateNeeded:rfq.needBy||'',
+    shipName:'',shipAddr:'',shipCity:'',shipState:'',shipZip:'',
+    notes:'Converted from RFQ '+(rfq.rfqNumber||'')+(vendor.leadTime?(' · Lead: '+vendor.leadTime):'')+(vendor.minNote?(' · '+vendor.minNote):''),
+    vendorInvNum:'', vendorInvAmt:0, readyToPay:false,
+    subtotal:subtotal, tax:0, freight:freight, total:total,
+    approvalRequired:needsApproval, approved:approved, approvedByName:approvedByName, approvedAt:approvedAt,
+    rfqId:rfq.id,
+    items:poItems,
+    createdBy:(_currentUser&&_currentUser.id)||null, createdByName:(_currentUser&&_currentUser.full_name)||'Unknown',
+    createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()
+  };
+  if(!DB.purchaseOrders) DB.purchaseOrders=[];
+  DB.purchaseOrders.unshift(po);
+  poItems.forEach(function(li){ if(!li._woPartId) return; var wp=(DB.woParts||[]).find(function(x){return x.id===li._woPartId;}); if(wp && wp.status!=='received' && wp.status!=='partial'){ wp.status='ordered'; if(typeof _pushWOPartToCloud==='function') _pushWOPartToCloud(wp); } });
+  if(typeof _pushPOToCloud==='function') await _pushPOToCloud(po);
+  return { poId:id, poNumber:poNumber, vendorId:vendorId, vendorName:po.vendorName, total:total, approval:(needsApproval&&!approved) };
+}
+
+function convertRFQToPO(id){
+  if(typeof hasPermission==='function' && !hasPermission('rfq.convert')){ showToast('You do not have permission to convert RFQs to POs','error'); return; }
+  var r=_rfqById(id); if(!r){ showToast('RFQ not found','error'); return; }
+  if(r.status!=='Awarded' && !(r.convertedPoIds&&r.convertedPoIds.length)){ showToast('Award the RFQ first (pick the winning vendors), then convert.','info',5000); return; }
+  _rfqCurrentId=id;
+  var byVendor={}, unawarded=[];
+  (r.items||[]).forEach(function(it){ var vid=(r.lineAward||{})[it.id]; if(vid){ (byVendor[vid]=byVendor[vid]||[]).push(it); } else { unawarded.push(it); } });
+  var vids=Object.keys(byVendor);
+  if(!vids.length){ showToast('No awarded lines to convert.','info'); return; }
+  var rows=vids.map(function(vid){
+    var vendor=(r.vendors||[]).find(function(v){return v.vendorId===vid;})||{};
+    var items=byVendor[vid];
+    var sub=items.reduce(function(s,it){ var p=(((r.prices||{})[it.id])||{})[vid]||{}; return s+(parseFloat(p.unit)||0)*(parseFloat(it.qty)||1); },0);
+    var fr=parseFloat(vendor.freight)||0;
+    return '<div style="border:1px solid #eef2f6;border-radius:8px;padding:10px 12px;margin-bottom:8px">'+
+      '<div style="font-weight:700">'+escHtml(vendor.name||'')+' <span style="font-size:12px;color:#90a4ae;font-weight:400">→ new PO</span></div>'+
+      '<div style="font-size:12px;color:#546e7a">'+items.length+' item'+(items.length===1?'':'s')+' · materials $'+sub.toFixed(2)+(fr?' + freight $'+fr.toFixed(2):'')+' = <strong>$'+(sub+fr).toFixed(2)+'</strong></div></div>';
+  }).join('');
+  var modalId='modal-rfq-convert';
+  var ex=document.getElementById(modalId); if(ex) ex.remove();
+  var div=document.createElement('div');
+  div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
+  div.innerHTML=
+    '<div class="modal-box" style="max-width:520px">'+
+      '<div class="modal-head"><h3>🔁 Convert '+escHtml(r.rfqNumber||'')+' to Purchase Orders</h3>'+
+        '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
+      '<div class="modal-body">'+
+        '<div style="font-size:13px;color:#546e7a;margin-bottom:10px">This creates '+vids.length+' purchase order'+(vids.length===1?'':'s')+' — one per awarded vendor — carrying the awarded items, prices, and freight. Nothing is sent to the vendor; the POs land in your Purchase Orders list for review/approval and sending.</div>'+
+        rows+
+        (unawarded.length?'<div style="font-size:12px;color:#c62828;margin:8px 0">⚠ '+unawarded.length+' item'+(unawarded.length===1?'':'s')+' not awarded to any vendor — they will NOT be ordered: '+unawarded.map(function(it){return escHtml(it.desc||'item');}).join(', ')+'</div>':'')+
+        ((r.convertedPoIds&&r.convertedPoIds.length)?'<div style="font-size:12px;color:#e65100;margin:8px 0">⚠ This RFQ was already converted once ('+r.convertedPoIds.map(function(x){return escHtml(x.poNumber);}).join(', ')+'). Converting again creates NEW additional POs.</div>':'')+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">'+
+          '<button class="btn btn-outline" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
+          '<button class="btn btn-success" onclick="_convertRFQNow(\''+modalId+'\')">🔁 Create '+vids.length+' PO'+(vids.length===1?'':'s')+'</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+}
+
+async function _convertRFQNow(modalId){
+  if(typeof hasPermission==='function' && !hasPermission('rfq.convert')){ showToast('You do not have permission','error'); return; }
+  var r=_rfqById(_rfqCurrentId); if(!r) return;
+  var byVendor={};
+  (r.items||[]).forEach(function(it){ var vid=(r.lineAward||{})[it.id]; if(vid){ (byVendor[vid]=byVendor[vid]||[]).push(it); } });
+  var vids=Object.keys(byVendor);
+  var btn=document.querySelector('#'+modalId+' .btn-success'); if(btn){ btn.disabled=true; btn.textContent='Creating…'; }
+  var results=[];
+  for(var i=0;i<vids.length;i++){ try{ var res=await _createPOFromRFQ(r, vids[i]); if(res) results.push(res); }catch(e){ console.warn('[RFQ convert]', e&&e.message); } }
+  r.convertedPoIds=(r.convertedPoIds||[]).concat(results.map(function(x){ return { poId:x.poId, poNumber:x.poNumber, vendorId:x.vendorId, vendorName:x.vendorName }; }));
+  r.status='Converted'; r.updatedAt=new Date().toISOString();
+  _pushRFQToCloud(r); saveDB();
+  if(typeof auditLog==='function') auditLog('rfq_convert','rfq',r.id,{note:(r.rfqNumber||'')+' → '+results.map(function(x){return x.poNumber;}).join(', ')});
+  if(typeof renderPOList==='function') renderPOList();
+  renderRFQList();
+  var m=document.getElementById(modalId); if(m) m.remove();
+  var m2=document.getElementById('modal-rfq'); if(m2) m2.remove();
+  var anyApproval=results.some(function(x){return x.approval;});
+  showToast('Created '+results.length+' PO'+(results.length===1?'':'s')+': '+results.map(function(x){return x.poNumber;}).join(', ')+(anyApproval?' — some need approval before sending':''),'success',6000);
+}
+
+window._createPOFromRFQ=_createPOFromRFQ;
+window.convertRFQToPO=convertRFQToPO;
+window._convertRFQNow=_convertRFQNow;
 window.deleteRFQ=deleteRFQ;
 window.openRFQSendDialog=openRFQSendDialog;
 window._rfqSendNow=_rfqSendNow;

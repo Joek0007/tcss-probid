@@ -619,7 +619,7 @@ function _mapPORow(p){
     subtotal:p.subtotal, total:p.total, tax:p.tax_amount, freight:p.freight_amount, notes:p.notes,
     approvalRequired:!!p.approval_required, approved:(p.approved!==false), approvedByName:p.approved_by_name, approvedAt:p.approved_at,
     vendorInvNum:p.vendor_invoice_num, vendorInvAmt:p.vendor_invoice_amount,
-    readyToPay:!!p.ready_to_pay, createdBy:p.created_by, createdByName:p.created_by_name,
+    readyToPay:!!p.ready_to_pay, rfqId:p.rfq_id||null, createdBy:p.created_by, createdByName:p.created_by_name,
     createdAt:p.created_at, updatedAt:p.updated_at,
     items:(p.po_line_items||[]).sort(function(a,b){return (a.sort_order||0)-(b.sort_order||0);}).map(function(li){
       return { id:li.id, desc:li.description, partNum:li.part_num, qtyOrdered:li.qty_ordered, qtyReceived:li.qty_received, unitCost:li.unit_cost, _woPartId:li.wo_part_id||null };
