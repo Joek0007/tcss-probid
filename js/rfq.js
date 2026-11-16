@@ -328,8 +328,11 @@ function _rfqToken(){
   return 'tk'+Date.now().toString(36)+Math.random().toString(36).slice(2,12)+Math.random().toString(36).slice(2,12);
 }
 function _rfqVendorPageBase(){
-  // same folder as the app (…/tcss-probid/vendor-quote.html)
-  return (location.origin+location.pathname).replace(/[^/]*$/,'')+'vendor-quote.html';
+  // same folder as the app (…/tcss-probid/vendor-quote.html). Resolve against document.baseURI so a
+  // pathname without a trailing slash (e.g. "/tcss-probid") can't collapse the directory and point the
+  // link at the wrong host/path. Fall back to string surgery only if URL() is unavailable.
+  try{ return new URL('vendor-quote.html', document.baseURI).href; }
+  catch(e){ return (location.origin+location.pathname).replace(/[^/]*$/,'')+'vendor-quote.html'; }
 }
 function _rfqVendorLink(rfqId, token){ return _rfqVendorPageBase()+'?r='+encodeURIComponent(rfqId)+'&t='+encodeURIComponent(token); }
 
@@ -436,7 +439,11 @@ async function _rfqSendNow(modalId){
         fd.append('subject', 'Request for Quote '+r.rfqNumber+(r.jobName?(' — '+r.jobName):''));
         fd.append('text', text);
         fd.append('html', html);
-        fd.append('o:tracking','yes'); fd.append('o:tracking-opens','yes');
+        // Open-tracking only. Click-tracking is explicitly OFF: Mailgun click-tracking rewrites every
+        // link onto the domain's tracking host (web_scheme http), which isn't set up in DNS — a
+        // rewritten "Enter your quote online" link then fails with "site can't be reached". The vendor
+        // link must reach our real page untouched, so we never let it be rewritten.
+        fd.append('o:tracking','yes'); fd.append('o:tracking-opens','yes'); fd.append('o:tracking-clicks','no');
         fd.append('v:probid_type','rfq'); fd.append('v:probid_id', String(r.id)); fd.append('v:probid_vendor', String(vid));
         var res=await fetch('https://api.mailgun.net/v3/'+mgDomain+'/messages',{method:'POST',headers:{'Authorization':'Basic '+btoa('api:'+s.mgKey)},body:fd});
         if(res.ok){ ven.sentAt=new Date().toISOString(); ven.status='invited'; sentOk++; }

@@ -1163,7 +1163,9 @@ async function _sendPOEmailNow(modalId){
       fd.append('subject', subject);
       fd.append('text', textBody);
       fd.append('html', htmlBody);
-      fd.append('o:tracking','yes'); fd.append('o:tracking-opens','yes');
+      // Click-tracking OFF: Mailgun would rewrite any link onto its tracking host (web_scheme http,
+      // no DNS set up) → "site can't be reached". Keep open-tracking only so links reach us untouched.
+      fd.append('o:tracking','yes'); fd.append('o:tracking-opens','yes'); fd.append('o:tracking-clicks','no');
       fd.append('v:probid_type','po'); fd.append('v:probid_id', String(po.id));
       var res=await fetch('https://api.mailgun.net/v3/'+mgDomain+'/messages',{method:'POST',headers:{'Authorization':'Basic '+btoa('api:'+s.mgKey)},body:fd});
       var data=await res.json().catch(function(){return {};});
