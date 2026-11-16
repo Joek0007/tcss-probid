@@ -522,11 +522,13 @@ function renderReceivingModal(po) {
 
   // Instructions reflect what's actually on screen. "Arriving" is pre-filled to the full remaining,
   // so the common "it all came in" case is just Confirm; lower a number to receive a partial.
+  var _anyPrior = _receivingLines.some(function(rl){ return parseFloat(rl.qtyReceived||0) > 0; });
   var instrEl = document.getElementById('receiving-instructions');
   if (instrEl) {
-    instrEl.innerHTML = hasWO
-      ? '<strong>Arriving</strong> is pre-filled to the full order — lower any line to receive a partial, or leave it to receive all. Split what arrives between the job ('+escHtml(woLabel||'Work Order')+') and stock, pick a stock location, then <strong>Confirm Receiving</strong>.'
-      : '<strong>Arriving</strong> is pre-filled to the full order — lower any line to receive a partial, or leave it to receive all. It all goes into stock at the location you pick, then <strong>Confirm Receiving</strong>.';
+    instrEl.innerHTML = (hasWO
+      ? '<strong>Arriving</strong> is pre-filled to what’s still owed — lower any line to receive a partial, or leave it to receive all. Split what arrives between the job ('+escHtml(woLabel||'Work Order')+') and stock, pick a stock location, then <strong>Confirm Receiving</strong>.'
+      : '<strong>Arriving</strong> is pre-filled to what’s still owed — lower any line to receive a partial, or leave it to receive all. It all goes into stock at the location you pick, then <strong>Confirm Receiving</strong>.')
+      + (_anyPrior ? '<br><span style="color:#c62828">Received something by mistake? Use <strong>↩ put back</strong> on that line (or type a negative Arriving) to reverse it — it pulls the qty back out of stock and drops the PO status accordingly.</span>' : '');
   }
 
   var rows = _receivingLines.map(function(rl,i){
@@ -541,9 +543,10 @@ function renderReceivingModal(po) {
       '<td style="padding:10px 12px;text-align:center;font-size:13px">'+rl.qtyOrdered+'</td>'+
       '<td style="padding:10px 12px;text-align:center;font-size:13px;color:'+(rl.qtyReceived>0?'#2e7d32':'#90a4ae')+'">'+rl.qtyReceived+'</td>'+
       '<td style="padding:10px 12px;text-align:center">'+
-        '<input id="recv-arr-'+i+'" type="number" value="'+rl.arriving+'" min="0" max="'+(rl.qtyOrdered-rl.qtyReceived)+'" step="1" '+
+        '<input id="recv-arr-'+i+'" type="number" value="'+rl.arriving+'" min="-'+rl.qtyReceived+'" max="'+(rl.qtyOrdered-rl.qtyReceived)+'" step="1" '+
         'oninput="updateReceivingLine('+i+',\'arriving\',this.value)" '+
         'style="width:70px;padding:6px;border:1px solid #e0e7ef;border-radius:4px;text-align:center;font-size:13px">'+
+        (rl.qtyReceived>0 ? '<div><button type="button" onclick="receivePutBack('+i+')" title="Put this line back out of received and stock" style="margin-top:4px;background:none;border:none;color:#c62828;font-size:10px;cursor:pointer;text-decoration:underline">↩ put back</button></div>' : '')+
       '</td>'+
       (hasWO?
         '<td style="padding:10px 12px;text-align:center">'+
@@ -589,11 +592,27 @@ function updateReceivingLine(idx, field, val) {
   // dropped focus — that was the "can't partially receive" wonkiness. Instead, update state and set
   // just the dependent Stock field's value in place.
   if (field==='arriving' || field==='toWO') {
-    var toStock = Math.max(0, (parseFloat(rl.arriving)||0) - (parseFloat(rl.toWO)||0));
+    var a = parseFloat(rl.arriving)||0, w = parseFloat(rl.toWO)||0;
+    // A negative Arriving is an un-receive/correction — it comes straight back out of stock (no WO
+    // split), so don't clamp it to 0. Otherwise Stock = Arriving − WO as before.
+    var toStock = (a < 0) ? a : Math.max(0, a - w);
     rl.toStock = toStock;
     var stkEl = document.getElementById('recv-stk-'+idx);
     if (stkEl && document.activeElement !== stkEl) stkEl.value = toStock;
   }
+}
+
+// (r165) One-click reverse of a line: set Arriving to the negative of what's already received, so
+// Confirm puts the whole line back (qtyReceived → 0, stock reduced by that amount).
+function receivePutBack(idx) {
+  var rl = _receivingLines[idx]; if (!rl) return;
+  var back = -(parseFloat(rl.qtyReceived)||0);
+  rl.arriving = back;
+  rl.toWO = 0;
+  rl.toStock = back;
+  var arrEl = document.getElementById('recv-arr-'+idx); if (arrEl) arrEl.value = back;
+  var stkEl = document.getElementById('recv-stk-'+idx); if (stkEl) stkEl.value = back;
+  var woEl  = document.getElementById('recv-wo-'+idx);  if (woEl)  woEl.value  = 0;
 }
 
 function confirmReceiving() {
@@ -601,12 +620,14 @@ function confirmReceiving() {
   if (!po) return;
   var today = getTodayISO();
   var _newParts   = [];   // wo_parts to push inline (inventory pushes via adjustItemQty)
+  var _reversed   = false;  // (r165) track whether any line was put back (negative) for the audit/toast
 
   _receivingLines.forEach(function(rl, i) {
-    if (rl.arriving <= 0) return;
-    // Update PO line item received qty
+    if (!rl.arriving) return;                 // 0 / NaN → untouched. Negative = un-receive (correction).
+    if (rl.arriving < 0) _reversed = true;
+    // Update PO line item received qty — clamp at 0 so a reversal can't drive received negative.
     if (po.items[i]) {
-      po.items[i].qtyReceived = parseFloat(po.items[i].qtyReceived||0) + rl.arriving;
+      po.items[i].qtyReceived = Math.max(0, parseFloat(po.items[i].qtyReceived||0) + rl.arriving);
     }
 
     // Find inventory item by name or part number
@@ -620,8 +641,9 @@ function confirmReceiving() {
     var _master = invItem ? _itemMaster(invItem.id) : null;
     var _factor = (_master && parseFloat(_master.conversionFactor) > 0) ? parseFloat(_master.conversionFactor) : 1;
 
-    // Add to stock location (adjustItemQty write-through pushes the item to the cloud)
-    if (rl.toStock > 0) {
+    // Adjust stock (adjustItemQty write-through pushes the item to the cloud). Non-zero in EITHER
+    // direction: a positive toStock adds; a negative toStock (a reversal) pulls the qty back out.
+    if (rl.toStock) {
       if (invItem) {
         adjustItemQty(invItem.id, rl.stockLocId, rl.toStock * _factor);
       }
@@ -654,9 +676,11 @@ function confirmReceiving() {
   // Update PO status from the ACTUAL state of ALL lines after this receipt — not only the lines
   // touched this round. The old code skipped untouched lines (arriving<=0), so receiving a SUBSET
   // marked the whole PO "Received" and the Receive button vanished → you couldn't receive the rest.
+  // 'Matched' is included so a manager's reversal on a matched PO re-evaluates (the invoice match is
+  // stale once received qtys change).
   var _all = (po.items||[]).length>0 && (po.items||[]).every(function(it){ return parseFloat(it.qtyReceived||0) >= parseFloat(it.qtyOrdered||1); });
   var _any = (po.items||[]).some(function(it){ return parseFloat(it.qtyReceived||0) > 0; });
-  if (['Draft','Sent','Partially Received','Received'].indexOf(po.status) >= 0) {
+  if (['Draft','Sent','Partially Received','Received','Matched'].indexOf(po.status) >= 0) {
     po.status = _all ? 'Received' : (_any ? 'Partially Received' : (po.status==='Draft'?'Draft':'Sent'));
   }
 
@@ -668,9 +692,11 @@ function confirmReceiving() {
     if (typeof _pushPOToCloud==='function') _pushPOToCloud(po);
   } catch(e) { console.warn('[Receiving push]', e && e.message); }
 
+  if (_reversed && typeof auditLog==='function') auditLog('po_receiving_correct','po',po.id,{note:(po.poNumber||'')+' receiving corrected (items put back) → '+po.status});
+
   closeModal('modal-receiving');
   renderPOList();
-  showToast('Receiving confirmed — inventory updated ✓','success',4000);
+  showToast(_reversed ? 'Correction saved — items put back, stock & status updated ✓' : 'Receiving confirmed — inventory updated ✓','success',4000);
 }
 
 // ---- PRICE BOOK CSV IMPORT ----

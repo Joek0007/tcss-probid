@@ -147,6 +147,13 @@ function deleteVendor(id) {
 
 // ---- PURCHASE ORDERS LIST ----
 
+// (r165) Who may reopen a received PO and put items back. Receiving corrections touch stock + status,
+// so they're office-manager level (owner / manager / back_office), matching the delete-office gate.
+function _canCorrectReceiving(){
+  if(typeof hasPermission==='function' && hasPermission('po.correct_receiving')) return true;
+  return !!(_currentUser && (_currentUser.role==='owner'||_currentUser.role==='manager'||_currentUser.role==='back_office'));
+}
+
 function renderPOList() {
   if(!DB.purchaseOrders) DB.purchaseOrders=[];
   var search=((document.getElementById('po-search')||{}).value||'').toLowerCase();
@@ -219,11 +226,15 @@ function renderPOList() {
         // other row shows a light GREEN-OUTLINE placeholder (inert — just holds the line).
         ((['Draft','Sent','Partially Received'].includes(po.status))
           ? '<button class="btn btn-success btn-sm po-recv" onclick="openReceiving(\''+po.id+'\')">📥 Receive</button>'
+          // (r165) A fully-received PO can be reopened by a manager to fix a mistake — same receiving
+          // screen, where they can put items back (negative), so corrections stay on the one path.
+          : ((['Received','Matched'].includes(po.status) && _canCorrectReceiving())
+             ? '<button class="btn btn-outline btn-sm po-recv" onclick="openReceiving(\''+po.id+'\')" title="Reopen receiving to correct a mistake">↩ Correct</button>'
           // (r138) A PO awaiting approval shows an Approve button (for approvers) in the Receive slot —
           // keeps the Actions column width identical. Others keep the inert placeholder.
           : ((po.approvalRequired && !po.approved && (typeof hasPermission==='function'?hasPermission('po.approve'):true))
              ? '<button class="btn btn-success btn-sm po-recv" onclick="event.stopPropagation&&event.stopPropagation();approvePO(\''+po.id+'\')" title="Approve this PO">✅ Approve</button>'
-             : '<button class="btn btn-sm po-recv po-recv-ph" tabindex="-1" aria-hidden="true">Receive</button>'))+
+             : '<button class="btn btn-sm po-recv po-recv-ph" tabindex="-1" aria-hidden="true">Receive</button>')))+
         '<button class="btn btn-outline btn-sm" onclick="printPOById(\''+po.id+'\')" title="Print PO">🖨</button>'+
         ((typeof _canDeleteOfficeRecords==='function' ? _canDeleteOfficeRecords() : (_currentUser&&(_currentUser.role==='owner'||_currentUser.role==='back_office')))?'<button class="btn btn-danger btn-sm" onclick="deletePO(\''+po.id+'\')" title="Delete PO">✕</button>':'')+
       '</div>'+
