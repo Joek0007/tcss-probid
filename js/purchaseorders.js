@@ -154,6 +154,12 @@ function _canCorrectReceiving(){
   if(typeof hasPermission==='function') return hasPermission('po.correct_receiving');
   return !!(_currentUser && (_currentUser.role==='owner'||_currentUser.role==='manager'||_currentUser.role==='back_office'));
 }
+// (r167) Who may RECEIVE a PO. Governed by the 'po.receive' role toggle. Role fallback only if the
+// permission engine isn't loaded.
+function _canReceivePO(){
+  if(typeof hasPermission==='function') return hasPermission('po.receive');
+  return !!(_currentUser && (_currentUser.role==='owner'||_currentUser.role==='manager'||_currentUser.role==='back_office'));
+}
 
 function renderPOList() {
   if(!DB.purchaseOrders) DB.purchaseOrders=[];
@@ -225,7 +231,7 @@ function renderPOList() {
         // r101: Receive keeps the SAME footprint on every row so the Actions column stays in line. A PO that
         // is ready to receive (Sent / Partially Received) gets a solid DARK-GREEN clickable Receive; every
         // other row shows a light GREEN-OUTLINE placeholder (inert — just holds the line).
-        ((['Draft','Sent','Partially Received'].includes(po.status))
+        ((['Draft','Sent','Partially Received'].includes(po.status) && _canReceivePO())
           ? '<button class="btn btn-success btn-sm po-recv" onclick="openReceiving(\''+po.id+'\')">📥 Receive</button>'
           // (r165) A fully-received PO can be reopened by a manager to fix a mistake — same receiving
           // screen, where they can put items back (negative), so corrections stay on the one path.

@@ -1454,6 +1454,9 @@ var PERM_DEFS = [
   // (r143) Field techs submit packing slips / delivery photos against a PO from the field (job
   // delivery or vendor pickup). Lead + helper techs on by default, plus office.
   {key:'po.attach_field',  label:'Submit PO Packing Slips (field)', group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:1,helper_tech:1,project_manager:1,subcontractor:0}},
+  // (r167) Who may RECEIVE a PO (record arrivals → moves stock + WO + status). Previously ungated
+  // (anyone who could see the PO page could receive). Now a role toggle — office roles on by default.
+  {key:'po.receive',       label:'Receive Purchase Orders',    group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   // (r166) Reopen a received PO and put items back (un-receive / correct a receiving mistake). Touches
   // stock + PO status, so it's a controlled role toggle — office roles on by default.
   {key:'po.correct_receiving', label:'Reopen & Correct PO Receiving', group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},

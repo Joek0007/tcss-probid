@@ -485,6 +485,11 @@ var _receivingPOId = null;
 var _receivingLines = [];
 
 function openReceiving(poId) {
+  // (r167) Defense in depth — this is the shared entry for both 📥 Receive and ↩ Correct. Allow if the
+  // user can do either; otherwise block (the buttons are already gated, this stops a direct call).
+  var _mayReceive = (typeof _canReceivePO==='function') ? _canReceivePO() : true;
+  var _mayCorrect = (typeof _canCorrectReceiving==='function') ? _canCorrectReceiving() : true;
+  if (!_mayReceive && !_mayCorrect) { if(typeof showToast==='function') showToast('You do not have permission to receive purchase orders','error'); return; }
   var po = (DB.purchaseOrders||[]).find(function(p){ return p.id===poId; });
   if (!po) {
     // Open POs are always in the working set, but guard anyway: fetch on demand then retry.
@@ -540,8 +545,11 @@ function renderReceivingModal(po) {
     var _rlM = _rlItem ? _itemMaster(_rlItem.id) : null;
     var _rlF = (_rlM && parseFloat(_rlM.conversionFactor) > 0) ? parseFloat(_rlM.conversionFactor) : 1;
     var _convNote = (_rlF > 1 && _rlM) ? '<br><span style="font-size:11px;color:#2e7d32;font-weight:600">1 '+escHtml(_rlM.purchaseUnit||'unit')+' = '+_rlF+' '+escHtml(_rlM.unit||'ea')+' → stock gets qty × '+_rlF+'</span>' : '';
+    // (r167) If this line has no matching inventory item, the stock movement silently no-ops. Flag it
+    // so the receiver knows it won't track to stock (and can add the item / pick the right name first).
+    var _noStock = !_rlItem ? '<br><span style="font-size:11px;color:#c62828;font-weight:600">⚠ not in inventory — won’t track to stock (receipt still records on the PO)</span>' : '';
     return '<tr>'+
-      '<td style="padding:10px 12px;font-size:13px;font-weight:600">'+escHtml(rl.desc)+'<br><span style="font-size:11px;color:#90a4ae">'+escHtml(rl.partNum)+'</span>'+_convNote+'</td>'+
+      '<td style="padding:10px 12px;font-size:13px;font-weight:600">'+escHtml(rl.desc)+'<br><span style="font-size:11px;color:#90a4ae">'+escHtml(rl.partNum)+'</span>'+_convNote+_noStock+'</td>'+
       '<td style="padding:10px 12px;text-align:center;font-size:13px">'+rl.qtyOrdered+'</td>'+
       '<td style="padding:10px 12px;text-align:center;font-size:13px;color:'+(rl.qtyReceived>0?'#2e7d32':'#90a4ae')+'">'+rl.qtyReceived+'</td>'+
       '<td style="padding:10px 12px;text-align:center">'+
@@ -623,6 +631,7 @@ function confirmReceiving() {
   var today = getTodayISO();
   var _newParts   = [];   // wo_parts to push inline (inventory pushes via adjustItemQty)
   var _reversed   = false;  // (r165) track whether any line was put back (negative) for the audit/toast
+  var _recvLines=0, _recvQty=0, _backLines=0, _backQty=0;   // (r167) summary for the audit log
   // (r166) Reversal is permission-gated. Defense in depth: if the user lacks po.correct_receiving,
   // drop any negative (put-back) line so a hand-edited value can't un-receive without the right.
   var _mayCorrect = (typeof _canCorrectReceiving==='function') ? _canCorrectReceiving() : false;
@@ -630,7 +639,8 @@ function confirmReceiving() {
   _receivingLines.forEach(function(rl, i) {
     if (rl.arriving < 0 && !_mayCorrect) return;   // not allowed to reverse → ignore this line
     if (!rl.arriving) return;                 // 0 / NaN → untouched. Negative = un-receive (correction).
-    if (rl.arriving < 0) _reversed = true;
+    if (rl.arriving < 0) { _reversed = true; _backLines++; _backQty += -rl.arriving; }
+    else { _recvLines++; _recvQty += rl.arriving; }
     // Update PO line item received qty — clamp at 0 so a reversal can't drive received negative.
     if (po.items[i]) {
       po.items[i].qtyReceived = Math.max(0, parseFloat(po.items[i].qtyReceived||0) + rl.arriving);
@@ -689,6 +699,9 @@ function confirmReceiving() {
   if (['Draft','Sent','Partially Received','Received','Matched'].indexOf(po.status) >= 0) {
     po.status = _all ? 'Received' : (_any ? 'Partially Received' : (po.status==='Draft'?'Draft':'Sent'));
   }
+  // (r167, gap #1 safety) A reversal that drops the PO out of fully-received must not leave it flagged
+  // ready to pay — otherwise a PO you un-received could still be queued for payment.
+  if (po.readyToPay && po.status!=='Received' && po.status!=='Matched' && po.status!=='Ready to Pay') po.readyToPay = false;
 
   saveDB();
   // Write-through to the cloud immediately (don't wait on the slow full sync): the received
@@ -698,7 +711,17 @@ function confirmReceiving() {
     if (typeof _pushPOToCloud==='function') _pushPOToCloud(po);
   } catch(e) { console.warn('[Receiving push]', e && e.message); }
 
-  if (_reversed && typeof auditLog==='function') auditLog('po_receiving_correct','po',po.id,{note:(po.poNumber||'')+' receiving corrected (items put back) → '+po.status});
+  // (r167, gap #5) Audit EVERY receipt — stock moves both ways and must be traceable, not just
+  // corrections. One entry per confirm summarizing what was received and/or put back.
+  if (typeof auditLog==='function' && (_recvLines || _backLines)) {
+    var _who = (_currentUser && (_currentUser.full_name||_currentUser.name)) || 'Unknown';
+    var _note = (po.poNumber||'') + ': ' +
+      (_recvLines ? ('received '+_recvLines+' line(s) / qty '+_recvQty) : '') +
+      (_recvLines && _backLines ? ' · ' : '') +
+      (_backLines ? ('put back '+_backLines+' line(s) / qty '+_backQty) : '') +
+      ' → ' + po.status + ' (by ' + _who + ')';
+    auditLog(_reversed ? 'po_receiving_correct' : 'po_receiving', 'po', po.id, {note:_note});
+  }
 
   closeModal('modal-receiving');
   renderPOList();
