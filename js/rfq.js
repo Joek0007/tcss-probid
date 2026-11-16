@@ -102,12 +102,11 @@ function _openRFQEditor(r){
         // Items
         '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin:6px 0 4px">Items to price</div>'+
         '<div id="rfq-items-wrap"></div>'+
-        '<div style="display:flex;gap:8px;margin:8px 0 16px"><button class="btn btn-outline btn-sm" onclick="addRFQItem()">+ Add Item</button>'+
-          '<button class="btn btn-outline btn-sm" onclick="document.getElementById(\'rfq-catalog-pick\').focus()">+ From Catalog</button>'+
-          '<input list="rfq-catalog-list" id="rfq-catalog-pick" placeholder="type a catalog item…" style="flex:1;min-width:160px;padding:7px 9px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px" onchange="addRFQFromCatalog(this)"></div>'+
+        '<div style="display:flex;gap:10px;margin:8px 0 16px;align-items:center;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="addRFQItem()">+ Add Item</button>'+
+          '<span style="font-size:11px;color:#90a4ae">Start typing a <strong>Description</strong> to search your catalog — picking one fills the part #. Not in the catalog? Just type it.</span></div>'+
         '<datalist id="rfq-catalog-list"></datalist>'+
         // Vendors
-        '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin:6px 0 4px">Vendors to ask</div>'+
+        '<div style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;margin:6px 0 4px">Vendors to ask <span id="rfq-vcount" style="color:#1565c0;margin-left:6px">— none selected</span></div>'+
         '<div id="rfq-vendors-wrap" style="border:1px solid #eef2f6;border-radius:8px;padding:8px;max-height:180px;overflow:auto;margin-bottom:14px"></div>'+
         // Notes
         '<div style="margin-bottom:14px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">Internal notes (not sent)</label>'+
@@ -115,11 +114,11 @@ function _openRFQEditor(r){
         '<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">'+
           (!isNew?'<span style="margin-right:auto">'+_rfqStatusBadge(r.status)+'</span>':'')+
           (!isNew?'<button class="btn btn-danger btn-sm" onclick="deleteRFQ(\''+escHtml(_rfqCurrentId)+'\')">🗑 Delete</button>':'')+
-          (!isNew?'<button class="btn btn-outline btn-sm" onclick="printRFQ(\''+escHtml(_rfqCurrentId)+'\')">🖨 Print RFQ</button>':'')+
+          (!isNew?'<button class="btn btn-outline btn-sm" onclick="_rfqAction(\'print\')">🖨 Print RFQ</button>':'')+
           (!isNew && r.status!=='Closed'?'<button class="btn btn-outline btn-sm" onclick="closeRFQ(\''+escHtml(_rfqCurrentId)+'\')">Close RFQ</button>':'')+
-          (!isNew && r.status!=='Closed' && r.status!=='Converted'?'<button class="btn btn-success btn-sm" onclick="openRFQSendDialog(\''+escHtml(_rfqCurrentId)+'\')">📤 Send to Vendors</button>':'')+
-          (!isNew && (r.vendors||[]).some(function(v){return v.respondedAt;})?'<button class="btn btn-primary btn-sm" onclick="openRFQCompare(\''+escHtml(_rfqCurrentId)+'\')">📊 Compare &amp; Award</button>':'')+
-          (!isNew && (r.status==='Awarded'||r.status==='Converted')?'<button class="btn btn-success btn-sm" onclick="convertRFQToPO(\''+escHtml(_rfqCurrentId)+'\')">🔁 Convert to PO(s)</button>':'')+
+          (!isNew && r.status!=='Closed' && r.status!=='Converted'?'<button class="btn btn-success btn-sm" onclick="_rfqAction(\'send\')">📤 Send to Vendors</button>':'')+
+          (!isNew && (r.vendors||[]).some(function(v){return v.respondedAt;})?'<button class="btn btn-primary btn-sm" onclick="_rfqAction(\'compare\')">📊 Compare &amp; Award</button>':'')+
+          (!isNew && (r.status==='Awarded'||r.status==='Converted')?'<button class="btn btn-success btn-sm" onclick="_rfqAction(\'convert\')">🔁 Convert to PO(s)</button>':'')+
           '<button class="btn btn-outline" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" onclick="saveRFQ()">💾 Save</button>'+
         '</div>'+
@@ -181,14 +180,26 @@ function _renderRFQVendorPicker(){
   w.innerHTML=vendors.map(function(v){
     var checked=_rfqVendorSel.indexOf(v.id)>=0;
     var noEmail=!(v.email&&v.email.trim());
-    return '<label style="display:flex;align-items:center;gap:8px;padding:5px 4px;font-size:13px;cursor:pointer;border-bottom:1px solid #f4f7fa">'+
+    return '<label data-vid="'+escHtml(v.id)+'" style="display:flex;align-items:center;gap:8px;padding:5px 4px;font-size:13px;cursor:pointer;border-bottom:1px solid #f4f7fa;border-radius:5px;'+(checked?'background:#e8f5e9':'')+'">'+
       '<input type="checkbox" '+(checked?'checked':'')+' onchange="_rfqToggleVendor(\''+escHtml(v.id)+'\',this.checked)" style="width:15px;height:15px">'+
       '<span style="font-weight:600">'+escHtml(v.name||'(unnamed)')+'</span>'+
       (noEmail?'<span style="font-size:11px;color:#c62828">⚠ no email — can’t send</span>':'<span style="font-size:11px;color:#90a4ae">'+escHtml(v.email)+'</span>')+
     '</label>';
   }).join('');
+  _rfqUpdateVCount();
 }
-function _rfqToggleVendor(vid,on){ var i=_rfqVendorSel.indexOf(vid); if(on&&i<0)_rfqVendorSel.push(vid); if(!on&&i>=0)_rfqVendorSel.splice(i,1); }
+// Live "N selected" readout + row highlight so a vendor pick that didn't register is obvious BEFORE
+// you save/send (the silent-selection gap behind Joe's missing ADI/Graybar).
+function _rfqUpdateVCount(){
+  var el=document.getElementById('rfq-vcount');
+  if(el){ var n=_rfqVendorSel.length; el.textContent = n ? ('— '+n+' selected') : '— none selected'; el.style.color = n ? '#2e7d32' : '#c62828'; }
+}
+function _rfqToggleVendor(vid,on){
+  var i=_rfqVendorSel.indexOf(vid); if(on&&i<0)_rfqVendorSel.push(vid); if(!on&&i>=0)_rfqVendorSel.splice(i,1);
+  var row=document.querySelector('#rfq-vendors-wrap label[data-vid="'+(window.CSS&&CSS.escape?CSS.escape(vid):vid)+'"]');
+  if(row) row.style.background = on ? '#e8f5e9' : '';
+  _rfqUpdateVCount();
+}
 
 // ---- SAVE ----
 async function saveRFQ(){
@@ -238,7 +249,22 @@ async function saveRFQ(){
   renderRFQList();
   var m=document.getElementById('modal-rfq'); if(m) m.remove();
   showToast('RFQ '+rfqNumber+' saved ✓','success',3500);
+  return id;
 }
+
+// Any editor action that works off the SAVED record (send / compare / convert / print) must first
+// commit what's currently in the editor — otherwise vendor picks or item edits made since the last
+// Save are silently ignored (the bug Joe hit: selected vendors, clicked Send without Save, only the
+// previously-saved vendor got the RFQ). Save, then run the action against the freshly-saved id.
+async function _rfqAction(kind){
+  var id=await saveRFQ();
+  if(!id) return;                 // validation failed (e.g. no items) — saveRFQ already toasted why
+  if(kind==='send') openRFQSendDialog(id);
+  else if(kind==='compare') openRFQCompare(id);
+  else if(kind==='convert') convertRFQToPO(id);
+  else if(kind==='print') printRFQ(id);
+}
+window._rfqAction=_rfqAction;
 
 async function closeRFQ(id){
   var r=_rfqById(id); if(!r) return;
