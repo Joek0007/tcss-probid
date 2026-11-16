@@ -1727,6 +1727,19 @@ function renderDash() {
       (urgentWO ? '<div style="font-size:10px;font-weight:700;color:#c62828;margin-top:2px">⚠ '+urgentWO+' URGENT</div>' : '');
   }
 
+  // RFQs awaiting quotes — out to vendors (Sent) or partially answered (Quoting),
+  // i.e. still waiting on vendor pricing before the office can compare/award.
+  var rfqAwait = (DB.rfqs || []).filter(function(r){
+    var s = (r.status || '').toLowerCase();
+    return s === 'sent' || s === 'quoting';
+  }).length;
+  var rfqTile = document.getElementById('ds-rfq-tile');
+  if (rfqTile) {
+    rfqTile.innerHTML =
+      '<div class="dash-stat-val">'+rfqAwait+'</div>'+
+      '<div class="dash-stat-lbl">RFQs Awaiting</div>';
+  }
+
   // Last updated
   var lu = document.getElementById('dash-last-updated');
   if (lu) lu.textContent = 'Updated '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});

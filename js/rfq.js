@@ -115,6 +115,7 @@ function _openRFQEditor(r){
         '<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">'+
           (!isNew?'<span style="margin-right:auto">'+_rfqStatusBadge(r.status)+'</span>':'')+
           (!isNew?'<button class="btn btn-danger btn-sm" onclick="deleteRFQ(\''+escHtml(_rfqCurrentId)+'\')">🗑 Delete</button>':'')+
+          (!isNew?'<button class="btn btn-outline btn-sm" onclick="printRFQ(\''+escHtml(_rfqCurrentId)+'\')">🖨 Print RFQ</button>':'')+
           (!isNew && r.status!=='Closed'?'<button class="btn btn-outline btn-sm" onclick="closeRFQ(\''+escHtml(_rfqCurrentId)+'\')">Close RFQ</button>':'')+
           (!isNew && r.status!=='Closed' && r.status!=='Converted'?'<button class="btn btn-success btn-sm" onclick="openRFQSendDialog(\''+escHtml(_rfqCurrentId)+'\')">📤 Send to Vendors</button>':'')+
           (!isNew && (r.vendors||[]).some(function(v){return v.respondedAt;})?'<button class="btn btn-primary btn-sm" onclick="openRFQCompare(\''+escHtml(_rfqCurrentId)+'\')">📊 Compare &amp; Award</button>':'')+
@@ -507,6 +508,7 @@ function openRFQCompare(id){
         '</div>'+
         '<div style="overflow:auto;border:1px solid #eef2f6;border-radius:8px;max-height:60vh"><table style="width:100%;border-collapse:collapse;min-width:520px"><thead>'+head+'</thead><tbody>'+body+totals+'</tbody></table></div>'+
         '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">'+
+          '<button class="btn btn-outline" style="margin-right:auto" onclick="printRFQCompare(\''+escHtml(id)+'\')">🖨 Print Comparison</button>'+
           '<button class="btn btn-outline" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
           (canAward?'<button class="btn btn-success" onclick="saveRFQAward()">✓ Award &amp; Save</button>':'<span style="font-size:12px;color:#90a4ae;align-self:center">You can review but not award (needs the Award RFQs permission).</span>')+
         '</div>'+
@@ -555,6 +557,128 @@ async function deleteRFQ(id){
   showToast('RFQ '+(r.rfqNumber||'')+' deleted','info');
 }
 
+// ======================= RFQ PRINT — vendor-facing sheet =======================
+// A clean, hand-fillable RFQ a vendor can print, complete (unit price / lead time / notes
+// columns left blank) and fax or scan back — the paper counterpart to the online quote link.
+function printRFQ(id){
+  var r=_rfqById(id)||((window._rfqCmp&&window._rfqCmp.id===id)?_rfqById(window._rfqCmp.id):null);
+  if(!r){ showToast('RFQ not found','error'); return; }
+  var s=DB.settings||{};
+  var rows=(r.items||[]).map(function(it){
+    return '<tr>'+
+      '<td style="padding:10px 12px;border-bottom:1px solid #e8edf2">'+escHtml(it.desc||'')+'</td>'+
+      '<td style="padding:10px 12px;border-bottom:1px solid #e8edf2;text-align:center">'+escHtml(it.partNum||'')+'</td>'+
+      '<td style="padding:10px 12px;border-bottom:1px solid #e8edf2;text-align:center">'+(it.qty!=null?it.qty:1)+' '+escHtml(it.uom||'ea')+'</td>'+
+      '<td style="padding:10px 12px;border-bottom:1px solid #e8edf2;text-align:right;color:#cfd8dc">$ __________</td>'+
+      '<td style="padding:10px 12px;border-bottom:1px solid #e8edf2;text-align:center;color:#cfd8dc">__________</td>'+
+    '</tr>';
+  }).join('');
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>RFQ '+escHtml(r.rfqNumber||'')+'</title>'+
+    '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1a1a1a;font-size:13px;padding:40px 48px}'+
+    '.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:18px;border-bottom:3px solid #1565c0}'+
+    '.co-name .red{color:#cc0000;font-size:26px;font-weight:900}.co-name .blue{color:#1565c0;font-size:26px;font-weight:900}'+
+    '.rfq-label{font-size:24px;font-weight:900;color:#1565c0;letter-spacing:2px}'+
+    '.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:22px}'+
+    '.meta-block label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#90a4ae;display:block;margin-bottom:6px;border-bottom:1px solid #e0e0e0;padding-bottom:4px}'+
+    '.meta-block .val{font-size:13px;line-height:1.7}'+
+    'table{width:100%;border-collapse:collapse;margin-bottom:18px}'+
+    'thead th{background:#1565c0;color:#fff;padding:9px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;text-align:left}'+
+    'thead th:nth-child(2),thead th:nth-child(3),thead th:nth-child(5){text-align:center}thead th:nth-child(4){text-align:right}'+
+    'tbody tr:nth-child(even){background:#fafafa}'+
+    '.footer{border-top:1px solid #e0e0e0;padding-top:14px;font-size:11px;color:#90a4ae;text-align:center}'+
+    '@media print{@page{margin:12mm}.no-print{display:none!important}}</style></head><body>'+
+    '<div class="no-print" style="margin-bottom:16px"><button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer;font-weight:700">🖨 Print</button> <button onclick="window.close()" style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer">Close</button></div>'+
+    '<div class="header">'+
+      '<div><div class="co-name"><span class="red">TOTAL </span><span class="blue">COMMUNICATIONS</span></div>'+
+      '<div style="font-size:12px;color:#546e7a;margin-top:2px">Systems &amp; Solutions, Inc.</div>'+
+      '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.7">'+(s.caddr?escHtml(s.caddr)+'<br>':'')+(s.cphone?'📞 '+escHtml(s.cphone)+'<br>':'')+((s.poReplyTo||s.cemail)?'✉️ '+escHtml(s.poReplyTo||s.cemail):'')+'</div></div>'+
+      '<div style="text-align:right"><div class="rfq-label">REQUEST FOR QUOTE</div><div style="font-size:14px;color:#546e7a;font-weight:700;margin-top:4px">'+escHtml(r.rfqNumber||'')+'</div></div>'+
+    '</div>'+
+    (r.title?'<div style="font-size:14px;font-weight:700;color:#0d1b2a;margin-bottom:16px">Re: '+escHtml(r.title)+'</div>':'')+
+    '<div class="meta-grid">'+
+      '<div class="meta-block"><label>Vendor</label><div class="val">Company: ______________________________<br>Contact: ______________________________<br>Phone / Email: ______________________________</div></div>'+
+      '<div class="meta-block"><label>Quote Details</label><div class="val"><strong>Date:</strong> '+escHtml(new Date().toLocaleDateString('en-US'))+(r.needBy?'<br><strong>Quote Needed By:</strong> '+escHtml(r.needBy):'')+(r.jobName?'<br><strong>Project:</strong> '+escHtml(r.jobName):'')+'</div></div>'+
+    '</div>'+
+    '<table><thead><tr><th style="width:42%">Description</th><th style="width:14%;text-align:center">Part #</th><th style="width:12%;text-align:center">Qty</th><th style="width:18%;text-align:right">Your Unit Price</th><th style="width:14%;text-align:center">Lead Time</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:20px;font-size:13px">'+
+      '<div style="border:1px solid #e8edf2;border-radius:8px;padding:12px 14px">Freight / Shipping: $ ______________</div>'+
+      '<div style="border:1px solid #e8edf2;border-radius:8px;padding:12px 14px">Minimum order / notes: ______________</div>'+
+    '</div>'+
+    (r.notes?'<div style="background:#f8f9fa;border-left:4px solid #1565c0;padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:20px;font-size:12px;color:#37474f"><strong>Notes:</strong> '+escHtml(r.notes)+'</div>':'')+
+    '<div style="font-size:12px;color:#546e7a;margin-bottom:20px">Please return your pricing by the date above. Questions? Contact us at '+escHtml(s.poReplyTo||s.cemail||'')+'.</div>'+
+    '<div class="footer">Total Communications Systems &amp; Solutions, Inc. · Request for Quote '+escHtml(r.rfqNumber||'')+'</div>'+
+  '</body></html>';
+  var win=window.open('','_blank','width=900,height=700');
+  if(win){win.document.write(html);win.document.close();setTimeout(function(){try{win.print();}catch(e){}},500);}
+}
+
+// ======================= RFQ PRINT — comparison / award sheet =======================
+// Office-internal record of the bid comparison: every quoted vendor side-by-side, lowest unit per
+// line highlighted, landed totals, and the awarded vendor per line — the paper trail behind the award.
+function printRFQCompare(id){
+  var r=_rfqById(id); if(!r){ showToast('RFQ not found','error'); return; }
+  var s=DB.settings||{};
+  var quoted=(r.vendors||[]).filter(function(v){ return v.respondedAt || _rfqVendorLanded(r, v.vendorId).any; });
+  if(!quoted.length){ showToast('No vendor pricing to compare yet.','info'); return; }
+  var vids=quoted.map(function(v){return v.vendorId;});
+  var award=Object.assign({}, r.lineAward||{});
+  (window._rfqCmp&&window._rfqCmp.id===id)?(award=Object.assign({}, window._rfqCmp.award||{})):0;
+  var vname=function(vid){ return (quoted.find(function(v){return v.vendorId===vid;})||{}).name||''; };
+  var head='<tr><th style="width:34%">Item</th>'+
+    quoted.map(function(v){ return '<th style="text-align:center">'+escHtml(v.name||'')+'</th>'; }).join('')+
+    '<th style="text-align:center">Awarded To</th></tr>';
+  var body=(r.items||[]).map(function(it){
+    var lo=_rfqLowestVendor(r,it.id,vids);
+    var cells=quoted.map(function(v){
+      var p=_rfqVendorPrice(r,it.id,v.vendorId);
+      if(!p||p.unit==null||p.unit===''){ return '<td style="text-align:center;color:#cfd8dc;border-bottom:1px solid #eef2f6">—</td>'; }
+      var ext=_rfqExt(p.unit, it.qty); var isLo=(v.vendorId===lo);
+      return '<td style="text-align:center;border-bottom:1px solid #eef2f6;'+(isLo?'background:#e8f5e9;font-weight:700':'')+'">$'+parseFloat(p.unit).toFixed(2)+
+        (ext!=null?'<div style="font-size:10px;color:#90a4ae">ext $'+ext.toFixed(2)+'</div>':'')+
+        (p.lead?'<div style="font-size:10px;color:#546e7a">'+escHtml(p.lead)+'</div>':'')+'</td>';
+    }).join('');
+    var aw=award[it.id]?('<strong style="color:#2e7d32">'+escHtml(vname(award[it.id]))+'</strong>'):'<span style="color:#cfd8dc">—</span>';
+    return '<tr><td style="border-bottom:1px solid #eef2f6"><strong>'+escHtml(it.desc||'')+'</strong><div style="color:#90a4ae;font-size:11px">Qty '+(it.qty!=null?it.qty:1)+' '+escHtml(it.uom||'ea')+(it.partNum?' · '+escHtml(it.partNum):'')+'</div></td>'+cells+'<td style="text-align:center;border-bottom:1px solid #eef2f6">'+aw+'</td></tr>';
+  }).join('');
+  var landedArr=quoted.map(function(v){ return _rfqVendorLanded(r,v.vendorId); });
+  var bestLanded=null; landedArr.forEach(function(l){ if(l.any&&(bestLanded===null||l.landed<bestLanded)) bestLanded=l.landed; });
+  var totals='<tr style="background:#f1f5f9;font-weight:700"><td>Materials / Freight / LANDED</td>'+
+    quoted.map(function(v,i){ var l=landedArr[i]; var isBest=(l.any&&l.landed===bestLanded);
+      return '<td style="text-align:center;'+(isBest?'background:#e8f5e9':'')+'">$'+l.material.toFixed(2)+' / $'+l.freight.toFixed(2)+'<div style="color:#1565c0;font-size:14px">$'+l.landed.toFixed(2)+(isBest?' ✓':'')+'</div></td>'; }).join('')+
+    '<td></td></tr>';
+  // award summary
+  var awVals=(r.items||[]).map(function(it){return award[it.id];}).filter(Boolean);
+  var single=(awVals.length && awVals.every(function(v){return v===awVals[0];}))?awVals[0]:null;
+  var uniqAw={}; awVals.forEach(function(v){uniqAw[v]=1;});
+  var awSummary=awVals.length?(single?('Award: all lines → '+vname(single)):('Award: split across '+Object.keys(uniqAw).length+' vendors')):'Not yet awarded';
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>RFQ Compare '+escHtml(r.rfqNumber||'')+'</title>'+
+    '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1a1a1a;font-size:12px;padding:34px 40px}'+
+    '.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;padding-bottom:16px;border-bottom:3px solid #1565c0}'+
+    '.co-name .red{color:#cc0000;font-size:22px;font-weight:900}.co-name .blue{color:#1565c0;font-size:22px;font-weight:900}'+
+    '.rfq-label{font-size:20px;font-weight:900;color:#1565c0;letter-spacing:1.5px}'+
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px}'+
+    'thead th{background:#1565c0;color:#fff;padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;text-align:left}'+
+    'tbody td{padding:7px 10px}'+
+    '.footer{border-top:1px solid #e0e0e0;padding-top:12px;font-size:10px;color:#90a4ae;text-align:center;margin-top:8px}'+
+    '@media print{@page{margin:10mm;size:landscape}.no-print{display:none!important}}</style></head><body>'+
+    '<div class="no-print" style="margin-bottom:16px"><button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer;font-weight:700">🖨 Print</button> <button onclick="window.close()" style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer">Close</button></div>'+
+    '<div class="header">'+
+      '<div><div class="co-name"><span class="red">TOTAL </span><span class="blue">COMMUNICATIONS</span></div>'+
+      '<div style="font-size:11px;color:#546e7a;margin-top:2px">Systems &amp; Solutions, Inc.</div></div>'+
+      '<div style="text-align:right"><div class="rfq-label">RFQ COMPARISON</div><div style="font-size:13px;color:#546e7a;font-weight:700;margin-top:4px">'+escHtml(r.rfqNumber||'')+'</div>'+
+      (r.title?'<div style="font-size:12px;color:#546e7a;margin-top:2px">'+escHtml(r.title)+'</div>':'')+'</div>'+
+    '</div>'+
+    '<div style="font-size:12px;color:#37474f;margin-bottom:12px">'+(r.jobName?'<strong>Project:</strong> '+escHtml(r.jobName)+' · ':'')+'<strong>'+escHtml(awSummary)+'</strong> · Prepared '+escHtml(new Date().toLocaleDateString('en-US'))+'</div>'+
+    '<table><thead>'+head+'</thead><tbody>'+body+totals+'</tbody></table>'+
+    '<div style="font-size:11px;color:#90a4ae">Lowest unit price per line and best landed total are highlighted. Landed = materials + vendor freight.</div>'+
+    '<div class="footer">Total Communications Systems &amp; Solutions, Inc. · RFQ Comparison '+escHtml(r.rfqNumber||'')+'</div>'+
+  '</body></html>';
+  var win=window.open('','_blank','width=1000,height=720');
+  if(win){win.document.write(html);win.document.close();setTimeout(function(){try{win.print();}catch(e){}},500);}
+}
+
+window.printRFQ=printRFQ;
+window.printRFQCompare=printRFQCompare;
 window.openRFQCompare=openRFQCompare;
 window._rfqSetAward=_rfqSetAward;
 window._rfqAwardAllTo=_rfqAwardAllTo;
