@@ -532,18 +532,18 @@ function renderReceivingModal(po) {
       '<td style="padding:10px 12px;text-align:center;font-size:13px">'+rl.qtyOrdered+'</td>'+
       '<td style="padding:10px 12px;text-align:center;font-size:13px;color:'+(rl.qtyReceived>0?'#2e7d32':'#90a4ae')+'">'+rl.qtyReceived+'</td>'+
       '<td style="padding:10px 12px;text-align:center">'+
-        '<input type="number" value="'+rl.arriving+'" min="0" max="'+(rl.qtyOrdered-rl.qtyReceived)+'" step="1" '+
+        '<input id="recv-arr-'+i+'" type="number" value="'+rl.arriving+'" min="0" max="'+(rl.qtyOrdered-rl.qtyReceived)+'" step="1" '+
         'oninput="updateReceivingLine('+i+',\'arriving\',this.value)" '+
         'style="width:70px;padding:6px;border:1px solid #e0e7ef;border-radius:4px;text-align:center;font-size:13px">'+
       '</td>'+
       (hasWO?
         '<td style="padding:10px 12px;text-align:center">'+
-          '<input type="number" value="'+rl.toWO+'" min="0" step="1" '+
+          '<input id="recv-wo-'+i+'" type="number" value="'+rl.toWO+'" min="0" step="1" '+
           'oninput="updateReceivingLine('+i+',\'toWO\',this.value)" '+
           'style="width:70px;padding:6px;border:1px solid #e0e7ef;border-radius:4px;text-align:center;font-size:13px;color:#1565c0">'+
         '</td>':'')+
       '<td style="padding:10px 12px;text-align:center">'+
-        '<input type="number" value="'+rl.toStock+'" min="0" step="1" '+
+        '<input id="recv-stk-'+i+'" type="number" value="'+rl.toStock+'" min="0" step="1" '+
         'oninput="updateReceivingLine('+i+',\'toStock\',this.value)" '+
         'style="width:70px;padding:6px;border:1px solid #e0e7ef;border-radius:4px;text-align:center;font-size:13px;color:#2e7d32">'+
       '</td>'+
@@ -568,18 +568,18 @@ function renderReceivingModal(po) {
 }
 
 function updateReceivingLine(idx, field, val) {
-  _receivingLines[idx][field] = field==='stockLocId' ? val : parseFloat(val)||0;
-  // Auto-balance: if arriving changes, update toStock to match
-  if (field==='arriving') {
-    var rl = _receivingLines[idx];
-    var remainder = rl.arriving - rl.toWO;
-    _receivingLines[idx].toStock = Math.max(0, remainder);
-    // Re-render just that row's toStock input
-    var inputs = document.querySelectorAll('#receiving-lines-table input[type="number"]');
-    // Find toStock input for this row (3rd or 4th number input in row)
-    // Re-render the whole table instead for simplicity
-    var po = (DB.purchaseOrders||[]).find(function(p){ return p.id===_receivingPOId; });
-    if (po) renderReceivingModal(po);
+  var rl = _receivingLines[idx];
+  if (!rl) return;
+  rl[field] = field==='stockLocId' ? val : (parseFloat(val)||0);
+  // Keep the stock/WO split consistent WITHOUT re-rendering the table. The old code re-rendered the
+  // whole modal on every keystroke in Arriving, which destroyed the very input you were typing in and
+  // dropped focus — that was the "can't partially receive" wonkiness. Instead, update state and set
+  // just the dependent Stock field's value in place.
+  if (field==='arriving' || field==='toWO') {
+    var toStock = Math.max(0, (parseFloat(rl.arriving)||0) - (parseFloat(rl.toWO)||0));
+    rl.toStock = toStock;
+    var stkEl = document.getElementById('recv-stk-'+idx);
+    if (stkEl && document.activeElement !== stkEl) stkEl.value = toStock;
   }
 }
 
@@ -587,17 +587,13 @@ function confirmReceiving() {
   var po = (DB.purchaseOrders||[]).find(function(p){ return p.id===_receivingPOId; });
   if (!po) return;
   var today = getTodayISO();
-  var allReceived = true;
-  var anyReceived = false;
   var _newParts   = [];   // wo_parts to push inline (inventory pushes via adjustItemQty)
 
   _receivingLines.forEach(function(rl, i) {
     if (rl.arriving <= 0) return;
-    anyReceived = true;
     // Update PO line item received qty
     if (po.items[i]) {
       po.items[i].qtyReceived = parseFloat(po.items[i].qtyReceived||0) + rl.arriving;
-      if (po.items[i].qtyReceived < po.items[i].qtyOrdered) allReceived = false;
     }
 
     // Find inventory item by name or part number
@@ -642,9 +638,14 @@ function confirmReceiving() {
     }
   });
 
-  // Update PO status
-  if (allReceived) po.status = 'Received';
-  else if (anyReceived) po.status = 'Partially Received';
+  // Update PO status from the ACTUAL state of ALL lines after this receipt — not only the lines
+  // touched this round. The old code skipped untouched lines (arriving<=0), so receiving a SUBSET
+  // marked the whole PO "Received" and the Receive button vanished → you couldn't receive the rest.
+  var _all = (po.items||[]).length>0 && (po.items||[]).every(function(it){ return parseFloat(it.qtyReceived||0) >= parseFloat(it.qtyOrdered||1); });
+  var _any = (po.items||[]).some(function(it){ return parseFloat(it.qtyReceived||0) > 0; });
+  if (['Draft','Sent','Partially Received','Received'].indexOf(po.status) >= 0) {
+    po.status = _all ? 'Received' : (_any ? 'Partially Received' : (po.status==='Draft'?'Draft':'Sent'));
+  }
 
   saveDB();
   // Write-through to the cloud immediately (don't wait on the slow full sync): the received
