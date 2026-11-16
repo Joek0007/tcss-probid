@@ -317,6 +317,8 @@ function openPO(id) {
 
   renderPOItems();
   refreshPOTotals();
+  checkReceivingStatus();   // (r160) reflect already-received quantities on open — e.g. a Draft PO that
+                            // was received without being "sent" shows Partially/Received so a save sticks it
   checkPOMatch();
   if(typeof _renderPOApprovalBar==='function') _renderPOApprovalBar(po);   // (r138)
   if(typeof _fillPOCatalogDatalist==='function') _fillPOCatalogDatalist();   // (r140) catalog type-ahead
@@ -491,8 +493,12 @@ function checkReceivingStatus() {
   var statusEl=document.getElementById('po-status');
   if(statusEl){
     var cur=statusEl.value;
-    if(allReceived&&(cur==='Sent'||cur==='Partially Received')) statusEl.value='Received';
-    else if(anyReceived&&cur==='Sent') statusEl.value='Partially Received';
+    // Receiving advances a PO from Draft too — not just Sent. A PO is often ordered outside the app
+    // (phone/email) or created straight from an RFQ convert and received without a separate "send"
+    // step, so goods can arrive while it's still Draft. Receiving real quantities is the legitimate
+    // action, so it moves Draft → Partially/Received the same as Sent.
+    if(allReceived&&(cur==='Draft'||cur==='Sent'||cur==='Partially Received')) statusEl.value='Received';
+    else if(anyReceived&&(cur==='Draft'||cur==='Sent')) statusEl.value='Partially Received';
   }
 }
 
