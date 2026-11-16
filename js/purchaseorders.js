@@ -217,7 +217,7 @@ function renderPOList() {
         // r101: Receive keeps the SAME footprint on every row so the Actions column stays in line. A PO that
         // is ready to receive (Sent / Partially Received) gets a solid DARK-GREEN clickable Receive; every
         // other row shows a light GREEN-OUTLINE placeholder (inert — just holds the line).
-        ((['Sent','Partially Received'].includes(po.status))
+        ((['Draft','Sent','Partially Received'].includes(po.status))
           ? '<button class="btn btn-success btn-sm po-recv" onclick="openReceiving(\''+po.id+'\')">📥 Receive</button>'
           // (r138) A PO awaiting approval shows an Approve button (for approvers) in the Receive slot —
           // keeps the Actions column width identical. Others keep the inert placeholder.
@@ -389,7 +389,7 @@ function renderPOItems() {
       '<input value="'+escHtml(li.desc||'')+'" list="po-catalog-list" oninput="updatePOItem('+i+',\'desc\',this.value)" onchange="poCatalogFill('+i+',this.value)" placeholder="Description / search catalog..." style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
       '<input value="'+escHtml(li.partNum||'')+'" oninput="updatePOItem('+i+',\'partNum\',this.value)" placeholder="Part #" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
       '<input type="number" value="'+(li.qtyOrdered||1)+'" min="0.01" step="0.01" oninput="updatePOItem('+i+',\'qtyOrdered\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:center">'+
-      '<input type="number" value="'+(li.qtyReceived||0)+'" min="0" step="0.01" oninput="updatePOItem('+i+',\'qtyReceived\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:center;color:'+recColor+'">'+
+      '<div title="Received through the 📥 Receive button — it routes goods to stock / the work order" style="text-align:center;font-size:12px;font-weight:700;color:'+recColor+'">'+(parseFloat(li.qtyReceived||0)||0)+'</div>'+
       '<input type="number" value="'+parseFloat(li.unitCost||0).toFixed(2)+'" min="0" step="0.01" oninput="updatePOItem('+i+',\'unitCost\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:right">'+
       '<div class="po-line-total" style="text-align:right;font-size:12px;font-weight:700;color:#1565c0">$'+lineTotal.toFixed(2)+'</div>'+
       '<button onclick="removePOItem('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:18px;padding:0 4px;line-height:1">×</button>'+
@@ -493,12 +493,18 @@ function checkReceivingStatus() {
   var statusEl=document.getElementById('po-status');
   if(statusEl){
     var cur=statusEl.value;
-    // Receiving advances a PO from Draft too — not just Sent. A PO is often ordered outside the app
-    // (phone/email) or created straight from an RFQ convert and received without a separate "send"
-    // step, so goods can arrive while it's still Draft. Receiving real quantities is the legitimate
-    // action, so it moves Draft → Partially/Received the same as Sent.
-    if(allReceived&&(cur==='Draft'||cur==='Sent'||cur==='Partially Received')) statusEl.value='Received';
-    else if(anyReceived&&(cur==='Draft'||cur==='Sent')) statusEl.value='Partially Received';
+    // Status follows the received quantities, in BOTH directions, but only within the receiving-phase
+    // statuses (Draft/Sent/Partially Received/Received) — never touching Pending Approval, Matched,
+    // Ready to Pay, Void or Closed, which carry later-stage meaning. Receiving advances from Draft too
+    // (a PO is often ordered outside the app or made straight from an RFQ convert and received without
+    // a separate "send"). Reducing received qty demotes it back the same way, so the status can't
+    // lie high after a correction.
+    var RECV_PHASE=['Draft','Sent','Partially Received','Received'];
+    if(RECV_PHASE.indexOf(cur)>=0){
+      if(allReceived) statusEl.value='Received';
+      else if(anyReceived) statusEl.value='Partially Received';
+      else statusEl.value=(cur==='Draft')?'Draft':'Sent';   // nothing received → fall back (floor at Sent once issued)
+    }
   }
 }
 

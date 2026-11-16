@@ -530,6 +530,7 @@ function renderReceivingModal(po) {
     return '<tr>'+
       '<td style="padding:10px 12px;font-size:13px;font-weight:600">'+escHtml(rl.desc)+'<br><span style="font-size:11px;color:#90a4ae">'+escHtml(rl.partNum)+'</span>'+_convNote+'</td>'+
       '<td style="padding:10px 12px;text-align:center;font-size:13px">'+rl.qtyOrdered+'</td>'+
+      '<td style="padding:10px 12px;text-align:center;font-size:13px;color:'+(rl.qtyReceived>0?'#2e7d32':'#90a4ae')+'">'+rl.qtyReceived+'</td>'+
       '<td style="padding:10px 12px;text-align:center">'+
         '<input type="number" value="'+rl.arriving+'" min="0" max="'+(rl.qtyOrdered-rl.qtyReceived)+'" step="1" '+
         'oninput="updateReceivingLine('+i+',\'arriving\',this.value)" '+
@@ -558,6 +559,7 @@ function renderReceivingModal(po) {
     '<thead><tr style="background:#f8f9fa">'+
       '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Item</th>'+
       '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Ordered</th>'+
+      '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Recv’d</th>'+
       '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Arriving</th>'+
       (hasWO?'<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase">→ '+escHtml(woLabel)+'</th>':'')+
       '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#2e7d32;text-transform:uppercase">→ Stock</th>'+
