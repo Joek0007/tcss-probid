@@ -147,10 +147,11 @@ function deleteVendor(id) {
 
 // ---- PURCHASE ORDERS LIST ----
 
-// (r165) Who may reopen a received PO and put items back. Receiving corrections touch stock + status,
-// so they're office-manager level (owner / manager / back_office), matching the delete-office gate.
+// (r166) Who may reopen a received PO and put items back. Governed by the 'po.correct_receiving' role
+// toggle in the permissions matrix (Purchase Orders group) — authoritative, so turning it OFF for a
+// role actually restricts them. The role fallback applies only if the permission engine isn't loaded.
 function _canCorrectReceiving(){
-  if(typeof hasPermission==='function' && hasPermission('po.correct_receiving')) return true;
+  if(typeof hasPermission==='function') return hasPermission('po.correct_receiving');
   return !!(_currentUser && (_currentUser.role==='owner'||_currentUser.role==='manager'||_currentUser.role==='back_office'));
 }
 

@@ -523,12 +523,14 @@ function renderReceivingModal(po) {
   // Instructions reflect what's actually on screen. "Arriving" is pre-filled to the full remaining,
   // so the common "it all came in" case is just Confirm; lower a number to receive a partial.
   var _anyPrior = _receivingLines.some(function(rl){ return parseFloat(rl.qtyReceived||0) > 0; });
+  // (r166) Reversing a receipt (put back / negative) is governed by the po.correct_receiving role toggle.
+  var _canCorrect = (typeof _canCorrectReceiving==='function') ? _canCorrectReceiving() : false;
   var instrEl = document.getElementById('receiving-instructions');
   if (instrEl) {
     instrEl.innerHTML = (hasWO
       ? '<strong>Arriving</strong> is pre-filled to what’s still owed — lower any line to receive a partial, or leave it to receive all. Split what arrives between the job ('+escHtml(woLabel||'Work Order')+') and stock, pick a stock location, then <strong>Confirm Receiving</strong>.'
       : '<strong>Arriving</strong> is pre-filled to what’s still owed — lower any line to receive a partial, or leave it to receive all. It all goes into stock at the location you pick, then <strong>Confirm Receiving</strong>.')
-      + (_anyPrior ? '<br><span style="color:#c62828">Received something by mistake? Use <strong>↩ put back</strong> on that line (or type a negative Arriving) to reverse it — it pulls the qty back out of stock and drops the PO status accordingly.</span>' : '');
+      + ((_anyPrior && _canCorrect) ? '<br><span style="color:#c62828">Received something by mistake? Use <strong>↩ put back</strong> on that line (or type a negative Arriving) to reverse it — it pulls the qty back out of stock and drops the PO status accordingly.</span>' : '');
   }
 
   var rows = _receivingLines.map(function(rl,i){
@@ -543,10 +545,10 @@ function renderReceivingModal(po) {
       '<td style="padding:10px 12px;text-align:center;font-size:13px">'+rl.qtyOrdered+'</td>'+
       '<td style="padding:10px 12px;text-align:center;font-size:13px;color:'+(rl.qtyReceived>0?'#2e7d32':'#90a4ae')+'">'+rl.qtyReceived+'</td>'+
       '<td style="padding:10px 12px;text-align:center">'+
-        '<input id="recv-arr-'+i+'" type="number" value="'+rl.arriving+'" min="-'+rl.qtyReceived+'" max="'+(rl.qtyOrdered-rl.qtyReceived)+'" step="1" '+
+        '<input id="recv-arr-'+i+'" type="number" value="'+rl.arriving+'" min="'+(_canCorrect?(-rl.qtyReceived):0)+'" max="'+(rl.qtyOrdered-rl.qtyReceived)+'" step="1" '+
         'oninput="updateReceivingLine('+i+',\'arriving\',this.value)" '+
         'style="width:70px;padding:6px;border:1px solid #e0e7ef;border-radius:4px;text-align:center;font-size:13px">'+
-        (rl.qtyReceived>0 ? '<div><button type="button" onclick="receivePutBack('+i+')" title="Put this line back out of received and stock" style="margin-top:4px;background:none;border:none;color:#c62828;font-size:10px;cursor:pointer;text-decoration:underline">↩ put back</button></div>' : '')+
+        ((rl.qtyReceived>0 && _canCorrect) ? '<div><button type="button" onclick="receivePutBack('+i+')" title="Put this line back out of received and stock" style="margin-top:4px;background:none;border:none;color:#c62828;font-size:10px;cursor:pointer;text-decoration:underline">↩ put back</button></div>' : '')+
       '</td>'+
       (hasWO?
         '<td style="padding:10px 12px;text-align:center">'+
@@ -621,8 +623,12 @@ function confirmReceiving() {
   var today = getTodayISO();
   var _newParts   = [];   // wo_parts to push inline (inventory pushes via adjustItemQty)
   var _reversed   = false;  // (r165) track whether any line was put back (negative) for the audit/toast
+  // (r166) Reversal is permission-gated. Defense in depth: if the user lacks po.correct_receiving,
+  // drop any negative (put-back) line so a hand-edited value can't un-receive without the right.
+  var _mayCorrect = (typeof _canCorrectReceiving==='function') ? _canCorrectReceiving() : false;
 
   _receivingLines.forEach(function(rl, i) {
+    if (rl.arriving < 0 && !_mayCorrect) return;   // not allowed to reverse → ignore this line
     if (!rl.arriving) return;                 // 0 / NaN → untouched. Negative = un-receive (correction).
     if (rl.arriving < 0) _reversed = true;
     // Update PO line item received qty — clamp at 0 so a reversal can't drive received negative.
