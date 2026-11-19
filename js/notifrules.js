@@ -190,10 +190,25 @@
   ];
   // Seeds missing defaults ONCE. Fully idempotent: per-rule it skips any (module,event,status) that
   // already exists, so a company that configured its own rules is never duplicated or overwritten.
+  // NOTE: notifrules' own sVal/sSet gate on `window.DB`, but this app's DB global is NOT a window
+  // property (it's a lexical global), so those helpers silently no-op for settings. We therefore
+  // read/write the seeded flag directly on the global DB.settings and persist it with the SAME proven
+  // path the working toggles use (_settingsMergePush), not sSet. (r176)
+  function _seedFlagGet(){ try{ return (typeof DB!=='undefined' && DB.settings && Number(DB.settings.notifDefaultsSeededV)>=1); }catch(e){ return false; } }
+  async function _seedFlagSet(){
+    try{
+      if(typeof DB==='undefined') return;
+      if(!DB.settings) DB.settings={};
+      DB.settings.notifDefaultsSeededV = 1;
+      try{ if(typeof saveDB==='function') saveDB(); }catch(e){}
+      if(typeof _settingsMergePush==='function') await _settingsMergePush();
+      else if(typeof _pushSettingsToCloud==='function') await _pushSettingsToCloud();
+    }catch(e){ console.warn('[notifrules seedFlagSet]',(e&&e.message)||e); }
+  }
   async function nrEnsureDefaults(){
     var sb=_sb(); if(!sb) return;
     if(!hasAccess()) return;                          // only owner / notifications.manage seeds
-    if(Number(sVal('notifDefaultsSeededV',0)) >= 1) return;   // one-time per tenant
+    if(_seedFlagGet()) return;                        // one-time per tenant (idempotent check still guards)
     try{
       await nrLoad();                                 // fresh cloud snapshot of existing rules
       var added=0;
@@ -205,7 +220,7 @@
           conditions:[], recipients:d.recipients, subject:d.subject, body:d.body, simple:true, urgent:false, digest:false });
         if(ok) added++;
       }
-      sSet('notifDefaultsSeededV', 1);                // mark seeded (idempotent check still guards anyway)
+      await _seedFlagSet();                            // mark seeded (persists to cloud settings_json)
       if(added>0) console.log('[notifrules] seeded '+added+' default rule(s)');
     }catch(e){ console.warn('[notifrules ensureDefaults]',(e&&e.message)||e); }
   }
