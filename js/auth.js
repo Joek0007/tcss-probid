@@ -1030,6 +1030,9 @@ async function loadCurrentUserProfile() {
     // Load WT notifications for this user
     setTimeout(function(){ if(typeof wtLoadNotifications==='function') wtLoadNotifications(); }, 1500);
     setTimeout(function(){ if(typeof _startNotificationChecks==='function') _startNotificationChecks(); }, 4000);
+    // (r175) Seed default notification rules once per tenant so a brand-new company isn't silent on
+    // critical PO events. Idempotent + owner-gated; runs after settings/rules have loaded.
+    setTimeout(function(){ if(typeof nrEnsureDefaults==='function') nrEnsureDefaults(); }, 7000);
     setTimeout(function(){ if(typeof _maybeShowBackOfficeWelcome==='function') _maybeShowBackOfficeWelcome(); }, 1800);
     // Live permission refresh: pick up role / access changes made by an admin in
     // another session WITHOUT requiring this user to reload (see startPermRefresh).

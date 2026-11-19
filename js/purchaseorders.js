@@ -961,7 +961,7 @@ function openPackingSlipCapture(prefillPoId){
       '</div>'+
       (opens.length? '<div style="margin-bottom:4px"><label class="btn btn-primary" style="display:block;box-sizing:border-box;text-align:center;cursor:pointer;padding:14px;margin:0">📷 Take / Choose Photo or PDF'+
         '<input type="file" id="ps-file" accept="image/*,application/pdf" capture="environment" style="display:none" onchange="submitPackingSlip(\''+modalId+'\')"></label></div>'+
-      '<div style="font-size:11px;color:#90a4ae;text-align:center;margin-top:6px">'+(review?'Pick the PO, then snap the slip. The office confirms it before it lands on the PO.':'Pick the PO, then snap the packing slip. The office is notified automatically.')+'</div>' : '');
+      '<div style="font-size:11px;color:#90a4ae;text-align:center;margin-top:6px">'+(review?'Pick the PO, then snap the slip. The office confirms it before it lands on the PO.':'Pick the PO, then snap the packing slip. It attaches to the PO right away.')+'</div>' : '');
   }
   var div=document.createElement('div');
   div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
@@ -1000,7 +1000,8 @@ async function submitPackingSlip(modalId){
     if(review){
       showToast('Packing slip sent to the office for review ✓','success',4500);
     }else{
-      showToast('Packing slip submitted - the office has been notified','success',4000);
+      // r175: don't claim a notification went out — delivery depends on a notification rule existing.
+      showToast('Packing slip attached to the PO ✓','success',4000);
       if(_poCurrentId===poId && typeof renderPOAttachments==='function') renderPOAttachments(poId);
     }
   }

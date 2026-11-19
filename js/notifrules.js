@@ -162,6 +162,55 @@
     catch(e){ console.warn('[notifrules toggle]',e); }
   }
 
+  // ============================================================
+  // (r175) DEFAULT NOTIFICATION RULES — so a brand-new company isn't SILENT on critical events.
+  // WHY THIS EXISTS: who-gets-notified is 100% rule-driven (fn_notif_dispatch matches notification_rules;
+  // there is NO hardcoded fallback recipient). A fresh tenant with zero rules → a tech uploads a slip,
+  // a PO needs approval, a PO is ready to pay → the trigger fires but matches nothing → NOBODY is told.
+  // This seeds sensible, ROLE-BASED (portable, no per-person setup) in-app-bell defaults ONCE per tenant.
+  //
+  // IMPORTANT for whoever extends this: only seed (module,event,status) tuples that ACTUALLY FIRE and
+  // whose status string EXACTLY matches what the trigger emits. Verified firing triggers today:
+  // fn_notif_po_status (po/status/<stored status>), fn_notif_po_packing_slip (po/status/'Packing Slip
+  // Received' literal), fn_notif_wo_status, fn_notif_wo_comment, fn_notif_rfq_status, fn_notif_tool_status.
+  // WO/RFQ statuses are TENANT-CUSTOM strings (DB.woSettings etc.) — do NOT seed them with placeholder
+  // strings or you create a dead rule that never fires. PO 'Pending Approval'/'Ready to Pay' are set by
+  // the app (purchaseorders.js) so those are safe literals. See the WORKFLOW-RULE project doc.
+  function _R(id,label){ return { cat:'role', id:id, label:label, ch:{bell:1} }; }
+  var NR_DEFAULTS = [
+    { name:'PO needs approval → approvers', module:'po', event:'status', status:'Pending Approval',
+      subject:'PO {number} needs approval', body:'Purchase order {number} is waiting for approval.',
+      recipients:[ _R('owner','Owner'), _R('manager','Manager') ] },
+    { name:'Packing slip submitted → office', module:'po', event:'status', status:'Packing Slip Received',
+      subject:'Packing slip received — PO {number}', body:'A packing slip was submitted for PO {number}.',
+      recipients:[ _R('owner','Owner'), _R('manager','Manager'), _R('back_office','Back Office') ] },
+    { name:'PO ready to pay → office', module:'po', event:'status', status:'Ready to Pay',
+      subject:'PO {number} ready to pay', body:'Purchase order {number} is ready to pay.',
+      recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] }
+  ];
+  // Seeds missing defaults ONCE. Fully idempotent: per-rule it skips any (module,event,status) that
+  // already exists, so a company that configured its own rules is never duplicated or overwritten.
+  async function nrEnsureDefaults(){
+    var sb=_sb(); if(!sb) return;
+    if(!hasAccess()) return;                          // only owner / notifications.manage seeds
+    if(Number(sVal('notifDefaultsSeededV',0)) >= 1) return;   // one-time per tenant
+    try{
+      await nrLoad();                                 // fresh cloud snapshot of existing rules
+      var added=0;
+      for(var i=0;i<NR_DEFAULTS.length;i++){
+        var d=NR_DEFAULTS[i];
+        var exists=_rules.some(function(r){ return r.module===d.module && r.event===d.event && (r.status||'')===(d.status||''); });
+        if(exists) continue;
+        var ok=await nrSaveRule({ name:d.name, enabled:true, module:d.module, event:d.event, status:d.status,
+          conditions:[], recipients:d.recipients, subject:d.subject, body:d.body, simple:true, urgent:false, digest:false });
+        if(ok) added++;
+      }
+      sSet('notifDefaultsSeededV', 1);                // mark seeded (idempotent check still guards anyway)
+      if(added>0) console.log('[notifrules] seeded '+added+' default rule(s)');
+    }catch(e){ console.warn('[notifrules ensureDefaults]',(e&&e.message)||e); }
+  }
+  window.nrEnsureDefaults = nrEnsureDefaults;
+
   // ---------- derived ----------
   function whenText(ru){
     var m=mod(ru.module), e=evt(ru.event), subj=(m.key==='any'?'anything':'a '+m.label);
