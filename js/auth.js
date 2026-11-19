@@ -431,7 +431,15 @@ function _quoteExtras(q){
     itemStyle: (q.itemStyle === 'split' || q.itemStyle === 'summary') ? q.itemStyle : 'combined',
     showLaborHours: !!q.showLaborHours,
     equipSeparateLine: !!q.equipSeparateLine, // r109: equipment as its own Pricing Summary line
-    sectionCollapse: (q.sectionCollapse && typeof q.sectionCollapse==='object') ? q.sectionCollapse : {} // r110: per-quote collapsed-section layout
+    sectionCollapse: (q.sectionCollapse && typeof q.sectionCollapse==='object') ? q.sectionCollapse : {}, // r110: per-quote collapsed-section layout
+    // r168: per-line labor overrides (OT multiplier / custom $/hr / flat labor $), parallel to items by
+    // index (= sort_order). Carried here because the quote_line_items write RPC can't be extended from
+    // here. Merged back onto items in _applyQuoteExtras after items hydrate.
+    lineLabor: (q.items || []).map(function(it){
+      return { mult:(it.laborMult!=null?it.laborMult:1),
+               rate:(it.laborRate!=null && it.laborRate!=='')?it.laborRate:null,
+               flat:(it.flatLabor!=null?(parseFloat(it.flatLabor)||0):0) };
+    })
   };
 }
 function _applyQuoteExtras(target, row){
@@ -458,6 +466,16 @@ function _applyQuoteExtras(target, row){
   target.showLaborHours = !!x.showLaborHours;
   target.equipSeparateLine = !!x.equipSeparateLine; // r109 (legacy → false)
   target.sectionCollapse = (x.sectionCollapse && typeof x.sectionCollapse==='object') ? x.sectionCollapse : {}; // r110 (legacy → all expanded)
+  // r168: merge per-line labor overrides onto the already-hydrated items, by index (= sort_order).
+  // Legacy quotes (no lineLabor) keep the defaults set in the mapper (mult 1 / no custom rate / flat 0).
+  if (Array.isArray(x.lineLabor) && Array.isArray(target.items)) {
+    for (var _li=0; _li<target.items.length; _li++){
+      var _L = x.lineLabor[_li]; if (!_L) continue;
+      target.items[_li].laborMult = (_L.mult!=null ? _L.mult : 1);
+      target.items[_li].laborRate = (_L.rate!=null && _L.rate!=='') ? _L.rate : null;
+      target.items[_li].flatLabor = (_L.flat!=null ? _L.flat : 0);
+    }
+  }
   return target;
 }
 
@@ -1511,7 +1529,11 @@ async function syncAllFromCloud(silent) {
             proposalSections: (q.proposal_sections === undefined ? null : q.proposal_sections),
             updatedAt: q.updated_at,
             items: (q.quote_line_items || []).sort(function(a,b){ return a.sort_order - b.sort_order; }).map(function(li) {
-              return { _id:li.id, desc:li.description, cat:li.category, qty:li.qty, unit:li.unit, mc:li.material_cost, lh:li.labor_hours };
+              // r168: per-line labor (OT multiplier / custom rate / flat $). Columns exist but the
+              // replace RPC can't be updated from here (destructive-confirm timeout), so the authoritative
+              // values ride quote_extras.lineLabor and are merged in _applyQuoteExtras; these are the base/defaults.
+              return { _id:li.id, desc:li.description, cat:li.category, qty:li.qty, unit:li.unit, mc:li.material_cost, lh:li.labor_hours,
+                       laborMult:(li.labor_mult!=null?li.labor_mult:1), laborRate:(li.labor_rate!=null?li.labor_rate:null), flatLabor:(li.flat_labor!=null?li.flat_labor:0) };
             })
           };
           _applyQuoteExtras(_q, q);   // r33: restore equipment/per-diem/svc/discount-type/exec/dates from quote_extras

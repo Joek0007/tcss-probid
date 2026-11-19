@@ -188,21 +188,56 @@ function emailStatusBadge(type,id,altId){
 
 
 // =============================================
+// r168: PER-LINE LABOR — single source of truth
+// Used by calcTotals (summary), buildPrintHTML (proposal), the editor grid, and quote→WO conversion,
+// so every site computes labor the SAME way and the totals can't diverge.
+//   Labor $ for a line = qty × ( labor_hours × effectiveRate + flatLabor )
+//   effectiveRate = a per-line custom $/hr if set, else the quote standard rate × the line multiplier
+//                   (Std 1× / OT 1.5× / OT 2×).
+// Material and margin are untouched; labor still passes through (not re-margined), as before.
+// =============================================
+function qLineEffRate(item, stdRate){
+  var std = parseFloat(stdRate) || 0;
+  var m = parseFloat(item && item.laborMult);
+  if (isNaN(m)) m = 1;
+  if (m === 0){                                           // 0 = "Custom $/hr" mode (dropdown)
+    var r = parseFloat(item && item.laborRate);
+    return (!isNaN(r) && r > 0) ? r : std;                // custom rate, or fall back to standard if blank
+  }
+  if (m <= 0) m = 1;
+  return std * m;                                         // standard rate × multiplier (Std 1 / OT 1.5 / 2)
+}
+function qLinePerUnitLabor(item, stdRate){
+  var lh = parseFloat(item && item.lh) || 0;
+  var flat = parseFloat(item && item.flatLabor) || 0;    // flat labor $ is PER UNIT (Joe: ×qty)
+  return lh * qLineEffRate(item, stdRate) + flat;
+}
+function qLineLabor(item, stdRate){
+  var qty = parseFloat(item && item.qty); if (isNaN(qty)) qty = 0;
+  return qty * qLinePerUnitLabor(item, stdRate);
+}
+
+// =============================================
 // STAGE 1: calcTotals() — MARGIN-BASED ENGINE
 // =============================================
 function calcTotals() {
   // STEP 1: Aggregate raw costs from line items
   let totalMaterialCost = 0;
   let totalLaborHours = 0;
+  let laborSellAccum = 0;                          // r168: per-line labor (OT / custom rate / flat $), summed
+  const _stdRate = getLaborRate();
   lineItems.forEach(function(item) {
     const qty = parseFloat(item.qty) || 0;
     totalMaterialCost += (parseFloat(item.mc) || 0) * qty;
     totalLaborHours += (parseFloat(item.lh) || 0) * qty;
+    laborSellAccum += qLineLabor(item, _stdRate);  // r168: each line's real labor $
   });
 
-  // STEP 2: Labor sell = hours * rate
-  const laborRate = getLaborRate();
-  const laborSell = totalLaborHours * laborRate;
+  // STEP 2: Labor sell — r168: SUM of each line's labor (hours×effective rate + flat), not
+  // totalHours×one rate — otherwise OT/custom/flat lines wouldn't price and the summary would
+  // disagree with the line grid.
+  const laborRate = _stdRate;
+  const laborSell = laborSellAccum;
 
   // STEP 3: True total cost (V5: equipment rental, V6: per diem/travel)
   const equipCost  = getEquipmentCost();
@@ -1463,7 +1498,7 @@ function buildPrintHTML(q, mode) {
       // show a real price instead of "—". Line total = material sell + labor; the lines
       // therefore sum to the pre-tax subtotal (matches the Pricing Summary).
       const _laborRate = parseFloat(q.laborRate) || 100;
-      const lineTotal  = (unitSell * qty) + (qty * lh * _laborRate);
+      const lineTotal  = (unitSell * qty) + qLineLabor(item, _laborRate);   // r168: per-line labor
       const lineUnit   = qty > 0 ? lineTotal / qty : lineTotal;
       rowNum++;
       rows += '<tr style="border-bottom:1px solid #e8e8e8">';
@@ -1517,7 +1552,7 @@ function buildPrintHTML(q, mode) {
       var qty = parseFloat(item.qty)||0, mc = parseFloat(item.mc)||0, lh = parseFloat(item.lh)||0;
       var unitSell = mc > 0 ? (_isMarkup ? mc*(1+margin) : (margin < 1 ? mc/(1-margin) : mc)) : 0;
       var matSell = unitSell * qty;
-      var labor = qty * lh * _laborRate;
+      var labor = qLineLabor(item, _laborRate);   // r168: hours×effective rate + flat (per-line OT/custom)
       if (matSell <= 0 && labor <= 0) return;
       matTot += matSell; labTot += labor; n++;
       var hrsTxt = (showHrs && labor > 0) ? ' <span style="color:#90a4ae;font-weight:400;font-size:11px">&middot; ' + (Math.round(qty*lh*10)/10) + ' hrs</span>' : '';
@@ -3363,7 +3398,15 @@ function reprintInvoice(invId) {
     var matMult = totalMatCost > 0 ? matSell/totalMatCost : 1;
     laborQItems.forEach(function(li){
       var hrs = (parseFloat(li.lh||0))*(parseFloat(li.qty||1));
-      freshItems.push({ desc:li.desc||'Labor', cat:'Labor', qty:hrs, unitPrice:laborRate, mc:laborRate });
+      var _er = (typeof qLineEffRate==='function') ? qLineEffRate(li, laborRate) : laborRate;   // r168: per-line OT/custom rate
+      freshItems.push({ desc:li.desc||'Labor', cat:'Labor', qty:hrs, unitPrice:_er, mc:_er });
+      var _flat = (parseFloat(li.flatLabor||0))*(parseFloat(li.qty||1));                          // r168: flat labor $ on a labor line
+      if (_flat>0) freshItems.push({ desc:(li.desc?li.desc+' — ':'')+'Labor (flat)', cat:'Labor', qty:1, unitPrice:_flat, mc:_flat });
+    });
+    // r168: flat labor on a material / no-hours line → its own labor line (it isn't in laborQItems)
+    matQItems.forEach(function(li){
+      var _flat2 = (parseFloat(li.flatLabor||0))*(parseFloat(li.qty||1));
+      if (_flat2>0) freshItems.push({ desc:(li.desc?li.desc+' — ':'')+'Labor (flat)', cat:'Labor', qty:1, unitPrice:_flat2, mc:_flat2 });
     });
     matQItems.forEach(function(li){
       var sell = Math.round((parseFloat(li.mc||0)*matMult)*100)/100;

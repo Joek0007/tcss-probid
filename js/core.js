@@ -2983,7 +2983,8 @@ function updateLumpSumPreview() {
 let equipmentRows = [];
 let eqSeq = 1;
 function newLI(desc, cat, qty, unit, mc, lh) {
-  return { _id: nextLiId(), desc:desc||'', cat:cat||'General', qty:qty||1, unit:unit||'ea', mc:parseFloat(mc)||0, lh:parseFloat(lh)||0 };
+  // r168: labor rate/flat default to Standard, no custom, no flat.
+  return { _id: nextLiId(), desc:desc||'', cat:cat||'General', qty:qty||1, unit:unit||'ea', mc:parseFloat(mc)||0, lh:parseFloat(lh)||0, laborMult:1, laborRate:null, flatLabor:0 };
 }
 function addRow(item) {
   lineItems.push(item || newLI('','',1,'ea',0,0));
@@ -3002,7 +3003,7 @@ function renderLI() {
   const body = document.getElementById('li-body');
   if (!body) return;
   if (lineItems.length === 0) {
-    body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#90a4ae;padding:20px">No items yet. Click &ldquo;+ Add Row&rdquo; or select a template above.</td></tr>';
+    body.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#90a4ae;padding:20px">No items yet. Click &ldquo;+ Add Row&rdquo; or select a template above.</td></tr>';
     return;
   }
   // Determine pricing mode and rate ONCE per render
@@ -3040,9 +3041,21 @@ function renderLI() {
     html += '<td><input data-li="'+item._id+'" data-field="unit" value="'+escHtml(item.unit)+'" style="width:50px" placeholder="ea"></td>';
     html += '<td><input data-li="'+item._id+'" data-field="mc" type="number" value="'+item.mc+'" min="0" step="0.01" style="width:80px"></td>';
     html += '<td><input data-li="'+item._id+'" data-field="lh" type="number" value="'+item.lh+'" min="0" step="0.25" style="width:65px"></td>';
-    html += '<td style="color:#546e7a;font-size:12px">'+fmt(unitMS)+(i===0?_equivMarginLabel:'')+'</td>';
-    html += '<td style="color:#1565c0;font-weight:700;font-size:12px">'+fmt(totalMS)+'</td>';
-    html += '<td style="color:#2e7d32;font-size:12px">'+fmt(item.lh*item.qty*getLaborRate())+'</td>';
+    // r168: per-line labor RATE (Std / OT 1.5× / 2× / Custom $/hr) + FLAT labor $ (per unit, added on top)
+    var _m = parseFloat(item.laborMult); if (isNaN(_m)) _m = 1; var _cust = (_m === 0);
+    html += '<td style="white-space:nowrap">'
+      + '<select data-li="'+item._id+'" data-field="laborMult" style="width:58px;font-size:11px">'
+      +   '<option value="1"'+(_m===1?' selected':'')+'>Std</option>'
+      +   '<option value="1.5"'+(_m===1.5?' selected':'')+'>1.5×</option>'
+      +   '<option value="2"'+(_m===2?' selected':'')+'>2×</option>'
+      +   '<option value="0"'+(_cust?' selected':'')+'>Cust</option>'
+      + '</select>'
+      + (_cust ? '<input data-li="'+item._id+'" data-field="laborRate" type="number" value="'+(item.laborRate!=null?item.laborRate:'')+'" placeholder="$/hr" min="0" step="1" style="width:52px;font-size:11px;margin-left:3px">' : '')
+      + '</td>';
+    html += '<td><input data-li="'+item._id+'" data-field="flatLabor" type="number" value="'+(item.flatLabor!=null?item.flatLabor:0)+'" min="0" step="1" style="width:62px" placeholder="$/unit" title="Flat labor $ per unit — added on top of hours × rate"></td>';
+    html += '<td style="color:#546e7a;font-size:12px;white-space:nowrap">'+fmt(unitMS)+(i===0?_equivMarginLabel:'')+'</td>';
+    html += '<td style="color:#1565c0;font-weight:700;font-size:12px;white-space:nowrap">'+fmt(totalMS)+'</td>';
+    html += '<td style="color:#2e7d32;font-size:12px;white-space:nowrap">'+fmt(qLineLabor(item, getLaborRate()))+'</td>';
     html += '<td><button class="btn btn-danger btn-sm" data-action="delRow" data-id="'+item._id+'">×</button></td>';
     html += '</tr>';
   });

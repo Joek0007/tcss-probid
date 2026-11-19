@@ -8474,9 +8474,16 @@ function updateLI(id, field, value, rerender) {
   var numId = typeof id === 'string' ? parseInt(id) : id;
   var item = lineItems.find(function(x){ return x._id === numId || x._id === id; });
   if (!item) return;
-  if (field==='qty'||field==='mc'||field==='lh') {
+  if (field==='qty'||field==='mc'||field==='lh'||field==='flatLabor') {
     item[field] = parseFloat(value)||0;
     if (rerender) renderLI(); // only re-render when explicitly requested (on blur)
+  } else if (field==='laborRate') {               // r168: custom $/hr — null when blank, no re-render (keep focus)
+    var _r = parseFloat(value); item.laborRate = (isNaN(_r)||_r<=0) ? null : _r;
+    if (rerender) renderLI();
+  } else if (field==='laborMult') {               // r168: rate dropdown (Std 1 / 1.5 / 2 / Custom = 0)
+    var _m = parseFloat(value); item.laborMult = isNaN(_m) ? 1 : _m;
+    if (item.laborMult !== 0) item.laborRate = null;   // leaving Custom clears the custom rate
+    renderLI();                                        // discrete change → safe to re-render (shows/hides custom $/hr)
   } else {
     item[field] = value; // text fields: just update data, don't re-render (preserves focus)
   }
