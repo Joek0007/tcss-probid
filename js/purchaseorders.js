@@ -1029,6 +1029,24 @@ async function _togglePoSlipReview(cb){
   showToast(DB.settings.poSlipReview?'Office review ON — tech slips now queue for review':'Office review OFF — tech slips attach directly','info',4000);
 }
 
+// (r174) Single source of truth for the packing-slip handling mode, driven by the 3-way picker in
+// Settings → Purchase Orders. Guarantees review and no-lookup are never both on (an impossible state).
+//   'off'      → both false (tech picks, attaches directly)
+//   'review'   → review true,  no-lookup false (tech picks, office confirms/corrects)
+//   'nolookup' → review false, no-lookup true  (tech notes vendor/job, office assigns)
+async function _setPoSlipMode(mode){
+  if(!_canReviewSlips()){ showToast('You cannot change this setting','error'); if(typeof renderMsPOSettings==='function') renderMsPOSettings(); return; }
+  if(!DB.settings) DB.settings={};
+  DB.settings.poSlipReview   = (mode==='review');
+  DB.settings.poSlipNoLookup = (mode==='nolookup');
+  saveDB();
+  try{ if(typeof _settingsMergePush==='function') await _settingsMergePush(); else if(typeof _pushSettingsToCloud==='function') await _pushSettingsToCloud(); }catch(e){ console.warn('[slip mode push]',e&&e.message); }
+  var msg = mode==='nolookup' ? 'No-lookup — techs note vendor/job; the office assigns the PO'
+          : mode==='review'   ? 'Office review — techs pick a PO; the office confirms or corrects it'
+          :                     'Direct — tech slips attach to the PO immediately';
+  showToast(msg,'info',4200);
+}
+
 // (r173) No-lookup mode: techs type vendor + job instead of picking a PO; the office assigns the PO
 // in the inbox. Implies office review (there's nothing for the tech to attach to otherwise).
 async function _togglePoSlipNoLookup(cb){
@@ -1181,6 +1199,7 @@ async function _reviewPackingSlip(id, action){
 }
 
 window.openPackingSlipInbox=openPackingSlipInbox;
+window._setPoSlipMode=_setPoSlipMode;
 window._togglePoSlipReview=_togglePoSlipReview;
 window._togglePoSlipNoLookup=_togglePoSlipNoLookup;
 window._reviewPackingSlip=_reviewPackingSlip;

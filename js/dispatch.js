@@ -1857,10 +1857,12 @@ function switchMsTab(tab) {
 // (moved here from the inbox modal). It reflects DB.settings.poSlipReview; the onchange handler
 // (_togglePoSlipReview in purchaseorders.js) persists + syncs it and re-checks permission.
 function renderMsPOSettings(){
-  var cb=document.getElementById('ms-po-slip-review');
-  if(cb) cb.checked = !!(DB.settings && DB.settings.poSlipReview);
-  var cb2=document.getElementById('ms-po-slip-nolookup');
-  if(cb2) cb2.checked = !!(DB.settings && DB.settings.poSlipNoLookup);
+  // (r174) 3-way picker: no-lookup takes precedence (stronger), else review, else off. This also
+  // gracefully resolves any legacy state where both booleans were somehow set.
+  var s = DB.settings || {};
+  var mode = s.poSlipNoLookup ? 'nolookup' : (s.poSlipReview ? 'review' : 'off');
+  var ids = { off:'ms-slipmode-off', review:'ms-slipmode-review', nolookup:'ms-slipmode-nolookup' };
+  Object.keys(ids).forEach(function(k){ var r=document.getElementById(ids[k]); if(r) r.checked=(k===mode); });
 }
 
 // ── Defaults & Lists ─────────────────────────────────────────────────────────
