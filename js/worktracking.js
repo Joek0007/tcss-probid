@@ -8476,7 +8476,14 @@ function updateLI(id, field, value, rerender) {
   if (!item) return;
   if (field==='qty'||field==='mc'||field==='lh'||field==='flatLabor') {
     item[field] = parseFloat(value)||0;
-    if (rerender) renderLI(); // only re-render when explicitly requested (on blur)
+    // r169: hours and flat labor $ are mutually exclusive on a line — a line is priced EITHER by
+    // hours×rate OR by a flat labor amount, not both (prevents double-counting). Entering one zeros the
+    // other. Applied on commit (blur / re-render), never mid-keystroke, so it can't yank a value you're typing.
+    if (rerender) {
+      if (field==='lh' && item.lh>0) item.flatLabor = 0;
+      else if (field==='flatLabor' && item.flatLabor>0) item.lh = 0;
+      renderLI(); // only re-render when explicitly requested (on blur)
+    }
   } else if (field==='laborRate') {               // r168: custom $/hr — null when blank, no re-render (keep focus)
     var _r = parseFloat(value); item.laborRate = (isNaN(_r)||_r<=0) ? null : _r;
     if (rerender) renderLI();
