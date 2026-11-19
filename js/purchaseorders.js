@@ -823,7 +823,7 @@ async function ensurePOAttachmentsLoaded(poId){
       var have={}; DB.poAttachments.forEach(function(a){ if(a&&a.id) have[a.id]=1; });
       r.data.forEach(function(a){
         if(have[a.id]) return;
-        DB.poAttachments.push({ id:a.id, poId:a.po_id, name:a.name, fileName:a.file_name, fileType:a.file_type, fileSize:a.file_size, path:a.file_path, url:a.url, kind:a.kind||'other', uploadedBy:a.uploaded_by, uploadedAt:a.uploaded_at, deleted:!!a.deleted, reviewStatus:a.review_status||'approved' });
+        DB.poAttachments.push({ id:a.id, poId:a.po_id, name:a.name, fileName:a.file_name, fileType:a.file_type, fileSize:a.file_size, path:a.file_path, url:a.url, kind:a.kind||'other', uploadedBy:a.uploaded_by, uploadedAt:a.uploaded_at, deleted:!!a.deleted, reviewStatus:a.review_status||'approved', slipVendor:a.slip_vendor||'', slipJob:a.slip_job||'' });
       });
     }
   }catch(e){ /* leave as-is on failure */ }
@@ -865,25 +865,29 @@ async function onPOAttachFile(input){
   if(rec){ renderPOAttachments(_poCurrentId); showToast('Attached: '+escHtml(rec.name),'success'); }
 }
 
-async function uploadPOAttachment(file, poId, kind, reviewStatus){
-  if(!file||!poId) return null;
+async function uploadPOAttachment(file, poId, kind, reviewStatus, extra){
+  if(!file) return null;   // r173: poId may be '' for a no-lookup slip the office will assign
   if(!_sb||!_currentUser){ showToast('Not logged in','error'); return null; }
   var _rev = reviewStatus || 'approved';   // r171: 'pending' when a tech slip needs office review
+  poId = poId || '';
+  extra = extra || {};
   try{
     if(typeof compressImage==='function') file=await compressImage(file);   // shrink photos; PDFs pass through
     var safe=(file.name||'file').replace(/[^a-zA-Z0-9._-]/g,'_');
-    var path='po-docs/'+poId+'/'+Date.now()+'-'+safe;
+    var path='po-docs/'+(poId||'unassigned')+'/'+Date.now()+'-'+safe;
     var up=await _sb.storage.from('job-photos').upload(path,file,{cacheControl:'3600',upsert:false});
     if(up.error) throw up.error;
     var urlData=_sb.storage.from('job-photos').getPublicUrl(path);
     var url=(urlData.data||{}).publicUrl||'';
     var rec={ id:'poatt-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), poId:poId, name:file.name, fileName:file.name,
       fileType:file.type||'application/octet-stream', fileSize:file.size, path:path, url:url, kind:kind||'other',
-      uploadedBy:(_currentUser.full_name||''), uploadedAt:new Date().toISOString(), deleted:false, reviewStatus:_rev };
+      uploadedBy:(_currentUser.full_name||''), uploadedAt:new Date().toISOString(), deleted:false, reviewStatus:_rev,
+      slipVendor:extra.vendor||'', slipJob:extra.job||'' };
     if(!DB.poAttachments) DB.poAttachments=[];
     DB.poAttachments.push(rec);
     await _sb.from('po_attachments').insert({ id:rec.id, po_id:poId, name:rec.name, file_name:rec.fileName, file_type:rec.fileType,
-      file_size:rec.fileSize, file_path:path, url:url, kind:rec.kind, uploaded_by:rec.uploadedBy, uploaded_at:rec.uploadedAt, deleted:false, review_status:_rev });
+      file_size:rec.fileSize, file_path:path, url:url, kind:rec.kind, uploaded_by:rec.uploadedBy, uploaded_at:rec.uploadedAt, deleted:false, review_status:_rev,
+      slip_vendor:rec.slipVendor, slip_job:rec.slipJob });
     saveDB();
     if(typeof auditLog==='function') auditLog('po_attachment','purchase_order',poId,{note:rec.name+' ('+_poAttachKindLabel(rec.kind)+') by '+rec.uploadedBy});
     return rec;
@@ -929,43 +933,68 @@ function openPackingSlipCapture(prefillPoId){
   if (typeof hasPermission==='function' && !hasPermission('po.attach_field')) { showToast('You do not have permission to submit packing slips','error'); return; }
   var modalId='modal-packing-slip';
   var ex=document.getElementById(modalId); if(ex) ex.remove();
-  var opens=(DB.purchaseOrders||[]).filter(function(p){ return p.status!=='Void' && p.status!=='Closed'; })
-    .sort(function(a,b){ return String(b.poNumber||'').localeCompare(String(a.poNumber||''),undefined,{numeric:true}); });
-  var opts=opens.map(function(p){
-    var lbl=(p.poNumber||'')+' - '+(p.vendorName||'')+(p.jobName?' ('+p.jobName+')':'');
-    return '<option value="'+escHtml(p.id)+'"'+(p.id===prefillPoId?' selected':'')+'>'+escHtml(lbl)+'</option>';
-  }).join('');
+  // r173: no-lookup mode — the tech does NOT pick a PO. They type the vendor + job name and the
+  // office matches it to the right PO in the inbox. (no-lookup implies office review.)
+  var noLookup = !!(DB.settings && DB.settings.poSlipNoLookup);
+  var review   = noLookup || !!(DB.settings && DB.settings.poSlipReview);
+  var body;
+  if(noLookup){
+    body =
+      '<div style="margin-bottom:11px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">Vendor *</label>'+
+        '<input id="ps-vendor" type="text" placeholder="e.g. ADI Global Distribution" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px"></div>'+
+      '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">Job name</label>'+
+        '<input id="ps-job" type="text" placeholder="e.g. Downtown Office Retrofit" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px"></div>'+
+      '<div style="margin-bottom:4px"><label class="btn btn-primary" style="display:block;box-sizing:border-box;text-align:center;cursor:pointer;padding:14px;margin:0">📷 Take / Choose Photo or PDF'+
+        '<input type="file" id="ps-file" accept="image/*,application/pdf" capture="environment" style="display:none" onchange="submitPackingSlip(\''+modalId+'\')"></label></div>'+
+      '<div style="font-size:11px;color:#90a4ae;text-align:center;margin-top:6px">Note the vendor and job, then snap the slip. The office matches it to the right PO.</div>';
+  }else{
+    var opens=(DB.purchaseOrders||[]).filter(function(p){ return p.status!=='Void' && p.status!=='Closed'; })
+      .sort(function(a,b){ return String(b.poNumber||'').localeCompare(String(a.poNumber||''),undefined,{numeric:true}); });
+    var opts=opens.map(function(p){
+      var lbl=(p.poNumber||'')+' - '+(p.vendorName||'')+(p.jobName?' ('+p.jobName+')':'');
+      return '<option value="'+escHtml(p.id)+'"'+(p.id===prefillPoId?' selected':'')+'>'+escHtml(lbl)+'</option>';
+    }).join('');
+    body =
+      '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">Which purchase order?</label>'+
+        (opens.length? '<select id="ps-po" style="width:100%;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px"><option value="">- Select a PO -</option>'+opts+'</select>'
+                      : '<div style="font-size:13px;color:#c62828">No open purchase orders to attach to.</div>')+
+      '</div>'+
+      (opens.length? '<div style="margin-bottom:4px"><label class="btn btn-primary" style="display:block;box-sizing:border-box;text-align:center;cursor:pointer;padding:14px;margin:0">📷 Take / Choose Photo or PDF'+
+        '<input type="file" id="ps-file" accept="image/*,application/pdf" capture="environment" style="display:none" onchange="submitPackingSlip(\''+modalId+'\')"></label></div>'+
+      '<div style="font-size:11px;color:#90a4ae;text-align:center;margin-top:6px">'+(review?'Pick the PO, then snap the slip. The office confirms it before it lands on the PO.':'Pick the PO, then snap the packing slip. The office is notified automatically.')+'</div>' : '');
+  }
   var div=document.createElement('div');
   div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
   div.innerHTML=
     '<div class="modal-box" style="max-width:480px">'+
       '<div class="modal-head"><h3>📦 Submit Packing Slip</h3>'+
         '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
-      '<div class="modal-body">'+
-        '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">Which purchase order?</label>'+
-          (opens.length? '<select id="ps-po" style="width:100%;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px"><option value="">- Select a PO -</option>'+opts+'</select>'
-                        : '<div style="font-size:13px;color:#c62828">No open purchase orders to attach to.</div>')+
-        '</div>'+
-        (opens.length? '<div style="margin-bottom:4px"><label class="btn btn-primary" style="display:block;box-sizing:border-box;text-align:center;cursor:pointer;padding:14px;margin:0">📷 Take / Choose Photo or PDF'+
-          '<input type="file" id="ps-file" accept="image/*,application/pdf" capture="environment" style="display:none" onchange="submitPackingSlip(\''+modalId+'\')"></label></div>'+
-        '<div style="font-size:11px;color:#90a4ae;text-align:center;margin-top:6px">Pick the PO, then snap the packing slip. The office is notified automatically.</div>' : '')+
-      '</div>'+
+      '<div class="modal-body">'+body+'</div>'+
     '</div>';
   document.body.appendChild(div);
 }
 
 async function submitPackingSlip(modalId){
-  var poSel=document.getElementById('ps-po');
-  var poId=poSel?poSel.value:'';
-  if(!poId){ showToast('Pick which PO this packing slip is for','error'); return; }
+  var noLookup = !!(DB.settings && DB.settings.poSlipNoLookup);
+  var review = noLookup || !!(DB.settings && DB.settings.poSlipReview);
+  var poId='', extra={};
+  if(noLookup){
+    // r173: tech typed vendor + job instead of a PO; office assigns the PO in the inbox.
+    var ven=(document.getElementById('ps-vendor')||{}).value||'';
+    var job=(document.getElementById('ps-job')||{}).value||'';
+    if(!ven.trim()){ showToast('Enter the vendor name','error'); return; }
+    extra={vendor:ven.trim(), job:job.trim()};
+    poId='';   // unassigned — office matches it
+  }else{
+    var poSel=document.getElementById('ps-po');
+    poId=poSel?poSel.value:'';
+    if(!poId){ showToast('Pick which PO this packing slip is for','error'); return; }
+  }
   var fileEl=document.getElementById('ps-file');
   if(!fileEl||!fileEl.files||!fileEl.files[0]){ showToast('No file chosen','error'); return; }
   var file=fileEl.files[0];
   showToast('Uploading packing slip...','info',3000);
-  // r171: when the office-review toggle is ON, a tech slip lands as 'pending' (hidden from the PO) and
-  // waits in the Packing Slip Inbox for an office person to attach or reject it. OFF = attach directly.
-  var review = !!(DB.settings && DB.settings.poSlipReview);
-  var rec=await uploadPOAttachment(file, poId, 'packing_slip', review?'pending':'approved');
+  var rec=await uploadPOAttachment(file, poId, 'packing_slip', review?'pending':'approved', extra);
   if(rec){
     var m=document.getElementById(modalId); if(m) m.remove();
     if(review){
@@ -1000,6 +1029,17 @@ async function _togglePoSlipReview(cb){
   showToast(DB.settings.poSlipReview?'Office review ON — tech slips now queue for review':'Office review OFF — tech slips attach directly','info',4000);
 }
 
+// (r173) No-lookup mode: techs type vendor + job instead of picking a PO; the office assigns the PO
+// in the inbox. Implies office review (there's nothing for the tech to attach to otherwise).
+async function _togglePoSlipNoLookup(cb){
+  if(!_canReviewSlips()){ showToast('You cannot change this setting','error'); if(cb) cb.checked=!!(DB.settings&&DB.settings.poSlipNoLookup); return; }
+  if(!DB.settings) DB.settings={};
+  DB.settings.poSlipNoLookup = !!(cb && cb.checked);
+  saveDB();
+  try{ if(typeof _settingsMergePush==='function') await _settingsMergePush(); else if(typeof _pushSettingsToCloud==='function') await _pushSettingsToCloud(); }catch(e){ console.warn('[slip nolookup toggle push]',e&&e.message); }
+  showToast(DB.settings.poSlipNoLookup?'No-lookup ON — techs note vendor/job; office assigns the PO':'No-lookup OFF — techs pick the PO again','info',4200);
+}
+
 async function openPackingSlipInbox(){
   if(!_canReviewSlips()){ showToast('You do not have permission to review packing slips','error'); return; }
   var modalId='modal-ps-inbox';
@@ -1030,11 +1070,41 @@ async function _loadPendingSlips(){
       if(!DB.poAttachments) DB.poAttachments=[];
       var byId={}; DB.poAttachments.forEach(function(a){ if(a&&a.id) byId[a.id]=a; });
       r.data.forEach(function(a){
-        var mapped={ id:a.id, poId:a.po_id, name:a.name, fileName:a.file_name, fileType:a.file_type, fileSize:a.file_size, path:a.file_path, url:a.url, kind:a.kind||'other', uploadedBy:a.uploaded_by, uploadedAt:a.uploaded_at, deleted:!!a.deleted, reviewStatus:a.review_status||'approved' };
+        var mapped={ id:a.id, poId:a.po_id, name:a.name, fileName:a.file_name, fileType:a.file_type, fileSize:a.file_size, path:a.file_path, url:a.url, kind:a.kind||'other', uploadedBy:a.uploaded_by, uploadedAt:a.uploaded_at, deleted:!!a.deleted, reviewStatus:a.review_status||'approved', slipVendor:a.slip_vendor||'', slipJob:a.slip_job||'' };
         if(byId[a.id]) Object.assign(byId[a.id],mapped); else DB.poAttachments.push(mapped);
       });
     }
   }catch(e){ console.warn('[slip inbox load]',e&&e.message); }
+}
+
+// (r173) Build the <option> list for the inbox PO picker. Any active (non-Void) PO, newest first;
+// each option carries a lowercase data-s string (po# + vendor + job) that _psFilter matches against.
+function _psPoOptions(selectedId){
+  var pos=(DB.purchaseOrders||[]).filter(function(p){ return p.status!=='Void'; })
+    .sort(function(a,b){ return String(b.poNumber||'').localeCompare(String(a.poNumber||''),undefined,{numeric:true}); });
+  return pos.map(function(p){
+    var lbl=(p.poNumber||'')+' · '+(p.vendorName||'')+(p.jobName?' ('+p.jobName+')':'');
+    var s=((p.poNumber||'')+' '+(p.vendorName||'')+' '+(p.jobName||'')).toLowerCase().replace(/"/g,'');
+    return '<option value="'+escHtml(p.id)+'" data-s="'+escHtml(s)+'"'+(p.id===selectedId?' selected':'')+'>'+escHtml(lbl)+'</option>';
+  }).join('');
+}
+// Type-to-filter the PO picker for one slip row (hides non-matching options; keeps the placeholder).
+function _psFilter(id, q){
+  var sel=document.getElementById('pssel-'+id); if(!sel) return;
+  q=(q||'').trim().toLowerCase();
+  for(var i=0;i<sel.options.length;i++){
+    var o=sel.options[i];
+    if(!o.value){ o.hidden=false; continue; }
+    o.hidden = !!q && (o.getAttribute('data-s')||'').indexOf(q)<0;
+  }
+}
+// Reflect the chosen PO in the Attach button label.
+function _psSelChanged(id){
+  var sel=document.getElementById('pssel-'+id);
+  var lbl=document.getElementById('psatt-'+id);
+  if(!sel||!lbl) return;
+  var txt=sel.value? (sel.options[sel.selectedIndex].text.split(' · ')[0]) : 'PO';
+  lbl.textContent=txt;
 }
 
 function _renderPendingSlips(){
@@ -1043,16 +1113,35 @@ function _renderPendingSlips(){
     .sort(function(a,b){ return String(a.uploadedAt||'').localeCompare(String(b.uploadedAt||'')); });
   if(!pend.length){ el.innerHTML='<div style="font-size:13px;color:#90a4ae;padding:12px 0;text-align:center">No packing slips waiting for review. 🎉</div>'; return; }
   el.innerHTML=pend.map(function(a){
-    var po=(DB.purchaseOrders||[]).find(function(p){ return p.id===a.poId; });
-    var poLbl=po?((po.poNumber||'')+(po.vendorName?' · '+po.vendorName:'')+(po.jobName?' ('+po.jobName+')':'')):'(PO not found)';
+    var po=a.poId?(DB.purchaseOrders||[]).find(function(p){ return p.id===a.poId; }):null;
     var when=a.uploadedAt?new Date(a.uploadedAt).toLocaleDateString():'';
+    // Header: the tech's PO guess (review mode) OR an "assign a PO" prompt (no-lookup/unassigned).
+    var head, startLbl;
+    if(po){
+      var poLbl=(po.poNumber||'')+(po.vendorName?' · '+po.vendorName:'')+(po.jobName?' ('+po.jobName+')':'');
+      head='<div style="font-size:12.5px;color:#607d8b;margin-bottom:2px">Tech chose: <b style="color:#263238">'+escHtml(poLbl)+'</b> — confirm or change below</div>';
+      startLbl=po.poNumber||'PO';
+    }else{
+      head='<div style="font-size:12.5px;color:#c77700;font-weight:700;margin-bottom:2px">⚠ Needs a PO — assign one below</div>';
+      startLbl='PO';
+    }
+    // What the tech noted (no-lookup mode)
+    var noted=(a.slipVendor||a.slipJob)
+      ? '<div style="font-size:12px;color:#455a64;background:#f5f8fb;border-radius:6px;padding:6px 9px;margin:4px 0">Tech noted — '+(a.slipVendor?'Vendor: <b>'+escHtml(a.slipVendor)+'</b>':'')+(a.slipVendor&&a.slipJob?' · ':'')+(a.slipJob?'Job: <b>'+escHtml(a.slipJob)+'</b>':'')+'</div>'
+      : '';
     return '<div style="border:1px solid #e0e7ef;border-radius:8px;padding:10px 12px;margin-bottom:9px">'+
-      '<div style="font-size:13px;font-weight:700;color:#263238">'+escHtml(poLbl)+'</div>'+
-      '<div style="font-size:11px;color:#90a4ae;margin:3px 0 9px">'+_poAttachIcon(a.fileType)+' '+escHtml(a.name||a.fileName||'file')+(a.uploadedBy?' · submitted by '+escHtml(a.uploadedBy):'')+(when?' · '+when:'')+'</div>'+
+      head+ noted+
+      '<div style="font-size:11px;color:#90a4ae;margin:4px 0 8px">'+_poAttachIcon(a.fileType)+' '+escHtml(a.name||a.fileName||'file')+(a.uploadedBy?' · submitted by '+escHtml(a.uploadedBy):'')+(when?' · '+when:'')+'</div>'+
+      '<div style="margin-bottom:9px">'+
+        '<input type="text" placeholder="🔍 Search PO # / vendor / job…" oninput="_psFilter(\''+escHtml(a.id)+'\',this.value)" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #e0e7ef;border-radius:6px;font-size:13px;margin-bottom:5px">'+
+        '<select id="pssel-'+escHtml(a.id)+'" onchange="_psSelChanged(\''+escHtml(a.id)+'\')" style="width:100%;padding:8px;border:1px solid #cfd8e3;border-radius:6px;font-size:13px">'+
+          '<option value="">— choose a PO —</option>'+ _psPoOptions(a.poId)+
+        '</select>'+
+      '</div>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
         '<button class="btn btn-outline btn-sm" onclick="openPOAttachment(\''+escHtml(a.id)+'\')">👁 View</button>'+
-        '<button class="btn btn-primary btn-sm" onclick="_reviewPackingSlip(\''+escHtml(a.id)+'\',\'attach\')">✓ Attach to PO</button>'+
-        '<button class="btn btn-danger btn-sm" onclick="_reviewPackingSlip(\''+escHtml(a.id)+'\',\'reject\')">✕ Reject</button>'+
+        '<button class="btn btn-primary btn-sm" onclick="_reviewPackingSlip(\''+escHtml(a.id)+'\',\'attach\')">✓ Attach to <span id="psatt-'+escHtml(a.id)+'">'+escHtml(startLbl)+'</span></button>'+
+        '<button class="btn btn-danger btn-sm" onclick="_reviewPackingSlip(\''+escHtml(a.id)+'\',\'reject\')" title="Reject a bad slip (blurry, duplicate, not ours)">✕ Reject</button>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -1062,13 +1151,22 @@ async function _reviewPackingSlip(id, action){
   if(!_canReviewSlips()){ showToast('You cannot review packing slips','error'); return; }
   var a=(DB.poAttachments||[]).find(function(x){ return x.id===id; });
   if(!a){ showToast('Slip not found','error'); return; }
-  if(action==='reject' && !confirm('Reject and discard this packing slip? The tech will need to resubmit.')) return;
+  // r173: Attach applies the PO the office SELECTED in the picker (which may differ from the tech's
+  // guess, or be the first assignment for a no-lookup slip). Reject stays "bad slip only".
+  var chosenPo=a.poId;
+  if(action==='attach'){
+    var sel=document.getElementById('pssel-'+id);
+    chosenPo = sel ? sel.value : a.poId;
+    if(!chosenPo){ showToast('Pick a PO to attach this slip to','error'); return; }
+  }
+  if(action==='reject' && !confirm('Reject and discard this packing slip? (Use this only for a bad slip — a wrong PO can be fixed with the picker instead.)')) return;
   try{ if(_sb && _sb.auth && _sb.auth.refreshSession) await _sb.auth.refreshSession(); }catch(e){}
   try{
     if(action==='attach'){
-      a.reviewStatus='approved';
-      if(_sb) await _sb.from('po_attachments').update({ review_status:'approved' }).eq('id',id);
-      if(typeof auditLog==='function') auditLog('po_slip_approved','purchase_order',a.poId,{note:(a.name||'slip')+' attached by '+((_currentUser&&_currentUser.full_name)||'')});
+      var prevPo=a.poId;
+      a.poId=chosenPo; a.reviewStatus='approved';
+      if(_sb) await _sb.from('po_attachments').update({ review_status:'approved', po_id:chosenPo }).eq('id',id);
+      if(typeof auditLog==='function') auditLog('po_slip_approved','purchase_order',chosenPo,{note:(a.name||'slip')+' attached by '+((_currentUser&&_currentUser.full_name)||'')+(prevPo&&prevPo!==chosenPo?' (reassigned from a different PO)':'')});
       showToast('Attached to the PO ✓','success');
     }else{
       a.reviewStatus='rejected'; a.deleted=true;
@@ -1084,7 +1182,10 @@ async function _reviewPackingSlip(id, action){
 
 window.openPackingSlipInbox=openPackingSlipInbox;
 window._togglePoSlipReview=_togglePoSlipReview;
+window._togglePoSlipNoLookup=_togglePoSlipNoLookup;
 window._reviewPackingSlip=_reviewPackingSlip;
+window._psFilter=_psFilter;
+window._psSelChanged=_psSelChanged;
 
 // ---- PRINT PO ----
 

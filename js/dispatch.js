@@ -1859,6 +1859,8 @@ function switchMsTab(tab) {
 function renderMsPOSettings(){
   var cb=document.getElementById('ms-po-slip-review');
   if(cb) cb.checked = !!(DB.settings && DB.settings.poSlipReview);
+  var cb2=document.getElementById('ms-po-slip-nolookup');
+  if(cb2) cb2.checked = !!(DB.settings && DB.settings.poSlipNoLookup);
 }
 
 // ── Defaults & Lists ─────────────────────────────────────────────────────────
