@@ -823,7 +823,7 @@ async function ensurePOAttachmentsLoaded(poId){
       var have={}; DB.poAttachments.forEach(function(a){ if(a&&a.id) have[a.id]=1; });
       r.data.forEach(function(a){
         if(have[a.id]) return;
-        DB.poAttachments.push({ id:a.id, poId:a.po_id, name:a.name, fileName:a.file_name, fileType:a.file_type, fileSize:a.file_size, path:a.file_path, url:a.url, kind:a.kind||'other', uploadedBy:a.uploaded_by, uploadedAt:a.uploaded_at, deleted:!!a.deleted });
+        DB.poAttachments.push({ id:a.id, poId:a.po_id, name:a.name, fileName:a.file_name, fileType:a.file_type, fileSize:a.file_size, path:a.file_path, url:a.url, kind:a.kind||'other', uploadedBy:a.uploaded_by, uploadedAt:a.uploaded_at, deleted:!!a.deleted, reviewStatus:a.review_status||'approved' });
       });
     }
   }catch(e){ /* leave as-is on failure */ }
@@ -832,7 +832,9 @@ async function ensurePOAttachmentsLoaded(poId){
 function renderPOAttachments(poId){
   var el=document.getElementById('po-attachments-list'); if(!el) return;
   if(!poId){ el.innerHTML='<div style="font-size:12px;color:#90a4ae;padding:6px 0">Save the PO first, then attach files.</div>'; return; }
-  var list=(DB.poAttachments||[]).filter(function(a){ return a.poId===poId && !a.deleted; });
+  // r171: only APPROVED attachments show on the PO. A tech packing slip submitted while "office review"
+  // is on lands as 'pending' and stays in the review inbox until an office person attaches it here.
+  var list=(DB.poAttachments||[]).filter(function(a){ return a.poId===poId && !a.deleted && (a.reviewStatus||'approved')==='approved'; });
   if(!list.length){ el.innerHTML='<div style="font-size:12px;color:#90a4ae;padding:6px 0">No attachments yet — attach the vendor quote, a packing slip, or a receipt.</div>'; return; }
   var canDel=(typeof _canDeleteOfficeRecords==='function')?_canDeleteOfficeRecords():true;
   el.innerHTML=list.map(function(a){
@@ -863,9 +865,10 @@ async function onPOAttachFile(input){
   if(rec){ renderPOAttachments(_poCurrentId); showToast('Attached: '+escHtml(rec.name),'success'); }
 }
 
-async function uploadPOAttachment(file, poId, kind){
+async function uploadPOAttachment(file, poId, kind, reviewStatus){
   if(!file||!poId) return null;
   if(!_sb||!_currentUser){ showToast('Not logged in','error'); return null; }
+  var _rev = reviewStatus || 'approved';   // r171: 'pending' when a tech slip needs office review
   try{
     if(typeof compressImage==='function') file=await compressImage(file);   // shrink photos; PDFs pass through
     var safe=(file.name||'file').replace(/[^a-zA-Z0-9._-]/g,'_');
@@ -876,11 +879,11 @@ async function uploadPOAttachment(file, poId, kind){
     var url=(urlData.data||{}).publicUrl||'';
     var rec={ id:'poatt-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), poId:poId, name:file.name, fileName:file.name,
       fileType:file.type||'application/octet-stream', fileSize:file.size, path:path, url:url, kind:kind||'other',
-      uploadedBy:(_currentUser.full_name||''), uploadedAt:new Date().toISOString(), deleted:false };
+      uploadedBy:(_currentUser.full_name||''), uploadedAt:new Date().toISOString(), deleted:false, reviewStatus:_rev };
     if(!DB.poAttachments) DB.poAttachments=[];
     DB.poAttachments.push(rec);
     await _sb.from('po_attachments').insert({ id:rec.id, po_id:poId, name:rec.name, file_name:rec.fileName, file_type:rec.fileType,
-      file_size:rec.fileSize, file_path:path, url:url, kind:rec.kind, uploaded_by:rec.uploadedBy, uploaded_at:rec.uploadedAt, deleted:false });
+      file_size:rec.fileSize, file_path:path, url:url, kind:rec.kind, uploaded_by:rec.uploadedBy, uploaded_at:rec.uploadedAt, deleted:false, review_status:_rev });
     saveDB();
     if(typeof auditLog==='function') auditLog('po_attachment','purchase_order',poId,{note:rec.name+' ('+_poAttachKindLabel(rec.kind)+') by '+rec.uploadedBy});
     return rec;
@@ -959,13 +962,130 @@ async function submitPackingSlip(modalId){
   if(!fileEl||!fileEl.files||!fileEl.files[0]){ showToast('No file chosen','error'); return; }
   var file=fileEl.files[0];
   showToast('Uploading packing slip...','info',3000);
-  var rec=await uploadPOAttachment(file, poId, 'packing_slip');
+  // r171: when the office-review toggle is ON, a tech slip lands as 'pending' (hidden from the PO) and
+  // waits in the Packing Slip Inbox for an office person to attach or reject it. OFF = attach directly.
+  var review = !!(DB.settings && DB.settings.poSlipReview);
+  var rec=await uploadPOAttachment(file, poId, 'packing_slip', review?'pending':'approved');
   if(rec){
     var m=document.getElementById(modalId); if(m) m.remove();
-    showToast('Packing slip submitted - the office has been notified','success',4000);
-    if(_poCurrentId===poId && typeof renderPOAttachments==='function') renderPOAttachments(poId);
+    if(review){
+      showToast('Packing slip sent to the office for review ✓','success',4500);
+    }else{
+      showToast('Packing slip submitted - the office has been notified','success',4000);
+      if(_poCurrentId===poId && typeof renderPOAttachments==='function') renderPOAttachments(poId);
+    }
   }
 }
+
+// ============================================================
+// (r171) PACKING-SLIP OFFICE REVIEW
+// Dawn's request: techs should not attach packing slips straight to a PO ("techs generally screw
+// shit up"). A company toggle — DB.settings.poSlipReview — routes tech submissions through the office:
+//   OFF (default): tech slip attaches directly to the PO + office is notified (original behavior).
+//   ON: tech slip is stored review_status='pending' (hidden from the PO) and waits in this inbox.
+//       An office person opens it, Views the file, then Attaches it to the PO (→ 'approved') or
+//       Rejects it (→ 'rejected' + deleted). Governed by the po.review_slips role toggle.
+// ============================================================
+function _canReviewSlips(){
+  if(typeof hasPermission==='function') return hasPermission('po.review_slips');
+  return !!(_currentUser && (_currentUser.role==='owner'||_currentUser.role==='manager'||_currentUser.role==='back_office'));
+}
+
+async function _togglePoSlipReview(cb){
+  if(!_canReviewSlips()){ showToast('You cannot change this setting','error'); if(cb) cb.checked=!!(DB.settings&&DB.settings.poSlipReview); return; }
+  if(!DB.settings) DB.settings={};
+  DB.settings.poSlipReview = !!(cb && cb.checked);
+  saveDB();
+  try{ if(typeof _settingsMergePush==='function') await _settingsMergePush(); else if(typeof _pushSettingsToCloud==='function') await _pushSettingsToCloud(); }catch(e){ console.warn('[slip review toggle push]',e&&e.message); }
+  showToast(DB.settings.poSlipReview?'Office review ON — tech slips now queue for review':'Office review OFF — tech slips attach directly','info',4000);
+}
+
+async function openPackingSlipInbox(){
+  if(!_canReviewSlips()){ showToast('You do not have permission to review packing slips','error'); return; }
+  var modalId='modal-ps-inbox';
+  var ex=document.getElementById(modalId); if(ex) ex.remove();
+  var div=document.createElement('div');
+  div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
+  div.innerHTML=
+    '<div class="modal-box" style="max-width:620px">'+
+      '<div class="modal-head"><h3>📥 Packing Slip Inbox</h3>'+
+        '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
+      '<div class="modal-body">'+
+        '<label style="display:flex;align-items:center;gap:9px;padding:10px 12px;background:#f5f8fb;border:1px solid #e0e7ef;border-radius:8px;margin-bottom:14px;cursor:pointer">'+
+          '<input type="checkbox" id="ps-review-toggle" '+((DB.settings&&DB.settings.poSlipReview)?'checked':'')+' onchange="_togglePoSlipReview(this)" style="width:18px;height:18px">'+
+          '<span style="font-size:13px;color:#37474f"><b>Tech packing slips require office review</b><br><span style="font-size:11px;color:#78909c">When on, slips a tech submits wait here until someone attaches them to the PO.</span></span>'+
+        '</label>'+
+        '<div id="ps-inbox-list"><div style="font-size:12px;color:#90a4ae;padding:8px 0">Loading…</div></div>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(div);
+  await _loadPendingSlips();
+  _renderPendingSlips();
+}
+
+async function _loadPendingSlips(){
+  if(!_sb) return;
+  try{
+    var r=await _sb.from('po_attachments').select('*').eq('kind','packing_slip').eq('review_status','pending').eq('deleted',false).order('uploaded_at',{ascending:true});
+    if(r && !r.error && Array.isArray(r.data)){
+      if(!DB.poAttachments) DB.poAttachments=[];
+      var byId={}; DB.poAttachments.forEach(function(a){ if(a&&a.id) byId[a.id]=a; });
+      r.data.forEach(function(a){
+        var mapped={ id:a.id, poId:a.po_id, name:a.name, fileName:a.file_name, fileType:a.file_type, fileSize:a.file_size, path:a.file_path, url:a.url, kind:a.kind||'other', uploadedBy:a.uploaded_by, uploadedAt:a.uploaded_at, deleted:!!a.deleted, reviewStatus:a.review_status||'approved' };
+        if(byId[a.id]) Object.assign(byId[a.id],mapped); else DB.poAttachments.push(mapped);
+      });
+    }
+  }catch(e){ console.warn('[slip inbox load]',e&&e.message); }
+}
+
+function _renderPendingSlips(){
+  var el=document.getElementById('ps-inbox-list'); if(!el) return;
+  var pend=(DB.poAttachments||[]).filter(function(a){ return a.kind==='packing_slip' && !a.deleted && a.reviewStatus==='pending'; })
+    .sort(function(a,b){ return String(a.uploadedAt||'').localeCompare(String(b.uploadedAt||'')); });
+  if(!pend.length){ el.innerHTML='<div style="font-size:13px;color:#90a4ae;padding:12px 0;text-align:center">No packing slips waiting for review. 🎉</div>'; return; }
+  el.innerHTML=pend.map(function(a){
+    var po=(DB.purchaseOrders||[]).find(function(p){ return p.id===a.poId; });
+    var poLbl=po?((po.poNumber||'')+(po.vendorName?' · '+po.vendorName:'')+(po.jobName?' ('+po.jobName+')':'')):'(PO not found)';
+    var when=a.uploadedAt?new Date(a.uploadedAt).toLocaleDateString():'';
+    return '<div style="border:1px solid #e0e7ef;border-radius:8px;padding:10px 12px;margin-bottom:9px">'+
+      '<div style="font-size:13px;font-weight:700;color:#263238">'+escHtml(poLbl)+'</div>'+
+      '<div style="font-size:11px;color:#90a4ae;margin:3px 0 9px">'+_poAttachIcon(a.fileType)+' '+escHtml(a.name||a.fileName||'file')+(a.uploadedBy?' · submitted by '+escHtml(a.uploadedBy):'')+(when?' · '+when:'')+'</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn btn-outline btn-sm" onclick="openPOAttachment(\''+escHtml(a.id)+'\')">👁 View</button>'+
+        '<button class="btn btn-primary btn-sm" onclick="_reviewPackingSlip(\''+escHtml(a.id)+'\',\'attach\')">✓ Attach to PO</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="_reviewPackingSlip(\''+escHtml(a.id)+'\',\'reject\')">✕ Reject</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+async function _reviewPackingSlip(id, action){
+  if(!_canReviewSlips()){ showToast('You cannot review packing slips','error'); return; }
+  var a=(DB.poAttachments||[]).find(function(x){ return x.id===id; });
+  if(!a){ showToast('Slip not found','error'); return; }
+  if(action==='reject' && !confirm('Reject and discard this packing slip? The tech will need to resubmit.')) return;
+  try{ if(_sb && _sb.auth && _sb.auth.refreshSession) await _sb.auth.refreshSession(); }catch(e){}
+  try{
+    if(action==='attach'){
+      a.reviewStatus='approved';
+      if(_sb) await _sb.from('po_attachments').update({ review_status:'approved' }).eq('id',id);
+      if(typeof auditLog==='function') auditLog('po_slip_approved','purchase_order',a.poId,{note:(a.name||'slip')+' attached by '+((_currentUser&&_currentUser.full_name)||'')});
+      showToast('Attached to the PO ✓','success');
+    }else{
+      a.reviewStatus='rejected'; a.deleted=true;
+      if(_sb) await _sb.from('po_attachments').update({ review_status:'rejected', deleted:true }).eq('id',id);
+      if(typeof auditLog==='function') auditLog('po_slip_rejected','purchase_order',a.poId,{note:(a.name||'slip')+' rejected by '+((_currentUser&&_currentUser.full_name)||'')});
+      showToast('Packing slip rejected','info');
+    }
+    saveDB();
+  }catch(e){ console.error('[slip review]',e&&e.message); showToast('Review failed: '+((e&&e.message)||'error'),'error',5000); return; }
+  _renderPendingSlips();
+  if(_poCurrentId===a.poId && typeof renderPOAttachments==='function') renderPOAttachments(a.poId);
+}
+
+window.openPackingSlipInbox=openPackingSlipInbox;
+window._togglePoSlipReview=_togglePoSlipReview;
+window._reviewPackingSlip=_reviewPackingSlip;
 
 // ---- PRINT PO ----
 

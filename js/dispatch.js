@@ -1460,6 +1460,9 @@ var PERM_DEFS = [
   // (r166) Reopen a received PO and put items back (un-receive / correct a receiving mistake). Touches
   // stock + PO status, so it's a controlled role toggle — office roles on by default.
   {key:'po.correct_receiving', label:'Reopen & Correct PO Receiving', group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  // (r171) When "Tech packing slips require office review" is on, tech-submitted slips queue as pending.
+  // This toggle governs who works that review inbox (attach to PO / reject) and who can flip the setting.
+  {key:'po.review_slips',  label:'Review Tech Packing Slips',   group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   // (r150) Request for Quote (RFQ → compare → PO). Office creates/manages; awarding and converting to
   // a PO are higher-trust steps (own keys so the owner can restrict them independently).
   {key:'rfq.manage',       label:'Create / Manage RFQs',       group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},
