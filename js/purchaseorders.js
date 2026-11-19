@@ -1011,10 +1011,9 @@ async function openPackingSlipInbox(){
       '<div class="modal-head"><h3>📥 Packing Slip Inbox</h3>'+
         '<button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
       '<div class="modal-body">'+
-        '<label style="display:flex;align-items:center;gap:9px;padding:10px 12px;background:#f5f8fb;border:1px solid #e0e7ef;border-radius:8px;margin-bottom:14px;cursor:pointer">'+
-          '<input type="checkbox" id="ps-review-toggle" '+((DB.settings&&DB.settings.poSlipReview)?'checked':'')+' onchange="_togglePoSlipReview(this)" style="width:18px;height:18px">'+
-          '<span style="font-size:13px;color:#37474f"><b>Tech packing slips require office review</b><br><span style="font-size:11px;color:#78909c">When on, slips a tech submits wait here until someone attaches them to the PO.</span></span>'+
-        '</label>'+
+        ((DB.settings&&DB.settings.poSlipReview)
+          ? '<div style="font-size:11.5px;color:#78909c;margin-bottom:12px">Office review is on — tech packing slips wait here until someone attaches or rejects them. Change this in Settings → Purchase Orders.</div>'
+          : '<div style="font-size:11.5px;color:#b0863a;background:#fff8e1;border:1px solid #ffe0a3;border-radius:7px;padding:9px 11px;margin-bottom:12px">Office review is currently <b>off</b>, so tech slips attach to the PO directly and won\'t queue here. Turn it on in Settings → Purchase Orders.</div>')+
         '<div id="ps-inbox-list"><div style="font-size:12px;color:#90a4ae;padding:8px 0">Loading…</div></div>'+
       '</div>'+
     '</div>';

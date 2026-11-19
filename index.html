@@ -5062,6 +5062,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <div style="display:flex;gap:0;flex-wrap:nowrap;margin-bottom:20px;border-bottom:2px solid #e0e7ef;padding-bottom:0;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch">
     <button class="ms-tab active" onclick="switchMsTab('company')"         data-tab="company">🏢 Company</button>
     <button class="ms-tab"        onclick="switchMsTab('workorders')"      data-tab="workorders">🔨 Work Orders</button>
+    <button class="ms-tab"        onclick="switchMsTab('purchaseorders')"  data-tab="purchaseorders">📦 Purchase Orders</button>
     <button class="ms-tab"        onclick="switchMsTab('roles')"           data-tab="roles">🔐 Roles & Permissions</button>
     <button class="ms-tab"        onclick="switchMsTab('quoting')"         data-tab="quoting">💰 Quoting</button>
     <button class="ms-tab"        onclick="switchMsTab('defaults')"        data-tab="defaults">📋 Defaults & Lists</button>
@@ -5386,6 +5387,21 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <!-- WO Default Rates rendered by renderMsWORates() -->
     </div>
   </div><!-- end ms-section workorders -->
+
+  <!-- ===== PURCHASE ORDERS ===== -->
+  <div class="ms-section" id="ms-purchaseorders">
+    <div style="background:#f0f4f8;border-radius:10px;padding:16px;margin-bottom:16px;font-size:13px;color:#546e7a">
+      Settings that control how purchase orders and packing slips behave across the company.
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <h3 style="margin:0 0 10px">📦 Packing Slips</h3>
+      <label style="display:flex;align-items:flex-start;gap:11px;cursor:pointer;padding:4px 0">
+        <input type="checkbox" id="ms-po-slip-review" onchange="_togglePoSlipReview(this)" style="width:18px;height:18px;margin-top:2px;flex:none">
+        <span style="font-size:13.5px;color:#37474f;line-height:1.5"><b>Tech packing slips require office review</b><br>
+          <span style="font-size:12px;color:#78909c">When on, a packing slip a tech submits does <b>not</b> attach to the PO directly — it waits in the office <b>Packing Slip Inbox</b> (on the Purchase Orders page) for someone to attach it to the PO or reject it. When off, tech slips attach to the PO immediately and the office is notified.</span></span>
+      </label>
+    </div>
+  </div><!-- end ms-section purchaseorders -->
 
   <!-- ===== ROLES & PERMISSIONS ===== -->
   <div class="ms-section" id="ms-roles">
@@ -7523,14 +7539,14 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/field.js?v=20261110r122hygiene"></script>
 <script src="js/crm.js?v=20261106r78taxlabor"></script>
 <script src="js/vehicles.js?v=20261022docroll"></script>
-<script src="js/dispatch.js?v=20261119r171slipreview"></script>
+<script src="js/dispatch.js?v=20261119r172poslip"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
 <script src="js/worktracking.js?v=20261116r170blurfix"></script>
 <script src="js/calendar.js?v=20261105r73ws1status"></script>
 <script src="js/workorders.js?v=20261115r151rfq"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
-<script src="js/purchaseorders.js?v=20261119r171slipreview"></script>
+<script src="js/purchaseorders.js?v=20261119r172poslip"></script>
 <script src="js/rfq.js?v=20261116r159vendorlink"></script>
 <script src="js/inventory_locations_db.js?v=20260919ix"></script>
 <script src="js/inventory.js?v=20261116r167recvgaps"></script>
@@ -9015,7 +9031,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r171';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r172';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-19';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

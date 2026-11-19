@@ -1808,7 +1808,7 @@ function exportPermissionsDoc() {
 // Settings page (page.settings). Tabs not listed here are governed only by page
 // access. Company + Roles/Permissions are company-admin functions (owner-only by
 // default, customizable per tenant); Quoting margin floors need settings.margin.
-var _MS_TAB_PERM = { company:'settings.company', roles:'settings.company', quoting:'settings.margin' };
+var _MS_TAB_PERM = { company:'settings.company', roles:'settings.company', quoting:'settings.margin', purchaseorders:'po.review_slips' };
 
 // Hide settings sub-tab buttons the current user can't use, and return the first
 // tab they ARE allowed to open (so we never land them on a forbidden default).
@@ -1843,12 +1843,22 @@ function switchMsTab(tab) {
   window.scrollTo(0,0);
   // Render tab content on first open
   if (tab==='workorders')      renderMsWOSettings();
+  if (tab==='purchaseorders')  renderMsPOSettings();
   if (tab==='roles')           { renderMsRolesTab(); if (typeof loadAccessPolicy === 'function') loadAccessPolicy(); if (typeof loadSecuritySettings === 'function') loadSecuritySettings(); }
   if (tab==='quoting')         { setTimeout(function(){ renderMarginFloorsEditor(); renderMsPaymentTerms(); }, 50); }
   if (tab==='defaults')        renderMsDefaults();
   if (tab==='inventory')       typeof renderLocationSettings === 'function' && renderLocationSettings();
   if (tab==='time')            typeof renderMsTimeSettings   === 'function' && renderMsTimeSettings();
   if (tab==='notifications')   typeof loadNotificationSettings === 'function' && loadNotificationSettings();
+}
+
+// ── Purchase Orders settings ───────────────────────────────────────────────────
+// (r172) The "Tech packing slips require office review" toggle lives on this main Settings tab
+// (moved here from the inbox modal). It reflects DB.settings.poSlipReview; the onchange handler
+// (_togglePoSlipReview in purchaseorders.js) persists + syncs it and re-checks permission.
+function renderMsPOSettings(){
+  var cb=document.getElementById('ms-po-slip-review');
+  if(cb) cb.checked = !!(DB.settings && DB.settings.poSlipReview);
 }
 
 // ── Defaults & Lists ─────────────────────────────────────────────────────────
