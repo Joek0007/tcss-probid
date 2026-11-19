@@ -8904,7 +8904,10 @@ document.addEventListener('blur', function(e) {
   var el = e.target;
   if (el.hasAttribute('data-li') && el.hasAttribute('data-field')) {
     var field = el.getAttribute('data-field');
-    if (field === 'qty' || field === 'mc' || field === 'lh') {
+    // r170: include the r168/r169 labor fields so the blur commit actually reaches updateLI — this is
+    // what fires the hours↔flat mutual-exclusion (r169) and refreshes the custom-rate line's Total Labor.
+    // Without flatLabor here, entering a flat never zeroed the hours and the line double-counted.
+    if (field === 'qty' || field === 'mc' || field === 'lh' || field === 'flatLabor' || field === 'laborRate') {
       updateLI(el.getAttribute('data-li'), field, el.value, true); // re-render on blur
     }
   }
