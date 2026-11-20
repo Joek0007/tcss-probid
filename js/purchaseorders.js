@@ -413,7 +413,10 @@ function renderPOItems() {
         '<input value="'+escHtml(li.desc||'')+'" list="po-catalog-list" oninput="updatePOItem('+i+',\'desc\',this.value)" onchange="poCatalogFill('+i+',this.value)" placeholder="Description / search catalog..." style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
         '<input value="'+escHtml(li.partNum||'')+'" oninput="updatePOItem('+i+',\'partNum\',this.value)" placeholder="Part #" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
         '<input type="number" value="'+(li.qtyOrdered||1)+'" min="0.01" step="0.01" oninput="updatePOItem('+i+',\'qtyOrdered\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:center">'+
-        '<div title="Received through the 📥 Receive button — it routes goods to stock / the work order" style="text-align:center;font-size:12px;font-weight:700;color:'+recColor+'">'+(parseFloat(li.qtyReceived||0)||0)+'</div>'+
+        '<div title="Received through the 📥 Receive button — it routes goods to stock / the work order" style="text-align:center">'+
+          '<div style="font-size:12px;font-weight:700;color:'+recColor+'">'+(parseFloat(li.qtyReceived||0)||0)+'</div>'+
+          _poRecvBadge(li)+   // (r182) Complete / N-of-M completeness badge under the number
+        '</div>'+
         '<input type="number" value="'+parseFloat(li.unitCost||0).toFixed(2)+'" min="0" step="0.01" oninput="updatePOItem('+i+',\'unitCost\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:right">'+
         '<div class="po-line-total" style="text-align:right;font-size:12px;font-weight:700;color:#1565c0">$'+lineTotal.toFixed(2)+'</div>'+
         '<button onclick="removePOItem('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:18px;padding:0 4px;line-height:1">×</button>'+
@@ -421,6 +424,15 @@ function renderPOItems() {
       _poLineReceiptNote(i)+   // (r179) "🧾 Received: N on DATE" under the line, struck when put back
     '</div>';
   }).join('');
+}
+
+// (r182) Completeness badge for the PO's Received column: "Complete" (fully received) or "N / M"
+// (partial, amber). Nothing when nothing's been received yet.
+function _poRecvBadge(li){
+  var rq=parseFloat(li.qtyReceived||0)||0, oq=parseFloat(li.qtyOrdered||1)||0;
+  if(rq<=0) return '';
+  if(rq>=oq) return '<div style="margin-top:2px"><span style="font-size:9px;font-weight:800;padding:1px 6px;border-radius:20px;background:#e8f5e9;color:#2e7d32;text-transform:uppercase;letter-spacing:.3px">Complete</span></div>';
+  return '<div style="margin-top:2px"><span style="font-size:9px;font-weight:800;padding:1px 6px;border-radius:20px;background:#fff6e5;color:#b26a00">'+rq+' / '+oq+'</span></div>';
 }
 
 // (r181) Open the receiving screen for the PO currently shown in the modal (button in the PO header).

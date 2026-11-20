@@ -538,26 +538,26 @@ async function _loadPOReceipts(poId){
 // (r177) Per-line receipt history: "Received: 3 on 11/18 · 2 on 11/19", reversed receipts struck out
 // with the put-back date. Answers "which items were received on what date" + shows corrections.
 function _poReceiptHistoryHTML(poId, lineIdx, qtyReceived){
+  // (r182) Option 3 look — dated CHIPS: green "✓ 5 · Nov 19", put-backs struck red, legacy gray.
+  var _chip=function(bg,co,txt,struck){
+    return '<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:'+bg+';color:'+co+';white-space:nowrap'+(struck?';text-decoration:line-through':'')+'">'+txt+'</span>';
+  };
+  var _fmt=function(s){ return s?new Date(s).toLocaleDateString(undefined,{month:'short',day:'numeric'}):''; };
   var evs=(DB.poReceipts||[]).filter(function(r){ return r.po_id===poId && Number(r.line_index)===Number(lineIdx); })
     .sort(function(a,b){ return String(a.received_at||'').localeCompare(String(b.received_at||'')); });
   if(!evs.length){
-    // (r178) A line received BEFORE dated tracking (r177) has a qty but no logged events — show a note
-    // so the history area isn't mysteriously blank on already-received POs.
+    // A line received BEFORE dated tracking (r177) — a qty but no logged events: a gray "earlier" chip.
     if((parseFloat(qtyReceived)||0) > 0){
-      return '<div style="font-size:11px;color:#b0bec5;margin-top:3px">🧾 Received: '+(parseFloat(qtyReceived)||0)+' <span style="font-size:10px">(recorded before dated tracking)</span></div>';
+      return '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">'+_chip('#eceff1','#78909c','✓ '+(parseFloat(qtyReceived)||0)+' · earlier')+'</div>';
     }
     return '';
   }
-  var parts=evs.map(function(r){
-    var d=r.received_at?new Date(r.received_at).toLocaleDateString():'';
+  var chips=evs.map(function(r){
     var q=parseFloat(r.qty)||0;
-    if(r.reversed){
-      var rd=r.reversed_at?new Date(r.reversed_at).toLocaleDateString():'';
-      return '<span style="text-decoration:line-through;color:#c62828">'+q+' on '+d+'</span> <span style="color:#c62828;font-size:10px">(put back '+rd+')</span>';
-    }
-    return '<span style="color:#2e7d32">'+q+' on '+d+'</span>';
+    if(r.reversed) return _chip('#fdecea','#c62828',q+' · '+_fmt(r.received_at)+' ↩',true);
+    return _chip('#e8f5e9','#2e7d32','✓ '+q+' · '+_fmt(r.received_at),false);
   });
-  return '<div style="font-size:11px;color:#78909c;margin-top:3px">🧾 Received: '+parts.join(' · ')+'</div>';
+  return '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">'+chips.join('')+'</div>';
 }
 
 function renderReceivingModal(po) {
