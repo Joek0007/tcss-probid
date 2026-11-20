@@ -342,6 +342,11 @@ function openPO(id) {
   if(typeof _fillPOCatalogDatalist==='function') _fillPOCatalogDatalist();   // (r140) catalog type-ahead
   if(typeof renderPOAttachments==='function') renderPOAttachments(po.id);     // (r142) show cached, then refresh
   if(typeof ensurePOAttachmentsLoaded==='function') ensurePOAttachmentsLoaded(po.id).then(function(){ renderPOAttachments(po.id); });
+  // (r179) Receiving history (per-line notes + collapsible log). Show cached, then load & refresh.
+  if(typeof renderPOReceivingHistory==='function') renderPOReceivingHistory(po.id);
+  if(typeof _loadPOReceipts==='function') _loadPOReceipts(po.id).then(function(){
+    if(_poCurrentId===po.id){ renderPOItems(); if(typeof renderPOReceivingHistory==='function') renderPOReceivingHistory(po.id); }
+  });
   openModal('modal-po');
 }
 
@@ -403,16 +408,67 @@ function renderPOItems() {
   rows.innerHTML=_poItems.map(function(li,i){
     var lineTotal=(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));
     var recColor=parseFloat(li.qtyReceived||0)>0?'#2e7d32':'#90a4ae';
-    return '<div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 1fr 80px 36px;gap:4px;padding:8px 12px;border-top:1px solid #f0f4f8;align-items:center">'+
-      '<input value="'+escHtml(li.desc||'')+'" list="po-catalog-list" oninput="updatePOItem('+i+',\'desc\',this.value)" onchange="poCatalogFill('+i+',this.value)" placeholder="Description / search catalog..." style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
-      '<input value="'+escHtml(li.partNum||'')+'" oninput="updatePOItem('+i+',\'partNum\',this.value)" placeholder="Part #" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
-      '<input type="number" value="'+(li.qtyOrdered||1)+'" min="0.01" step="0.01" oninput="updatePOItem('+i+',\'qtyOrdered\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:center">'+
-      '<div title="Received through the 📥 Receive button — it routes goods to stock / the work order" style="text-align:center;font-size:12px;font-weight:700;color:'+recColor+'">'+(parseFloat(li.qtyReceived||0)||0)+'</div>'+
-      '<input type="number" value="'+parseFloat(li.unitCost||0).toFixed(2)+'" min="0" step="0.01" oninput="updatePOItem('+i+',\'unitCost\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:right">'+
-      '<div class="po-line-total" style="text-align:right;font-size:12px;font-weight:700;color:#1565c0">$'+lineTotal.toFixed(2)+'</div>'+
-      '<button onclick="removePOItem('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:18px;padding:0 4px;line-height:1">×</button>'+
+    return '<div style="border-top:1px solid #f0f4f8">'+
+      '<div style="display:grid;grid-template-columns:3fr 1fr 1fr 1fr 1fr 80px 36px;gap:4px;padding:8px 12px;align-items:center">'+
+        '<input value="'+escHtml(li.desc||'')+'" list="po-catalog-list" oninput="updatePOItem('+i+',\'desc\',this.value)" onchange="poCatalogFill('+i+',this.value)" placeholder="Description / search catalog..." style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
+        '<input value="'+escHtml(li.partNum||'')+'" oninput="updatePOItem('+i+',\'partNum\',this.value)" placeholder="Part #" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%">'+
+        '<input type="number" value="'+(li.qtyOrdered||1)+'" min="0.01" step="0.01" oninput="updatePOItem('+i+',\'qtyOrdered\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:center">'+
+        '<div title="Received through the 📥 Receive button — it routes goods to stock / the work order" style="text-align:center;font-size:12px;font-weight:700;color:'+recColor+'">'+(parseFloat(li.qtyReceived||0)||0)+'</div>'+
+        '<input type="number" value="'+parseFloat(li.unitCost||0).toFixed(2)+'" min="0" step="0.01" oninput="updatePOItem('+i+',\'unitCost\',this.value)" style="border:1px solid #e0e7ef;border-radius:4px;padding:5px 8px;font-size:12px;width:100%;text-align:right">'+
+        '<div class="po-line-total" style="text-align:right;font-size:12px;font-weight:700;color:#1565c0">$'+lineTotal.toFixed(2)+'</div>'+
+        '<button onclick="removePOItem('+i+')" style="background:none;border:none;color:#c62828;cursor:pointer;font-size:18px;padding:0 4px;line-height:1">×</button>'+
+      '</div>'+
+      _poLineReceiptNote(i)+   // (r179) "🧾 Received: N on DATE" under the line, struck when put back
     '</div>';
   }).join('');
+}
+
+// (r179) Per-line receipt note on the PO (mirrors the receiving screen). Reads the shared history
+// renderer from inventory.js; blank when the line has no receipts and nothing received.
+function _poLineReceiptNote(i){
+  if(typeof _poReceiptHistoryHTML!=='function') return '';
+  var h=_poReceiptHistoryHTML(_poCurrentId, i, (_poItems[i]||{}).qtyReceived);
+  return h ? '<div style="padding:0 12px 8px">'+h+'</div>' : '';
+}
+
+// (r179) Collapsible "Receiving History" log on the PO — a dated record of every receipt and
+// put-back across all lines, newest first. Collapsed by default; click the bar to expand.
+var _poRecvHistOpen=false;
+function renderPOReceivingHistory(poId){
+  var wrap=document.getElementById('po-receiving-history-wrap'); if(!wrap) return;
+  var evs=(DB.poReceipts||[]).filter(function(r){ return r.po_id===poId; });
+  if(!evs.length){ wrap.innerHTML=''; wrap.style.display='none'; return; }
+  wrap.style.display='';
+  evs=evs.slice().sort(function(a,b){ return String(b.received_at||'').localeCompare(String(a.received_at||'')); }); // newest first
+  var count=evs.filter(function(r){ return !r.reversed; }).length;
+  var fmt=function(s){ return s?new Date(s).toLocaleDateString(undefined,{month:'short',day:'numeric'}):''; };
+  var rows=evs.map(function(r){
+    var who=r.received_by?(' · '+escHtml(r.received_by)):'';
+    var name=escHtml(r.description||r.part_num||'Item');
+    var q=parseFloat(r.qty)||0;
+    if(r.reversed){
+      return '<div style="display:flex;gap:10px;padding:7px 12px;border-top:1px solid #f0f4f8;font-size:12.5px;align-items:baseline;color:#c62828">'+
+        '<span style="min-width:52px;font-weight:700;font-size:11.5px">'+fmt(r.reversed_at)+'</span>'+
+        '<span><span style="text-decoration:line-through">'+name+' ×'+q+'</span> — put back'+who+'</span></div>';
+    }
+    return '<div style="display:flex;gap:10px;padding:7px 12px;border-top:1px solid #f0f4f8;font-size:12.5px;align-items:baseline">'+
+      '<span style="min-width:52px;color:#90a4ae;font-weight:700;font-size:11.5px">'+fmt(r.received_at)+'</span>'+
+      '<span><b>'+name+'</b> ×'+q+'<span style="color:#90a4ae;font-size:11px">'+who+'</span></span></div>';
+  }).join('');
+  wrap.innerHTML=
+    '<div style="border:1px solid #e0e7ef;border-radius:8px;overflow:hidden">'+
+      '<div onclick="togglePOReceivingHistory()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:#f8f9fa;padding:10px 12px;user-select:none">'+
+        '<span style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">🧾 Receiving History <span style="color:#90a4ae">('+count+' receipt'+(count===1?'':'s')+')</span></span>'+
+        '<span id="po-recv-hist-caret" style="color:#90a4ae;font-size:13px">'+(_poRecvHistOpen?'▲':'▼')+'</span>'+
+      '</div>'+
+      '<div id="po-recv-hist-body" style="display:'+(_poRecvHistOpen?'block':'none')+'">'+rows+'</div>'+
+    '</div>';
+}
+function togglePOReceivingHistory(){
+  _poRecvHistOpen=!_poRecvHistOpen;
+  var b=document.getElementById('po-recv-hist-body'); var c=document.getElementById('po-recv-hist-caret');
+  if(b) b.style.display=_poRecvHistOpen?'block':'none';
+  if(c) c.textContent=_poRecvHistOpen?'▲':'▼';
 }
 
 function updatePOItem(idx,field,val) {
