@@ -420,6 +420,8 @@ function _quoteExtras(q){
     execSummary:   q.execSummary || '',
     sentDate:      q.sentDate || null,
     wonDate:       q.wonDate || null,
+    // r186 DCC brand (Option A): which company this quote is issued under. Absent/legacy → 'TCSS'.
+    brand:         (q.brand === 'DCC') ? 'DCC' : 'TCSS',
     // r64 Proposal Terms: per-quote assembled clause bundle + the systems the estimator ticked.
     proposalClauses: q.proposalClauses || null,
     selectedSystems: q.selectedSystems || [],
@@ -455,6 +457,7 @@ function _applyQuoteExtras(target, row){
   target.execSummary   = x.execSummary || '';
   target.sentDate      = x.sentDate || null;
   target.wonDate       = x.wonDate || null;
+  target.brand         = (x.brand === 'DCC') ? 'DCC' : 'TCSS';   // r186 DCC brand (legacy → TCSS)
   // r64 Proposal Terms: null proposalClauses = pre-feature quote (render falls back to legacy blobs).
   target.proposalClauses = x.proposalClauses || null;
   target.selectedSystems = x.selectedSystems || [];

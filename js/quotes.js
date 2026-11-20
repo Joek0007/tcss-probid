@@ -1287,25 +1287,51 @@ function sanitizeScopePreserve(raw){
   return s;
 }
 
+// (r186) DCC brand resolver (Option A). Returns the company identity to print on THIS quote:
+// the DCC profile when the quote is flagged 'DCC' and a DCC profile exists, else TCSS (DB.settings).
+// DCC logo never falls back to the TCSS logo (that would mislabel) — no DCC logo → header shows the
+// DCC name instead. Legacy/absent brand → TCSS, so every existing quote renders exactly as before.
+function _brandFor(q){
+  var s = DB.settings || {};
+  var d = s.dccBrand || {};
+  if (q && q.brand === 'DCC' && (d.cname || d.logoDataUrl)) {
+    return {
+      cname: d.cname || s.cname || 'TCSS',
+      cphone:(d.cphone!=null&&d.cphone!=='')?d.cphone:(s.cphone||''),
+      cemail:(d.cemail!=null&&d.cemail!=='')?d.cemail:(s.cemail||''),
+      caddr: (d.caddr!=null&&d.caddr!=='')?d.caddr:(s.caddr||''),
+      clic:  (d.clic!=null&&d.clic!=='')?d.clic:'',
+      cweb:  (d.cweb!=null&&d.cweb!=='')?d.cweb:'',
+      ctag:  (d.ctag!=null&&d.ctag!=='')?d.ctag:(s.ctag||''),
+      logoDataUrl: d.logoDataUrl || null,
+      _isDCC: true
+    };
+  }
+  return { cname:s.cname||'TCSS', cphone:s.cphone||'', cemail:s.cemail||'', caddr:s.caddr||'',
+    clic:s.clic||'', cweb:s.cweb||'', ctag:s.ctag||'', logoDataUrl:s.logoDataUrl||null, _isDCC:false };
+}
+window._brandFor=_brandFor;
+
 // =============================================
 // STAGE 3: buildPrintHTML() — PROFESSIONAL PROPOSAL
 // =============================================
 function buildPrintHTML(q, mode) {
   mode = mode || 'client';
   const s = DB.settings || {};
-  const cname = s.cname || 'TCSS';
-  const cphone = s.cphone || '';
-  const cemail = s.cemail || '';
-  const caddr = s.caddr || '';
-  const clic = s.clic || '';
-  const cweb = s.cweb || '';
-  const ctag = s.ctag || '';
+  const b = _brandFor(q);                 // r186: DCC brand resolver (company identity for THIS quote)
+  const cname = b.cname || 'TCSS';
+  const cphone = b.cphone || '';
+  const cemail = b.cemail || '';
+  const caddr = b.caddr || '';
+  const clic = b.clic || '';
+  const cweb = b.cweb || '';
+  const ctag = b.ctag || '';
   const uname = s.uname || q.rep || '';
   const utitle = s.utitle || 'Estimator';
   const uphone = s.uphone || '';
   const uemail = s.uemail || '';
   const envLabel = q.envLabel || (ENV_PRESETS[q.env] ? ENV_PRESETS[q.env].label : 'Office');
-  const logoDataUrl = s.logoDataUrl || null;
+  const logoDataUrl = b.logoDataUrl || null;
 
   // Proposal header logo/name block
   const companyLogoBlock = logoDataUrl
@@ -1392,20 +1418,20 @@ function buildPrintHTML(q, mode) {
     var para3 = '';
 
     if (isServiceCall) {
-      para1 = escHtml(cname) + ' has engaged ' + escHtml(DB.settings.cname||'Total Communications Systems & Solutions') +
-        ' to provide on-site technical services for ' + escHtml(jn) + '. Our certified technicians will diagnose, troubleshoot, and resolve the identified issues efficiently, ' + ec.tone + '.';
+      para1 = escHtml(cname) + ' is pleased to provide on-site technical services for ' + escHtml(jn) +
+        '. Our certified technicians will diagnose, troubleshoot, and resolve the identified issues efficiently, ' + ec.tone + '.';
       para2 = 'All work will be performed to manufacturer specifications and industry standards, with full documentation provided upon completion. Our goal is to restore full system functionality with minimal downtime.';
     } else if (systems.length === 0) {
-      para1 = escHtml(DB.settings.cname||'Total Communications Systems & Solutions') + ' is pleased to present this proposal to ' + escHtml(cn) +
+      para1 = escHtml(cname) + ' is pleased to present this proposal to ' + escHtml(cn) +
         ' for the ' + escHtml(jn) + ' project. Our team will deliver a complete low voltage installation, ' + ec.tone + ', using ' + ec.reliability + ' components backed by our comprehensive installation warranty.';
     } else if (systems.length === 1) {
-      para1 = escHtml(DB.settings.cname||'Total Communications Systems & Solutions') + ' is pleased to present this proposal to ' + escHtml(cn) +
+      para1 = escHtml(cname) + ' is pleased to present this proposal to ' + escHtml(cn) +
         ' for the installation of a ' + systems[0] + ' at ' + escHtml(jn) + '.';
       para2 = 'This ' + jt.toLowerCase() + ' installation will be completed ' + ec.tone + ', using ' + ec.reliability + ' components selected specifically for this environment. ' +
         'All work will be performed by our certified technicians and backed by our full labor warranty.';
     } else {
       var lastSystem = systems.pop();
-      para1 = escHtml(DB.settings.cname||'Total Communications Systems & Solutions') + ' is pleased to present this comprehensive proposal to ' + escHtml(cn) +
+      para1 = escHtml(cname) + ' is pleased to present this comprehensive proposal to ' + escHtml(cn) +
         ' for the ' + escHtml(jn) + ' project. This scope includes installation of a ' +
         systems.join(', ') + (systems.length > 1 ? ',' : '') + ' and ' + lastSystem + '.';
       para2 = 'All systems will be installed ' + ec.tone + ' and configured to operate as an integrated solution. ' +

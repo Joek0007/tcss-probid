@@ -8116,6 +8116,12 @@ function loadSettings() {
   sv('s-po-replyto', s.poReplyTo||'');
   sv('s-po-approval-threshold', (s.poApprovalThreshold!=null?s.poApprovalThreshold:0));   // (r138)
   const cb=document.getElementById('company-badge'); if(cb) cb.textContent=(s.cname||'TCSS').substring(0,12);
+  // (r186) DCC brand profile (pass-through)
+  var _d = s.dccBrand || {};
+  sv('s-dcc-cname',_d.cname);sv('s-dcc-cphone',_d.cphone);sv('s-dcc-cemail',_d.cemail);sv('s-dcc-cweb',_d.cweb);sv('s-dcc-caddr',_d.caddr);sv('s-dcc-clic',_d.clic);sv('s-dcc-ctag',_d.ctag);
+  sv('s-dcc-default-emails',(_d.defaultForEmails||[]).join(', '));
+  var _dp=document.getElementById('s-dcc-logo-preview');
+  if(_dp){ if(_d.logoDataUrl){ _dp.src=_d.logoDataUrl; _dp.style.display=''; } else { _dp.src=''; _dp.style.display='none'; } }
   loadMarginFloors();
   applyLogoEverywhere(s.logoDataUrl || null);
   // r95: old proposal-defaults / terms-by-job-type editors removed (Proposal Terms builder owns terms now).
@@ -8163,6 +8169,31 @@ function saveSettings() {
   _pushSettingsToSupabase();
   showToast('Settings saved','success');
 }
+
+// (r186) DCC brand profile — logo picker + save. Logo stored as a data URL on DB.settings.dccBrand.
+function onDCCLogoPick(input){
+  var f=input&&input.files&&input.files[0]; if(!f) return;
+  var r=new FileReader();
+  r.onload=function(e){ var dp=document.getElementById('s-dcc-logo-preview'); if(dp){ dp.src=e.target.result; dp.style.display=''; } };
+  r.readAsDataURL(f);
+}
+function saveDCCBrand(){
+  function gv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+  var emails=gv('s-dcc-default-emails').split(/[\n,;]+/).map(function(x){return x.trim().toLowerCase();}).filter(Boolean);
+  var dp=document.getElementById('s-dcc-logo-preview');
+  var existingLogo=(DB.settings&&DB.settings.dccBrand&&DB.settings.dccBrand.logoDataUrl)||null;
+  var logo=(dp && dp.src && /^data:/.test(dp.src)) ? dp.src : existingLogo;
+  DB.settings=DB.settings||{};
+  DB.settings.dccBrand=Object.assign({}, DB.settings.dccBrand, {
+    cname:gv('s-dcc-cname'), cphone:gv('s-dcc-cphone'), cemail:gv('s-dcc-cemail'), cweb:gv('s-dcc-cweb'),
+    caddr:gv('s-dcc-caddr'), clic:gv('s-dcc-clic'), ctag:gv('s-dcc-ctag'),
+    logoDataUrl:logo, defaultForEmails:emails
+  });
+  saveDB();
+  if(typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  showToast('DCC brand saved','success');
+}
+window.onDCCLogoPick=onDCCLogoPick; window.saveDCCBrand=saveDCCBrand;
 
 // (r136) Saves the proposal email TEMPLATES only (subject/body). Email sends via Mailgun; there is
 // no email-provider API key to configure in the app. (Renamed from the old saveSendGridSettings.)

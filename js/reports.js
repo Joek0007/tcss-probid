@@ -246,6 +246,7 @@ function getQData(id) {
     notes: (function(){var _n=document.getElementById('qq-notes'); if(!_n) return ''; var _v=_n.value; if(_v!=null&&_v!=='') return _v; if(_n.isContentEditable||_n.getAttribute('contenteditable')!=null){ if(!(_n.textContent||'').trim()) return ''; return _n.innerHTML||''; } return '';})(),
     intNotes: (document.getElementById('qq-int')||{}).value || '',
     status: (document.getElementById('qq-status')||{}).value || 'draft',
+    brand: ((document.getElementById('qq-brand')||{}).value === 'DCC') ? 'DCC' : ((existing && existing.brand==='DCC') ? 'DCC' : 'TCSS'),   // r186 DCC brand
     followupDate: (document.getElementById('qq-followup')||{}).value || calcFollowupDate((document.getElementById('qq-dt')||{}).value || ''),
     createdDate: createdVal,
     laborRate: getLaborRate(),
@@ -367,6 +368,18 @@ function clearQQ(skipConfirm) {
   const disc = document.getElementById('qq-disc'); if(disc) disc.value = 0;
   const env = document.getElementById('qq-env'); if(env) env.value = 'office';
   const status = document.getElementById('qq-status'); if(status) status.value = 'draft';
+  // (r186) DCC brand picker: show it when a DCC profile exists; default new quotes to DCC for people
+  // on the DCC default list (e.g. Eric), else TCSS.
+  (function(){
+    var brow=document.getElementById('qq-brand-row');
+    var dcc=(DB.settings&&DB.settings.dccBrand)||null;
+    var dccOn=!!(dcc && dcc.cname);
+    if(brow) brow.style.display=dccOn?'':'none';
+    var def='TCSS';
+    try{ var em=((typeof _currentUser!=='undefined'&&_currentUser&&_currentUser.email)||'').toLowerCase();
+         if(dccOn && (dcc.defaultForEmails||[]).indexOf(em)>=0) def='DCC'; }catch(e){}
+    var bs=document.getElementById('qq-brand'); if(bs) bs.value=def;
+  })();
   const dt = document.getElementById('qq-dt'); if(dt) dt.value = getTodayISO();
   const created = document.getElementById('qq-created'); if (created) created.value = getTodayISO();
   const follow = document.getElementById('qq-followup'); if (follow) follow.value = calcFollowupDate(getTodayISO());
@@ -466,6 +479,13 @@ function editQuote(id) {
   })();
   setV('qq-int', q.intNotes||q.int||'');
   setV('qq-status', q.status||'draft');
+  // (r186) DCC brand picker — hydrate + only show the row when a DCC profile is configured.
+  (function(){
+    var _brow=document.getElementById('qq-brand-row');
+    var _dccOn=!!(DB.settings && DB.settings.dccBrand && DB.settings.dccBrand.cname);
+    if(_brow) _brow.style.display=_dccOn?'':'none';
+    setV('qq-brand', (q.brand==='DCC')?'DCC':'TCSS');
+  })();
   setV('qq-lr', q.laborRate||100); setV('qq-mk', q.targetMargin!==undefined && q.targetMargin!==null ? q.targetMargin : (q.markup!==undefined && q.markup!==null ? q.markup : 35)); setV('qq-tx', q.taxRate||0); setV('qq-disc', (q.discountType==='pct' ? (q.discountValue!=null?q.discountValue:0) : (q.discount||0))); setV('qq-disc-type', q.discountType||'amt');
   if (typeof refreshAllPaymentTermsDropdowns==='function') refreshAllPaymentTermsDropdowns();
   setV('qq-pt', q.pt||'Due on Receipt');

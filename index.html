@@ -2284,6 +2284,16 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       <div class="card" style="border:2px solid #e8f5e9">
         <div class="section-title" style="margin-bottom:10px">💰 Proposal Display Options</div>
 
+        <!-- (r186) DCC brand — only shown when a DCC profile is configured in Settings -->
+        <div id="qq-brand-row" style="display:none;background:#f3e5f5;border:1px solid #e1bee7;border-radius:8px;padding:8px 12px;margin-bottom:10px">
+          <label style="font-size:11px;font-weight:700;color:#6a1b9a;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Issue under</label>
+          <select id="qq-brand" style="width:100%;padding:8px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px">
+            <option value="TCSS">TCSS (default)</option>
+            <option value="DCC">DCC</option>
+          </select>
+          <div style="font-size:11px;color:#8e24aa;margin-top:4px">The proposal &amp; invoice for this quote will carry the selected company's name, logo and remit-to.</div>
+        </div>
+
         <!-- Labor Included Banner -->
         <div class="section-toggle-row" onclick="toggleLaborBanner()" style="background:#e8f5e9;padding:8px 12px;border-radius:8px;margin-bottom:8px">
           <label class="toggle-switch" onclick="event.stopPropagation()">
@@ -5184,6 +5194,29 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div style="display:flex;align-items:flex-end"><span style="font-size:11px;color:#90a4ae;padding-bottom:8px">Drives the dashboard's Revenue Won periods (Quarter &amp; Year-to-Date). Your year begins on the 1st of this month.</span></div>
       </div>
     </div>
+    <div class="card" style="border-left:4px solid #6a1b9a"><div class="card-title">🏷️ DCC Brand — pass-through quotes &amp; invoices</div>
+      <div style="font-size:12px;color:#90a4ae;margin:-4px 0 12px">Fill this in to let a quote/invoice be issued under <b>DCC</b> instead of TCSS (e.g. Eric's DCC work). Then flip a quote to DCC with the "Issue under" picker on the quote. Leave the name blank to disable.</div>
+      <div class="form-row cols2">
+        <div><label>DCC Company Name</label><input id="s-dcc-cname" placeholder="DCC, Inc."></div>
+        <div><label>Phone</label><input id="s-dcc-cphone" placeholder="(336) 555-0100"></div>
+      </div>
+      <div class="form-row cols2">
+        <div><label>Email (remit-to)</label><input id="s-dcc-cemail" placeholder="billing@dcc.com"></div>
+        <div><label>Website</label><input id="s-dcc-cweb" placeholder="www.dcc.com"></div>
+      </div>
+      <div class="form-row"><div><label>Address (remit-to)</label><input id="s-dcc-caddr" placeholder="123 Main St, City, ST 12345"></div></div>
+      <div class="form-row cols2">
+        <div><label>License #</label><input id="s-dcc-clic" placeholder="LIC-..."></div>
+        <div><label>Tagline</label><input id="s-dcc-ctag" placeholder="DCC tagline"></div>
+      </div>
+      <div class="form-row"><div><label>Logo</label>
+        <input type="file" id="s-dcc-logo-file" accept="image/*" onchange="onDCCLogoPick(this)">
+        <div style="margin-top:8px"><img id="s-dcc-logo-preview" alt="DCC logo" style="max-height:48px;max-width:180px;object-fit:contain;display:none;border:1px solid #eef2f6;border-radius:6px;padding:4px"></div>
+      </div></div>
+      <div class="form-row"><div><label>New quotes default to DCC for these people (login emails — comma or new-line separated)</label>
+        <textarea id="s-dcc-default-emails" rows="2" placeholder="eric@example.com"></textarea></div></div>
+      <div style="margin-top:10px"><button class="btn btn-primary" onclick="saveDCCBrand()">💾 Save DCC Brand</button></div>
+    </div>
     <div class="card"><div class="card-title">💰 Pricing Defaults</div>
       <div class="form-row cols2">
         <div><label>Default Labor Rate ($/hr)</label><input id="s-lr" type="number" value="100" min="0"></div>
@@ -7542,7 +7575,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
 <script src="js/core.js?v=20261116r168qlabor"></script>
-<script src="js/quotes.js?v=20261116r168qlabor"></script>
+<script src="js/quotes.js?v=20261120r186dcc"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/scanner.js?v=20261111r126scanner"></script>
 <script src="js/tools_db.js?v=20261111r125toolidstable"></script>
@@ -7555,7 +7588,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/vehicles.js?v=20261022docroll"></script>
 <script src="js/dispatch.js?v=20261120r184poedit"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
-<script src="js/worktracking.js?v=20261116r170blurfix"></script>
+<script src="js/worktracking.js?v=20261120r186dcc"></script>
 <script src="js/calendar.js?v=20261105r73ws1status"></script>
 <script src="js/workorders.js?v=20261115r151rfq"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
@@ -7564,7 +7597,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/rfq.js?v=20261120r180rfqfooter"></script>
 <script src="js/inventory_locations_db.js?v=20260919ix"></script>
 <script src="js/inventory.js?v=20261120r182recvchips"></script>
-<script src="js/reports.js?v=20261116r157rfqtile"></script>
+<script src="js/reports.js?v=20261120r186dcc"></script>
 <script src="js/expenses.js?v=20260919jd"></script>
 <script src="js/perdiem.js?v=20260919kd"></script>
 <script src="js/notifrules.js?v=20261119r176seedflag"></script>
@@ -7574,7 +7607,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <script src="js/recurring.js?v=20261025dates2"></script>
   <script src="js/seed_managed.js?v=20260919ix"></script>
   <script src="js/applock.js?v=20260919jk"></script>
-  <script src="js/auth.js?v=20261120r185viewasfix"></script>
+  <script src="js/auth.js?v=20261120r186dcc"></script>
   <script>
     // Register the service worker so the app LOADS with no signal (field techs offline).
     // Served from the app root as /tcss-probid/sw.js → scope covers the whole app.
@@ -9045,7 +9078,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r185';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r186';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-19';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;
