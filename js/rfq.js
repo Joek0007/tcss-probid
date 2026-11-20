@@ -111,16 +111,26 @@ function _openRFQEditor(r){
         // Notes
         '<div style="margin-bottom:14px"><label style="font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;display:block;margin-bottom:4px">Internal notes (not sent)</label>'+
           '<textarea id="rfq-notes" rows="2" style="width:100%;padding:9px;border:1px solid #e0e7ef;border-radius:6px;font-size:14px;box-sizing:border-box;resize:vertical">'+escHtml(r.notes||'')+'</textarea></div>'+
-        '<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">'+
-          (!isNew?'<span style="margin-right:auto">'+_rfqStatusBadge(r.status)+'</span>':'')+
-          (!isNew?'<button class="btn btn-danger btn-sm" onclick="deleteRFQ(\''+escHtml(_rfqCurrentId)+'\')">🗑 Delete</button>':'')+
-          (!isNew?'<button class="btn btn-outline btn-sm" onclick="_rfqAction(\'print\')">🖨 Print RFQ</button>':'')+
-          (!isNew && r.status!=='Closed'?'<button class="btn btn-outline btn-sm" onclick="closeRFQ(\''+escHtml(_rfqCurrentId)+'\')">Close RFQ</button>':'')+
-          (!isNew && r.status!=='Closed' && r.status!=='Converted'?'<button class="btn btn-success btn-sm" onclick="_rfqAction(\'send\')">📤 Send to Vendors</button>':'')+
-          (!isNew && (r.vendors||[]).some(function(v){return v.respondedAt;})?'<button class="btn btn-primary btn-sm" onclick="_rfqAction(\'compare\')">📊 Compare &amp; Award</button>':'')+
-          (!isNew && (r.status==='Awarded'||r.status==='Converted')?'<button class="btn btn-success btn-sm" onclick="_rfqAction(\'convert\')">🔁 Convert to PO(s)</button>':'')+
-          '<button class="btn btn-outline" onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
-          '<button class="btn btn-primary" onclick="saveRFQ()">💾 Save</button>'+
+        // (r180) Layout A — two tiers. Tier 1: the RFQ workflow actions. Tier 2: the dialog controls
+        // (status + delete left, Cancel/Save right). Every button carries hover help (title=).
+        (!isNew?
+          '<div style="font-size:10px;font-weight:800;color:#9aa7b4;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">RFQ actions</div>'+
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:11px">'+
+            '<button class="btn btn-outline btn-sm" title="Open a print-ready copy of this RFQ to save as a PDF or hand to a vendor." onclick="_rfqAction(\'print\')">🖨 Print RFQ</button>'+
+            (r.status!=='Closed' && r.status!=='Converted'?'<button class="btn btn-success btn-sm" title="Email this RFQ to the selected vendors so they can fill in their prices." onclick="_rfqAction(\'send\')">📤 Send to Vendors</button>':'')+
+            ((r.vendors||[]).some(function(v){return v.respondedAt;})?'<button class="btn btn-primary btn-sm" title="See every vendor\'s prices side by side and award each line to the winner." onclick="_rfqAction(\'compare\')">📊 Compare &amp; Award</button>':'')+
+            (r.status==='Awarded'?'<button class="btn btn-success btn-sm" title="Create the purchase order(s) from the awarded lines — one PO per winning vendor." onclick="_rfqAction(\'convert\')">🔁 Convert to PO(s)</button>':'')+
+            ((r.status==='Converted' && r.convertedPoIds && r.convertedPoIds.length)?'<button class="btn btn-success btn-sm" title="Open the purchase order'+(r.convertedPoIds.length>1?'s':'')+' this RFQ became: '+escHtml(r.convertedPoIds.map(function(x){return x.poNumber;}).join(', '))+'." onclick="goToRFQPOs(\''+escHtml(_rfqCurrentId)+'\')">📦 Go to PO'+(r.convertedPoIds.length>1?'s':'')+'</button>':'')+
+            (r.status!=='Closed'?'<button class="btn btn-ghost btn-sm" title="Mark this RFQ finished and hide it from the active list. You can still reopen it later." onclick="closeRFQ(\''+escHtml(_rfqCurrentId)+'\')">Close RFQ</button>':'')+
+          '</div>'+
+          '<div style="height:1px;background:#eef2f6;margin:0 0 11px"></div>'
+        :'')+
+        '<div style="display:flex;gap:8px;align-items:center">'+
+          (!isNew?'<span>'+_rfqStatusBadge(r.status)+'</span>':'')+
+          (!isNew?'<button class="btn btn-danger btn-sm" title="Permanently delete this RFQ. This cannot be undone." onclick="deleteRFQ(\''+escHtml(_rfqCurrentId)+'\')">🗑 Delete</button>':'')+
+          '<span style="flex:1"></span>'+
+          '<button class="btn btn-outline" title="Close this window without saving your changes." onclick="document.getElementById(\''+modalId+'\').remove()">Cancel</button>'+
+          '<button class="btn btn-primary" title="Save this RFQ\'s title, items, vendor selections, and notes." onclick="saveRFQ()">💾 Save</button>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -828,6 +838,34 @@ async function _convertRFQNow(modalId){
   showToast('Created '+results.length+' PO'+(results.length===1?'':'s')+': '+results.map(function(x){return x.poNumber;}).join(', ')+(anyApproval?' — some need approval before sending':''),'success',6000);
 }
 
+// (r180) Jump from a converted RFQ straight to its purchase order(s). One PO → open it; several
+// (one per awarded vendor) → a small picker. Replaces the old one-click re-convert footgun.
+function goToRFQPOs(rfqId){
+  var r=_rfqById(rfqId); if(!r){ showToast('RFQ not found','error'); return; }
+  var seen={}, pos=[];
+  (r.convertedPoIds||[]).forEach(function(x){ if(x&&x.poId&&!seen[x.poId]){ seen[x.poId]=1; pos.push(x); } });
+  if(!pos.length){ showToast('No purchase order linked to this RFQ yet','info'); return; }
+  if(pos.length===1){ _openRFQPO(pos[0].poId); return; }
+  var modalId='modal-rfq-gotopo';
+  var ex=document.getElementById(modalId); if(ex) ex.remove();
+  var rows=pos.map(function(x){
+    return '<button class="btn btn-outline" style="display:block;width:100%;text-align:left;margin-bottom:8px" onclick="_openRFQPO(\''+escHtml(x.poId)+'\')">📦 '+escHtml(x.poNumber||'PO')+(x.vendorName?' <span style=\'color:#90a4ae;font-weight:400\'>— '+escHtml(x.vendorName)+'</span>':'')+'</button>';
+  }).join('');
+  var div=document.createElement('div');
+  div.className='modal-overlay'; div.id=modalId; div.style.display='flex';
+  div.innerHTML='<div class="modal-box" style="max-width:420px">'+
+    '<div class="modal-head"><h3>📦 Go to Purchase Order</h3><button class="close-btn" onclick="document.getElementById(\''+modalId+'\').remove()">×</button></div>'+
+    '<div class="modal-body"><div style="font-size:13px;color:#546e7a;margin-bottom:10px">This RFQ became '+pos.length+' purchase orders (one per awarded vendor). Pick one to open:</div>'+rows+'</div></div>';
+  document.body.appendChild(div);
+}
+function _openRFQPO(poId){
+  var g=document.getElementById('modal-rfq-gotopo'); if(g) g.remove();
+  var m=document.getElementById('modal-rfq'); if(m) m.remove();
+  if(typeof goPage==='function') goPage('purchaseorders');
+  setTimeout(function(){ if(typeof openPO==='function') openPO(poId); }, 150);
+}
+window.goToRFQPOs=goToRFQPOs;
+window._openRFQPO=_openRFQPO;
 window._createPOFromRFQ=_createPOFromRFQ;
 window.convertRFQToPO=convertRFQToPO;
 window._convertRFQNow=_convertRFQNow;
