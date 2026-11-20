@@ -537,10 +537,17 @@ async function _loadPOReceipts(poId){
 
 // (r177) Per-line receipt history: "Received: 3 on 11/18 · 2 on 11/19", reversed receipts struck out
 // with the put-back date. Answers "which items were received on what date" + shows corrections.
-function _poReceiptHistoryHTML(poId, lineIdx){
+function _poReceiptHistoryHTML(poId, lineIdx, qtyReceived){
   var evs=(DB.poReceipts||[]).filter(function(r){ return r.po_id===poId && Number(r.line_index)===Number(lineIdx); })
     .sort(function(a,b){ return String(a.received_at||'').localeCompare(String(b.received_at||'')); });
-  if(!evs.length) return '';
+  if(!evs.length){
+    // (r178) A line received BEFORE dated tracking (r177) has a qty but no logged events — show a note
+    // so the history area isn't mysteriously blank on already-received POs.
+    if((parseFloat(qtyReceived)||0) > 0){
+      return '<div style="font-size:11px;color:#b0bec5;margin-top:3px">🧾 Received: '+(parseFloat(qtyReceived)||0)+' <span style="font-size:10px">(recorded before dated tracking)</span></div>';
+    }
+    return '';
+  }
   var parts=evs.map(function(r){
     var d=r.received_at?new Date(r.received_at).toLocaleDateString():'';
     var q=parseFloat(r.qty)||0;
@@ -587,7 +594,7 @@ function renderReceivingModal(po) {
     // so the receiver knows it won't track to stock (and can add the item / pick the right name first).
     var _noStock = !_rlItem ? '<br><span style="font-size:11px;color:#c62828;font-weight:600">⚠ not in inventory — won’t track to stock (receipt still records on the PO)</span>' : '';
     return '<tr>'+
-      '<td style="padding:10px 12px;font-size:13px;font-weight:600">'+escHtml(rl.desc)+'<br><span style="font-size:11px;color:#90a4ae">'+escHtml(rl.partNum)+'</span>'+_convNote+_noStock+_poReceiptHistoryHTML(po.id, rl._idx)+'</td>'+
+      '<td style="padding:10px 12px;font-size:13px;font-weight:600">'+escHtml(rl.desc)+'<br><span style="font-size:11px;color:#90a4ae">'+escHtml(rl.partNum)+'</span>'+_convNote+_noStock+_poReceiptHistoryHTML(po.id, rl._idx, rl.qtyReceived)+'</td>'+
       '<td style="padding:10px 12px;text-align:center;font-size:13px">'+rl.qtyOrdered+'</td>'+
       '<td style="padding:10px 12px;text-align:center;font-size:13px;color:'+(rl.qtyReceived>0?'#2e7d32':'#90a4ae')+'">'+rl.qtyReceived+'</td>'+
       '<td style="padding:10px 12px;text-align:center">'+
@@ -629,32 +636,46 @@ function renderReceivingModal(po) {
       (hasWO?'<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#2e7d32;text-transform:uppercase">→ Stock</th>':'')+
       '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Stock Location</th>'+
     '</tr></thead><tbody>'+rows+'</tbody></table>'+
-    // (r177) Bulk actions: fill every line with its remaining balance, or reset the whole column to 0.
+    // (r177/r178) Bulk actions — uniform matching buttons, each flashes on click to confirm it fired.
     '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">'+
-      '<button type="button" class="btn btn-outline btn-sm" onclick="receiveAllItems()">✓ Receive All Items</button>'+
-      '<button type="button" class="btn btn-ghost btn-sm" onclick="unselectAllReceiving()">✕ Unselect All Items</button>'+
+      '<button type="button" id="recv-btn-all" class="btn btn-outline btn-sm" style="min-width:160px" onclick="receiveAllItems(this)">✓ Receive All Items</button>'+
+      '<button type="button" id="recv-btn-none" class="btn btn-outline btn-sm" style="min-width:160px" onclick="unselectAllReceiving(this)">✕ Unselect All Items</button>'+
     '</div>';
 }
 
+// (r178) Brief press feedback so a tap visibly registers (fills the button for ~220ms, then restores).
+function _recvBtnFlash(btn){
+  if(!btn) return;
+  var _bg=btn.style.background, _co=btn.style.color, _bd=btn.style.borderColor;
+  btn.style.background='#1565c0'; btn.style.color='#fff'; btn.style.borderColor='#1565c0';
+  setTimeout(function(){ btn.style.background=_bg; btn.style.color=_co; btn.style.borderColor=_bd; }, 220);
+}
+
 // (r177) Fill "Items To Receive" on every line with whatever balance is still owed (ordered − received).
-function receiveAllItems(){
+function receiveAllItems(btn){
+  var n=0;
   (_receivingLines||[]).forEach(function(rl,i){
     var remaining=Math.max(0,(parseFloat(rl.qtyOrdered)||0)-(parseFloat(rl.qtyReceived)||0));
+    if(remaining>0) n++;
     rl.arriving=remaining; rl.toWO=0; rl.toStock=remaining;
     var a=document.getElementById('recv-arr-'+i); if(a) a.value=remaining;
     var s=document.getElementById('recv-stk-'+i); if(s) s.value=remaining;
     var w=document.getElementById('recv-wo-'+i);  if(w) w.value=0;
   });
+  _recvBtnFlash(btn);
+  if(typeof showToast==='function') showToast(n?('Filled '+n+' line(s) with the remaining balance'):'Nothing left to receive — all lines are complete','info',2200);
 }
 
 // (r177) Reset the whole "Items To Receive" column (and the split) back to 0.
-function unselectAllReceiving(){
+function unselectAllReceiving(btn){
   (_receivingLines||[]).forEach(function(rl,i){
     rl.arriving=0; rl.toWO=0; rl.toStock=0;
     var a=document.getElementById('recv-arr-'+i); if(a) a.value=0;
     var s=document.getElementById('recv-stk-'+i); if(s) s.value=0;
     var w=document.getElementById('recv-wo-'+i);  if(w) w.value=0;
   });
+  _recvBtnFlash(btn);
+  if(typeof showToast==='function') showToast('Cleared — all lines set back to 0','info',1800);
 }
 
 function updateReceivingLine(idx, field, val) {
