@@ -423,6 +423,15 @@ function renderPOItems() {
   }).join('');
 }
 
+// (r181) Open the receiving screen for the PO currently shown in the modal (button in the PO header).
+function receiveFromPOModal(){
+  if(!_poCurrentId){ showToast('Save the PO first, then receive items','info',3500); return; }
+  if(typeof _canReceivePO==='function' && !_canReceivePO()){ showToast('You do not have permission to receive purchase orders','error'); return; }
+  if(typeof openReceiving==='function') openReceiving(_poCurrentId);
+  else showToast('Receiving is unavailable','error');
+}
+window.receiveFromPOModal=receiveFromPOModal;
+
 // (r179) Per-line receipt note on the PO (mirrors the receiving screen). Reads the shared history
 // renderer from inventory.js; blank when the line has no receipts and nothing received.
 function _poLineReceiptNote(i){

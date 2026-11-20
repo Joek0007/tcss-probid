@@ -6272,6 +6272,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div id="po-source-chain" style="font-size:11px;color:#90a4ae;margin-top:2px"></div>
       </div>
       <div style="display:flex;gap:8px">
+        <button class="btn btn-success btn-sm" onclick="receiveFromPOModal()" title="Open the receiving screen for this PO to record what arrived.">📥 Receive Items</button>
         <button class="btn btn-outline btn-sm" onclick="printPO()">🖨 Print</button>
         <button class="btn btn-outline btn-sm" onclick="emailPO()">✉️ Email</button>
         <button class="btn btn-primary btn-sm" onclick="savePO()">💾 Save</button>
@@ -7559,10 +7560,10 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/workorders.js?v=20261115r151rfq"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
-<script src="js/purchaseorders.js?v=20261120r179porecvhist"></script>
+<script src="js/purchaseorders.js?v=20261120r181recvbtn"></script>
 <script src="js/rfq.js?v=20261120r180rfqfooter"></script>
 <script src="js/inventory_locations_db.js?v=20260919ix"></script>
-<script src="js/inventory.js?v=20261120r178recvbtns"></script>
+<script src="js/inventory.js?v=20261120r181recvbtn"></script>
 <script src="js/reports.js?v=20261116r157rfqtile"></script>
 <script src="js/expenses.js?v=20260919jd"></script>
 <script src="js/perdiem.js?v=20260919kd"></script>
@@ -9044,7 +9045,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r180';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r181';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-19';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

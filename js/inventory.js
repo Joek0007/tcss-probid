@@ -866,6 +866,17 @@ async function confirmReceiving() {
 
   closeModal('modal-receiving');
   renderPOList();
+  // (r181) If the PO modal is open for this PO (receiving was launched from its 📥 Receive Items
+  // button), refresh its received quantities + receipt history in place without losing other edits.
+  try{
+    var _mp=document.getElementById('modal-po');
+    if(_mp && _mp.style.display!=='none' && typeof _poCurrentId!=='undefined' && _poCurrentId===po.id){
+      if(typeof _poItems!=='undefined' && _poItems){ _poItems.forEach(function(li,ix){ if(po.items[ix]) li.qtyReceived=po.items[ix].qtyReceived; }); }
+      if(typeof renderPOItems==='function') renderPOItems();
+      if(typeof renderPOReceivingHistory==='function') renderPOReceivingHistory(po.id);
+      if(typeof checkReceivingStatus==='function') checkReceivingStatus();
+    }
+  }catch(e){ console.warn('[PO modal refresh]', e&&e.message); }
   showToast(_reversed ? 'Correction saved — items put back, stock & status updated ✓' : 'Receiving confirmed — inventory updated ✓','success',4000);
 }
 
