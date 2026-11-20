@@ -4713,7 +4713,7 @@ function initViewAsCard() {
     (DB.team||[]).filter(function(m){ return m.name !== _currentUser.full_name; })
       .sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); })
       .map(function(m){
-        return '<option value="'+escHtml(m.id)+'">'+escHtml(m.name)+' ('+escHtml(m.access||m.role||'field')+')</option>';
+        return '<option value="'+escHtml(m.id)+'">'+escHtml(m.name)+' ('+escHtml(m.access||m.systemRole||m.role||'field')+')</option>';
       }).join('');
 }
 
@@ -4727,13 +4727,23 @@ function activateViewAs() {
   _realUser = Object.assign({}, _currentUser);
   _viewAsActive = true;
 
-  // Switch to member's perspective
+  // (r185) Resolve the member's role the SAME way the rest of the app does — access || systemRole ||
+  // ROLE (the old View As dropped `|| member.role`, and since every member stores their role ONLY in
+  // `.role`, it collapsed everyone to the invalid 'field' and showed a blank app). Also apply the
+  // login-time 'office' → 'back_office' migration so legacy roles resolve to a real matrix role.
+  var _vaRole = member.access || member.systemRole || member.role || 'field';
+  if (_vaRole === 'office') _vaRole = 'back_office';
+
+  // Switch to member's perspective — PERSON-ACCURATE: carry their per-user permission overrides and
+  // pay-visibility flag so View As mirrors exactly what THIS person can see/do, not just their role.
   _currentUser = {
-    id:         member.id,
-    full_name:  member.name,
-    email:      member.email||'',
-    role:       member.access || member.systemRole || 'field',
-    rate:       member.rate||65
+    id:            member.id,
+    full_name:     member.name,
+    email:         member.email||'',
+    role:          _vaRole,
+    rate:          member.rate||65,
+    perm_overrides: member.perm_overrides || {},
+    can_view_pay:  member.can_view_pay === true
   };
 
   // Show banner
