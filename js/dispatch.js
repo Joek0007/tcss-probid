@@ -1463,6 +1463,10 @@ var PERM_DEFS = [
   // (r171) When "Tech packing slips require office review" is on, tech-submitted slips queue as pending.
   // This toggle governs who works that review inbox (attach to PO / reject) and who can flip the setting.
   {key:'po.review_slips',  label:'Review Tech Packing Slips',   group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
+  // (r184) Edit/change POs. Seeing POs is gated by page.purchaseorders; this gates making CHANGES
+  // (edit fields, add/remove items, Save, Email, create New PO, attach). OFF + page access = VIEW ONLY,
+  // for upper management / sales who should see what's received but not change anything.
+  {key:'po.edit',          label:'Edit / Change Purchase Orders', group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:0,subcontractor:0}},
   // (r150) Request for Quote (RFQ → compare → PO). Office creates/manages; awarding and converting to
   // a PO are higher-trust steps (own keys so the owner can restrict them independently).
   {key:'rfq.manage',       label:'Create / Manage RFQs',       group:'Purchase Orders',fixed:false, defaults:{owner:1,manager:1,back_office:1,estimator:0,lead_tech:0,helper_tech:0,project_manager:1,subcontractor:0}},

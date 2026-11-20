@@ -249,11 +249,15 @@ function renderPOList() {
   }).join('');
 
   body.innerHTML=header+rows;
+  // (r184) Hide "+ New PO" for view-only users (they can see POs but not create/change them).
+  var _newBtn=document.querySelector('#page-purchaseorders button[onclick="openNewPO()"]');
+  if(_newBtn) _newBtn.style.display=(typeof _canEditPO==='function' && !_canEditPO())?'none':'';
 }
 
 // ---- OPEN / NEW PO ----
 
 function openNewPO() {
+  if(typeof _canEditPO==='function' && !_canEditPO()){ showToast('You have view-only access to purchase orders','info'); return; }
   _poCurrentId=null;
   _poItems=[];
   document.getElementById('po-modal-title').textContent='New Purchase Order';
@@ -345,9 +349,10 @@ function openPO(id) {
   // (r179) Receiving history (per-line notes + collapsible log). Show cached, then load & refresh.
   if(typeof renderPOReceivingHistory==='function') renderPOReceivingHistory(po.id);
   if(typeof _loadPOReceipts==='function') _loadPOReceipts(po.id).then(function(){
-    if(_poCurrentId===po.id){ renderPOItems(); if(typeof renderPOReceivingHistory==='function') renderPOReceivingHistory(po.id); }
+    if(_poCurrentId===po.id){ renderPOItems(); if(typeof renderPOReceivingHistory==='function') renderPOReceivingHistory(po.id); if(typeof _applyPOViewMode==='function') _applyPOViewMode(); }
   });
   openModal('modal-po');
+  if(typeof _applyPOViewMode==='function') _applyPOViewMode();   // (r184) lock fields/buttons for view-only users
 }
 
 function _populatePOVendorSelect(selectedId) {
@@ -434,6 +439,40 @@ function _poRecvBadge(li){
   if(rq>=oq) return '<div style="margin-top:2px"><span style="font-size:9px;font-weight:800;padding:1px 6px;border-radius:20px;background:#e8f5e9;color:#2e7d32;text-transform:uppercase;letter-spacing:.3px">Complete</span></div>';
   return '<div style="margin-top:2px"><span style="font-size:9px;font-weight:800;padding:1px 6px;border-radius:20px;background:#fff6e5;color:#b26a00">'+rq+' / '+oq+'</span></div>';
 }
+
+// (r184) Can the current user CHANGE POs? Seeing them is page.purchaseorders; editing is po.edit.
+function _canEditPO(){
+  if(typeof hasPermission==='function') return hasPermission('po.edit');
+  return !!(_currentUser && (_currentUser.role==='owner'||_currentUser.role==='manager'||_currentUser.role==='back_office'));
+}
+
+// (r184) View-only mode for the PO modal: when the user lacks po.edit, lock every field and hide the
+// change controls (Save / Email / Receive / Add Item / From Catalog / remove × / attach), leaving the
+// PO fully readable (fields, totals, received qty + history, open attachments, Print). Reversible so the
+// same modal reused by an editor isn't stuck locked.
+function _applyPOViewMode(){
+  var modal=document.getElementById('modal-po'); if(!modal) return;
+  var ro = !_canEditPO();
+  modal.querySelectorAll('input,select,textarea').forEach(function(el){
+    if(el.type==='file') return;
+    if(ro){
+      if(el.tagName==='SELECT' || el.type==='checkbox' || el.type==='radio') el.disabled=true; else el.readOnly=true;
+      el.setAttribute('data-vlock','1');
+    } else if(el.getAttribute('data-vlock')){
+      el.disabled=false; el.readOnly=false; el.removeAttribute('data-vlock');
+    }
+  });
+  var sel='button[onclick*="savePO"],button[onclick*="emailPO"],button[onclick*="receiveFromPOModal"],button[onclick*="addPOLineItem"],button[onclick*="addPOFromCatalog"],button[onclick*="removePOItem"]';
+  modal.querySelectorAll(sel).forEach(function(b){ b.style.display = ro ? 'none' : ''; });
+  var af=modal.querySelector('#po-attach-file'); if(af){ var lbl=af.closest('label'); if(lbl) lbl.style.display=ro?'none':''; }
+  var ak=modal.querySelector('#po-attach-kind'); if(ak) ak.style.display=ro?'none':'';
+  // "View only" badge in the header title
+  var badge=document.getElementById('po-viewonly-badge');
+  var h3=modal.querySelector('.modal-head h3');
+  if(ro && !badge && h3){ var s=document.createElement('span'); s.id='po-viewonly-badge'; s.textContent=' 👁 View only'; s.style.cssText='font-size:11px;font-weight:700;color:#6a1b9a;background:#f3e5f5;padding:2px 8px;border-radius:20px;margin-left:8px;vertical-align:middle'; h3.appendChild(s); }
+  else if(!ro && badge){ badge.remove(); }
+}
+window._canEditPO=_canEditPO;
 
 // (r181) Open the receiving screen for the PO currently shown in the modal (button in the PO header).
 function receiveFromPOModal(){
@@ -702,6 +741,7 @@ function _renderPOApprovalBar(po){
 // ---- SAVE PO ----
 
 async function savePO() {
+  if(typeof _canEditPO==='function' && !_canEditPO()){ showToast('You have view-only access to purchase orders','info'); return; }
   var vendorId=(document.getElementById('po-vendor')||{}).value||'';
   if(!vendorId){showToast('Select a vendor','error');return;}
   function gv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
