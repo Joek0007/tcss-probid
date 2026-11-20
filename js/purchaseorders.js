@@ -217,7 +217,7 @@ function renderPOList() {
   var rows=list.map(function(po){
     var sc=statusColors[po.status]||{bg:'#f5f5f5',color:'#546e7a'};
     return '<div style="display:grid;grid-template-columns:'+GRID+';gap:8px;padding:12px 16px;border-bottom:1px solid #f5f7fa;align-items:center" onmouseover="this.style.background=\'#f8f9fa\'" onmouseout="this.style.background=\'\'">'+
-      '<div style="font-weight:700;color:#1565c0;font-size:13px">'+escHtml(po.poNumber||'')+'</div>'+
+      '<div onclick="openPO(\''+po.id+'\')" title="Open this PO" style="font-weight:700;color:#1565c0;font-size:13px;cursor:pointer;text-decoration:underline">'+escHtml(po.poNumber||'')+'</div>'+
       '<div>'+
         '<div style="font-weight:600;font-size:13px">'+escHtml(po.vendorName||'—')+'</div>'+
         (po.vendorInvNum?'<div style="font-size:10px;color:#546e7a">Inv: '+escHtml(po.vendorInvNum)+'</div>':'')+
