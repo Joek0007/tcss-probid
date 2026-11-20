@@ -497,22 +497,60 @@ function openReceiving(poId) {
     return;
   }
   _receivingPOId = poId;
+  // (r177) Every line starts at ZERO — no assumption you're receiving everything. The office uses
+  // "Receive All Items" to fill the balances, or types amounts per line.
   _receivingLines = (po.items||[]).map(function(li,i){
-    var remaining = Math.max(0, parseFloat(li.qtyOrdered||1) - parseFloat(li.qtyReceived||0));
     return {
       _idx:       i,
       desc:       li.desc||'',
       partNum:    li.partNum||'',
       qtyOrdered: parseFloat(li.qtyOrdered||1),
       qtyReceived:parseFloat(li.qtyReceived||0),
-      arriving:   remaining,
+      arriving:   0,
       toWO:       0,
-      toStock:    remaining,
+      toStock:    0,
       stockLocId: 'loc-shop'
     };
   });
-  renderReceivingModal(po);
   openModal('modal-receiving');
+  renderReceivingModal(po);
+  // (r177) Pull the per-item receipt history (dates + reversals) then re-render so it shows under each line.
+  if (typeof _loadPOReceipts==='function') {
+    _loadPOReceipts(poId).then(function(){
+      var p=(DB.purchaseOrders||[]).find(function(x){ return x.id===poId; });
+      if (p && _receivingPOId===poId) renderReceivingModal(p);
+    });
+  }
+}
+
+// (r177) Load this PO's receipt history (append-only po_receipts) into DB.poReceipts cache.
+async function _loadPOReceipts(poId){
+  if(!poId || typeof _sb==='undefined' || !_sb) return;
+  try{
+    var r=await _sb.from('po_receipts').select('*').eq('po_id',poId).order('received_at',{ascending:true});
+    if(r && !r.error && Array.isArray(r.data)){
+      if(!DB.poReceipts) DB.poReceipts=[];
+      DB.poReceipts = DB.poReceipts.filter(function(x){ return x.po_id!==poId; }).concat(r.data);
+    }
+  }catch(e){ console.warn('[po receipts load]', e&&e.message); }
+}
+
+// (r177) Per-line receipt history: "Received: 3 on 11/18 · 2 on 11/19", reversed receipts struck out
+// with the put-back date. Answers "which items were received on what date" + shows corrections.
+function _poReceiptHistoryHTML(poId, lineIdx){
+  var evs=(DB.poReceipts||[]).filter(function(r){ return r.po_id===poId && Number(r.line_index)===Number(lineIdx); })
+    .sort(function(a,b){ return String(a.received_at||'').localeCompare(String(b.received_at||'')); });
+  if(!evs.length) return '';
+  var parts=evs.map(function(r){
+    var d=r.received_at?new Date(r.received_at).toLocaleDateString():'';
+    var q=parseFloat(r.qty)||0;
+    if(r.reversed){
+      var rd=r.reversed_at?new Date(r.reversed_at).toLocaleDateString():'';
+      return '<span style="text-decoration:line-through;color:#c62828">'+q+' on '+d+'</span> <span style="color:#c62828;font-size:10px">(put back '+rd+')</span>';
+    }
+    return '<span style="color:#2e7d32">'+q+' on '+d+'</span>';
+  });
+  return '<div style="font-size:11px;color:#78909c;margin-top:3px">🧾 Received: '+parts.join(' · ')+'</div>';
 }
 
 function renderReceivingModal(po) {
@@ -533,9 +571,9 @@ function renderReceivingModal(po) {
   var instrEl = document.getElementById('receiving-instructions');
   if (instrEl) {
     instrEl.innerHTML = (hasWO
-      ? '<strong>Arriving</strong> is pre-filled to what’s still owed — lower any line to receive a partial, or leave it to receive all. Split what arrives between the job ('+escHtml(woLabel||'Work Order')+') and stock, pick a stock location, then <strong>Confirm Receiving</strong>.'
-      : '<strong>Arriving</strong> is pre-filled to what’s still owed — lower any line to receive a partial, or leave it to receive all. It all goes into stock at the location you pick, then <strong>Confirm Receiving</strong>.')
-      + ((_anyPrior && _canCorrect) ? '<br><span style="color:#c62828">Received something by mistake? Use <strong>↩ put back</strong> on that line (or type a negative Arriving) to reverse it — it pulls the qty back out of stock and drops the PO status accordingly.</span>' : '');
+      ? 'Every line starts at <strong>0</strong> — nothing is assumed received. Click <strong>Receive All Items</strong> to fill each line with what’s still owed, or type amounts in <strong>Items To Receive</strong>. Split what arrives between the job ('+escHtml(woLabel||'Work Order')+') and stock, pick a stock location, then <strong>Confirm Receiving</strong>.'
+      : 'Every line starts at <strong>0</strong> — nothing is assumed received. Click <strong>Receive All Items</strong> to fill each line with what’s still owed, or type amounts in <strong>Items To Receive</strong>. It goes into stock at the location you pick, then <strong>Confirm Receiving</strong>.')
+      + ((_anyPrior && _canCorrect) ? '<br><span style="color:#c62828">Received something by mistake? Use <strong>↩ put back</strong> on that line (or type a negative number) to reverse it — it strikes that receipt from the history and pulls the qty back out of stock.</span>' : '');
   }
 
   var rows = _receivingLines.map(function(rl,i){
@@ -549,7 +587,7 @@ function renderReceivingModal(po) {
     // so the receiver knows it won't track to stock (and can add the item / pick the right name first).
     var _noStock = !_rlItem ? '<br><span style="font-size:11px;color:#c62828;font-weight:600">⚠ not in inventory — won’t track to stock (receipt still records on the PO)</span>' : '';
     return '<tr>'+
-      '<td style="padding:10px 12px;font-size:13px;font-weight:600">'+escHtml(rl.desc)+'<br><span style="font-size:11px;color:#90a4ae">'+escHtml(rl.partNum)+'</span>'+_convNote+_noStock+'</td>'+
+      '<td style="padding:10px 12px;font-size:13px;font-weight:600">'+escHtml(rl.desc)+'<br><span style="font-size:11px;color:#90a4ae">'+escHtml(rl.partNum)+'</span>'+_convNote+_noStock+_poReceiptHistoryHTML(po.id, rl._idx)+'</td>'+
       '<td style="padding:10px 12px;text-align:center;font-size:13px">'+rl.qtyOrdered+'</td>'+
       '<td style="padding:10px 12px;text-align:center;font-size:13px;color:'+(rl.qtyReceived>0?'#2e7d32':'#90a4ae')+'">'+rl.qtyReceived+'</td>'+
       '<td style="padding:10px 12px;text-align:center">'+
@@ -586,11 +624,37 @@ function renderReceivingModal(po) {
       '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Item</th>'+
       '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Ordered</th>'+
       '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Recv’d</th>'+
-      '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Arriving</th>'+
+      '<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Items To Receive</th>'+
       (hasWO?'<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase">→ '+escHtml(woLabel)+'</th>':'')+
       (hasWO?'<th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#2e7d32;text-transform:uppercase">→ Stock</th>':'')+
       '<th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase">Stock Location</th>'+
-    '</tr></thead><tbody>'+rows+'</tbody></table>';
+    '</tr></thead><tbody>'+rows+'</tbody></table>'+
+    // (r177) Bulk actions: fill every line with its remaining balance, or reset the whole column to 0.
+    '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">'+
+      '<button type="button" class="btn btn-outline btn-sm" onclick="receiveAllItems()">✓ Receive All Items</button>'+
+      '<button type="button" class="btn btn-ghost btn-sm" onclick="unselectAllReceiving()">✕ Unselect All Items</button>'+
+    '</div>';
+}
+
+// (r177) Fill "Items To Receive" on every line with whatever balance is still owed (ordered − received).
+function receiveAllItems(){
+  (_receivingLines||[]).forEach(function(rl,i){
+    var remaining=Math.max(0,(parseFloat(rl.qtyOrdered)||0)-(parseFloat(rl.qtyReceived)||0));
+    rl.arriving=remaining; rl.toWO=0; rl.toStock=remaining;
+    var a=document.getElementById('recv-arr-'+i); if(a) a.value=remaining;
+    var s=document.getElementById('recv-stk-'+i); if(s) s.value=remaining;
+    var w=document.getElementById('recv-wo-'+i);  if(w) w.value=0;
+  });
+}
+
+// (r177) Reset the whole "Items To Receive" column (and the split) back to 0.
+function unselectAllReceiving(){
+  (_receivingLines||[]).forEach(function(rl,i){
+    rl.arriving=0; rl.toWO=0; rl.toStock=0;
+    var a=document.getElementById('recv-arr-'+i); if(a) a.value=0;
+    var s=document.getElementById('recv-stk-'+i); if(s) s.value=0;
+    var w=document.getElementById('recv-wo-'+i);  if(w) w.value=0;
+  });
 }
 
 function updateReceivingLine(idx, field, val) {
@@ -625,13 +689,17 @@ function receivePutBack(idx) {
   var woEl  = document.getElementById('recv-wo-'+idx);  if (woEl)  woEl.value  = 0;
 }
 
-function confirmReceiving() {
+async function confirmReceiving() {
   var po = (DB.purchaseOrders||[]).find(function(p){ return p.id===_receivingPOId; });
   if (!po) return;
   var today = getTodayISO();
   var _newParts   = [];   // wo_parts to push inline (inventory pushes via adjustItemQty)
   var _reversed   = false;  // (r165) track whether any line was put back (negative) for the audit/toast
   var _recvLines=0, _recvQty=0, _backLines=0, _backQty=0;   // (r167) summary for the audit log
+  // (r177) receipt-history writes: new receive events to insert, and reversed/split rows to update.
+  var _recInserts=[], _recUpdates=[];
+  var _rwho = (_currentUser && (_currentUser.full_name||_currentUser.name)) || 'Unknown';
+  var _nowISO = new Date().toISOString();
   // (r166) Reversal is permission-gated. Defense in depth: if the user lacks po.correct_receiving,
   // drop any negative (put-back) line so a hand-edited value can't un-receive without the right.
   var _mayCorrect = (typeof _canCorrectReceiving==='function') ? _canCorrectReceiving() : false;
@@ -644,6 +712,38 @@ function confirmReceiving() {
     // Update PO line item received qty — clamp at 0 so a reversal can't drive received negative.
     if (po.items[i]) {
       po.items[i].qtyReceived = Math.max(0, parseFloat(po.items[i].qtyReceived||0) + rl.arriving);
+    }
+
+    // (r177) RECEIPT HISTORY — record what was received on what date, and strike reversed receipts.
+    if (rl.arriving > 0) {
+      var _nid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('rcpt-'+Date.now()+'-'+i+'-'+Math.random().toString(36).slice(2,6));
+      var _newRec = { id:_nid, po_id:po.id, line_index:i, part_num:rl.partNum||null, description:rl.desc||null,
+        qty:rl.arriving, received_at:_nowISO, received_by:_rwho, reversed:false, reversed_at:null, reversed_by:null };
+      _recInserts.push(_newRec);
+      if(!DB.poReceipts) DB.poReceipts=[]; DB.poReceipts.push(_newRec);
+    } else if (rl.arriving < 0) {
+      // Put-back: strike the most RECENT non-reversed receipts for this line until the amount is covered.
+      var _amt = -rl.arriving;
+      var _mine = (DB.poReceipts||[]).filter(function(x){ return x.po_id===po.id && Number(x.line_index)===Number(i) && !x.reversed; })
+        .sort(function(a,b){ return String(b.received_at||'').localeCompare(String(a.received_at||'')); }); // newest first
+      for (var k=0; k<_mine.length && _amt>0; k++) {
+        var _rr=_mine[k], _q=parseFloat(_rr.qty)||0;
+        if (_q <= _amt) {
+          _rr.reversed=true; _rr.reversed_at=_nowISO; _rr.reversed_by=_rwho;
+          _recUpdates.push({ id:_rr.id, reversed:true, reversed_at:_nowISO, reversed_by:_rwho });
+          _amt -= _q;
+        } else {
+          // Partial reversal: shrink this receipt and add a reversed row for the struck portion.
+          _rr.qty = _q - _amt;
+          _recUpdates.push({ id:_rr.id, qty:_rr.qty });
+          var _sid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('rcpt-'+Date.now()+'-s'+i+'-'+k);
+          var _split = { id:_sid, po_id:po.id, line_index:i, part_num:_rr.part_num||rl.partNum||null, description:_rr.description||rl.desc||null,
+            qty:_amt, received_at:_rr.received_at, received_by:_rr.received_by, reversed:true, reversed_at:_nowISO, reversed_by:_rwho };
+          _recInserts.push(_split);
+          if(!DB.poReceipts) DB.poReceipts=[]; DB.poReceipts.push(_split);
+          _amt = 0;
+        }
+      }
     }
 
     // Find inventory item by name or part number
@@ -710,6 +810,26 @@ function confirmReceiving() {
     _newParts.forEach(function(wp){ if(typeof _pushWOPartToCloud==='function') _pushWOPartToCloud(wp); });
     if (typeof _pushPOToCloud==='function') _pushPOToCloud(po);
   } catch(e) { console.warn('[Receiving push]', e && e.message); }
+
+  // (r177) Persist the receipt history: insert new receive events, update reversed/split rows.
+  try {
+    if (typeof _sb!=='undefined' && _sb) {
+      if (_recInserts.length) {
+        var _ins = _recInserts.map(function(r){ return { id:r.id, po_id:r.po_id, line_index:r.line_index, part_num:r.part_num,
+          description:r.description, qty:r.qty, received_at:r.received_at, received_by:r.received_by,
+          reversed:r.reversed, reversed_at:r.reversed_at, reversed_by:r.reversed_by }; });
+        var _ir = await _sb.from('po_receipts').insert(_ins);
+        if (_ir && _ir.error) console.warn('[po receipts insert]', _ir.error.message);
+      }
+      for (var _u=0; _u<_recUpdates.length; _u++) {
+        var _up=_recUpdates[_u], _patch={};
+        if ('reversed' in _up) { _patch.reversed=_up.reversed; _patch.reversed_at=_up.reversed_at; _patch.reversed_by=_up.reversed_by; }
+        if ('qty' in _up) { _patch.qty=_up.qty; }
+        var _ur = await _sb.from('po_receipts').update(_patch).eq('id',_up.id);
+        if (_ur && _ur.error) console.warn('[po receipts update]', _ur.error.message);
+      }
+    }
+  } catch(e) { console.warn('[po receipts write]', e && e.message); }
 
   // (r167, gap #5) Audit EVERY receipt — stock moves both ways and must be traceable, not just
   // corrections. One entry per confirm summarizing what was received and/or put back.
