@@ -1812,7 +1812,7 @@ function exportPermissionsDoc() {
 // Settings page (page.settings). Tabs not listed here are governed only by page
 // access. Company + Roles/Permissions are company-admin functions (owner-only by
 // default, customizable per tenant); Quoting margin floors need settings.margin.
-var _MS_TAB_PERM = { company:'settings.company', roles:'settings.company', quoting:'settings.margin', purchaseorders:'po.review_slips' };
+var _MS_TAB_PERM = { company:'settings.company', roles:'settings.company', security:'settings.company', quoting:'settings.margin', purchaseorders:'po.review_slips' };
 
 // Hide settings sub-tab buttons the current user can't use, and return the first
 // tab they ARE allowed to open (so we never land them on a forbidden default).
@@ -1848,7 +1848,8 @@ function switchMsTab(tab) {
   // Render tab content on first open
   if (tab==='workorders')      renderMsWOSettings();
   if (tab==='purchaseorders')  renderMsPOSettings();
-  if (tab==='roles')           { renderMsRolesTab(); if (typeof loadAccessPolicy === 'function') loadAccessPolicy(); if (typeof loadSecuritySettings === 'function') loadSecuritySettings(); }
+  if (tab==='roles')           renderMsRolesTab();
+  if (tab==='security')        { if (typeof loadAccessPolicy === 'function') loadAccessPolicy(); if (typeof loadSecuritySettings === 'function') loadSecuritySettings(); }
   if (tab==='quoting')         { setTimeout(function(){ renderMarginFloorsEditor(); renderMsPaymentTerms(); }, 50); }
   if (tab==='defaults')        renderMsDefaults();
   if (tab==='inventory')       typeof renderLocationSettings === 'function' && renderLocationSettings();

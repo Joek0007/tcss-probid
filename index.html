@@ -5074,6 +5074,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <button class="ms-tab"        onclick="switchMsTab('workorders')"      data-tab="workorders">🔨 Work Orders</button>
     <button class="ms-tab"        onclick="switchMsTab('purchaseorders')"  data-tab="purchaseorders">📦 Purchase Orders</button>
     <button class="ms-tab"        onclick="switchMsTab('roles')"           data-tab="roles">🔐 Roles & Permissions</button>
+    <button class="ms-tab"        onclick="switchMsTab('security')"        data-tab="security">🔒 Security</button>
     <button class="ms-tab"        onclick="switchMsTab('quoting')"         data-tab="quoting">💰 Quoting</button>
     <button class="ms-tab"        onclick="switchMsTab('defaults')"        data-tab="defaults">📋 Defaults & Lists</button>
     <button class="ms-tab"        onclick="switchMsTab('time')"            data-tab="time">⏱ Time & Payroll</button>
@@ -5448,7 +5449,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   </div><!-- end ms-section purchaseorders -->
 
   <!-- ===== ROLES & PERMISSIONS ===== -->
-  <div class="ms-section" id="ms-roles">
+  <div class="ms-section" id="ms-security">
     <div class="card" style="margin-bottom:14px">
       <h3 style="margin:0 0 6px">🔑 New-User Access Policy</h3>
       <p style="font-size:12.5px;color:#607d8b;margin:0 0 10px;line-height:1.5">
@@ -5517,6 +5518,9 @@ body.role-lead-tech .page-settings-btn{display:none!important}
       </p>
     </div>
 
+  </div><!-- end ms-section security -->
+
+  <div class="ms-section" id="ms-roles">
     <div id="ms-roles-content">
       <!-- role-permissions-card injected here -->
     </div>
@@ -7586,7 +7590,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/field.js?v=20261110r122hygiene"></script>
 <script src="js/crm.js?v=20261121r196custprofile"></script>
 <script src="js/vehicles.js?v=20261022docroll"></script>
-<script src="js/dispatch.js?v=20261120r184poedit"></script>
+<script src="js/dispatch.js?v=20261121r200sectab"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
 <script src="js/worktracking.js?v=20261121r192bigger"></script>
 <script src="js/calendar.js?v=20261105r73ws1status"></script>
@@ -9078,7 +9082,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r199';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r200';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-21';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;
