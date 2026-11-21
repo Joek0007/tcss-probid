@@ -8174,7 +8174,17 @@ function saveSettings() {
 function onDCCLogoPick(input){
   var f=input&&input.files&&input.files[0]; if(!f) return;
   var r=new FileReader();
-  r.onload=function(e){ var dp=document.getElementById('s-dcc-logo-preview'); if(dp){ dp.src=e.target.result; dp.style.display=''; } };
+  r.onload=function(e){
+    var url=e.target.result;
+    // (r189) The OS-reported file type can be wrong (a PNG saved as .jpg). Re-label the data URL from
+    // the actual magic bytes so the stored logo carries a correct MIME (matters for email CID content-type).
+    try {
+      var mime=(typeof _imgMimeFromDataUrl==='function')?_imgMimeFromDataUrl(url):null;
+      var c=url.indexOf(',');
+      if(mime && c>0 && /;base64/.test(url.slice(0,c))){ url='data:'+mime+';base64,'+url.slice(c+1); }
+    } catch(_e){}
+    var dp=document.getElementById('s-dcc-logo-preview'); if(dp){ dp.src=url; dp.style.display=''; }
+  };
   r.readAsDataURL(f);
 }
 function saveDCCBrand(){

@@ -44,7 +44,9 @@ async function emailInvoiceDirect() {
 
   var invoiceHTML = '<div style="max-width:680px;margin:0 auto;font-family:Arial,sans-serif;color:#0d1b2a;padding:20px">'
     +'<div style="display:flex;justify-content:space-between;padding-bottom:16px;margin-bottom:20px;border-bottom:3px solid #1565c0">'
-      +'<div><div style="font-size:20px;font-weight:900">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>'
+      +'<div>'+((co._isDCC && co.logoDataUrl)
+          ? '<img src="'+co.logoDataUrl+'" alt="'+esc(co.cname||'')+'" style="max-height:64px;max-width:250px;object-fit:contain;display:block;margin-bottom:4px">'
+          : '<div style="font-size:20px;font-weight:900">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>')
       +'<div style="font-size:11px;color:#546e7a;margin-top:6px;line-height:1.8">'+esc(co.caddr||'')+(co.cphone?'<br>'+esc(co.cphone):'')+'<br>'+esc(_remitEmail)+'</div></div>'
       +'<div style="text-align:right"><div style="font-size:32px;font-weight:900;color:#1565c0">INVOICE</div>'
       +'<div style="font-size:13px;font-weight:700;margin-top:4px">'+esc(invNum)+'</div>'
@@ -55,16 +57,26 @@ async function emailInvoiceDirect() {
       +'<div style="font-size:16px;font-weight:700">'+esc(billName)+'</div>'+ (function(){ var _c=(DB.customers||[]).find(function(x){return (x.name||'').toLowerCase()===(billName||'').toLowerCase();}); return (_c&&_c.accountNumber)?('<div style="font-size:11px;color:#90a4ae;margin-top:1px">Account #'+esc(_c.accountNumber)+'</div>'):''; })()
       +'<div style="font-size:12px;color:#546e7a;margin-top:2px">'+esc(toEmail)+'</div></div>'
     +'<table style="width:100%;border-collapse:collapse">'
-      +'<thead><tr style="background:#0d1b2a">'
-        +'<th style="padding:10px 14px;text-align:left;font-size:11px;color:#fff">Description</th>'
-        +'<th style="padding:10px 14px;text-align:center;font-size:11px;color:#fff;width:60px">Qty</th>'
-        +'<th style="padding:10px 14px;text-align:right;font-size:11px;color:#fff;width:100px">Unit Price</th>'
-        +'<th style="padding:10px 14px;text-align:right;font-size:11px;color:#fff;width:100px">Amount</th>'
+      // (r190) Light header: paint each TH (not the TR — a TR background under border-collapse renders
+      // unreliably, which left the old labels near-invisible). A soft grey fill with dark labels and a
+      // blue underline is legible without the heavy dark bar, and prints/emails consistently.
+      +'<thead><tr>'
+        +'<th style="background:#f1f5f9;padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid #1565c0">Description</th>'
+        +'<th style="background:#f1f5f9;padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid #1565c0;width:60px">Qty</th>'
+        +'<th style="background:#f1f5f9;padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid #1565c0;width:100px">Unit Price</th>'
+        +'<th style="background:#f1f5f9;padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid #1565c0;width:100px">Amount</th>'
       +'</tr></thead><tbody>'+lineRows+'</tbody>'
       +'<tfoot>'+(taxAmt>0?'<tr><td colspan="3" style="padding:10px 14px;text-align:right;color:#546e7a">Tax ('+pctTax(taxRate)+'):</td><td style="padding:10px 14px;text-align:right">$'+taxAmt.toFixed(2)+'</td></tr>':'')
         +'<tr style="background:#e3f2fd"><td colspan="3" style="padding:14px;text-align:right;font-size:14px;font-weight:700">Total Due:</td>'
         +'<td style="padding:14px;text-align:right;font-size:20px;font-weight:900;color:#1565c0">$'+grandTotal.toFixed(2)+'</td></tr>'
       +'</tfoot></table>'
+    // (r190) Remit / payment-instructions block — brand-aware (DCC pass-through pays DCC). Helps the
+    // customer pay the right entity the right way. co resolves to TCSS for TCSS invoices.
+    +'<div style="margin-top:22px;background:#f8f9fb;border-left:4px solid #1565c0;border-radius:8px;padding:14px 18px">'
+      +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Remit Payment To</div>'
+      +'<div style="font-size:13px;color:#0d1b2a;line-height:1.7"><strong>'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</strong>'+(co.caddr?'<br>'+esc(co.caddr):'')+'<br>Questions? '+esc(_remitEmail)+(co.cphone?' &middot; '+esc(co.cphone):'')+'</div>'
+      +'<div style="font-size:11px;color:#546e7a;margin-top:8px">Make checks payable to <strong>'+esc((co.cname||'Total Communications Systems & Solutions, Inc.').replace(/\.+$/,''))+'</strong> &mdash; payment due upon receipt.</div>'
+    +'</div>'
     +'<div style="margin-top:24px;padding-top:14px;border-top:1px solid #e0e7ef;text-align:center;font-size:11px;color:#90a4ae">'
       +esc(co.cname||'Total Communications Systems & Solutions, Inc.')+' | '+esc(co.cphone||'')+' | '+esc(_remitEmail)+'<br>Thank you for your business.</div>'
   +'</div>';
@@ -132,7 +144,19 @@ async function emailInvoiceDirect() {
     }
     fd.append('to', toEmail);
     fd.append('subject', 'Invoice '+invNum+' from '+(co.cname||_coInv||'us'));
-    fd.append('html', invoiceHTML);
+    // (r190) DCC logo in the EMAIL body: a raw data: URL is blocked by Gmail/Outlook, so swap it to a
+    // CID attachment (the PDF above keeps the data-URL version, which html2canvas renders fine). The
+    // content-type is sniffed from the actual bytes (an OS can mislabel a PNG as jpeg — see r189).
+    var _emailInvoiceHTML = invoiceHTML;
+    if (co._isDCC && co.logoDataUrl && /^data:/.test(co.logoDataUrl) && _emailInvoiceHTML.indexOf(co.logoDataUrl) >= 0) {
+      try {
+        var _ilBlob = await (await fetch(co.logoDataUrl)).blob();
+        var _ilMime = (typeof _imgMimeFromDataUrl==='function') ? _imgMimeFromDataUrl(co.logoDataUrl) : (_ilBlob.type || 'image/png');
+        _emailInvoiceHTML = _emailInvoiceHTML.split(co.logoDataUrl).join('cid:dcclogo');
+        fd.append('inline', new File([_ilBlob], 'dcclogo', { type: _ilMime }));
+      } catch(_ilErr){ console.warn('[Email Invoice] DCC logo CID embed failed; leaving data URL', _ilErr); }
+    }
+    fd.append('html', _emailInvoiceHTML);
     fd.append('attachment', new File([pdfBlob], pdfName, {type:'application/pdf'}));
     // Email tracking: turn on open tracking and tag this message with the ProBid record so
     // Mailgun's delivered/opened/failed webhook (mailgun-events) reports status back to this invoice.
@@ -1333,6 +1357,27 @@ function _brandFor(q){
     clic:s.clic||'', cweb:s.cweb||'', ctag:s.ctag||'', logoDataUrl:s.logoDataUrl||null, _isDCC:false };
 }
 window._brandFor=_brandFor;
+
+// (r189) Return the correct image MIME for a data: URL by sniffing its magic bytes. The stored label
+// can be wrong — e.g. a PNG that the user's OS tagged .jpg becomes "data:image/jpeg;base64,<PNG bytes>".
+// Browsers sniff and render it anyway, but an email CID attachment ships whatever Content-Type we set,
+// and a mislabeled one can fail to render in strict mail clients. Falls back to the declared type, then PNG.
+function _imgMimeFromDataUrl(dataUrl){
+  try {
+    if (!dataUrl || !/^data:/.test(dataUrl)) return 'image/png';
+    var comma = dataUrl.indexOf(','); if (comma < 0) return 'image/png';
+    var header = dataUrl.slice(0, comma);
+    var bin = atob(dataUrl.slice(comma+1, comma+1+24));
+    var h = []; for (var i=0;i<Math.min(bin.length,12);i++) h.push(bin.charCodeAt(i));
+    if (h[0]===0x89&&h[1]===0x50&&h[2]===0x4E&&h[3]===0x47) return 'image/png';
+    if (h[0]===0xFF&&h[1]===0xD8&&h[2]===0xFF) return 'image/jpeg';
+    if (h[0]===0x47&&h[1]===0x49&&h[2]===0x46) return 'image/gif';
+    if (h[0]===0x52&&h[1]===0x49&&h[2]===0x46&&h[8]===0x57&&h[9]===0x45&&h[10]===0x42&&h[11]===0x50) return 'image/webp';
+    var m = header.match(/data:([^;,]+)/); if (m && /^image\//.test(m[1])) return m[1];
+  } catch(_e){}
+  return 'image/png';
+}
+window._imgMimeFromDataUrl=_imgMimeFromDataUrl;
 
 // =============================================
 // STAGE 3: buildPrintHTML() — PROFESSIONAL PROPOSAL
@@ -2753,8 +2798,10 @@ async function sendQuoteConfirmed(){
     try {
       if (_qb._isDCC && _qb.logoDataUrl && /^data:/.test(_qb.logoDataUrl)) {
         var _dblob = await (await fetch(_qb.logoDataUrl)).blob();
+        // (r189) Set the CID content-type from the ACTUAL bytes, not the (possibly wrong) data-URL label.
+        var _dmime = (typeof _imgMimeFromDataUrl==='function') ? _imgMimeFromDataUrl(_qb.logoDataUrl) : (_dblob.type || 'image/png');
         htmlBody = htmlBody.split(_qb.logoDataUrl).join('cid:tcsslogo');
-        fd.append('inline', new File([_dblob], 'tcsslogo', { type: _dblob.type || 'image/png' }));
+        fd.append('inline', new File([_dblob], 'tcsslogo', { type: _dmime }));
       } else if (!_qb._isDCC) {
         var _logoUrl2 = (window.location.origin + window.location.pathname.replace('index.html','').replace(/\/$/,'')) + '/assets/email-logo.png';
         var _lr2 = await fetch(_logoUrl2);
