@@ -3970,9 +3970,14 @@ function openInvoiceModal(job) {
       items.push({ desc:e.category+(e.description?' — '+e.description:''), cat:'Expense', qty:1, unitPrice:parseFloat(e.amount||0), mc:parseFloat(e.amount||0) });
     });
 
-    // Parts
+    // Parts — (r194 Phase 1) bill at cost × parts-markup (customer override → company default → 0),
+    // reusing the same resolver/helper as createWOInvoice so both invoice paths price identically.
+    // A part with no stored unitCost (e.g. received before cost-carry) falls to $0 and can be edited.
+    var _woMkPct = (typeof _partsMarkupFor==='function') ? _partsMarkupFor(cust&&cust.id) : 0;
     woParts.forEach(function(p){
-      items.push({ desc:p.name||'Part', cat:'Material', qty:parseFloat(p.qty||1), unitPrice:0, mc:0 });
+      var _cost = parseFloat(p.unitCost||0);
+      var _sell = (typeof _sellUnit==='function') ? _sellUnit(_cost, _woMkPct) : Math.round(_cost*(1+(_woMkPct/100))*100)/100;
+      items.push({ desc:p.name||'Part', cat:'Material', qty:parseFloat(p.qty||1), unitPrice:_sell, mc:_cost });
     });
   }
 

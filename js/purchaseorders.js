@@ -839,7 +839,9 @@ async function savePO() {
         if(!DB.woParts) DB.woParts=[];
         var exists=DB.woParts.find(function(p){return p.woId===woId&&p.name===li.desc&&p.poId===po.id;});
         if(!exists){
-          DB.woParts.push({id:'wop-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),woId:woId,name:li.desc||'',partNum:li.partNum||'',qty:parseFloat(li.qtyReceived||0),status:'received',requestedBy:'PO '+po.poNumber,poId:po.id,createdAt:new Date().toISOString()});
+          // (r194 Phase 1) carry the PO line's unit COST onto the WO part so it bills at cost×markup,
+          // not $0. (The receiving-modal path already does this; this is the save-PO-direct path.)
+          DB.woParts.push({id:'wop-'+Date.now()+'-'+Math.random().toString(36).slice(2,5),woId:woId,name:li.desc||'',partNum:li.partNum||'',qty:parseFloat(li.qtyReceived||0),unitCost:parseFloat(li.unitCost||0),status:'received',requestedBy:'PO '+po.poNumber,poId:po.id,createdAt:new Date().toISOString()});
         }
       });
     }
