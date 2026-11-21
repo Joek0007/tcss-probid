@@ -7282,10 +7282,24 @@ var TERM_LIBRARY = [
 
 var TERM_CARDS = ['assumptions','exclusions','terms'];
 
-// Getters: owner override in DB.settings.proposalDefaults (Phase 2) else code seed.
-function getClauseLibrary(){ var pd = DB.settings.proposalDefaults || {}; return (Array.isArray(pd.library) && pd.library.length) ? pd.library : TERM_LIBRARY; }
-function getCoreTerms(){ var pd = DB.settings.proposalDefaults || {}; return (Array.isArray(pd.coreTerms) && pd.coreTerms.length) ? pd.coreTerms : TERM_CORE; }
-function getTermTemplates(){ var pd = DB.settings.proposalDefaults || {}; return (pd.templates && Object.keys(pd.templates).length) ? pd.templates : TERM_TEMPLATES; }
+// Getters: owner override else code seed.
+// (r202) The override is stored as ONE JSON STRING in DB.settings.proposalTermsJSON — NOT as nested
+// object/array keys. The field-level settings sync (merge_company_settings) deep-merges nested
+// objects/arrays and can only ADD keys/elements — it cannot REMOVE a clause or replace an array,
+// so the r201 approach (pd.library/coreTerms/templates arrays) silently dropped edits & deletions on
+// sync. A string value is treated as a scalar and REPLACED wholesale by the merge, so add/edit/remove
+// all propagate correctly. _termsOverride() parses it once; invalid/empty => code seed.
+function _termsOverride(){
+  try {
+    var s = (DB.settings && DB.settings.proposalTermsJSON) || '';
+    if (!s) return null;
+    var o = JSON.parse(s);
+    return (o && typeof o === 'object') ? o : null;
+  } catch(e){ return null; }
+}
+function getClauseLibrary(){ var o=_termsOverride(); return (o && Array.isArray(o.library) && o.library.length) ? o.library : TERM_LIBRARY; }
+function getCoreTerms(){ var o=_termsOverride(); return (o && Array.isArray(o.coreTerms) && o.coreTerms.length) ? o.coreTerms : TERM_CORE; }
+function getTermTemplates(){ var o=_termsOverride(); return (o && o.templates && Object.keys(o.templates).length) ? o.templates : TERM_TEMPLATES; }
 
 // Library clauses for one system (never General — General is à-la-carte only).
 function termSystemClauses(sysName){ return getClauseLibrary().filter(function(l){ return l.sys === sysName; }); }
@@ -7481,9 +7495,11 @@ function saveTermsAdmin(btn){
       terms      :(s.terms      ||[]).map(function(x){return (x||'').trim();}).filter(Boolean)
     };
   });
-  var pd = DB.settings.proposalDefaults || {};
-  pd.library = lib; pd.coreTerms = core; pd.templates = tpls;   // legacy keys on pd are preserved
-  DB.settings.proposalDefaults = pd;
+  // (r202) Persist as ONE JSON string so the field-level settings merge replaces it wholesale and
+  // edits & removals propagate (nested arrays were deep-merged and could never shrink). Also clear any
+  // legacy r201 object-form keys locally so they can't shadow the string.
+  DB.settings.proposalTermsJSON = JSON.stringify({ library:lib, coreTerms:core, templates:tpls });
+  var _pd = DB.settings.proposalDefaults; if (_pd){ delete _pd.library; delete _pd.coreTerms; delete _pd.templates; }
   saveDB();
   if (typeof showToast==='function') showToast('Proposal clause library saved ✓','success');
   var note=document.getElementById('terms-admin-saved'); if(note){ note.style.display='inline'; setTimeout(function(){ note.style.display='none'; }, 2500); }
@@ -7492,9 +7508,10 @@ function saveTermsAdmin(btn){
 function resetTermsAdmin(){
   var go = (typeof confirm==='function') ? confirm('Reset the clause library, core terms, and job-type templates back to the built-in defaults? Any custom edits you saved will be removed.') : true;
   if (!go) return;
-  var pd = DB.settings.proposalDefaults || {};
-  delete pd.library; delete pd.coreTerms; delete pd.templates;
-  DB.settings.proposalDefaults = pd;
+  // (r202) An empty string reverts to the code seed and propagates through the merge (a key deletion
+  // cannot — the merge only adds/updates keys present in the delta).
+  DB.settings.proposalTermsJSON = '';
+  var _pd = DB.settings.proposalDefaults; if (_pd){ delete _pd.library; delete _pd.coreTerms; delete _pd.templates; }
   saveDB();
   loadTermsAdmin();
   if (typeof showToast==='function') showToast('Reverted to built-in defaults ✓','success');
