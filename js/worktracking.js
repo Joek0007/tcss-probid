@@ -311,11 +311,32 @@ function _renderNotifPageList(){
   });
   if(!filtered.length){ listEl.innerHTML='<div class="mn-empty">No notifications'+((_notifPageFilter.type!=='all'||_notifPageFilter.read!=='all')?' match this filter.':' yet.')+'</div>'; return; }
   var groups = _notifGroupByDate(filtered);
+  // r208 — older groups collapse by default: show recent (Today / Yesterday / This Week) open, and
+  // tuck This Month / Older behind a one-tap header so the page isn't a wall of history. A manual
+  // toggle in _notifPageCollapsed wins over the default once the user clicks a header.
   listEl.innerHTML = groups.map(function(g){
-    return '<div class="mn-group"><div class="mn-grouphdr">'+escHtml(g.label)+' <span>'+g.items.length+'</span></div>'+
-      g.items.map(wtNotifRowHTML).join('')+'</div>';
+    var collapsed = _notifGroupCollapsed(g.label);
+    return '<div class="mn-group">'+
+      '<div class="mn-grouphdr" onclick="notifToggleGroup('+taQ(g.label)+')">'+
+        '<span class="mn-chev">'+(collapsed?'▸':'▾')+'</span>'+escHtml(g.label)+' <span>'+g.items.length+'</span>'+
+      '</div>'+
+      (collapsed ? '' : g.items.map(wtNotifRowHTML).join(''))+
+    '</div>';
   }).join('');
 }
+
+// Default: recent groups open, This Month / Older collapsed. A user click records an explicit
+// override in _notifPageCollapsed that takes priority over the default.
+var _notifPageCollapsed = {};
+function _notifGroupCollapsed(label){
+  if (_notifPageCollapsed.hasOwnProperty(label)) return _notifPageCollapsed[label];
+  return (label==='This Month' || label==='Older');
+}
+function notifToggleGroup(label){
+  _notifPageCollapsed[label] = !_notifGroupCollapsed(label);
+  _renderNotifPageList();
+}
+window.notifToggleGroup = notifToggleGroup;
 
 function _notifGroupByDate(items){
   var now=new Date();
