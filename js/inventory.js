@@ -554,8 +554,14 @@ function _poReceiptHistoryHTML(poId, lineIdx, qtyReceived){
   }
   var chips=evs.map(function(r){
     var q=parseFloat(r.qty)||0;
-    if(r.reversed) return _chip('#fdecea','#c62828',q+' · '+_fmt(r.received_at)+' ↩',true);
-    return _chip('#e8f5e9','#2e7d32','✓ '+q+' · '+_fmt(r.received_at),false);
+    // (r193) show WHO received each line (accountability) — the name is already stored on the receipt.
+    var _esc=(typeof escHtml==='function')?escHtml:function(x){return x;};
+    var _who=r.received_by?(' · '+_esc(r.received_by)):'';
+    if(r.reversed){
+      var _rev=r.reversed_by?(' '+_esc(r.reversed_by)):'';
+      return _chip('#fdecea','#c62828',q+' · '+_fmt(r.received_at)+_who+' ↩'+_rev,true);
+    }
+    return _chip('#e8f5e9','#2e7d32','✓ '+q+' · '+_fmt(r.received_at)+_who,false);
   });
   return '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">'+chips.join('')+'</div>';
 }
