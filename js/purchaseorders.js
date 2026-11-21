@@ -330,12 +330,8 @@ function openPO(id) {
   _populatePOVendorSelect(po.vendorId);
   _populatePOJobSelect(po.jobId);
 
-  // Source chain
-  var chain=[];
-  if(po.jobId){var j=(typeof _findJobOrWO==="function"?_findJobOrWO(po.jobId):(DB.jobs||[]).find(function(x){return x.id===po.jobId;}));if(j)chain.push('Job '+escHtml(j.num||''));}
-  if(po.woId){var w=(DB.workOrders||[]).find(function(x){return x.id===po.woId;});if(w)chain.push('WO '+escHtml(w.woNumber||''));}
-  var chainEl=document.getElementById('po-source-chain');
-  if(chainEl) chainEl.innerHTML=chain.length?'📎 Linked: '+chain.join(' → '):'';
+  // (r195 Phase 2) Source chain + a "not linked to a job" warning for material POs.
+  _renderPOSourceChain(po.jobId, po.woId);
 
   renderPOItems();
   refreshPOTotals();
@@ -382,23 +378,31 @@ function onPOVendorChange(vendorId) {
   if(shipName&&!shipName.value) shipName.value=DB.settings.cname||'TCSS';
 }
 
-function onPOJobChange(jobId) {
-  var jIdEl=document.getElementById('po-job-id-hidden');if(jIdEl)jIdEl.value=jobId||'';
-  var job=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;}));
-  if(!job) return;
-  // Auto-fill ship-to with job site address
-  function sv(id,val){var el=document.getElementById(id);if(el&&!el.value)el.value=val||'';}
-  sv('po-ship-name',job.name||'');
-  sv('po-ship-addr',job.address||'');
-  // Link WO if job has one
-  var wo=(DB.workOrders||[]).find(function(w){return w.jobId===jobId;});
-  var woEl=document.getElementById('po-wo-id-hidden');if(woEl)woEl.value=wo?wo.id:'';
-  // Update source chain
+// (r195 Phase 2) Render the PO's job/WO link, OR warn when a PO with materials has no job/WO link —
+// its materials won't be billed to anyone. Shared by PO-open, the Job-select change, and item changes.
+function _renderPOSourceChain(jobId, woId){
+  var el=document.getElementById('po-source-chain'); if(!el) return;
   var chain=[];
-  chain.push('Job '+escHtml(job.num||''));
-  if(wo) chain.push('WO '+escHtml(wo.woNumber||''));
-  var chainEl=document.getElementById('po-source-chain');
-  if(chainEl) chainEl.innerHTML='📎 Linked: '+chain.join(' → ');
+  if(jobId){ var j=(typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(x){return x.id===jobId;})); if(j) chain.push('Job '+escHtml(j.num||'')); }
+  if(woId){ var w=(DB.workOrders||[]).find(function(x){return x.id===woId;}); if(w) chain.push('WO '+escHtml(w.woNumber||'')); }
+  if(chain.length){ el.innerHTML='📎 Linked: '+chain.join(' → '); return; }
+  if((typeof _poItems!=='undefined'?_poItems:[]).length){
+    el.innerHTML='<span style="color:#c62828;font-weight:600">⚠ Not linked to a job — materials on this PO won\'t be billed to anyone. Pick a Job above, or leave it blank for a stock purchase.</span>';
+  } else { el.innerHTML=''; }
+}
+
+function onPOJobChange(jobId) {
+  var jIdEl=document.getElementById('po-job-id-hidden'); if(jIdEl) jIdEl.value=jobId||'';
+  var job=(jobId && (typeof _findJobOrWO==="function"?_findJobOrWO(jobId):(DB.jobs||[]).find(function(j){return j.id===jobId;}))) || null;
+  var wo = job ? (DB.workOrders||[]).find(function(w){return w.jobId===jobId;}) : null;
+  var woEl=document.getElementById('po-wo-id-hidden'); if(woEl) woEl.value=wo?wo.id:'';
+  if(job){
+    // Auto-fill ship-to with job site address (only when blank)
+    var sv=function(id,val){var el=document.getElementById(id);if(el&&!el.value)el.value=val||'';};
+    sv('po-ship-name',job.name||'');
+    sv('po-ship-addr',job.address||'');
+  }
+  _renderPOSourceChain(jobId||'', wo?wo.id:'');   // live update, incl. the warning when de-selected
 }
 
 // ---- PO LINE ITEMS ----
@@ -618,6 +622,8 @@ function refreshPOTotals() {
   var total=subtotal+_poTaxVal()+_poFreightVal();
   var stEl=document.getElementById('po-subtotal-display');if(stEl)stEl.textContent='$'+subtotal.toFixed(2);
   var totEl=document.getElementById('po-total-display');if(totEl)totEl.textContent='$'+total.toFixed(2);
+  // (r195 Phase 2) keep the "not linked to a job" hint in sync as items are added/removed
+  if(typeof _renderPOSourceChain==='function'){ var _g=function(id){var e=document.getElementById(id);return e?e.value:'';}; _renderPOSourceChain(_g('po-job-id-hidden'), _g('po-wo-id-hidden')); }
 }
 
 function checkReceivingStatus() {
@@ -1471,6 +1477,14 @@ async function emailPO() {
   if(po.approvalRequired && !po.approved){
     showToast('This PO needs approval before it can be sent to the vendor.','error',5000);
     return;
+  }
+  // (r195 Phase 2) Guardrail at the commit point: a PO carrying materials but linked to no job/WO means
+  // those materials won't be billed to anyone. Warn before sending; allow override for true stock buys.
+  if((po.items||[]).length && !po.jobId && !po.woId){
+    var _okUnlinked = (typeof showConfirm==='function')
+      ? await showConfirm('This PO isn’t linked to a job or work order, so its materials won’t be billed to anyone.\n\nIf these parts are for a job, go back and set the Job on the PO first. If it’s a stock purchase, you can send it as is.', { title:'Not linked to a job', okLabel:'Send anyway (stock)', cancelLabel:'Go back & link a job' })
+      : confirm('This PO isn’t linked to a job — its materials won’t be billed to anyone. Send anyway?');
+    if(!_okUnlinked) return;
   }
   openPOEmailDialog(po);
 }
