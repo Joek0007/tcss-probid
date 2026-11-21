@@ -2812,6 +2812,29 @@ function renderWOPartsTab(woId) {
 
   var html = '<div>';
 
+  // (r196 Phase 3) Per-job materials billing rollup — one place for the office to see what bills to this
+  // job: received (billable) at cost → sell (cost×markup), plus what's still on order. Financial-gated.
+  if (canFin && parts.length) {
+    var _woRec = (DB.workOrders||[]).find(function(w){ return w.id===woId; }) || {};
+    var _mk = (typeof _partsMarkupFor==='function') ? _partsMarkupFor(_woRec.customerId) : 0;
+    var _billable = parts.filter(function(p){ var s=(p.status||''); return s!=='requested' && s!=='ordered' && s!=='reserved'; });
+    var _onOrder  = parts.filter(function(p){ return (p.status||'')==='ordered'; });
+    var _sumP = function(arr, sell){ return arr.reduce(function(s,p){ var c=parseFloat(p.unitCost||0), q=parseFloat(p.qty||0); return s + (sell ? q*((typeof _sellUnit==='function')?_sellUnit(c,_mk):Math.round(c*(1+_mk/100)*100)/100) : q*c); },0); };
+    var _recCost=_sumP(_billable,false), _recSell=_sumP(_billable,true), _ordCost=_sumP(_onOrder,false);
+    var _moneyP = function(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+    html +=
+      '<div style="background:#eef6ff;border:1px solid #bbdefb;border-radius:10px;padding:12px 14px;margin-bottom:14px">'+
+        '<div style="font-size:11px;font-weight:800;color:#1565c0;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📊 Materials Billing — this job</div>'+
+        '<div style="display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start">'+
+          '<div><div style="font-size:10.5px;color:#607d8b;font-weight:700;text-transform:uppercase;letter-spacing:.4px">Received · billable</div>'+
+            '<div style="font-size:14px;color:#0d47a1;font-weight:800;margin-top:2px">'+_billable.length+' item'+(_billable.length===1?'':'s')+' · cost '+_moneyP(_recCost)+' &rarr; bills '+_moneyP(_recSell)+'</div></div>'+
+          (_onOrder.length?'<div><div style="font-size:10.5px;color:#607d8b;font-weight:700;text-transform:uppercase;letter-spacing:.4px">On order</div>'+
+            '<div style="font-size:14px;color:#e65100;font-weight:800;margin-top:2px">'+_onOrder.length+' item'+(_onOrder.length===1?'':'s')+' · '+_moneyP(_ordCost)+' coming</div></div>':'')+
+        '</div>'+
+        '<div style="font-size:11px;color:#78909c;margin-top:8px">Received materials bill at cost &times; '+_mk+'% markup on this job’s invoice. On-order parts bill once received.</div>'+
+      '</div>';
+  }
+
   // (r143) Field packing-slip capture — any tech with po.attach_field can snap a delivery/pickup
   // packing slip; it attaches to this WO's open PO (pre-filled) and notifies the office through the
   // engine. openPackingSlipCapture lives in purchaseorders.js (global).

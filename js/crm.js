@@ -386,6 +386,12 @@ function renderCPOverview(customer, quotes, jobs, contacts, projects) {
   var recentQuote = quotes.slice().sort(function(a,b){ return (b.dt||'').localeCompare(a.dt||''); })[0];
   var recentJob   = jobs.slice().sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); })[0];
 
+  // (r196) Show parts markup + default tax rate on the profile (previously only visible in Edit).
+  var _coMk = (DB.settings&&DB.settings.partsMarkupPct!=null&&DB.settings.partsMarkupPct!=='') ? parseFloat(DB.settings.partsMarkupPct) : 0;
+  var _mkDisp = (customer.partsMarkupPct!=null&&customer.partsMarkupPct!=='') ? (parseFloat(customer.partsMarkupPct)+'%') : (_coMk+'% · default');
+  var _coTax = (DB.settings&&DB.settings.taxRate!=null&&DB.settings.taxRate!=='') ? parseFloat(DB.settings.taxRate) : 0;
+  var _txDisp = customer.taxExempt ? 'Exempt · 0%' : ((customer.defaultTaxRate!=null&&customer.defaultTaxRate!=='') ? (parseFloat(customer.defaultTaxRate)+'%') : (_coTax+'% · default'));
+
   var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">';
 
   // Left: quick facts
@@ -409,6 +415,14 @@ function renderCPOverview(customer, quotes, jobs, contacts, projects) {
               '<span style="font-size:10px;font-weight:700;color:#e65100;text-transform:uppercase;letter-spacing:.5px">🏷 Tax Status</span><br>'+
               '<span style="font-size:14px;font-weight:700;color:#e65100">Taxable</span>'+
             '</div>')+
+        '<div style="background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:8px 14px;min-width:110px">'+
+          '<span style="font-size:10px;font-weight:700;color:#6a1b9a;text-transform:uppercase;letter-spacing:.5px">📈 Parts Markup</span><br>'+
+          '<span style="font-size:14px;font-weight:700;color:#4a148c">'+escHtml(_mkDisp)+'</span>'+
+        '</div>'+
+        '<div style="background:#e0f2f1;border:1px solid #80cbc4;border-radius:8px;padding:8px 14px;min-width:110px">'+
+          '<span style="font-size:10px;font-weight:700;color:#00695c;text-transform:uppercase;letter-spacing:.5px">🧾 Tax Rate</span><br>'+
+          '<span style="font-size:14px;font-weight:700;color:#004d40">'+escHtml(_txDisp)+'</span>'+
+        '</div>'+
       '</div>'+
       (customer.notes?'<div style="margin-top:8px;color:#546e7a;font-size:12px;font-style:italic">'+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(customer.notes):escHtml(customer.notes))+'</div>':'')+
     '</div>'+
