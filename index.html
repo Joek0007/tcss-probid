@@ -1178,6 +1178,13 @@ body.dark-mode .notif-item.unread{background:#1a2744}
 .notif-item-title{font-weight:700;font-size:13px}
 .notif-item-body{font-size:12px;color:#546e7a;margin-top:2px}
 .notif-item-time{font-size:10px;color:#90a4ae;margin-top:2px}
+/* r211 — READ items look muted/dealt-with; UNREAD stand out bold. Applies to the bell dropdown. */
+.notif-item.unread .notif-item-title{color:#0d1b2a;font-weight:800}
+.notif-item:not(.unread) .notif-item-title{color:#90a4ae;font-weight:600}
+.notif-item:not(.unread) .notif-item-body{color:#b0bec5}
+.notif-item:not(.unread) > span:first-child{opacity:.45}
+body.dark-mode .notif-item:not(.unread) .notif-item-title{color:#6b7a88}
+body.dark-mode .notif-item.unread .notif-item-title{color:#e8eef5}
 
 /* ===== LEAD TECH CONFIRMATION ===== */
 .confirm-badge{display:inline-flex;align-items:center;gap:3px;background:#fff3e0;color:#e65100;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700}
@@ -3140,6 +3147,12 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   #page-notifications .notif-item-time{font-size:11px;color:#b0bec5;margin-top:3px}
   body.dark-mode #page-notifications .notif-item{background:#1e1e1e;border-color:#333}
   body.dark-mode #page-notifications .notif-item.unread{background:#152536;border-color:#1d3a57}
+  /* r211 — read items muted on the page too */
+  #page-notifications .notif-item.unread .notif-item-title{color:#0d1b2a;font-weight:800}
+  #page-notifications .notif-item:not(.unread) .notif-item-title{color:#90a4ae;font-weight:600}
+  #page-notifications .notif-item:not(.unread) .notif-item-body{color:#c2cdd6}
+  #page-notifications .notif-item:not(.unread) > span:first-child{opacity:.45}
+  body.dark-mode #page-notifications .notif-item:not(.unread) .notif-item-title{color:#6b7a88}
   /* bell panel two-section bits (shared) */
   .notif-sec{font-size:10.5px;font-weight:800;color:#90a4ae;text-transform:uppercase;letter-spacing:.6px;padding:8px 16px 4px;background:#fafbfc}
   body.dark-mode .notif-sec{background:#232323}
@@ -7667,7 +7680,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/vehicles.js?v=20261022docroll"></script>
 <script src="js/dispatch.js?v=20261121r201clauseadmin"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
-<script src="js/worktracking.js?v=20261121r209notiftidy"></script>
+<script src="js/worktracking.js?v=20261121r210bellpeek"></script>
 <script src="js/calendar.js?v=20261105r73ws1status"></script>
 <script src="js/workorders.js?v=20261121r197powolist"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
@@ -9157,7 +9170,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r209';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r211';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-21';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

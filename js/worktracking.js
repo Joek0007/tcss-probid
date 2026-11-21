@@ -142,9 +142,13 @@ function wtGetAllNotifications() {
 function renderNotifPanel() {
   var list = document.getElementById('notif-panel-list'); if(!list) return;
   var all = wtFeedItems();                                 // r206 — read + unread (persistent history)
-  var unread = all.filter(function(n){ return !n.read; });
-  var earlier = all.filter(function(n){ return n.read; }).slice(0, 40);
-  var seeAll = '<div class="notif-seeall" onclick="wtOpenNotifPage()">See all notifications →</div>';
+  var unread = all.filter(function(n){ return !n.read; }).slice(0, 12);     // r210 — cap the dropdown
+  // r210 — the bell is a SHORT peek, not the whole history: show only a few recent read items here.
+  // The full, grouped, collapsible history lives on the "See all notifications" page.
+  var earlier = all.filter(function(n){ return n.read; }).slice(0, 5);
+  var _earlierTotal = all.filter(function(n){ return n.read; }).length;
+  var seeAll = '<div class="notif-seeall" onclick="wtOpenNotifPage()">See all notifications'+
+    (_earlierTotal>5 ? ' ('+_earlierTotal+')' : '')+' →</div>';
   if (!all.length) {
     list.innerHTML='<div style="padding:24px;text-align:center;color:#90a4ae;font-size:13px">'+
       '<div style="font-size:28px;margin-bottom:8px">🔔</div>No notifications yet.</div>' + seeAll;
