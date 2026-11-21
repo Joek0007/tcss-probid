@@ -56,14 +56,22 @@
 
   /* ---------- last-active tracking ---------- */
   var _lastWrite = 0;
+  var _booted = false;   // true once the first boot lock-check (onAuthed/evaluate) has run
   function markActive() {
     // SECURITY (r198): never refresh the activity stamp while the lock screen is up.
     // Lifecycle handlers (pagehide/beforeunload/visibilitychange→hidden) call markActive on
     // unload. A service-worker update reloads every open tab via client.navigate(), which fires
     // those handlers on the LOCKED page — without this guard that stamped a fresh lastActive, so
     // the post-update reload saw ~0 idle, returned 'ok', and walked straight in past the PIN.
-    // Keeping the stale stamp means the reload re-locks and demands the PIN, as intended.
     if (_locked) return;
+    // SECURITY (r199): never refresh the stamp during the boot window, before the first lock
+    // decision has run. On a reload the browser restores scroll position, firing a 'scroll' event
+    // in the first ~400ms while _locked is still false; without this guard that stamped a fresh
+    // lastActive, so the delayed onAuthed() lock-check then saw ~0 idle and skipped the lock —
+    // a locked tab reloaded (e.g. by a service-worker update) walked straight in. Freezing the
+    // stamp until the first evaluate/onAuthed runs preserves the true idle time, so the boot
+    // lock-check sees the real gap and re-locks. _booted is set by onAuthed()/evaluate().
+    if (!_booted) return;
     var now = Date.now();
     if (now - _lastWrite < 15000) return; // throttle writes
     _lastWrite = now;
@@ -284,6 +292,7 @@
     var conf = cfg();
     if (!conf.enabled) return;
     if (!_uid()) return;                 // not logged in -> normal login screen handles it
+    _booted = true;                      // (r199) first real lock-check ran -> stamping may resume
     if (_locked) return;                 // already showing
     var hasCred = hasPin() || (conf.allowBiometric && hasPasskey());
     var d = lockDecision(Date.now(), getLastActive(), conf, hasCred);
@@ -295,6 +304,9 @@
 
   // Called by auth when a user becomes active/logged in this session.
   function onAuthed() {
+    // (r199) The boot lock-check is running now; from here markActive may stamp again. Set this
+    // BEFORE the first-run markActive below so a brand-new device still records its initial stamp.
+    _booted = true;
     if (!cfg().enabled) return;
     // If this device has never recorded activity, treat now as the start.
     if (!getLastActive()) markActive();
