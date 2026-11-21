@@ -2835,6 +2835,39 @@ function renderWOPartsTab(woId) {
       '</div>';
   }
 
+  // (r197) Purchase Orders on this work order — surfaced UP TOP so POs are front-and-center (one click,
+  // not hunting through the parts list). Office only; $ totals gated by wo.view_financial.
+  if (isOffice) {
+    var _woPOs = (DB.purchaseOrders||[]).filter(function(p){ return p.woId===woId; });
+    if (_woPOs.length) {
+      var _poSC = function(s){ s=(s||'').toLowerCase();
+        if(s.indexOf('partial')>=0) return ['#fff3e0','#e65100'];
+        if(s.indexOf('received')>=0) return ['#e8f5e9','#2e7d32'];
+        if(s.indexOf('sent')>=0) return ['#e3f2fd','#1565c0'];
+        if(s.indexOf('approval')>=0) return ['#fff8e1','#f57f17'];
+        return ['#eceff1','#546e7a']; };
+      var _poMoney = function(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+      html += '<div style="border:1px solid #e0e7ef;border-radius:10px;padding:12px 14px;margin-bottom:14px">'+
+        '<div style="font-size:11px;font-weight:800;color:#37474f;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📦 Purchase Orders ('+_woPOs.length+')</div>'+
+        _woPOs.map(function(p){
+          var sc=_poSC(p.status);
+          var _its=(p.items||[]); var _rcvN=_its.filter(function(li){return parseFloat(li.qtyReceived||0)>=parseFloat(li.qtyOrdered||1) && parseFloat(li.qtyOrdered||0)>0;}).length;
+          var _rcv=_its.length?(_rcvN+' of '+_its.length+' lines received'):'';
+          return '<div onclick="openPO(\''+escHtml(p.id)+'\')" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #eef2f6;border-radius:8px;margin-bottom:6px;cursor:pointer;background:#fafbfc" onmouseover="this.style.background=\'#f1f6fb\'" onmouseout="this.style.background=\'#fafbfc\'">'+
+            '<div style="min-width:0">'+
+              '<div style="font-weight:700;color:#1565c0;font-size:13px">'+escHtml(p.poNumber||'')+' <span style="color:#546e7a;font-weight:400">· '+escHtml(p.vendorName||'')+'</span></div>'+
+              (_rcv?'<div style="font-size:11px;color:#90a4ae;margin-top:1px">'+_rcv+'</div>':'')+
+            '</div>'+
+            '<div style="display:flex;align-items:center;gap:10px;white-space:nowrap">'+
+              '<span style="background:'+sc[0]+';color:'+sc[1]+';padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700">'+escHtml(p.status||'Draft')+'</span>'+
+              (canFin?'<span style="font-weight:800;color:#2e7d32;font-size:13px">'+_poMoney(p.total)+'</span>':'')+
+            '</div>'+
+          '</div>';
+        }).join('')+
+      '</div>';
+    }
+  }
+
   // (r143) Field packing-slip capture — any tech with po.attach_field can snap a delivery/pickup
   // packing slip; it attaches to this WO's open PO (pre-filled) and notifies the office through the
   // engine. openPackingSlipCapture lives in purchaseorders.js (global).
