@@ -53,6 +53,11 @@
   function _pinKey(uid)  { return 'probid_pin_' + (uid || _uid()); }
   function _failKey(uid) { return 'probid_pinfail_' + (uid || _uid()); }
   function _pkKey(uid)   { return 'probid_passkey_' + (uid || _uid()); }
+  // (r205) STICKY-LOCK flag: persisted the moment the lock screen is shown, cleared only on a real
+  // unlock (correct PIN / biometric) or a full relogin. While set, every boot re-shows the lock
+  // regardless of the activity stamp — so a reload (e.g. a second service-worker auto-refresh firing
+  // mid-PIN) can never slip past the lock via a stamp race.
+  function _lockedKey(uid){ return 'probid_locked_' + (uid || _uid()); }
 
   /* ---------- last-active tracking ---------- */
   var _lastWrite = 0;
@@ -223,6 +228,7 @@
   function showLock() {
     var ov = _overlay();
     _locked = true;
+    try { _lsSet(_lockedKey(), '1'); } catch (e) {}   // (r205) persist the sticky lock
     ov.style.display = 'flex';
     _setErr('');
     var pin = document.getElementById('applock-pin'); if (pin) { pin.value = ''; pin.type = 'password'; }
@@ -239,6 +245,7 @@
 
   function _hideLock() {
     _locked = false;
+    try { _lsDel(_lockedKey()); } catch (e) {}   // (r205) a real unlock clears the sticky lock
     var ov = document.getElementById('applock-overlay');
     if (ov) ov.style.display = 'none';
     markActive();
@@ -295,9 +302,11 @@
     _booted = true;                      // (r199) first real lock-check ran -> stamping may resume
     if (_locked) return;                 // already showing
     var hasCred = hasPin() || (conf.allowBiometric && hasPasskey());
+    // (r205) sticky lock: if a lock is outstanding on this device, re-show it regardless of the stamp.
+    if (hasCred && _lsGet(_lockedKey()) === '1') { showLock(); return; }
     var d = lockDecision(Date.now(), getLastActive(), conf, hasCred);
     if (d === 'quicklock') showLock();
-    else if (d === 'relogin') { clearLastActive(); try { if (typeof signOut === 'function') return signOut(); } catch (e) {} try { _sb.auth.signOut(); } catch (e) {} location.reload(); }
+    else if (d === 'relogin') { clearLastActive(); try { _lsDel(_lockedKey()); } catch (e) {} try { if (typeof signOut === 'function') return signOut(); } catch (e) {} try { _sb.auth.signOut(); } catch (e) {} location.reload(); }
     // 'ok' -> nothing; refresh the stamp
     if (d === 'ok') markActive();
   }
@@ -307,7 +316,13 @@
     // (r199) The boot lock-check is running now; from here markActive may stamp again. Set this
     // BEFORE the first-run markActive below so a brand-new device still records its initial stamp.
     _booted = true;
-    if (!cfg().enabled) return;
+    var _cf = cfg();
+    if (!_cf.enabled) return;
+    // (r205) STICKY LOCK takes priority over the stamp: if a lock was outstanding when the app last
+    // reloaded, re-show it now no matter what the activity stamp says. This closes the double-reload
+    // bypass (a second service-worker auto-refresh firing while the PIN screen was up let the user in).
+    var _hasCred = hasPin() || (_cf.allowBiometric && hasPasskey());
+    if (_hasCred && _lsGet(_lockedKey()) === '1') { showLock(); maybeOfferPinSetup(); return; }
     // If this device has never recorded activity, treat now as the start.
     if (!getLastActive()) markActive();
     else evaluate('authed');
