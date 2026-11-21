@@ -115,7 +115,9 @@ var WT_NOTIF_ICONS = {
   flag_resolved: '🚩',
   assignment_wo: '📋',
   // legacy local types
-  lunch:'🍽', item_reopened:'🔄', eod:'📊', message:'💬', absence:'🚨', confirm:'✅'
+  lunch:'🍽', item_reopened:'🔄', eod:'📊', message:'💬', absence:'🚨', confirm:'✅',
+  // engine / rule types
+  expense_flagged:'💵', notif_rule:'🔔', quote_approved:'✅', po_received:'📦'
 };
 
 function wtGetAllNotifications() {
@@ -213,8 +215,15 @@ var NOTIF_TYPE_LABELS = {
   assignment:'Assignment', assignment_wo:'Work Order', confirmed:'Confirmed', rejected:'Rejected',
   flag_resolved:'Flag', message:'Message', absence:'Absence', item_reopened:'Reopened',
   eod:'End of Day', lunch:'Lunch', expense_logged:'Expense', low_stock:'Low Stock',
-  clockin_anomaly:'Clock-in', po_received:'Receiving'
+  clockin_anomaly:'Clock-in', po_received:'Receiving',
+  // engine / rule types seen in the wild
+  expense_flagged:'Expense Flag', notif_rule:'Alert', quote_approved:'Quote Approved'
 };
+// Friendly label for a type: explicit map, else prettify (underscores → spaces, Title Case).
+function _notifTypeLabel(t){
+  if (NOTIF_TYPE_LABELS[t]) return NOTIF_TYPE_LABELS[t];
+  return String(t||'Notification').replace(/_/g,' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+}
 
 // Load recent notifications INCLUDING read ones (the history). Newest first.
 async function wtLoadNotifFeed(limit, cb){
@@ -296,7 +305,7 @@ function _renderNotifPageList(){
   var types = {}; all.forEach(function(n){ if(n.type) types[n.type]=(types[n.type]||0)+1; });
   var typeChips = '<button class="mn-chip'+(_notifPageFilter.type==='all'?' on':'')+'" onclick="notifPageSetType(\'all\')">All</button>' +
     Object.keys(types).sort().map(function(t){
-      var lbl = NOTIF_TYPE_LABELS[t] || t;
+      var lbl = _notifTypeLabel(t);
       return '<button class="mn-chip'+(_notifPageFilter.type===t?' on':'')+'" onclick="notifPageSetType(\''+escHtml(t)+'\')">'+(WT_NOTIF_ICONS[t]||'🔔')+' '+escHtml(lbl)+'</button>';
     }).join('');
   var readChips = [['all','All'],['unread','Unread'],['read','Read']].map(function(c){
@@ -330,7 +339,9 @@ function _renderNotifPageList(){
 var _notifPageCollapsed = {};
 function _notifGroupCollapsed(label){
   if (_notifPageCollapsed.hasOwnProperty(label)) return _notifPageCollapsed[label];
-  return (label==='This Month' || label==='Older');
+  // r209 — default: only the last day or two is open; This Week / This Month / Older collapse so the
+  // page lands clean and you tap to dig into anything older.
+  return (label !== 'Today' && label !== 'Yesterday');
 }
 function notifToggleGroup(label){
   _notifPageCollapsed[label] = !_notifGroupCollapsed(label);
