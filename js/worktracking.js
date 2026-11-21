@@ -8171,19 +8171,53 @@ function saveSettings() {
 }
 
 // (r186) DCC brand profile — logo picker + save. Logo stored as a data URL on DB.settings.dccBrand.
+// (r192) Auto-shrink any uploaded logo so an oversized file can NEVER bloat storage/sync/email or crash
+// the tab (a 4–6MB logo did exactly that). Downscales to <=820px wide and re-encodes: transparent PNG
+// when the image has alpha (so it still works on colored backgrounds like the sidebar), otherwise a
+// flattened white JPEG (much smaller). Re-encoding via canvas also yields a correct MIME, so this
+// supersedes the r189 magic-byte relabel. Returns a Promise of the optimized data URL; on any failure
+// it resolves the original so an upload is never lost.
+function _shrinkLogoDataUrl(dataUrl){
+  return new Promise(function(resolve){
+    try {
+      if (!dataUrl || !/^data:/.test(dataUrl)) { resolve(dataUrl); return; }
+      var img = new Image();
+      img.onerror = function(){ resolve(dataUrl); };
+      img.onload = function(){
+        try {
+          function render(W){
+            var H = Math.round((img.naturalHeight||1) * W / (img.naturalWidth||W));
+            var c = document.createElement('canvas'); c.width=W; c.height=H;
+            var ctx = c.getContext('2d');
+            ctx.clearRect(0,0,W,H); ctx.drawImage(img,0,0,W,H);
+            var hasAlpha = false;
+            try { var px = ctx.getImageData(0,0,W,H).data; for (var i=3;i<px.length;i+=4){ if (px[i] < 250){ hasAlpha=true; break; } } }
+            catch(_e){ hasAlpha = true; }   // reading pixels blocked -> assume alpha (safer: keep PNG)
+            if (hasAlpha) return c.toDataURL('image/png');
+            ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H); ctx.drawImage(img,0,0,W,H);
+            return c.toDataURL('image/jpeg', 0.92);
+          }
+          var W = Math.min(820, img.naturalWidth || 820);
+          var out = render(W);
+          if (out.length > 400*1024 && W > 560) out = render(560);   // transparent + heavy -> shrink more
+          resolve(out || dataUrl);
+        } catch(_e){ resolve(dataUrl); }
+      };
+      img.src = dataUrl;
+    } catch(_e){ resolve(dataUrl); }
+  });
+}
+window._shrinkLogoDataUrl = _shrinkLogoDataUrl;
+
 function onDCCLogoPick(input){
   var f=input&&input.files&&input.files[0]; if(!f) return;
   var r=new FileReader();
   r.onload=function(e){
     var url=e.target.result;
-    // (r189) The OS-reported file type can be wrong (a PNG saved as .jpg). Re-label the data URL from
-    // the actual magic bytes so the stored logo carries a correct MIME (matters for email CID content-type).
-    try {
-      var mime=(typeof _imgMimeFromDataUrl==='function')?_imgMimeFromDataUrl(url):null;
-      var c=url.indexOf(',');
-      if(mime && c>0 && /;base64/.test(url.slice(0,c))){ url='data:'+mime+';base64,'+url.slice(c+1); }
-    } catch(_e){}
-    var dp=document.getElementById('s-dcc-logo-preview'); if(dp){ dp.src=url; dp.style.display=''; }
+    var apply=function(u){ var dp=document.getElementById('s-dcc-logo-preview'); if(dp){ dp.src=u; dp.style.display=''; } };
+    // (r192) auto-shrink before preview/save so the stored DCC logo is always lightweight + correctly typed
+    if (typeof _shrinkLogoDataUrl==='function') { _shrinkLogoDataUrl(url).then(apply); }
+    else { apply(url); }
   };
   r.readAsDataURL(f);
 }
@@ -9328,13 +9362,13 @@ function initLogoUpload() {
   input.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { showToast('Logo file must be under 2MB.','error'); return; }
+    // (r192) No hard size cap — auto-shrink handles any size instead of rejecting. Keep a sane sanity limit.
+    if (file.size > 30 * 1024 * 1024) { showToast('That image is unusually large (over 30MB). Please pick a smaller file.','error'); return; }
     const reader = new FileReader();
     reader.onload = function(ev) {
-      const dataUrl = ev.target.result;
-      DB.settings.logoDataUrl = dataUrl;
-      saveDB();
-      applyLogoEverywhere(dataUrl);
+      const store = function(u){ DB.settings.logoDataUrl = u; saveDB(); applyLogoEverywhere(u); };
+      if (typeof _shrinkLogoDataUrl==='function') { _shrinkLogoDataUrl(ev.target.result).then(store); }
+      else { store(ev.target.result); }
     };
     reader.readAsDataURL(file);
     // Reset input so same file can be re-selected
@@ -9351,12 +9385,12 @@ function initLogoUpload() {
       zone.style.borderColor = '';
       const file = e.dataTransfer.files[0];
       if (!file || !file.type.startsWith('image/')) { showToast('Please drop an image file.','error'); return; }
-      if (file.size > 2 * 1024 * 1024) { showToast('Logo file must be under 2MB.','error'); return; }
+      if (file.size > 30 * 1024 * 1024) { showToast('That image is unusually large (over 30MB). Please pick a smaller file.','error'); return; }
       const reader = new FileReader();
       reader.onload = function(ev) {
-        DB.settings.logoDataUrl = ev.target.result;
-        saveDB();
-        applyLogoEverywhere(ev.target.result);
+        const store = function(u){ DB.settings.logoDataUrl = u; saveDB(); applyLogoEverywhere(u); };
+        if (typeof _shrinkLogoDataUrl==='function') { _shrinkLogoDataUrl(ev.target.result).then(store); }
+        else { store(ev.target.result); }
       };
       reader.readAsDataURL(file);
     });

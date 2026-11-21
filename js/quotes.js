@@ -117,9 +117,10 @@ async function emailInvoiceDirect() {
       });
     }
 
-    // Render invoice to hidden div (r191: 760px to match the invoice's max-width)
+    // Render invoice to hidden div. (r192) Render at 661px (≈760/1.15): jsPDF fits the captured width to
+    // the full page, so a narrower render = the invoice prints ~15% BIGGER on the page (Joe's request).
     var div = document.createElement('div');
-    div.style.cssText = 'position:fixed;left:-9999px;top:0;width:760px;background:#fff';
+    div.style.cssText = 'position:fixed;left:-9999px;top:0;width:661px;background:#fff';
     div.innerHTML = invoiceHTML;
     document.body.appendChild(div);
 
@@ -2770,10 +2771,11 @@ async function sendQuoteConfirmed(){
       await new Promise(function(res,rej){ var el=document.createElement('script'); el.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; el.onload=res; el.onerror=rej; document.head.appendChild(el); });
     }
 
-    // Render the proposal PDF (reuse the client print layout)
+    // Render the proposal PDF (reuse the client print layout). (r192) Render at 609px (≈700/1.15) so the
+    // emailed proposal PDF prints ~15% bigger — jsPDF fits the captured width to the full page.
     var proposalHTML = buildPrintHTML(q, 'client');
     var div = document.createElement('div');
-    div.style.cssText = 'position:fixed;left:-9999px;top:0;width:700px;background:#fff';
+    div.style.cssText = 'position:fixed;left:-9999px;top:0;width:609px;background:#fff';
     div.innerHTML = proposalHTML;
     document.body.appendChild(div);
     var canvas = await html2canvas(div, { scale:2, useCORS:true, backgroundColor:'#ffffff' });
