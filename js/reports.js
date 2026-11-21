@@ -202,6 +202,37 @@ function qqStage4Init(){
 }
 
 // Stage 5 override: include follow-up and preserve created date
+// r212 — brand picker gate. Sets the brand value, then shows the editable DCC/TCSS dropdown ONLY to
+// users with the quote.switch_brand permission. Everyone else is locked to their default brand: the
+// dropdown is hidden and a read-only "Issued under: X" label is shown (getQData still reads the hidden
+// select's value, so saves carry the locked brand). No DCC profile → the whole row stays hidden.
+function _applyBrandPickerGate(brandVal){
+  var row=document.getElementById('qq-brand-row');
+  var sel=document.getElementById('qq-brand');
+  var locked=document.getElementById('qq-brand-locked');
+  var note=document.getElementById('qq-brand-note');
+  var val=(brandVal==='DCC')?'DCC':'TCSS';
+  if(sel) sel.value=val;
+  var dccOn=!!(DB.settings && DB.settings.dccBrand && DB.settings.dccBrand.cname);
+  if(!dccOn){ if(row) row.style.display='none'; return; }
+  if(row) row.style.display='';
+  var canSwitch=(typeof hasPermission!=='function') || hasPermission('quote.switch_brand');
+  if(canSwitch){
+    if(sel) sel.style.display='';
+    if(locked) locked.style.display='none';
+    if(note) note.style.display='';
+  } else {
+    if(sel) sel.style.display='none';
+    if(note) note.style.display='none';
+    if(locked){
+      var dccName=(DB.settings.dccBrand && DB.settings.dccBrand.cname) || 'DCC';
+      locked.textContent='Issued under: ' + (val==='DCC' ? dccName : 'TCSS');
+      locked.style.display='';
+    }
+  }
+}
+window._applyBrandPickerGate=_applyBrandPickerGate;
+
 function getQData(id) {
   const totals = calcTotals();
   const env = (document.getElementById('qq-env')||{}).value || 'office';
@@ -371,14 +402,12 @@ function clearQQ(skipConfirm) {
   // (r186) DCC brand picker: show it when a DCC profile exists; default new quotes to DCC for people
   // on the DCC default list (e.g. Eric), else TCSS.
   (function(){
-    var brow=document.getElementById('qq-brand-row');
     var dcc=(DB.settings&&DB.settings.dccBrand)||null;
     var dccOn=!!(dcc && dcc.cname);
-    if(brow) brow.style.display=dccOn?'':'none';
     var def='TCSS';
     try{ var em=((typeof _currentUser!=='undefined'&&_currentUser&&_currentUser.email)||'').toLowerCase();
          if(dccOn && (dcc.defaultForEmails||[]).indexOf(em)>=0) def='DCC'; }catch(e){}
-    var bs=document.getElementById('qq-brand'); if(bs) bs.value=def;
+    _applyBrandPickerGate(def);   // r212 — lock the switcher for users without quote.switch_brand
   })();
   const dt = document.getElementById('qq-dt'); if(dt) dt.value = getTodayISO();
   const created = document.getElementById('qq-created'); if (created) created.value = getTodayISO();
@@ -480,12 +509,7 @@ function editQuote(id) {
   setV('qq-int', q.intNotes||q.int||'');
   setV('qq-status', q.status||'draft');
   // (r186) DCC brand picker — hydrate + only show the row when a DCC profile is configured.
-  (function(){
-    var _brow=document.getElementById('qq-brand-row');
-    var _dccOn=!!(DB.settings && DB.settings.dccBrand && DB.settings.dccBrand.cname);
-    if(_brow) _brow.style.display=_dccOn?'':'none';
-    setV('qq-brand', (q.brand==='DCC')?'DCC':'TCSS');
-  })();
+  _applyBrandPickerGate((q.brand==='DCC')?'DCC':'TCSS');   // r212 — lock for users without quote.switch_brand
   setV('qq-lr', q.laborRate||100); setV('qq-mk', q.targetMargin!==undefined && q.targetMargin!==null ? q.targetMargin : (q.markup!==undefined && q.markup!==null ? q.markup : 35)); setV('qq-tx', q.taxRate||0); setV('qq-disc', (q.discountType==='pct' ? (q.discountValue!=null?q.discountValue:0) : (q.discount||0))); setV('qq-disc-type', q.discountType||'amt');
   if (typeof refreshAllPaymentTermsDropdowns==='function') refreshAllPaymentTermsDropdowns();
   setV('qq-pt', q.pt||'Due on Receipt');
