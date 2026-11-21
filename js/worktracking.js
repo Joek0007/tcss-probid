@@ -7501,6 +7501,10 @@ function saveTermsAdmin(btn){
   DB.settings.proposalTermsJSON = JSON.stringify({ library:lib, coreTerms:core, templates:tpls });
   var _pd = DB.settings.proposalDefaults; if (_pd){ delete _pd.library; delete _pd.coreTerms; delete _pd.templates; }
   saveDB();
+  // (r203) EXPLICIT settings push — saveDB alone does not reliably push settings to the cloud in time
+  // (every other settings save in the app pairs saveDB with this). Without it the edit/remove silently
+  // stayed local and was wiped by the next pull.
+  if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
   if (typeof showToast==='function') showToast('Proposal clause library saved ✓','success');
   var note=document.getElementById('terms-admin-saved'); if(note){ note.style.display='inline'; setTimeout(function(){ note.style.display='none'; }, 2500); }
 }
@@ -7513,6 +7517,7 @@ function resetTermsAdmin(){
   DB.settings.proposalTermsJSON = '';
   var _pd = DB.settings.proposalDefaults; if (_pd){ delete _pd.library; delete _pd.coreTerms; delete _pd.templates; }
   saveDB();
+  if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();   // (r203) explicit push
   loadTermsAdmin();
   if (typeof showToast==='function') showToast('Reverted to built-in defaults ✓','success');
 }
