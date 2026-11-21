@@ -3116,6 +3116,39 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   </div>
 </div>
 
+<!-- r206: per-user NOTIFICATIONS page (reached from the bell's "See all"). Every user sees their own. -->
+<style>
+  #page-notifications .mn-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  #page-notifications .mn-headbtns{display:flex;gap:8px;flex-shrink:0}
+  #page-notifications .mn-btn{background:#fff;border:1px solid #cfd8e3;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;color:#37474f;cursor:pointer}
+  #page-notifications .mn-btn:hover{background:#f0f4f8;color:#1565c0}
+  #page-notifications #mn-toolbar{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  #page-notifications .mn-chgrp{display:flex;flex-wrap:wrap;gap:6px}
+  #page-notifications .mn-chip{border:1px solid #cfd8dc;background:#fff;color:#546e7a;border-radius:16px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer}
+  #page-notifications .mn-chip.on{background:#e3f2fd;border-color:#1565c0;color:#1565c0}
+  #page-notifications .mn-group{margin-bottom:16px}
+  #page-notifications .mn-grouphdr{font-size:12px;font-weight:800;color:#607d8b;text-transform:uppercase;letter-spacing:.5px;margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #eceff1}
+  #page-notifications .mn-grouphdr span{color:#b0bec5;font-weight:700;margin-left:4px}
+  #page-notifications .mn-empty{padding:30px;text-align:center;color:#90a4ae;font-size:13px}
+  #page-notifications .notif-item{padding:11px 12px;border:1px solid #eef2f6;border-radius:10px;margin-bottom:7px;background:#fff}
+  #page-notifications .notif-item.unread{background:#f3f8ff;border-color:#d6e6fb}
+  #page-notifications .notif-item:hover{background:#f7fafd}
+  #page-notifications .notif-item-title{font-size:13.5px;font-weight:700;color:#263238}
+  #page-notifications .notif-item-body{font-size:12.5px;color:#546e7a;margin-top:1px}
+  #page-notifications .notif-item-time{font-size:11px;color:#b0bec5;margin-top:3px}
+  body.dark-mode #page-notifications .notif-item{background:#1e1e1e;border-color:#333}
+  body.dark-mode #page-notifications .notif-item.unread{background:#152536;border-color:#1d3a57}
+  /* bell panel two-section bits (shared) */
+  .notif-sec{font-size:10.5px;font-weight:800;color:#90a4ae;text-transform:uppercase;letter-spacing:.6px;padding:8px 16px 4px;background:#fafbfc}
+  body.dark-mode .notif-sec{background:#232323}
+  .notif-seeall{padding:11px 16px;text-align:center;font-size:12.5px;font-weight:700;color:#1565c0;cursor:pointer;border-top:1px solid #f0f0f0;background:#fff}
+  .notif-seeall:hover{background:#f0f7ff}
+  body.dark-mode .notif-seeall{background:#1e1e1e;border-color:#333}
+</style>
+<div class="page" id="page-notifications">
+  <div id="mynotif-root"></div>
+</div>
+
 <!-- WORK TRACKING -->
 <div class="page" id="page-worktracking">
   <!-- Work Tracking module mounts here — all views rendered by worktracking.js -->
@@ -7618,7 +7651,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <!-- CACHE-BUSTING: the ?v=... on every script forces browsers to fetch fresh JS after a deploy.
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
-<script src="js/core.js?v=20261116r168qlabor"></script>
+<script src="js/core.js?v=20261121r206notifcenter"></script>
 <script src="js/quotes.js?v=20261121r194matbill"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/scanner.js?v=20261111r126scanner"></script>
@@ -7632,7 +7665,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/vehicles.js?v=20261022docroll"></script>
 <script src="js/dispatch.js?v=20261121r201clauseadmin"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
-<script src="js/worktracking.js?v=20261121r203push"></script>
+<script src="js/worktracking.js?v=20261121r206notifcenter"></script>
 <script src="js/calendar.js?v=20261105r73ws1status"></script>
 <script src="js/workorders.js?v=20261121r197powolist"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
@@ -9122,7 +9155,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r205';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r206';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-21';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

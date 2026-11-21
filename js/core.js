@@ -930,6 +930,7 @@ var _PAGE_PERM_MAP = {
 };
 function _canAccessPage(id) {
   if (id === 'dash') return true;                                   // dashboard always allowed
+  if (id === 'notifications') return true;                          // r206 — everyone sees their own notifications
   if (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.role === 'owner') return true;
   var key = _PAGE_PERM_MAP[id];
   if (!key) return false;                                           // unmapped (recyclebin, etc.) — deny non-owner, matches nav hiding
@@ -1110,6 +1111,7 @@ function goPage(id) {
   if (id==='perdiem')    { if (typeof renderPerDiemPage==='function') renderPerDiemPage(); }
   if (id==='notifrules') { if (typeof renderNotifRulesPage==='function') setTimeout(renderNotifRulesPage, 50); }
   if (id==='notiflog') { if (typeof renderNotifLogPage==='function') setTimeout(renderNotifLogPage, 50); }
+  if (id==='notifications') { if (typeof renderNotificationsPage==='function') setTimeout(renderNotificationsPage, 50); }
   if (id==='inventory')  renderInventory();
   if (id==='tools')      { setTimeout(renderTools, 50); if (typeof _startToolsLivePoll==='function') _startToolsLivePoll(); }
   if (id==='settings')   { loadSettings(); setTimeout(function(){ renderPermissionsEditor(); var _t = (typeof _applyMsTabPerms==='function') ? _applyMsTabPerms() : 'company'; switchMsTab(_t); initViewAsCard(); window.scrollTo(0,0); var p=document.getElementById('page-settings'); if(p)p.scrollTop=0; }, 150); }

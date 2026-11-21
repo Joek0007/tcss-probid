@@ -94,7 +94,7 @@ function toggleNotifPanel() {
   var panel = document.getElementById('notif-panel');
   if (!panel) return;
   var isOpen = panel.classList.toggle('open');
-  if (isOpen) renderNotifPanel();
+  if (isOpen) { renderNotifPanel(); wtLoadNotifFeed(60, renderNotifPanel); }   // r206 — pull read+unread history on open
   // Close on outside click
   if (isOpen) {
     setTimeout(function(){
@@ -139,35 +139,19 @@ function wtGetAllNotifications() {
 
 function renderNotifPanel() {
   var list = document.getElementById('notif-panel-list'); if(!list) return;
-  var all = wtGetAllNotifications();
-
+  var all = wtFeedItems();                                 // r206 — read + unread (persistent history)
+  var unread = all.filter(function(n){ return !n.read; });
+  var earlier = all.filter(function(n){ return n.read; }).slice(0, 40);
+  var seeAll = '<div class="notif-seeall" onclick="wtOpenNotifPage()">See all notifications →</div>';
   if (!all.length) {
     list.innerHTML='<div style="padding:24px;text-align:center;color:#90a4ae;font-size:13px">'+
-      '<div style="font-size:28px;margin-bottom:8px">🔔</div>'+
-      'No notifications yet.</div>';
+      '<div style="font-size:28px;margin-bottom:8px">🔔</div>No notifications yet.</div>' + seeAll;
     return;
   }
-
-  list.innerHTML = all.slice(0,30).map(function(n){
-    var icon = WT_NOTIF_ICONS[n.type] || '🔔';
-    var timeStr = formatTimeAgo(n.time);
-    return '<div class="notif-item'+(n.read?'':' unread')+'" '+
-      'data-nid="'+n.id+'" data-src="'+n.source+'" '+
-      (n.raw_id?'data-rid="'+n.raw_id+'" ':'')+
-      (n.project_id?'data-pid="'+n.project_id+'" ':'')+
-      (n.ref_module?'data-refmod="'+escHtml(n.ref_module)+'" ':'')+
-      (n.ref_id?'data-refid="'+escHtml(n.ref_id)+'" ':'')+
-      'onclick="wtReadNotifEl(this)" '+
-      'style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">'+
-      '<span style="font-size:18px;flex-shrink:0;margin-top:2px">'+icon+'</span>'+
-      '<div style="flex:1;min-width:0">'+
-        '<div class="notif-item-title">'+escHtml(n.title)+'</div>'+
-        '<div class="notif-item-body">'+escHtml(n.body)+'</div>'+
-        '<div class="notif-item-time">'+escHtml(timeStr)+'</div>'+
-      '</div>'+
-      (!n.read?'<div style="width:8px;height:8px;border-radius:50%;background:#1565c0;flex-shrink:0;margin-top:6px"></div>':'')+
-    '</div>';
-  }).join('');
+  var html = '';
+  if (unread.length)  html += '<div class="notif-sec">New</div>'     + unread.map(wtNotifRowHTML).join('');
+  if (earlier.length) html += '<div class="notif-sec">Earlier</div>' + earlier.map(wtNotifRowHTML).join('');
+  list.innerHTML = html + seeAll;
 }
 
 function wtReadNotif(id, source, rawId, projectId, refMod, refId) {
@@ -179,10 +163,11 @@ function wtReadNotif(id, source, rawId, projectId, refMod, refId) {
   // Mark Supabase notification as read
   if (source === 'supabase' && rawId && _sb) {
     _sb.from('wt_notifications').update({read:true}).eq('id',rawId).then(function(){});
-    // r145 — drop it from the live feed immediately so a tapped bell clears from the panel right
-    // away instead of lingering (greyed) until a reload. The 45s poll also now reassigns
-    // WT.notifications unconditionally (see wtLoadNotifications); this just makes the tap feel instant.
+    // r145 — drop it from the UNREAD feed so the badge updates immediately.
     if (WT.notifications) { WT.notifications = WT.notifications.filter(function(x){ return x.id!==rawId; }); }
+    // r206 — but KEEP it in the history feed, just flip it to read, so it moves NEW→EARLIER instead
+    // of vanishing (you can come back and revisit it).
+    if (WT.notifFeed) { var _ff = WT.notifFeed.find(function(x){ return x.id===rawId; }); if (_ff) _ff.read = true; }
   }
   updateNotifBadge();
   renderNotifPanel();
@@ -217,6 +202,141 @@ function wtOpenNotifTarget(mod, id){
 }
 window.wtOpenNotifTarget = wtOpenNotifTarget;
 
+// ============================================================================
+// NOTIFICATION CENTER (r206) — persistent history: two-section bell + full page.
+// Notifications no longer vanish when read. wt_notifications keeps every row (read=true),
+// so reading moves an item from NEW to EARLIER and it stays clickable to revisit. The
+// unread badge still rides WT.notifications (unread poll) + local _notifications; WT.notifFeed
+// holds the recent read+unread rows for display (bell = ~60, full page = 200).
+// ============================================================================
+var NOTIF_TYPE_LABELS = {
+  assignment:'Assignment', assignment_wo:'Work Order', confirmed:'Confirmed', rejected:'Rejected',
+  flag_resolved:'Flag', message:'Message', absence:'Absence', item_reopened:'Reopened',
+  eod:'End of Day', lunch:'Lunch', expense_logged:'Expense', low_stock:'Low Stock',
+  clockin_anomaly:'Clock-in', po_received:'Receiving'
+};
+
+// Load recent notifications INCLUDING read ones (the history). Newest first.
+async function wtLoadNotifFeed(limit, cb){
+  if (!_sb || !_currentUser){ if (typeof cb==='function') cb(); return; }
+  try {
+    var r = await _sb.from('wt_notifications').select('*')
+      .eq('user_id', wtCurrentUserId())
+      .order('created_at', { ascending:false })
+      .limit(limit || 60);
+    if (r.error) throw r.error;
+    if (typeof WT==='object' && WT) WT.notifFeed = r.data || [];
+  } catch(e){ /* keep stale feed on error */ }
+  if (typeof cb==='function') cb();
+}
+window.wtLoadNotifFeed = wtLoadNotifFeed;
+
+// Merged, normalized, newest-first display items (local session + cloud history feed).
+function wtFeedItems(){
+  var local = (_notifications||[]).map(function(n){
+    return { key:n.id, nid:n.id, src:'local', type:n.type, title:n.title, body:n.body||'',
+      time:n.time, read:!!n.read, rid:null, pid:null, refmod:null, refid:null };
+  });
+  var feed = ((typeof WT==='object' && WT && WT.notifFeed) || []).map(function(n){
+    return { key:'wt_'+n.id, nid:'wt_'+n.id, src:'supabase', type:n.type, title:n.title, body:n.message||'',
+      time:n.created_at, read:!!n.read, rid:n.id, pid:n.project_id||null,
+      refmod:n.ref_module||null, refid:n.ref_id||null };
+  });
+  var all = local.concat(feed);
+  all.sort(function(a,b){ return new Date(b.time) - new Date(a.time); });
+  return all;
+}
+
+// One clickable notification row — shared by the bell panel and the full page.
+function wtNotifRowHTML(n){
+  var icon = WT_NOTIF_ICONS[n.type] || '🔔';
+  var timeStr = (typeof formatTimeAgo==='function') ? formatTimeAgo(n.time) : '';
+  return '<div class="notif-item'+(n.read?'':' unread')+'" '+
+    'data-nid="'+escHtml(n.nid)+'" data-src="'+escHtml(n.src)+'" '+
+    (n.rid?'data-rid="'+escHtml(n.rid)+'" ':'')+
+    (n.pid?'data-pid="'+escHtml(n.pid)+'" ':'')+
+    (n.refmod?'data-refmod="'+escHtml(n.refmod)+'" ':'')+
+    (n.refid?'data-refid="'+escHtml(n.refid)+'" ':'')+
+    'onclick="wtReadNotifEl(this)" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">'+
+    '<span style="font-size:18px;flex-shrink:0;margin-top:2px">'+icon+'</span>'+
+    '<div style="flex:1;min-width:0">'+
+      '<div class="notif-item-title">'+escHtml(n.title)+'</div>'+
+      '<div class="notif-item-body">'+escHtml(n.body)+'</div>'+
+      '<div class="notif-item-time">'+escHtml(timeStr)+'</div>'+
+    '</div>'+
+    (!n.read?'<div style="width:8px;height:8px;border-radius:50%;background:#1565c0;flex-shrink:0;margin-top:6px"></div>':'')+
+  '</div>';
+}
+
+function wtOpenNotifPage(){
+  var panel=document.getElementById('notif-panel'); if(panel) panel.classList.remove('open');
+  if (typeof goPage==='function') goPage('notifications');
+}
+window.wtOpenNotifPage = wtOpenNotifPage;
+
+// ---- Full Notifications page ----
+var _notifPageFilter = { type:'all', read:'all' };
+
+function renderNotificationsPage(){
+  var root = document.getElementById('mynotif-root'); if(!root) return;
+  root.innerHTML =
+    '<div class="mn-head"><div><h2 style="margin:0">🔔 Notifications</h2>'+
+      '<p style="margin:4px 0 0;font-size:12.5px;color:#607d8b">Everything that’s come to you — tap any one to jump to it. Read items stay here so you can revisit them.</p></div>'+
+      '<div class="mn-headbtns"><button class="mn-btn" onclick="markAllNotifsRead()">Mark all read</button>'+
+      '<button class="mn-btn" onclick="wtLoadNotifFeed(200, renderNotificationsPage)">↻ Refresh</button></div></div>'+
+    '<div id="mn-toolbar"></div><div id="mn-list"><div class="mn-empty">Loading…</div></div>';
+  wtLoadNotifFeed(200, _renderNotifPageList);
+}
+window.renderNotificationsPage = renderNotificationsPage;
+
+function _renderNotifPageList(){
+  var toolbar=document.getElementById('mn-toolbar'); var listEl=document.getElementById('mn-list');
+  if(!listEl) return;
+  var all = wtFeedItems();
+  var types = {}; all.forEach(function(n){ if(n.type) types[n.type]=(types[n.type]||0)+1; });
+  var typeChips = '<button class="mn-chip'+(_notifPageFilter.type==='all'?' on':'')+'" onclick="notifPageSetType(\'all\')">All</button>' +
+    Object.keys(types).sort().map(function(t){
+      var lbl = NOTIF_TYPE_LABELS[t] || t;
+      return '<button class="mn-chip'+(_notifPageFilter.type===t?' on':'')+'" onclick="notifPageSetType(\''+escHtml(t)+'\')">'+(WT_NOTIF_ICONS[t]||'🔔')+' '+escHtml(lbl)+'</button>';
+    }).join('');
+  var readChips = [['all','All'],['unread','Unread'],['read','Read']].map(function(c){
+    return '<button class="mn-chip'+(_notifPageFilter.read===c[0]?' on':'')+'" onclick="notifPageSetRead(\''+c[0]+'\')">'+c[1]+'</button>';
+  }).join('');
+  if(toolbar) toolbar.innerHTML = '<div class="mn-chgrp">'+typeChips+'</div><div class="mn-chgrp">'+readChips+'</div>';
+  var filtered = all.filter(function(n){
+    if(_notifPageFilter.type!=='all' && n.type!==_notifPageFilter.type) return false;
+    if(_notifPageFilter.read==='unread' && n.read) return false;
+    if(_notifPageFilter.read==='read' && !n.read) return false;
+    return true;
+  });
+  if(!filtered.length){ listEl.innerHTML='<div class="mn-empty">No notifications'+((_notifPageFilter.type!=='all'||_notifPageFilter.read!=='all')?' match this filter.':' yet.')+'</div>'; return; }
+  var groups = _notifGroupByDate(filtered);
+  listEl.innerHTML = groups.map(function(g){
+    return '<div class="mn-group"><div class="mn-grouphdr">'+escHtml(g.label)+' <span>'+g.items.length+'</span></div>'+
+      g.items.map(wtNotifRowHTML).join('')+'</div>';
+  }).join('');
+}
+
+function _notifGroupByDate(items){
+  var now=new Date();
+  function sod(d){ return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime(); }
+  var today=sod(now), yest=today-86400000, weekAgo=today-6*86400000, monthAgo=today-29*86400000;
+  var b=[{label:'Today',items:[]},{label:'Yesterday',items:[]},{label:'This Week',items:[]},{label:'This Month',items:[]},{label:'Older',items:[]}];
+  items.forEach(function(n){
+    var t=new Date(n.time).getTime();
+    if(isNaN(t)){ b[4].items.push(n); return; }
+    if(t>=today) b[0].items.push(n);
+    else if(t>=yest) b[1].items.push(n);
+    else if(t>=weekAgo) b[2].items.push(n);
+    else if(t>=monthAgo) b[3].items.push(n);
+    else b[4].items.push(n);
+  });
+  return b.filter(function(x){ return x.items.length; });
+}
+function notifPageSetType(t){ _notifPageFilter.type=t; _renderNotifPageList(); }
+function notifPageSetRead(r){ _notifPageFilter.read=r; _renderNotifPageList(); }
+window.notifPageSetType = notifPageSetType; window.notifPageSetRead = notifPageSetRead;
+
 function readNotif(id) { wtReadNotif(id,'local',null,null); }
 
 function wtReadNotifEl(el) {
@@ -231,14 +351,16 @@ function wtReadNotifEl(el) {
 
 function markAllNotifsRead() {
   _notifications.forEach(function(n){ n.read=true; });
-  // Mark all Supabase notifications as read
-  var unreadIds = (WT.notifications||[]).filter(function(n){return !n.read;}).map(function(n){return n.id;});
-  if (unreadIds.length && _sb) {
-    _sb.from('wt_notifications').update({read:true}).in('id',unreadIds).then(function(){});
-    WT.notifications = [];   // r145 — empty the live feed immediately so the panel clears at once
+  // r206 — mark ALL of this user's unread as read in the cloud (not just the loaded 20), so the badge
+  // truly clears even with a deep backlog.
+  if (_sb && _currentUser) {
+    try { _sb.from('wt_notifications').update({read:true}).eq('user_id', wtCurrentUserId()).eq('read', false).then(function(){}); } catch(e){}
   }
+  WT.notifications = [];                                             // empty the unread feed → badge clears
+  if (WT.notifFeed) WT.notifFeed.forEach(function(n){ n.read=true; }); // r206 keep history, just mark read
   updateNotifBadge();
   renderNotifPanel();
+  if (document.getElementById('mn-list')) _renderNotifPageList();    // refresh the full page if it's open
 }
 
 function addWOAssignmentNotifications(wo, techNames) {
