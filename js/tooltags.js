@@ -80,7 +80,7 @@
       : '<div class="bc-fallback">'+tag+'</div>';   // no barcode (bad value/offline) — tag still prints
     return ''
       + '<div class="tag-label">'
-      +   '<div class="brand"><span class="po">PROPERTY OF</span> '+brand+(phone?' &middot; &#9742; '+phone:'')+'</div>'
+      +   '<div class="brand"><div class="po">PROPERTY OF</div><div class="nm">'+brand+'</div>'+(phone?'<div class="ph">&#9742; '+phone+'</div>':'')+'</div>'
       +   bc
       + '</div>';
   }
@@ -97,9 +97,11 @@
       + '.sheet{padding:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}'
       + '.tag-label{width:'+W+';height:'+H+';background:#fff;border:1px solid #cfd8dc;border-radius:4px;'
       +   'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 6px;overflow:hidden}'
-      + '.tag-label .brand{font-size:8pt;font-weight:700;color:#0d47a1;text-align:center;line-height:1.1;margin-bottom:2px;white-space:nowrap;overflow:hidden;max-width:100%;text-overflow:ellipsis}'
-      + '.tag-label .brand .po{color:#37474f;letter-spacing:.5px}'
-      + '.tag-label .bc{max-width:100%;max-height:72%;object-fit:contain}'
+      + '.tag-label .brand{text-align:center;line-height:1.04;margin-bottom:1px;max-width:100%;overflow:hidden}'
+      + '.tag-label .brand .po{font-size:5.5pt;font-weight:700;color:#37474f;letter-spacing:.6px}'
+      + '.tag-label .brand .nm{font-size:8pt;font-weight:800;color:#0d47a1;word-break:break-word}'
+      + '.tag-label .brand .ph{font-size:7pt;font-weight:700;color:#0d47a1}'
+      + '.tag-label .bc{max-width:100%;max-height:66%;object-fit:contain}'
       + '.tag-label .bc-fallback{font-family:monospace;font-size:16pt;font-weight:700}'
       + '@media screen{.tag-label{box-shadow:0 1px 4px rgba(0,0,0,.15)}}'
       + '@media print{@page{size:'+W+' '+H+';margin:0} body{background:#fff} .bar{display:none!important}'

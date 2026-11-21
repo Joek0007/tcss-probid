@@ -1,3 +1,14 @@
+// (r187) Brand of the invoice currently open in the modal: a saved invoice's own brand wins, else it
+// inherits from its source quote (inv-quote-id), else TCSS. Used by the invoice doc + email branding.
+function _currentInvBrand(){
+  function gv(id){ var el=document.getElementById(id); return el?(el.value||'').trim():''; }
+  var _eid=gv('inv-existing-id'); var _ei=_eid?(DB.invoices||[]).find(function(i){return i.id===_eid;}):null;
+  if(_ei && _ei.brand) return _ei.brand==='DCC'?'DCC':'TCSS';
+  var _qid=gv('inv-quote-id'); var _q=_qid?(DB.quotes||[]).find(function(q){return q.id===_qid;}):null;
+  return (_q && _q.brand==='DCC')?'DCC':'TCSS';
+}
+window._currentInvBrand=_currentInvBrand;
+
 // ── Email Invoice via Mailgun ─────────────────────────────────────────────────
 async function emailInvoiceDirect() {
   var toEmail = (document.getElementById('inv-bill-email')||{}).value||'';
@@ -8,7 +19,9 @@ async function emailInvoiceDirect() {
   var s = DB.settings||{};
   if (!s.mgKey) { showToast('Mailgun API key not set — go to Settings','error',4000); return; }
 
-  var co = s;
+  // (r187) DCC brand: a DCC-flagged invoice emails as DCC (name/address/phone/remit email/sender).
+  var co = _brandFor({ brand: _currentInvBrand() });
+  var _remitEmail = co.cemail || 'invoicing@tcss.com';
   function esc(x){ return (x||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   var lineItems = _invItems||[];
@@ -32,7 +45,7 @@ async function emailInvoiceDirect() {
   var invoiceHTML = '<div style="max-width:680px;margin:0 auto;font-family:Arial,sans-serif;color:#0d1b2a;padding:20px">'
     +'<div style="display:flex;justify-content:space-between;padding-bottom:16px;margin-bottom:20px;border-bottom:3px solid #1565c0">'
       +'<div><div style="font-size:20px;font-weight:900">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>'
-      +'<div style="font-size:11px;color:#546e7a;margin-top:6px;line-height:1.8">'+esc(co.caddr||'')+(co.cphone?'<br>'+esc(co.cphone):'')+'<br>invoicing@tcss.com</div></div>'
+      +'<div style="font-size:11px;color:#546e7a;margin-top:6px;line-height:1.8">'+esc(co.caddr||'')+(co.cphone?'<br>'+esc(co.cphone):'')+'<br>'+esc(_remitEmail)+'</div></div>'
       +'<div style="text-align:right"><div style="font-size:32px;font-weight:900;color:#1565c0">INVOICE</div>'
       +'<div style="font-size:13px;font-weight:700;margin-top:4px">'+esc(invNum)+'</div>'
       +'<div style="font-size:11px;color:#546e7a">Date: '+esc(invDate)+' | Due: Upon Receipt</div></div>'
@@ -53,7 +66,7 @@ async function emailInvoiceDirect() {
         +'<td style="padding:14px;text-align:right;font-size:20px;font-weight:900;color:#1565c0">$'+grandTotal.toFixed(2)+'</td></tr>'
       +'</tfoot></table>'
     +'<div style="margin-top:24px;padding-top:14px;border-top:1px solid #e0e7ef;text-align:center;font-size:11px;color:#90a4ae">'
-      +esc(co.cname||'Total Communications Systems & Solutions, Inc.')+' | '+esc(co.cphone||'')+' | invoicing@tcss.com<br>Thank you for your business.</div>'
+      +esc(co.cname||'Total Communications Systems & Solutions, Inc.')+' | '+esc(co.cphone||'')+' | '+esc(_remitEmail)+'<br>Thank you for your business.</div>'
   +'</div>';
 
   showToast('Generating PDF and sending...','info',4000);
@@ -107,9 +120,18 @@ async function emailInvoiceDirect() {
     // per-tenant is part of the email-infrastructure layer (each company needs its own
     // verified sending domain + settings_json.mgFrom/mgDomain) — flagged, not string-swapped.
     var fd = new FormData();
-    fd.append('from', ((DB.settings||{}).mgFrom) || 'TCSS Invoicing <invoicing@tcss.com>');
+    // (r187) DCC invoice: show DCC as the sender NAME + Reply-To DCC, but keep the verified Mailgun
+    // sending ADDRESS (DCC has no verified sending domain yet — swapping the address would fail delivery).
+    var _mgFromRaw = ((DB.settings||{}).mgFrom) || 'TCSS Invoicing <invoicing@tcss.com>';
+    if (co._isDCC) {
+      var _mgAddr = ((_mgFromRaw.match(/<([^>]+)>/)||[])[1]) || 'invoicing@tcss.com';
+      fd.append('from', (co.cname||'DCC')+' <'+_mgAddr+'>');
+      if (_remitEmail) fd.append('h:Reply-To', _remitEmail);
+    } else {
+      fd.append('from', _mgFromRaw);
+    }
     fd.append('to', toEmail);
-    fd.append('subject', 'Invoice '+invNum+' from '+(_coInv||'us'));
+    fd.append('subject', 'Invoice '+invNum+' from '+(co.cname||_coInv||'us'));
     fd.append('html', invoiceHTML);
     fd.append('attachment', new File([pdfBlob], pdfName, {type:'application/pdf'}));
     // Email tracking: turn on open tracking and tag this message with the ProBid record so
@@ -2280,15 +2302,18 @@ function _notesToEmailText(notes, isHtml) {
 
 function buildEmailBody(q) {
   const s      = DB.settings || {};
-  const cname  = s.cname  || 'TCSS';
-  const cphone = s.cphone || '';
-  const cemail = s.cemail || '';
-  const cweb   = s.cweb   || '';
-  const caddr  = s.caddr  || '';
+  // (r188) DCC-flagged quote → text body carries DCC name/phone/email/web/address. TCSS unchanged.
+  const _tb    = (typeof _brandFor==='function') ? _brandFor(q) : { cname:s.cname, cphone:s.cphone, cemail:s.cemail, cweb:s.cweb, caddr:s.caddr, _isDCC:false };
+  const cname  = _tb.cname  || 'TCSS';
+  const cphone = _tb.cphone || '';
+  const cemail = _tb.cemail || '';
+  const cweb   = _tb.cweb   || '';
+  const caddr  = _tb.caddr  || '';
   const uname  = s.uname  || q.rep || '';
   const utitle = s.utitle || 'Estimator';
-  const uphone = s.uphone || cphone;
-  const uemail = s.uemail || cemail;
+  // For DCC, don't fall back to the rep's TCSS direct line/email — use the DCC brand contacts.
+  const uphone = _tb._isDCC ? cphone : (s.uphone || cphone);
+  const uemail = _tb._isDCC ? cemail : (s.uemail || cemail);
 
   const validUntil = q.vu
     ? new Date(q.vu).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})
@@ -2370,10 +2395,13 @@ function _emLocality(a){
 // Logo is loaded from the app's own hosted /assets/email-logo.png (data URLs don't render in email).
 function buildEmailBodyHTML(q){
   var s = DB.settings || {};
-  var cname  = s.cname  || 'Total Communications, Inc.';
-  var caddr  = s.caddr  || '';
-  var cphone = s.cphone || '';
-  var cwebRaw= (s.cweb || '').trim();
+  // (r188) DCC brand: a quote flagged brand==='DCC' renders the proposal email under the DCC
+  // identity (name/address/phone/web/logo + signature company). Legacy/TCSS quotes are byte-unchanged.
+  var b = (typeof _brandFor==='function') ? _brandFor(q) : { cname:s.cname, caddr:s.caddr, cphone:s.cphone, cweb:s.cweb, logoDataUrl:s.logoDataUrl, _isDCC:false };
+  var cname  = b.cname  || 'Total Communications, Inc.';
+  var caddr  = b.caddr  || '';
+  var cphone = b.cphone || '';
+  var cwebRaw= (b.cweb || '').trim();
   var cweb   = cwebRaw.replace(/^https?:\/\//,'').replace(/\/$/,'');
   var webHref= cwebRaw ? (/^https?:/i.test(cwebRaw)?cwebRaw:('https://'+cweb)) : '';
   var uname  = s.uname  || q.rep || '';
@@ -2388,7 +2416,11 @@ function buildEmailBodyHTML(q){
   var greet = q.contactName ? q.contactName.split(' ')[0] : (q.cn || 'there');
 
   var baseUrl = window.location.origin + window.location.pathname.replace('index.html','').replace(/\/$/,'');
+  // TCSS uses the app's hosted email-logo.png (swapped to cid: at send). DCC has no hosted asset —
+  // its logo is a data URL from Settings; use it directly (renders in the preview iframe) and the send
+  // step embeds it as cid:tcsslogo too. DCC with no logo → the header shows the DCC name (see logoCell).
   var logoUrl = baseUrl + '/assets/email-logo.png';
+  var logoSrc = b._isDCC ? (b.logoDataUrl || '') : logoUrl;
   // Approval portal link for this quote (generate a token if missing; persisted to the
   // cloud on a real send in sendQuoteConfirmed so the customer's click resolves).
   if (!q.approvalToken) q.approvalToken = _generateToken();
@@ -2478,7 +2510,9 @@ function buildEmailBodyHTML(q){
   // header
   +'<tr><td style="padding:22px 32px 16px">'
     +'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-      +'<td valign="middle" style="width:170px"><img src="'+logoUrl+'" width="150" alt="'+_emEsc(cname)+'" style="display:block;width:150px;max-width:150px;height:auto;border:0"></td>'
+      +'<td valign="middle" style="width:170px">'+(logoSrc
+          ? '<img src="'+logoSrc+'" width="150" alt="'+_emEsc(cname)+'" style="display:block;width:150px;max-width:150px;height:auto;border:0">'
+          : '<div style="font-weight:bold;color:#0D2B4E;font-size:17px;letter-spacing:.3px;font-family:Arial,Helvetica,sans-serif">'+_emEsc(cname)+'</div>')+'</td>'
       +'<td valign="middle" align="right">'+coBlock+'</td>'
     +'</tr></table>'
   +'</td></tr>'
@@ -2600,7 +2634,9 @@ function openEmailQuoteModal(q){
   // "Approve Proposal" link always resolves — even if the proposal is sent from Outlook.
   _ensureApprovalToken(q);
   var toEmail = _quoteRecipientEmail(q);
-  var _co = (typeof coLabel==='function' ? coLabel() : (s.cname||'us'));
+  // (r188) DCC-flagged quote → subject + from line read under the DCC brand.
+  var _qb0 = (typeof _brandFor==='function') ? _brandFor(q) : {_isDCC:false};
+  var _co = _qb0._isDCC ? (_qb0.cname||'DCC') : (typeof coLabel==='function' ? coLabel() : (s.cname||'us'));
   var subjectTpl = (s.sgSubject || ('Your Proposal from '+(_co||'us')+' - {quote_num}'));
   var subject = subjectTpl.replace('{quote_num}',q.num||'').replace('{job_name}',q.jn||'Project Quote').replace('{customer}',q.cn||'');
 
@@ -2611,10 +2647,14 @@ function openEmailQuoteModal(q){
   if (toEl) toEl.value = toEmail || '';
   if (ccEl) ccEl.value = '';
   if (subEl) subEl.value = subject;
-  var fromAddr = (s.uemail && /@tcss\.com$/i.test(s.uemail.trim())) ? s.uemail.trim()
-               : (s.mgFrom || 'quotes@tcss.com');
-  var fromName = s.uname || s.cname || 'TCSS';
-  if (fromEl) fromEl.textContent = fromName + ' <' + fromAddr + '>';
+  var _mgAddr0 = (s.mgFrom||'').match(/<([^>]+)>/) ? (s.mgFrom||'').match(/<([^>]+)>/)[1] : (s.mgFrom || 'quotes@tcss.com');
+  // DCC: keep the verified Mailgun sending address (DCC has no verified domain), show the DCC NAME,
+  // and replies route to the DCC email (set as Reply-To at send). TCSS: logged-in user's @tcss.com.
+  var fromAddr = _qb0._isDCC ? _mgAddr0
+               : ((s.uemail && /@tcss\.com$/i.test(s.uemail.trim())) ? s.uemail.trim() : (s.mgFrom || 'quotes@tcss.com'));
+  var fromName = _qb0._isDCC ? (_qb0.cname || 'DCC') : (s.uname || s.cname || 'TCSS');
+  var _replyShow = _qb0._isDCC ? (_qb0.cemail || fromAddr) : fromAddr;
+  if (fromEl) fromEl.textContent = fromName + ' <' + fromAddr + '>' + (_qb0._isDCC ? '  ·  Reply-To: ' + _replyShow : '');
 
   // live preview
   var frame = document.getElementById('eq-preview');
@@ -2641,6 +2681,8 @@ async function sendQuoteConfirmed(){
                  || (q.num ? (DB.quotes||[]).find(function(x){ return x.num===q.num; }) : null) || null;
   var _canonId = (q.id || (_savedQuote && _savedQuote.id) || q.num || '');
   var s = DB.settings || {};
+  // (r188) Resolve the brand ONCE for this send — drives the PDF name, from-name, Reply-To and logo.
+  var _qb = (typeof _brandFor==='function') ? _brandFor(q) : {_isDCC:false};
   if (!s.mgKey) { showToast('Mailgun API key not set — go to Settings → Email Settings','error',5000); return; }
 
   var toList = _parseEmails((document.getElementById('eq-to')||{}).value);
@@ -2682,13 +2724,18 @@ async function sendQuoteConfirmed(){
     var y = 0;
     while (y < imgH) { if (y>0) pdf.addPage(); pdf.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',0,-y,pageW,imgH); y += pageH; }
     var pdfBlob = pdf.output('blob');
-    var _coS = (typeof coLabel==='function' ? coLabel() : 'Proposal');
+    var _coS = _qb._isDCC ? (_qb.cname||'Proposal') : (typeof coLabel==='function' ? coLabel() : 'Proposal');
     var pdfName = (_coS||'Proposal')+'-'+(q.num||'')+'.pdf';
 
-    // From = logged-in user's @tcss.com (falls back to mgFrom)
-    var fromAddr = (s.uemail && /@tcss\.com$/i.test(s.uemail.trim())) ? s.uemail.trim() : ((s.mgFrom||'').match(/<([^>]+)>/) ? (s.mgFrom||'').match(/<([^>]+)>/)[1] : (s.mgFrom||'quotes@tcss.com'));
-    var fromName = s.uname || s.cname || 'TCSS';
+    // From = logged-in user's @tcss.com (falls back to mgFrom). (r188) For a DCC quote we keep the
+    // VERIFIED Mailgun sending address (DCC has no verified domain — swapping the from-domain would fail
+    // SPF/DKIM), but show the DCC NAME and route replies to the DCC email (Reply-To below).
+    var _mgAddrS = ((s.mgFrom||'').match(/<([^>]+)>/) ? (s.mgFrom||'').match(/<([^>]+)>/)[1] : (s.mgFrom||'quotes@tcss.com'));
+    var fromAddr = _qb._isDCC ? _mgAddrS
+                 : ((s.uemail && /@tcss\.com$/i.test(s.uemail.trim())) ? s.uemail.trim() : _mgAddrS);
+    var fromName = _qb._isDCC ? (_qb.cname || 'DCC') : (s.uname || s.cname || 'TCSS');
     var fromHdr  = fromName + ' <' + fromAddr + '>';
+    var _replyTo = _qb._isDCC ? (_qb.cemail || fromAddr) : fromAddr;
 
     var htmlBody = buildEmailBodyHTML(q);
     var textBody = buildEmailBody(q);
@@ -2697,17 +2744,25 @@ async function sendQuoteConfirmed(){
     fd.append('from', fromHdr);
     fd.append('to', toList.join(','));
     if (ccList.length) fd.append('cc', ccList.join(','));
-    fd.append('h:Reply-To', fromAddr);
+    fd.append('h:Reply-To', _replyTo);
     fd.append('subject', subject);
     // Embed the logo inline (cid) so it always displays — email clients (Outlook, Gmail)
     // block remote images by default, which left the header logo blank.
+    // (r188) DCC quote: its logo is a data URL (no hosted asset) — embed those bytes as cid:tcsslogo
+    // and swap the data URL in the body. TCSS (and DCC with no logo) use the hosted email-logo.png.
     try {
-      var _logoUrl2 = (window.location.origin + window.location.pathname.replace('index.html','').replace(/\/$/,'')) + '/assets/email-logo.png';
-      var _lr2 = await fetch(_logoUrl2);
-      if (_lr2.ok) {
-        var _lb2 = await _lr2.blob();
-        htmlBody = htmlBody.split(_logoUrl2).join('cid:tcsslogo');
-        fd.append('inline', new File([_lb2], 'tcsslogo', { type: _lb2.type || 'image/png' }));
+      if (_qb._isDCC && _qb.logoDataUrl && /^data:/.test(_qb.logoDataUrl)) {
+        var _dblob = await (await fetch(_qb.logoDataUrl)).blob();
+        htmlBody = htmlBody.split(_qb.logoDataUrl).join('cid:tcsslogo');
+        fd.append('inline', new File([_dblob], 'tcsslogo', { type: _dblob.type || 'image/png' }));
+      } else if (!_qb._isDCC) {
+        var _logoUrl2 = (window.location.origin + window.location.pathname.replace('index.html','').replace(/\/$/,'')) + '/assets/email-logo.png';
+        var _lr2 = await fetch(_logoUrl2);
+        if (_lr2.ok) {
+          var _lb2 = await _lr2.blob();
+          htmlBody = htmlBody.split(_logoUrl2).join('cid:tcsslogo');
+          fd.append('inline', new File([_lb2], 'tcsslogo', { type: _lb2.type || 'image/png' }));
+        }
       }
     } catch(_logoErr){ console.warn('[Email Quote] inline logo embed failed; using remote URL', _logoErr); }
     fd.append('html', htmlBody);
@@ -3920,6 +3975,7 @@ function buildInvoiceData(job) {
       customer:gv('inv-bill-name')
     },
     items:     _invItems.map(function(li){ return Object.assign({},li); }),
+    brand:     _currentInvBrand(),   // r187: DCC/TCSS, inherited from the source quote (or kept if saved)
     createdAt: getTodayISO()
   };
 }
@@ -3928,10 +3984,17 @@ function _invClean(s){ return String(s==null?'':s).replace(/<[^>]*>/g,' ').repla
 
 function buildInvoiceHTML(inv) {
   var s = DB.settings||{};
-  var cphone = s.cphone || '(336) 629-7474';
-  var cemail = s.cemail || 'info@tcss.com';
-  var caddr  = s.caddr  || '3203 US Hwy 220 Business S., Asheboro, NC 27205';
-  var clic   = s.clic   || '';
+  var b = _brandFor(inv);   // r187: DCC brand when inv.brand==='DCC', else TCSS
+  var cphone = b.cphone || '(336) 629-7474';
+  var cemail = b.cemail || 'info@tcss.com';
+  var caddr  = b.caddr  || '3203 US Hwy 220 Business S., Asheboro, NC 27205';
+  var clic   = b.clic   || '';
+  // r187: company name block — DCC invoices show the DCC name/logo; TCSS keeps the styled wordmark.
+  var coNameBlock = b._isDCC
+    ? (b.logoDataUrl
+        ? '<img src="'+b.logoDataUrl+'" alt="'+escHtml(b.cname||'DCC')+'" style="max-height:54px;max-width:240px;object-fit:contain;margin-bottom:4px">'
+        : '<div class="co-name"><span class="blue" style="color:#0d1b2a;letter-spacing:-0.5px">'+escHtml(b.cname||'DCC')+'</span></div>'+(b.ctag?'<div class="co-sub">'+escHtml(b.ctag)+'</div>':''))
+    : '<div class="co-name"><span class="red">TOTAL </span><span class="blue">COMMUNICATIONS</span></div><div class="co-sub">Systems &amp; Solutions, Inc.</div>';
 
   // Build billing address block
   var invJob = inv.job || {};
@@ -4046,8 +4109,7 @@ function buildInvoiceHTML(inv) {
     /* Header */
     '<div class="inv-header">'+
       '<div>'+
-        '<div class="co-name"><span class="red">TOTAL </span><span class="blue">COMMUNICATIONS</span></div>'+
-        '<div class="co-sub">Systems &amp; Solutions, Inc.</div>'+
+        coNameBlock+
         '<div class="co-contact">'+
           (caddr?escHtml(caddr)+'<br>':'')+
           (cphone?'📞 '+escHtml(cphone)+'<br>':'')+
@@ -4113,8 +4175,14 @@ function buildInvoiceHTML(inv) {
     (inv.notes?'<div class="inv-notes"><strong>Notes &amp; Payment Instructions</strong>'+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(inv.notes):escHtml(inv.notes).replace(/\n/g,'<br>'))+'</div>':'')+
 
     /* Footer */
+    (b._isDCC
+      ? '<div style="background:#f6eefb;border-left:4px solid #6a1b9a;padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:20px;font-size:12px;color:#37474f;line-height:1.7">'+
+          '<strong style="color:#4a148c;display:block;margin-bottom:3px">Remit payment to</strong>'+
+          escHtml(b.cname||'DCC')+(b.caddr?'<br>'+escHtml(b.caddr):'')+(b.cemail?'<br>'+escHtml(b.cemail):'')+(b.cphone?'<br>'+escHtml(b.cphone):'')+
+        '</div>'
+      : '')+
     '<div class="inv-footer">'+
-      '<div class="left">Total Communications Systems &amp; Solutions, Inc.<br>Thank you for your business!</div>'+
+      '<div class="left">'+escHtml(b.cname||'Total Communications Systems & Solutions, Inc.')+'<br>Thank you for your business!</div>'+
       '<div class="right">'+escHtml(inv.num)+'<br><span style="font-size:11px;color:#90a4ae;font-weight:normal">Issued '+escHtml(inv.date||getTodayISO())+'</span></div>'+
     '</div>'+
 

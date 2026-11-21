@@ -670,7 +670,7 @@ function renderQuotes() {
       ? '<td><span class="cust-link" onclick="event.stopPropagation();openCustomerProfile(\''+_cust.id+'\')" title="Open customer profile">'+escHtml(q.cn||'')+'</span></td>'
       : '<td>'+escHtml(q.cn||'')+'</td>';
     return '<tr'+(rowStyle?' style="'+rowStyle+'"':'')+'>'+
-      '<td style="font-weight:700;color:#1565c0">'+escHtml(q.num||'')+'</td>'+
+      '<td style="font-weight:700;color:#1565c0">'+escHtml(q.num||'')+(q.brand==='DCC'?' <span title="Issued under DCC" style="font-size:9px;font-weight:800;color:#6a1b9a;background:#f3e5f5;padding:1px 5px;border-radius:10px;vertical-align:middle">DCC</span>':'')+'</td>'+
       custCell+
       '<td>'+escHtml(q.jn||'')+'</td>'+
       '<td style="font-size:11px">'+escHtml(envLabel)+'</td>'+
