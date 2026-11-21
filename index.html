@@ -5538,6 +5538,46 @@ body.role-lead-tech .page-settings-btn{display:none!important}
            editors were removed. The per-quote Proposal Terms builder (r64) owns all of this now, seeded in
            code. Legacy pre-feature quotes still render their stored blobs via buildPrintHTML's fallback. -->
 
+      <!-- r201 Phase 2: owner-governed Proposal Clause Library admin. Hidden unless the user has the
+           quote.terms_admin permission (loadTermsAdmin() toggles display). Edits the master library,
+           core terms and job-type templates that feed the per-quote Proposal Terms builder; affects
+           NEW quotes only. Writes DB.settings.proposalDefaults.{library,coreTerms,templates}. -->
+      <style>
+        #terms-admin-card .ta-tabs{display:flex;gap:4px;margin-bottom:12px;border-bottom:2px solid #eceff1;flex-wrap:wrap}
+        #terms-admin-card .ta-tab{background:none;border:none;padding:7px 14px;font-size:13px;font-weight:600;color:#78909c;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
+        #terms-admin-card .ta-tab.active{color:#1565c0;border-bottom-color:#1565c0}
+        #terms-admin-card .ta-tab .ta-ct{font-size:10px;color:#90a4ae;background:#eceff1;border-radius:8px;padding:0 6px;margin-left:3px}
+        #terms-admin-card .ta-tab.active .ta-ct{background:#e3f2fd;color:#1565c0}
+        #terms-admin-card .ta-hint{font-size:11.5px;color:#607d8b;background:#f5f8fc;border:1px solid #e3edf7;border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5}
+        #terms-admin-card .ta-row{border:1px solid #e8edf2;border-radius:8px;padding:8px 10px;margin-bottom:8px;background:#fcfdfe}
+        #terms-admin-card .ta-row-top{display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
+        #terms-admin-card .ta-row-top select,#terms-admin-card .ta-row-top input{padding:5px 8px;border:1px solid #cfd8e3;border-radius:6px;font-size:12px;background:#fff}
+        #terms-admin-card .ta-row-top input{flex:1;min-width:120px}
+        #terms-admin-card .ta-row textarea{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #cfd8e3;border-radius:6px;font-size:12.5px;line-height:1.45;resize:vertical;font-family:inherit}
+        #terms-admin-card .ta-row textarea:focus,#terms-admin-card .ta-row-top input:focus,#terms-admin-card .ta-row-top select:focus{border-color:#1565c0;outline:none}
+        #terms-admin-card .ta-del{margin-left:auto;background:#ffebee;color:#c62828;border:1px solid #ffcdd2;border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer}
+        #terms-admin-card .ta-up{background:#eceff1;border:1px solid #cfd8e3;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer}
+        #terms-admin-card .ta-add{margin-top:4px;padding:6px 12px;border:1.5px dashed #90caf9;background:#f0f7ff;color:#1565c0;border-radius:6px;font-size:12px;cursor:pointer}
+        #terms-admin-card .ta-add:hover{background:#e3f2fd}
+        #terms-admin-card .ta-locknote,#terms-admin-card .ta-cardlbl{font-size:11px;color:#90a4ae;font-weight:600}
+        #terms-admin-card .ta-empty{font-size:12px;color:#b0bec5;padding:6px 2px}
+        #terms-admin-card .ta-types{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+        #terms-admin-card .ta-type{border:1px solid #cfd8dc;background:#fff;color:#37474f;border-radius:16px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer}
+        #terms-admin-card .ta-type.active{background:#e3f2fd;border-color:#1565c0;color:#1565c0}
+        #terms-admin-card .ta-tplsec{margin-bottom:14px}
+        #terms-admin-card .ta-tplttl{font-size:12px;font-weight:800;color:#455a64;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+      </style>
+      <div class="card ms-full" id="terms-admin-card" style="display:none">
+        <div class="card-title">📋 Proposal Clause Library <span style="font-size:11px;font-weight:400;color:#90a4ae">— owner-governed master clauses</span></div>
+        <p style="font-size:12px;color:#546e7a;margin-bottom:12px">Edit the master clauses, locked core terms, and job-type templates that feed the per-quote <strong>Proposal Terms</strong> builder. Changes apply to <strong>new and future</strong> quotes only — quotes already saved keep their own wording. This section is visible to users with the “Manage Proposal Clause Library” permission.</p>
+        <div id="terms-admin-body"><!-- rendered by renderTermsAdmin() --></div>
+        <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid #eceff1;padding-top:12px">
+          <button class="btn btn-primary" type="button" onclick="saveTermsAdmin(this)">💾 Save Clause Library</button>
+          <button class="btn btn-outline btn-sm" type="button" onclick="resetTermsAdmin()">↺ Reset to built-in defaults</button>
+          <span id="terms-admin-saved" style="display:none;color:#2e7d32;font-size:12px;font-weight:700">Saved ✓</span>
+        </div>
+      </div>
+
   <!-- ============================================================ -->
   <!-- MANAGER APPROVAL WORKFLOW                                    -->
   <!-- Two independent toggles:                                     -->
@@ -7590,9 +7630,9 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/field.js?v=20261110r122hygiene"></script>
 <script src="js/crm.js?v=20261121r196custprofile"></script>
 <script src="js/vehicles.js?v=20261022docroll"></script>
-<script src="js/dispatch.js?v=20261121r200sectab"></script>
+<script src="js/dispatch.js?v=20261121r201clauseadmin"></script>
 <script src="js/permissions.js?v=20260919ix"></script>
-<script src="js/worktracking.js?v=20261121r192bigger"></script>
+<script src="js/worktracking.js?v=20261121r201clauseadmin"></script>
 <script src="js/calendar.js?v=20261105r73ws1status"></script>
 <script src="js/workorders.js?v=20261121r197powolist"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
@@ -9082,7 +9122,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r200';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r201';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-21';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

@@ -1850,7 +1850,7 @@ function switchMsTab(tab) {
   if (tab==='purchaseorders')  renderMsPOSettings();
   if (tab==='roles')           renderMsRolesTab();
   if (tab==='security')        { if (typeof loadAccessPolicy === 'function') loadAccessPolicy(); if (typeof loadSecuritySettings === 'function') loadSecuritySettings(); }
-  if (tab==='quoting')         { setTimeout(function(){ renderMarginFloorsEditor(); renderMsPaymentTerms(); }, 50); }
+  if (tab==='quoting')         { setTimeout(function(){ renderMarginFloorsEditor(); renderMsPaymentTerms(); if(typeof loadTermsAdmin==='function') loadTermsAdmin(); }, 50); }
   if (tab==='defaults')        renderMsDefaults();
   if (tab==='inventory')       typeof renderLocationSettings === 'function' && renderLocationSettings();
   if (tab==='time')            typeof renderMsTimeSettings   === 'function' && renderMsTimeSettings();

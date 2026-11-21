@@ -7342,6 +7342,169 @@ window.termAttachSystem = termAttachSystem;
 window.termDetachSystem = termDetachSystem;
 window.assembleQuoteClauses = assembleQuoteClauses;
 
+// =============================================================================
+// PROPOSAL CLAUSE LIBRARY — ADMIN (Phase 2, r201). Owner-governed editor for the
+// master clause library, core terms, and job-type templates that feed the per-quote
+// Proposal Terms builder. Writes overrides into DB.settings.proposalDefaults.{library,
+// coreTerms,templates} (the getClauseLibrary/getCoreTerms/getTermTemplates getters read
+// these, falling back to the code seed). Gated by the quote.terms_admin permission.
+// Edits affect NEW/future quotes only — saved quotes keep their own snapshotted
+// proposalClauses, so nothing already sent ever changes. Legacy proposalDefaults keys
+// (assumptions/exclusions/showAssumptions/showExclusions) are preserved untouched.
+// =============================================================================
+var TADMIN = { library:[], core:[], templates:{}, jobType:null, tab:'library' };
+
+function termsAdminAllowed(){ return (typeof hasPermission!=='function') || hasPermission('quote.terms_admin'); }
+function taQ(s){ return "'" + String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'") + "'"; }
+
+function loadTermsAdmin(){
+  var card = document.getElementById('terms-admin-card');
+  if (!card) return;
+  if (!termsAdminAllowed()){ card.style.display='none'; return; }
+  card.style.display='';
+  // Deep-clone the CURRENT effective values (owner override if present, else code seed),
+  // so the admin edits a full working copy and Save writes it back whole.
+  TADMIN.library   = JSON.parse(JSON.stringify((typeof getClauseLibrary==='function') ? getClauseLibrary() : []));
+  TADMIN.core      = JSON.parse(JSON.stringify((typeof getCoreTerms==='function') ? getCoreTerms() : []));
+  TADMIN.templates = JSON.parse(JSON.stringify((typeof getTermTemplates==='function') ? getTermTemplates() : {}));
+  (window.TERM_JOB_TYPES||[]).forEach(function(t){ if(!TADMIN.templates[t]) TADMIN.templates[t]={assumptions:[],exclusions:[],terms:[]}; });
+  TADMIN.jobType = (window.TERM_JOB_TYPES && TERM_JOB_TYPES[0]) || Object.keys(TADMIN.templates)[0] || 'New Construction';
+  TADMIN.tab = 'library';
+  renderTermsAdmin();
+}
+
+function taSysOptions(sel){
+  var systems = ['General'].concat(window.TERM_SYSTEMS || []);
+  return systems.map(function(s){ return '<option value="'+escHtml(s)+'"'+(s===sel?' selected':'')+'>'+escHtml(s)+'</option>'; }).join('');
+}
+function taCardOptions(sel){
+  var cards=[['assumptions','Assumption'],['exclusions','Exclusion'],['terms','Term']];
+  return cards.map(function(c){ return '<option value="'+c[0]+'"'+(c[0]===sel?' selected':'')+'>'+c[1]+'</option>'; }).join('');
+}
+
+function renderTermsAdmin(){
+  var host = document.getElementById('terms-admin-body'); if (!host) return;
+  var tabs=[['library','Clause Library'],['core','Core Terms'],['templates','Job-Type Templates']];
+  var bar='<div class="ta-tabs">'+tabs.map(function(t){
+    var n = t[0]==='library' ? TADMIN.library.length : (t[0]==='core' ? TADMIN.core.length : Object.keys(TADMIN.templates).length);
+    return '<button type="button" class="ta-tab'+(TADMIN.tab===t[0]?' active':'')+'" onclick="taSwitch('+taQ(t[0])+')">'+t[1]+' <span class="ta-ct">'+n+'</span></button>';
+  }).join('')+'</div>';
+  var body = TADMIN.tab==='library' ? taRenderLibrary() : (TADMIN.tab==='core' ? taRenderCore() : taRenderTemplates());
+  host.innerHTML = bar + body;
+}
+
+function taRenderLibrary(){
+  var rows = TADMIN.library.map(function(cl,i){
+    return '<div class="ta-row">'+
+      '<div class="ta-row-top">'+
+        '<select title="System" onchange="taSet('+taQ('library')+','+i+','+taQ('sys')+',this.value)">'+taSysOptions(cl.sys)+'</select>'+
+        '<select title="Card" onchange="taSet('+taQ('library')+','+i+','+taQ('card')+',this.value)">'+taCardOptions(cl.card)+'</select>'+
+        '<input type="text" value="'+escHtml(cl.cat||'')+'" placeholder="Category (optional)" oninput="taSet('+taQ('library')+','+i+','+taQ('cat')+',this.value)">'+
+        '<button type="button" class="ta-del" title="Remove clause" onclick="taDel('+taQ('library')+','+i+')">✕</button>'+
+      '</div>'+
+      '<textarea rows="2" oninput="taSet('+taQ('library')+','+i+','+taQ('text')+',this.value)">'+escHtml(cl.text||'')+'</textarea>'+
+    '</div>';
+  }).join('');
+  return '<div class="ta-hint">These are the master clauses the per-quote builder pulls from. Each is tagged to a <b>System</b> and a <b>card</b> (Assumption / Exclusion / Term). Ticking a system on a quote pulls in that system’s clauses automatically; <b>General</b> clauses are add-only (available in the quote’s “+ Add clause” picker but never auto-pulled).</div>'+
+    (rows||'<div class="ta-empty">No clauses yet.</div>')+
+    '<button type="button" class="ta-add" onclick="taAdd('+taQ('library')+')">+ Add clause</button>';
+}
+
+function taRenderCore(){
+  var rows = TADMIN.core.map(function(c,i){
+    return '<div class="ta-row">'+
+      '<div class="ta-row-top">'+
+        '<span class="ta-locknote">🔒 Always on &amp; locked on every quote</span>'+
+        '<button type="button" class="ta-up" title="Move up" onclick="taMove('+taQ('core')+','+i+',-1)">↑</button>'+
+        '<button type="button" class="ta-up" title="Move down" onclick="taMove('+taQ('core')+','+i+',1)">↓</button>'+
+        '<button type="button" class="ta-del" title="Remove" onclick="taDel('+taQ('core')+','+i+')">✕</button>'+
+      '</div>'+
+      '<textarea rows="2" oninput="taSet('+taQ('core')+','+i+','+taQ('text')+',this.value)">'+escHtml(c.text||'')+'</textarea>'+
+    '</div>';
+  }).join('');
+  return '<div class="ta-hint">Core terms are <b>always applied and locked</b> on every quote’s Terms &amp; Conditions — the estimator can’t remove them. Order here is the order they print.</div>'+
+    (rows||'<div class="ta-empty">No core terms.</div>')+
+    '<button type="button" class="ta-add" onclick="taAdd('+taQ('core')+')">+ Add core term</button>';
+}
+
+function taRenderTemplates(){
+  (window.TERM_JOB_TYPES||[]).forEach(function(t){ if(!TADMIN.templates[t]) TADMIN.templates[t]={assumptions:[],exclusions:[],terms:[]}; });
+  var types = Object.keys(TADMIN.templates);
+  if (!TADMIN.jobType || !TADMIN.templates[TADMIN.jobType]) TADMIN.jobType = types[0];
+  var jt = TADMIN.jobType, tpl = TADMIN.templates[jt] || {assumptions:[],exclusions:[],terms:[]};
+  var typeBar='<div class="ta-types">'+types.map(function(t){
+    return '<button type="button" class="ta-type'+(t===jt?' active':'')+'" onclick="taPickType('+taQ(t)+')">'+escHtml(t)+'</button>';
+  }).join('')+'</div>';
+  function sec(card,label){
+    var arr = tpl[card] || [];
+    var rows = arr.map(function(txt,i){
+      return '<div class="ta-row"><div class="ta-row-top"><span class="ta-cardlbl">'+label+'</span>'+
+        '<button type="button" class="ta-del" title="Remove" onclick="taTplDel('+taQ(card)+','+i+')">✕</button></div>'+
+        '<textarea rows="2" oninput="taTplSet('+taQ(card)+','+i+',this.value)">'+escHtml(txt)+'</textarea></div>';
+    }).join('');
+    return '<div class="ta-tplsec"><div class="ta-tplttl">'+label+'</div>'+(rows||'<div class="ta-empty">None.</div>')+
+      '<button type="button" class="ta-add" onclick="taTplAdd('+taQ(card)+')">+ Add</button></div>';
+  }
+  return '<div class="ta-hint">Each job type seeds a new quote’s <b>base</b> Assumptions, Exclusions and Terms before any systems are ticked. Editing here changes what NEW quotes of that type start with.</div>'+
+    typeBar + sec('assumptions','Assumptions') + sec('exclusions','Exclusions') + sec('terms','Terms');
+}
+
+// ---- working-model ops (text edits update the model WITHOUT re-render to keep focus;
+//      structural ops re-render from the model) ----
+function taSwitch(tab){ TADMIN.tab=tab; renderTermsAdmin(); }
+function taSet(section,i,field,val){ if(TADMIN[section] && TADMIN[section][i]) TADMIN[section][i][field]=val; }
+function taAdd(section){
+  if (section==='library') TADMIN.library.push({ id:'cl-'+Date.now().toString(36)+Math.floor(Math.random()*1000).toString(36), sys:'General', cat:'', card:'assumptions', text:'' });
+  else if (section==='core') TADMIN.core.push({ text:'' });
+  renderTermsAdmin();
+  var host=document.getElementById('terms-admin-body'); if(host){ var tas=host.querySelectorAll('.ta-row textarea'); if(tas.length) tas[tas.length-1].focus(); }
+}
+function taDel(section,i){ if(TADMIN[section]) TADMIN[section].splice(i,1); renderTermsAdmin(); }
+function taMove(section,i,dir){ var a=TADMIN[section]; if(!a) return; var j=i+dir; if(j<0||j>=a.length) return; var t=a[i]; a[i]=a[j]; a[j]=t; renderTermsAdmin(); }
+function taPickType(t){ TADMIN.jobType=t; renderTermsAdmin(); }
+function taTplSet(card,i,val){ var tpl=TADMIN.templates[TADMIN.jobType]; if(tpl && tpl[card]) tpl[card][i]=val; }
+function taTplAdd(card){ var tpl=TADMIN.templates[TADMIN.jobType]; if(!tpl) return; if(!tpl[card]) tpl[card]=[]; tpl[card].push(''); renderTermsAdmin(); }
+function taTplDel(card,i){ var tpl=TADMIN.templates[TADMIN.jobType]; if(tpl && tpl[card]) tpl[card].splice(i,1); renderTermsAdmin(); }
+
+function saveTermsAdmin(btn){
+  if (!termsAdminAllowed()){ if(typeof showToast==='function') showToast('Only users with the clause-library permission can save this','error'); return; }
+  var lib = TADMIN.library.filter(function(c){ return (c.text||'').trim(); }).map(function(c){
+    return { id:c.id||('cl-'+Math.random().toString(36).slice(2,9)), sys:c.sys||'General', cat:(c.cat||'').trim(), card:c.card||'assumptions', text:(c.text||'').trim() };
+  });
+  var core = TADMIN.core.filter(function(c){ return (c.text||'').trim(); }).map(function(c){ return { text:(c.text||'').trim() }; });
+  var tpls = {};
+  Object.keys(TADMIN.templates).forEach(function(t){
+    var s = TADMIN.templates[t] || {};
+    tpls[t] = {
+      assumptions:(s.assumptions||[]).map(function(x){return (x||'').trim();}).filter(Boolean),
+      exclusions :(s.exclusions ||[]).map(function(x){return (x||'').trim();}).filter(Boolean),
+      terms      :(s.terms      ||[]).map(function(x){return (x||'').trim();}).filter(Boolean)
+    };
+  });
+  var pd = DB.settings.proposalDefaults || {};
+  pd.library = lib; pd.coreTerms = core; pd.templates = tpls;   // legacy keys on pd are preserved
+  DB.settings.proposalDefaults = pd;
+  saveDB();
+  if (typeof showToast==='function') showToast('Proposal clause library saved ✓','success');
+  var note=document.getElementById('terms-admin-saved'); if(note){ note.style.display='inline'; setTimeout(function(){ note.style.display='none'; }, 2500); }
+}
+
+function resetTermsAdmin(){
+  var go = (typeof confirm==='function') ? confirm('Reset the clause library, core terms, and job-type templates back to the built-in defaults? Any custom edits you saved will be removed.') : true;
+  if (!go) return;
+  var pd = DB.settings.proposalDefaults || {};
+  delete pd.library; delete pd.coreTerms; delete pd.templates;
+  DB.settings.proposalDefaults = pd;
+  saveDB();
+  loadTermsAdmin();
+  if (typeof showToast==='function') showToast('Reverted to built-in defaults ✓','success');
+}
+
+window.loadTermsAdmin=loadTermsAdmin; window.renderTermsAdmin=renderTermsAdmin;
+window.taSwitch=taSwitch; window.taSet=taSet; window.taAdd=taAdd; window.taDel=taDel; window.taMove=taMove;
+window.taPickType=taPickType; window.taTplSet=taTplSet; window.taTplAdd=taTplAdd; window.taTplDel=taTplDel;
+window.saveTermsAdmin=saveTermsAdmin; window.resetTermsAdmin=resetTermsAdmin;
+
 function loadProposalDefaultsUI() {
   var pd = getProposalDefaults();
 
