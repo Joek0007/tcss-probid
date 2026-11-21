@@ -11,7 +11,7 @@
 // r52: SHELL_VERSION bumped + HTML now fetched no-store (true network-first, never a stale HTTP/CDN copy)
 // + on activate the new worker reloads open tabs, so a deploy self-updates in ONE reload instead of the
 // old worker serving stale files through repeated hard-refreshes.
-var SHELL_VERSION = 'r206';
+var SHELL_VERSION = 'r207';
 var SHELL_CACHE   = 'tcss-shell-' + SHELL_VERSION;
 var RUNTIME_CACHE = 'tcss-runtime';           // stable across versions (versioned js URLs self-prune by use)
 var SHELL_ASSETS  = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
@@ -59,13 +59,12 @@ self.addEventListener('activate', function(e){
         return null;
       }));
     }).then(function(){ return self.clients.claim(); })
-     .then(function(){
-       // r52: once this newer worker takes control, reload any open tab so it picks up the fresh shell
-       // immediately (one reload after a deploy), instead of the user hard-refreshing a stale worker.
-       return self.clients.matchAll({ type:'window' }).then(function(cs){
-         cs.forEach(function(c){ try { c.navigate(c.url); } catch(e){} });
-       });
-     })
+    // r207: DO NOT auto-navigate/reload open tabs here. This worker claims control (so the fresh shell
+    // is served on the next navigation) but must NOT yank the page out from under the user. The in-app
+    // "Update available — tap to refresh" bar (_auCheck in index.html) is the single, user-controlled
+    // reload path; it keeps the current route and lets the user choose when. The old auto-navigate was a
+    // SECOND, uncoordinated reloader that fired on its own timing — it caused a surprise refresh that
+    // interrupted PIN entry (and could interrupt any in-progress work) right after a deploy.
   );
 });
 
