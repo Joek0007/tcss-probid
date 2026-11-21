@@ -57,6 +57,13 @@
   /* ---------- last-active tracking ---------- */
   var _lastWrite = 0;
   function markActive() {
+    // SECURITY (r198): never refresh the activity stamp while the lock screen is up.
+    // Lifecycle handlers (pagehide/beforeunload/visibilitychange→hidden) call markActive on
+    // unload. A service-worker update reloads every open tab via client.navigate(), which fires
+    // those handlers on the LOCKED page — without this guard that stamped a fresh lastActive, so
+    // the post-update reload saw ~0 idle, returned 'ok', and walked straight in past the PIN.
+    // Keeping the stale stamp means the reload re-locks and demands the PIN, as intended.
+    if (_locked) return;
     var now = Date.now();
     if (now - _lastWrite < 15000) return; // throttle writes
     _lastWrite = now;
