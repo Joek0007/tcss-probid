@@ -34,51 +34,68 @@ async function emailInvoiceDirect() {
   var invNum   = (document.getElementById('inv-num')||{}).value||'';
   var invDate  = (document.getElementById('inv-date')||{}).value||'';
 
+  // (r191) Professional invoice helpers: money with thousands separators, friendly date, meta row.
+  function _m(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function _fd(x){ if(!x) return ''; var dd=new Date(String(x)+'T00:00:00'); return isNaN(dd)? String(x) : dd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+  function _metaRow(l,v){ return '<tr><td style="padding:3px 0;font-size:12px;color:#8a94a6;text-align:right;white-space:nowrap">'+l+'</td><td style="padding:3px 0 3px 18px;font-size:12.5px;color:#111827;text-align:right;white-space:nowrap;font-weight:700">'+v+'</td></tr>'; }
+
   var lineRows = lineItems.map(function(i){
     var lt = parseFloat(i.unitPrice||i.mc||0)*parseFloat(i.qty||1);
-    return '<tr><td style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px">'+esc(i.desc||i.description||'')+'</td>'
-      +'<td style="padding:10px 14px;border-bottom:1px solid #eee;text-align:center;font-size:13px">'+parseFloat(i.qty||1)+'</td>'
-      +'<td style="padding:10px 14px;border-bottom:1px solid #eee;text-align:right;font-size:13px">$'+parseFloat(i.unitPrice||i.mc||0).toFixed(2)+'</td>'
-      +'<td style="padding:10px 14px;border-bottom:1px solid #eee;text-align:right;font-size:13px;font-weight:700">$'+lt.toFixed(2)+'</td></tr>';
+    return '<tr>'
+      +'<td style="padding:14px 0;border-bottom:1px solid #f0f1f3;font-size:13.5px;color:#1f2937">'+esc(i.desc||i.description||'')+'</td>'
+      +'<td style="padding:14px 8px;border-bottom:1px solid #f0f1f3;font-size:13.5px;color:#4b5563;text-align:center">'+parseFloat(i.qty||1)+'</td>'
+      +'<td style="padding:14px 8px;border-bottom:1px solid #f0f1f3;font-size:13.5px;color:#4b5563;text-align:right">'+_m(parseFloat(i.unitPrice||i.mc||0))+'</td>'
+      +'<td style="padding:14px 0;border-bottom:1px solid #f0f1f3;font-size:13.5px;color:#111827;text-align:right;font-weight:700">'+_m(lt)+'</td>'
+    +'</tr>';
   }).join('');
 
-  var invoiceHTML = '<div style="max-width:680px;margin:0 auto;font-family:Arial,sans-serif;color:#0d1b2a;padding:20px">'
-    +'<div style="display:flex;justify-content:space-between;padding-bottom:16px;margin-bottom:20px;border-bottom:3px solid #1565c0">'
-      +'<div>'+((co._isDCC && co.logoDataUrl)
-          ? '<img src="'+co.logoDataUrl+'" alt="'+esc(co.cname||'')+'" style="max-height:64px;max-width:250px;object-fit:contain;display:block;margin-bottom:4px">'
-          : '<div style="font-size:20px;font-weight:900">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>')
-      +'<div style="font-size:11px;color:#546e7a;margin-top:6px;line-height:1.8">'+esc(co.caddr||'')+(co.cphone?'<br>'+esc(co.cphone):'')+'<br>'+esc(_remitEmail)+'</div></div>'
-      +'<div style="text-align:right"><div style="font-size:32px;font-weight:900;color:#1565c0">INVOICE</div>'
-      +'<div style="font-size:13px;font-weight:700;margin-top:4px">'+esc(invNum)+'</div>'
-      +'<div style="font-size:11px;color:#546e7a">Date: '+esc(invDate)+' | Due: Upon Receipt</div></div>'
-    +'</div>'
-    +'<div style="background:#f8f9fb;border-radius:8px;padding:14px 18px;margin-bottom:20px">'
-      +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;margin-bottom:6px">Bill To</div>'
-      +'<div style="font-size:16px;font-weight:700">'+esc(billName)+'</div>'+ (function(){ var _c=(DB.customers||[]).find(function(x){return (x.name||'').toLowerCase()===(billName||'').toLowerCase();}); return (_c&&_c.accountNumber)?('<div style="font-size:11px;color:#90a4ae;margin-top:1px">Account #'+esc(_c.accountNumber)+'</div>'):''; })()
-      +'<div style="font-size:12px;color:#546e7a;margin-top:2px">'+esc(toEmail)+'</div></div>'
-    +'<table style="width:100%;border-collapse:collapse">'
-      // (r190) Light header: paint each TH (not the TR — a TR background under border-collapse renders
-      // unreliably, which left the old labels near-invisible). A soft grey fill with dark labels and a
-      // blue underline is legible without the heavy dark bar, and prints/emails consistently.
-      +'<thead><tr>'
-        +'<th style="background:#f1f5f9;padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid #1565c0">Description</th>'
-        +'<th style="background:#f1f5f9;padding:10px 14px;text-align:center;font-size:11px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid #1565c0;width:60px">Qty</th>'
-        +'<th style="background:#f1f5f9;padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid #1565c0;width:100px">Unit Price</th>'
-        +'<th style="background:#f1f5f9;padding:10px 14px;text-align:right;font-size:11px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid #1565c0;width:100px">Amount</th>'
-      +'</tr></thead><tbody>'+lineRows+'</tbody>'
-      +'<tfoot>'+(taxAmt>0?'<tr><td colspan="3" style="padding:10px 14px;text-align:right;color:#546e7a">Tax ('+pctTax(taxRate)+'):</td><td style="padding:10px 14px;text-align:right">$'+taxAmt.toFixed(2)+'</td></tr>':'')
-        +'<tr style="background:#e3f2fd"><td colspan="3" style="padding:14px;text-align:right;font-size:14px;font-weight:700">Total Due:</td>'
-        +'<td style="padding:14px;text-align:right;font-size:20px;font-weight:900;color:#1565c0">$'+grandTotal.toFixed(2)+'</td></tr>'
-      +'</tfoot></table>'
-    // (r190) Remit / payment-instructions block — brand-aware (DCC pass-through pays DCC). Helps the
-    // customer pay the right entity the right way. co resolves to TCSS for TCSS invoices.
-    +'<div style="margin-top:22px;background:#f8f9fb;border-left:4px solid #1565c0;border-radius:8px;padding:14px 18px">'
-      +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Remit Payment To</div>'
-      +'<div style="font-size:13px;color:#0d1b2a;line-height:1.7"><strong>'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</strong>'+(co.caddr?'<br>'+esc(co.caddr):'')+'<br>Questions? '+esc(_remitEmail)+(co.cphone?' &middot; '+esc(co.cphone):'')+'</div>'
-      +'<div style="font-size:11px;color:#546e7a;margin-top:8px">Make checks payable to <strong>'+esc((co.cname||'Total Communications Systems & Solutions, Inc.').replace(/\.+$/,''))+'</strong> &mdash; payment due upon receipt.</div>'
-    +'</div>'
-    +'<div style="margin-top:24px;padding-top:14px;border-top:1px solid #e0e7ef;text-align:center;font-size:11px;color:#90a4ae">'
-      +esc(co.cname||'Total Communications Systems & Solutions, Inc.')+' | '+esc(co.cphone||'')+' | '+esc(_remitEmail)+'<br>Thank you for your business.</div>'
+  // (r191) Brand-aware header: the brand's logo if one is set (TCSS or DCC), else the company name.
+  var _coHead = co.logoDataUrl
+    ? '<img src="'+co.logoDataUrl+'" alt="'+esc(co.cname||'')+'" style="height:52px;width:auto;display:block;margin-bottom:14px">'
+    : '<div style="font-size:19px;font-weight:800;color:#111827;margin-bottom:12px">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>';
+  var _acctLine = (function(){ var _c=(DB.customers||[]).find(function(x){return (x.name||'').toLowerCase()===(billName||'').toLowerCase();}); return (_c&&_c.accountNumber)?('<div style="font-size:11.5px;color:#9aa4b2;margin-top:2px">Account #'+esc(_c.accountNumber)+'</div>'):''; })();
+
+  // (r191) Professional invoice — logo + contact (left), INVOICE + metadata (right), Bill To, spacious
+  // line items, right-aligned totals, slim payment note, footer strip. Table-based + inline styles only
+  // so it renders consistently in email clients and the attached PDF.
+  var invoiceHTML =
+  '<div style="max-width:760px;margin:0 auto;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#1f2937">'
+   +'<div style="padding:40px 44px 36px">'
+     +'<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr>'
+       +'<td style="vertical-align:top">'+_coHead
+         +'<div style="font-size:11.5px;color:#6b7280;line-height:1.7">'+esc(co.caddr||'')+'<br>'+esc(co.cphone||'')+((co.cphone&&_remitEmail)?' &nbsp;&middot;&nbsp; ':'')+esc(_remitEmail||'')+'</div>'
+       +'</td>'
+       +'<td style="vertical-align:top;text-align:right">'
+         +'<div style="font-size:26px;font-weight:800;letter-spacing:3px;color:#9aa4b2;text-transform:uppercase">Invoice</div>'
+         +'<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-left:auto;margin-top:14px">'
+           +_metaRow('Invoice No.', esc(invNum))
+           +_metaRow('Issue date', _fd(invDate))
+           +_metaRow('Due date', 'Upon receipt')
+         +'</table>'
+       +'</td>'
+     +'</tr></table>'
+     +'<div style="margin-top:34px">'
+       +'<div style="font-size:10.5px;font-weight:700;letter-spacing:1px;color:#9aa4b2;text-transform:uppercase;margin-bottom:7px">Bill To</div>'
+       +'<div style="font-size:15px;font-weight:700;color:#111827">'+esc(billName)+'</div>'
+       +_acctLine
+       +'<div style="font-size:12.5px;color:#6b7280;margin-top:3px">'+esc(toEmail)+'</div>'
+     +'</div>'
+     +'<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:30px">'
+       +'<thead><tr>'
+         +'<th style="padding:0 0 11px;border-bottom:1.5px solid #e5e7eb;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.6px;color:#9aa4b2;text-transform:uppercase">Description</th>'
+         +'<th style="padding:0 8px 11px;border-bottom:1.5px solid #e5e7eb;text-align:center;font-size:10.5px;font-weight:700;letter-spacing:.6px;color:#9aa4b2;text-transform:uppercase;width:52px">Qty</th>'
+         +'<th style="padding:0 8px 11px;border-bottom:1.5px solid #e5e7eb;text-align:right;font-size:10.5px;font-weight:700;letter-spacing:.6px;color:#9aa4b2;text-transform:uppercase;width:96px">Rate</th>'
+         +'<th style="padding:0 0 11px;border-bottom:1.5px solid #e5e7eb;text-align:right;font-size:10.5px;font-weight:700;letter-spacing:.6px;color:#9aa4b2;text-transform:uppercase;width:104px">Amount</th>'
+       +'</tr></thead><tbody>'+lineRows+'</tbody></table>'
+     +'<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-left:auto;margin-top:18px;width:300px">'
+       +'<tr><td style="padding:5px 0;font-size:13px;color:#6b7280;text-align:left">Subtotal</td><td style="padding:5px 0;font-size:13px;color:#374151;text-align:right">'+_m(subtotal)+'</td></tr>'
+       +(taxAmt>0?'<tr><td style="padding:5px 0;font-size:13px;color:#6b7280;text-align:left">Tax ('+pctTax(taxRate)+')</td><td style="padding:5px 0;font-size:13px;color:#374151;text-align:right">'+_m(taxAmt)+'</td></tr>':'')
+       +'<tr><td style="padding:12px 0 0;border-top:2px solid #1f2937;font-size:14px;font-weight:800;color:#111827;text-align:left">Total Due</td>'
+         +'<td style="padding:12px 0 0;border-top:2px solid #1f2937;font-size:18px;font-weight:800;color:#1565c0;text-align:right">'+_m(grandTotal)+'</td></tr>'
+     +'</table>'
+     +'<div style="margin-top:38px;padding-top:18px;border-top:1px solid #eef1f4;font-size:12px;color:#6b7280;line-height:1.7"><span style="color:#111827;font-weight:700">Payment due upon receipt.</span> Make checks payable to <span style="color:#111827;font-weight:700">'+esc((co.cname||'Total Communications Systems & Solutions, Inc.').replace(/\.+$/,''))+'</span>.</div>'
+   +'</div>'
+   +'<div style="background:#f8fafc;border-top:1px solid #eef1f4;padding:16px 44px;text-align:center;font-size:11px;color:#9aa4b2">'+esc(co.cname||'')+' &nbsp;&middot;&nbsp; '+esc(co.cphone||'')+' &nbsp;&middot;&nbsp; '+esc(_remitEmail)+' &nbsp;&middot;&nbsp; Thank you for your business.</div>'
   +'</div>';
 
   showToast('Generating PDF and sending...','info',4000);
@@ -100,9 +117,9 @@ async function emailInvoiceDirect() {
       });
     }
 
-    // Render invoice to hidden div
+    // Render invoice to hidden div (r191: 760px to match the invoice's max-width)
     var div = document.createElement('div');
-    div.style.cssText = 'position:fixed;left:-9999px;top:0;width:700px;background:#fff';
+    div.style.cssText = 'position:fixed;left:-9999px;top:0;width:760px;background:#fff';
     div.innerHTML = invoiceHTML;
     document.body.appendChild(div);
 
@@ -144,17 +161,18 @@ async function emailInvoiceDirect() {
     }
     fd.append('to', toEmail);
     fd.append('subject', 'Invoice '+invNum+' from '+(co.cname||_coInv||'us'));
-    // (r190) DCC logo in the EMAIL body: a raw data: URL is blocked by Gmail/Outlook, so swap it to a
-    // CID attachment (the PDF above keeps the data-URL version, which html2canvas renders fine). The
-    // content-type is sniffed from the actual bytes (an OS can mislabel a PNG as jpeg — see r189).
+    // (r190/r191) Brand logo in the EMAIL body: a raw data: URL is blocked by Gmail/Outlook, so swap it
+    // to a CID attachment (the PDF above keeps the data-URL version, which html2canvas renders fine).
+    // Applies to ANY brand whose logo is a data URL (TCSS or DCC). Content-type is sniffed from the bytes
+    // (an OS can mislabel a PNG as jpeg — see r189).
     var _emailInvoiceHTML = invoiceHTML;
-    if (co._isDCC && co.logoDataUrl && /^data:/.test(co.logoDataUrl) && _emailInvoiceHTML.indexOf(co.logoDataUrl) >= 0) {
+    if (co.logoDataUrl && /^data:/.test(co.logoDataUrl) && _emailInvoiceHTML.indexOf(co.logoDataUrl) >= 0) {
       try {
         var _ilBlob = await (await fetch(co.logoDataUrl)).blob();
         var _ilMime = (typeof _imgMimeFromDataUrl==='function') ? _imgMimeFromDataUrl(co.logoDataUrl) : (_ilBlob.type || 'image/png');
-        _emailInvoiceHTML = _emailInvoiceHTML.split(co.logoDataUrl).join('cid:dcclogo');
-        fd.append('inline', new File([_ilBlob], 'dcclogo', { type: _ilMime }));
-      } catch(_ilErr){ console.warn('[Email Invoice] DCC logo CID embed failed; leaving data URL', _ilErr); }
+        _emailInvoiceHTML = _emailInvoiceHTML.split(co.logoDataUrl).join('cid:invlogo');
+        fd.append('inline', new File([_ilBlob], 'invlogo', { type: _ilMime }));
+      } catch(_ilErr){ console.warn('[Email Invoice] brand logo CID embed failed; leaving data URL', _ilErr); }
     }
     fd.append('html', _emailInvoiceHTML);
     fd.append('attachment', new File([pdfBlob], pdfName, {type:'application/pdf'}));
