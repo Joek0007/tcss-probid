@@ -2827,6 +2827,12 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     <select id="wo-filter-tech" onchange="renderWorkOrders()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a;width:120px;flex-shrink:0">
       <option value="">All Techs</option>
     </select>
+    <!-- r215: brand filter — shown by renderWorkOrders only when a DCC profile is configured -->
+    <select id="wo-filter-brand" onchange="renderWorkOrders()" style="display:none;padding:7px 10px;border:1px solid #e1bee7;border-radius:7px;background:#f7f0fa;font-size:12px;color:#6a1b9a;font-weight:700;width:120px;flex-shrink:0">
+      <option value="">All Brands</option>
+      <option value="TCSS">TCSS</option>
+      <option value="DCC">DCC</option>
+    </select>
   </div>
   <!-- Quick-filter status chips -->
   <div id="wo-status-chips" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
@@ -7704,7 +7710,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/permissions.js?v=20260919ix"></script>
 <script src="js/worktracking.js?v=20261121r210bellpeek"></script>
 <script src="js/calendar.js?v=20261105r73ws1status"></script>
-<script src="js/workorders.js?v=20261122r214wobrand"></script>
+<script src="js/workorders.js?v=20261122r215wobrandprint"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
 <script src="js/purchaseorders.js?v=20261121r195polink"></script>
@@ -9192,7 +9198,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r214';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r215';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-22';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

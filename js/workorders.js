@@ -518,6 +518,13 @@ function renderWorkOrders() {
   }
   if (fPriority) list = list.filter(function(w){ return w.priority === fPriority; });
   if (fType)     list = list.filter(function(w){ return w.serviceType === fType; });
+  // r215: brand filter. Legacy/no-brand WOs count as TCSS. The dropdown is revealed only when a DCC
+  // profile is configured (otherwise there's nothing to filter between).
+  var _woDccOn = !!(DB.settings && DB.settings.dccBrand && DB.settings.dccBrand.cname);
+  var _brandSel = document.getElementById('wo-filter-brand');
+  if (_brandSel) _brandSel.style.display = _woDccOn ? '' : 'none';
+  var fBrand = (_brandSel && _woDccOn) ? (_brandSel.value||'') : '';
+  if (fBrand) list = list.filter(function(w){ return ((w.brand==='DCC')?'DCC':'TCSS') === fBrand; });
 
   // Sort by selected column
   list.sort(function(a,b){
@@ -675,7 +682,7 @@ function renderWorkOrders() {
 
     return '<div class="wo-list-row" data-woid="'+escHtml(wo.id)+'" style="display:grid;grid-template-columns:'+cols+';padding:11px 16px;border-bottom:1px solid #f0f4f8;align-items:center;cursor:pointer">'
       +'<div class="wo-num-link" data-woid="'+escHtml(wo.id)+'" style="font-weight:700;color:#1565c0;font-size:13px;text-decoration:underline">'+escHtml(wo.woNumber||'')+'</div>'
-      +'<div style="overflow:hidden"><div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(wo.vehicleId?('🚚 '+escHtml(_woVehLabel(wo.vehicleId))):escHtml(wo.customerName||'—'))+'</div>'+(wo.vehicleId?'':phoneLine)+'</div>'
+      +'<div style="overflow:hidden"><div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(wo.brand==='DCC'?'<span style="background:#f3e5f5;color:#6a1b9a;border:1px solid #e1bee7;border-radius:4px;font-size:9px;font-weight:800;padding:1px 5px;margin-right:5px;vertical-align:middle">DCC</span>':'')+(wo.vehicleId?('🚚 '+escHtml(_woVehLabel(wo.vehicleId))):escHtml(wo.customerName||'—'))+'</div>'+(wo.vehicleId?'':phoneLine)+'</div>'
       +'<div style="overflow:hidden"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(stripHtmlToText(wo.description).substring(0,60))+'</div>'+schedHtml+'</div>'
       +'<div>'+techHtml+'</div>'
       +'<div><span class="wo-status-badge" data-woid="'+escHtml(wo.id)+'" style="background:'+stColor+';color:'+_smartTextColor(stColor)+';padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;display:inline-block">'+escHtml(wo.status||'')+'</span></div>'
@@ -2105,6 +2112,12 @@ function printWorkOrder(woId) {
   if (win) { try { win.document.write('<!doctype html><title>Work Order</title><p style="font:14px Arial;padding:24px;color:#607d8b">Preparing work order\u2026</p>'); } catch(e){} }
 
   var co = DB.settings || {};
+  // r215: the Work Order prints under ITS brand (DCC/TCSS) — same identity source as the invoice, so a
+  // DCC-flagged WO shows the DCC logo/name/remit, and a plain WO stays TCSS. Falls back to TCSS contacts.
+  var _wob = (typeof _brandFor==='function') ? _brandFor(wo) : co;
+  var _wobAddr  = _wob.caddr  || (_wob._isDCC ? '' : '3203 US Hwy 220 Business S., Asheboro, NC 27205');
+  var _wobPhone = _wob.cphone || (_wob._isDCC ? '' : '(336) 629-7474');
+  var _wobEmail = _wob.cemail || (_wob._isDCC ? '' : 'info@tcss.com');
   var labor   = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
   var parts   = (DB.woParts||[]).filter(function(p){ return p.woId===woId; });
   var expenses= (DB.woExpenses||[]).filter(function(e){ return e.woId===woId; });
@@ -2196,13 +2209,11 @@ function printWorkOrder(woId) {
     // Header
     '<div class="header">'+
       '<div>'+
-        (co.logoUrl?'<img src="'+esc(co.logoUrl)+'" style="height:48px;margin-bottom:6px"><br>':'<div class="company-name">'+esc(co.cname||'TCSS')+'</div>')+
+        (_wob.logoDataUrl?'<img src="'+esc(_wob.logoDataUrl)+'" style="height:48px;margin-bottom:6px"><br>':'<div class="company-name">'+esc(_wob.cname||'TCSS')+'</div>')+
         '<div class="company-info">'+
-          esc(co.address||'')+(co.address?'<br>':'')+
-          esc(co.city||'')+(co.city&&co.state?' '+esc(co.state):'')+(co.zip?' '+esc(co.zip):'')+
-          ((co.city||co.phone)?'<br>':'')+
-          (co.phone?esc(co.phone):'')+(co.phone&&co.email?' &nbsp;|&nbsp; ':'')+
-          (co.email?esc(co.email):'')+
+          esc(_wobAddr)+(_wobAddr?'<br>':'')+
+          (_wobPhone?esc(_wobPhone):'')+(_wobPhone&&_wobEmail?' &nbsp;|&nbsp; ':'')+
+          (_wobEmail?esc(_wobEmail):'')+
         '</div>'+
       '</div>'+
       '<div class="wo-badge">'+
