@@ -6305,9 +6305,11 @@ var _pumActive = false;
 function renderCatalog() {
   var search = (document.getElementById('cat-search')||{}).value || '';
   var filter = (document.getElementById('cat-filter')||{}).value || '';
+  var vfilter= (document.getElementById('cat-vfilter')||{}).value || '';
   var list   = DB.catalog.slice();
-  if (search) { var sl=search.toLowerCase(); list=list.filter(function(i){return (i.name||'').toLowerCase().includes(sl)||(i.cat||'').toLowerCase().includes(sl);}); }
+  if (search) { var sl=search.toLowerCase(); list=list.filter(function(i){return (i.name||'').toLowerCase().includes(sl)||(i.cat||'').toLowerCase().includes(sl)||(i.vendor||'').toLowerCase().includes(sl)||(i.part||i.partNum||'').toLowerCase().includes(sl);}); }
   if (filter) list = list.filter(function(i){return (i.cat||'')===filter;});
+  if (vfilter) list = list.filter(function(i){return (i.vendor||'')===vfilter;});
   var grid = document.getElementById('catalog-grid');
   if (!grid) return;
   if (!list.length) { grid.innerHTML='<div class="empty-state"><div class="empty-icon">📦</div><p>No catalog items found.</p></div>'; return; }
@@ -6322,17 +6324,22 @@ function renderCatalog() {
   }
 
   grid.innerHTML = list.map(function(item){
+    var _isMsrp = (item.priceMode==='msrp') || (item.msrp!=null);
     var pumFields = _pumActive
       ? '<div class="price-update-edit">' +
+          (_isMsrp ? '<div class="price-update-field">MSRP $<input type="number" data-pumid="' + item.id + '" data-pumfield="msrp" value="' + (item.msrp!=null?item.msrp:'') + '" min="0" step="0.01" title="MSRP (list price)"></div>' : '') +
           '<div class="price-update-field">Mat $<input type="number" data-pumid="' + item.id + '" data-pumfield="mc" value="' + (item.mc||0) + '" min="0" step="0.01" title="Material cost"></div>' +
           '<div class="price-update-field">Labor hrs<input type="number" data-pumid="' + item.id + '" data-pumfield="lh" value="' + (item.lh||0) + '" min="0" step="0.01" title="Labor hours"></div>' +
         '</div>'
       : '';
+    var _vendBadge = item.vendor ? '<span style="display:inline-block;background:#e3f2fd;color:#1565c0;font-weight:700;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px;vertical-align:middle">' + escHtml(item.vendor) + '</span>' : '';
+    var _partBit = (item.part||item.partNum) ? '<span style="color:#90a4ae;font-size:11px;margin-left:6px">' + escHtml(item.part||item.partNum) + '</span>' : '';
+    var _msrpBit = _isMsrp ? ' | MSRP: <span style="color:#2e7d32;font-weight:600">' + fmt(item.msrp||0) + '</span>' : '';
     return '<div class="cat-item" data-catid="' + item.id + '">' +
       '<div class="cat-item-info">' +
-        '<div class="cat-item-name">' + escHtml(item.name||'') + '</div>' +
+        '<div class="cat-item-name">' + _vendBadge + escHtml(item.name||'') + _partBit + '</div>' +
         '<div class="cat-item-meta">' + escHtml(item.cat||'') + ' | ' + escHtml(item.unit||'ea') + ' | ' + (item.lh||0) + ' hr/unit</div>' +
-        '<div class="cat-item-price">Mat: ' + fmt(item.mc||0) + ' | Labor: ' + fmt((item.lh||0)*laborRate) + '/ea</div>' +
+        '<div class="cat-item-price">Mat: ' + fmt(item.mc||0) + _msrpBit + ' | Labor: ' + fmt((item.lh||0)*laborRate) + '/ea</div>' +
         pumFields +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">' +
@@ -6348,6 +6355,13 @@ function renderCatalog() {
   cats.sort();
   var cf = document.getElementById('cat-filter');
   if (cf) { cf.innerHTML = '<option value="">All Categories</option>' + cats.map(function(c){return '<option value="'+escHtml(c)+'">'+escHtml(c)+'</option>';}).join(''); if(filter) cf.value=filter; }
+
+  // Vendor filter — populated from whatever vendors exist in the catalog (Verkada, Rhombus, etc.)
+  var vends = [];
+  DB.catalog.forEach(function(i){ if(i.vendor && vends.indexOf(i.vendor)<0) vends.push(i.vendor); });
+  vends.sort();
+  var vf = document.getElementById('cat-vfilter');
+  if (vf) { vf.innerHTML = '<option value="">All Vendors</option>' + vends.map(function(v){return '<option value="'+escHtml(v)+'">'+escHtml(v)+'</option>';}).join(''); if(vfilter) vf.value=vfilter; }
 }
 
 function togglePriceUpdateMode() {
@@ -6421,9 +6435,38 @@ function addCatToQQ(id) {
   goPage('qq');
 }
 
-function newCatalogItem(){document.getElementById('cat-modal-title').textContent='New Catalog Item';['m-caname','m-cacat','m-caunit','m-canotes','m-caid'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});const mc=document.getElementById('m-camc');if(mc)mc.value=0;const lh=document.getElementById('m-calh');if(lh)lh.value=0;openModal('modal-catalog-item');}
-function editCatalogItem(id){const item=DB.catalog.find(function(x){return x.id==id});if(!item)return;document.getElementById('cat-modal-title').textContent='Edit Item';function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=v!==undefined?v:'';}sv('m-caname',item.name);sv('m-cacat',item.cat);sv('m-caunit',item.unit);sv('m-camc',item.mc||0);sv('m-calh',item.lh||0);sv('m-canotes',item.notes);sv('m-caid',item.id);openModal('modal-catalog-item');}
-function saveCatalogItem(){if(typeof hasPermission==='function'&&!hasPermission('settings.catalog')){showToast('You do not have permission to edit the price catalog','error');return;}const id=document.getElementById('m-caid').value;const name=document.getElementById('m-caname').value;if(!name.trim()){showToast('Name required.','error'); return;}const data={id:id||Date.now().toString(),name,cat:document.getElementById('m-cacat').value||'General',unit:document.getElementById('m-caunit').value||'ea',mc:parseFloat(document.getElementById('m-camc').value)||0,lh:parseFloat(document.getElementById('m-calh').value)||0,notes:document.getElementById('m-canotes').value};if(id){const idx=DB.catalog.findIndex(function(i){return i.id==id});if(idx>=0)DB.catalog[idx]=data;else DB.catalog.push(data);}else DB.catalog.push(data);saveDB();closeModal('modal-catalog-item');renderCatalog();}
+function newCatalogItem(){document.getElementById('cat-modal-title').textContent='New Catalog Item';['m-caname','m-cacat','m-caunit','m-canotes','m-caid','m-cavendor','m-capart','m-camsrp'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});const mc=document.getElementById('m-camc');if(mc)mc.value=0;const lh=document.getElementById('m-calh');if(lh)lh.value=0;const pm=document.getElementById('m-capricemode');if(pm)pm.checked=false;openModal('modal-catalog-item');}
+function editCatalogItem(id){const item=DB.catalog.find(function(x){return x.id==id});if(!item)return;document.getElementById('cat-modal-title').textContent='Edit Item';function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=(v!==undefined&&v!==null)?v:'';}sv('m-caname',item.name);sv('m-cacat',item.cat);sv('m-caunit',item.unit);sv('m-camc',item.mc||0);sv('m-calh',item.lh||0);sv('m-canotes',item.notes);sv('m-caid',item.id);sv('m-cavendor',item.vendor);sv('m-capart',item.part||item.partNum);sv('m-camsrp',item.msrp!=null?item.msrp:'');const pm=document.getElementById('m-capricemode');if(pm)pm.checked=(item.priceMode==='msrp');openModal('modal-catalog-item');}
+// r226: PRESERVE existing fields on save (Object.assign from the existing record) so editing a loaded
+// Verkada/Rhombus item through this quick form no longer wipes vendor/part/msrp/stock fields — same bug
+// class as the customer-save wipe (r221). Also wires the new Vendor / Part / MSRP / MSRP-priced fields.
+function saveCatalogItem(){
+  if(typeof hasPermission==='function'&&!hasPermission('settings.catalog')){showToast('You do not have permission to edit the price catalog','error');return;}
+  const id=document.getElementById('m-caid').value;
+  const name=document.getElementById('m-caname').value;
+  if(!name.trim()){showToast('Name required.','error'); return;}
+  const _existing = id ? (DB.catalog.find(function(i){return i.id==id})||{}) : {};
+  const _mc = parseFloat(document.getElementById('m-camc').value)||0;
+  const _part = (document.getElementById('m-capart')||{}).value||'';
+  const _msrpRaw = (document.getElementById('m-camsrp')||{}).value;
+  const _msrp = (_msrpRaw===''||_msrpRaw==null) ? null : (parseFloat(_msrpRaw)||0);
+  const _priceMode = ((document.getElementById('m-capricemode')||{}).checked) ? 'msrp' : 'cost';
+  const data=Object.assign({}, _existing, {
+    id:id||Date.now().toString(),
+    name,
+    cat:document.getElementById('m-cacat').value||'General',
+    unit:document.getElementById('m-caunit').value||'ea',
+    mc:_mc, cost:_mc,
+    lh:parseFloat(document.getElementById('m-calh').value)||0,
+    notes:document.getElementById('m-canotes').value,
+    vendor:(document.getElementById('m-cavendor')||{}).value||'',
+    part:_part, partNum:_part,
+    msrp:_msrp,
+    priceMode:_priceMode
+  });
+  if(id){const idx=DB.catalog.findIndex(function(i){return i.id==id});if(idx>=0)DB.catalog[idx]=data;else DB.catalog.push(data);}else DB.catalog.push(data);
+  saveDB();closeModal('modal-catalog-item');renderCatalog();
+}
 function delCatalogItem(id){
   if(typeof hasPermission==='function'&&!hasPermission('settings.catalog')){showToast('You do not have permission to edit the price catalog','error');return;}
   if(!confirm('Delete catalog item?'))return;
