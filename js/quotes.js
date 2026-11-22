@@ -56,6 +56,18 @@ function _resolveInvoiceBrand(ctx){
 }
 window._resolveInvoiceBrand=_resolveInvoiceBrand;
 
+// (r216) Resolve the brand a Purchase Order should inherit: saved PO's own brand → linked WORK ORDER
+// brand → TCSS. (POs link to a WO via woId; the WO is the brand carrier.)
+function _resolvePOBrand(ctx){
+  ctx=ctx||{};
+  var po=ctx.poId?(DB.purchaseOrders||[]).find(function(p){return p.id===ctx.poId;}):null;
+  if(po && po.brand) return po.brand==='DCC'?'DCC':'TCSS';
+  var wo=ctx.woId?(DB.workOrders||[]).find(function(w){return w.id===ctx.woId;}):null;
+  if(wo && wo.brand) return wo.brand==='DCC'?'DCC':'TCSS';
+  return 'TCSS';
+}
+window._resolvePOBrand=_resolvePOBrand;
+
 // (r214) Brand of the invoice currently open in the modal. The override picker (#inv-brand) is the
 // source of truth: openInvoiceModal/editInvoice pre-set it to _resolveInvoiceBrand (quote→WO→TCSS),
 // and a permitted user may flip it. When the picker is absent, fall back to the inheritance chain.

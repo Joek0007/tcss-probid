@@ -6439,6 +6439,15 @@ body.role-lead-tech .page-settings-btn{display:none!important}
           <option value="Void">Void</option>
         </select>
         <span id="po-match-badge" style="display:none"></span>
+        <!-- r216: per-PO brand toggle — shown only when a DCC profile is configured; pushed to the right -->
+        <div id="po-brand-row" style="display:none;align-items:center;gap:6px;margin-left:auto">
+          <span style="font-size:10px;font-weight:700;color:#6a1b9a;text-transform:uppercase;letter-spacing:.4px">Issue under</span>
+          <select id="po-brand" style="padding:6px 10px;border:1px solid #e1bee7;border-radius:6px;font-size:12px;color:#6a1b9a;font-weight:700;background:#f7f0fa">
+            <option value="TCSS">TCSS</option>
+            <option value="DCC">DCC</option>
+          </select>
+          <span id="po-brand-locked" style="display:none;font-size:12px;font-weight:700;color:#6a1b9a">Issued under: TCSS</span>
+        </div>
       </div>
       <!-- (r138) PO approval banner — awaiting-approval + Approve button, or the approved stamp -->
       <div id="po-approval-bar" style="display:none;margin-bottom:16px"></div>
@@ -7695,7 +7704,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
 <script src="js/core.js?v=20261121r206notifcenter"></script>
-<script src="js/quotes.js?v=20261122r214wobrand"></script>
+<script src="js/quotes.js?v=20261122r216pobrand"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/scanner.js?v=20261111r126scanner"></script>
 <script src="js/tools_db.js?v=20261111r125toolidstable"></script>
@@ -7713,7 +7722,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/workorders.js?v=20261122r215wobrandprint"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
-<script src="js/purchaseorders.js?v=20261121r195polink"></script>
+<script src="js/purchaseorders.js?v=20261122r216pobrand"></script>
 <script src="js/rfq.js?v=20261120r180rfqfooter"></script>
 <script src="js/inventory_locations_db.js?v=20260919ix"></script>
 <script src="js/inventory.js?v=20261121r193recvby"></script>
@@ -7727,7 +7736,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
   <script src="js/recurring.js?v=20261025dates2"></script>
   <script src="js/seed_managed.js?v=20260919ix"></script>
   <script src="js/applock.js?v=20261121r205sticky"></script>
-  <script src="js/auth.js?v=20261122r214wobrand"></script>
+  <script src="js/auth.js?v=20261122r216pobrand"></script>
   <script>
     // Register the service worker so the app LOADS with no signal (field techs offline).
     // Served from the app root as /tcss-probid/sw.js → scope covers the whole app.
@@ -9198,7 +9207,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r215';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r216';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-22';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

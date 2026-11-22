@@ -256,6 +256,19 @@ function renderPOList() {
 
 // ---- OPEN / NEW PO ----
 
+// (r216) Pre-set + gate the PO "Issue under" brand picker. Reads the currently linked WO / existing PO
+// to inherit the brand; a brand-new PO with no WO falls to the user's default brand. Shown only when a
+// DCC profile is configured and (for the dropdown) the user has quote.switch_brand.
+function _applyPOBrandGate(){
+  var woId=(document.getElementById('po-wo-id-hidden')||{}).value||'';
+  var poId=(document.getElementById('po-id')||{}).value||'';
+  var brand;
+  if(poId||woId){ brand=(typeof _resolvePOBrand==='function')?_resolvePOBrand({poId:poId,woId:woId}):'TCSS'; }
+  else { brand=(typeof _defaultBrandForUser==='function')?_defaultBrandForUser():'TCSS'; }
+  if(typeof _brandPickerGateFor==='function') _brandPickerGateFor('po', brand);
+}
+window._applyPOBrandGate=_applyPOBrandGate;
+
 function openNewPO() {
   if(typeof _canEditPO==='function' && !_canEditPO()){ showToast('You have view-only access to purchase orders','info'); return; }
   _poCurrentId=null;
@@ -282,6 +295,7 @@ function openNewPO() {
   if(typeof _renderPOApprovalBar==='function') _renderPOApprovalBar(null);   // (r138) no approval bar on a blank PO
   if(typeof _fillPOCatalogDatalist==='function') _fillPOCatalogDatalist();   // (r140) catalog type-ahead
   if(typeof renderPOAttachments==='function') renderPOAttachments(null);     // (r142) prompt to save first
+  _applyPOBrandGate();   // r216: default a new PO's brand to the user's default (or the linked WO once chosen)
   openModal('modal-po');
 }
 
@@ -332,6 +346,7 @@ function openPO(id) {
 
   // (r195 Phase 2) Source chain + a "not linked to a job" warning for material POs.
   _renderPOSourceChain(po.jobId, po.woId);
+  _applyPOBrandGate();   // r216: show this PO's brand (its own, or inherited from the linked WO)
 
   renderPOItems();
   refreshPOTotals();
@@ -403,6 +418,7 @@ function onPOJobChange(jobId) {
     sv('po-ship-addr',job.address||'');
   }
   _renderPOSourceChain(jobId||'', wo?wo.id:'');   // live update, incl. the warning when de-selected
+  if(typeof _applyPOBrandGate==='function') _applyPOBrandGate();   // r216: follow the linked job/WO's brand
 }
 
 // ---- PO LINE ITEMS ----
@@ -829,7 +845,16 @@ async function savePO() {
     createdBy:   isNew?((_currentUser&&_currentUser.id)||null):((DB.purchaseOrders||[]).find(function(p){return p.id===id;})||{}).createdBy,
     createdByName:isNew?((_currentUser&&_currentUser.full_name)||'Unknown'):((DB.purchaseOrders||[]).find(function(p){return p.id===id;})||{}).createdByName,
     createdAt:   isNew?new Date().toISOString():((DB.purchaseOrders||[]).find(function(p){return p.id===id;})||{}).createdAt,
-    updatedAt:   new Date().toISOString()
+    updatedAt:   new Date().toISOString(),
+    // r216: brand (DCC/TCSS) this PO is issued under. Gated by quote.switch_brand: a user without it
+    // can't pick an arbitrary brand (new → inherit from the linked WO; edit → keep the PO's existing brand).
+    brand:       (function(){
+      var _cs=(typeof hasPermission!=='function')||hasPermission('quote.switch_brand');
+      var _picked=(document.getElementById('po-brand')||{}).value;
+      if(_cs && (_picked==='DCC'||_picked==='TCSS')) return _picked;
+      var _inh=(typeof _resolvePOBrand==='function')?_resolvePOBrand({ poId:isNew?null:id, woId:(document.getElementById('po-wo-id-hidden')||{}).value||null }):'TCSS';
+      return isNew ? _inh : ((_poPrior&&_poPrior.brand)||_inh);
+    })()
   };
 
   if(!DB.purchaseOrders) DB.purchaseOrders=[];
@@ -896,6 +921,7 @@ async function _pushPOToCloud(po) {
       vendor_invoice_amount:po.vendorInvAmt||null,ready_to_pay:!!po.readyToPay,
       rfq_id:po.rfqId||null,   // (r155) two-way link when a PO was converted from an awarded RFQ
       created_by:po.createdBy||_currentUser.id,created_by_name:po.createdByName||null,
+      brand:po.brand||null,   // r216: DCC/TCSS the PO is issued under
       updated_at:new Date().toISOString()
     });
     if(poErr){console.warn('[PO Push]',poErr.message);return;}
@@ -1352,6 +1378,15 @@ function printPOById(id) {
 
 function _printPOHTML(po) {
   var s=DB.settings||{};
+  // r216: PO prints under ITS brand (DCC/TCSS). Logo-first, same identity source as the invoice/WO.
+  var _pob=(typeof _brandFor==='function')?_brandFor(po):s;
+  var _pobRemit=_pob._isDCC?(_pob.cemail||''):(s.poReplyTo||s.cemail||'');
+  var _pobName=_pob.cname||'Total Communications Systems & Solutions, Inc.';
+  var _poHeadCo=_pob.logoDataUrl
+    ? '<img src="'+escHtml(_pob.logoDataUrl)+'" style="height:44px;margin-bottom:4px">'
+    : (_pob._isDCC
+        ? '<div class="co-name"><span class="blue">'+escHtml(_pob.cname||'DCC')+'</span></div>'
+        : '<div class="co-name"><span class="red">TOTAL </span><span class="blue">COMMUNICATIONS</span></div><div style="font-size:12px;color:#546e7a;margin-top:2px">Systems &amp; Solutions, Inc.</div>');
   var vendor=(DB.vendors||[]).find(function(v){return v.id===po.vendorId;})||{};
   var rows=(po.items||[]).map(function(li){
     var lt=(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));
@@ -1390,9 +1425,8 @@ function _printPOHTML(po) {
     '@media print{@page{margin:12mm}.no-print{display:none!important}}</style></head><body>'+
     '<div class="no-print" style="margin-bottom:16px"><button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:13px;cursor:pointer;font-weight:700">🖨 Print</button> <button onclick="window.close()" style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer">Close</button></div>'+
     '<div class="header">'+
-      '<div><div class="co-name"><span class="red">TOTAL </span><span class="blue">COMMUNICATIONS</span></div>'+
-      '<div style="font-size:12px;color:#546e7a;margin-top:2px">Systems &amp; Solutions, Inc.</div>'+
-      '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.7">'+(s.caddr?escHtml(s.caddr)+'<br>':'')+(s.cphone?'📞 '+escHtml(s.cphone)+'<br>':'')+((s.poReplyTo||s.cemail)?'✉️ '+escHtml(s.poReplyTo||s.cemail):'')+'</div></div>'+
+      '<div>'+_poHeadCo+
+      '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.7">'+(_pob.caddr?escHtml(_pob.caddr)+'<br>':'')+(_pob.cphone?'📞 '+escHtml(_pob.cphone)+'<br>':'')+(_pobRemit?'✉️ '+escHtml(_pobRemit):'')+'</div></div>'+
       '<div style="text-align:right"><div class="po-label">PURCHASE ORDER</div><div style="font-size:14px;color:#546e7a;font-weight:700;margin-top:4px">'+escHtml(po.poNumber||'')+'</div></div>'+
     '</div>'+
     '<div class="addr-grid">'+
@@ -1403,7 +1437,7 @@ function _printPOHTML(po) {
     '<table><thead><tr><th style="width:45%">Description</th><th style="width:12%">Part #</th><th style="width:8%;text-align:center">Qty</th><th style="width:15%;text-align:right">Unit Cost</th><th style="width:15%;text-align:right">Total</th></tr></thead><tbody>'+rows+'</tbody></table>'+
     '<div class="totals"><div class="totals-table">'+_totRows+'<div class="tot-final"><span>PO Total</span><span>$'+parseFloat(po.total||0).toLocaleString('en-US',{minimumFractionDigits:2})+'</span></div></div></div>'+
     (po.notes?'<div style="background:#f8f9fa;border-left:4px solid #1565c0;padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:24px;font-size:12px;color:#37474f"><strong>Notes:</strong> '+(typeof rtfDisplayHTML==='function'?rtfDisplayHTML(po.notes):escHtml(po.notes))+'</div>':'')+
-    '<div class="footer">Total Communications Systems &amp; Solutions, Inc. · '+escHtml(po.poNumber||'')+'</div>'+
+    '<div class="footer">'+escHtml(_pobName)+' · '+escHtml(po.poNumber||'')+'</div>'+
   '</body></html>';
 
   var win=window.open('','_blank','width=900,height=700');
@@ -1416,6 +1450,13 @@ function _printPOHTML(po) {
 // for the "have the vendor confirm pricing" workflow. Default (no arg) is the full priced PO.
 function _poEmailHTML(po, hidePricing){
   var s=DB.settings||{};
+  // r216: email body shows the PO's brand. Text wordmark (not a logo image) — email clients block
+  // data: images, so the brand NAME is used in the header; the printed PO uses the brand logo.
+  var _pob=(typeof _brandFor==='function')?_brandFor(po):s;
+  var _pobRemit=_pob._isDCC?(_pob.cemail||''):(s.poReplyTo||s.cemail||'');
+  var _poEmailCo=_pob._isDCC
+    ? '<div style="font-size:20px;font-weight:900;color:#1565c0">'+escHtml(_pob.cname||'DCC')+'</div>'+(_pob.ctag?'<div style="font-size:11px;color:#546e7a">'+escHtml(_pob.ctag)+'</div>':'')
+    : '<div style="font-size:20px;font-weight:900"><span style="color:#cc0000">TOTAL </span><span style="color:#1565c0">COMMUNICATIONS</span></div><div style="font-size:11px;color:#546e7a">Systems &amp; Solutions, Inc.</div>';
   var vendor=(DB.vendors||[]).find(function(v){return v.id===po.vendorId;})||{};
   var rows=(po.items||[]).map(function(li){
     var lt=(parseFloat(li.unitCost||0))*(parseFloat(li.qtyOrdered||1));
@@ -1439,9 +1480,8 @@ function _poEmailHTML(po, hidePricing){
   '<div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;padding:16px">'+
     '<div style="border-bottom:3px solid #1565c0;padding-bottom:14px;margin-bottom:16px">'+
       '<table width="100%"><tr>'+
-        '<td style="vertical-align:top"><div style="font-size:20px;font-weight:900"><span style="color:#cc0000">TOTAL </span><span style="color:#1565c0">COMMUNICATIONS</span></div>'+
-          '<div style="font-size:11px;color:#546e7a">Systems &amp; Solutions, Inc.</div>'+
-          '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.6">'+(s.caddr?escHtml(s.caddr)+'<br>':'')+(s.cphone?escHtml(s.cphone)+'<br>':'')+((s.poReplyTo||s.cemail)?escHtml(s.poReplyTo||s.cemail):'')+'</div></td>'+
+        '<td style="vertical-align:top">'+_poEmailCo+
+          '<div style="font-size:11px;color:#546e7a;margin-top:4px;line-height:1.6">'+(_pob.caddr?escHtml(_pob.caddr)+'<br>':'')+(_pob.cphone?escHtml(_pob.cphone)+'<br>':'')+(_pobRemit?escHtml(_pobRemit):'')+'</div></td>'+
         '<td style="vertical-align:top;text-align:right"><div style="font-size:22px;font-weight:900;color:#1565c0;letter-spacing:1px">PURCHASE ORDER</div><div style="font-size:14px;color:#546e7a;font-weight:700;margin-top:4px">'+escHtml(po.poNumber||'')+'</div></td>'+
       '</tr></table>'+
     '</div>'+
