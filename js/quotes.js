@@ -3649,9 +3649,12 @@ function reprintInvoice(invId) {
   sv('inv-existing-id',inv.id);
   // r214: brand override picker — pre-set to the saved invoice's brand (or quote→WO→TCSS), gated by permission.
   if(typeof _brandPickerGateFor==='function') _brandPickerGateFor('inv', _resolveInvoiceBrand({ invId:inv.id, quoteId:inv.quoteId, woId:inv.woId }));
-  // r223: fire the customer's Invoice Alert when opening an existing invoice (resolve customer by bill name).
+  // r223/r224: fire the customer's Invoice Alert when opening an existing invoice. Resolve the customer by
+  // bill name, then FALL BACK to the linked job's customer / customerName — imported invoices often have an
+  // empty billName with the customer on inv.job.customer, which a bill-name-only lookup missed (caught live).
   if (typeof _fireCustomerModuleAlert==='function') {
-    var _invCust = (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===String(inv.billName||'').toLowerCase(); });
+    var _invCustName = inv.billName || (inv.job && inv.job.customer) || inv.customerName || '';
+    var _invCust = _invCustName ? (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===String(_invCustName).toLowerCase(); }) : null;
     _fireCustomerModuleAlert(_invCust, 'invoice', '🧾 Invoice Alert', '🧾');
   }
   // Show source chain
