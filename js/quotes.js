@@ -4061,12 +4061,16 @@ function buildInvoiceHTML(inv) {
   var cemail = b.cemail || 'info@tcss.com';
   var caddr  = b.caddr  || '3203 US Hwy 220 Business S., Asheboro, NC 27205';
   var clic   = b.clic   || '';
-  // r187: company name block — DCC invoices show the DCC name/logo; TCSS keeps the styled wordmark.
-  var coNameBlock = b._isDCC
-    ? (b.logoDataUrl
-        ? '<img src="'+b.logoDataUrl+'" alt="'+escHtml(b.cname||'DCC')+'" style="max-height:54px;max-width:240px;object-fit:contain;margin-bottom:4px">'
-        : '<div class="co-name"><span class="blue" style="color:#0d1b2a;letter-spacing:-0.5px">'+escHtml(b.cname||'DCC')+'</span></div>'+(b.ctag?'<div class="co-sub">'+escHtml(b.ctag)+'</div>':''))
-    : '<div class="co-name"><span class="red">TOTAL </span><span class="blue">COMMUNICATIONS</span></div><div class="co-sub">Systems &amp; Solutions, Inc.</div>';
+  // r213: company-name block is logo-FIRST for BOTH brands. If the resolved brand has a logo graphic
+  // in Settings (TCSS → DB.settings.logoDataUrl, DCC → dccBrand.logoDataUrl), the invoice uses that
+  // IMAGE — same as the emailed invoice (emailInvoiceDirect) and the DCC path already did, so the
+  // printed/viewed invoice and the emailed one finally match and both honor the Settings logo live.
+  // The styled TEXT wordmark is now only a fallback for when a brand has NO logo configured.
+  var coNameBlock = b.logoDataUrl
+    ? '<img src="'+b.logoDataUrl+'" alt="'+escHtml(b.cname||'')+'" style="max-height:54px;max-width:240px;object-fit:contain;margin-bottom:4px">'
+    : (b._isDCC
+        ? '<div class="co-name"><span class="blue" style="color:#0d1b2a;letter-spacing:-0.5px">'+escHtml(b.cname||'DCC')+'</span></div>'+(b.ctag?'<div class="co-sub">'+escHtml(b.ctag)+'</div>':'')
+        : '<div class="co-name"><span class="red">TOTAL </span><span class="blue">COMMUNICATIONS</span></div><div class="co-sub">Systems &amp; Solutions, Inc.</div>');
 
   // Build billing address block
   var invJob = inv.job || {};
