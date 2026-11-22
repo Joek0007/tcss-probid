@@ -6335,9 +6335,12 @@ function renderCatalog() {
     var _vendBadge = item.vendor ? '<span style="display:inline-block;background:#e3f2fd;color:#1565c0;font-weight:700;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px;vertical-align:middle">' + escHtml(item.vendor) + '</span>' : '';
     var _partBit = (item.part||item.partNum) ? '<span style="color:#90a4ae;font-size:11px;margin-left:6px">' + escHtml(item.part||item.partNum) + '</span>' : '';
     var _msrpBit = _isMsrp ? ' | MSRP: <span style="color:#2e7d32;font-weight:600">' + fmt(item.msrp||0) + '</span>' : '';
+    // Don't repeat the vendor in the name when the badge already shows it ("Verkada Verkada CD53-E…").
+    var _dispName = item.name || '';
+    if (item.vendor && _dispName.indexOf(item.vendor + ' ') === 0) _dispName = _dispName.slice(item.vendor.length + 1);
     return '<div class="cat-item" data-catid="' + item.id + '">' +
       '<div class="cat-item-info">' +
-        '<div class="cat-item-name">' + _vendBadge + escHtml(item.name||'') + _partBit + '</div>' +
+        '<div class="cat-item-name">' + _vendBadge + escHtml(_dispName) + _partBit + '</div>' +
         '<div class="cat-item-meta">' + escHtml(item.cat||'') + ' | ' + escHtml(item.unit||'ea') + ' | ' + (item.lh||0) + ' hr/unit</div>' +
         '<div class="cat-item-price">Mat: ' + fmt(item.mc||0) + _msrpBit + ' | Labor: ' + fmt((item.lh||0)*laborRate) + '/ea</div>' +
         pumFields +
@@ -6430,9 +6433,77 @@ function addCatToQQ(id) {
     const n = _expandKitToQuoteRows(item, 1);
     if (typeof showToast === 'function') showToast(item.name + ' expanded to ' + n + ' line' + (n!==1?'s':''), 'success');
   } else {
-    addRow(newLI(item.name, item.cat, 1, item.unit||'ea', item.mc||0, item.lh||0));
+    var li = newLI(item.name, item.cat, 1, item.unit||'ea', item.mc||0, item.lh||0);
+    // r227: MSRP-priced item → remember vendor/msrp so the deal-reg discount can drive its cost.
+    if (item.priceMode === 'msrp') {
+      li.vendor = item.vendor || '';
+      li.priceMode = 'msrp';
+      li.msrp = (item.msrp != null ? item.msrp : null);
+      var _d = (li.vendor && typeof quoteVendorDiscounts !== 'undefined' && quoteVendorDiscounts[li.vendor]) ? quoteVendorDiscounts[li.vendor] : 0;
+      if (li.msrp != null) li.mc = Math.round(li.msrp * (1 - _d) * 100) / 100;   // cost = MSRP − current deal-reg discount (0% until set)
+    }
+    addRow(li);
   }
   goPage('qq');
+}
+
+// ── r227: Deal-registration discount per vendor ───────────────────────────
+// MSRP-priced lines carry {vendor, msrp, priceMode:'msrp'}. The estimator sets one % off MSRP per
+// vendor on THIS quote; cost = MSRP × (1 − %). The existing markup/margin then produces the sell price.
+function _qqMsrpVendors() {
+  var vends = [];
+  (lineItems || []).forEach(function(it){
+    if (it && it.priceMode === 'msrp' && it.vendor && it.msrp != null && vends.indexOf(it.vendor) < 0) vends.push(it.vendor);
+  });
+  return vends.sort();
+}
+function _recomputeVendorLines(vendor) {
+  var disc = (quoteVendorDiscounts && quoteVendorDiscounts[vendor]) ? quoteVendorDiscounts[vendor] : 0;
+  (lineItems || []).forEach(function(it){
+    if (it && it.priceMode === 'msrp' && it.vendor === vendor && it.msrp != null) {
+      it.mc = Math.round(it.msrp * (1 - disc) * 100) / 100;
+    }
+  });
+}
+function setVendorDiscount(vendor, pctStr) {
+  var pct = parseFloat(pctStr); if (isNaN(pct)) pct = 0;
+  pct = Math.max(0, Math.min(100, pct));
+  if (typeof quoteVendorDiscounts === 'undefined' || !quoteVendorDiscounts) quoteVendorDiscounts = {};
+  quoteVendorDiscounts[vendor] = pct / 100;
+  _recomputeVendorLines(vendor);
+  if (typeof renderLI === 'function') renderLI();         // re-renders lines AND this panel
+  if (typeof calcTotals === 'function') calcTotals();
+  if (typeof setQQDirty === 'function') setQQDirty(true, 'Deal-reg discount changed');
+}
+function renderDealRegPanel() {
+  var el = document.getElementById('dealreg-discount-panel');
+  if (!el) return;
+  var vends = _qqMsrpVendors();
+  if (!vends.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  var rows = vends.map(function(v){
+    var disc = (quoteVendorDiscounts && quoteVendorDiscounts[v]) ? quoteVendorDiscounts[v] : 0;
+    var n = 0, msrpSub = 0, costSub = 0;
+    (lineItems || []).forEach(function(it){
+      if (it && it.priceMode === 'msrp' && it.vendor === v && it.msrp != null) {
+        var qty = parseFloat(it.qty) || 0; n++; msrpSub += it.msrp * qty; costSub += (parseFloat(it.mc)||0) * qty;
+      }
+    });
+    return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0;border-top:1px solid #eef2f7">'
+      + '<span style="min-width:84px;font-weight:700;color:#1565c0">' + escHtml(v) + '</span>'
+      + '<label style="font-size:12px;color:#37474f;white-space:nowrap">'
+      +   '<input type="number" min="0" max="100" step="0.5" value="' + (disc ? (Math.round(disc*1000)/10) : '') + '" '
+      +     'onchange="setVendorDiscount(\'' + escHtml(v) + '\',this.value)" '
+      +     'style="width:64px;padding:4px 6px;border:1px solid #cfd8e3;border-radius:5px;font-size:13px;text-align:right" placeholder="0"> % off MSRP'
+      + '</label>'
+      + '<span style="font-size:11px;color:#78909c">' + n + ' item' + (n!==1?'s':'') + ' · MSRP ' + fmt(msrpSub) + ' → cost <strong style="color:#2e7d32">' + fmt(costSub) + '</strong></span>'
+      + '</div>';
+  }).join('');
+  el.innerHTML = '<div style="background:#f1f8ff;border:1px solid #d6e8fb;border-radius:8px;padding:10px 12px;margin-bottom:12px">'
+    + '<div style="font-size:12px;font-weight:700;color:#0d47a1;margin-bottom:2px">🏷️ Deal Registration Discount '
+    +   '<span style="font-weight:400;color:#78909c">— your cost = MSRP − discount, then your markup applies</span></div>'
+    + rows
+    + '</div>';
 }
 
 function newCatalogItem(){document.getElementById('cat-modal-title').textContent='New Catalog Item';['m-caname','m-cacat','m-caunit','m-canotes','m-caid','m-cavendor','m-capart','m-camsrp'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});const mc=document.getElementById('m-camc');if(mc)mc.value=0;const lh=document.getElementById('m-calh');if(lh)lh.value=0;const pm=document.getElementById('m-capricemode');if(pm)pm.checked=false;openModal('modal-catalog-item');}

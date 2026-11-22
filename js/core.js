@@ -2565,6 +2565,10 @@ function _wireStatSortable() {
 
 // ---- LINE ITEMS ----
 let lineItems = [];
+// r227 — Deal-registration discount per vendor for THIS quote, e.g. {Verkada:0.40, Rhombus:0.35}.
+// Applies to MSRP-priced lines (priceMode==='msrp'): line cost = msrp × (1 − discount). Persists via
+// quote_extras.vendorDiscounts; the per-line vendor/msrp/priceMode ride quote_extras.lineMsrp.
+let quoteVendorDiscounts = {};
 let liSeq = Date.now(); // Start from timestamp so IDs are always unique across sessions
 
 function nextLiId() {
@@ -3062,6 +3066,7 @@ function renderLI() {
     html += '</tr>';
   });
   body.innerHTML = html;
+  if (typeof renderDealRegPanel === 'function') renderDealRegPanel();   // r227: deal-reg discount panel stays in sync with the lines
 }
 function getLaborRate() {
   const el = document.getElementById('qq-lr');

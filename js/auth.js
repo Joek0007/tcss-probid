@@ -441,6 +441,12 @@ function _quoteExtras(q){
       return { mult:(it.laborMult!=null?it.laborMult:1),
                rate:(it.laborRate!=null && it.laborRate!=='')?it.laborRate:null,
                flat:(it.flatLabor!=null?(parseFloat(it.flatLabor)||0):0) };
+    }),
+    // r227: deal-reg discount per vendor + per-line MSRP/vendor/priceMode. These can't ride the
+    // quote_line_items RPC (fixed columns), so they sync here like lineLabor and merge back below.
+    vendorDiscounts: (q.vendorDiscounts && typeof q.vendorDiscounts==='object') ? q.vendorDiscounts : {},
+    lineMsrp: (q.items || []).map(function(it){
+      return { vendor: it.vendor||null, msrp:(it.msrp!=null?it.msrp:null), priceMode: it.priceMode||'cost' };
     })
   };
 }
@@ -477,6 +483,16 @@ function _applyQuoteExtras(target, row){
       target.items[_li].laborMult = (_L.mult!=null ? _L.mult : 1);
       target.items[_li].laborRate = (_L.rate!=null && _L.rate!=='') ? _L.rate : null;
       target.items[_li].flatLabor = (_L.flat!=null ? _L.flat : 0);
+    }
+  }
+  // r227: deal-reg discount + per-line MSRP/vendor/priceMode (legacy quotes: {} / no MSRP fields).
+  target.vendorDiscounts = (x.vendorDiscounts && typeof x.vendorDiscounts==='object') ? x.vendorDiscounts : {};
+  if (Array.isArray(x.lineMsrp) && Array.isArray(target.items)) {
+    for (var _mi=0; _mi<target.items.length; _mi++){
+      var _M = x.lineMsrp[_mi]; if (!_M) continue;
+      target.items[_mi].vendor    = _M.vendor || null;
+      target.items[_mi].msrp      = (_M.msrp!=null ? _M.msrp : null);
+      target.items[_mi].priceMode = _M.priceMode || 'cost';
     }
   }
   return target;

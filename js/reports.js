@@ -336,6 +336,7 @@ function getQData(id) {
     subtotal: totals.sellBeforeTax,
     margin: totals.achievedMarginPct,
     items: JSON.parse(JSON.stringify(lineItems)),
+    vendorDiscounts: (typeof quoteVendorDiscounts!=='undefined' && quoteVendorDiscounts) ? JSON.parse(JSON.stringify(quoteVendorDiscounts)) : {},   // r227: deal-reg discount per vendor
     createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString(),
     // Preserve the date the quote first went out so aging counts from send, not from every re-save.
     sentDate: existing && existing.sentDate ? existing.sentDate : null,
@@ -362,6 +363,7 @@ function clearQQ(skipConfirm) {
   // saveQQ() and overwritten as the user types the next quote. See changelog.
   if (typeof _resetAutoSaveStub === 'function') _resetAutoSaveStub();
   lineItems = [];
+  quoteVendorDiscounts = {};   // r227: fresh quote starts with no deal-reg discounts
   equipmentRows = [];
   var _edClr = document.getElementById('eq-delivery'); if (_edClr) _edClr.value = 0;   // r108
   renderEquipRows();
@@ -527,6 +529,7 @@ function editQuote(id) {
   })();
   lineItems = q.items ? JSON.parse(JSON.stringify(q.items)) : [];
   lineItems.forEach(function(item){ if(!item._id) item._id = nextLiId(); });
+  quoteVendorDiscounts = (q.vendorDiscounts && typeof q.vendorDiscounts==='object') ? JSON.parse(JSON.stringify(q.vendorDiscounts)) : {};   // r227: restore deal-reg discounts
   equipmentRows = q.equipmentRows ? JSON.parse(JSON.stringify(q.equipmentRows)) : [];
   equipmentRows.forEach(function(r){ if(!r._id) r._id = eqSeq++; });
   setV('eq-delivery', q.equipDelivery||0);   // r108: hydrate the delivery/pickup charge
