@@ -269,6 +269,8 @@ function _woStatusIsFinished(status){
 // to a status name: the owner flags which status(es) are the hand-off point in WO Status settings.
 // ============================================================
 function _woHideTechDoneOn(){ return !(DB.woSettings && DB.woSettings.hideTechDone === false); }  // default ON
+// r234: current WO's brand from the Issue-under picker (set even when locked), fallback TCSS.
+function _woBrand(){ var el=document.getElementById('wo-brand'); return (el && el.value==='DCC') ? 'DCC' : 'TCSS'; }
 function _woStatusIsHandoff(statusId){ var d = _getWOStatusDef(statusId); return !!(d && d.techDone); }
 function _woHiddenFromFieldByHandoff(statusId){ return _woHideTechDoneOn() && _woStatusIsHandoff(statusId); }
 // Is THIS user a field-scoped viewer who should lose handed-off WOs? Helper + lead techs (Joe's call,
@@ -933,10 +935,12 @@ function openNewWorkOrder() {
   _populateWOServiceTypeSelect();
   _populateWORepSelect(null);
 
-  // Default labor/tax rates
+  // Default labor/tax rates — r234: from the COMPANY source (brand×class labor table + company tax),
+  // so WOs and quotes agree. woSettings stays as a fallback only.
   var settings = DB.woSettings || {};
-  var lrEl=document.getElementById('wo-labor-rate'); if(lrEl) lrEl.value=settings.defaultLaborRate||125;
-  var txEl=document.getElementById('wo-tax-rate');   if(txEl) txEl.value=settings.defaultTaxRate||0;
+  var _woDefBrand = (typeof _defaultBrandForUser==='function') ? _defaultBrandForUser() : 'TCSS';
+  var lrEl=document.getElementById('wo-labor-rate'); if(lrEl) lrEl.value=(typeof companyLaborRate==='function')?companyLaborRate(_woDefBrand,'Standard'):(settings.defaultLaborRate||125);
+  var txEl=document.getElementById('wo-tax-rate');   if(txEl) txEl.value=(DB.settings&&DB.settings.taxRate!=null)?DB.settings.taxRate:(settings.defaultTaxRate||0);
 
   // r214: brand picker — default a NEW WO to the creator's default brand, gated by permission.
   if(typeof _brandPickerGateFor==='function') _brandPickerGateFor('wo', (typeof _defaultBrandForUser==='function')?_defaultBrandForUser():'TCSS');
@@ -1313,7 +1317,7 @@ async function saveWorkOrder() {
     wtProjectId:    (function(){ var el=document.getElementById('wo-form-wrap'); return el?el.getAttribute('data-wt-project')||null:null; })(),
     dateOpened:   dateOpened,
     dateClosed:   (!_getWOStatusDef(status).open)?today:(isNew?null:(_existingWO.dateClosed||null)),
-    laborRate:    parseFloat(gv('wo-labor-rate'))||125,
+    laborRate:    parseFloat(gv('wo-labor-rate'))|| ((typeof companyLaborRate==='function')?companyLaborRate(_woBrand(),'Standard'):125),  // r234
     taxRate:      parseFloat(gv('wo-tax-rate'))||0,
     internalNotes:(typeof hasPermission==='function'&&hasPermission('wo.internal_notes'))?gv('wo-internal-notes'):'',
     createdAt:    isNew ? new Date().toISOString() : (_existingWO.createdAt||new Date().toISOString()),
@@ -1553,8 +1557,8 @@ function selectWOCustomer(id, name) {
   if (cust) {
     var settings = DB.woSettings||{};
     var lr = document.getElementById('wo-labor-rate');
-    if (lr && cust.laborRate) lr.value=cust.laborRate;
-    else if (lr) lr.value = settings.defaultLaborRate||125;
+    // r234: company source, brand-aware (phantom per-customer cust.laborRate removed — no UI ever set it).
+    if (lr) lr.value = (typeof companyLaborRate==='function')?companyLaborRate(_woBrand(),'Standard'):(settings.defaultLaborRate||125);
     var addrEl=document.getElementById('wo-site-addr');
     var cityEl=document.getElementById('wo-site-city');
     var stEl=document.getElementById('wo-site-state');
@@ -2144,7 +2148,7 @@ function printWorkOrder(woId) {
     return '<tr><td>'+esc(name)+'</td><td>Clocked (Time Clock)</td><td>'+esc(t.notes||'')+'</td><td style="text-align:right">'+parseFloat(t.totalHours||0).toFixed(1)+'</td></tr>';
   }).join('');
   var totalLaborHrs = labor.reduce(function(s,e){return s+(parseFloat(e.hours)||0);},0) + clockedHrs;
-  var laborRate = parseFloat(wo.laborRate || co.laborRate || 65);
+  var laborRate = parseFloat(wo.laborRate) || ((typeof companyLaborRate==='function') ? companyLaborRate((wo&&wo.brand)||'TCSS','Standard') : (parseFloat(co.laborRate)||100));  // r234: no stray 65
   var laborCost = totalLaborHrs * laborRate;
 
   var partsRows = parts.map(function(p){
@@ -3669,7 +3673,7 @@ function openNewWOForCustomer(customerId, customerName) {
     if (cust) {
       var settings = DB.woSettings||{};
       var lr = document.getElementById('wo-labor-rate');
-      if (lr) lr.value = cust.laborRate || settings.defaultLaborRate || 125;
+      if (lr) lr.value = (typeof companyLaborRate==='function')?companyLaborRate(_woBrand(),'Standard'):(settings.defaultLaborRate||125);  // r234
       var addrEl  = document.getElementById('wo-site-addr');
       var cityEl  = document.getElementById('wo-site-city');
       var stEl    = document.getElementById('wo-site-state');
