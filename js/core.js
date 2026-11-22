@@ -3454,7 +3454,7 @@ function loadPermitData(p) {
 var MF_DEFAULT_LIST = [
   { jobType:'New Construction', floor:35, notes:'Standard residential/commercial builds' },
   { jobType:'Remodel',          floor:40, notes:'Higher floor — unknown conditions add risk' },
-  { jobType:'Service Call',     floor:42, notes:'High margin — small ticket, high overhead' },
+  { jobType:'Service Call',     floor:50, notes:'High margin — small ticket, high overhead' },
   { jobType:'Upgrade',          floor:38, notes:'Existing system additions' },
   { jobType:'Addition',         floor:36, notes:'Project expansions' }
 ];
@@ -3579,6 +3579,12 @@ function mfDeleteRow(idx) {
   list.splice(idx, 1);
   DB.marginFloors = list;
   saveDB();
+  // r217: propagate the delete to the cloud. Without this the push was upsert-only and the pull was
+  // additive, so a deleted floor stayed in margin_floors and got re-added on the next sync ("came back").
+  // Owner-only (RLS blocks others). Fire-and-forget; the push reconcile below is the backstop.
+  if (name && name!=='this row' && typeof _sb!=='undefined' && _sb && typeof _currentUser==='object' && _currentUser && _currentUser.role==='owner') {
+    try { _sb.from('margin_floors').delete().eq('job_type', name).then(function(r){ if(r&&r.error) console.warn('[MF delete]', r.error.message); }); } catch(e){ console.warn('[MF delete]', e&&e.message); }
+  }
   renderMarginFloorsEditor();
   showToast('"'+name+'" removed','info');
 }

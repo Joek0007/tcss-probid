@@ -3320,6 +3320,19 @@ async function pushAllToCloud() {
           }, { onConflict: 'job_type' }));
         } catch(mfErr) { console.warn('[Push] Margin floor:', mfErr.message||mfErr); }
       }
+      // r217: RECONCILE — delete cloud margin_floors rows no longer in the local list (handles deletes
+      // AND renames), so the additive pull can't resurrect a removed floor. Owner-only (same gate above).
+      try {
+        var _mfCloud = await _sb.from('margin_floors').select('job_type');
+        if (_mfCloud && !_mfCloud.error && _mfCloud.data) {
+          var _mfKeep = {}; mfList.forEach(function(m){ if(m&&m.jobType) _mfKeep[m.jobType]=1; });
+          for (var _cf of _mfCloud.data) {
+            if (_cf && _cf.job_type && !_mfKeep[_cf.job_type]) {
+              await _sb.from('margin_floors').delete().eq('job_type', _cf.job_type);
+            }
+          }
+        }
+      } catch(_mfRecErr) { console.warn('[Push] Margin floor reconcile:', _mfRecErr.message||_mfRecErr); }
     }
 
     // Push quotes

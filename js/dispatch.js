@@ -1904,8 +1904,10 @@ function renderMsDefaults() {
     { key:'contactRoles',   label:'Contact Title / Role',       desc:'Titles shown in the Title/Role dropdown when creating or editing contacts.' },
     { key:'contactTypes',   label:'Contact Type',               desc:'Contact categories — Decision Maker, Billing, Site, etc.' },
     { key:'contactMethods', label:'Best Contact Method',        desc:'Preferred contact method options for each contact.' },
-    { key:'jobTypes',       label:'Quote — Job Type',           desc:'Job type dropdown on the Quick Quote form.' },
-    { key:'projectEnvs',    label:'Quote — Project Environment',desc:'Project environment dropdown on the Quick Quote form.' },
+    // r217: "Quote — Job Type" and "Quote — Project Environment" removed — they were DEAD. The quote's
+    // Job Type dropdown is built from the Margin Floor list (populateJTDropdown → _getMFList), and the
+    // Project Environment dropdown is the hardcoded ENV_PRESETS set. Neither read these lists, so editing
+    // them did nothing. Manage job types in Settings → Quoting → Margin Floor Settings.
     { key:'serviceTypes',   label:'Work Order — Service Type',  desc:'Service type dropdown on Work Order forms.' },
     { key:'woPriorities',   label:'Work Order — Priority',      desc:'Priority levels for Work Orders.' }
   ];
