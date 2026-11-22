@@ -4701,6 +4701,9 @@ function _renderContactSection(mode, customerId, customerName) {
 
   // Edit mode — show existing contacts + add form
   var contacts = (DB.contacts||[]).filter(function(ct){ return ct.customerId === customerId; });
+  // r219: current primary (default) contact, so the list can show a PRIMARY badge + top picker.
+  var _cust = (DB.customers||[]).find(function(c){ return c.id===customerId; });
+  var _curPrimary = (_cust && _cust.defaultContactId) || '';
 
   var typeLabels = { decision:'⭐ Decision Maker', billing:'💳 Billing', site:'📍 Site', technical:'🔧 Technical', other:'Other' };
 
@@ -4711,7 +4714,7 @@ function _renderContactSection(mode, customerId, customerName) {
             escHtml((ct.name||'?').charAt(0).toUpperCase())+
           '</div>'+
           '<div style="flex:1;min-width:0">'+
-            '<div style="font-size:13px;font-weight:700;color:#0d1b2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(ct.name||'')+'</div>'+
+            '<div style="font-size:13px;font-weight:700;color:#0d1b2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(ct.name||'')+(ct.id===_curPrimary?' <span style="font-size:9px;color:#1565c0;font-weight:800;background:#e3f2fd;padding:1px 6px;border-radius:10px;vertical-align:middle">⭐ PRIMARY</span>':'')+'</div>'+
             '<div style="font-size:11px;color:#546e7a;margin-top:2px">'+
               (ct.role||ct.title ? '<span>'+escHtml(ct.role||ct.title||'')+'</span>' : '')+
               (ct.contactType && typeLabels[ct.contactType] ? '<span style="margin-left:6px;color:#1565c0">'+typeLabels[ct.contactType]+'</span>' : '')+
@@ -4728,6 +4731,17 @@ function _renderContactSection(mode, customerId, customerName) {
       }).join('')
     : '<div style="color:#90a4ae;font-size:13px;padding:8px 0 12px">No contacts yet for this customer.</div>';
 
+  // r219: top-of-list Primary-contact picker — set the primary straight from the list, no need to open a contact.
+  var _primaryPicker = contacts.length
+    ? '<div style="display:flex;align-items:center;gap:8px;background:#f0f7ff;border:1px solid #d0e3f7;border-radius:8px;padding:8px 12px;margin-bottom:12px">'+
+        '<span style="font-size:12px;font-weight:700;color:#1565c0;white-space:nowrap">⭐ Primary contact:</span>'+
+        '<select onchange="_setInlinePrimaryContact(\''+customerId+'\',this.value)" style="flex:1;min-width:0;padding:6px 8px;border:1px solid #cfe0f2;border-radius:6px;font-size:12px;background:#fff">'+
+          '<option value="">— None —</option>'+
+          contacts.map(function(ct){ return '<option value="'+escHtml(ct.id)+'"'+(ct.id===_curPrimary?' selected':'')+'>'+escHtml(ct.name||'(unnamed)')+((ct.role||ct.title)?' — '+escHtml(ct.role||ct.title):'')+'</option>'; }).join('')+
+        '</select>'+
+      '</div>'
+    : '';
+
   section.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'+
       '<div style="display:flex;align-items:center;gap:10px">'+
@@ -4739,6 +4753,7 @@ function _renderContactSection(mode, customerId, customerName) {
       '</div>'+
       '<button onclick="_showInlineContactForm(\''+customerId+'\')" style="display:flex;align-items:center;gap:5px;padding:6px 12px;background:#1565c0;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">+ Add Contact</button>'+
     '</div>'+
+    _primaryPicker+
     '<div id="m-pc-contact-list">'+listHtml+'</div>'+
     '<div id="m-pc-add-form-container"></div>';
 
@@ -4746,6 +4761,21 @@ function _renderContactSection(mode, customerId, customerName) {
   section.dataset.custId = customerId;
   section.dataset.custName = customerName || '';
 }
+
+// r219: set the customer's primary (default) contact straight from the Edit Customer contact list.
+// Persists locally AND to the cloud (the older crm "Set default" link only saved locally), then
+// re-renders so the ⭐ PRIMARY badge + picker reflect the change immediately.
+function _setInlinePrimaryContact(customerId, contactId) {
+  var cust = (DB.customers||[]).find(function(c){ return c.id===customerId; });
+  if (!cust) return;
+  cust.defaultContactId = contactId || null;
+  if (typeof saveDB==='function') saveDB();
+  if (typeof _pushCustomerToCloud==='function') _pushCustomerToCloud(cust);
+  var sec = document.getElementById('m-c-primary-contact-section');
+  _renderContactSection('edit', customerId, (sec && sec.dataset.custName) || cust.name || '');
+  if (typeof showToast==='function') showToast(contactId ? 'Primary contact updated' : 'Primary contact cleared', 'success', 2000);
+}
+window._setInlinePrimaryContact = _setInlinePrimaryContact;
 
 function _showInlineContactForm(customerId) {
   var container = document.getElementById('m-pc-add-form-container');
