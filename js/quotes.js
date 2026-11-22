@@ -331,16 +331,29 @@ function emailStatusBadge(type,id,altId){
 //                   (Std 1× / OT 1.5× / OT 2×).
 // Material and margin are untouched; labor still passes through (not re-margined), as before.
 // =============================================
-function qLineEffRate(item, stdRate){
+// r233: a line's BASE rate comes from its labor class. Standard class → the quote's standard rate
+// (stdRate passed in, which is brand-aware). A non-Standard class (e.g. Access control) → the brand×class
+// table via companyLaborRate. Legacy lines have no class → treated Standard → identical to before.
+function qLineBaseRate(item, stdRate){
   var std = parseFloat(stdRate) || 0;
+  var cls = (item && item.laborClass) ? item.laborClass : 'Standard';
+  if (cls && cls !== 'Standard' && typeof companyLaborRate === 'function'){
+    var brand = (typeof _qqBrand === 'function') ? _qqBrand() : 'TCSS';
+    var cr = companyLaborRate(brand, cls);
+    if (cr != null) return cr;
+  }
+  return std;
+}
+function qLineEffRate(item, stdRate){
+  var base = qLineBaseRate(item, stdRate);               // r233: class-based base rate
   var m = parseFloat(item && item.laborMult);
   if (isNaN(m)) m = 1;
   if (m === 0){                                           // 0 = "Custom $/hr" mode (dropdown)
     var r = parseFloat(item && item.laborRate);
-    return (!isNaN(r) && r > 0) ? r : std;                // custom rate, or fall back to standard if blank
+    return (!isNaN(r) && r > 0) ? r : base;               // custom rate, or fall back to the class base if blank
   }
   if (m <= 0) m = 1;
-  return std * m;                                         // standard rate × multiplier (Std 1 / OT 1.5 / 2)
+  return base * m;                                        // base × multiplier (Std 1 / OT 1.5 / 2)
 }
 function qLinePerUnitLabor(item, stdRate){
   var lh = parseFloat(item && item.lh) || 0;

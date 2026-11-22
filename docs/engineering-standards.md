@@ -28,10 +28,34 @@ does not repeat.
    version and ship on a hunch.
 5. **Regression note in the delivery.** Say what was verified, how (live vs. code-only), and
    what remains unverified. Honesty about the edges is part of the deliverable.
+6. **Standards & state updated — SAME session, non-skippable.** If the change touches anything
+   structural — DB schema, a sync pattern, CI/tests, the staging↔prod split, a deploy rule, a new
+   reusable pattern, or any new standing rule we agree on — then **before you call it done**: (a)
+   update this engineering-standards doc and the project's `claude/_READ-FIRST-session-protocol.md`;
+   (b) **mirror any schema migration to staging** (`dkqucgditvcthjgreeqd`), not just prod; (c) when a
+   decision was made at a fork in the road, write the decision down here as a rule — do not leave it
+   in one session's memory. A change that isn't written into the standards did not really happen, and
+   the next session will take the wrong fork. "I'll document it later" is how the drift starts.
 
 This gate is the near-term stand-in for the automated test suite (standard #8) that does not
 exist yet. Until that exists, live real-user verification IS the safety net, and skipping it
 is not acceptable.
+
+> **THIS FILE IS AN EXPORT, NOT THE MASTER.** The authoritative engineering standards live in the
+> claude.ai **project** as `claude/engineering-standards.md` (the full law — the Lens, the Enemies,
+> the Guarantees, the 16 standards) plus its addendum
+> `claude/engineering-standards-ADDENDUM-r124-r232-CI-staging.md`. This `docs/engineering-standards.md`
+> and the Word (.docx) version are records generated from those; if they disagree, the project docs win.
+> (There were briefly two drifting copies — this is the reconciliation.)
+>
+> **How every session stays on top of this (the continuity contract).** The ONE thing injected into
+> every new session is this Project's **custom instructions** (set in the claude.ai Project settings).
+> They point to `claude/_READ-FIRST-session-protocol.md`, which points to the master + addendum and
+> carries the current build, deploy mechanism, the two Supabase projects, and the non-negotiables.
+> **Session start:** read `_READ-FIRST-session-protocol.md` and the master, confirm the current
+> build/deploy state, before touching anything. **Session end / each delivery:** apply gate item 6 —
+> update the master (or addendum) and the READ-FIRST doc in the same session. That loop is what keeps
+> continuity airtight.
 
 ## The Operating Principle
 
@@ -378,3 +402,39 @@ Per-quote `quoteVendorDiscounts` global (core.js), e.g. `{Verkada:0.42, Rhombus:
 
 ### The quote_extras parallel-array pattern (reusable)
 Fixed-column RPCs (`replace_quote_line_items`) can't carry new per-line fields. The established pattern: store a **parallel array by index** in `quote_extras` (`lineLabor`, `lineMsrp`) and merge it back onto `q.items` in `_applyQuoteExtras`; store **top-level** per-quote fields (`vendorDiscounts`, `brand`, `proposalClauses`, `claimedBy`) as plain keys in the same bundle. `_quoteExtras(q)` is the single source of truth that both push sites and the pull read — add a field there and in `_applyQuoteExtras`, nothing else.
+
+## Testing, CI, and the staging / production split (read this before touching the schema or wondering why CI is red)
+
+This section exists because a future session (or Joe leading one) needs to know what runs behind the scenes. Treat it as standing directive.
+
+### The two Supabase projects — and the golden rule
+There are **two** Supabase projects in the same org:
+- **Production:** `jzvoksidbelxibzbizvi` ("TCSS-Probid", us-east-1) — the real company data. The live app at `joek0007.github.io/tcss-probid` uses it.
+- **Staging:** `dkqucgditvcthjgreeqd` ("TCSS STAGING", us-west-2) — a throwaway test backend. The app points here when `localStorage.probid_env === 'staging'`. Used only by the CI browser smoke test, with throwaway test accounts. Safe to migrate, seed, and delete in.
+
+> **GOLDEN RULE — mirror every schema change to BOTH projects.** Any `ALTER TABLE` / new table / new column applied to **production must be applied to staging too**, in the same step, with the same type/default. If you migrate only prod, the app (which the smoke test drives against staging) tries to write the new column, **staging rejects it with HTTP 400**, the write silently fails, and the browser-smoke job goes red. This is exactly what happened in the Nov run: five columns (`work_orders.brand`, `purchase_orders.brand`, `customers.default_contact_id`, `catalog.msrp`, `catalog.price_mode`) were added to prod but not staging, so a WO status change 400'd on staging and the smoke test read "NEW." The fix was to add the five columns to staging. **When you add a column to prod, immediately run the same migration on `dkqucgditvcthjgreeqd`.**
+
+### The CI workflow (`.github/workflows/ci.yml`, "CI — ProBid tests")
+Runs on **every push** (and PRs, and manual dispatch), both jobs inside the Playwright image. **Every push = one CI run = one email to Joe if it fails.** A day of 8 builds is 8 emails if CI is red — that is the "gazillion errors" symptom; it means CI has been red, not that something new broke each time.
+
+- **Job 1 — "Logic + handler tests (offline)"** = `npm run test:logic` = `bash tests/run_clock_tests.sh`. Deterministic, no network, ~59 node test files. **REQUIRED — a failure reddens the commit and emails Joe.** The script uses `set -e`, so it **stops at the first failing test** — one stale test reddens the whole job and hides the rest.
+- **Job 2 — "Browser smoke — full lifecycle on staging"** = `npm run test:browser-staging` = `node tests/wo_lifecycle_browser.staging.test.js`. Opens the real app, forces staging, logs in with staging test accounts, drives the office↔field WO lifecycle, asserts the cloud, cleans up. It has **`continue-on-error: true`**, so it **does NOT redden the run or email** — it only shows a note in the Actions tab. (Removing that one line in ci.yml makes it a required/blocking check — Joe's call, once it's reliably green.)
+
+So: **the failure emails come from Job 1 (the offline suite), never Job 2.** If Joe is getting CI emails, a logic test is red. If the Actions tab shows a red mark but there's no email, it's the smoke job (non-blocking).
+
+### Test maintenance discipline (why tests go stale)
+Most of these tests assert on **exact implementation strings** (regexes against the source of a render function). They are brittle by design — they lock behavior — but that means **when you change a feature's UI or behavior, you must update its test in the same change**, or it goes stale and (being in the required job) reddens every push. The Nov emails were one stale test: `po_list_actions.test.js` still expected the pre-receiving Receive button rule (`['Sent','Partially Received']`) after the receiving rework made Draft receivable (`['Draft','Sent','Partially Received']`). Prefer **resilient assertions** (match the essential intent, tolerate an added status) over pinning an exact array, so a later extension doesn't re-break the test.
+
+### How to diagnose red CI from a session (no GitHub repo access needed)
+This session's `gh` cannot reach the repo (needs `add_repo`, and GraphQL is blocked), **but the workflow and the full test suite live in the local app copy**, so diagnose locally:
+- **Offline suite (the one that emails):** `bash tests/run_clock_tests.sh` — but it stops at the first failure. To see *all* failures, loop: `for t in tests/*.test.js <root .js>; do node "$t" >/dev/null 2>&1 || echo "FAIL $t"; done`.
+- **Browser smoke:** `node tests/wo_lifecycle_browser.staging.test.js` — the sandbox has Playwright + network to the live app and staging, so it runs for real. It exits `2` (not a real fail) if the network is blocked. 400s in its console = **schema drift on staging** (see the golden rule). It seeds and deletes its own WO, keyed on ID, in staging only.
+
+### Deploy mechanics that affect CI (see also the deploy section above)
+- **This is NOT a git repo locally; deploy = zip → GitHub Desktop → push.** A Stop-hook "commit and push" message is a false alarm.
+- **`tests/` IS included in the deploy zip**, so a test fix reaches the repo through a normal deploy (and the push it causes reruns CI).
+- **`.github/` is NOT in the zip** (the zip excludes dotfiles: `-x '.*' -x '*/.*'`), so **changes to `ci.yml` cannot ship via a deploy** — they must be made directly on GitHub (or with repo push access). Know this before promising a workflow change.
+- A **test-only** fix does **not** need an `APP_BUILD`/`SHELL_VERSION` bump (no app behavior changes); just ship the zip so the test file updates in the repo.
+
+### Quieting CI the right way
+To stop failure emails: **fix the red logic test** (keeps the safety net) — not by disabling the workflow or muting GitHub notifications (which throws away the integrity check we built). Disable/pause the workflow only as a deliberate, temporary choice Joe makes, never as the default fix.

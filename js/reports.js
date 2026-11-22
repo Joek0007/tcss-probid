@@ -232,6 +232,22 @@ function _applyBrandPickerGate(brandVal){
   }
 }
 window._applyBrandPickerGate=_applyBrandPickerGate;
+// r233: when the quote's brand changes, refresh the standard labor rate to the new brand's Standard rate —
+// but only if the field still holds a recognized default (never stomp a manually-typed rate) — and
+// re-render the lines so each line's class-based rate recomputes (Access-control lines are brand-flat).
+function onQuoteBrandChange(){
+  var brand = (typeof _qqBrand==='function') ? _qqBrand() : 'TCSS';
+  var lr = document.getElementById('qq-lr');
+  if (lr && typeof companyLaborRate==='function'){
+    var cur = parseFloat(lr.value);
+    var known = [ companyLaborRate('TCSS','Standard'), companyLaborRate('DCC','Standard') ];
+    try { if (DB.settings && DB.settings.laborRate!=null) known.push(parseFloat(DB.settings.laborRate)); } catch(e){}
+    if (isNaN(cur) || known.indexOf(cur) >= 0) lr.value = companyLaborRate(brand,'Standard');
+  }
+  if (typeof renderLI==='function') renderLI();
+  if (typeof calcTotals==='function') calcTotals();
+}
+window.onQuoteBrandChange=onQuoteBrandChange;
 
 function getQData(id) {
   const totals = calcTotals();
@@ -281,6 +297,7 @@ function getQData(id) {
     followupDate: (document.getElementById('qq-followup')||{}).value || calcFollowupDate((document.getElementById('qq-dt')||{}).value || ''),
     createdDate: createdVal,
     laborRate: getLaborRate(),
+    laborClass: ((document.getElementById('qq-labor-class')||{}).value) || 'Standard',   // r233: quote default labor class (seeds new lines)
     targetMargin: (function(){ var raw=String((document.getElementById('qq-mk')||{}).value==null?'':(document.getElementById('qq-mk')||{}).value).trim(); var v=parseFloat(raw); return (raw===''||isNaN(v))?0:v; })(), // blank = 0 (was silently 35%)
     pricingMode: currentPricingMode(),
     taxRate: parseFloat((document.getElementById('qq-tx')||{}).value)||0,
@@ -349,7 +366,7 @@ function qqFieldIds(){
   // qq-id / qq-customer-id / qq-contact-id are the quote's IDENTITY fields and MUST be
   // included: the draft save/restore uses this list, and without them a resumed draft of
   // an existing quote loses its id (saveQQ then creates a DUPLICATE) and its customer link.
-  return ['qq-id','qq-customer-id','qq-contact-id','qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-followup','qq-created','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env','qq-item-style','qq-show-hours','eq-delivery','qq-eq-sepline'];
+  return ['qq-id','qq-customer-id','qq-contact-id','qq-cn','qq-contact-name','qq-ph','qq-em','qq-contact-title','qq-ad','qq-city','qq-state','qq-zip','qq-jn','qq-jt','qq-env','qq-dt','qq-num','qq-rep','qq-vu','qq-followup','qq-created','qq-pt','qq-notes','qq-tc','qq-int','qq-status','qq-lr','qq-labor-class','qq-mk','qq-tx','qq-disc','lumpsum-label','pd-men','pd-days','pd-rate','pd-rooms','pd-nights','pd-lodging-rate','pd-travel-desc','pd-trips','pd-travel-rate','cqq-count','cqq-type','cqq-cable','cqq-nvr','cqq-labor','cqq-env','qq-item-style','qq-show-hours','eq-delivery','qq-eq-sepline'];
 }
 
 function clearQQ(skipConfirm) {
@@ -395,7 +412,7 @@ function clearQQ(skipConfirm) {
   var ctidEl=document.getElementById('qq-contact-id'); if(ctidEl) ctidEl.value='';
   // (legacy quick-add contact panel removed — nothing to cancel here anymore)
   cancelNewCustomerFromQuote();
-  const lr = document.getElementById('qq-lr'); if(lr) lr.value = DB.settings.laborRate || 100;
+  const lrc = document.getElementById('qq-labor-class'); if(lrc) lrc.value = 'Standard';   // r233: new quote → Standard class default (qq-lr is set brand-aware below)
   const mk = document.getElementById('qq-mk'); if(mk) mk.value = (DB.settings.targetMargin!==undefined && DB.settings.targetMargin!==null) ? DB.settings.targetMargin : 35;
   const tx = document.getElementById('qq-tx'); if(tx) tx.value = DB.settings.taxRate || 0;
   const disc = document.getElementById('qq-disc'); if(disc) disc.value = 0;
@@ -410,6 +427,8 @@ function clearQQ(skipConfirm) {
     try{ var em=((typeof _currentUser!=='undefined'&&_currentUser&&_currentUser.email)||'').toLowerCase();
          if(dccOn && (dcc.defaultForEmails||[]).indexOf(em)>=0) def='DCC'; }catch(e){}
     _applyBrandPickerGate(def);   // r212 — lock the switcher for users without quote.switch_brand
+    // r233: default the standard labor rate to THIS brand's Standard rate (95 TCSS / 105 DCC).
+    var _lr=document.getElementById('qq-lr'); if(_lr) _lr.value = (typeof companyLaborRate==='function') ? companyLaborRate(def,'Standard') : (DB.settings.laborRate||100);
   })();
   const dt = document.getElementById('qq-dt'); if(dt) dt.value = getTodayISO();
   const created = document.getElementById('qq-created'); if (created) created.value = getTodayISO();
@@ -513,6 +532,7 @@ function editQuote(id) {
   // (r186) DCC brand picker — hydrate + only show the row when a DCC profile is configured.
   _applyBrandPickerGate((q.brand==='DCC')?'DCC':'TCSS');   // r212 — lock for users without quote.switch_brand
   setV('qq-lr', q.laborRate||100); setV('qq-mk', q.targetMargin!==undefined && q.targetMargin!==null ? q.targetMargin : (q.markup!==undefined && q.markup!==null ? q.markup : 35)); setV('qq-tx', q.taxRate||0); setV('qq-disc', (q.discountType==='pct' ? (q.discountValue!=null?q.discountValue:0) : (q.discount||0))); setV('qq-disc-type', q.discountType||'amt');
+  setV('qq-labor-class', q.laborClass||'Standard');   // r233: quote default labor class (per-line classes hydrate via quote_extras.lineClass)
   if (typeof refreshAllPaymentTermsDropdowns==='function') refreshAllPaymentTermsDropdowns();
   setV('qq-pt', q.pt||'Due on Receipt');
   // Restore pricing mode (margin/markup) — defaults to margin for older quotes that didn't save this field

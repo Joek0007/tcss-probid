@@ -447,7 +447,11 @@ function _quoteExtras(q){
     vendorDiscounts: (q.vendorDiscounts && typeof q.vendorDiscounts==='object') ? q.vendorDiscounts : {},
     lineMsrp: (q.items || []).map(function(it){
       return { vendor: it.vendor||null, msrp:(it.msrp!=null?it.msrp:null), priceMode: it.priceMode||'cost' };
-    })
+    }),
+    // r233: per-quote default labor class + per-line labor class (Standard / Access control). Rides
+    // quote_extras like lineLabor (the quote_line_items RPC has fixed columns); merged back below.
+    laborClass: (q.laborClass || 'Standard'),
+    lineClass: (q.items || []).map(function(it){ return (it.laborClass || 'Standard'); })
   };
 }
 function _applyQuoteExtras(target, row){
@@ -493,6 +497,13 @@ function _applyQuoteExtras(target, row){
       target.items[_mi].vendor    = _M.vendor || null;
       target.items[_mi].msrp      = (_M.msrp!=null ? _M.msrp : null);
       target.items[_mi].priceMode = _M.priceMode || 'cost';
+    }
+  }
+  // r233: per-quote default labor class + per-line class (legacy quotes: 'Standard' → unchanged pricing).
+  target.laborClass = x.laborClass || 'Standard';
+  if (Array.isArray(x.lineClass) && Array.isArray(target.items)) {
+    for (var _ci=0; _ci<target.items.length; _ci++){
+      target.items[_ci].laborClass = x.lineClass[_ci] || 'Standard';
     }
   }
   return target;
@@ -1555,7 +1566,7 @@ async function syncAllFromCloud(silent) {
               // replace RPC can't be updated from here (destructive-confirm timeout), so the authoritative
               // values ride quote_extras.lineLabor and are merged in _applyQuoteExtras; these are the base/defaults.
               return { _id:li.id, desc:li.description, cat:li.category, qty:li.qty, unit:li.unit, mc:li.material_cost, lh:li.labor_hours,
-                       laborMult:(li.labor_mult!=null?li.labor_mult:1), laborRate:(li.labor_rate!=null?li.labor_rate:null), flatLabor:(li.flat_labor!=null?li.flat_labor:0) };
+                       laborMult:(li.labor_mult!=null?li.labor_mult:1), laborRate:(li.labor_rate!=null?li.labor_rate:null), flatLabor:(li.flat_labor!=null?li.flat_labor:0), laborClass:'Standard' /* r233: overridden from quote_extras.lineClass in _applyQuoteExtras */ };
             })
           };
           _applyQuoteExtras(_q, q);   // r33: restore equipment/per-diem/svc/discount-type/exec/dates from quote_extras

@@ -8909,6 +8909,9 @@ function updateLI(id, field, value, rerender) {
     var _m = parseFloat(value); item.laborMult = isNaN(_m) ? 1 : _m;
     if (item.laborMult !== 0) item.laborRate = null;   // leaving Custom clears the custom rate
     renderLI();                                        // discrete change → safe to re-render (shows/hides custom $/hr)
+  } else if (field==='laborClass') {              // r233: per-line labor class (Standard / Access control)
+    item.laborClass = value || 'Standard';
+    renderLI();                                        // discrete change → re-render to update the shown line labor
   } else {
     item[field] = value; // text fields: just update data, don't re-render (preserves focus)
   }

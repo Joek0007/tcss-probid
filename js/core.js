@@ -39,6 +39,28 @@ function resolveLaborRate(opts){
   return (cs!=null) ? cs : 100;
 }
 
+// ── r233: Brand × work-type labor rate table (the ONE company source for a labor default) ─────
+// Seed values; owner-editable in Settings → Quotes. Access control is a flat rate regardless of brand.
+var DEFAULT_LABOR_RATES = { TCSS:{ 'Standard':95, 'Access control':125 }, DCC:{ 'Standard':105, 'Access control':125 } };
+function ensureLaborModel(){
+  if (typeof DB==='undefined' || !DB.settings) return;
+  if (!Array.isArray(DB.settings.laborClasses) || !DB.settings.laborClasses.length) DB.settings.laborClasses = ['Standard','Access control'];
+  if (!DB.settings.laborRates || typeof DB.settings.laborRates!=='object') DB.settings.laborRates = JSON.parse(JSON.stringify(DEFAULT_LABOR_RATES));
+}
+// companyLaborRate(brand, laborClass) → one base rate, with graceful fallbacks (class → that brand's
+// Standard → company laborRate → 100). brand defaults to TCSS; class defaults to 'Standard'.
+function companyLaborRate(brand, laborClass){
+  ensureLaborModel();
+  var b = (brand==='DCC') ? 'DCC' : 'TCSS';
+  var cls = laborClass || 'Standard';
+  var tbl = (typeof DB!=='undefined' && DB.settings && DB.settings.laborRates) ? DB.settings.laborRates : DEFAULT_LABOR_RATES;
+  var byBrand = tbl[b] || {};
+  var v = _numOrNull(byBrand[cls]); if (v!=null) return v;
+  var std = _numOrNull(byBrand['Standard']); if (std!=null) return std;
+  var cs = (typeof DB!=='undefined' && DB.settings) ? _numOrNull(DB.settings.laborRate) : null;
+  return (cs!=null) ? cs : 100;
+}
+
 // ---- CONSTANTS ----
 // WS-2 (r74) — ENVIRONMENT ISOLATION. staging and prod are served from the same URL, so they also
 // shared one browser localStorage. That is how staging/test data bled into prod: records created
@@ -2990,7 +3012,7 @@ let equipmentRows = [];
 let eqSeq = 1;
 function newLI(desc, cat, qty, unit, mc, lh) {
   // r168: labor rate/flat default to Standard, no custom, no flat.
-  return { _id: nextLiId(), desc:desc||'', cat:cat||'General', qty:qty||1, unit:unit||'ea', mc:parseFloat(mc)||0, lh:parseFloat(lh)||0, laborMult:1, laborRate:null, flatLabor:0 };
+  return { _id: nextLiId(), desc:desc||'', cat:cat||'General', qty:qty||1, unit:unit||'ea', mc:parseFloat(mc)||0, lh:parseFloat(lh)||0, laborMult:1, laborRate:null, flatLabor:0, laborClass:(typeof _qqDefaultClass==='function'?_qqDefaultClass():'Standard') };
 }
 function addRow(item) {
   lineItems.push(item || newLI('','',1,'ea',0,0));
@@ -3048,8 +3070,13 @@ function renderLI() {
     html += '<td><input data-li="'+item._id+'" data-field="mc" type="number" value="'+item.mc+'" min="0" step="0.01" style="width:80px"></td>';
     html += '<td><input data-li="'+item._id+'" data-field="lh" type="number" value="'+item.lh+'" min="0" step="0.25" style="width:65px"></td>';
     // r168: per-line labor RATE (Std / OT 1.5× / 2× / Custom $/hr) + FLAT labor $ (per unit, added on top)
+    // r233: a per-line LABOR CLASS (Standard / Access control) picks the base rate from the brand×class table.
     var _m = parseFloat(item.laborMult); if (isNaN(_m)) _m = 1; var _cust = (_m === 0);
+    var _lcls = (item.laborClass!=null) ? item.laborClass : 'Standard';
+    var _lclsList = (DB.settings && Array.isArray(DB.settings.laborClasses) && DB.settings.laborClasses.length) ? DB.settings.laborClasses : ['Standard','Access control'];
+    var _lclsOpts = _lclsList.map(function(c){ return '<option value="'+escHtml(c)+'"'+(c===_lcls?' selected':'')+'>'+escHtml(c)+'</option>'; }).join('');
     html += '<td style="white-space:nowrap">'
+      + '<select data-li="'+item._id+'" data-field="laborClass" style="width:90px;font-size:11px;margin-right:4px" title="Labor class — Standard or Access control (sets the base rate)">'+_lclsOpts+'</select>'
       + '<select data-li="'+item._id+'" data-field="laborMult" style="width:58px;font-size:11px">'
       +   '<option value="1"'+(_m===1?' selected':'')+'>Std</option>'
       +   '<option value="1.5"'+(_m===1.5?' selected':'')+'>1.5×</option>'
@@ -3072,6 +3099,10 @@ function getLaborRate() {
   const el = document.getElementById('qq-lr');
   return el ? parseFloat(el.value)||100 : 100;
 }
+// r233: current quote brand (the Issue-under picker; _applyBrandPickerGate sets .value even when locked).
+function _qqBrand(){ var el=document.getElementById('qq-brand'); return (el && el.value==='DCC') ? 'DCC' : 'TCSS'; }
+// r233: the labor class NEW lines default to (quote-level picker), falling back to Standard.
+function _qqDefaultClass(){ var el=document.getElementById('qq-labor-class'); return (el && el.value) ? el.value : 'Standard'; }
 function getMarginDecimal() {
   const el = document.getElementById('qq-mk');
   if (!el) return 0;
@@ -4117,6 +4148,29 @@ function _sdSelect(id, options, selected) {
     '</select>';
 }
 
+// r233: editable brand×class labor-rate grid for Settings → Quotes (the ONE place to set labor rates).
+function _sdLaborGrid(){
+  if (typeof ensureLaborModel==='function') ensureLaborModel();
+  var lr = (DB.settings && DB.settings.laborRates) ? DB.settings.laborRates : (typeof DEFAULT_LABOR_RATES!=='undefined'?DEFAULT_LABOR_RATES:{});
+  var classes = (DB.settings && Array.isArray(DB.settings.laborClasses) && DB.settings.laborClasses.length) ? DB.settings.laborClasses : ['Standard','Access control'];
+  var rows = classes.map(function(cls){
+    var idc = String(cls).replace(/[^a-z0-9]/gi,'');
+    var t = (lr.TCSS && lr.TCSS[cls]!=null) ? lr.TCSS[cls] : '';
+    var d = (lr.DCC  && lr.DCC[cls] !=null) ? lr.DCC[cls]  : '';
+    var ca = String(cls).replace(/"/g,'&quot;');
+    return '<tr><td style="padding:5px 4px;color:#37474f">'+escHtml(cls)+'</td>'
+      + '<td style="padding:5px 4px;text-align:right"><input id="sd-lr-TCSS-'+idc+'" data-lr-brand="TCSS" data-lr-class="'+ca+'" type="number" min="0" step="1" value="'+t+'" style="width:72px;text-align:right"></td>'
+      + '<td style="padding:5px 4px;text-align:right"><input id="sd-lr-DCC-'+idc+'" data-lr-brand="DCC" data-lr-class="'+ca+'" type="number" min="0" step="1" value="'+d+'" style="width:72px;text-align:right"></td></tr>';
+  }).join('');
+  return '<div class="sdrawer-row" style="display:block">'
+    + '<div style="font-size:12px;color:#607d8b;margin-bottom:6px">The default labor rate for each brand &amp; class. A quote line starts from its class here; Access control is typically the same for both brands.</div>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>'
+    + '<th style="text-align:left;padding:4px;color:#90a4ae;font-weight:600">Class</th>'
+    + '<th style="text-align:right;padding:4px;color:#90a4ae;font-weight:600">TCSS $/hr</th>'
+    + '<th style="text-align:right;padding:4px;color:#90a4ae;font-weight:600">DCC $/hr</th>'
+    + '</tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
 // ── Body builder ─────────────────────────────────────────────────────────────
 function _sdBuildBody(moduleKey) {
   var s  = DB.settings  || {};
@@ -4125,8 +4179,8 @@ function _sdBuildBody(moduleKey) {
   switch (moduleKey) {
 
     case 'quotes':
-      return _sdSection('📐', 'Defaults', [
-        _sdRow('Default labor rate ($/hr)', _sdInput('sd-q-labor',   s.laborRate     || 100, 'number')),
+      return _sdSection('💵', 'Labor rates (by brand & class)', [ _sdLaborGrid() ]) +
+      _sdSection('📐', 'Defaults', [
         _sdRow('Target margin (%)',          _sdInput('sd-q-margin',  s.targetMargin  || 35,  'number')),
         _sdRow('Default tax rate (%)',       _sdInput('sd-q-tax',     s.taxRate       || 0,   'number')),
         _sdRow('Quote valid for (days)',     _sdInput('sd-q-valid',   s.validDays     || 30,  'number')),
@@ -4234,8 +4288,23 @@ function _sdBuildBody(moduleKey) {
 
 // ── Save handlers ─────────────────────────────────────────────────────────────
 function _saveDrawerQuotes() {
+  // r233: save the brand×class labor-rate grid (the ONE company source), and keep DB.settings.laborRate
+  // in sync with TCSS/Standard as the generic fallback older paths still read.
+  (function(){
+    if (typeof ensureLaborModel==='function') ensureLaborModel();
+    var inputs = document.querySelectorAll('[data-lr-brand]');
+    if (inputs && inputs.length){
+      var tbl = JSON.parse(JSON.stringify(DB.settings.laborRates || {}));
+      for (var i=0;i<inputs.length;i++){
+        var el=inputs[i], b=el.getAttribute('data-lr-brand'), c=el.getAttribute('data-lr-class');
+        var v=parseFloat(el.value); if (!b||!c||isNaN(v)) continue;
+        if (!tbl[b]) tbl[b]={}; tbl[b][c]=v;
+      }
+      DB.settings.laborRates = tbl;
+    }
+  })();
   DB.settings = Object.assign({}, DB.settings, {
-    laborRate:        parseFloat(_sdGv('sd-q-labor'))   || 100,
+    laborRate:        (DB.settings.laborRates && DB.settings.laborRates.TCSS && DB.settings.laborRates.TCSS['Standard']!=null) ? DB.settings.laborRates.TCSS['Standard'] : (parseFloat(_sdGv('sd-q-labor'))||100),
     targetMargin:     parseFloat(_sdGv('sd-q-margin'))  || 35,
     taxRate:          parseFloat(_sdGv('sd-q-tax'))     || 0,
     validDays:        parseInt(_sdGv('sd-q-valid'))     || 30,
