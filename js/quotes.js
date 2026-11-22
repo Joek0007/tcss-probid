@@ -6301,6 +6301,14 @@ function delTeamMember(id){
 
 // ---- CATALOG ----
 var _pumActive = false;
+// r229: sortable table view. Click a column header to sort; click again to flip direction.
+var _catSortKey = 'name';
+var _catSortDir = 1;   // 1 = ascending, -1 = descending
+function catSort(key){
+  if (_catSortKey === key) _catSortDir = -_catSortDir;
+  else { _catSortKey = key; _catSortDir = 1; }
+  renderCatalog();
+}
 
 function renderCatalog() {
   var search = (document.getElementById('cat-search')||{}).value || '';
@@ -6312,45 +6320,75 @@ function renderCatalog() {
   if (vfilter) list = list.filter(function(i){return (i.vendor||'')===vfilter;});
   var grid = document.getElementById('catalog-grid');
   if (!grid) return;
-  if (!list.length) { grid.innerHTML='<div class="empty-state"><div class="empty-icon">📦</div><p>No catalog items found.</p></div>'; return; }
+  grid.style.display = 'block';   // r229: table view overrides the .catalog-grid CSS grid
+  if (_pumActive) grid.classList.add('price-update-mode'); else grid.classList.remove('price-update-mode');
 
-  var laborRate = parseFloat((document.getElementById('qq-lr')||{}).value) || DB.settings.laborRate || 100;
-
-  // Toggle Price Update Mode class on grid
-  if (_pumActive) {
-    grid.classList.add('price-update-mode');
+  if (!list.length) {
+    grid.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><p>No catalog items found.</p></div>';
   } else {
-    grid.classList.remove('price-update-mode');
+    // ---- r229: SORTABLE TABLE VIEW (replaces the card grid; scales to the ~800-item catalog) ----
+    var sk = _catSortKey, sd = _catSortDir;
+    var _sval = function(it){
+      switch(sk){
+        case 'vendor': return (it.vendor||'').toLowerCase();
+        case 'part':   return (it.part||it.partNum||'').toLowerCase();
+        case 'cat':    return (it.cat||'').toLowerCase();
+        case 'msrp':   return (it.msrp!=null ? it.msrp : -1);
+        case 'mc':     return (it.mc||0);
+        case 'lh':     return (it.lh||0);
+        default:       return (it.name||'').toLowerCase();
+      }
+    };
+    list.sort(function(a,b){
+      var va=_sval(a), vb=_sval(b);
+      if (typeof va==='number' && typeof vb==='number') return (va-vb)*sd;
+      return String(va).localeCompare(String(vb))*sd;
+    });
+    var _arrow = function(k){ return sk===k ? (sd>0?' ▲':' ▼') : ''; };
+    var _th = function(k,lbl,al){
+      return '<th onclick="catSort(\''+k+'\')" title="Sort by '+lbl+'" style="position:sticky;top:0;background:#eef3f8;z-index:1;padding:8px 10px;text-align:'+(al||'left')+';font-size:11px;color:'+(sk===k?'#1565c0':'#546e7a')+';text-transform:uppercase;font-weight:700;cursor:pointer;white-space:nowrap;border-bottom:2px solid #d9e2ec;user-select:none">'+lbl+_arrow(k)+'</th>';
+    };
+    var rows = list.map(function(item){
+      var _isMsrp = (item.priceMode==='msrp') || (item.msrp!=null);
+      var _dispName = item.name || '';
+      if (item.vendor && _dispName.indexOf(item.vendor + ' ') === 0) _dispName = _dispName.slice(item.vendor.length + 1);
+      var _part = item.part||item.partNum||'';
+      var vendCell = item.vendor
+        ? '<span style="display:inline-block;background:#e3f2fd;color:#1565c0;font-weight:700;font-size:10px;padding:1px 6px;border-radius:4px">'+escHtml(item.vendor)+'</span>'
+        : '<span style="color:#cfd8e3">—</span>';
+      var msrpCell = _pumActive
+        ? (_isMsrp ? '<input type="number" data-pumid="'+item.id+'" data-pumfield="msrp" value="'+(item.msrp!=null?item.msrp:'')+'" min="0" step="0.01" style="width:84px;text-align:right" title="MSRP (list price)">' : '<span style="color:#cfd8e3">—</span>')
+        : (_isMsrp ? '<span style="color:#2e7d32;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace">'+fmt(item.msrp||0)+'</span>' : '<span style="color:#cfd8e3">—</span>');
+      var costCell = _pumActive
+        ? '<input type="number" data-pumid="'+item.id+'" data-pumfield="mc" value="'+(item.mc||0)+'" min="0" step="0.01" style="width:84px;text-align:right" title="Material cost">'
+        : '<span style="font-family:ui-monospace,Menlo,Consolas,monospace">'+fmt(item.mc||0)+'</span>';
+      var lhCell = _pumActive
+        ? '<input type="number" data-pumid="'+item.id+'" data-pumfield="lh" value="'+(item.lh||0)+'" min="0" step="0.25" style="width:60px;text-align:right" title="Labor hours">'
+        : ((item.lh||0)+' hr');
+      return '<tr data-catid="'+item.id+'" onmouseover="this.style.background=\'#f6fafe\'" onmouseout="this.style.background=\'\'" style="border-bottom:1px solid #f0f4f8">'
+        + '<td style="padding:7px 10px;white-space:nowrap">'+vendCell+'</td>'
+        + '<td style="padding:7px 10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#1565c0;white-space:nowrap">'+escHtml(_part)+'</td>'
+        + '<td style="padding:7px 10px;font-size:13px;color:#263238">'+escHtml(_dispName)+'</td>'
+        + '<td style="padding:7px 10px;font-size:12px;color:#546e7a;white-space:nowrap">'+escHtml(item.cat||'')+'</td>'
+        + '<td style="padding:7px 10px;text-align:right;white-space:nowrap;font-size:12.5px">'+msrpCell+'</td>'
+        + '<td style="padding:7px 10px;text-align:right;white-space:nowrap;font-size:12.5px">'+costCell+'</td>'
+        + '<td style="padding:7px 10px;text-align:right;white-space:nowrap;font-size:12px;color:#455a64">'+lhCell+'</td>'
+        + '<td style="padding:6px 10px;text-align:right;white-space:nowrap">'
+        +   '<button class="btn btn-primary btn-sm" data-action="addCatToQQ" data-id="'+item.id+'" style="margin-right:4px">+ Add</button>'
+        +   '<button class="cat-edit-btn" data-action="editCatalogItem" data-id="'+item.id+'">Edit</button>'
+        + '</td></tr>';
+    }).join('');
+    grid.innerHTML =
+      '<div style="font-size:12px;color:#78909c;margin-bottom:6px">'+list.length+' item'+(list.length!==1?'s':'')+(DB.catalog.length!==list.length?(' of '+DB.catalog.length):'')+'</div>'
+      + '<div style="overflow:auto;max-height:68vh;border:1px solid #e8edf3;border-radius:8px">'
+      + '<table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff">'
+      + '<thead><tr>'
+      +   _th('vendor','Vendor') + _th('part','Model') + _th('name','Name') + _th('cat','Category')
+      +   _th('msrp','MSRP','right') + _th('mc','Cost','right') + _th('lh','Labor','right')
+      +   '<th style="position:sticky;top:0;background:#eef3f8;z-index:1;border-bottom:2px solid #d9e2ec"></th>'
+      + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div>';
   }
-
-  grid.innerHTML = list.map(function(item){
-    var _isMsrp = (item.priceMode==='msrp') || (item.msrp!=null);
-    var pumFields = _pumActive
-      ? '<div class="price-update-edit">' +
-          (_isMsrp ? '<div class="price-update-field">MSRP $<input type="number" data-pumid="' + item.id + '" data-pumfield="msrp" value="' + (item.msrp!=null?item.msrp:'') + '" min="0" step="0.01" title="MSRP (list price)"></div>' : '') +
-          '<div class="price-update-field">Mat $<input type="number" data-pumid="' + item.id + '" data-pumfield="mc" value="' + (item.mc||0) + '" min="0" step="0.01" title="Material cost"></div>' +
-          '<div class="price-update-field">Labor hrs<input type="number" data-pumid="' + item.id + '" data-pumfield="lh" value="' + (item.lh||0) + '" min="0" step="0.01" title="Labor hours"></div>' +
-        '</div>'
-      : '';
-    var _vendBadge = item.vendor ? '<span style="display:inline-block;background:#e3f2fd;color:#1565c0;font-weight:700;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px;vertical-align:middle">' + escHtml(item.vendor) + '</span>' : '';
-    var _partBit = (item.part||item.partNum) ? '<span style="color:#90a4ae;font-size:11px;margin-left:6px">' + escHtml(item.part||item.partNum) + '</span>' : '';
-    var _msrpBit = _isMsrp ? ' | MSRP: <span style="color:#2e7d32;font-weight:600">' + fmt(item.msrp||0) + '</span>' : '';
-    // Don't repeat the vendor in the name when the badge already shows it ("Verkada Verkada CD53-E…").
-    var _dispName = item.name || '';
-    if (item.vendor && _dispName.indexOf(item.vendor + ' ') === 0) _dispName = _dispName.slice(item.vendor.length + 1);
-    return '<div class="cat-item" data-catid="' + item.id + '">' +
-      '<div class="cat-item-info">' +
-        '<div class="cat-item-name">' + _vendBadge + escHtml(_dispName) + _partBit + '</div>' +
-        '<div class="cat-item-meta">' + escHtml(item.cat||'') + ' | ' + escHtml(item.unit||'ea') + ' | ' + (item.lh||0) + ' hr/unit</div>' +
-        '<div class="cat-item-price">Mat: ' + fmt(item.mc||0) + _msrpBit + ' | Labor: ' + fmt((item.lh||0)*laborRate) + '/ea</div>' +
-        pumFields +
-      '</div>' +
-      '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">' +
-        '<button class="btn btn-primary btn-sm" data-action="addCatToQQ" data-id="' + item.id + '">+ Add</button>' +
-        '<button class="cat-edit-btn" data-action="editCatalogItem" data-id="' + item.id + '">Edit</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
 
   // Update category filter
   var cats = [];
