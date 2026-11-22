@@ -2134,18 +2134,26 @@ function renderMsWOStatuses() {
     '<tbody id="wo-status-tbody">'+
     statuses.map(function(s,i){
       var isOpen = s.open !== false;
+      var _h = (typeof _normHex==='function' ? _normHex(s.color) : null) || '#dddddd';
+      var _rgb = (typeof _hexToRgbStr==='function' ? _hexToRgbStr(_h) : '');
       return '<tr data-idx="'+i+'" style="border-bottom:1px solid #f0f4f8">'+
         '<td draggable="true" data-idx="'+i+'" '+
         'ondragstart="wsDragStart(event)" ondragend="wsDragEnd(event)" '+
         'style="padding:8px 6px;text-align:center;cursor:grab;color:#90a4ae;font-size:18px;user-select:none" title="Drag to reorder">⣿</td>'+
         '<td style="padding:8px 10px">'+
           '<div style="display:flex;align-items:center;gap:8px">'+
-            '<div style="width:12px;height:12px;border-radius:50%;background:'+escHtml(s.color||'#ddd')+';border:1px solid rgba(0,0,0,.15);flex-shrink:0"></div>'+
+            '<div id="wsdot-'+i+'" style="width:12px;height:12px;border-radius:50%;background:'+_h+';border:1px solid rgba(0,0,0,.15);flex-shrink:0"></div>'+
             '<input value="'+escHtml(s.id)+'" onchange="updateWOStatusName('+i+',this.value)" style="flex:1;padding:5px 8px;border:1px solid #e0e7ef;border-radius:6px;font-size:12px">'+
           '</div>'+
         '</td>'+
-        '<td style="padding:8px 10px;text-align:center">'+
-          '<input type="color" value="'+escHtml(s.color||'#dddddd')+'" onchange="updateWOStatusColor('+i+',this.value)" style="width:36px;height:28px;border:none;border-radius:4px;cursor:pointer;padding:2px">'+
+        '<td style="padding:8px 10px">'+
+          '<div style="display:flex;align-items:center;gap:8px;justify-content:center">'+
+            '<input type="color" id="wspick-'+i+'" value="'+_h+'" onchange="updateWOStatusColorFromPicker('+i+',this.value)" title="Pick a color" style="width:34px;height:30px;border:none;border-radius:4px;cursor:pointer;padding:2px;flex-shrink:0">'+
+            '<div style="display:flex;flex-direction:column;gap:1px;align-items:flex-start">'+
+              '<input type="text" id="wshex-'+i+'" value="'+_h+'" maxlength="7" spellcheck="false" onchange="updateWOStatusColorFromHex('+i+',this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" title="Type or paste a hex color, e.g. #2196f3" style="width:82px;padding:4px 6px;border:1px solid #e0e7ef;border-radius:5px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px">'+
+              '<span id="wsrgb-'+i+'" style="font-size:10px;color:#90a4ae;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.2px" title="RGB (reference)">'+_rgb+'</span>'+
+            '</div>'+
+          '</div>'+
         '</td>'+
         '<td style="padding:8px 10px;text-align:center">'+
           '<label class="perm-toggle" style="margin:0 auto">'+
@@ -2240,10 +2248,56 @@ function updateWOStatusName(idx, val) {
   var s = _getMsStatuses(); if (!s[idx]) return;
   s[idx].id = val; saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase();
 }
-function updateWOStatusColor(idx, val) {
-  var s = _getMsStatuses(); if (!s[idx]) return;
-  s[idx].color = val; saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase();
+// ── WO status color helpers (r225) ────────────────────────────────────────
+// Color is stored as a 6-digit hex string (e.g. "#2196f3"). Each Settings row shows a native
+// picker + an EDITABLE hex field + a read-only RGB triplet, all kept in sync. Hex is the portable
+// value Joe copies to replicate a status color elsewhere; RGB is shown beside it for reference.
+function _normHex(v){
+  if (v == null) return null;
+  var h = String(v).trim().replace(/^#/, '');
+  if (/^[0-9a-fA-F]{3}$/.test(h)) h = h.split('').map(function(c){ return c+c; }).join('');   // #abc -> #aabbcc
+  if (/^[0-9a-fA-F]{6}$/.test(h)) return '#' + h.toLowerCase();
+  return null;                                                                                 // invalid
 }
+function _hexToRgbStr(hex){
+  var h = _normHex(hex); if (!h) return '';
+  var n = parseInt(h.slice(1), 16);
+  return ((n>>16)&255) + ', ' + ((n>>8)&255) + ', ' + (n&255);
+}
+// Single persist + in-place DOM sync (no full re-render, so an in-focus field keeps its caret).
+function _applyWOStatusColor(idx, hex){
+  var s = _getMsStatuses(); if (!s[idx]) return;
+  s[idx].color = hex;
+  saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase();
+  var pick = document.getElementById('wspick-'+idx); if (pick && pick.value.toLowerCase() !== hex) pick.value = hex;
+  var hx   = document.getElementById('wshex-'+idx);  if (hx && document.activeElement !== hx) hx.value = hex;
+  var rg   = document.getElementById('wsrgb-'+idx);  if (rg) rg.textContent = _hexToRgbStr(hex);
+  var dot  = document.getElementById('wsdot-'+idx);  if (dot) dot.style.background = hex;
+}
+function updateWOStatusColorFromPicker(idx, val){
+  var hex = _normHex(val) || '#dddddd';
+  _applyWOStatusColor(idx, hex);
+  var hx = document.getElementById('wshex-'+idx); if (hx) hx.value = hex;   // mirror into the hex field
+}
+function updateWOStatusColorFromHex(idx, val){
+  var hex = _normHex(val);
+  var hx = document.getElementById('wshex-'+idx);
+  if (!hex) {                                 // invalid entry → revert to the stored value, flash the border red
+    var s = _getMsStatuses();
+    var cur = (s[idx] && _normHex(s[idx].color)) || '#dddddd';
+    if (hx) {
+      hx.value = cur;
+      hx.style.borderColor = '#c62828';
+      setTimeout(function(){ try { hx.style.borderColor = '#e0e7ef'; } catch(e){} }, 900);
+    }
+    if (typeof showToast === 'function') showToast('Not a valid hex color', 'error', 1800);
+    return;
+  }
+  if (hx) hx.value = hex;                      // normalize what they typed (adds #, lowercases, expands #abc)
+  _applyWOStatusColor(idx, hex);
+}
+// Back-compat shim: any older caller (or an in-flight render) that still calls updateWOStatusColor.
+function updateWOStatusColor(idx, val){ _applyWOStatusColor(idx, _normHex(val) || '#dddddd'); }
 function updateWOStatusOpen(idx, val) {
   var s = _getMsStatuses(); if (!s[idx]) return;
   s[idx].open = val; saveDB(); if(typeof _pushSettingsToSupabase==='function')_pushSettingsToSupabase();

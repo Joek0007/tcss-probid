@@ -55,4 +55,10 @@ echo "── r96 Proposal Terms drag-reorder (▲▼ → click-drag handle, mous
 echo "── r97 quote-list action buttons (tiny icon squares → readable labeled buttons; same handlers; row wraps) ──"; node tests/quote_list_actions.test.js
 echo "── r100 PO-list action layout (removed reserved blank Receive slot; buttons group + left-align) ──"; node tests/po_list_actions.test.js
 echo "── r102 quote send reliable Sent-flip (canonical id for email tag + status flip; blank-id send no longer stuck on Draft) ──"; node tests/quote_send_status_flip.test.js
+echo "── r103 editor id-retention (durable active-quote id survives a QQ re-render → no dup-on-save; emailQuoteQQ saves+numbers first, no 'DRAFT' stub) ──"; node tests/quote_editor_id_retention.test.js
+echo "── r104 material+labor itemization (per-quote split/summary presentation + hours toggle; totals unchanged; legacy → combined; syncs via quote_extras) + r105 lump-sum/style mutual exclusion ──"; node tests/quote_itemization_style.test.js
+echo "── r106 tax 2-decimal (quarter-point 6.00/6.25/6.50/6.75 via pctTax; margin pct unchanged) + fixed Save/Total action bar + r107 discount $/% labels ──"; node tests/quote_tax_and_footer.test.js
+echo "── r108 equipment delivery/pickup charge (folds into equipment cost → quote total) + equipment shown on the client proposal (rental + delivery lines) ──"; node tests/quote_equipment_delivery.test.js
+echo "── r109 equipment summary-line toggle (per-quote: break equipment onto its own Pricing Summary line vs fold into Equipment & Materials; rows always re-sum to the same subtotal) ──"; node tests/quote_equip_sepline.test.js
+echo "── r110 collapsible quote sections (every editor section but Line Items + Pricing folds; new/dup open expanded; per-quote memory syncs; Proposal Terms unified) ──"; node tests/quote_section_collapse.test.js
 echo "✅ all tests passed"

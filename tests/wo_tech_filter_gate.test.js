@@ -57,7 +57,9 @@ global._currentUser = {role:'owner'};        var ownerHides = _woStatusHiddenFro
 ok('teeth: tech hides Void but owner does not', techHides===true && ownerHides===false, true);
 
 // both filter builders use the shared helper (no drift)
-ok('chip builder uses the shared gate', /_getWOStatuses\(\)\.forEach[\s\S]{0,160}_woStatusHiddenFromFieldFilter\(s\)/.test(src), true);
+// r94: chips use _woStatusHiddenFromFieldChip (office-only via _woStatusHiddenFromFieldFilter PLUS the
+// hand-off/techDone status), while the dropdown keeps the plain filter so a tech can still SET the hand-off.
+ok('chip builder uses the chip gate', /_getWOStatuses\(\)\.forEach[\s\S]{0,200}_woStatusHiddenFromFieldChip\(s\)/.test(src), true);
 ok('status dropdown uses the shared gate', /statusList = statusList\.filter[\s\S]{0,120}_woStatusHiddenFromFieldFilter\(s\)/.test(src), true);
 
 console.log('\n'+(fail? '✗ '+fail+' FAILED, '+pass+' passed' : 'ALL '+pass+' PASSED'));
