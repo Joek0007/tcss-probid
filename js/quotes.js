@@ -3649,6 +3649,11 @@ function reprintInvoice(invId) {
   sv('inv-existing-id',inv.id);
   // r214: brand override picker — pre-set to the saved invoice's brand (or quote→WO→TCSS), gated by permission.
   if(typeof _brandPickerGateFor==='function') _brandPickerGateFor('inv', _resolveInvoiceBrand({ invId:inv.id, quoteId:inv.quoteId, woId:inv.woId }));
+  // r223: fire the customer's Invoice Alert when opening an existing invoice (resolve customer by bill name).
+  if (typeof _fireCustomerModuleAlert==='function') {
+    var _invCust = (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===String(inv.billName||'').toLowerCase(); });
+    _fireCustomerModuleAlert(_invCust, 'invoice', '🧾 Invoice Alert', '🧾');
+  }
   // Show source chain
   var chainEl2 = document.getElementById('inv-source-chain');
   if (chainEl2) {
@@ -3956,6 +3961,20 @@ function refreshInvTotals() {
 }
 
 // ---- OPEN INVOICE MODAL ----
+// r223: fire a customer's module alert (office roles only) — shared by the invoice + PO triggers so they
+// behave exactly like the quote/WO alerts. No-op if the customer has no alert text for that key.
+function _fireCustomerModuleAlert(cust, key, title, icon){
+  try{
+    if (!cust) return;
+    var isOffice = typeof _currentUser!=='undefined' && _currentUser && ['owner','manager','back_office','estimator'].includes(_currentUser.role);
+    var msg = (cust.moduleAlerts && cust.moduleAlerts[key]) || '';
+    if (isOffice && msg && typeof _showHotNotesQueue==='function') {
+      _showHotNotesQueue([{ title: title+' — '+escHtml(cust.name||''), body: msg, icon: icon }]);
+    }
+  }catch(e){}
+}
+window._fireCustomerModuleAlert = _fireCustomerModuleAlert;
+
 function openInvoiceModal(job) {
   // Invoice number is NOT allocated here anymore. Opening (and cancelling) the
   // modal used to burn a number off the counter; now the authoritative number is
@@ -3968,6 +3987,9 @@ function openInvoiceModal(job) {
   var quote = quoteId ? (DB.quotes||[]).find(function(q){ return q.id===quoteId; }) : null;
   var cust  = job.customerId ? (DB.customers||[]).find(function(c){ return c.id===job.customerId; }) : null;
   if (!cust && job.customer) cust = (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===(job.customer||'').toLowerCase(); });
+  // r223: fire the customer's Invoice Alert (office roles) when an invoice is opened for them — this was
+  // configurable on the Alerts tab but NEVER fired (no code read moduleAlerts.invoice). Mirrors the quote/WO alerts.
+  if (typeof _fireCustomerModuleAlert==='function') _fireCustomerModuleAlert(cust, 'invoice', '🧾 Invoice Alert', '🧾');
 
   // Payment terms — customer default → quote → Net 30
   var terms = (cust&&cust.defaultTerms) || (quote&&quote.pt) || 'Due on Receipt';

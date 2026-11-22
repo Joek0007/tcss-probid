@@ -347,6 +347,9 @@ function openPO(id) {
   // (r195 Phase 2) Source chain + a "not linked to a job" warning for material POs.
   _renderPOSourceChain(po.jobId, po.woId);
   _applyPOBrandGate();   // r216: show this PO's brand (its own, or inherited from the linked WO)
+  // r223: fire the customer's Purchase Order Alert (was configurable on the Alerts tab but NEVER fired —
+  // no code read moduleAlerts.purchaseorder). Customer resolved via the PO's linked job/WO.
+  if (typeof _fireCustomerModuleAlert==='function') _fireCustomerModuleAlert(_poCustomerFor(po), 'purchaseorder', '📦 Purchase Order Alert', '📦');
 
   renderPOItems();
   refreshPOTotals();
@@ -394,6 +397,18 @@ function onPOVendorChange(vendorId) {
 }
 
 // (r195 Phase 2) Render the PO's job/WO link, OR warn when a PO with materials has no job/WO link —
+// r223: resolve the customer record a PO belongs to, via its linked job or work order (POs have no
+// direct customer field). Used to fire the customer's Purchase Order Alert.
+function _poCustomerFor(po){
+  if (!po) return null;
+  var job = po.jobId ? (typeof _findJobOrWO==='function'?_findJobOrWO(po.jobId):(DB.jobs||[]).find(function(j){return j.id===po.jobId;})) : null;
+  var wo  = po.woId ? (DB.workOrders||[]).find(function(w){return w.id===po.woId;}) : null;
+  var nm = (job && (job.customer||job.customerName)) || (wo && wo.customerName) || '';
+  if (!nm) return null;
+  return (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===String(nm).toLowerCase(); });
+}
+window._poCustomerFor=_poCustomerFor;
+
 // its materials won't be billed to anyone. Shared by PO-open, the Job-select change, and item changes.
 function _renderPOSourceChain(jobId, woId){
   var el=document.getElementById('po-source-chain'); if(!el) return;
@@ -419,6 +434,11 @@ function onPOJobChange(jobId) {
   }
   _renderPOSourceChain(jobId||'', wo?wo.id:'');   // live update, incl. the warning when de-selected
   if(typeof _applyPOBrandGate==='function') _applyPOBrandGate();   // r216: follow the linked job/WO's brand
+  // r223: fire the customer's PO Alert when a job (customer) gets linked to a PO.
+  if (job && typeof _fireCustomerModuleAlert==='function') {
+    var _poc = (DB.customers||[]).find(function(c){ return (c.name||'').toLowerCase()===String(job.customer||job.customerName||'').toLowerCase(); });
+    _fireCustomerModuleAlert(_poc, 'purchaseorder', '📦 Purchase Order Alert', '📦');
+  }
 }
 
 // ---- PO LINE ITEMS ----
