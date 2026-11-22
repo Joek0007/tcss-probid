@@ -6473,6 +6473,7 @@ function setVendorDiscount(vendor, pctStr) {
   _recomputeVendorLines(vendor);
   if (typeof renderLI === 'function') renderLI();         // re-renders lines AND this panel
   if (typeof calcTotals === 'function') calcTotals();
+  if (typeof updateQQStage3UI === 'function') updateQQStage3UI();   // r227: refresh the sticky total bar too (calcTotals alone doesn't)
   if (typeof setQQDirty === 'function') setQQDirty(true, 'Deal-reg discount changed');
 }
 function renderDealRegPanel() {
