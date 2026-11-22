@@ -1,11 +1,69 @@
-// (r187) Brand of the invoice currently open in the modal: a saved invoice's own brand wins, else it
-// inherits from its source quote (inv-quote-id), else TCSS. Used by the invoice doc + email branding.
+// (r214) Default brand for the CURRENT user: email on the DCC default list → DCC, else TCSS.
+// Mirrors the quote default (reports.js) so a new Work Order picks the creator's natural brand.
+function _defaultBrandForUser(){
+  try{
+    var d=DB.settings && DB.settings.dccBrand;
+    if(!(d && d.cname)) return 'TCSS';                     // no DCC profile configured → TCSS
+    var em=((typeof _currentUser!=='undefined' && _currentUser && _currentUser.email)||'').trim().toLowerCase();
+    return (d.defaultForEmails||[]).indexOf(em)>=0 ? 'DCC' : 'TCSS';
+  }catch(e){ return 'TCSS'; }
+}
+window._defaultBrandForUser=_defaultBrandForUser;
+
+// (r214) Generalized brand-picker gate (same logic as the quote's _applyBrandPickerGate) for any
+// prefix: operates on #<p>-brand-row / #<p>-brand (select) / #<p>-brand-locked / #<p>-brand-note.
+// Shows the DCC/TCSS dropdown only when a DCC profile exists AND the user has quote.switch_brand;
+// otherwise shows a read-only "Issued under: X" locked to the passed-in brand.
+function _brandPickerGateFor(prefix, brandVal){
+  var row=document.getElementById(prefix+'-brand-row');
+  var sel=document.getElementById(prefix+'-brand');
+  var locked=document.getElementById(prefix+'-brand-locked');
+  var note=document.getElementById(prefix+'-brand-note');
+  var val=(brandVal==='DCC')?'DCC':'TCSS';
+  if(sel) sel.value=val;
+  var dccOn=!!(DB.settings && DB.settings.dccBrand && DB.settings.dccBrand.cname);
+  if(!dccOn){ if(row) row.style.display='none'; return; }
+  if(row) row.style.display='';
+  var canSwitch=(typeof hasPermission!=='function') || hasPermission('quote.switch_brand');
+  if(canSwitch){
+    if(sel) sel.style.display='';
+    if(locked) locked.style.display='none';
+    if(note) note.style.display='';
+  } else {
+    if(sel) sel.style.display='none';
+    if(note) note.style.display='none';
+    if(locked){
+      var dccName=(DB.settings.dccBrand && DB.settings.dccBrand.cname) || 'DCC';
+      locked.textContent='Issued under: ' + (val==='DCC' ? dccName : 'TCSS');
+      locked.style.display='';
+    }
+  }
+}
+window._brandPickerGateFor=_brandPickerGateFor;
+
+// (r214) Resolve the brand an invoice should INHERIT when opened, in priority order:
+// saved invoice's own brand → source QUOTE brand → source WORK ORDER brand → TCSS.
+// TCSS is the final fallback (not the user default) so legacy brandless invoices never silently flip.
+function _resolveInvoiceBrand(ctx){
+  ctx=ctx||{};
+  var inv=ctx.invId?(DB.invoices||[]).find(function(i){return i.id===ctx.invId;}):null;
+  if(inv && inv.brand) return inv.brand==='DCC'?'DCC':'TCSS';
+  var q=ctx.quoteId?(DB.quotes||[]).find(function(x){return x.id===ctx.quoteId;}):null;
+  if(q && q.brand) return q.brand==='DCC'?'DCC':'TCSS';
+  var wo=ctx.woId?(DB.workOrders||[]).find(function(x){return x.id===ctx.woId;}):null;
+  if(wo && wo.brand) return wo.brand==='DCC'?'DCC':'TCSS';
+  return 'TCSS';
+}
+window._resolveInvoiceBrand=_resolveInvoiceBrand;
+
+// (r214) Brand of the invoice currently open in the modal. The override picker (#inv-brand) is the
+// source of truth: openInvoiceModal/editInvoice pre-set it to _resolveInvoiceBrand (quote→WO→TCSS),
+// and a permitted user may flip it. When the picker is absent, fall back to the inheritance chain.
 function _currentInvBrand(){
   function gv(id){ var el=document.getElementById(id); return el?(el.value||'').trim():''; }
-  var _eid=gv('inv-existing-id'); var _ei=_eid?(DB.invoices||[]).find(function(i){return i.id===_eid;}):null;
-  if(_ei && _ei.brand) return _ei.brand==='DCC'?'DCC':'TCSS';
-  var _qid=gv('inv-quote-id'); var _q=_qid?(DB.quotes||[]).find(function(q){return q.id===_qid;}):null;
-  return (_q && _q.brand==='DCC')?'DCC':'TCSS';
+  var sel=document.getElementById('inv-brand');
+  if(sel && (sel.value==='DCC'||sel.value==='TCSS')) return sel.value;
+  return _resolveInvoiceBrand({ invId:gv('inv-existing-id'), quoteId:gv('inv-quote-id'), woId:gv('inv-wo-id') });
 }
 window._currentInvBrand=_currentInvBrand;
 
@@ -3577,6 +3635,8 @@ function reprintInvoice(invId) {
   sv('inv-wo-id',      inv.woId||'');
   sv('inv-quote-id',   inv.quoteId||'');
   sv('inv-existing-id',inv.id);
+  // r214: brand override picker — pre-set to the saved invoice's brand (or quote→WO→TCSS), gated by permission.
+  if(typeof _brandPickerGateFor==='function') _brandPickerGateFor('inv', _resolveInvoiceBrand({ invId:inv.id, quoteId:inv.quoteId, woId:inv.woId }));
   // Show source chain
   var chainEl2 = document.getElementById('inv-source-chain');
   if (chainEl2) {
@@ -3919,6 +3979,8 @@ function openInvoiceModal(job) {
   sv('inv-wo-id',    (wo&&wo.id)||'');
   sv('inv-quote-id', quoteId||'');
   sv('inv-existing-id','');
+  // r214: brand override picker — pre-set to the inherited brand (quote → WO → TCSS), gated by permission.
+  if(typeof _brandPickerGateFor==='function') _brandPickerGateFor('inv', _resolveInvoiceBrand({ quoteId:quoteId||'', woId:(wo&&wo.id)||'' }));
 
   // Bill to — customer billing address
   var billName = job.customer || (cust&&cust.name) || '';

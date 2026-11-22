@@ -931,6 +931,9 @@ function openNewWorkOrder() {
   var lrEl=document.getElementById('wo-labor-rate'); if(lrEl) lrEl.value=settings.defaultLaborRate||125;
   var txEl=document.getElementById('wo-tax-rate');   if(txEl) txEl.value=settings.defaultTaxRate||0;
 
+  // r214: brand picker — default a NEW WO to the creator's default brand, gated by permission.
+  if(typeof _brandPickerGateFor==='function') _brandPickerGateFor('wo', (typeof _defaultBrandForUser==='function')?_defaultBrandForUser():'TCSS');
+
   // Reset contact field
   var ctNameEl=document.getElementById('wo-contact-name'); if(ctNameEl){ ctNameEl.value=''; ctNameEl.placeholder='— Select customer first —'; ctNameEl._woContacts=null; }
   var ctHiddenEl=document.getElementById('wo-contact'); if(ctHiddenEl) ctHiddenEl.value='';
@@ -1122,6 +1125,8 @@ function openWorkOrder(id) {
   sv('wo-labor-rate',     wo.laborRate||'');
   sv('wo-tax-rate',       wo.taxRate||'');
   sv('wo-internal-notes', wo.internalNotes||'');
+  // r214: brand picker — show the WO's saved brand (or the user's default if never set), gated by permission.
+  if(typeof _brandPickerGateFor==='function') _brandPickerGateFor('wo', (wo.brand==='DCC'||wo.brand==='TCSS') ? wo.brand : ((typeof _defaultBrandForUser==='function')?_defaultBrandForUser():'TCSS'));
 
   // Populate contacts for this customer
   _populateWOContacts(wo.customerId, wo.contactId);
@@ -1315,6 +1320,17 @@ async function saveWorkOrder() {
   };
   // Clear the CO context after consuming it
   if (isNew) { window._newWOParentId=null; window._newWOCOReason=null; }
+
+  // r214: brand (DCC/TCSS) for this WO — its invoice inherits it. Gated by quote.switch_brand so a
+  // user without that permission can't set an arbitrary brand: a NEW WO takes their default brand,
+  // an edited WO keeps whatever brand it already had.
+  (function(){
+    var _canSwitch=(typeof hasPermission!=='function')||hasPermission('quote.switch_brand');
+    var _picked=(document.getElementById('wo-brand')||{}).value;
+    if(_canSwitch && (_picked==='DCC'||_picked==='TCSS')) data.brand=_picked;
+    else if(isNew) data.brand=(typeof _defaultBrandForUser==='function')?_defaultBrandForUser():'TCSS';
+    else data.brand=(_existingWO.brand)||null;
+  })();
 
   // r23 defense in depth: a user without wo.edit can READ the description / resolution / site fields
   // but never change them. The UI locks these on open; this also blocks a forced or scripted save by
@@ -3419,6 +3435,7 @@ async function _pushWOToCloud(wo) {
       parent_wo_id:   wo.parentWoId||null,
       is_change_order:wo.isChangeOrder||false,
       change_order_reason: wo.changeOrderReason||null,
+      brand:          wo.brand||null,   // r214: DCC/TCSS the invoice inherits (new work_orders.brand column)
     };
     var { error } = await _sb.from('work_orders').upsert(_woPayload);
     // r69: a WO whose created_by points at someone who never logged in (not in auth.users) fails the
