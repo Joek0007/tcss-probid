@@ -6545,6 +6545,69 @@ function renderDealRegPanel() {
     + '</div>';
 }
 
+// ── r230: Typeahead "add to quote" ────────────────────────────────────────
+// Type a part #/name/vendor in the quote's Line Items card → instant matches → Enter/click adds the
+// line via addCatToQQ (which carries vendor/msrp/priceMode so the deal-reg discount applies). Keeps
+// focus after each add for rapid line-building without opening the catalog page.
+var _qqTaMatches = [];
+var _qqTaIdx = -1;
+function qqTypeaheadInput(){
+  var inp = document.getElementById('qq-ta-input');
+  var box = document.getElementById('qq-ta-results');
+  if (!inp || !box) return;
+  var q = (inp.value||'').trim().toLowerCase();
+  if (q.length < 2) { _qqTaMatches = []; _qqTaIdx = -1; qqTypeaheadRender(); return; }
+  var terms = q.split(/\s+/);
+  _qqTaMatches = (DB.catalog||[]).filter(function(c){
+    if (!c || c.active === false) return false;
+    var hay = ((c.name||'')+' '+(c.part||c.partNum||'')+' '+(c.vendor||'')+' '+(c.cat||'')).toLowerCase();
+    return terms.every(function(t){ return hay.indexOf(t) >= 0; });
+  }).slice(0, 12);
+  _qqTaIdx = _qqTaMatches.length ? 0 : -1;
+  qqTypeaheadRender();
+}
+function qqTypeaheadRender(){
+  var box = document.getElementById('qq-ta-results');
+  if (!box) return;
+  if (!_qqTaMatches.length) { box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display = 'block';
+  box.innerHTML = _qqTaMatches.map(function(c,i){
+    var _isMsrp = (c.priceMode==='msrp') || (c.msrp!=null);
+    var price = _isMsrp ? ('MSRP ' + fmt(c.msrp||0)) : fmt(c.mc||0);
+    var vend = c.vendor ? '<span style="background:#e3f2fd;color:#1565c0;font-weight:700;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:6px;flex-shrink:0">'+escHtml(c.vendor)+'</span>' : '';
+    var part = (c.part||c.partNum) ? '<span style="font-family:ui-monospace,Menlo,Consolas,monospace;color:#1565c0;font-size:12px;margin-right:6px;flex-shrink:0">'+escHtml(c.part||c.partNum)+'</span>' : '';
+    var nm = c.name||''; if (c.vendor && nm.indexOf(c.vendor+' ')===0) nm = nm.slice(c.vendor.length+1);
+    return '<div data-taidx="'+i+'" onmousedown="event.preventDefault();qqTypeaheadAdd('+i+')" onmouseover="qqTaHover('+i+')" '
+      + 'style="display:flex;align-items:center;gap:4px;padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f4f8;'+(i===_qqTaIdx?'background:#eef6ff':'')+'">'
+      + vend + part
+      + '<span style="flex:1;font-size:13px;color:#263238;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(nm)+'</span>'
+      + '<span style="font-size:12px;color:#2e7d32;font-weight:600;white-space:nowrap;flex-shrink:0">'+price+'</span>'
+      + '</div>';
+  }).join('');
+}
+function qqTaHover(i){ _qqTaIdx = i; qqTypeaheadRender(); }
+function qqTypeaheadAdd(i){
+  var c = _qqTaMatches[i]; if (!c) return;
+  addCatToQQ(c.id);   // carries vendor/msrp/priceMode; applies the quote's current deal-reg discount
+  var inp = document.getElementById('qq-ta-input');
+  qqTypeaheadClose();
+  if (inp) { inp.value=''; setTimeout(function(){ try{ inp.focus(); }catch(e){} }, 0); }  // ready for the next add
+  if (typeof showToast === 'function') showToast('Added: ' + (c.name||'item'), 'success', 1200);
+}
+function qqTypeaheadClose(){
+  var box = document.getElementById('qq-ta-results');
+  if (box) { box.style.display='none'; box.innerHTML=''; }
+  _qqTaMatches = []; _qqTaIdx = -1;
+}
+function qqTypeaheadKey(e){
+  var box = document.getElementById('qq-ta-results');
+  if (!box || box.style.display==='none') return;
+  if (e.key==='ArrowDown') { e.preventDefault(); _qqTaIdx = Math.min(_qqTaIdx+1, _qqTaMatches.length-1); qqTypeaheadRender(); }
+  else if (e.key==='ArrowUp') { e.preventDefault(); _qqTaIdx = Math.max(_qqTaIdx-1, 0); qqTypeaheadRender(); }
+  else if (e.key==='Enter') { e.preventDefault(); if (_qqTaIdx>=0) qqTypeaheadAdd(_qqTaIdx); }
+  else if (e.key==='Escape') { qqTypeaheadClose(); }
+}
+
 function newCatalogItem(){document.getElementById('cat-modal-title').textContent='New Catalog Item';['m-caname','m-cacat','m-caunit','m-canotes','m-caid','m-cavendor','m-capart','m-camsrp'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});const mc=document.getElementById('m-camc');if(mc)mc.value=0;const lh=document.getElementById('m-calh');if(lh)lh.value=0;const pm=document.getElementById('m-capricemode');if(pm)pm.checked=false;openModal('modal-catalog-item');}
 function editCatalogItem(id){const item=DB.catalog.find(function(x){return x.id==id});if(!item)return;document.getElementById('cat-modal-title').textContent='Edit Item';function sv(eid,v){const el=document.getElementById(eid);if(el)el.value=(v!==undefined&&v!==null)?v:'';}sv('m-caname',item.name);sv('m-cacat',item.cat);sv('m-caunit',item.unit);sv('m-camc',item.mc||0);sv('m-calh',item.lh||0);sv('m-canotes',item.notes);sv('m-caid',item.id);sv('m-cavendor',item.vendor);sv('m-capart',item.part||item.partNum);sv('m-camsrp',item.msrp!=null?item.msrp:'');const pm=document.getElementById('m-capricemode');if(pm)pm.checked=(item.priceMode==='msrp');openModal('modal-catalog-item');}
 // r226: PRESERVE existing fields on save (Object.assign from the existing record) so editing a loaded
