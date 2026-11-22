@@ -4773,6 +4773,9 @@ function _setInlinePrimaryContact(customerId, contactId) {
   if (typeof _pushCustomerToCloud==='function') _pushCustomerToCloud(cust);
   var sec = document.getElementById('m-c-primary-contact-section');
   _renderContactSection('edit', customerId, (sec && sec.dataset.custName) || cust.name || '');
+  // r222: also refresh the customer profile behind the modal, so the primary shows updated on exit
+  // regardless of whether the user hits Save or Cancel (the picker commits immediately).
+  if (typeof _refreshOpenCustomerProfile === 'function') _refreshOpenCustomerProfile(customerId);
   if (typeof showToast==='function') showToast(contactId ? 'Primary contact updated' : 'Primary contact cleared', 'success', 2000);
 }
 window._setInlinePrimaryContact = _setInlinePrimaryContact;
@@ -5088,6 +5091,9 @@ async function saveCustomer() {
   else { DB.customers.push(data); _savePrimaryContact(data.id, data.name); }
   if (typeof _pushCustomerToCloud === 'function') _pushCustomerToCloud(data);
   saveDB(); closeModal('modal-customer'); renderCustomers();
+  // r222: if this customer's profile is open behind the modal, refresh it so the edit (e.g. a changed
+  // primary contact) shows right away instead of only after a hard refresh.
+  if (typeof _refreshOpenCustomerProfile === 'function') _refreshOpenCustomerProfile(id);
   showToast('"'+name+'" saved','success');
   // If this edit was launched from a quote's customer dropdown, push the new values back
   // onto that open quote so its customer fields stay in step.

@@ -109,6 +109,21 @@ function switchCPTab(tab) {
   else if (tab==='documents') content.innerHTML = renderCPDocuments(_cpCustomerId);
 }
 
+// r222: refresh the OPEN customer profile in place after an edit (name, primary contact, etc.) WITHOUT
+// the side effects of openCustomerProfile (which resets the tab to Overview and re-fires the hot-note
+// alert popup). Updates the header line + re-renders the current tab, so a changed primary contact shows
+// immediately instead of only after a hard refresh. No-op unless that customer's profile is open.
+function _refreshOpenCustomerProfile(id){
+  if (!_cpCustomerId || _cpCustomerId !== id) return;
+  var customer = (DB.customers||[]).find(function(c){ return c.id===id; });
+  if (!customer) return;
+  var nm = document.getElementById('cp-name'); if (nm) nm.textContent = customer.name||'';
+  var mt = document.getElementById('cp-meta');
+  if (mt) mt.textContent = [(customer.accountNumber?('Acct #'+customer.accountNumber):''),customer.phone,customer.email,customer.address].filter(Boolean).join(' · ');
+  if (typeof switchCPTab==='function') switchCPTab((typeof _cpTab!=='undefined' && _cpTab) ? _cpTab : 'overview');
+}
+window._refreshOpenCustomerProfile = _refreshOpenCustomerProfile;
+
 // ============================================================
 // CUSTOMER DOCUMENTS — account-level file attachments
 // Files that belong to the CUSTOMER (contracts, agreements, tax-exempt forms,
