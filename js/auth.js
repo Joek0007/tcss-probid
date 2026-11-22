@@ -1570,7 +1570,7 @@ async function syncAllFromCloud(silent) {
         var cCloudComplete = custs.length > 0;
         var localOnlyCusts = (DB.customers||[]).filter(function(c){ return c.id && !cloudCustIds.has(String(c.id)) && delC.indexOf(String(c.id)) < 0 && !(c._synced && cCloudComplete); });
         var cloudCusts = custs.map(function(c) {
-          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, defaultTaxRate:(c.default_tax_rate!=null?c.default_tax_rate:null), hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, partsMarkupPct:(c.parts_markup_pct!=null?c.parts_markup_pct:null), moduleAlerts:c.module_alerts||null, accountNumber:(c.account_number!=null?c.account_number:null), notes:c.notes, active:c.is_active, createdAt:c.created_at, updatedAt:c.updated_at };
+          return { id:c.id, name:c.name, company:c.company, email:c.email, phone:c.phone, phone2:c.phone_alt, address:c.address, street:c.street||null, city:c.city, state:c.state, zip:c.zip, defaultTerms:c.default_terms||null, taxExempt:!!c.tax_exempt, defaultTaxRate:(c.default_tax_rate!=null?c.default_tax_rate:null), hotNoteTech:c.hot_note_tech||null, hotNoteOffice:c.hot_note_office||null, officeAlertScope:c.office_alert_scope||null, invoicingContact:c.invoicing_contact||null, invoicingEmail:c.invoicing_email||null, defaultContactId:c.default_contact_id||null, partsMarkupPct:(c.parts_markup_pct!=null?c.parts_markup_pct:null), moduleAlerts:c.module_alerts||null, accountNumber:(c.account_number!=null?c.account_number:null), notes:c.notes, active:c.is_active, createdAt:c.created_at, updatedAt:c.updated_at };
         });
         cloudCusts.forEach(function(cc){ cc._synced = true; _officeMarkSynced('customers', cc); }); // r32 content snapshot
         DB.customers = _lwwMerge(cloudCusts, DB.customers, localOnlyCusts);  // r26: LWW (keep newer local edits)
@@ -2414,6 +2414,7 @@ async function _pushCustomerToCloud(c) { if (_writesBlocked()) return;
       office_alert_scope: c.officeAlertScope || null,
       invoicing_contact: c.invoicingContact || null,
       invoicing_email: c.invoicingEmail || null,
+      ...(('defaultContactId' in c) ? { default_contact_id: c.defaultContactId || null } : {}), /* r220: primary/default contact — now persisted to cloud (was local-only). Guard so a stale client lacking the field can't wipe it. */
       ...(('partsMarkupPct' in c) ? { parts_markup_pct: (c.partsMarkupPct!=null && c.partsMarkupPct!=='') ? c.partsMarkupPct : null } : {}), /* stale client lacking the field must not null the markup; a present value (even blank) still honors a real clear */
       module_alerts: c.moduleAlerts || null,
       notes: c.notes || null,
@@ -3538,6 +3539,7 @@ async function pushAllToCloud() {
           office_alert_scope: c.officeAlertScope || null,
           invoicing_contact: c.invoicingContact || null,
           invoicing_email:   c.invoicingEmail || null,
+          ...(('defaultContactId' in c) ? { default_contact_id: c.defaultContactId || null } : {}), /* r220: primary/default contact persisted (bulk-sync path) */
           ...(('partsMarkupPct' in c) ? { parts_markup_pct: (c.partsMarkupPct!=null && c.partsMarkupPct!=='') ? c.partsMarkupPct : null } : {}), /* same stale-client guard as account_number */
           module_alerts:     c.moduleAlerts || null,
           notes: c.notes || null,

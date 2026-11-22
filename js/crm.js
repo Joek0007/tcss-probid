@@ -733,6 +733,8 @@ function setContactAsDefault(customerId, contactId) {
   if (!cust) return;
   cust.defaultContactId = contactId || null;
   saveDB();
+  // r220: persist to the cloud too (was local-only — the default didn't sync or survive a clean load).
+  if (typeof _pushCustomerToCloud==='function') _pushCustomerToCloud(cust);
   switchCPTab('contacts');
   showToast(contactId ? 'Default contact updated' : 'Default contact cleared', 'success', 2000);
 }
