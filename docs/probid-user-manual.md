@@ -4,16 +4,49 @@
 
 Total Communications Systems & Solutions, Inc.  ·  Asheboro, NC  ·  336-629-7474
 
-**Version 9 · October 2026 Update** — Updated October 12, 2026 · Software build v20260919jr
+**Version 9 · November 2026 Update** — Updated November 22, 2026 · Software build v9 · r232
 
 > This Markdown copy is the living, project-stored version of the manual. The polished Word (.docx) version is generated from the same source (`build_manual.js`); keep both in step when updating.
 
 ---
 
 
-## What's New in This Version
+## What's New in the November 2026 Update
 
-If you have used ProBid before, here is a quick tour of what changed since the last manual. Every item below is explained in full in its own chapter.
+Since the October update, the biggest additions are around **pricing, purchasing, and running more than one company brand**. Here is the quick tour; the largest items also have their own chapters later in the manual.
+
+### Pricing & quoting
+
+- **Vendor pricing for Verkada and Rhombus (MSRP items).** Your price list now holds the full Verkada and Rhombus parts lists — cameras, access control, intercoms, alarms and sensors, licenses, and mounts — each with its real model number and **MSRP (manufacturer's list price)**. For these items you don't type a cost. You set a **deal-registration discount** per vendor on each quote, ProBid works out your cost as MSRP minus that discount, and your normal markup produces the customer's price — exactly how these lines are sold. See **Vendor Pricing & the Deal-Registration Discount**.
+- **A much faster way to add parts to a quote.** On a quote, start typing a part number, model, name, or vendor in the new search box above the line items — matching parts appear instantly, and **Enter** (or a click) drops the part straight onto the quote. Add one after another without ever opening the catalog page. See **Vendor Pricing & the Deal-Registration Discount**.
+- **The Price Catalog is now a sortable table.** Instead of cards, your catalog is a clean, dense table — Vendor · Model · Name · Category · MSRP · Cost · Labor — and you can **click any column heading to sort** (for example by MSRP to see your most expensive gear, or by Vendor to group Verkada and Rhombus). Price Update Mode lets you edit prices right in the grid. See **The Price Catalog**.
+- **Labor on each quote line.** Every quote line can now carry its own labor — Standard, overtime (1.5× or 2×), or a custom hourly rate — plus an optional **flat labor dollar** amount per unit when a job is priced by the piece rather than by the hour.
+- **Editable margin floors, cleaned up.** The minimum-margin settings are now tied cleanly to your job types, and when you remove one it stays removed.
+
+### Purchasing & materials
+
+- **Receiving on purchase orders.** When parts arrive you can receive them against the PO — all at once or line by line — with a running **receipt history**, the ability to **correct or reverse** a receipt, and a manager reopen. Packing slips can be reviewed by the office before they post. See **Purchase Orders & Receiving**.
+- **Materials that bill to the job.** Parts bought for a job carry their cost onto the work order and bill to the customer with your markup, with a guardrail so a PO's parts land on the right job.
+
+### Running a second brand
+
+- **Issue work under a second company identity (DCC).** ProBid can now produce quotes, invoices, work orders, and purchase orders under a second brand — **Davis Coastal Cabling** — with its own logo and contact block, chosen per document, and you can **filter your lists by brand** to see DCC versus TCSS work. A permission controls who is allowed to switch brands. See **Running a Second Brand**.
+- **Redesigned, more professional invoices.** Invoices got a cleaner, larger, logo-forward redesign that automatically uses whichever brand's logo applies.
+
+### Customers, alerts & the rest
+
+- **Customer alerts that pop up when you need them.** You can set a note on a customer that pops up as an alert when someone opens that customer — or opens a related quote, work order, invoice, or purchase order — so a "call before you go" or "COD only" flag never gets missed. Field techs get their own "hot note" on work assigned to them. See **Customers**.
+- **Change a customer's primary contact in one click.** A picker at the top of the contact list lets you set the primary contact without opening each one, and the change shows immediately with no refresh.
+- **Color your work-order statuses exactly.** Status colors can now be set by **hex code with the RGB values shown beside them**, so you can match colors precisely and reuse them elsewhere.
+- **Better notifications.** Sensible default alert rules are seeded for you, confirmations are honest about what actually sent, and the notification history is easier to read.
+- **A reusable proposal-terms clause library** for the office to manage the standard clauses that appear on proposals.
+- **Tighter security.** The app-lock (PIN) flow was hardened and the Settings security controls were separated into their own area.
+
+> **TIP:** Right after any update, press Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac) once to load the newest version.
+
+## What's New — October 2026 Update
+
+If you have used ProBid before, here is a quick tour of what changed in the October update. Every item below is explained in full in its own chapter.
 
 ### Big changes
 
@@ -992,6 +1025,95 @@ If you ever felt “trapped” on a screen in older versions, that’s gone — 
 ### Logging Out
 
 Click your initials in the top-right corner and select **Log Out**. Always log out on shared computers. ProBid stays signed in on personal devices, and signs everyone out automatically after 8 hours of inactivity.
+
+## Vendor Pricing & the Deal-Registration Discount
+
+*New in November 2026. This is how ProBid prices Verkada and Rhombus hardware the way those vendors actually sell it.*
+
+### How MSRP items work
+
+Most of your catalog items carry a cost you type in. Verkada and Rhombus don't work that way. The stable number for their gear is the **MSRP** — the manufacturer's published list price — and your cost is MSRP minus a discount that changes from job to job depending on how the deal is registered with the vendor.
+
+So in your price list, every Verkada and Rhombus part is loaded as an **MSRP item**: it shows the real model number (CD53-E, R520-512GB, AC62, and so on) and its MSRP, and it is marked "MSRP-priced." You will see these across the headings **Cameras, Access Control, Intercom, Security (alarms & sensors), Licenses,** and **Mounts & Accessories**, for both vendors.
+
+### Setting the deal-registration discount on a quote
+
+When you add one or more Verkada or Rhombus items to a quote, a **Deal Registration Discount** panel appears just above the line items. It lists each vendor on the quote with a box where you type the **percent off MSRP** for that job. As you type it, ProBid instantly:
+
+1. works out your **cost** for every one of that vendor's lines as *MSRP minus the discount*, and
+2. runs your **normal markup** on that cost to set the customer's price.
+
+The panel shows a live readout for each vendor — "*N items · MSRP $X → cost $Y*" — so you can see exactly what the discount does. You set Verkada and Rhombus independently; a quote can have a different discount for each.
+
+The discount starts at **0%** and you set it fresh on every quote, because it genuinely changes per deal. At 0%, cost equals MSRP (a deliberately high placeholder that reminds you to enter the real registered discount). The discount is saved with the quote, so reopening it — even on another device — brings back the discount and the discounted costs.
+
+### Licenses
+
+Verkada's per-device licenses (per camera, per door, per intercom, and so on) are not published as a fixed price, so those license items are in your catalog with a **blank MSRP** — fill in the figure from your deal quote when you build the job. Verkada's site-level licenses (alarm, data, workplace) and Rhombus's licenses are loaded with their real prices.
+
+### Keep it honest
+
+The loaded MSRP figures are a snapshot. Vendors change prices, and the real discount (and occasionally the MSRP) comes from the vendor's quote once a specific deal is registered. Treat the loaded numbers as your starting point and confirm against the registered-deal quote on each job.
+
+## The Price Catalog
+
+*The Price Catalog (under Sales in the menu) is your master list of parts, materials, and priced items. It was rebuilt as a sortable table in November 2026.*
+
+### The table
+
+Every item is a row with these columns: **Vendor** (a colored chip for Verkada/Rhombus), **Model** (the part number), **Name**, **Category**, **MSRP**, **Cost**, and **Labor**, plus **+ Add** and **Edit** buttons. The header stays in place as you scroll, and a count at the top tells you how many items you are looking at.
+
+- **Sort by any column** — click a heading once to sort, click again to flip the direction. Sort by MSRP to see your priciest gear, by Model to find a SKU, by Vendor to group a vendor's line.
+- **Filter and search** — use the **Vendor** and **Category** dropdowns, or type in the search box to match on name, model, vendor, or category. Filters combine (for example, Vendor = Rhombus *and* Category = Cameras).
+- **+ Add** drops that item onto the quote you are building. **Edit** opens the item to change its name, category, vendor, part number, MSRP, cost, labor, or whether it is MSRP-priced.
+
+### Price Update Mode
+
+Click **Price Update Mode** (top of the page) and the MSRP, Cost, and Labor cells turn into editable boxes right in the table, so you can update many prices quickly — handy when a vendor raises prices. Make your changes and click **Save All Changes** (or Cancel to back out).
+
+### Adding parts to a quote by typing (quick add)
+
+You don't have to open the catalog to add parts. On a quote, in the Line Items section, there is a search box labeled *"Type a part #, model, name, or vendor to add a line."* Start typing and a list of matching parts drops down, each showing its vendor, model, name, and price, with the closest model matches at the top. Press **Enter** (or click) to add the highlighted part; use the **↑/↓** arrows to pick a different one, or **Esc** to close. After each add the box clears and keeps the cursor, so you can rattle off a whole camera list — type "CD53," Enter, "R520," Enter, "AC62," Enter — in seconds. Parts added this way carry their vendor and MSRP, so the deal-registration discount applies to them automatically.
+
+## Purchase Orders & Receiving
+
+*Purchase Orders live under Billing. Receiving — logging what actually arrives — was added and refined through the November 2026 updates.*
+
+### Receiving parts
+
+When an order arrives, open the PO and **receive** the items against it. You can receive **everything at once** with a bulk button, or go **line by line** entering the quantity that came in for each part. Each PO keeps a **receipt history** showing what was received, how much, and when, so a partial delivery and the shipment that finishes it are both on the record.
+
+- **Corrections and reversals.** If you receive the wrong amount, you can correct or reverse a receipt rather than living with a bad number. A manager can **reopen** a PO that was closed too early.
+- **Packing-slip review.** Packing slips can be sent to the office to review before the receipt posts, so what gets booked against the PO matches the paperwork.
+- **View-only access.** A permission lets some people see POs without being able to change them.
+
+### Materials that bill to the job
+
+Parts you buy for a specific job carry their **cost onto the work order** and bill to the customer with your markup applied, so the materials show up on the invoice correctly. A guardrail keeps a PO's parts tied to the right job so costs don't land on the wrong work order.
+
+## Running a Second Brand
+
+*New in November 2026. ProBid can produce paperwork under a second company identity — Davis Coastal Cabling (DCC) — alongside Total Communications.*
+
+### What a brand is
+
+A **brand** is the company identity a document is issued under — its name, logo, and contact/remit block. Every quote, invoice, work order, and purchase order is issued under a brand; the default is TCSS, and you can switch a document to **DCC** where that is the right identity for the work.
+
+- **Choose the brand per document.** On a quote, invoice, work order, or PO you can set the brand, and the printed/emailed output, the logo, and the remit information all follow that brand.
+- **Filter your lists by brand.** Work-order and PO lists can be filtered by brand, and rows show a DCC badge, so you can see DCC work separately from TCSS.
+- **Who can switch.** Switching a document's brand is governed by a permission, so only the people you choose can issue work under the other brand.
+
+Invoices in particular were redesigned to be cleaner and more professional, and automatically show whichever brand's logo applies.
+
+## Customer Alerts & Flags
+
+*New in November 2026. A way to make an important note impossible to miss.*
+
+On a customer you can set **module alerts** — short notes that pop up as an alert the moment someone opens something related to that customer. You can attach an alert to any of: the **customer** record itself, a **quote**, a **work order**, an **invoice**, or a **purchase order** for that customer. Open the matching item and the note pops up front and center ("COD only," "Gate code 1234," "Call before rolling a truck"), so it can't be buried in a notes field nobody reads.
+
+Field techs get their own **hot note** — an alert on the work assigned to them — so a site-specific warning reaches the person actually going out.
+
+Separately, setting a customer's **primary contact** is now one click: a picker at the top of the customer's contact list lets you choose the primary without opening each contact, and the change shows right away without a refresh.
 
 ## About Your Data & Syncing
 

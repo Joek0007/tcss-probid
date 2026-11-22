@@ -14,9 +14,12 @@ console.log('── r101 PO-list Receive (dark-green active / green-outline plac
 // no more INVISIBLE reserved button (that was the empty-gap bug)
 ok('no visibility:hidden reserved button', po.indexOf('visibility:hidden')<0);
 
-// active Receive = solid dark green (btn-success), clickable, only for Sent / Partially Received
+// active Receive = solid dark green (btn-success), clickable, for a receivable status gated by _canReceivePO().
+// r181+: the receivable set now also includes 'Draft' (['Draft','Sent','Partially Received']). The assertion is
+// written to tolerate a leading status so it won't re-break if that list is extended again — it only requires
+// that Sent/Partially Received are receivable and that it drives the openReceiving flow with the dark-green button.
 ok('receivable PO → solid dark-green clickable Receive',
-   /\['Sent','Partially Received'\]\.includes\(po\.status\)/.test(po) &&
+   /'Sent','Partially Received'\]\.includes\(po\.status\)/.test(po) &&
    /\? '<button class="btn btn-success btn-sm po-recv" onclick="openReceiving/.test(po));
 
 // every other row → green-outline placeholder, inert (not clickable), same class footprint

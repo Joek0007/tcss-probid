@@ -321,3 +321,60 @@ Expense categories live on `DB.woSettings.expenseCats` (the key both the expense
 
 ### Permissions wiring
 `page.expenses` and `page.perdiem` added to `PERM_DEFS` (dispatch.js), to `_PAGE_PERM_MAP` + `PAGE_TITLES` + the `goPage` dispatch (core.js), and to the `enforceNavPermissions` pageMap (auth.js). The auth.js map had been missing `expenses` entirely, which hid the nav item for non-owner office roles (owner skips all hiding, so it only surfaced for manager/back-office logins).
+
+## November 2026 build run (r165–r232) — architecture & decisions
+
+This is the running record of the work after the October update. It is written so a future session can pick up the same patterns without re-deriving them. Build numbers are the `APP_BUILD`/`SHELL_VERSION` revision (`v9 · rNNN`).
+
+### Deploy & verification reality (do not relearn this the hard way)
+- **This is NOT a git repo for deploys.** The app ships by editing files → zipping the app folder → `SendUserFile` → Joe drops the zip through **GitHub Desktop** → GitHub Pages serves it → Joe says "up." A Stop-hook message about "uncommitted changes / commit and push" is a **false alarm** — ignore it; there is nothing to commit here.
+- **Version bump every deploy:** `sw.js` `SHELL_VERSION`, `window.APP_BUILD` in `index.html`, and the `?v=` cache-bust token on every changed `js/*.js` in `index.html`. The service worker is network-first for HTML and cache-first for the versioned JS.
+- **GitHub Pages propagation lag + SW cache** mean the first reload after "up" often still serves the previous build. To verify live, hard-reload to a **fresh query string** (e.g. `…/?rNNNx#/route`) and wait; a second fresh-query reload usually lands the new build. A heavy fresh boot can also freeze the renderer (big sync) for 20–40s — wait, then reload to a new query to unstick.
+- **The pre-delivery reliability gate at the top of this file is in force for all of the below.** Every one of these builds was driven live as a real user in the browser before "done," and test data was cleaned up after.
+
+### Standing workflow rules reaffirmed this run (see the `claude/WORKFLOW-RULE-*` project docs)
+- **Click-through test as a real user on EVERY change** — including features that are "already done" or "already wired." *Saved ≠ works; existing ≠ wired.* The customer-alerts work proved it: code that called the fire function still did nothing on imported invoices (wrong match field) until clicked.
+- **MAP every angle before building** — a short map/plan doc first (stored under `claude/MAP-*`), then build, then verify.
+- **Notifications need both a firing trigger and seeded defaults** — a rule that exists but is never fired does nothing.
+
+### Quote line-item labor (r168–r170)
+Each quote line gained `laborMult` (1 / 1.5 / 2 / 0=custom), `laborRate` (custom $/hr, null otherwise), and `flatLabor` ($/unit). Hours and flat are **mutually exclusive per line** (entering one zeros the other, on commit). Labor sell is the **sum of each line's labor**, not totalHours × one rate, so the summary band reconciles with the grid. These per-line fields can't ride the `replace_quote_line_items` RPC (fixed columns: sort_order/description/category/qty/material_cost/labor_hours), so they sync via **`quote_extras.lineLabor`** — a parallel array by index — merged back onto `q.items` in `_applyQuoteExtras`. **This parallel-array pattern is the standard way to persist per-line fields** and was reused later for MSRP.
+
+### Purchase-order receiving (r165–r184)
+Receiving added to POs: per-line and bulk ("receive all") entry, a per-PO **receipt history**, **corrections/reversals**, and a **manager reopen**. Legacy PO statuses were normalized to a canonical `Received`. Packing slips get an **office-review** step with a 3-way mode picker (inbox/corrector/no-lookup). A **PO view-only** permission (`po.view` vs `po.edit`) lets some roles see without editing. POs carry structured columns (not a jsonb blob).
+
+### Material-to-job billing (r194–r196)
+Parts bought on a PO for a job carry cost onto the WO and bill with markup (phase 1 cost-carry + markup; phase 2 PO→job guardrail so costs land on the right job; phase 3 WO rollup + customer-profile surfacing).
+
+### DCC brand system (Option A, pass-through) (r186–r216)
+A second company identity (Davis Coastal Cabling) issued per document. `_brandFor(q)` resolves identity by `q.brand`; `DB.settings.dccBrand` holds `{defaultForEmails, logoDataUrl, cname, caddr, cphone, cemail}`; TCSS identity is the existing `DB.settings.*`. `brand` is a per-document field on quotes (`quote_extras.brand`), invoices (`app_invoices.data`), work orders (`work_orders.brand` column + `_mapWORow`/`_WO_HASH_KEYS`), and POs (`purchase_orders.brand` column + per-PO toggle, r216). Printouts/emails for all four are brand-aware (logo + remit block), and WO/PO **lists filter by brand** with a DCC badge. Switching brand is gated by the **`quote.switch_brand`** permission. WO brand can override the invoice brand (r214).
+
+### Invoice redesign (r189–r213)
+`buildInvoiceHTML` made **logo-first for both brands** (was a hardcoded TCSS text wordmark in the TCSS branch — the "only wired one path" mistake). Professional redesign, output 15% larger, logo auto-shrink, remit block, and the TCSS invoice logo **wired to the Settings graphic** rather than hardcoded.
+
+### Notifications (r175, r205–r209)
+Default alert rules are **seeded** on load; the post-send toast is **honest** about what actually sent; notification history was revamped; app-lock reload fixed. A rule with no firing trigger is inert by design.
+
+### Margin floors (r217–r218)
+Push now **propagates deletes + reconciles** (removes cloud rows not in local), and the pull is **authoritative** (REPLACE local with cloud, not additive merge) so a since-deleted floor can't resurrect from a stale device. Dead `jobTypes`/`projectEnvs` settings removed. Note: **margin floors ARE the job-type list** — `populateJTDropdown()` reads `_getMFList()`.
+
+### Customer module alerts (r222–r224)
+`customers.module_alerts` (jsonb) holds a note per module: `customer`/`quote`/`workorder`/`invoice`/`purchaseorder`, plus a tech "hot note." `_fireCustomerModuleAlert(cust, key, …)` shows `_showHotNotesQueue([...])`, office-roles-only (`owner/manager/back_office/estimator`). Wired into all six open paths. **The bug that proved "wired ≠ fires":** the invoice path first resolved the customer by `inv.billName` only, which is empty on imported invoices — fixed with a `billName → inv.job.customer → customerName` fallback (r224). Lesson in the project docs: verify each firing path by click-through, not by code reading.
+
+### Primary contact (r219–r221)
+Added `customers.default_contact_id` (+ push/pull mapping). Inline "change primary contact" picker at the top of the contact list; `_setInlinePrimaryContact` sets it + pushes + re-renders + `_refreshOpenCustomerProfile` for a **live** update (no hard refresh). **`_buildCustomerData` uses `Object.assign({}, existing, {…form…})`** so a save never wipes non-form fields (default_contact_id, moduleAlerts, created*). This Object.assign-from-existing guard is the fix pattern for every "quick edit form that rebuilds a record."
+
+### WO status colors by hex + RGB (r225)
+Status color stored as a 6-digit hex in `settings_json._woSettings.statuses[].color`. The Settings row shows a native picker + an **editable hex field** + a read-only **RGB** readout, all synced; `_normHex` normalizes (`#abc`→`#aabbcc`, adds `#`, lowercases, rejects junk), `_hexToRgbStr` derives RGB; invalid entry reverts and flashes. Also dropped the dead, unused `wo_settings` table (statuses actually live in `company_settings.settings_json._woSettings`).
+
+### Vendor MSRP catalog (r226)
+`catalog` gained `msrp numeric` and `price_mode text default 'cost'`. Pull/push mapping carry `msrp`/`priceMode` (inventory push + bulk push + the `catalog` pull map). The quick catalog editor (`saveCatalogItem`) rebuilt to **Object.assign from existing** (was wiping vendor/part/msrp — same bug class as r221). **237 real items loaded** (Verkada 126, Rhombus 111) with `price_mode='msrp'` and `default_cost=msrp` (the 0%-discount baseline); Verkada per-device licenses loaded with blank MSRP. Source MSRP captured in `claude/VENDOR-verkada-*` / `claude/VENDOR-rhombus-*`. Verkada from verkada.com/pricing (official); Rhombus from the ALJP 2026 contract price list (base price = MSRP).
+
+### Deal-registration discount (r227–r228)
+Per-quote `quoteVendorDiscounts` global (core.js), e.g. `{Verkada:0.42, Rhombus:0.35}`. For an MSRP line of vendor V, `line.mc = round2(msrp × (1 − discount))`; the existing markup/margin then produces the sell (calcTotals unchanged — it already prices off `mc`). UI: `renderDealRegPanel()` (called at the end of `renderLI`) shows one %-off-MSRP input per vendor present. Persistence rides `quote_extras`: top-level **`vendorDiscounts`** + a **`lineMsrp`** parallel array (vendor/msrp/priceMode), merged in `_applyQuoteExtras`; `getQData` emits `vendorDiscounts`; `editQuote` restores it. **Gotcha:** `calcTotals()` updates the pricing panel + header total but **not** the sticky footer bar — `setVendorDiscount` must also call `updateQQStage3UI()` (r228), the same refresh `addRow` uses.
+
+### Price Catalog table + typeahead (r229–r232)
+`renderCatalog` rewritten from cards to a **sortable table** (`catSort`/`_catSortKey`/`_catSortDir`; numeric sort for MSRP/Cost/Labor, null MSRP low; sticky header; internal scroll; Price Update Mode inline inputs; filters + search preserved). Quote-side **typeahead** (`#qq-ta-input`): `qqTypeaheadInput/Render/Add/Close/Key`; adds via **`addCatToQQ(id, true)`** — the `skipNav` param (r231) stops the view jumping to the top on each add; relevance ranking (r232): exact part# > part# prefix > name prefix > part# contains > other, so "R520" surfaces the camera before the "for R520" accessory.
+
+### The quote_extras parallel-array pattern (reusable)
+Fixed-column RPCs (`replace_quote_line_items`) can't carry new per-line fields. The established pattern: store a **parallel array by index** in `quote_extras` (`lineLabor`, `lineMsrp`) and merge it back onto `q.items` in `_applyQuoteExtras`; store **top-level** per-quote fields (`vendorDiscounts`, `brand`, `proposalClauses`, `claimedBy`) as plain keys in the same bundle. `_quoteExtras(q)` is the single source of truth that both push sites and the pull read — add a field there and in `_applyQuoteExtras`, nothing else.
