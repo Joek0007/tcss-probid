@@ -1609,15 +1609,13 @@ async function syncAllFromCloud(silent) {
       var { data: floors, error: fe } = await _sb.from('margin_floors').select('*');
       if (fe) { errors.push('margin_floors: '+fe.message); }
       else if (floors && floors.length) {
-        // Merge Supabase floor values into existing array format
-        // Don't overwrite — update floor values but preserve jobType/notes structure
-        var existing = _getMFList ? _getMFList() : [];
-        floors.forEach(function(f) {
-          var entry = existing.find(function(e){ return e.jobType===f.job_type; });
-          if (entry) { entry.floor = parseFloat(f.floor_pct)||entry.floor; }
-          else { existing.push({ jobType:f.job_type, floor:parseFloat(f.floor_pct)||35, notes:'' }); }
-        });
-        DB.marginFloors = existing;
+        // r218: AUTHORITATIVE pull. margin_floors is owner-managed and the editor pushes every change
+        // (plus the r217 reconcile that deletes removed rows), so the cloud is the single source of truth.
+        // REPLACE the local list with the cloud set — do NOT additively merge. The old merge only ADDED
+        // cloud rows and never removed a local one, so a device that had cached since-deleted floors kept
+        // showing them (and, if the owner saved from that stale device, could push them back). Guard: we
+        // only reach here when cloud returned ≥1 row, so this never wipes the list to empty.
+        DB.marginFloors = floors.map(function(f){ return { jobType:f.job_type, floor:parseFloat(f.floor_pct)||35, notes:f.notes||'' }; });
       }
     } catch(e) { errors.push('margin_floors: '+e.message); }
 
