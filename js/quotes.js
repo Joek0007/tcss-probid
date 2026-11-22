@@ -4994,9 +4994,14 @@ async function _allocCustomerNumber(){
 }
 function _buildCustomerData(id) {
   function gv(eid){var el=document.getElementById(eid); return el?el.value.trim():'';}
+  // r221: build ON TOP OF the existing record so fields that AREN'T on the form survive a save — most
+  // importantly defaultContactId (the primary contact, set by the picker, not a form field), plus
+  // moduleAlerts / createdAt / createdBy. Before this, saveCustomer did DB.customers[idx]=_buildCustomerData(id),
+  // REPLACING the record with only the rebuilt fields — so picking a primary then hitting Save reverted it.
+  var _existing = id ? (DB.customers||[]).find(function(c){ return String(c.id)==String(id); }) : null;
   var street=gv('m-cstreet'), city=gv('m-ccity'), state=gv('m-cstate').toUpperCase(), zip=gv('m-czip');
   var addrParts=[street, city&&state?city+', '+state:(city||state), zip].filter(Boolean);
-  return {
+  return Object.assign({}, _existing||{}, {
     id:           id || (typeof makeUUID==='function' ? makeUUID() : 'cust-'+Date.now()),
     name:         gv('m-cname'),
     phone:        gv('m-cphone'),
@@ -5024,7 +5029,7 @@ function _buildCustomerData(id) {
       dispatch:    !!((document.getElementById('m-calert-dispatch')||{}).checked),
     },
     updatedAt:    new Date().toISOString()   // r26: stamp every edit for last-writer-wins sync
-  };
+  });
 }
 function _savePrimaryContact(customerId, customerName) {
   var name = ((document.getElementById('m-pc-name')||{}).value||'').trim();
