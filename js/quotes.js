@@ -6464,7 +6464,7 @@ function _expandKitToQuoteRows(kit, kitQty) {
   return n;
 }
 
-function addCatToQQ(id) {
+function addCatToQQ(id, skipNav) {
   const item = DB.catalog.find(function(i){return i.id==id});
   if (!item) return;
   if (item.itemType === 'kit') {
@@ -6482,7 +6482,7 @@ function addCatToQQ(id) {
     }
     addRow(li);
   }
-  goPage('qq');
+  if (!skipNav) goPage('qq');   // r230: typeahead adds in-place (skipNav) so the view doesn't jump to the top
 }
 
 // ── r227: Deal-registration discount per vendor ───────────────────────────
@@ -6588,7 +6588,7 @@ function qqTypeaheadRender(){
 function qqTaHover(i){ _qqTaIdx = i; qqTypeaheadRender(); }
 function qqTypeaheadAdd(i){
   var c = _qqTaMatches[i]; if (!c) return;
-  addCatToQQ(c.id);   // carries vendor/msrp/priceMode; applies the quote's current deal-reg discount
+  addCatToQQ(c.id, true);   // skipNav: carries vendor/msrp/priceMode, applies deal-reg discount, stays in place
   var inp = document.getElementById('qq-ta-input');
   qqTypeaheadClose();
   if (inp) { inp.value=''; setTimeout(function(){ try{ inp.focus(); }catch(e){} }, 0); }  // ready for the next add
