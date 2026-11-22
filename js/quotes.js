@@ -6558,11 +6558,26 @@ function qqTypeaheadInput(){
   var q = (inp.value||'').trim().toLowerCase();
   if (q.length < 2) { _qqTaMatches = []; _qqTaIdx = -1; qqTypeaheadRender(); return; }
   var terms = q.split(/\s+/);
-  _qqTaMatches = (DB.catalog||[]).filter(function(c){
+  var matched = (DB.catalog||[]).filter(function(c){
     if (!c || c.active === false) return false;
     var hay = ((c.name||'')+' '+(c.part||c.partNum||'')+' '+(c.vendor||'')+' '+(c.cat||'')).toLowerCase();
     return terms.every(function(t){ return hay.indexOf(t) >= 0; });
-  }).slice(0, 12);
+  });
+  // Rank: exact part# > part# starts-with > name starts-with > part# contains > anything else.
+  // So "R520" surfaces the R520 camera before an accessory that only says "for R520" in its name.
+  var _score = function(c){
+    var part = (c.part||c.partNum||'').toLowerCase();
+    var name = (c.name||'').toLowerCase();
+    var vend = (c.vendor||'').toLowerCase();
+    var nameNoVend = (vend && name.indexOf(vend+' ')===0) ? name.slice(vend.length+1) : name;
+    if (part === q) return 0;
+    if (part.indexOf(q) === 0) return 1;
+    if (nameNoVend.indexOf(q) === 0 || name.indexOf(q) === 0) return 2;
+    if (part.indexOf(q) >= 0) return 3;
+    return 4;
+  };
+  matched.sort(function(a,b){ return _score(a) - _score(b); });
+  _qqTaMatches = matched.slice(0, 12);
   _qqTaIdx = _qqTaMatches.length ? 0 : -1;
   qqTypeaheadRender();
 }
