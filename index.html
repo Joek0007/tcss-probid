@@ -2830,11 +2830,13 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     </div>
     <!-- hidden status value — the status tab strip sets this via woChipClick -->
     <select id="wo-filter-status" style="display:none"><option value="">All Statuses</option></select>
-    <button id="wo-filters-btn" type="button" onclick="toggleWOFilters(event)" style="display:inline-flex;align-items:center;gap:7px;border:1px solid #e0e7ef;background:#f5f7fa;border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:600;color:#546e7a;cursor:pointer;flex-shrink:0">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M6 12h12M10 19h4"/></svg>Filters<span id="wo-filters-badge" style="display:none;background:#1565c0;color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 6px;margin-left:2px">0</span>
-    </button>
-    <!-- Filters popover: priority / type / brand / multi-select techs -->
-    <div id="wo-filters-panel" style="display:none;position:absolute;top:calc(100% + 6px);right:14px;z-index:50;background:#fff;border:1px solid #e0e7ef;border-radius:12px;box-shadow:0 8px 28px rgba(16,32,55,.16);padding:16px;width:280px;max-width:calc(100vw - 32px)">
+    <!-- r238b: Filters button + popover wrapped in a relative box so the popover drops directly UNDER the button, not pinned to the far right of the bar -->
+    <div style="position:relative;flex-shrink:0">
+      <button id="wo-filters-btn" type="button" onclick="toggleWOFilters(event)" style="display:inline-flex;align-items:center;gap:7px;border:1px solid #e0e7ef;background:#f5f7fa;border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:600;color:#546e7a;cursor:pointer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M6 12h12M10 19h4"/></svg>Filters<span id="wo-filters-badge" style="display:none;background:#1565c0;color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 6px;margin-left:2px">0</span>
+      </button>
+      <!-- Filters popover anchored to the button (right:0) — drops right beneath it -->
+      <div id="wo-filters-panel" style="display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:50;background:#fff;border:1px solid #e0e7ef;border-radius:12px;box-shadow:0 8px 28px rgba(16,32,55,.16);padding:16px;width:280px;max-width:calc(100vw - 32px)">
       <div style="display:flex;flex-direction:column;gap:13px">
         <div>
           <div style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#90a4ae;margin-bottom:5px">Priority</div>
@@ -2862,12 +2864,18 @@ body.role-lead-tech .page-settings-btn{display:none!important}
         <div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
             <span style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#90a4ae">Technicians</span>
-            <button type="button" onclick="woClearTechs()" style="background:none;border:0;color:#1565c0;font-size:11.5px;font-weight:600;cursor:pointer;padding:2px 4px">Clear</button>
+            <span style="display:flex;gap:10px;align-items:center">
+              <button type="button" onclick="woSelectAllTechs()" style="background:none;border:0;color:#1565c0;font-size:11.5px;font-weight:600;cursor:pointer;padding:2px 4px">Select all</button>
+              <button type="button" onclick="woClearTechs()" style="background:none;border:0;color:#1565c0;font-size:11.5px;font-weight:600;cursor:pointer;padding:2px 4px">Clear</button>
+            </span>
           </div>
           <div id="wo-filter-tech-chips" style="display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto"></div>
         </div>
       </div>
+      </div>
     </div>
+    <!-- r238b: Reset — clears EVERY filter (search, status, priority, type, brand, techs) and shows all work orders -->
+    <button id="wo-reset-btn" type="button" onclick="woResetAllFilters()" style="display:inline-flex;align-items:center;gap:6px;border:1px solid #e0e7ef;background:#fff;border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:600;color:#546e7a;cursor:pointer;flex-shrink:0" title="Clear all filters and show every work order">↺ Reset</button>
   </div>
   <!-- Quick-filter status chips -->
   <div id="wo-status-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px;padding:4px;background:#f5f7fa;border-radius:10px;align-items:center"><!-- r235: status tab strip; r237: wrap (not overflow-x) so no tab is cut off at larger text size -->
@@ -7757,7 +7765,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/permissions.js?v=20260919ix"></script>
 <script src="js/worktracking.js?v=20261122r233laborclass"></script>
 <script src="js/calendar.js?v=20261105r73ws1status"></script>
-<script src="js/workorders.js?v=20261123r238techcol"></script>
+<script src="js/workorders.js?v=20261123r239filtertools"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
 <script src="js/purchaseorders.js?v=20261122r223alerts"></script>
@@ -9245,7 +9253,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r238';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r239';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-23';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

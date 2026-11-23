@@ -790,14 +790,17 @@ function _woFiltersOutside(e){
   var p = document.getElementById('wo-filters-panel'), b = document.getElementById('wo-filters-btn');
   if (p && !p.contains(e.target) && b && !b.contains(e.target)){ p.style.display='none'; document.removeEventListener('click', _woFiltersOutside); }
 }
+// r236/r238b: list each technician ONCE. DB.team can carry duplicate member rows (same name, different id —
+// e.g. staging has "Dawn Brown" ×6). The filter matches by NAME, so collapse to unique names in first-seen
+// order. Shared by the chip picker and "Select all" so they never diverge.
+function _woUniqueTechNames(){
+  var seen = {}, names = [];
+  (DB.team||[]).forEach(function(m){ if(!m||!m.name) return; var k=String(m.name).trim().toLowerCase(); if(!k||seen[k]) return; seen[k]=1; names.push(m.name); });
+  return names;
+}
 function renderWOTechChips(){
   var el = document.getElementById('wo-filter-tech-chips'); if (!el) return;
-  // r236: list each technician ONCE. DB.team can carry duplicate member rows (same name, different id —
-  // e.g. staging has "Dawn Brown" ×6). The filter matches by NAME, so collapse to unique names in
-  // first-seen order; selecting a name filters every WO for that tech regardless of which record. Also
-  // guards the picker against any future dup rows.
-  var _seen = {}, names = [];
-  (DB.team||[]).forEach(function(m){ if(!m||!m.name) return; var k=String(m.name).trim().toLowerCase(); if(!k||_seen[k]) return; _seen[k]=1; names.push(m.name); });
+  var names = _woUniqueTechNames();
   if (!names.length){ el.innerHTML = '<span style="font-size:12px;color:#90a4ae">No technicians</span>'; return; }
   el.innerHTML = names.map(function(nm){
     var on = _woTechFilter.indexOf(nm) >= 0;
@@ -817,6 +820,27 @@ function woToggleTech(name){
 }
 function woClearTechs(){
   _woTechFilter = []; _woPage = 1; renderWOTechChips(); renderWorkOrders();
+  if (typeof _favSyncTrigger==='function'){ try{ _favSyncTrigger('workorders'); }catch(e){} }
+}
+// r238b: tick every technician at once (OR filter → all WOs that have any tech assigned).
+function woSelectAllTechs(){
+  _woTechFilter = _woUniqueTechNames(); _woPage = 1; renderWOTechChips(); renderWorkOrders();
+  if (typeof _favSyncTrigger==='function'){ try{ _favSyncTrigger('workorders'); }catch(e){} }
+}
+// r238b: Reset — clear EVERY work-order-list filter (search, status, priority, type, brand, techs,
+// unscheduled) and show all work orders. The one button that returns the list to "everything".
+function woResetAllFilters(){
+  try {
+    var s = document.getElementById('wo-search'); if (s) s.value = '';
+    var st = document.getElementById('wo-filter-status'); if (st) st.value = '';
+    var pr = document.getElementById('wo-filter-priority'); if (pr) pr.value = '';
+    var ty = document.getElementById('wo-filter-type'); if (ty) ty.value = '';
+    var br = document.getElementById('wo-filter-brand'); if (br) br.value = '';
+    _woTechFilter = []; _woUnscheduledFilter = false; _woCloudRows = []; _woPage = 1;
+    if (_woSearchTimer) { clearTimeout(_woSearchTimer); _woSearchTimer = null; }
+  } catch(e){}
+  if (typeof renderWOTechChips === 'function') renderWOTechChips();
+  renderWorkOrders();
   if (typeof _favSyncTrigger==='function'){ try{ _favSyncTrigger('workorders'); }catch(e){} }
 }
 
