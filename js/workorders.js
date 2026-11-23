@@ -465,6 +465,14 @@ function renderWorkOrders() {
     _woCloudRows.forEach(function(c){ if(c.id && !_haveWO[c.id]) list.push(c); });
   }
 
+  // r243: HIDE imported / old-CRM work orders from the active list by DEFAULT. These 7.5k historical
+  // records (marked with legacy_status on import) stay in the database — they're just kept out of the
+  // day-to-day view so the list shows current work. Toggle with _woShowLegacy ("Show imported" in the
+  // Filters popover). Suppressed while SEARCHING so any old order is still findable by search.
+  if (!_woShowLegacy && !search) {
+    list = list.filter(function(w){ return !w.legacyStatus; });
+  }
+
   // Enforce "See Only Assigned WOs" (wo.view_assigned_only) — field roles (helper_tech,
   // subcontractor) must see only work orders they're assigned to, not every customer's jobs.
   if (typeof hasPermission === 'function' && hasPermission('wo.view_assigned_only')
@@ -538,7 +546,7 @@ function renderWorkOrders() {
   // r235/r239b: Filters-button badge = active secondary filters (priority + type + brand + tech narrowing).
   // Techs count ONLY when the selection is an actual narrowing from the all-selected default: a proper
   // non-empty subset adds its count; the all-selected default and a fully-cleared (OFF) selection add 0.
-  (function(){ var n=0; if(fPriority)n++; if(fType)n++; if(fBrand)n++;
+  (function(){ var n=0; if(fPriority)n++; if(fType)n++; if(fBrand)n++; if(_woShowLegacy)n++;
     var total=(typeof _woUniqueTechNames==='function')?_woUniqueTechNames().length:0;
     var techSel=(_woTechFilter&&_woTechFilter.length)||0;
     if(techSel>0 && techSel<total) n+=techSel;
@@ -573,7 +581,8 @@ function renderWorkOrders() {
   // Status tabs (r235: segmented strip)
   var chipsEl = document.getElementById('wo-status-chips');
   if (chipsEl) {
-    var allU = isTech ? (DB.workOrders||[]).filter(function(w){ return _isTechAssignedToWO(myName, w); }) : (DB.workOrders||[]);
+    var allU = isTech ? (DB.workOrders||[]).filter(function(w){ return _isTechAssignedToWO(myName, w); }) : (DB.workOrders||[]).slice();
+    if (!_woShowLegacy && !search) allU = allU.filter(function(w){ return !w.legacyStatus; });   // r243: tab counts reflect the visible (non-legacy) set
     var sCounts = {};
     allU.forEach(function(w){ sCounts[w.status] = (sCounts[w.status]||0)+1; });
     var chipFilter = (document.getElementById('wo-filter-status')||{}).value||'';
@@ -753,6 +762,8 @@ function _woHdrCell(field,label){
 var _woSortField = 'woNumber';
 var _woSortAsc = true;
 var _woUnscheduledFilter = false;
+var _woShowLegacy = false;   // r243: active list hides imported/old-CRM WOs (legacyStatus) by default
+function woToggleLegacy(on){ _woShowLegacy = !!on; _woPage = 1; renderWorkOrders(); }
 var _woTechFilter = [];    // r235: multi-select tech filter (array of names). r239b: DEFAULT is ALL techs selected.
 var _woTechInit = false;   // r239b: one-time lazy init of _woTechFilter to the full roster (team loads async)
 // r239b: the tech filter DEFAULTS to every tech selected (= all work orders that have a tech; unassigned
