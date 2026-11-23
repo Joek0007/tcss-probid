@@ -623,23 +623,23 @@ function renderWorkOrders() {
     }
   }
 
-  // Column layout
-  var cols = '90px 160px 1fr 120px 130px 90px 36px';
+  // Column layout — r241: rebalanced for the new soft status badges + cleaner priority.
+  var cols = '88px 172px 1fr 104px 152px 74px 40px';
   // Row menu (Edit / Delete) is driven by the actual permissions so the toggles govern it
   // per company — not a hardcoded role list.
   var _canEditWO = (typeof hasPermission==='function') ? hasPermission('wo.edit')   : false;
   var _canDelWO  = (typeof hasPermission==='function') ? hasPermission('wo.delete') : false;
   var isRole = _canEditWO || _canDelWO;
 
-  var header = '<div class="wo-list-header" style="display:grid;grid-template-columns:'+cols+';padding:9px 16px;background:#f5f7fa;border-bottom:2px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'
-    +'<span class="wo-sort-hdr" data-field="woNumber" style="cursor:pointer">WO # ⇅</span>'
-    +'<span class="wo-sort-hdr" data-field="customerName" style="cursor:pointer">Customer ⇅</span>'
-    +'<span>Description · Scheduled</span>'
-    +'<span>Techs</span>'
-    +'<span class="wo-sort-hdr" data-field="status" style="cursor:pointer">Status ⇅</span>'
-    +'<span>Priority</span>'
-    +'<span></span>'
-    +'</div>';
+  var header = '<div class="wo-list-header" style="display:grid;grid-template-columns:'+cols+';padding:10px 16px;background:#f5f7fa;border-bottom:2px solid #e0e7ef;font-size:11px;font-weight:700;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px">'
+    + _woHdrCell('woNumber','WO #')
+    + _woHdrCell('customerName','Customer')
+    + _woHdrCell('scheduledDate','Description · Scheduled')
+    + '<span>Techs</span>'
+    + _woHdrCell('status','Status')
+    + '<span>Priority</span>'
+    + '<span></span>'
+    + '</div>';
 
   var avColors = ['#1565c0','#2e7d32','#6a1b9a','#e65100','#546e7a'];
 
@@ -656,11 +656,12 @@ function renderWorkOrders() {
     var stColor = st.color||'#90a4ae';
     var stText  = _smartTextColor(stColor);
 
+    // r241: Priority — Normal shows NOTHING (no more ever-present gray dot); only elevated priorities read.
     var prDot = wo.priority==='Urgent'
-      ? '<span style="width:9px;height:9px;border-radius:50%;background:#c62828;display:inline-block;vertical-align:middle;margin-right:4px"></span><span style="font-size:11px;color:#c62828;font-weight:700">Urgent</span>'
+      ? '<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(198,40,40,.12);color:#c62828;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:999px"><span style="width:7px;height:7px;border-radius:50%;background:#c62828"></span>Urgent</span>'
       : wo.priority==='High'
-      ? '<span style="width:9px;height:9px;border-radius:50%;background:#f57c00;display:inline-block;vertical-align:middle;margin-right:4px"></span><span style="font-size:11px;color:#f57c00;font-weight:700">High</span>'
-      : '<span style="width:9px;height:9px;border-radius:50%;background:#e0e0e0;display:inline-block;vertical-align:middle"></span>';
+      ? '<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(245,124,0,.13);color:#e65100;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:999px"><span style="width:7px;height:7px;border-radius:50%;background:#f57c00"></span>High</span>'
+      : '';
 
     var schedHtml = wo.scheduledDate
       ? '<div style="font-size:10px;color:#90a4ae;margin-top:2px">&#128197; '+escHtml(wo.scheduledDate)+(wo.scheduledTime?' &middot; '+escHtml(wo.scheduledTime):'')+'</div>'
@@ -690,12 +691,14 @@ function renderWorkOrders() {
         +'</div>'
       : '';
 
-    return '<div class="wo-list-row" data-woid="'+escHtml(wo.id)+'" style="display:grid;grid-template-columns:'+cols+';padding:11px 16px;border-bottom:1px solid #f0f4f8;align-items:center;cursor:pointer">'
+    // r241: subtle left accent for elevated priority — triage at a glance, no layout shift (inset shadow).
+    var _rowAccent = wo.priority==='Urgent' ? 'box-shadow:inset 3px 0 0 #c62828;' : (wo.priority==='High' ? 'box-shadow:inset 3px 0 0 #f9b24a;' : '');
+    return '<div class="wo-list-row" data-woid="'+escHtml(wo.id)+'" style="display:grid;grid-template-columns:'+cols+';padding:11px 16px;border-bottom:1px solid #f0f4f8;align-items:center;cursor:pointer;'+_rowAccent+'">'
       +'<div class="wo-num-link" data-woid="'+escHtml(wo.id)+'" style="font-weight:700;color:#1565c0;font-size:13px;text-decoration:underline">'+escHtml(wo.woNumber||'')+'</div>'
       +'<div style="overflow:hidden"><div style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(wo.brand==='DCC'?'<span style="background:#f3e5f5;color:#6a1b9a;border:1px solid #e1bee7;border-radius:4px;font-size:9px;font-weight:800;padding:1px 5px;margin-right:5px;vertical-align:middle">DCC</span>':'')+(wo.vehicleId?('🚚 '+escHtml(_woVehLabel(wo.vehicleId))):escHtml(wo.customerName||'—'))+'</div>'+(wo.vehicleId?'':phoneLine)+'</div>'
       +'<div style="overflow:hidden"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(stripHtmlToText(wo.description).substring(0,60))+'</div>'+schedHtml+'</div>'
       +'<div>'+techHtml+'</div>'
-      +'<div><span class="wo-status-badge" data-woid="'+escHtml(wo.id)+'" style="background:'+stColor+';color:'+_smartTextColor(stColor)+';padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;display:inline-block">'+escHtml(wo.status||'')+'</span></div>'
+      +'<div style="min-width:0"><span class="wo-status-badge" data-woid="'+escHtml(wo.id)+'" title="'+escHtml(wo.status||'')+'" style="display:inline-flex;align-items:center;gap:6px;max-width:100%;box-sizing:border-box;background:'+_woSoftBg(stColor)+';color:'+_woBadgeInk(stColor)+';padding:4px 11px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;overflow:hidden"><span style="width:7px;height:7px;border-radius:50%;background:'+stColor+';flex:0 0 auto"></span><span style="overflow:hidden;text-overflow:ellipsis">'+escHtml(wo.status||'')+'</span></span></div>'
       +'<div style="display:flex;align-items:center;gap:4px">'+prDot+'</div>'
       +'<div>'+menuHtml+'</div>'
     +'</div>';
@@ -724,6 +727,19 @@ function _smartTextColor(hexColor) {
     var lum = (0.299*r + 0.587*g + 0.114*b) / 255;
     return lum > 0.55 ? '#0d1b2a' : '#ffffff';
   } catch(e) { return '#ffffff'; }
+}
+
+// ── r241: WO list visual-polish helpers ─────────────────────────────────────
+function _woHexToRgb(hex){ var h=String(hex||'').replace('#',''); if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2]; return {r:parseInt(h.substr(0,2),16)||0,g:parseInt(h.substr(2,2),16)||0,b:parseInt(h.substr(4,2),16)||0}; }
+// Pale tint of a status color → soft badge background.
+function _woSoftBg(hex){ var c=_woHexToRgb(hex); return 'rgba('+c.r+','+c.g+','+c.b+',0.13)'; }
+// Legible "ink" for text on that pale tint — darken light hues (yellow/amber) so they don't wash out.
+function _woBadgeInk(hex){ var c=_woHexToRgb(hex); var lum=(0.299*c.r+0.587*c.g+0.114*c.b)/255; var f=lum>0.62?0.5:(lum>0.48?0.72:0.92); return 'rgb('+Math.round(c.r*f)+','+Math.round(c.g*f)+','+Math.round(c.b*f)+')'; }
+// Discoverable, stateful sortable column header (↕ idle, ▲/▼ active). Wiring: _wireWOListEvents → woSort(field).
+function _woHdrCell(field,label){
+  var active=(_woSortField===field);
+  var ind=active?(_woSortAsc?'▲':'▼'):'↕';
+  return '<span class="wo-sort-hdr'+(active?' active':'')+'" data-field="'+field+'" title="Sort by '+escHtml(String(label).replace(/\s*·.*$/,''))+'">'+escHtml(label)+'<span class="sort-ind">'+ind+'</span></span>';
 }
 
 // ── WO List event handlers ─────────────────────────────────────────────────
