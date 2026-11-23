@@ -1647,8 +1647,8 @@ function buildPrintHTML(q, mode) {
         '<td style="padding:8px 12px;font-weight:600">' + escHtml(label) + '</td>' +
         '<td style="padding:8px 12px;text-align:center">1</td>' +
         '<td style="padding:8px 12px">LOT</td>' +
-        '<td style="padding:8px 12px;text-align:right">' + lineAmount + '</td>' +
-        '<td style="padding:8px 12px;text-align:right;font-weight:700">' + lineAmount + '</td>' +
+        '<td style="padding:8px 12px;text-align:right;white-space:nowrap">' + lineAmount + '</td>' +
+        '<td style="padding:8px 12px;text-align:right;font-weight:700;white-space:nowrap">' + lineAmount + '</td>' +
         '</tr>';
       // Optionally list items with qty/description only — no pricing
       if (showItems && q.items && q.items.length > 0) {
@@ -1701,8 +1701,8 @@ function buildPrintHTML(q, mode) {
       rows += '<td style="padding:8px 12px">' + escHtml(item.desc || 'Item') + '</td>';
       rows += '<td style="padding:8px 12px;text-align:center">' + qty + '</td>';
       rows += '<td style="padding:8px 12px">' + escHtml(item.unit||'ea') + '</td>';
-      rows += '<td style="padding:8px 12px;text-align:right">' + (lineTotal > 0 ? fmt(lineUnit) : '—') + '</td>';
-      rows += '<td style="padding:8px 12px;text-align:right;font-weight:600">' + (lineTotal > 0 ? fmt(lineTotal) : '—') + '</td>';
+      rows += '<td style="padding:8px 12px;text-align:right;white-space:nowrap">' + (lineTotal > 0 ? fmt(lineUnit) : '—') + '</td>';
+      rows += '<td style="padding:8px 12px;text-align:right;font-weight:600;white-space:nowrap">' + (lineTotal > 0 ? fmt(lineTotal) : '—') + '</td>';
       rows += '</tr>';
     });
 
@@ -1721,8 +1721,8 @@ function buildPrintHTML(q, mode) {
         rows += '<td style="padding:8px 12px;color:#4527a0"><strong>Per Diem / Travel</strong><br><span style="font-size:11px;color:#7e57c2">' + escHtml(pdParts.join(' · ')) + '</span></td>';
         rows += '<td style="padding:8px 12px;text-align:center">1</td>';
         rows += '<td style="padding:8px 12px">LOT</td>';
-        rows += '<td style="padding:8px 12px;text-align:right">' + fmt(pdAfter) + '</td>';
-        rows += '<td style="padding:8px 12px;text-align:right;font-weight:700;color:#4527a0">' + fmt(pdAfter) + '</td>';
+        rows += '<td style="padding:8px 12px;text-align:right;white-space:nowrap">' + fmt(pdAfter) + '</td>';
+        rows += '<td style="padding:8px 12px;text-align:right;font-weight:700;color:#4527a0;white-space:nowrap">' + fmt(pdAfter) + '</td>';
         rows += '</tr>';
       }
     }
@@ -1755,9 +1755,9 @@ function buildPrintHTML(q, mode) {
         '<td style="padding:8px 12px;color:#888;width:34px">' + n + '</td>' +
         '<td style="padding:8px 12px"><strong style="color:#0d1b2a">' + escHtml(item.desc||'Item') + '</strong>' +
           '<span style="display:block;font-size:11px;color:#90a4ae">' + qty + ' ' + escHtml(item.unit||'ea') + '</span></td>' +
-        '<td style="padding:8px 12px;text-align:right;color:#1565c0;font-weight:600">' + (matSell > 0 ? fmt(matSell) : '&mdash;') + '</td>' +
-        '<td style="padding:8px 12px;text-align:right;color:#b45309;font-weight:600">' + (labor > 0 ? (fmt(labor) + hrsTxt) : '&mdash;') + '</td>' +
-        '<td style="padding:8px 12px;text-align:right;font-weight:700;color:#0d1b2a">' + fmt(matSell + labor) + '</td>' +
+        '<td style="padding:8px 12px;text-align:right;color:#1565c0;font-weight:600;white-space:nowrap">' + (matSell > 0 ? fmt(matSell) : '&mdash;') + '</td>' +
+        '<td style="padding:8px 12px;text-align:right;color:#b45309;font-weight:600;white-space:nowrap">' + (labor > 0 ? (fmt(labor) + hrsTxt) : '&mdash;') + '</td>' +
+        '<td style="padding:8px 12px;text-align:right;font-weight:700;color:#0d1b2a;white-space:nowrap">' + fmt(matSell + labor) + '</td>' +
       '</tr>';
     });
     // Per diem / travel keeps its own row (amount in the total column) to match the Pricing Summary.
@@ -1769,7 +1769,7 @@ function buildPrintHTML(q, mode) {
         '<td style="padding:8px 12px;color:#4527a0"><strong>Per Diem / Travel</strong></td>' +
         '<td style="padding:8px 12px;text-align:right;color:#b0bec5">&mdash;</td>' +
         '<td style="padding:8px 12px;text-align:right;color:#b0bec5">&mdash;</td>' +
-        '<td style="padding:8px 12px;text-align:right;font-weight:700;color:#4527a0">' + fmt(pdAfter) + '</td>' +
+        '<td style="padding:8px 12px;text-align:right;font-weight:700;color:#4527a0;white-space:nowrap">' + fmt(pdAfter) + '</td>' +
       '</tr>';
     }
     var table = '<table class="items-table"><thead><tr>' +

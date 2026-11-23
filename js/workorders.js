@@ -529,11 +529,17 @@ function renderWorkOrders() {
   }
   if (fPriority) list = list.filter(function(w){ return w.priority === fPriority; });
   if (fType)     list = list.filter(function(w){ return w.serviceType === fType; });
-  // r235/r239b: multi-select tech filter — a WO matches if ANY selected tech is assigned to it. The DEFAULT
-  // is ALL techs selected (= every work order that has a tech; unassigned WOs are hidden). Deselecting
-  // narrows to the remaining techs; CLEAR empties the selection so the filter is OFF and unassigned WOs show
-  // too. Picker lives in the Filters popover (renderWOTechChips); state is _woTechFilter (array of names).
-  if (_woTechFilter && _woTechFilter.length) list = list.filter(function(w){ return _woTechFilter.some(function(t){ return _isTechAssignedToWO(t, w); }); });
+  // r235/r239b/r244: multi-select tech filter. The tech filter only NARROWS when a PROPER SUBSET of techs
+  // is selected (you've deselected someone). ALL-selected (the default) and NONE-selected both mean "no tech
+  // narrowing" → show EVERY work order, including unassigned ones — so status tabs like BILLED/Void show
+  // their full count. A proper subset shows only WOs assigned to those techs (unassigned drop off).
+  (function(){
+    var _techTotal = (typeof _woUniqueTechNames==='function') ? _woUniqueTechNames().length : 0;
+    var _techSel = (_woTechFilter && _woTechFilter.length) || 0;
+    if (_techSel > 0 && _techSel < _techTotal) {
+      list = list.filter(function(w){ return _woTechFilter.some(function(t){ return _isTechAssignedToWO(t, w); }); });
+    }
+  })();
   // r215: brand filter. Legacy/no-brand WOs count as TCSS. The control is revealed only when a DCC
   // profile is configured (otherwise there's nothing to filter between). r235: toggle the wrapper row
   // in the Filters popover, not the <select> itself.
@@ -776,10 +782,12 @@ function _woEnsureTechDefault(){
 }
 // Favorites 'reset' hook: return to the DEFAULT view — unscheduled off, ALL techs selected.
 function woClearChipState(){ try { _woUnscheduledFilter = false; _woTechInit = true; _woTechFilter = (typeof _woUniqueTechNames==='function' ? _woUniqueTechNames() : []); } catch(e){} }
-// 'Has state' = differs from the default: unscheduled on, OR the tech selection is not the full roster.
+// 'Has state' = actually narrowing: unscheduled on, OR a PROPER SUBSET of techs selected (all-selected and
+// none-selected both mean "no narrowing", so neither counts as state). r244.
 function woHasChipState(){
   var total = (typeof _woUniqueTechNames==='function') ? _woUniqueTechNames().length : 0;
-  return !!_woUnscheduledFilter || (typeof _woTechFilter!=='undefined' && _woTechFilter.length !== total);
+  var sel = (typeof _woTechFilter!=='undefined' && _woTechFilter.length) || 0;
+  return !!_woUnscheduledFilter || (sel > 0 && sel < total);
 }
 
 // Load-on-demand search state: the WO list shows a bounded working set; typing in the
