@@ -788,11 +788,16 @@ function _woFiltersOutside(e){
 }
 function renderWOTechChips(){
   var el = document.getElementById('wo-filter-tech-chips'); if (!el) return;
-  var team = (DB.team||[]).filter(function(m){ return m && m.name; });
-  if (!team.length){ el.innerHTML = '<span style="font-size:12px;color:#90a4ae">No technicians</span>'; return; }
-  el.innerHTML = team.map(function(m){
-    var on = _woTechFilter.indexOf(m.name) >= 0;
-    return '<span class="wo-techchip" data-tech="'+escHtml(m.name)+'" style="cursor:pointer;user-select:none;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600;border:1px solid '+(on?'#1565c0':'#e0e7ef')+';background:'+(on?'#1565c0':'#fff')+';color:'+(on?'#fff':'#546e7a')+'">'+(on?'✓ ':'')+escHtml(m.name)+'</span>';
+  // r236: list each technician ONCE. DB.team can carry duplicate member rows (same name, different id —
+  // e.g. staging has "Dawn Brown" ×6). The filter matches by NAME, so collapse to unique names in
+  // first-seen order; selecting a name filters every WO for that tech regardless of which record. Also
+  // guards the picker against any future dup rows.
+  var _seen = {}, names = [];
+  (DB.team||[]).forEach(function(m){ if(!m||!m.name) return; var k=String(m.name).trim().toLowerCase(); if(!k||_seen[k]) return; _seen[k]=1; names.push(m.name); });
+  if (!names.length){ el.innerHTML = '<span style="font-size:12px;color:#90a4ae">No technicians</span>'; return; }
+  el.innerHTML = names.map(function(nm){
+    var on = _woTechFilter.indexOf(nm) >= 0;
+    return '<span class="wo-techchip" data-tech="'+escHtml(nm)+'" style="cursor:pointer;user-select:none;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600;border:1px solid '+(on?'#1565c0':'#e0e7ef')+';background:'+(on?'#1565c0':'#fff')+';color:'+(on?'#fff':'#546e7a')+'">'+(on?'✓ ':'')+escHtml(nm)+'</span>';
   }).join('');
   if (!el.dataset.wired){
     el.addEventListener('click', function(e){ var c = e.target.closest('.wo-techchip'); if (!c) return; woToggleTech(c.getAttribute('data-tech')||''); });
