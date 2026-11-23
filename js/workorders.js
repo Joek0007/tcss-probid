@@ -783,6 +783,10 @@ function toggleWOFilters(ev){
   else { document.removeEventListener('click', _woFiltersOutside); }
 }
 function _woFiltersOutside(e){
+  // r237 FIX: a click on a tech chip re-renders the chip list (innerHTML replaced), which DETACHES the
+  // clicked node before this bubbling handler runs. A detached target (isConnected===false) is therefore
+  // NOT an outside click — ignore it, or the panel would wrongly close on every chip toggle.
+  if (e.target && e.target.isConnected === false) return;
   var p = document.getElementById('wo-filters-panel'), b = document.getElementById('wo-filters-btn');
   if (p && !p.contains(e.target) && b && !b.contains(e.target)){ p.style.display='none'; document.removeEventListener('click', _woFiltersOutside); }
 }
@@ -800,7 +804,7 @@ function renderWOTechChips(){
     return '<span class="wo-techchip" data-tech="'+escHtml(nm)+'" style="cursor:pointer;user-select:none;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600;border:1px solid '+(on?'#1565c0':'#e0e7ef')+';background:'+(on?'#1565c0':'#fff')+';color:'+(on?'#fff':'#546e7a')+'">'+(on?'✓ ':'')+escHtml(nm)+'</span>';
   }).join('');
   if (!el.dataset.wired){
-    el.addEventListener('click', function(e){ var c = e.target.closest('.wo-techchip'); if (!c) return; woToggleTech(c.getAttribute('data-tech')||''); });
+    el.addEventListener('click', function(e){ var c = e.target.closest('.wo-techchip'); if (!c) return; e.stopPropagation(); woToggleTech(c.getAttribute('data-tech')||''); });  // r237: stop bubbling so the outside-click handler never sees a chip click
     el.dataset.wired = '1';
   }
 }
