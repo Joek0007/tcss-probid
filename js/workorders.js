@@ -599,18 +599,25 @@ function renderWorkOrders() {
     // #4 (Dawn): on a field-scoped login (helper/lead tech, or any assigned-only non-owner) the quick
     // filters must NOT offer office-only statuses (Ready For Review/Pricing, Invoice Sent, Void, …) —
     // those are out of a tech's world. Gate by the SAME `mobile` flag the status dropdown uses.
-    _getWOStatuses().forEach(function(s){
-      if (typeof _woStatusHiddenFromFieldChip==='function' && _woStatusHiddenFromFieldChip(s)) return;   // office-only OR hand-off status → no tech tab
+    // r242: lead with the LIVE pipeline, then Unscheduled, then push TERMINAL states to the END. Terminal =
+    // config `open:false` (BILLED, Invoice Sent, No Charge, Void, …) — driven by the status flag, never a
+    // hardwired list of names. Order within each group stays as configured.
+    var _stOpen = [], _stClosed = [];
+    _getWOStatuses().forEach(function(s){ (s && s.open===false ? _stClosed : _stOpen).push(s); });
+    function _emitStatusChip(s){
+      if (typeof _woStatusHiddenFromFieldChip==='function' && _woStatusHiddenFromFieldChip(s)) return;   // office-only OR hand-off → no tech tab
       var cnt = sCounts[s.id]||0; if (!cnt) return;
       var col = s.color||'#546e7a';
       var active = chipFilter===s.id;
       chipEls += makeChip(s.id, active, woDot(col)+escHtml(s.id)+woCountBubble(cnt, col, active));
-    });
+    }
+    _stOpen.forEach(_emitStatusChip);                                     // live pipeline first
     var unschedCount = allU.filter(function(w){ return !w.scheduledDate; }).length;
     if (unschedCount) {
       var ua = _woUnscheduledFilter;
-      chipEls += makeChip('__unscheduled__', ua, woDot('#c62828')+'&#9888; Unscheduled'+woCountBubble(unschedCount, '#c62828', ua));
+      chipEls += makeChip('__unscheduled__', ua, woDot('#c62828')+'&#9888; Unscheduled'+woCountBubble(unschedCount, '#c62828', ua));  // actionable → stays with the pipeline
     }
+    _stClosed.forEach(_emitStatusChip);                                   // terminal/closed states pushed to the end
     chipsEl.innerHTML = chipEls;
     // #4b: delegated click (wired once — chipsEl persists across re-renders) so every chip filters,
     // including status ids that contain a quote.
@@ -738,8 +745,8 @@ function _woBadgeInk(hex){ var c=_woHexToRgb(hex); var lum=(0.299*c.r+0.587*c.g+
 // Discoverable, stateful sortable column header (↕ idle, ▲/▼ active). Wiring: _wireWOListEvents → woSort(field).
 function _woHdrCell(field,label){
   var active=(_woSortField===field);
-  var ind=active?(_woSortAsc?'▲':'▼'):'↕';
-  return '<span class="wo-sort-hdr'+(active?' active':'')+'" data-field="'+field+'" title="Sort by '+escHtml(String(label).replace(/\s*·.*$/,''))+'">'+escHtml(label)+'<span class="sort-ind">'+ind+'</span></span>';
+  var ind=active?(_woSortAsc?'▲':'▼'):'⇅';
+  return '<span class="wo-sort-hdr'+(active?' active':'')+'" data-field="'+field+'" title="Sort by '+escHtml(String(label).replace(/\s*·.*$/,''))+(active?(_woSortAsc?' (A→Z)':' (Z→A)'):'')+'">'+escHtml(label)+'<span class="sort-ind">'+ind+'</span></span>';
 }
 
 // ── WO List event handlers ─────────────────────────────────────────────────
