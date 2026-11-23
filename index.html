@@ -2822,35 +2822,55 @@ body.role-lead-tech .page-settings-btn{display:none!important}
     </div>
   </div>
   <!-- Compact filter bar -->
-  <div class="wo-filter-bar" style="display:flex;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:10px">
+  <!-- r235: Option B — search + Filters popover; status is the tab strip below; Tech is multi-select -->
+  <div class="wo-filter-bar" style="position:relative;display:flex;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:10px">
     <div style="display:flex;align-items:center;gap:6px;background:#f5f7fa;border:1px solid #e0e7ef;border-radius:7px;padding:7px 12px;flex:1;min-width:180px">
       <span style="color:#90a4ae">🔍</span>
-      <input id="wo-search" placeholder="🔍 Search orders, customers, address..." style="border:none;background:transparent;font-size:13px;outline:none;width:100%" oninput="_woSearch()">
+      <input id="wo-search" placeholder="Search orders, customers, address..." style="border:none;background:transparent;font-size:13px;outline:none;width:100%" oninput="_woSearch()">
     </div>
-    <select id="wo-filter-status" onchange="renderWorkOrders()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a;width:130px;flex-shrink:0">
-      <option value="">All Statuses</option>
-    </select>
-    <select id="wo-filter-priority" onchange="renderWorkOrders()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a;width:120px;flex-shrink:0">
-      <option value="">All Priorities</option>
-      <option value="Urgent">🔴 Urgent</option>
-      <option value="High">🟠 High</option>
-      <option value="Normal">Normal</option>
-    </select>
-    <select id="wo-filter-type" onchange="renderWorkOrders()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a;width:120px;flex-shrink:0">
-      <option value="">All Types</option>
-    </select>
-    <select id="wo-filter-tech" onchange="renderWorkOrders()" style="padding:7px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12px;color:#546e7a;width:120px;flex-shrink:0">
-      <option value="">All Techs</option>
-    </select>
-    <!-- r215: brand filter — shown by renderWorkOrders only when a DCC profile is configured -->
-    <select id="wo-filter-brand" onchange="renderWorkOrders()" style="display:none;padding:7px 10px;border:1px solid #e1bee7;border-radius:7px;background:#f7f0fa;font-size:12px;color:#6a1b9a;font-weight:700;width:120px;flex-shrink:0">
-      <option value="">All Brands</option>
-      <option value="TCSS">TCSS</option>
-      <option value="DCC">DCC</option>
-    </select>
+    <!-- hidden status value — the status tab strip sets this via woChipClick -->
+    <select id="wo-filter-status" style="display:none"><option value="">All Statuses</option></select>
+    <button id="wo-filters-btn" type="button" onclick="toggleWOFilters(event)" style="display:inline-flex;align-items:center;gap:7px;border:1px solid #e0e7ef;background:#f5f7fa;border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:600;color:#546e7a;cursor:pointer;flex-shrink:0">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M6 12h12M10 19h4"/></svg>Filters<span id="wo-filters-badge" style="display:none;background:#1565c0;color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 6px;margin-left:2px">0</span>
+    </button>
+    <!-- Filters popover: priority / type / brand / multi-select techs -->
+    <div id="wo-filters-panel" style="display:none;position:absolute;top:calc(100% + 6px);right:14px;z-index:50;background:#fff;border:1px solid #e0e7ef;border-radius:12px;box-shadow:0 8px 28px rgba(16,32,55,.16);padding:16px;width:280px;max-width:calc(100vw - 32px)">
+      <div style="display:flex;flex-direction:column;gap:13px">
+        <div>
+          <div style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#90a4ae;margin-bottom:5px">Priority</div>
+          <select id="wo-filter-priority" onchange="renderWorkOrders()" style="width:100%;padding:8px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12.5px;color:#546e7a">
+            <option value="">All Priorities</option>
+            <option value="Urgent">🔴 Urgent</option>
+            <option value="High">🟠 High</option>
+            <option value="Normal">Normal</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#90a4ae;margin-bottom:5px">Type</div>
+          <select id="wo-filter-type" onchange="renderWorkOrders()" style="width:100%;padding:8px 10px;border:1px solid #e0e7ef;border-radius:7px;background:#f5f7fa;font-size:12.5px;color:#546e7a">
+            <option value="">All Types</option>
+          </select>
+        </div>
+        <div id="wo-filter-brand-wrap" style="display:none">
+          <div style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6a1b9a;margin-bottom:5px">Brand</div>
+          <select id="wo-filter-brand" onchange="renderWorkOrders()" style="width:100%;padding:8px 10px;border:1px solid #e1bee7;border-radius:7px;background:#f7f0fa;font-size:12.5px;color:#6a1b9a;font-weight:700">
+            <option value="">All Brands</option>
+            <option value="TCSS">TCSS</option>
+            <option value="DCC">DCC</option>
+          </select>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+            <span style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#90a4ae">Technicians</span>
+            <button type="button" onclick="woClearTechs()" style="background:none;border:0;color:#1565c0;font-size:11.5px;font-weight:600;cursor:pointer;padding:2px 4px">Clear</button>
+          </div>
+          <div id="wo-filter-tech-chips" style="display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
   </div>
   <!-- Quick-filter status chips -->
-  <div id="wo-status-chips" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+  <div id="wo-status-chips" style="display:flex;gap:4px;margin-bottom:12px;overflow-x:auto;padding:4px;background:#f5f7fa;border-radius:10px;align-items:center"><!-- r235: status tab strip -->
   </div>
   <!-- List -->
   <div class="card" style="padding:0;overflow:hidden">
@@ -7737,7 +7757,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/permissions.js?v=20260919ix"></script>
 <script src="js/worktracking.js?v=20261122r233laborclass"></script>
 <script src="js/calendar.js?v=20261105r73ws1status"></script>
-<script src="js/workorders.js?v=20261122r234wolabortax"></script>
+<script src="js/workorders.js?v=20261123r235wofilters"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
 <script src="js/purchaseorders.js?v=20261122r223alerts"></script>
@@ -9225,8 +9245,8 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r234';          // <-- the number to bump every deploy
-  window.APP_BUILD_DATE = '2026-11-22';  // <-- date of this build (human context)
+  window.APP_BUILD = 'v9 · r235';          // <-- the number to bump every deploy
+  window.APP_BUILD_DATE = '2026-11-23';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;
     var withDate = full + ' · ' + window.APP_BUILD_DATE;

@@ -520,13 +520,21 @@ function renderWorkOrders() {
   }
   if (fPriority) list = list.filter(function(w){ return w.priority === fPriority; });
   if (fType)     list = list.filter(function(w){ return w.serviceType === fType; });
-  // r215: brand filter. Legacy/no-brand WOs count as TCSS. The dropdown is revealed only when a DCC
-  // profile is configured (otherwise there's nothing to filter between).
+  // r235: multi-select tech filter — a WO matches if ANY selected tech is assigned to it. The picker
+  // lives in the Filters popover (renderWOTechChips); state is _woTechFilter (array of tech names).
+  if (_woTechFilter && _woTechFilter.length) list = list.filter(function(w){ return _woTechFilter.some(function(t){ return _isTechAssignedToWO(t, w); }); });
+  // r215: brand filter. Legacy/no-brand WOs count as TCSS. The control is revealed only when a DCC
+  // profile is configured (otherwise there's nothing to filter between). r235: toggle the wrapper row
+  // in the Filters popover, not the <select> itself.
   var _woDccOn = !!(DB.settings && DB.settings.dccBrand && DB.settings.dccBrand.cname);
   var _brandSel = document.getElementById('wo-filter-brand');
-  if (_brandSel) _brandSel.style.display = _woDccOn ? '' : 'none';
+  var _brandWrap = document.getElementById('wo-filter-brand-wrap');
+  if (_brandWrap) _brandWrap.style.display = _woDccOn ? '' : 'none';
   var fBrand = (_brandSel && _woDccOn) ? (_brandSel.value||'') : '';
   if (fBrand) list = list.filter(function(w){ return ((w.brand==='DCC')?'DCC':'TCSS') === fBrand; });
+  // r235: Filters-button badge = count of active secondary filters (priority + type + brand + #techs).
+  (function(){ var n=0; if(fPriority)n++; if(fType)n++; if(fBrand)n++; if(_woTechFilter&&_woTechFilter.length)n+=_woTechFilter.length;
+    var b=document.getElementById('wo-filters-badge'); if(b){ if(n>0){ b.textContent=n; b.style.display=''; } else { b.style.display='none'; } } })();
 
   // Sort by selected column
   list.sort(function(a,b){
@@ -552,58 +560,50 @@ function renderWorkOrders() {
     return;
   }
 
-  // Populate tech filter
-  var techSel = document.getElementById('wo-filter-tech');
-  var fTech = techSel ? techSel.value : '';
-  if (techSel && techSel.options.length <= 1) {
-    (DB.team||[]).forEach(function(m){
-      var o = document.createElement('option');
-      o.value = m.name; o.textContent = m.name;
-      techSel.appendChild(o);
-    });
-  }
-  if (fTech) list = list.filter(function(w){ return _isTechAssignedToWO(fTech, w); });
+  // r235: tech filter is applied above (multi-select _woTechFilter); the picker lives in the Filters popover.
 
-  // Status quick-filter chips
+  // Status tabs (r235: segmented strip)
   var chipsEl = document.getElementById('wo-status-chips');
   if (chipsEl) {
     var allU = isTech ? (DB.workOrders||[]).filter(function(w){ return _isTechAssignedToWO(myName, w); }) : (DB.workOrders||[]);
     var sCounts = {};
     allU.forEach(function(w){ sCounts[w.status] = (sCounts[w.status]||0)+1; });
     var chipFilter = (document.getElementById('wo-filter-status')||{}).value||'';
-    var chipStyle = 'padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;display:inline-block;border:2px solid;margin-right:2px';
-    // #4b (Dawn): build each chip with a data-attribute, NOT an inline onclick string. A configured status
-    // id can contain a double-quote (e.g. Open- "In Progress"), which prematurely closes the
-    // onclick="woChipClick('…')" HTML attribute — that chip then silently does nothing when tapped (the
-    // status dropdown kept working because it reads .value, with no HTML injection). A delegated click
-    // handler (wired once below) reads data-status, so ANY id — quotes, apostrophes — works.
-    function makeChip(status, bg, color, border, label) {
-      return '<span class="wo-chip" data-status="'+escHtml(status)+'" style="'+chipStyle+';background:'+bg+';color:'+color+';border-color:'+border+'">'+label+'</span>';
+    // r235 Option B: status TABS (segmented strip) instead of rounded pills. Same counts + woChipClick
+    // logic + delegated-click wiring; only the styling changes (tab look, tinted count bubble, status dot).
+    var tabBase = 'display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;border:1px solid transparent;color:#546e7a;flex:0 0 auto';
+    var tabOn   = ';background:#fff;color:#0d1b2a;border-color:#e0e7ef;box-shadow:0 1px 3px rgba(16,32,55,.1)';
+    // #4b (Dawn): build each tab with a data-attribute, NOT an inline onclick string. A configured status
+    // id can contain a double-quote (e.g. Open- "In Progress"), which would prematurely close the
+    // onclick="woChipClick('…')" HTML attribute. A delegated click handler (wired once below) reads
+    // data-status, so ANY id — quotes, apostrophes — works.
+    function makeChip(status, active, label) {
+      return '<span class="wo-chip" data-status="'+escHtml(status)+'" style="'+tabBase+(active?tabOn:'')+'">'+label+'</span>';
     }
-    // Contrasting count bubble inside each pill: on an unselected (gray) pill it takes the
-    // status color; on the selected (colored) pill it flips to white with the color as the number.
+    // Count bubble: on the active tab it takes the status color; otherwise a muted gray.
     function woCountBubble(cnt, col, active){
-      var bg = active ? '#ffffff' : col;
-      var fg = active ? col : _smartTextColor(col);
-      return '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:7px;border-radius:9px;background:'+bg+';color:'+fg+';font-size:10px;font-weight:800;line-height:1;vertical-align:middle">'+cnt+'</span>';
+      var bg = active ? col : '#eceff3';
+      var fg = active ? _smartTextColor(col) : '#607d8b';
+      return '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:17px;padding:0 5px;border-radius:9px;background:'+bg+';color:'+fg+';font-size:10px;font-weight:800;line-height:1">'+cnt+'</span>';
     }
-    var chipEls = makeChip('', chipFilter===''?'#1565c0':'#e0e7ef', chipFilter===''?'#fff':'#0d1b2a', chipFilter===''?'#1565c0':'#c8d0db', 'All'+woCountBubble(allU.length, '#1565c0', chipFilter===''));
+    function woDot(col){ return '<span style="width:7px;height:7px;border-radius:50%;background:'+col+';flex:0 0 auto"></span>'; }
+    var chipEls = makeChip('', chipFilter==='', 'All'+woCountBubble(allU.length, '#1565c0', chipFilter===''));
     // #4 (Dawn): on a field-scoped login (helper/lead tech, or any assigned-only non-owner) the quick
     // filters must NOT offer office-only statuses (Ready For Review/Pricing, Invoice Sent, Void, …) —
     // those are out of a tech's world. Gate by the SAME `mobile` flag the status dropdown uses.
     _getWOStatuses().forEach(function(s){
-      if (typeof _woStatusHiddenFromFieldChip==='function' && _woStatusHiddenFromFieldChip(s)) return;   // office-only OR hand-off status → no tech chip
+      if (typeof _woStatusHiddenFromFieldChip==='function' && _woStatusHiddenFromFieldChip(s)) return;   // office-only OR hand-off status → no tech tab
       var cnt = sCounts[s.id]||0; if (!cnt) return;
       var col = s.color||'#546e7a';
       var active = chipFilter===s.id;
-      chipEls += makeChip(s.id, active?col:'#e0e7ef', active?_smartTextColor(col):'#0d1b2a', active?col:'#c8d0db', escHtml(s.id)+woCountBubble(cnt, col, active));
+      chipEls += makeChip(s.id, active, woDot(col)+escHtml(s.id)+woCountBubble(cnt, col, active));
     });
     var unschedCount = allU.filter(function(w){ return !w.scheduledDate; }).length;
     if (unschedCount) {
       var ua = _woUnscheduledFilter;
-      chipEls += makeChip('__unscheduled__', ua?'#c62828':'#e0e7ef', ua?'#fff':'#0d1b2a', ua?'#c62828':'#c8d0db', '&#9888; Unscheduled'+woCountBubble(unschedCount, '#c62828', ua));
+      chipEls += makeChip('__unscheduled__', ua, woDot('#c62828')+'&#9888; Unscheduled'+woCountBubble(unschedCount, '#c62828', ua));
     }
-    chipsEl.innerHTML = '<span style="font-size:11px;color:#546e7a;font-weight:700;margin-right:6px">QUICK FILTER:</span>'+chipEls;
+    chipsEl.innerHTML = chipEls;
     // #4b: delegated click (wired once — chipsEl persists across re-renders) so every chip filters,
     // including status ids that contain a quote.
     if (!chipsEl.dataset.wired) {
@@ -722,9 +722,10 @@ function _smartTextColor(hexColor) {
 var _woSortField = 'woNumber';
 var _woSortAsc = true;
 var _woUnscheduledFilter = false;
-// Reset the quick-filter chip / unscheduled toggle (part of a list 'view' reset).
-function woClearChipState(){ try { _woUnscheduledFilter = false; } catch(e){} }
-function woHasChipState(){ return !!_woUnscheduledFilter; }
+var _woTechFilter = [];   // r235: multi-select tech filter (array of tech names) — picked in the Filters popover
+// Reset the status/unscheduled toggle AND the multi-tech selection (part of a list 'view' reset).
+function woClearChipState(){ try { _woUnscheduledFilter = false; _woTechFilter = []; } catch(e){} }
+function woHasChipState(){ return !!_woUnscheduledFilter || (typeof _woTechFilter!=='undefined' && _woTechFilter.length>0); }
 
 // Load-on-demand search state: the WO list shows a bounded working set; typing in the
 // search box also queries the FULL work-order history in the cloud and merges matches.
@@ -770,6 +771,44 @@ function woQuickFilterStatus(status) {
   var el = document.getElementById('wo-filter-status');
   if (el) el.value = status;
   renderWorkOrders();
+}
+
+// ── r235 Option B: Filters popover + multi-select Tech ─────────────────────
+function toggleWOFilters(ev){
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  var p = document.getElementById('wo-filters-panel'); if (!p) return;
+  var show = (p.style.display === 'none' || !p.style.display);
+  p.style.display = show ? 'block' : 'none';
+  if (show){ renderWOTechChips(); setTimeout(function(){ document.addEventListener('click', _woFiltersOutside); }, 0); }
+  else { document.removeEventListener('click', _woFiltersOutside); }
+}
+function _woFiltersOutside(e){
+  var p = document.getElementById('wo-filters-panel'), b = document.getElementById('wo-filters-btn');
+  if (p && !p.contains(e.target) && b && !b.contains(e.target)){ p.style.display='none'; document.removeEventListener('click', _woFiltersOutside); }
+}
+function renderWOTechChips(){
+  var el = document.getElementById('wo-filter-tech-chips'); if (!el) return;
+  var team = (DB.team||[]).filter(function(m){ return m && m.name; });
+  if (!team.length){ el.innerHTML = '<span style="font-size:12px;color:#90a4ae">No technicians</span>'; return; }
+  el.innerHTML = team.map(function(m){
+    var on = _woTechFilter.indexOf(m.name) >= 0;
+    return '<span class="wo-techchip" data-tech="'+escHtml(m.name)+'" style="cursor:pointer;user-select:none;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600;border:1px solid '+(on?'#1565c0':'#e0e7ef')+';background:'+(on?'#1565c0':'#fff')+';color:'+(on?'#fff':'#546e7a')+'">'+(on?'✓ ':'')+escHtml(m.name)+'</span>';
+  }).join('');
+  if (!el.dataset.wired){
+    el.addEventListener('click', function(e){ var c = e.target.closest('.wo-techchip'); if (!c) return; woToggleTech(c.getAttribute('data-tech')||''); });
+    el.dataset.wired = '1';
+  }
+}
+function woToggleTech(name){
+  if (!name) return;
+  var i = _woTechFilter.indexOf(name);
+  if (i >= 0) _woTechFilter.splice(i,1); else _woTechFilter.push(name);
+  _woPage = 1; renderWOTechChips(); renderWorkOrders();
+  if (typeof _favSyncTrigger==='function'){ try{ _favSyncTrigger('workorders'); }catch(e){} }
+}
+function woClearTechs(){
+  _woTechFilter = []; _woPage = 1; renderWOTechChips(); renderWorkOrders();
+  if (typeof _favSyncTrigger==='function'){ try{ _favSyncTrigger('workorders'); }catch(e){} }
 }
 
 function toggleWOMenu(woId) {
