@@ -1330,6 +1330,73 @@ function qtUpdateSummary(){
 }
 window.toggleProposalTerms = toggleProposalTerms;
 
+// r246: convert Microsoft Word bullet/number PARAGRAPHS into real <ul>/<ol><li>. Word pastes each bullet as
+// <p class="MsoListBullet…" style="…mso-list:…"><span style="font-family:Symbol">·</span>text</p> — not a real
+// list item — so they render inconsistently next to hand-made <ul>s. This groups consecutive Word list
+// paragraphs into one list and strips the leftover marker glyph. Conservative: ordinary prose <p> never match.
+var _WL_GLYPH = '•·▪●◦‣⁃○■°';   // • · ▪ ● ◦ ‣ ⁃ ○ ■ °
+function _wlIsItem(el){
+  if (!el || el.nodeType !== 1 || el.tagName !== 'P') return false;
+  var sty = (el.getAttribute('style') || '');
+  if (/mso-list\s*:/i.test(sty)) return true;
+  var cls = (el.getAttribute('class') || '');
+  if (/MsoListBullet|MsoListNumber|MsoListParagraph/i.test(cls)) return true;
+  var t = (el.textContent || '').replace(/ /g, ' ').replace(/^\s+/, '');
+  return new RegExp('^[' + _WL_GLYPH + '*\\-]\\s+\\S').test(t);   // leading bullet glyph + space + content
+}
+function _wlIsNumbered(el){
+  if (/MsoListNumber/i.test(el.getAttribute('class') || '')) return true;
+  var t = (el.textContent || '').replace(/ /g, ' ').replace(/^\s+/, '');
+  return /^(\d{1,3}|[a-z]|[ivxlcm]{1,6})[.)]\s+\S/i.test(t);
+}
+function _wlStripMarker(li){
+  function dropLeadWs(){ while (li.firstChild && li.firstChild.nodeType === 3 && !li.firstChild.nodeValue.replace(/ /g,'').trim()) li.removeChild(li.firstChild); }
+  dropLeadWs();
+  // remove a leading element that is only the marker (Symbol / mso-list:Ignore span, or a lone glyph/number)
+  var f = li.firstChild;
+  if (f && f.nodeType === 1){
+    var ft = (f.textContent || '').replace(/ /g,' ').trim();
+    var st = (f.getAttribute && (f.getAttribute('style') || '')) || '';
+    if (/mso-list\s*:\s*ignore/i.test(st) || /font-family:\s*Symbol/i.test(st) ||
+        new RegExp('^(?:[' + _WL_GLYPH + '*\\-]|(?:\\d{1,3}|[a-z]|[ivxlcm]{1,6})[.)])$','i').test(ft)){
+      li.removeChild(f);
+    }
+  }
+  dropLeadWs();
+  // strip a leading glyph / "1." / "a)" from the first remaining text node
+  (function(){
+    function firstText(n){ for (var i=0;i<n.childNodes.length;i++){ var c=n.childNodes[i]; if (c.nodeType===3 && c.nodeValue.replace(/ /g,' ').trim()) return c; if (c.nodeType===1){ var r=firstText(c); if (r) return r; } } return null; }
+    var tn = firstText(li);
+    if (tn) tn.nodeValue = tn.nodeValue.replace(/ /g,' ').replace(new RegExp('^\\s*(?:[' + _WL_GLYPH + '*\\-]|(?:\\d{1,3}|[a-z]|[ivxlcm]{1,6})[.)])\\s+','i'), '');
+  })();
+}
+function _normalizeWordLists(container){
+  if (!container) return;
+  var child = container.firstChild;
+  while (child){
+    if (child.nodeType === 1 && _wlIsItem(child)){
+      var ordered = _wlIsNumbered(child);
+      var list = document.createElement(ordered ? 'ol' : 'ul');
+      var next;
+      while (child && child.nodeType === 1 && _wlIsItem(child)){
+        next = child.nextSibling;
+        var li = document.createElement('li');
+        while (child.firstChild) li.appendChild(child.firstChild);
+        _wlStripMarker(li);
+        list.appendChild(li);
+        container.removeChild(child);
+        // swallow whitespace-only text nodes between consecutive Word list paragraphs
+        while (next && next.nodeType === 3 && !next.nodeValue.trim()){ var n2 = next.nextSibling; container.removeChild(next); next = n2; }
+        child = next;
+      }
+      container.insertBefore(list, child);   // child is the first non-item sibling (or null → append)
+    } else {
+      if (child.nodeType === 1 && child.tagName !== 'UL' && child.tagName !== 'OL') _normalizeWordLists(child);
+      child = child.nextSibling;
+    }
+  }
+}
+
 function cleanScopeHtml(raw){
   if (raw == null) return '';
   var s = String(raw);
@@ -1342,6 +1409,10 @@ function cleanScopeHtml(raw){
        .replace(/<\/?[a-z]+:[^>]*>/gi,'');
   var root = document.createElement('div');
   root.innerHTML = s;
+  // r246: Word-paste list normalizer — turn Microsoft Word "MsoListBullet/Number" PARAGRAPHS (fake list
+  // items: a <p> carrying a Symbol-font bullet glyph + mso-list style) into REAL <ul>/<ol><li>, so bullets
+  // render consistently with hand-made lists. Runs before serialization (comments/<o:p> already stripped).
+  _normalizeWordLists(root);
   var MAP = { B:'strong', STRONG:'strong', I:'em', EM:'em', U:'u',
     P:'p', DIV:'p', BLOCKQUOTE:'blockquote',
     UL:'ul', OL:'ol', LI:'li', BR:'br', HR:'hr', A:'a',
