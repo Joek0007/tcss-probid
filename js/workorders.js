@@ -801,7 +801,7 @@ function renderWOTechChips(){
   if (!names.length){ el.innerHTML = '<span style="font-size:12px;color:#90a4ae">No technicians</span>'; return; }
   el.innerHTML = names.map(function(nm){
     var on = _woTechFilter.indexOf(nm) >= 0;
-    return '<span class="wo-techchip" data-tech="'+escHtml(nm)+'" style="cursor:pointer;user-select:none;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600;border:1px solid '+(on?'#1565c0':'#e0e7ef')+';background:'+(on?'#1565c0':'#fff')+';color:'+(on?'#fff':'#546e7a')+'">'+(on?'✓ ':'')+escHtml(nm)+'</span>';
+    return '<span class="wo-techchip" data-tech="'+escHtml(nm)+'" style="display:block;width:100%;box-sizing:border-box;text-align:left;cursor:pointer;user-select:none;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;border:1px solid '+(on?'#1565c0':'#e0e7ef')+';background:'+(on?'#1565c0':'#fff')+';color:'+(on?'#fff':'#546e7a')+'">'+(on?'✓ ':'')+escHtml(nm)+'</span>';
   }).join('');
   if (!el.dataset.wired){
     el.addEventListener('click', function(e){ var c = e.target.closest('.wo-techchip'); if (!c) return; e.stopPropagation(); woToggleTech(c.getAttribute('data-tech')||''); });  // r237: stop bubbling so the outside-click handler never sees a chip click

@@ -2864,7 +2864,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
             <span style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#90a4ae">Technicians</span>
             <button type="button" onclick="woClearTechs()" style="background:none;border:0;color:#1565c0;font-size:11.5px;font-weight:600;cursor:pointer;padding:2px 4px">Clear</button>
           </div>
-          <div id="wo-filter-tech-chips" style="display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow-y:auto"></div>
+          <div id="wo-filter-tech-chips" style="display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto"></div>
         </div>
       </div>
     </div>
@@ -7757,7 +7757,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/permissions.js?v=20260919ix"></script>
 <script src="js/worktracking.js?v=20261122r233laborclass"></script>
 <script src="js/calendar.js?v=20261105r73ws1status"></script>
-<script src="js/workorders.js?v=20261123r237filterfix"></script>
+<script src="js/workorders.js?v=20261123r238techcol"></script>
 <script src="js/wo-selftest.js?v=20260919jh"></script>
 <script src="js/wo-veh-selftest.js?v=20260919jk"></script>
 <script src="js/purchaseorders.js?v=20261122r223alerts"></script>
@@ -9245,7 +9245,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r237';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r238';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-23';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;
