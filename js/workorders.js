@@ -419,6 +419,7 @@ function renderWorkOrders() {
   if (!DB.workOrders) DB.workOrders = [];
   _ensureWOHandoffSeed();   // r67: seed the hand-off flag on first run for pre-existing installs
   if (typeof _ensureWOStatusSeedExtras === 'function') _ensureWOStatusSeedExtras();   // r73: seed Scheduled + On Hold
+  if (typeof _woEnsureTechDefault === 'function') _woEnsureTechDefault();   // r239b: default = ALL techs selected
 
   // Build status dropdown from WO_STATUSES so values always match
   var statusSel = document.getElementById('wo-filter-status');
@@ -520,8 +521,10 @@ function renderWorkOrders() {
   }
   if (fPriority) list = list.filter(function(w){ return w.priority === fPriority; });
   if (fType)     list = list.filter(function(w){ return w.serviceType === fType; });
-  // r235: multi-select tech filter — a WO matches if ANY selected tech is assigned to it. The picker
-  // lives in the Filters popover (renderWOTechChips); state is _woTechFilter (array of tech names).
+  // r235/r239b: multi-select tech filter — a WO matches if ANY selected tech is assigned to it. The DEFAULT
+  // is ALL techs selected (= every work order that has a tech; unassigned WOs are hidden). Deselecting
+  // narrows to the remaining techs; CLEAR empties the selection so the filter is OFF and unassigned WOs show
+  // too. Picker lives in the Filters popover (renderWOTechChips); state is _woTechFilter (array of names).
   if (_woTechFilter && _woTechFilter.length) list = list.filter(function(w){ return _woTechFilter.some(function(t){ return _isTechAssignedToWO(t, w); }); });
   // r215: brand filter. Legacy/no-brand WOs count as TCSS. The control is revealed only when a DCC
   // profile is configured (otherwise there's nothing to filter between). r235: toggle the wrapper row
@@ -532,8 +535,13 @@ function renderWorkOrders() {
   if (_brandWrap) _brandWrap.style.display = _woDccOn ? '' : 'none';
   var fBrand = (_brandSel && _woDccOn) ? (_brandSel.value||'') : '';
   if (fBrand) list = list.filter(function(w){ return ((w.brand==='DCC')?'DCC':'TCSS') === fBrand; });
-  // r235: Filters-button badge = count of active secondary filters (priority + type + brand + #techs).
-  (function(){ var n=0; if(fPriority)n++; if(fType)n++; if(fBrand)n++; if(_woTechFilter&&_woTechFilter.length)n+=_woTechFilter.length;
+  // r235/r239b: Filters-button badge = active secondary filters (priority + type + brand + tech narrowing).
+  // Techs count ONLY when the selection is an actual narrowing from the all-selected default: a proper
+  // non-empty subset adds its count; the all-selected default and a fully-cleared (OFF) selection add 0.
+  (function(){ var n=0; if(fPriority)n++; if(fType)n++; if(fBrand)n++;
+    var total=(typeof _woUniqueTechNames==='function')?_woUniqueTechNames().length:0;
+    var techSel=(_woTechFilter&&_woTechFilter.length)||0;
+    if(techSel>0 && techSel<total) n+=techSel;
     var b=document.getElementById('wo-filters-badge'); if(b){ if(n>0){ b.textContent=n; b.style.display=''; } else { b.style.display='none'; } } })();
 
   // Sort by selected column
@@ -722,10 +730,23 @@ function _smartTextColor(hexColor) {
 var _woSortField = 'woNumber';
 var _woSortAsc = true;
 var _woUnscheduledFilter = false;
-var _woTechFilter = [];   // r235: multi-select tech filter (array of tech names) — picked in the Filters popover
-// Reset the status/unscheduled toggle AND the multi-tech selection (part of a list 'view' reset).
-function woClearChipState(){ try { _woUnscheduledFilter = false; _woTechFilter = []; } catch(e){} }
-function woHasChipState(){ return !!_woUnscheduledFilter || (typeof _woTechFilter!=='undefined' && _woTechFilter.length>0); }
+var _woTechFilter = [];    // r235: multi-select tech filter (array of names). r239b: DEFAULT is ALL techs selected.
+var _woTechInit = false;   // r239b: one-time lazy init of _woTechFilter to the full roster (team loads async)
+// r239b: the tech filter DEFAULTS to every tech selected (= all work orders that have a tech; unassigned
+// hidden). Runs once, as soon as team data exists; a later user Clear/edit sticks because _woTechInit stays true.
+function _woEnsureTechDefault(){
+  if (_woTechInit) return;
+  var all = (typeof _woUniqueTechNames==='function') ? _woUniqueTechNames() : [];
+  if (!all.length) return;              // team not loaded yet — retry on the next render
+  _woTechFilter = all; _woTechInit = true;
+}
+// Favorites 'reset' hook: return to the DEFAULT view — unscheduled off, ALL techs selected.
+function woClearChipState(){ try { _woUnscheduledFilter = false; _woTechInit = true; _woTechFilter = (typeof _woUniqueTechNames==='function' ? _woUniqueTechNames() : []); } catch(e){} }
+// 'Has state' = differs from the default: unscheduled on, OR the tech selection is not the full roster.
+function woHasChipState(){
+  var total = (typeof _woUniqueTechNames==='function') ? _woUniqueTechNames().length : 0;
+  return !!_woUnscheduledFilter || (typeof _woTechFilter!=='undefined' && _woTechFilter.length !== total);
+}
 
 // Load-on-demand search state: the WO list shows a bounded working set; typing in the
 // search box also queries the FULL work-order history in the cloud and merges matches.
@@ -800,6 +821,7 @@ function _woUniqueTechNames(){
 }
 function renderWOTechChips(){
   var el = document.getElementById('wo-filter-tech-chips'); if (!el) return;
+  _woEnsureTechDefault();   // r239b: default to all-selected before drawing the chips
   var names = _woUniqueTechNames();
   if (!names.length){ el.innerHTML = '<span style="font-size:12px;color:#90a4ae">No technicians</span>'; return; }
   el.innerHTML = names.map(function(nm){
@@ -827,8 +849,9 @@ function woSelectAllTechs(){
   _woTechFilter = _woUniqueTechNames(); _woPage = 1; renderWOTechChips(); renderWorkOrders();
   if (typeof _favSyncTrigger==='function'){ try{ _favSyncTrigger('workorders'); }catch(e){} }
 }
-// r238b: Reset — clear EVERY work-order-list filter (search, status, priority, type, brand, techs,
-// unscheduled) and show all work orders. The one button that returns the list to "everything".
+// r238b/r239b: Reset — return the list to its DEFAULT view: clear search/status/priority/type/brand and
+// unscheduled, and SELECT ALL techs (the default = every work order that has a tech). Not "empty techs" —
+// all techs selected, exactly as the list opens.
 function woResetAllFilters(){
   try {
     var s = document.getElementById('wo-search'); if (s) s.value = '';
@@ -836,7 +859,8 @@ function woResetAllFilters(){
     var pr = document.getElementById('wo-filter-priority'); if (pr) pr.value = '';
     var ty = document.getElementById('wo-filter-type'); if (ty) ty.value = '';
     var br = document.getElementById('wo-filter-brand'); if (br) br.value = '';
-    _woTechFilter = []; _woUnscheduledFilter = false; _woCloudRows = []; _woPage = 1;
+    _woUnscheduledFilter = false; _woCloudRows = []; _woPage = 1;
+    _woTechInit = true; _woTechFilter = _woUniqueTechNames();   // default = ALL techs selected
     if (_woSearchTimer) { clearTimeout(_woSearchTimer); _woSearchTimer = null; }
   } catch(e){}
   if (typeof renderWOTechChips === 'function') renderWOTechChips();
