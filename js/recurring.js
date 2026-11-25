@@ -1035,6 +1035,8 @@ function printRCInvoice(invId) {
   var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
   if (!inv) { showToast('Invoice not found','warning',2000); return; }
   var co = DB.settings||{};
+  // Invoices use the Billing/Invoicing email (Settings); falls back to the general company email.
+  var billEmail = co.billingEmail || co.cemail || '';
   function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   var lineItems = inv.lineItems||[];
   var _liSum = lineItems.reduce(function(s,i){ return s+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0)); },0);
@@ -1069,7 +1071,7 @@ function printRCInvoice(invId) {
           : '<div style="font-size:22px;font-weight:900;color:#0d1b2a;letter-spacing:-.3px">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>')
         +'<div style="margin-top:8px;font-size:12px;color:#546e7a;line-height:1.8">'+esc(co.caddr||'')
           +(co.cphone?'<br>'+esc(co.cphone):'')
-          +(co.cemail?'<br>'+esc(co.cemail):'')
+          +(billEmail?'<br>'+esc(billEmail):'')
         +'</div>'
       +'</div>'
       +'<div style="text-align:right">'
@@ -1115,7 +1117,7 @@ function printRCInvoice(invId) {
     +'<div style="margin-top:30px;padding-top:14px;border-top:1px solid #e0e7ef;text-align:center;font-size:11px;color:#90a4ae">'
       +esc(co.cname||'Total Communications Systems & Solutions, Inc.')
       +(co.cphone?' &nbsp;&#183;&nbsp; '+esc(co.cphone):'')
-      +(co.cemail?' &nbsp;&#183;&nbsp; '+esc(co.cemail):'')
+      +(billEmail?' &nbsp;&#183;&nbsp; '+esc(billEmail):'')
       +'<br>Thank you for your business.'
     +'</div>'
   +'</div>';

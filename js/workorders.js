@@ -2259,7 +2259,8 @@ function printWorkOrder(woId) {
   var _wob = (typeof _brandFor==='function') ? _brandFor(wo) : co;
   var _wobAddr  = _wob.caddr  || (_wob._isDCC ? '' : '3203 US Hwy 220 Business S., Asheboro, NC 27205');
   var _wobPhone = _wob.cphone || (_wob._isDCC ? '' : '(336) 629-7474');
-  var _wobEmail = _wob.cemail || (_wob._isDCC ? '' : 'info@tcss.com');
+  // Work orders show the Work Order / Dispatch email (Settings) for the TCSS brand; DCC keeps its own.
+  var _wobEmail = _wob._isDCC ? (_wob.cemail || '') : ((DB.settings&&DB.settings.dispatchEmail) || _wob.cemail || 'info@tcss.com');
   var labor   = (DB.woLabor||[]).filter(function(l){ return l.woId===woId; });
   var parts   = (DB.woParts||[]).filter(function(p){ return p.woId===woId; });
   var expenses= (DB.woExpenses||[]).filter(function(e){ return e.woId===woId; });

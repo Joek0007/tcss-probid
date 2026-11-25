@@ -91,7 +91,8 @@ async function emailInvoiceDirect() {
 
   // (r187) DCC brand: a DCC-flagged invoice emails as DCC (name/address/phone/remit email/sender).
   var co = _brandFor({ brand: _currentInvBrand() });
-  var _remitEmail = co.cemail || 'invoicing@tcss.com';
+  // Emailed invoice remit/contact uses the Billing/Invoicing email (Settings) for TCSS; DCC keeps its own.
+  var _remitEmail = co._isDCC ? (co.cemail || 'invoicing@tcss.com') : ((DB.settings&&DB.settings.billingEmail) || co.cemail || 'invoicing@tcss.com');
   function esc(x){ return (x||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   var lineItems = _invItems||[];
@@ -4241,7 +4242,8 @@ function buildInvoiceHTML(inv) {
   var s = DB.settings||{};
   var b = _brandFor(inv);   // r187: DCC brand when inv.brand==='DCC', else TCSS
   var cphone = b.cphone || '(336) 629-7474';
-  var cemail = b.cemail || 'info@tcss.com';
+  // Invoices show the Billing/Invoicing email (Settings) for the TCSS brand; DCC keeps its own.
+  var cemail = b._isDCC ? (b.cemail || 'info@tcss.com') : ((DB.settings&&DB.settings.billingEmail) || b.cemail || 'info@tcss.com');
   var caddr  = b.caddr  || '3203 US Hwy 220 Business S., Asheboro, NC 27205';
   var clic   = b.clic   || '';
   // r213: company-name block is logo-FIRST for BOTH brands. If the resolved brand has a logo graphic
