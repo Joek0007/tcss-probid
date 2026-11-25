@@ -359,6 +359,19 @@ var _rcSendInFlight = false;
 function _rcSandboxOn(){ return ((DB.settings||{}).msSendSandbox !== false); }      // default ON
 function _rcSandboxTo(){ return (DB.settings||{}).notifSandboxTo || (DB.settings||{}).msSandboxTo || 'joek@tcss.com'; }
 
+// The email shown on invoices + in the invoice email body. Prefer the explicit Billing/Invoicing Email
+// (Settings); when that's blank, fall back to the ACTUAL sending address (so the contact line always
+// matches the From), and only then to the general company email. Keeps "contact us at …" consistent
+// with who the email came from, with zero setup.
+function _rcBillingEmail(){
+  var s=DB.settings||{};
+  if(s.billingEmail) return s.billingEmail;
+  var from=s.mgFrom||'TCSS Invoicing <invoicing@tcss.com>';
+  var m=from.match(/<([^>]+)>/)||from.match(/([^\s<>]+@[^\s<>]+)/);
+  if(m&&m[1]) return m[1];
+  return s.cemail||'';
+}
+
 function rcToggleSel(id, on){ if(on){ _rcSelected[id]=true; } else { delete _rcSelected[id]; } _rcUpdateSendBar(); }
 function rcSelectAllReady(on){
   var ready=_rcReadyInvoices().filter(function(i){return i.status==='draft';});
@@ -385,11 +398,13 @@ function _rcEnsurePdfLibs(){
 // Short, email-safe cover note (the full invoice rides as the PDF attachment).
 function _rcEmailCoverHTML(inv, sandboxFor){
   var co=DB.settings||{};
-  var billEmail=co.billingEmail||co.cemail||'';
+  var billEmail=_rcBillingEmail();
   function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function money(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  // Outlook ignores CSS max-width on images and renders them at native size — so the logo MUST carry an
+  // explicit width attribute (not just a style) to stay a small header mark instead of a full-width banner.
   var head = co.logoDataUrl
-    ? '<img src="'+co.logoDataUrl+'" alt="'+esc(co.cname||'')+'" style="max-height:48px;max-width:220px">'
+    ? '<img src="'+co.logoDataUrl+'" alt="'+esc(co.cname||'')+'" width="200" style="width:200px;max-width:200px;height:auto;display:block;border:0">'
     : '<div style="font-size:18px;font-weight:800;color:#0d1b2a">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>';
   return ''
     +(sandboxFor?'<div style="background:#fff3e0;border:1px solid #ffcc80;color:#e65100;padding:10px 14px;font-family:Arial;font-size:12px;border-radius:6px;margin-bottom:14px">🧪 SANDBOX TEST — this would have been sent to <b>'+esc(sandboxFor)+'</b>. No client received it.</div>':'')
@@ -413,7 +428,7 @@ async function _sendMSInvoice(inv, opts){
   if(!toAddr) return { ok:false, error:'No recipient email' };
   var _mgFromRaw = s.mgFrom || 'TCSS Invoicing <invoicing@tcss.com>';
   var domain = s.mgDomain || ((_mgFromRaw.match(/@([^>\s]+)/)||[])[1]) || 'tcss.com';
-  var billEmail = s.billingEmail || s.cemail || '';
+  var billEmail = _rcBillingEmail();
   try{
     await _rcEnsurePdfLibs();
     var div=document.createElement('div');
@@ -1285,7 +1300,7 @@ function _rcPrintCurrent(){
 function _rcInvoiceHTML(inv) {
   var co = DB.settings||{};
   // Invoices use the Billing/Invoicing email (Settings); falls back to the general company email.
-  var billEmail = co.billingEmail || co.cemail || '';
+  var billEmail = _rcBillingEmail();
   function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   var lineItems = inv.lineItems||[];
   var _liSum = lineItems.reduce(function(s,i){ return s+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0)); },0);
