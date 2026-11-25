@@ -258,6 +258,94 @@ function _msEditSave(){
   if(typeof showToast==='function') showToast('Invoice updated — $'+c.tot.toFixed(2),'success',2200);
 }
 
+// ── Control sheet for the drafts about to go out (verify before sending) ─────
+function printMSReadyControlSheet() {
+  var ready = _rcReadyInvoices().filter(function(i){ return i.status==='draft'; });
+  if (!ready.length){ if(typeof showToast==='function') showToast('No invoices ready to send','warning',2000); return; }
+  var co = DB.settings||{};
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var today = (typeof getTodayISO==='function')?getTodayISO():new Date().toISOString().slice(0,10);
+  var ctrlSeq = (DB.billingCtrlSeq||0) + 1; DB.billingCtrlSeq = ctrlSeq;
+  try { if(typeof saveDB==='function') saveDB(); } catch(e){}
+  var ctrlNum = 'CTRL-' + today.replace(/-/g,'') + '-' + String(ctrlSeq).padStart(3,'0');
+
+  // group by run date
+  var groups={}; ready.forEach(function(i){ var k=i.invoiceDate||i.runDate||'—'; (groups[k]=groups[k]||[]).push(i); });
+  var keys=Object.keys(groups).sort();
+  var gSub=0,gTax=0,gTot=0,rowNum=0,rows='';
+  keys.forEach(function(k){
+    var grp=groups[k];
+    var sub=grp.reduce(function(s,i){return s+(i.subtotal!=null?parseFloat(i.subtotal):0);},0);
+    var tax=grp.reduce(function(s,i){return s+(i.taxAmt!=null?parseFloat(i.taxAmt):0);},0);
+    var tot=grp.reduce(function(s,i){return s+_rcInvTotal(i);},0);
+    rows += '<tr style="background:#e3f2fd"><td colspan="7" style="padding:7px 12px;font-size:11px;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.4px">Run of '+esc(k)+' &nbsp;&#183;&nbsp; '+grp.length+' invoice'+(grp.length!==1?'s':'')+' &nbsp;&#183;&nbsp; $'+tot.toFixed(2)+'</td></tr>';
+    grp.forEach(function(i){
+      rowNum++;
+      rows += '<tr style="background:'+(rowNum%2===0?'#fafafa':'#fff')+'">'
+        +'<td style="padding:7px 12px;font-size:12px;color:#90a4ae;text-align:center">'+rowNum+'</td>'
+        +'<td style="padding:7px 12px;font-size:12px;font-weight:700;color:#1565c0">'+esc(i.num||'')+'</td>'
+        +'<td style="padding:7px 12px;font-size:12px;font-weight:600">'+esc(i.clientName||'')+'</td>'
+        +'<td style="padding:7px 12px;font-size:11px;color:#546e7a">'+esc(i.rcNumber||'')+'</td>'
+        +'<td style="padding:7px 12px;font-size:12px;text-align:right">$'+(i.subtotal!=null?parseFloat(i.subtotal):0).toFixed(2)+'</td>'
+        +'<td style="padding:7px 12px;font-size:12px;text-align:right;color:#546e7a">$'+(i.taxAmt!=null?parseFloat(i.taxAmt):0).toFixed(2)+'</td>'
+        +'<td style="padding:7px 12px;font-size:12px;font-weight:700;text-align:right">$'+_rcInvTotal(i).toFixed(2)+'</td>'
+      +'</tr>';
+    });
+    gSub+=sub; gTax+=tax; gTot+=tot;
+  });
+
+  var head = co.logoDataUrl
+    ? '<img src="'+co.logoDataUrl+'" alt="'+esc(co.cname||'')+'" style="max-height:48px;max-width:230px;object-fit:contain;display:block;margin-bottom:6px">'
+    : '<div style="font-size:20px;font-weight:900">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>';
+
+  var body = '<div style="max-width:820px;margin:0 auto;font-family:Arial,sans-serif;color:#0d1b2a">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1565c0;padding-bottom:14px;margin-bottom:18px">'
+      +'<div>'+head
+        +'<div style="font-size:11px;color:#546e7a;margin-top:5px">'+esc(co.caddr||'')+(co.cphone?' &nbsp;&#183;&nbsp; '+esc(co.cphone):'')+'</div>'
+        +'<div style="font-size:16px;font-weight:800;color:#1565c0;margin-top:10px">MANAGED SERVICES — READY-TO-SEND CONTROL SHEET</div>'
+      +'</div>'
+      +'<div style="text-align:right"><div style="font-size:10px;color:#90a4ae;font-weight:700;text-transform:uppercase;margin-bottom:3px">Control Number</div>'
+        +'<div style="font-size:19px;font-weight:900;color:#1565c0">'+ctrlNum+'</div></div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px">'
+      +['Generated:'+today, 'Invoices:'+ready.length, 'Total:$'+gTot.toFixed(2)].map(function(it){var p=it.split(':');
+        return '<div style="background:#f5f7fa;border-radius:8px;padding:10px 14px"><div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase;margin-bottom:3px">'+p[0]+'</div><div style="font-size:14px;font-weight:800">'+p.slice(1).join(':')+'</div></div>';}).join('')
+    +'</div>'
+    +'<table style="width:100%;border-collapse:collapse">'
+      +'<thead><tr style="background:#0d1b2a;color:#fff">'
+        +'<th style="padding:9px 12px;text-align:center;font-size:10px;text-transform:uppercase;width:34px">#</th>'
+        +'<th style="padding:9px 12px;text-align:left;font-size:10px;text-transform:uppercase;width:100px">Invoice</th>'
+        +'<th style="padding:9px 12px;text-align:left;font-size:10px;text-transform:uppercase">Client</th>'
+        +'<th style="padding:9px 12px;text-align:left;font-size:10px;text-transform:uppercase;width:80px">Contract</th>'
+        +'<th style="padding:9px 12px;text-align:right;font-size:10px;text-transform:uppercase;width:90px">Subtotal</th>'
+        +'<th style="padding:9px 12px;text-align:right;font-size:10px;text-transform:uppercase;width:80px">Tax</th>'
+        +'<th style="padding:9px 12px;text-align:right;font-size:10px;text-transform:uppercase;width:95px">Total</th>'
+      +'</tr></thead><tbody>'+rows+'</tbody>'
+      +'<tfoot><tr style="background:#0d1b2a;color:#fff">'
+        +'<td colspan="4" style="padding:10px 12px;font-size:13px;font-weight:700;text-align:right">TOTAL — '+ready.length+' INVOICES:</td>'
+        +'<td style="padding:10px 12px;font-size:12px;font-weight:700;text-align:right">$'+gSub.toFixed(2)+'</td>'
+        +'<td style="padding:10px 12px;font-size:12px;font-weight:700;text-align:right">$'+gTax.toFixed(2)+'</td>'
+        +'<td style="padding:10px 12px;font-size:15px;font-weight:900;text-align:right">$'+gTot.toFixed(2)+'</td>'
+      +'</tr></tfoot>'
+    +'</table>'
+    +'<div style="margin-top:28px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">'
+      +['Prepared by','Verified by','Date verified'].map(function(l){return '<div><div style="border-top:1px solid #0d1b2a;padding-top:6px;font-size:10px;color:#546e7a;text-transform:uppercase;letter-spacing:.4px">'+l+'</div><div style="height:22px"></div></div>';}).join('')
+    +'</div>'
+    +'<div style="margin-top:18px;padding-top:12px;border-top:1px solid #e0e7ef;font-size:10px;color:#90a4ae;text-align:center">Control Sheet '+ctrlNum+' &nbsp;&#183;&nbsp; Generated '+new Date().toLocaleString()+' &nbsp;&#183;&nbsp; RETAIN FOR RECORDS</div>'
+  +'</div>';
+
+  var overlay=document.getElementById('rc-invoice-overlay');
+  if(!overlay){ overlay=document.createElement('div'); overlay.id='rc-invoice-overlay'; document.body.appendChild(overlay); }
+  overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#e8edf2;z-index:9999;overflow-y:auto;display:block';
+  overlay.innerHTML='<div class="no-print" style="position:sticky;top:0;background:#0d1b2a;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,.3)">'
+    +'<span style="color:#90a4ae;font-size:13px">&#128438; Control Sheet &nbsp;&#183;&nbsp; '+ctrlNum+'</span>'
+    +'<div style="display:flex;gap:10px">'
+      +'<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
+      +'<button onclick="_closeRCInvoice()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer">&#10005; Close</button>'
+    +'</div></div>'
+    +'<div style="padding:28px 20px">'+body+'</div>';
+}
+
 function renderReadyToSend() {
   var inv = _rcReadyInvoices();
   if (!inv.length) return '';
@@ -302,7 +390,10 @@ function renderReadyToSend() {
         +'<div style="font-size:11px;color:#bbdefb;margin-top:2px">Auto-generated drafts — review, then send. Nothing goes to a client until you do.'
           +(ageDays>=3?' <b style="color:#fff3e0">Oldest has been waiting '+ageDays+' days.</b>':'')+'</div>'
       +'</div>'
-      +(held.length?'<div style="background:rgba(255,255,255,.15);color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700">'+held.length+' on hold</div>':'')
+      +'<div style="display:flex;align-items:center;gap:10px">'
+        +(held.length?'<div style="background:rgba(255,255,255,.15);color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700">'+held.length+' on hold</div>':'')
+        +'<button onclick="printMSReadyControlSheet()" style="background:#fff;color:#1565c0;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128438; Control sheet</button>'
+      +'</div>'
     +'</div>';
 
   keys.forEach(function(k){
@@ -972,7 +1063,10 @@ function printRCInvoice(invId) {
   var html = '<div style="max-width:760px;margin:30px auto;font-family:Arial,sans-serif;color:#0d1b2a">'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid #1565c0">'
       +'<div>'
-        +'<div style="font-size:22px;font-weight:900;color:#0d1b2a;letter-spacing:-.3px">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>'
+        // Logo-first (DB.settings.logoDataUrl), styled company name is the fallback when no logo is set.
+        +(co.logoDataUrl
+          ? '<img src="'+co.logoDataUrl+'" alt="'+esc(co.cname||'')+'" style="max-height:56px;max-width:260px;object-fit:contain;display:block;margin-bottom:6px">'
+          : '<div style="font-size:22px;font-weight:900;color:#0d1b2a;letter-spacing:-.3px">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>')
         +'<div style="margin-top:8px;font-size:12px;color:#546e7a;line-height:1.8">'+esc(co.caddr||'')
           +(co.cphone?'<br>'+esc(co.cphone):'')
           +(co.cemail?'<br>'+esc(co.cemail):'')
