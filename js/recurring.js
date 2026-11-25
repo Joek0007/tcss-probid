@@ -109,6 +109,155 @@ function rcReleaseInvoice(id){
   if(typeof showToast==='function') showToast('Invoice released — ready to send','success',2000);
 }
 
+// ── Edit a draft invoice (before it's sent) ─────────────────────────────────
+// Working copy in _msEditInv so Cancel discards. Only DRAFT/HELD invoices are editable here;
+// a sent/paid invoice is never opened for edit (that would be the void+reissue path, later).
+var _msEditInv = null;
+
+function _mseEscAttr(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function editMSInvoice(invId){
+  var inv=(DB.invoices||[]).find(function(i){return i.id===invId;});
+  if(!inv){ if(typeof showToast==='function') showToast('Invoice not found','warning',2000); return; }
+  if(inv.status!=='draft' && inv.status!=='held'){
+    if(typeof showToast==='function') showToast('Only draft invoices can be edited','warning',2500); return;
+  }
+  _msEditInv = {
+    id: inv.id, num: inv.num||'', clientName: inv.clientName||'',
+    taxRate: (inv.taxRate!=null)?parseFloat(inv.taxRate):0,
+    taxable: (inv.taxable!==false),
+    lineItems: (inv.lineItems||[]).map(function(li){
+      return { desc:(li.desc||''), qty:parseFloat(li.qty||1), unitPrice:parseFloat(li.unitPrice||0) };
+    })
+  };
+  if(!_msEditInv.lineItems.length) _msEditInv.lineItems=[{desc:'',qty:1,unitPrice:0}];
+  _renderMSEditOverlay();
+}
+
+function _msEditRows(){
+  return _msEditInv.lineItems.map(function(li, idx){
+    var lt = (parseFloat(li.qty||1)*parseFloat(li.unitPrice||0));
+    return '<tr>'
+      +'<td style="padding:5px 6px"><input value="'+_mseEscAttr(li.desc)+'" oninput="_msEditUpdateLine('+idx+',\'desc\',this.value)" style="width:100%;box-sizing:border-box;border:1px solid #cfd8e3;border-radius:5px;padding:7px 8px;font-size:13px" placeholder="Description"></td>'
+      +'<td style="padding:5px 6px"><input type="number" min="0" step="1" value="'+parseFloat(li.qty||1)+'" oninput="_msEditUpdateLine('+idx+',\'qty\',this.value)" style="width:60px;box-sizing:border-box;border:1px solid #cfd8e3;border-radius:5px;padding:7px 6px;font-size:13px;text-align:center"></td>'
+      +'<td style="padding:5px 6px"><input type="number" min="0" step="0.01" value="'+parseFloat(li.unitPrice||0).toFixed(2)+'" oninput="_msEditUpdateLine('+idx+',\'unitPrice\',this.value)" onblur="this.value=parseFloat(this.value||0).toFixed(2)" style="width:92px;box-sizing:border-box;border:1px solid #cfd8e3;border-radius:5px;padding:7px 6px;font-size:13px;text-align:right"></td>'
+      +'<td id="mse-lt-'+idx+'" style="padding:5px 8px;text-align:right;font-weight:700;font-size:13px;white-space:nowrap">$'+lt.toFixed(2)+'</td>'
+      +'<td style="padding:5px 4px;text-align:center"><button onclick="_msEditRemoveLine('+idx+')" title="Remove line" style="background:#fff;border:1px solid #ffcdd2;color:#c62828;border-radius:5px;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1">&times;</button></td>'
+    +'</tr>';
+  }).join('');
+}
+
+function _renderMSEditOverlay(){
+  var e=_msEditInv;
+  var overlay=document.getElementById('ms-edit-overlay');
+  if(!overlay){ overlay=document.createElement('div'); overlay.id='ms-edit-overlay'; document.body.appendChild(overlay); }
+  overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(13,27,42,.55);z-index:10000;overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;padding:30px 16px';
+  overlay.innerHTML=
+    '<div style="background:#fff;border-radius:12px;max-width:680px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);overflow:hidden;font-family:Arial,sans-serif">'
+    +'<div style="background:#0d1b2a;padding:14px 20px;display:flex;align-items:center;justify-content:space-between">'
+      +'<div style="color:#fff"><div style="font-size:15px;font-weight:800">&#9998; Edit Invoice</div>'
+        +'<div style="font-size:12px;color:#90a4ae;margin-top:2px">'+_mseEscAttr(e.num)+' &nbsp;·&nbsp; '+_mseEscAttr(e.clientName)+'</div></div>'
+      +'<button onclick="_closeMSEdit()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">&times; Cancel</button>'
+    +'</div>'
+    +'<div style="padding:18px 20px">'
+      +'<table style="width:100%;border-collapse:collapse">'
+        +'<thead><tr style="font-size:10px;color:#90a4ae;text-transform:uppercase;letter-spacing:.4px;text-align:left">'
+          +'<th style="padding:0 6px 6px">Description</th><th style="padding:0 6px 6px;text-align:center">Qty</th>'
+          +'<th style="padding:0 6px 6px;text-align:right">Unit $</th><th style="padding:0 8px 6px;text-align:right">Amount</th><th></th>'
+        +'</tr></thead><tbody id="mse-tbody">'+_msEditRows()+'</tbody>'
+      +'</table>'
+      +'<button onclick="_msEditAddLine()" style="margin-top:8px;background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">+ Add line</button>'
+      +'<div style="margin-top:16px;padding-top:14px;border-top:1px solid #eef2f6;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">'
+        +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#37474f;cursor:pointer">'
+          +'<input type="checkbox" id="mse-taxable" '+(e.taxable?'checked':'')+' onchange="_msEditSetTaxable(this.checked)" style="width:16px;height:16px"> Taxable'
+          +' &nbsp;<span style="color:#90a4ae">rate</span> <input type="number" min="0" step="0.01" id="mse-rate" value="'+parseFloat(e.taxRate||0)+'" oninput="_msEditSetRate(this.value)" '+(e.taxable?'':'disabled')+' style="width:62px;border:1px solid #cfd8e3;border-radius:5px;padding:6px;font-size:13px;text-align:right">%'
+        +'</label>'
+        +'<div style="text-align:right;font-size:13px;min-width:200px">'
+          +'<div style="display:flex;justify-content:space-between;color:#546e7a"><span>Subtotal</span><span id="mse-subtotal">$0.00</span></div>'
+          +'<div style="display:flex;justify-content:space-between;color:#546e7a;margin-top:3px"><span id="mse-taxlabel">Tax</span><span id="mse-tax">$0.00</span></div>'
+          +'<div style="display:flex;justify-content:space-between;font-size:17px;font-weight:900;color:#1565c0;margin-top:6px;padding-top:6px;border-top:1px solid #eef2f6"><span>Total</span><span id="mse-total">$0.00</span></div>'
+        +'</div>'
+      +'</div>'
+      +'<div style="margin-top:18px;display:flex;justify-content:flex-end;gap:10px">'
+        +'<button onclick="_closeMSEdit()" style="background:#eceff1;color:#546e7a;border:none;border-radius:6px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">Cancel</button>'
+        +'<button onclick="_msEditSave()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer">&#10003; Save changes</button>'
+      +'</div>'
+    +'</div></div>';
+  _msEditRecalc();
+}
+
+function _msEditUpdateLine(idx, field, val){
+  if(!_msEditInv||!_msEditInv.lineItems[idx]) return;
+  if(field==='desc') _msEditInv.lineItems[idx].desc=val;
+  else _msEditInv.lineItems[idx][field]=parseFloat(val||0);
+  _msEditRecalc();
+}
+function _msEditSetRate(val){ if(_msEditInv){ _msEditInv.taxRate=parseFloat(val||0); _msEditRecalc(); } }
+function _msEditSetTaxable(c){
+  if(!_msEditInv) return;
+  _msEditInv.taxable=!!c;
+  var rate=document.getElementById('mse-rate'); if(rate) rate.disabled=!c;
+  _msEditRecalc();
+}
+function _msEditAddLine(){
+  if(!_msEditInv) return;
+  _msEditInv.lineItems.push({desc:'',qty:1,unitPrice:0});
+  var tb=document.getElementById('mse-tbody'); if(tb) tb.innerHTML=_msEditRows();
+  _msEditRecalc();
+}
+function _msEditRemoveLine(idx){
+  if(!_msEditInv) return;
+  _msEditInv.lineItems.splice(idx,1);
+  if(!_msEditInv.lineItems.length) _msEditInv.lineItems=[{desc:'',qty:1,unitPrice:0}];
+  var tb=document.getElementById('mse-tbody'); if(tb) tb.innerHTML=_msEditRows();
+  _msEditRecalc();
+}
+function _msEditCalc(){
+  var sub=_msEditInv.lineItems.reduce(function(s,i){return s+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0));},0);
+  var rate=_msEditInv.taxable?parseFloat(_msEditInv.taxRate||0):0;
+  var tax=Math.round(sub*rate/100*100)/100;
+  var tot=Math.round((sub+tax)*100)/100;
+  return { sub:sub, rate:rate, tax:tax, tot:tot };
+}
+function _msEditRecalc(){
+  if(!_msEditInv) return;
+  var c=_msEditCalc();
+  _msEditInv.lineItems.forEach(function(li,idx){
+    var cell=document.getElementById('mse-lt-'+idx);
+    if(cell) cell.textContent='$'+(parseFloat(li.qty||1)*parseFloat(li.unitPrice||0)).toFixed(2);
+  });
+  function set(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
+  set('mse-subtotal','$'+c.sub.toFixed(2));
+  set('mse-tax','$'+c.tax.toFixed(2));
+  set('mse-total','$'+c.tot.toFixed(2));
+  var lbl=document.getElementById('mse-taxlabel');
+  if(lbl) lbl.textContent='Tax ('+(c.rate).toFixed(c.rate%1?2:0)+'%)';
+}
+function _closeMSEdit(){
+  var o=document.getElementById('ms-edit-overlay'); if(o) o.style.display='none';
+  _msEditInv=null;
+}
+function _msEditSave(){
+  if(!_msEditInv) return;
+  var inv=(DB.invoices||[]).find(function(i){return i.id===_msEditInv.id;});
+  if(!inv){ _closeMSEdit(); return; }
+  var before={ lineItems:inv.lineItems, subtotal:inv.subtotal, taxRate:inv.taxRate, taxAmt:inv.taxAmt, total:inv.total, taxable:inv.taxable };
+  // drop fully-empty rows (no description and zero price)
+  var items=_msEditInv.lineItems.filter(function(li){ return (li.desc&&li.desc.trim()) || parseFloat(li.unitPrice||0)!==0 || parseFloat(li.qty||0)>1; });
+  if(!items.length){ if(typeof showToast==='function') showToast('Add at least one line item','warning',2500); return; }
+  _msEditInv.lineItems=items;
+  var c=_msEditCalc();
+  inv.lineItems=items.map(function(li,idx){ return { id:'li-'+Date.now()+'-'+idx, desc:li.desc||'', qty:parseFloat(li.qty||1), unitPrice:parseFloat(li.unitPrice||0) }; });
+  inv.subtotal=c.sub; inv.taxable=_msEditInv.taxable; inv.taxRate=c.rate; inv.taxAmt=c.tax; inv.amount=c.tot; inv.total=c.tot;
+  inv.updatedAt=new Date().toISOString();
+  var after={ lineItems:inv.lineItems, subtotal:inv.subtotal, taxRate:inv.taxRate, taxAmt:inv.taxAmt, total:inv.total, taxable:inv.taxable };
+  if(typeof auditLog==='function') auditLog('ms_invoice_edited','invoice',inv.id,{old:before,new:after,note:'Edited draft '+(inv.num||'')+' before send'});
+  _rcSaveInvoice(inv);
+  _closeMSEdit();
+  renderRecurring();
+  if(typeof showToast==='function') showToast('Invoice updated — $'+c.tot.toFixed(2),'success',2200);
+}
+
 function renderReadyToSend() {
   var inv = _rcReadyInvoices();
   if (!inv.length) return '';
@@ -128,17 +277,18 @@ function renderReadyToSend() {
 
   function rowHtml(i, isHeld){
     var tax = (i.taxAmt!=null)?parseFloat(i.taxAmt):0;
-    return '<div style="display:grid;grid-template-columns:96px 1fr 130px 150px;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid #f0f4f8;font-size:12px">'
+    return '<div style="display:grid;grid-template-columns:88px 1fr 116px 250px;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid #f0f4f8;font-size:12px">'
       +'<div style="font-weight:700;color:#1565c0">'+esc(i.num||'')+'</div>'
       +'<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="font-weight:600">'+esc(i.clientName||'')+'</span>'
         +(i.rcNumber?'<span style="color:#90a4ae"> · '+esc(i.rcNumber)+'</span>':'')+'</div>'
       +'<div style="text-align:right;font-weight:800;color:#0d1b2a">$'+_rcInvTotal(i).toFixed(2)
         +(tax>0?'<div style="font-size:10px;font-weight:600;color:#90a4ae">incl $'+tax.toFixed(2)+' tax</div>':'')+'</div>'
       +'<div style="text-align:right;white-space:nowrap">'
-        +'<button class="btn btn-outline btn-sm" style="font-size:11px;padding:4px 10px" onclick="printRCInvoice(\''+esc(i.id)+'\')">&#128065; Preview</button> '
+        +'<button class="btn btn-sm" style="font-size:11px;padding:4px 9px;background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb" onclick="editMSInvoice(\''+esc(i.id)+'\')">&#9998; Edit</button> '
+        +'<button class="btn btn-outline btn-sm" style="font-size:11px;padding:4px 9px" onclick="printRCInvoice(\''+esc(i.id)+'\')">&#128065; Preview</button> '
         +(isHeld
-          ? '<button class="btn btn-sm" style="font-size:11px;padding:4px 10px;background:#2e7d32;color:#fff;border:none" onclick="rcReleaseInvoice(\''+esc(i.id)+'\')">&#8635; Release</button>'
-          : '<button class="btn btn-sm" style="font-size:11px;padding:4px 10px;background:#fff3e0;color:#e65100;border:1px solid #ffe0b2" onclick="rcHoldInvoice(\''+esc(i.id)+'\')">&#9208; Hold</button>')
+          ? '<button class="btn btn-sm" style="font-size:11px;padding:4px 9px;background:#2e7d32;color:#fff;border:none" onclick="rcReleaseInvoice(\''+esc(i.id)+'\')">&#8635; Release</button>'
+          : '<button class="btn btn-sm" style="font-size:11px;padding:4px 9px;background:#fff3e0;color:#e65100;border:1px solid #ffe0b2" onclick="rcHoldInvoice(\''+esc(i.id)+'\')">&#9208; Hold</button>')
       +'</div>'
     +'</div>';
   }
