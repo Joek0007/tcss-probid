@@ -347,6 +347,206 @@ function printMSReadyControlSheet() {
     +'<div style="padding:28px 20px">'+body+'</div>';
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// SEND PATH — bulk send the ready drafts as emailed invoices (PDF attachment).
+// SAFETY: a sandbox (default ON) redirects EVERY send to the office inbox so the
+// whole flow can be tested without a client ever receiving an email. Flip it off
+// only when ready. Each send flips the invoice to 'sent' + writes an audit row.
+// ════════════════════════════════════════════════════════════════════════════
+var _rcSelected = {};               // invId -> true (tray checkboxes)
+var _rcSendInFlight = false;
+
+function _rcSandboxOn(){ return ((DB.settings||{}).msSendSandbox !== false); }      // default ON
+function _rcSandboxTo(){ return (DB.settings||{}).notifSandboxTo || (DB.settings||{}).msSandboxTo || 'joek@tcss.com'; }
+
+function rcToggleSel(id, on){ if(on){ _rcSelected[id]=true; } else { delete _rcSelected[id]; } _rcUpdateSendBar(); }
+function rcSelectAllReady(on){
+  var ready=_rcReadyInvoices().filter(function(i){return i.status==='draft';});
+  _rcSelected={}; if(on){ ready.forEach(function(i){ _rcSelected[i.id]=true; }); }
+  renderRecurring();
+}
+function _rcSelectedCount(){ return Object.keys(_rcSelected).length; }
+function _rcUpdateSendBar(){
+  var n=_rcSelectedCount();
+  var btn=document.getElementById('rc-send-selected');
+  if(btn){ btn.style.display = n>0 ? 'inline-block' : 'none'; btn.textContent='✉ Send selected ('+n+')'; }
+}
+
+// Lazy-load the PDF libraries (same CDNs the invoice email path uses).
+function _rcEnsurePdfLibs(){
+  return new Promise(function(resolve,reject){
+    function need(cond,src){ return new Promise(function(res,rej){ if(cond()){res();return;} var s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
+    need(function(){return typeof html2canvas!=='undefined';},'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
+      .then(function(){ return need(function(){return typeof window.jspdf!=='undefined'||typeof window.jsPDF!=='undefined';},'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'); })
+      .then(resolve).catch(reject);
+  });
+}
+
+// Short, email-safe cover note (the full invoice rides as the PDF attachment).
+function _rcEmailCoverHTML(inv, sandboxFor){
+  var co=DB.settings||{};
+  var billEmail=co.billingEmail||co.cemail||'';
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function money(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  var head = co.logoDataUrl
+    ? '<img src="'+co.logoDataUrl+'" alt="'+esc(co.cname||'')+'" style="max-height:48px;max-width:220px">'
+    : '<div style="font-size:18px;font-weight:800;color:#0d1b2a">'+esc(co.cname||'Total Communications Systems & Solutions, Inc.')+'</div>';
+  return ''
+    +(sandboxFor?'<div style="background:#fff3e0;border:1px solid #ffcc80;color:#e65100;padding:10px 14px;font-family:Arial;font-size:12px;border-radius:6px;margin-bottom:14px">🧪 SANDBOX TEST — this would have been sent to <b>'+esc(sandboxFor)+'</b>. No client received it.</div>':'')
+    +'<div style="max-width:560px;font-family:Arial,Helvetica,sans-serif;color:#1f2937">'
+    +'<div style="padding-bottom:14px;border-bottom:2px solid #1565c0;margin-bottom:16px">'+head+'</div>'
+    +'<p style="font-size:14px;margin:0 0 12px">Hello '+esc(inv.clientName||'')+',</p>'
+    +'<p style="font-size:13px;line-height:1.6;margin:0 0 14px">Please find attached invoice <b>'+esc(inv.num||'')+'</b> for your '+esc(inv.contractType||'managed services')+' agreement. The full invoice is attached as a PDF.</p>'
+    +'<table cellpadding="0" cellspacing="0" style="margin:0 0 16px"><tr><td style="font-size:13px;color:#6b7280;padding:2px 18px 2px 0">Invoice</td><td style="font-size:13px;font-weight:700">'+esc(inv.num||'')+'</td></tr>'
+      +'<tr><td style="font-size:13px;color:#6b7280;padding:2px 18px 2px 0">Amount due</td><td style="font-size:15px;font-weight:800;color:#1565c0">'+money(inv.total!=null?inv.total:inv.amount)+'</td></tr>'
+      +'<tr><td style="font-size:13px;color:#6b7280;padding:2px 18px 2px 0">Terms</td><td style="font-size:13px">Due upon receipt</td></tr></table>'
+    +'<p style="font-size:12px;color:#6b7280;line-height:1.6;margin:0">Questions about this invoice? Reply to this email'+(billEmail?' or contact us at '+esc(billEmail):'')+'.</p>'
+    +'<div style="margin-top:18px;padding-top:12px;border-top:1px solid #eef1f4;font-size:11px;color:#9aa4b2">'+esc(co.cname||'')+(co.cphone?' &middot; '+esc(co.cphone):'')+(billEmail?' &middot; '+esc(billEmail):'')+'</div>'
+    +'</div>';
+}
+
+// Send ONE invoice. opts={ to:<actual send addr>, sandboxFor:<real client addr or null> }. Returns {ok,error}.
+async function _sendMSInvoice(inv, opts){
+  var s=DB.settings||{};
+  if(!s.mgKey) return { ok:false, error:'Mailgun key not set (Settings → Email)' };
+  var toAddr=opts && opts.to;
+  if(!toAddr) return { ok:false, error:'No recipient email' };
+  var _mgFromRaw = s.mgFrom || 'TCSS Invoicing <invoicing@tcss.com>';
+  var domain = s.mgDomain || ((_mgFromRaw.match(/@([^>\s]+)/)||[])[1]) || 'tcss.com';
+  var billEmail = s.billingEmail || s.cemail || '';
+  try{
+    await _rcEnsurePdfLibs();
+    var div=document.createElement('div');
+    div.style.cssText='position:fixed;left:-9999px;top:0;width:760px;background:#fff';
+    div.innerHTML=_rcInvoiceHTML(inv);
+    document.body.appendChild(div);
+    var canvas=await html2canvas(div.firstChild||div,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
+    document.body.removeChild(div);
+    var jspdf=window.jspdf||window.jsPDF;
+    var pdf=new (jspdf.jsPDF||jspdf)({orientation:'p',unit:'px',format:'a4'});
+    var pageW=pdf.internal.pageSize.getWidth(), pageH=pdf.internal.pageSize.getHeight();
+    var imgW=pageW, imgH=(canvas.height*pageW)/canvas.width, y=0;
+    while(y<imgH){ if(y>0)pdf.addPage(); pdf.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',0,-y,imgW,imgH); y+=pageH; }
+    var pdfBlob=pdf.output('blob');
+    var emailHTML=_rcEmailCoverHTML(inv, opts.sandboxFor||null);
+    var fd=new FormData();
+    fd.append('from', _mgFromRaw);
+    fd.append('to', toAddr);
+    if(billEmail) fd.append('h:Reply-To', billEmail);
+    fd.append('subject', (opts.sandboxFor?'[SANDBOX] ':'')+'Invoice '+(inv.num||'')+' from '+(s.cname||'us'));
+    if(s.logoDataUrl && /^data:/.test(s.logoDataUrl) && emailHTML.indexOf(s.logoDataUrl)>=0){
+      try{ var b2=await(await fetch(s.logoDataUrl)).blob(); var mime=(typeof _imgMimeFromDataUrl==='function')?_imgMimeFromDataUrl(s.logoDataUrl):(b2.type||'image/png'); emailHTML=emailHTML.split(s.logoDataUrl).join('cid:invlogo'); fd.append('inline', new File([b2],'invlogo',{type:mime})); }catch(e){}
+    }
+    fd.append('html', emailHTML);
+    fd.append('attachment', new File([pdfBlob], (inv.num||'Invoice')+'.pdf', {type:'application/pdf'}));
+    fd.append('o:tracking','yes'); fd.append('o:tracking-opens','yes');
+    fd.append('v:probid_type','invoice'); fd.append('v:probid_id', String(inv.id||inv.num));
+    var res=await fetch('https://api.mailgun.net/v3/'+domain+'/messages',{method:'POST',headers:{'Authorization':'Basic '+btoa('api:'+s.mgKey)},body:fd});
+    var data=await res.json().catch(function(){return {};});
+    if(res.ok) return { ok:true, id:data.id };
+    return { ok:false, error:(data.message||('Mailgun HTTP '+res.status)) };
+  }catch(e){ return { ok:false, error:(e&&e.message)||String(e) }; }
+}
+
+// Build the list for a send, then open the confirmation dialog.
+function rcOpenSendConfirm(mode){
+  var ready=_rcReadyInvoices().filter(function(i){return i.status==='draft';});
+  var list = (mode==='selected') ? ready.filter(function(i){return _rcSelected[i.id];}) : ready;
+  if(!list.length){ if(typeof showToast==='function') showToast(mode==='selected'?'Nothing selected':'Nothing ready to send','info',2000); return; }
+  var sandbox=_rcSandboxOn();
+  // When LIVE, invoices with no client email can't send — separate them out.
+  var noEmail = sandbox ? [] : list.filter(function(i){return !i.clientEmail;});
+  var sendable = sandbox ? list : list.filter(function(i){return !!i.clientEmail;});
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var total=sendable.reduce(function(s,i){return s+_rcInvTotal(i);},0);
+  var sandTo=_rcSandboxTo();
+
+  var rows=sendable.map(function(i){
+    var dest = sandbox ? sandTo : i.clientEmail;
+    return '<tr><td style="padding:6px 10px;font-weight:700;color:#1565c0;font-size:12px">'+esc(i.num||'')+'</td>'
+      +'<td style="padding:6px 10px;font-size:12px">'+esc(i.clientName||'')+'</td>'
+      +'<td style="padding:6px 10px;font-size:12px;color:#546e7a">'+esc(dest||'—')+'</td>'
+      +'<td style="padding:6px 10px;font-size:12px;text-align:right;font-weight:700">$'+_rcInvTotal(i).toFixed(2)+'</td></tr>';
+  }).join('');
+
+  var banner = sandbox
+    ? '<div style="background:#fff3e0;border:1px solid #ffcc80;color:#e65100;padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:14px">'
+        +'<b>🧪 Sandbox is ON.</b> All '+sendable.length+' email'+(sendable.length!==1?'s':'')+' will go to <b>'+esc(sandTo)+'</b> — <b>no client will receive anything.</b>'
+        +'<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;cursor:pointer"><input type="checkbox" onchange="rcSetSandbox(!this.checked)" style="width:16px;height:16px"> I’m ready to send to REAL clients (turn sandbox off)</label>'
+      +'</div>'
+    : '<div style="background:#ffebee;border:1px solid #ef9a9a;color:#c62828;padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:14px">'
+        +'<b>⚠ LIVE — sandbox is OFF.</b> These '+sendable.length+' invoice'+(sendable.length!==1?'s':'')+' will be emailed to <b>real clients</b>. This cannot be undone.'
+        +'<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;cursor:pointer"><input type="checkbox" onchange="rcSetSandbox(this.checked)" style="width:16px;height:16px"> Switch back to sandbox (safe) mode</label>'
+      +'</div>';
+
+  var warn = noEmail.length
+    ? '<div style="background:#fff8e1;border:1px solid #ffe0b2;color:#8a6d3b;padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:14px">'+noEmail.length+' invoice'+(noEmail.length!==1?'s':'')+' skipped — no client email on file: '+esc(noEmail.map(function(i){return i.num;}).join(', '))+'</div>'
+    : '';
+
+  var ov=document.getElementById('rc-send-confirm');
+  if(!ov){ ov=document.createElement('div'); ov.id='rc-send-confirm'; document.body.appendChild(ov); }
+  ov.style.cssText='position:fixed;inset:0;background:rgba(13,27,42,.55);z-index:10001;overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px';
+  ov.innerHTML='<div style="background:#fff;border-radius:12px;max-width:640px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);overflow:hidden;font-family:Arial,sans-serif">'
+    +'<div style="background:#0d1b2a;padding:14px 20px;display:flex;justify-content:space-between;align-items:center">'
+      +'<div style="color:#fff;font-size:15px;font-weight:800">✉ Send '+sendable.length+' invoice'+(sendable.length!==1?'s':'')+' &nbsp;·&nbsp; $'+total.toFixed(2)+'</div>'
+      +'<button onclick="_rcCloseSendConfirm()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer">× Cancel</button>'
+    +'</div>'
+    +'<div style="padding:18px 20px">'+banner+warn
+      +'<div style="max-height:260px;overflow:auto;border:1px solid #eef2f6;border-radius:8px"><table style="width:100%;border-collapse:collapse">'
+        +'<thead><tr style="background:#f5f7fa;position:sticky;top:0"><th style="padding:7px 10px;text-align:left;font-size:10px;color:#90a4ae;text-transform:uppercase">Invoice</th><th style="padding:7px 10px;text-align:left;font-size:10px;color:#90a4ae;text-transform:uppercase">Client</th><th style="padding:7px 10px;text-align:left;font-size:10px;color:#90a4ae;text-transform:uppercase">Sends to</th><th style="padding:7px 10px;text-align:right;font-size:10px;color:#90a4ae;text-transform:uppercase">Amount</th></tr></thead>'
+        +'<tbody>'+rows+'</tbody></table></div>'
+      +'<div style="margin-top:18px;display:flex;justify-content:flex-end;gap:10px">'
+        +'<button onclick="_rcCloseSendConfirm()" style="background:#eceff1;color:#546e7a;border:none;border-radius:6px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">Cancel</button>'
+        +'<button id="rc-send-go" onclick="rcDoSend()" '+(sendable.length?'':'disabled')+' style="background:'+(sandbox?'#1565c0':'#c62828')+';color:#fff;border:none;border-radius:6px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer">'+(sandbox?'🧪 Send to sandbox':'✉ Send to clients')+' ('+sendable.length+')</button>'
+      +'</div>'
+    +'</div></div>';
+  // stash the sendable list for rcDoSend
+  _rcPendingSend = sendable.slice();
+}
+var _rcPendingSend = [];
+function _rcCloseSendConfirm(){ var o=document.getElementById('rc-send-confirm'); if(o){ o.style.display='none'; o.innerHTML=''; } }
+function rcSetSandbox(on){
+  (DB.settings=DB.settings||{}).msSendSandbox = !!on;
+  try{ if(typeof saveDB==='function') saveDB(); }catch(e){}
+  if(typeof showToast==='function') showToast(on?'Sandbox ON — sends go to the office inbox':'Sandbox OFF — LIVE sends to clients','info',2500);
+  // re-open the confirm with the new mode (keep the same list basis)
+  _rcCloseSendConfirm();
+  rcOpenSendConfirm(_rcSelectedCount()?'selected':'all');
+}
+
+async function rcDoSend(){
+  if(_rcSendInFlight) return;
+  var list=(_rcPendingSend||[]).slice();
+  if(!list.length){ _rcCloseSendConfirm(); return; }
+  _rcSendInFlight=true;
+  var sandbox=_rcSandboxOn(), sandTo=_rcSandboxTo();
+  var goBtn=document.getElementById('rc-send-go');
+  var ok=0, fail=0, failMsgs=[];
+  for(var k=0;k<list.length;k++){
+    var inv=list[k];
+    if(goBtn) goBtn.textContent='Sending '+(k+1)+' of '+list.length+'…';
+    var realTo = inv.clientEmail || '';
+    var sendTo = sandbox ? sandTo : realTo;
+    var r = await _sendMSInvoice(inv, { to:sendTo, sandboxFor: sandbox ? (realTo||'(no client email)') : null });
+    if(r.ok){
+      ok++;
+      inv.status='sent'; inv.sentAt=new Date().toISOString();
+      inv.emailedTo=sendTo; inv.emailedAt=inv.sentAt;
+      if(sandbox) inv.sandboxSent=true;
+      if(typeof auditLog==='function') auditLog('ms_invoice_sent','invoice',inv.id,{ new:{num:inv.num,to:sendTo,realClient:realTo,total:_rcInvTotal(inv),sandbox:sandbox}, note:'Invoice '+(inv.num||'')+' emailed to '+sendTo+(sandbox?' (SANDBOX — real client '+(realTo||'n/a')+')':'') });
+      try{ delete _rcSelected[inv.id]; }catch(e){}
+      _rcSaveInvoice(inv);
+    } else { fail++; failMsgs.push((inv.num||'?')+': '+r.error); }
+  }
+  _rcSendInFlight=false;
+  _rcCloseSendConfirm();
+  renderRecurring();
+  if(typeof showToast==='function'){
+    if(fail===0) showToast('✅ '+ok+' invoice'+(ok!==1?'s':'')+' sent'+(sandbox?' (sandbox → '+sandTo+')':''),'success',4500);
+    else showToast(ok+' sent, '+fail+' failed: '+failMsgs.slice(0,2).join(' | '),'error',7000);
+  }
+}
+
 function renderReadyToSend() {
   var inv = _rcReadyInvoices();
   if (!inv.length) return '';
@@ -358,6 +558,9 @@ function renderReadyToSend() {
   // oldest ready invoice age (days) — the "don't let it rot" nudge
   var oldest = ready.reduce(function(m,i){var d=i.invoiceDate||i.runDate||today; return (d<m)?d:m;}, today);
   var ageDays = Math.max(0, Math.round((new Date(today)-new Date(oldest))/86400000));
+  var sandboxOn = _rcSandboxOn();
+  var selCount  = _rcSelectedCount();
+  var allSel    = ready.length>0 && ready.every(function(i){return _rcSelected[i.id];});
 
   // group the READY ones by run date (keeps the run-batch grouping)
   var groups = {};
@@ -366,7 +569,8 @@ function renderReadyToSend() {
 
   function rowHtml(i, isHeld){
     var tax = (i.taxAmt!=null)?parseFloat(i.taxAmt):0;
-    return '<div style="display:grid;grid-template-columns:88px 1fr 116px 250px;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid #f0f4f8;font-size:12px">'
+    return '<div style="display:grid;grid-template-columns:26px 84px 1fr 112px 250px;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid #f0f4f8;font-size:12px">'
+      +'<div style="text-align:center">'+(isHeld?'':'<input type="checkbox" onchange="rcToggleSel(\''+esc(i.id)+'\',this.checked)" '+(_rcSelected[i.id]?'checked':'')+' style="width:16px;height:16px;cursor:pointer">')+'</div>'
       +'<div style="font-weight:700;color:#1565c0">'+esc(i.num||'')+'</div>'
       +'<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="font-weight:600">'+esc(i.clientName||'')+'</span>'
         +(i.rcNumber?'<span style="color:#90a4ae"> · '+esc(i.rcNumber)+'</span>':'')+'</div>'
@@ -395,6 +599,16 @@ function renderReadyToSend() {
         +(held.length?'<div style="background:rgba(255,255,255,.15);color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700">'+held.length+' on hold</div>':'')
         +'<button onclick="printMSReadyControlSheet()" style="background:#fff;color:#1565c0;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">&#128438; Control sheet</button>'
       +'</div>'
+    +'</div>'
+    // action bar: select-all + send controls + sandbox indicator
+    +'<div style="padding:9px 14px;background:#eaf2fb;border-bottom:1px solid #d6e4f5;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+      +'<label style="display:flex;align-items:center;gap:7px;font-size:12px;color:#1565c0;font-weight:700;cursor:pointer"><input type="checkbox" onchange="rcSelectAllReady(this.checked)" '+(allSel?'checked':'')+' style="width:16px;height:16px;cursor:pointer"> Select all</label>'
+      +'<button id="rc-send-selected" onclick="rcOpenSendConfirm(\'selected\')" style="display:'+(selCount>0?'inline-block':'none')+';background:#1565c0;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">✉ Send selected ('+selCount+')</button>'
+      +(sandboxOn
+        ? '<span style="background:#fff3e0;color:#e65100;border:1px solid #ffcc80;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700">🧪 Sandbox ON → office inbox</span>'
+        : '<span style="background:#ffebee;color:#c62828;border:1px solid #ef9a9a;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700">⚠ LIVE → real clients</span>')
+      +'<span style="flex:1"></span>'
+      +'<button onclick="rcOpenSendConfirm(\'all\')" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">✉ Send all ('+ready.length+')</button>'
     +'</div>';
 
   keys.forEach(function(k){
@@ -410,7 +624,8 @@ function renderReadyToSend() {
     held.forEach(function(i){ html += rowHtml(i,true); });
   }
 
-  html += '<div style="padding:10px 14px;background:#fafbfc;font-size:11px;color:#90a4ae;text-align:center">Review each draft and hold any that aren’t ready. <b>Sending to clients goes live in the next update.</b></div>'
+  html += '<div style="padding:10px 14px;background:#fafbfc;font-size:11px;color:#90a4ae;text-align:center">Review each draft, hold any that aren’t ready, then <b>Send</b>. '
+    +(sandboxOn?'Sandbox is ON — test sends go to your office inbox, not clients.':'<b style="color:#c62828">LIVE mode — sends go to real clients.</b>')+'</div>'
     +'</div>';
   return html;
 }
@@ -1065,9 +1280,9 @@ function _rcPrintCurrent(){
   setTimeout(function(){ try{ win.focus(); win.print(); }catch(e){} }, 500);
 }
 
-function printRCInvoice(invId) {
-  var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
-  if (!inv) { showToast('Invoice not found','warning',2000); return; }
+// Reusable invoice HTML (shared by the on-screen preview AND the PDF that gets emailed) so the
+// client sees exactly what the team previews.
+function _rcInvoiceHTML(inv) {
   var co = DB.settings||{};
   // Invoices use the Billing/Invoicing email (Settings); falls back to the general company email.
   var billEmail = co.billingEmail || co.cemail || '';
@@ -1156,6 +1371,14 @@ function printRCInvoice(invId) {
     +'</div>'
   +'</div>';
 
+  return html;
+}
+
+function printRCInvoice(invId) {
+  var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
+  if (!inv) { if(typeof showToast==='function') showToast('Invoice not found','warning',2000); return; }
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var html = _rcInvoiceHTML(inv);
   _rcPrintPayload = { title: (inv.num||'Invoice'), html: html };
   var overlay = document.getElementById('rc-invoice-overlay');
   if (!overlay) {
