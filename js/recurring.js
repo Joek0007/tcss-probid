@@ -341,7 +341,7 @@ function printMSReadyControlSheet() {
   overlay.innerHTML='<div class="no-print" style="position:sticky;top:0;background:#0d1b2a;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,.3)">'
     +'<span style="color:#90a4ae;font-size:13px">&#128438; Control Sheet &nbsp;&#183;&nbsp; '+ctrlNum+'</span>'
     +'<div style="display:flex;gap:10px">'
-      +'<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
+      +'<button onclick="_rcPrintCurrent()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
       +'<button onclick="_closeRCInvoice()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer">&#10005; Close</button>'
     +'</div></div>'
     +'<div style="padding:28px 20px">'+body+'</div>';
@@ -1038,24 +1038,31 @@ function _closeRCInvoice() {
 // from this window's <title> (the invoice/control number), not the app's page title.
 var _rcPrintPayload = null;
 function _rcPrintCurrent(){
-  // Print the on-screen preview overlay IN PLACE, isolated by the body.rc-print-mode CSS in
-  // index.html (hides the app, lays the overlay out statically) so it prints ONCE — no pop-up
-  // window (pop-up blockers were silently defeating the previous approach). The saved-PDF
-  // filename comes from document.title, which we set to the invoice/control number for the print.
+  // Open the invoice / control sheet in a dedicated print WINDOW — the exact proven pattern the
+  // rest of the app uses for POs/quotes/WOs: window.open WITH width/height (a real window, which
+  // pop-up blockers allow on a click; a plain '_blank' with no size gets tab-blocked). The window
+  // holds ONLY this document, so it prints once, and its <title> sets the saved-PDF filename.
   var payload = _rcPrintPayload || {};
-  var oldTitle = document.title;
-  if (payload.title) { try { document.title = String(payload.title).replace(/[<>]/g,'').trim() || oldTitle; } catch(e){} }
-  try { document.body.classList.add('rc-print-mode'); } catch(e){}
-  var cleaned = false;
-  function cleanup(){
-    if (cleaned) return; cleaned = true;
-    try { document.body.classList.remove('rc-print-mode'); } catch(e){}
-    try { document.title = oldTitle; } catch(e){}
-    try { window.removeEventListener('afterprint', cleanup); } catch(e){}
+  if (!payload.html){ try{ window.print(); }catch(e){} return; }
+  var title = String(payload.title||'Document').replace(/[<>]/g,'').trim() || 'Document';
+  var win = window.open('', '_blank', 'width=900,height=700');
+  if (!win){
+    if (typeof showToast==='function') showToast('Allow pop-ups for this site, then Print again','warning',4000);
+    return;
   }
-  try { window.addEventListener('afterprint', cleanup); } catch(e){}
-  // small delay so the class/title apply before the print dialog captures the page
-  setTimeout(function(){ try { window.print(); } catch(e){} setTimeout(cleanup, 2000); }, 70);
+  var doc = '<!doctype html><html><head><meta charset="utf-8"><title>'+title+'</title>'
+    +'<style>@page{margin:14mm}*{box-sizing:border-box}html,body{margin:0;padding:0}'
+    +'body{font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}'
+    +'@media print{.rc-print-bar{display:none!important}}</style></head><body>'
+    +'<div class="rc-print-bar" style="padding:10px 16px;background:#f5f7fa;border-bottom:1px solid #e0e0e0;display:flex;gap:10px">'
+      +'<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
+      +'<button onclick="window.close()" style="background:#fff;border:1px solid #cfd8e3;color:#546e7a;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer">Close</button>'
+    +'</div>'
+    +payload.html
+    +'</body></html>';
+  win.document.write(doc);
+  win.document.close();
+  setTimeout(function(){ try{ win.focus(); win.print(); }catch(e){} }, 500);
 }
 
 function printRCInvoice(invId) {
