@@ -428,6 +428,15 @@ body:has(#modal-work-order.open){overflow:hidden}
   #content{margin:0;padding:0}
   body{background:#fff}
 }
+/* Managed-services invoice / control-sheet print isolation: when printing from the preview
+   overlay, hide the whole app and lay the overlay out normally so it prints ONCE (the overlay
+   is position:fixed, which otherwise reprints on every page of the long page behind it). */
+@media print{
+  body.rc-print-mode > *:not(#rc-invoice-overlay){display:none!important}
+  body.rc-print-mode #content{display:none!important}
+  body.rc-print-mode #rc-invoice-overlay{position:static!important;left:auto!important;top:auto!important;right:auto!important;width:auto!important;height:auto!important;max-height:none!important;overflow:visible!important;background:#fff!important;display:block!important;z-index:auto!important}
+  body.rc-print-mode #rc-invoice-overlay .no-print{display:none!important}
+}
 
 /* ===== V5 PHASE 1 STYLES ===== */
 .permit-section{background:#f8fafc;border:1px solid #cfd8dc;border-radius:8px;padding:12px;margin:8px 0}
@@ -7802,7 +7811,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/notiflog.js?v=20261109r114dlog"></script>
 <script src="js/recyclebin.js?v=20260919ix"></script>
 <script src="js/contracts.js?v=20261025ctrsync"></script>
-  <script src="js/recurring.js?v=r251print1"></script>
+  <script src="js/recurring.js?v=r252print2"></script>
   <script src="js/seed_managed.js?v=20260919ix"></script>
   <script src="js/applock.js?v=20261121r205sticky"></script>
   <script src="js/auth.js?v=20261123r243legacyhide"></script>
@@ -9292,7 +9301,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r251';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r252';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-25';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

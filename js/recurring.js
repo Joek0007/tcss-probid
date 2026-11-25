@@ -1038,25 +1038,24 @@ function _closeRCInvoice() {
 // from this window's <title> (the invoice/control number), not the app's page title.
 var _rcPrintPayload = null;
 function _rcPrintCurrent(){
-  if(!_rcPrintPayload || !_rcPrintPayload.html){ try{window.print();}catch(e){} return; }
-  var title = String(_rcPrintPayload.title||'Document').replace(/[<>]/g,'').trim() || 'Document';
-  var w;
-  try { w = window.open('', '_blank'); } catch(e){ w = null; }
-  if(!w){
-    if(typeof showToast==='function') showToast('Allow pop-ups for this site to print/save as a named PDF','warning',3500);
-    try{window.print();}catch(e){}
-    return;
+  // Print the on-screen preview overlay IN PLACE, isolated by the body.rc-print-mode CSS in
+  // index.html (hides the app, lays the overlay out statically) so it prints ONCE — no pop-up
+  // window (pop-up blockers were silently defeating the previous approach). The saved-PDF
+  // filename comes from document.title, which we set to the invoice/control number for the print.
+  var payload = _rcPrintPayload || {};
+  var oldTitle = document.title;
+  if (payload.title) { try { document.title = String(payload.title).replace(/[<>]/g,'').trim() || oldTitle; } catch(e){} }
+  try { document.body.classList.add('rc-print-mode'); } catch(e){}
+  var cleaned = false;
+  function cleanup(){
+    if (cleaned) return; cleaned = true;
+    try { document.body.classList.remove('rc-print-mode'); } catch(e){}
+    try { document.title = oldTitle; } catch(e){}
+    try { window.removeEventListener('afterprint', cleanup); } catch(e){}
   }
-  w.document.open();
-  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+title+'</title>'
-    +'<style>@page{margin:14mm}*{box-sizing:border-box}html,body{margin:0;padding:0}'
-    +'body{font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>'
-    +'</head><body>'+_rcPrintPayload.html+'</body></html>');
-  w.document.close();
-  var done=false;
-  function go(){ if(done) return; done=true; try{ w.focus(); w.print(); }catch(e){} }
-  try { w.onload = go; } catch(e){}
-  setTimeout(go, 500);
+  try { window.addEventListener('afterprint', cleanup); } catch(e){}
+  // small delay so the class/title apply before the print dialog captures the page
+  setTimeout(function(){ try { window.print(); } catch(e){} setTimeout(cleanup, 2000); }, 70);
 }
 
 function printRCInvoice(invId) {
