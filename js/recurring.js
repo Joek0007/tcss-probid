@@ -334,6 +334,7 @@ function printMSReadyControlSheet() {
     +'<div style="margin-top:18px;padding-top:12px;border-top:1px solid #e0e7ef;font-size:10px;color:#90a4ae;text-align:center">Control Sheet '+ctrlNum+' &nbsp;&#183;&nbsp; Generated '+new Date().toLocaleString()+' &nbsp;&#183;&nbsp; RETAIN FOR RECORDS</div>'
   +'</div>';
 
+  _rcPrintPayload = { title: ctrlNum, html: body };
   var overlay=document.getElementById('rc-invoice-overlay');
   if(!overlay){ overlay=document.createElement('div'); overlay.id='rc-invoice-overlay'; document.body.appendChild(overlay); }
   overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:#e8edf2;z-index:9999;overflow-y:auto;display:block';
@@ -1031,6 +1032,33 @@ function _closeRCInvoice() {
   if (ov) { ov.style.display = 'none'; ov.innerHTML = ''; }
 }
 
+// Print the previewed invoice/control-sheet in an ISOLATED window so (a) it prints ONCE
+// (the on-screen overlay is position:fixed, which Chrome reprints on every page of the long
+// app page behind it — that was the "14 copies" bug) and (b) the saved-PDF filename comes
+// from this window's <title> (the invoice/control number), not the app's page title.
+var _rcPrintPayload = null;
+function _rcPrintCurrent(){
+  if(!_rcPrintPayload || !_rcPrintPayload.html){ try{window.print();}catch(e){} return; }
+  var title = String(_rcPrintPayload.title||'Document').replace(/[<>]/g,'').trim() || 'Document';
+  var w;
+  try { w = window.open('', '_blank'); } catch(e){ w = null; }
+  if(!w){
+    if(typeof showToast==='function') showToast('Allow pop-ups for this site to print/save as a named PDF','warning',3500);
+    try{window.print();}catch(e){}
+    return;
+  }
+  w.document.open();
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+title+'</title>'
+    +'<style>@page{margin:14mm}*{box-sizing:border-box}html,body{margin:0;padding:0}'
+    +'body{font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>'
+    +'</head><body>'+_rcPrintPayload.html+'</body></html>');
+  w.document.close();
+  var done=false;
+  function go(){ if(done) return; done=true; try{ w.focus(); w.print(); }catch(e){} }
+  try { w.onload = go; } catch(e){}
+  setTimeout(go, 500);
+}
+
 function printRCInvoice(invId) {
   var inv = (DB.invoices||[]).find(function(i){ return i.id===invId; });
   if (!inv) { showToast('Invoice not found','warning',2000); return; }
@@ -1122,6 +1150,7 @@ function printRCInvoice(invId) {
     +'</div>'
   +'</div>';
 
+  _rcPrintPayload = { title: (inv.num||'Invoice'), html: html };
   var overlay = document.getElementById('rc-invoice-overlay');
   if (!overlay) {
     overlay = document.createElement('div');
@@ -1133,7 +1162,7 @@ function printRCInvoice(invId) {
     '<div class="no-print" style="position:sticky;top:0;background:#0d1b2a;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,.3)">'
       +'<span style="color:#90a4ae;font-size:13px">&#128196; '+esc(inv.num||'')+' &nbsp;&#183;&nbsp; '+esc(inv.clientName||'')+'</span>'
       +'<div style="display:flex;gap:10px">'
-        +'<button onclick="window.print()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
+        +'<button onclick="_rcPrintCurrent()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save PDF</button>'
         +'<button onclick="_closeRCInvoice()" style="background:#546e7a;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer">&#10005; Close</button>'
       +'</div>'
     +'</div>'
