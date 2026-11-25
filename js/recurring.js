@@ -68,6 +68,111 @@ function _rcLineTotal() {
 }
 
 // ── Render contract list ───────────────────────────────────────────────────────
+// ── Ready-to-Send tray ──────────────────────────────────────────────────────
+// Surfaces the DRAFT invoices the auto-biller (or a manual draft) generated into the
+// unified invoice store, so the team reviews them on one friendly screen before anything
+// goes to a client. Phase 1: review · preview (taxed) · hold/release. Sending is the next build.
+function _rcReadyInvoices() {
+  return (DB.invoices||[]).filter(function(i){
+    return i && i.type==='recurring' && (i.status==='draft' || i.status==='held');
+  }).sort(function(a,b){
+    var ad=(a.invoiceDate||a.runDate||''), bd=(b.invoiceDate||b.runDate||'');
+    if (ad!==bd) return ad<bd?-1:1;                     // oldest run first
+    return (a.num||'')<(b.num||'')?-1:1;
+  });
+}
+
+function _rcInvTotal(i){
+  return (i.total!=null)?parseFloat(i.total):(i.amount!=null?parseFloat(i.amount):0);
+}
+
+function _rcSaveInvoice(inv){
+  try { if (typeof saveDB==='function') saveDB(); } catch(e){}
+  try { if (typeof _pushInvoiceToCloud==='function') _pushInvoiceToCloud(inv); } catch(e){}
+}
+
+function rcHoldInvoice(id){
+  var inv=(DB.invoices||[]).find(function(i){return i.id===id;});
+  if(!inv) return;
+  var old=inv.status; inv.status='held';
+  if(typeof auditLog==='function') auditLog('ms_invoice_held','invoice',id,{old:old,new:'held',note:'Held in Ready-to-Send tray — '+(inv.num||'')});
+  _rcSaveInvoice(inv); renderRecurring();
+  if(typeof showToast==='function') showToast('Invoice held — it will wait here until you release it','info',2200);
+}
+
+function rcReleaseInvoice(id){
+  var inv=(DB.invoices||[]).find(function(i){return i.id===id;});
+  if(!inv) return;
+  var old=inv.status; inv.status='draft';
+  if(typeof auditLog==='function') auditLog('ms_invoice_released','invoice',id,{old:old,new:'draft',note:'Released back to ready — '+(inv.num||'')});
+  _rcSaveInvoice(inv); renderRecurring();
+  if(typeof showToast==='function') showToast('Invoice released — ready to send','success',2000);
+}
+
+function renderReadyToSend() {
+  var inv = _rcReadyInvoices();
+  if (!inv.length) return '';
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var ready = inv.filter(function(i){return i.status==='draft';});
+  var held  = inv.filter(function(i){return i.status==='held';});
+  var readyTotal = ready.reduce(function(s,i){return s+_rcInvTotal(i);},0);
+  var today = (typeof getTodayISO==='function')?getTodayISO():new Date().toISOString().slice(0,10);
+  // oldest ready invoice age (days) — the "don't let it rot" nudge
+  var oldest = ready.reduce(function(m,i){var d=i.invoiceDate||i.runDate||today; return (d<m)?d:m;}, today);
+  var ageDays = Math.max(0, Math.round((new Date(today)-new Date(oldest))/86400000));
+
+  // group the READY ones by run date (keeps the run-batch grouping)
+  var groups = {};
+  ready.forEach(function(i){ var k=i.invoiceDate||i.runDate||'—'; (groups[k]=groups[k]||[]).push(i); });
+  var keys = Object.keys(groups).sort();
+
+  function rowHtml(i, isHeld){
+    var tax = (i.taxAmt!=null)?parseFloat(i.taxAmt):0;
+    return '<div style="display:grid;grid-template-columns:96px 1fr 130px 150px;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid #f0f4f8;font-size:12px">'
+      +'<div style="font-weight:700;color:#1565c0">'+esc(i.num||'')+'</div>'
+      +'<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="font-weight:600">'+esc(i.clientName||'')+'</span>'
+        +(i.rcNumber?'<span style="color:#90a4ae"> · '+esc(i.rcNumber)+'</span>':'')+'</div>'
+      +'<div style="text-align:right;font-weight:800;color:#0d1b2a">$'+_rcInvTotal(i).toFixed(2)
+        +(tax>0?'<div style="font-size:10px;font-weight:600;color:#90a4ae">incl $'+tax.toFixed(2)+' tax</div>':'')+'</div>'
+      +'<div style="text-align:right;white-space:nowrap">'
+        +'<button class="btn btn-outline btn-sm" style="font-size:11px;padding:4px 10px" onclick="printRCInvoice(\''+esc(i.id)+'\')">&#128065; Preview</button> '
+        +(isHeld
+          ? '<button class="btn btn-sm" style="font-size:11px;padding:4px 10px;background:#2e7d32;color:#fff;border:none" onclick="rcReleaseInvoice(\''+esc(i.id)+'\')">&#8635; Release</button>'
+          : '<button class="btn btn-sm" style="font-size:11px;padding:4px 10px;background:#fff3e0;color:#e65100;border:1px solid #ffe0b2" onclick="rcHoldInvoice(\''+esc(i.id)+'\')">&#9208; Hold</button>')
+      +'</div>'
+    +'</div>';
+  }
+
+  var html = '<div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:18px;overflow:hidden;border:1px solid #e3f2fd">'
+    // banner
+    +'<div style="background:linear-gradient(135deg,#1565c0,#1976d2);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">'
+      +'<div style="color:#fff">'
+        +'<div style="font-size:15px;font-weight:800">&#128184; '+ready.length+' invoice'+(ready.length!==1?'s':'')+' ready to send'
+          +'<span style="font-weight:700;opacity:.9"> &nbsp;·&nbsp; $'+readyTotal.toFixed(2)+'</span></div>'
+        +'<div style="font-size:11px;color:#bbdefb;margin-top:2px">Auto-generated drafts — review, then send. Nothing goes to a client until you do.'
+          +(ageDays>=3?' <b style="color:#fff3e0">Oldest has been waiting '+ageDays+' days.</b>':'')+'</div>'
+      +'</div>'
+      +(held.length?'<div style="background:rgba(255,255,255,.15);color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700">'+held.length+' on hold</div>':'')
+    +'</div>';
+
+  keys.forEach(function(k){
+    var grp = groups[k];
+    var gTot = grp.reduce(function(s,i){return s+_rcInvTotal(i);},0);
+    html += '<div style="padding:8px 14px;background:#f5f8fc;border-bottom:1px solid #e0e7ef;font-size:11px;font-weight:700;color:#546e7a;display:flex;justify-content:space-between">'
+      +'<span>Run of '+esc(k)+' · '+grp.length+' invoice'+(grp.length!==1?'s':'')+'</span><span>$'+gTot.toFixed(2)+'</span></div>';
+    grp.forEach(function(i){ html += rowHtml(i,false); });
+  });
+
+  if (held.length){
+    html += '<div style="padding:8px 14px;background:#fff8e1;border-top:2px solid #ffe0b2;border-bottom:1px solid #ffe0b2;font-size:11px;font-weight:700;color:#e65100">&#9208; On Hold ('+held.length+') — released invoices rejoin the ready list</div>';
+    held.forEach(function(i){ html += rowHtml(i,true); });
+  }
+
+  html += '<div style="padding:10px 14px;background:#fafbfc;font-size:11px;color:#90a4ae;text-align:center">Review each draft and hold any that aren’t ready. <b>Sending to clients goes live in the next update.</b></div>'
+    +'</div>';
+  return html;
+}
+
 function renderRecurring() {
   try {
     _rcCheckExpirations();
@@ -108,6 +213,9 @@ function renderRecurring() {
       +'</div>'
       +(dueCount>0?'<button class="btn btn-primary" onclick="openBillingRun()">&#128184; Run Billing</button>':'')
     +'</div>';
+
+    // Ready-to-Send tray sits above everything — the drafts the auto-biller produced, waiting for review.
+    summary = renderReadyToSend() + summary;
 
     if (!contracts.length) {
       list.innerHTML = summary+'<div style="background:#fff;border-radius:10px;padding:40px;text-align:center;color:#90a4ae;font-size:14px">No managed service contracts. Click <b>+ New Contract</b> or <b>Load Test Data</b>.</div>';
@@ -688,8 +796,17 @@ function printRCInvoice(invId) {
   var co = DB.settings||{};
   function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   var lineItems = inv.lineItems||[];
-  var total = lineItems.reduce(function(s,i){ return s+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0)); },0);
-  if (!total) total = parseFloat(inv.amount||0);
+  var _liSum = lineItems.reduce(function(s,i){ return s+(parseFloat(i.qty||1)*parseFloat(i.unitPrice||0)); },0);
+  // Tax breakout: prefer stored fields (auto-billing writes subtotal/taxRate/taxAmt/total); fall back
+  // to the line-item sum for legacy/untaxed invoices so older invoices render exactly as before.
+  var subtotal = (inv.subtotal != null) ? parseFloat(inv.subtotal) : _liSum;
+  var taxRate  = (inv.taxRate  != null) ? parseFloat(inv.taxRate)  : 0;
+  var taxAmt   = (inv.taxAmt   != null) ? parseFloat(inv.taxAmt)   : 0;
+  var total    = (inv.total != null) ? parseFloat(inv.total)
+                 : (inv.amount != null && inv.taxAmt != null) ? parseFloat(inv.amount)
+                 : (subtotal + taxAmt);
+  if (!total) total = parseFloat(inv.amount||0) || _liSum;
+  var _hasTax = (taxAmt > 0) || (taxRate > 0);
   var cycles = _getMSCycles();
   var cycleLabel = (cycles[inv.billingCycle]||{label:inv.billingCycle||'Recurring'}).label;
   var lineRows = lineItems.map(function(i){
@@ -737,10 +854,18 @@ function printRCInvoice(invId) {
         +'<th style="padding:11px 14px;text-align:right;font-size:11px;color:#fff;text-transform:uppercase;width:110px">Unit Price</th>'
         +'<th style="padding:11px 14px;text-align:right;font-size:11px;color:#fff;text-transform:uppercase;width:110px">Amount</th>'
       +'</tr></thead><tbody>'+lineRows+'</tbody>'
-      +'<tfoot><tr style="background:#e3f2fd">'
-        +'<td colspan="3" style="padding:14px;text-align:right;font-size:14px;font-weight:700">Total Due:</td>'
-        +'<td style="padding:14px;text-align:right;font-size:22px;font-weight:900;color:#1565c0">$'+total.toFixed(2)+'</td>'
-      +'</tr></tfoot>'
+      +'<tfoot>'
+        +(_hasTax
+          ? '<tr><td colspan="3" style="padding:8px 14px 2px;text-align:right;font-size:13px;color:#546e7a">Subtotal:</td>'
+              +'<td style="padding:8px 14px 2px;text-align:right;font-size:13px;color:#546e7a">$'+subtotal.toFixed(2)+'</td></tr>'
+            +'<tr><td colspan="3" style="padding:2px 14px;text-align:right;font-size:13px;color:#546e7a">Tax ('+(taxRate).toFixed(taxRate%1?2:0)+'%):</td>'
+              +'<td style="padding:2px 14px;text-align:right;font-size:13px;color:#546e7a">$'+taxAmt.toFixed(2)+'</td></tr>'
+          : '')
+        +'<tr style="background:#e3f2fd">'
+          +'<td colspan="3" style="padding:14px;text-align:right;font-size:14px;font-weight:700">Total Due:</td>'
+          +'<td style="padding:14px;text-align:right;font-size:22px;font-weight:900;color:#1565c0">$'+total.toFixed(2)+'</td>'
+        +'</tr>'
+      +'</tfoot>'
     +'</table>'
     +''
     +'<div style="margin-top:30px;padding-top:14px;border-top:1px solid #e0e7ef;text-align:center;font-size:11px;color:#90a4ae">'
