@@ -360,6 +360,42 @@ function _rcSandboxOn(){ return ((DB.settings||{}).msSendSandbox !== false); }  
 function _rcSandboxTo(){ return (DB.settings||{}).msSandboxTo || (DB.settings||{}).notifSandboxTo || 'joek@tcss.com'; }
 function _rcAutobillOn(){ return !!((DB.settings||{}).msAutobillOn); }
 
+// ── Manual "generate now" — ONE billing path ────────────────────────────────
+// Runs the SAME server generator the nightly cron uses (run_managed_billing), so a manual run and the
+// automatic run produce identical TAXED drafts into the tray and share the same no-double-bill guard
+// (ms_billing_log). Replaces the old client-side executeBillingRun (no tax, mailto). Nothing is emailed.
+async function rcGenerateNow(){
+  if (typeof _sb==='undefined' || !_sb){ if(typeof showToast==='function') showToast('Offline — can’t generate right now','warning',2800); return; }
+  var today = (typeof getTodayISO==='function') ? getTodayISO() : new Date().toISOString().slice(0,10);
+  if (!confirm('Generate draft invoices for every contract due as of today?\n\nThey land in the Ready-to-Send tray for review — nothing is emailed to a client.')) return;
+  if (typeof showToast==='function') showToast('Generating draft invoices…','info',3000);
+  try {
+    var rr = await _sb.rpc('run_managed_billing', { p_run_date: today, p_force: true });
+    if (rr.error){ if(typeof showToast==='function') showToast('Could not generate: '+(rr.error.message||rr.error),'error',6000); return; }
+    var n = (rr.data && rr.data.generated) || 0;
+    await _rcRefreshDrafts();
+    renderRecurring();
+    if (typeof showToast==='function'){
+      showToast(n>0 ? ('✅ '+n+' draft invoice'+(n!==1?'s':'')+' generated — review them in the tray') : 'Nothing new is due to generate right now','success',4500);
+    }
+  } catch(e){ if(typeof showToast==='function') showToast('Generate error: '+(e.message||e),'error',6000); }
+}
+// Pull the freshly-generated recurring drafts from the cloud into DB.invoices so the tray shows them now.
+async function _rcRefreshDrafts(){
+  if (typeof fetchInvoicesCloud!=='function') return;
+  try {
+    var r = await fetchInvoicesCloud({ limit: 500 });
+    if (!r || !r.data) return;
+    if (!DB.invoices) DB.invoices = [];
+    r.data.forEach(function(inv){
+      if (!inv || inv.type!=='recurring') return;
+      var idx = DB.invoices.findIndex(function(x){ return x.id===inv.id; });
+      if (idx>=0) DB.invoices[idx] = inv; else DB.invoices.push(inv);
+    });
+    try { if (typeof saveDB==='function') saveDB(); } catch(e){}
+  } catch(e){}
+}
+
 // The email shown on invoices + in the invoice email body. Prefer the explicit Billing/Invoicing Email
 // (Settings); when that's blank, fall back to the ACTUAL sending address (so the contact line always
 // matches the From), and only then to the general company email. Keeps "contact us at …" consistent
@@ -684,7 +720,7 @@ function renderRecurring() {
         +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Due This Run</div>'
         +'<div style="font-size:24px;font-weight:800;color:'+(dueCount>0?'#c62828':'#2e7d32')+'">'+dueCount+'</div>'
       +'</div>'
-      +(dueCount>0?'<button class="btn btn-primary" onclick="openBillingRun()">&#128184; Run Billing</button>':'')
+      +(dueCount>0?'<button class="btn btn-primary" onclick="rcGenerateNow()">&#128184; Generate due invoices</button>':'')
     +'</div>';
 
     // Ready-to-Send tray sits above everything — the drafts the auto-biller produced, waiting for review.
@@ -1499,41 +1535,8 @@ function renderMSSettings() {
       + '</div>';
   }).join('');
 
-  var autobillOn = _rcAutobillOn();
-  var sandboxOn  = _rcSandboxOn();
-  var sandboxTo  = _rcSandboxTo();
-  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
   wrap.innerHTML =
-    // ── Automatic Billing controls (owner on/off for the nightly generator + the email sandbox) ──
-    '<div style="background:#f0f7ff;border:1px solid #bbdefb;border-radius:10px;padding:16px 18px;margin-bottom:22px">'
-      + '<div style="font-size:14px;font-weight:800;color:#0d1b2a">⚙️ Automatic Billing</div>'
-      + '<div style="font-size:11px;color:#546e7a;margin:3px 0 12px">Control the nightly auto-biller and the email safety sandbox.</div>'
-
-      + '<label style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:11px 0;border-top:1px solid #e3f2fd;cursor:pointer">'
-        + '<div><div style="font-size:13px;font-weight:700;color:#0d1b2a">Auto-generate invoices nightly</div>'
-          + '<div style="font-size:11px;color:#90a4ae;max-width:520px">When a contract comes due, a <b>draft</b> invoice is created automatically overnight and waits in the Ready-to-Send tray for review. <b>Nothing is emailed to a client</b> by the auto-biller.</div></div>'
-        + '<input type="checkbox" '+(autobillOn?'checked':'')+' onchange="msToggleAutobill(this.checked)" style="width:22px;height:22px;cursor:pointer;flex-shrink:0">'
-      + '</label>'
-
-      + '<label style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:11px 0;border-top:1px solid #e3f2fd;cursor:pointer">'
-        + '<div><div style="font-size:13px;font-weight:700;color:#0d1b2a">🧪 Email sandbox (safe mode)</div>'
-          + '<div style="font-size:11px;color:#90a4ae;max-width:520px">When ON, every invoice you send goes to the office inbox below instead of the client — for safe testing. Turn OFF only when you’re ready to email <b>real clients</b>.</div></div>'
-        + '<input type="checkbox" '+(sandboxOn?'checked':'')+' onchange="msToggleSandbox(this.checked)" style="width:22px;height:22px;cursor:pointer;flex-shrink:0">'
-      + '</label>'
-
-      + '<div style="padding:11px 0 2px;border-top:1px solid #e3f2fd">'
-        + '<label style="font-size:11px;color:#546e7a;display:block;margin-bottom:4px">Sandbox / office inbox</label>'
-        + '<input id="ms-sandbox-to" value="'+esc(sandboxTo)+'" onchange="msSetSandboxTo(this.value)" placeholder="office@company.com" style="width:280px;max-width:100%;border:1px solid #cfd8e3;border-radius:6px;padding:8px 10px;font-size:13px">'
-      + '</div>'
-
-      + '<div style="margin-top:12px;font-size:11px;font-weight:700;display:flex;gap:14px;flex-wrap:wrap">'
-        + '<span style="color:'+(autobillOn?'#2e7d32':'#90a4ae')+'">'+(autobillOn?'● Auto-billing ON':'○ Auto-billing off')+'</span>'
-        + '<span style="color:'+(sandboxOn?'#e65100':'#c62828')+'">'+(sandboxOn?'🧪 Sandbox ON — emails held to the office inbox':'⚠ LIVE — emails go to real clients')+'</span>'
-      + '</div>'
-    + '</div>'
-
-    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">'
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">'
 
     + '<div><div style="font-size:13px;font-weight:700;color:#0d1b2a;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #1565c0">Service Types</div>'
     + makeList(types, 'msDeleteType')
@@ -1558,32 +1561,6 @@ function renderMSSettings() {
     + '</div></div>'
 
     + '</div>';
-}
-
-// Owner controls for auto-billing. msAutobillOn is read SERVER-SIDE by the nightly cron, so these push
-// to company_settings (merge RPC) — not just localStorage. Every flip is audited.
-function _msSyncSettings(){
-  try { if (typeof saveDB==='function') saveDB(); } catch(e){}
-  try { if (typeof _pushSettingsToCloud==='function') _pushSettingsToCloud(); } catch(e){}
-}
-function msToggleAutobill(on){
-  (DB.settings=DB.settings||{}).msAutobillOn = !!on;
-  _msSyncSettings();
-  if (typeof auditLog==='function') auditLog('ms_autobill_'+(on?'enabled':'disabled'),'setting','msAutobillOn',{old:{on:!on},new:{on:!!on},note:'Nightly auto-billing turned '+(on?'ON':'OFF')});
-  renderMSSettings();
-  if (typeof showToast==='function') showToast(on?'Auto-billing ON — invoices generate nightly for review':'Auto-billing OFF — nothing generates on its own','info',3200);
-}
-function msToggleSandbox(on){
-  (DB.settings=DB.settings||{}).msSendSandbox = !!on;
-  _msSyncSettings();
-  if (typeof auditLog==='function') auditLog('ms_sandbox_'+(on?'on':'off'),'setting','msSendSandbox',{old:{sandbox:!on},new:{sandbox:!!on},note:'Email sandbox turned '+(on?'ON (office inbox)':'OFF (LIVE to clients)')});
-  renderMSSettings();
-  if (typeof showToast==='function') showToast(on?'Sandbox ON — test emails go to the office inbox':'⚠ Sandbox OFF — emails will go to REAL clients','warning',3800);
-}
-function msSetSandboxTo(v){
-  (DB.settings=DB.settings||{}).msSandboxTo = (v||'').trim();
-  _msSyncSettings();
-  if (typeof showToast==='function') showToast('Office inbox updated','info',1800);
 }
 
 function _saveMSSettings() {

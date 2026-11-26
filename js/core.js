@@ -4273,6 +4273,11 @@ function _sdBuildBody(moduleKey) {
       ]) +
       _sdSection('🔄', 'Auto-renew', [
         _sdToggle('Auto-renew contracts by default', 'sd-rc-autorenew', s.rcAutoRenewDefault !== false),
+      ]) +
+      _sdSection('⚙️', 'Automatic billing', [
+        _sdToggle('Auto-generate invoices nightly when contracts come due (drafts land in the Ready-to-Send tray — nothing is emailed)', 'sd-rc-autobill', !!s.msAutobillOn),
+        _sdToggle('Email sandbox — send invoices to the office inbox instead of clients (safe testing)', 'sd-rc-sandbox', (s.msSendSandbox !== false)),
+        _sdRow('Sandbox / office inbox', _sdInput('sd-rc-sandbox-to', s.msSandboxTo || s.notifSandboxTo || 'joek@tcss.com', 'text', 'office@company.com')),
       ]);
 
     case 'customers':
@@ -4373,13 +4378,29 @@ function _saveDrawerInventory() {
 }
 
 function _saveDrawerRecurring() {
+  // Capture the before-state of the billing-critical flags so a change is audited (money feature).
+  var _wasAutobill = !!(DB.settings && DB.settings.msAutobillOn);
+  var _wasSandbox  = !(DB.settings && DB.settings.msSendSandbox === false);
+  var _nowAutobill = _sdCv('sd-rc-autobill');
+  var _nowSandbox  = _sdCv('sd-rc-sandbox');
+  var _sandboxTo   = (_sdGv('sd-rc-sandbox-to')||'').trim();
   DB.settings = Object.assign({}, DB.settings, {
     rcDefaultCycle:      _sdGv('sd-rc-cycle')    || 'monthly',
     rcDefaultDelivery:   _sdGv('sd-rc-delivery') || 'email',
     rcDefaultBillingDay: parseInt(_sdGv('sd-rc-day')) || 1,
     rcAutoRenewDefault:  _sdCv('sd-rc-autorenew'),
+    // Automatic billing — msAutobillOn is read SERVER-SIDE by the nightly cron, so it MUST reach
+    // company_settings (the _pushSettingsToSupabase below does that). msSendSandbox default is ON.
+    msAutobillOn:        _nowAutobill,
+    msSendSandbox:       _nowSandbox,
+    msSandboxTo:         _sandboxTo,
   });
   saveDB(); if (typeof _pushSettingsToSupabase==='function') _pushSettingsToSupabase();
+  // Audit any change to the billing-critical flags (first-class auditability).
+  if (typeof auditLog==='function') {
+    if (_nowAutobill !== _wasAutobill) auditLog('ms_autobill_'+(_nowAutobill?'enabled':'disabled'),'setting','msAutobillOn',{old:{on:_wasAutobill},new:{on:_nowAutobill},note:'Nightly auto-billing turned '+(_nowAutobill?'ON':'OFF')});
+    if (_nowSandbox !== _wasSandbox) auditLog('ms_sandbox_'+(_nowSandbox?'on':'off'),'setting','msSendSandbox',{old:{sandbox:_wasSandbox},new:{sandbox:_nowSandbox},note:'Email sandbox turned '+(_nowSandbox?'ON (office inbox)':'OFF (LIVE to clients)')});
+  }
   showToast('Managed services settings saved ✓','success'); closeSettingsDrawer();
 }
 
