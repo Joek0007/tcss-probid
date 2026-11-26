@@ -2217,6 +2217,7 @@ function openRCDetail(id) {
   var cycleLabel = (cycles[c.billingCycle]||{label:c.billingCycle||''}).label;
   var yearly = _rcYearlyPrice(c);
   var perCycle = _rcLineTotal2(c);
+  var today = (typeof getTodayISO==='function') ? getTodayISO() : new Date().toISOString().slice(0,10);
 
   // Past invoices
   var pastInvoices = (DB.invoices||[]).filter(function(i){return i.rcId===id;})
@@ -2297,29 +2298,34 @@ function openRCDetail(id) {
       +'</div>'
     :'')
 
-    // Upcoming invoices
+    // Upcoming invoices + generate-ahead
     +(c.status==='active'&&!c.doNotBill?
-      '<div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-bottom:8px">Upcoming Invoices</div>'
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+        +'<span style="font-size:12px;font-weight:700;color:#0d1b2a">Upcoming Invoices</span>'
+        +'<button onclick="rcGenerateAhead(\''+escHtml(c.id)+'\')" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">&#9889; Generate next now</button>'
+      +'</div>'
       +'<div style="border:1px solid #e0e7ef;border-radius:8px;overflow:hidden;margin-bottom:16px">'
       +upcoming.map(function(d,i){
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid #f5f5f5">'
-          +'<span style="font-size:12px'+(i===0?';font-weight:700;color:#1565c0':'')+'">'+escHtml(d)+'</span>'
+          +'<span style="font-size:12px'+(i===0?';font-weight:700;color:#1565c0':'')+'">'+escHtml(d)+(i===0?' <span style="font-size:9px;background:#e3f2fd;color:#1565c0;padding:1px 6px;border-radius:8px;font-weight:700;text-transform:uppercase">Next due</span>':'')+'</span>'
           +'<span style="font-size:12px;font-weight:600">$'+perCycle.toFixed(2)+'</span>'
         +'</div>';
       }).join('')
       +'</div>'
     :'')
 
-    // Past invoices
+    // Invoices for this contract (past + ahead-generated). The # hot-links to open the invoice.
     +(pastInvoices.length?
-      '<div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-bottom:8px">Past Invoices</div>'
-      +'<div style="border:1px solid #e0e7ef;border-radius:8px;overflow:hidden;max-height:200px;overflow-y:auto">'
+      '<div style="font-size:12px;font-weight:700;color:#0d1b2a;margin-bottom:8px">Invoices</div>'
+      +'<div style="border:1px solid #e0e7ef;border-radius:8px;overflow:hidden;max-height:220px;overflow-y:auto">'
       +pastInvoices.map(function(inv){
-        return '<div style="display:grid;grid-template-columns:100px 1fr 80px 80px;gap:8px;padding:7px 12px;border-bottom:1px solid #f5f5f5;align-items:center">'
-          +'<span style="font-size:11px;font-weight:700;color:#1565c0">'+escHtml(inv.num||'')+'</span>'
+        var si = _rcInvStatus(inv, today);
+        return '<div style="display:grid;grid-template-columns:106px 76px 1fr 72px 44px;gap:8px;padding:7px 12px;border-bottom:1px solid #f5f5f5;align-items:center">'
+          +'<span onclick="printRCInvoice(\''+escHtml(inv.id)+'\')" title="Open invoice" style="font-size:11px;font-weight:700;color:#1565c0;cursor:pointer;text-decoration:underline">'+escHtml(inv.num||'')+'</span>'
           +'<span style="font-size:11px;color:#546e7a">'+escHtml(inv.invoiceDate||inv.runDate||'')+'</span>'
-          +'<span style="font-size:11px;font-weight:700">$'+parseFloat(inv.amount||0).toFixed(2)+'</span>'
-          +'<span onclick="printRCInvoice(\''+escHtml(inv.id)+'\')" style="font-size:11px;color:#1565c0;cursor:pointer;text-decoration:underline">Print</span>'
+          +'<span><span style="font-size:10px;font-weight:700;color:'+si.color+';background:'+si.bg+';padding:2px 8px;border-radius:9px;white-space:nowrap">'+si.label+'</span></span>'
+          +'<span style="font-size:11px;font-weight:700;text-align:right">$'+_rcInvTotal(inv).toFixed(2)+'</span>'
+          +'<span onclick="printRCInvoice(\''+escHtml(inv.id)+'\')" style="font-size:11px;color:#1565c0;cursor:pointer;text-decoration:underline;text-align:right">Open</span>'
         +'</div>';
       }).join('')
       +'</div>'
@@ -2333,5 +2339,66 @@ function openRCDetail(id) {
   document.getElementById('rc-detail-title').textContent = (c.number||'') + ' — ' + (c.client||'');
   document.getElementById('rc-detail-body').innerHTML = html;
   openModal('modal-rc-detail');
+}
+
+// ── Generate-ahead: bill a contract's NEXT period now (money-safe via server RPC) ──
+// Routes through run_managed_billing_one, which shares the ms_billing_log period lock
+// with the nightly run — so a period generated here can NEVER be billed twice.
+var _rcAheadId = null;
+function rcGenerateAhead(id){
+  var c=(DB.recurringContracts||[]).find(function(x){return x.id===id;});
+  if(!c) return;
+  if(c.status!=='active'||c.doNotBill){ if(typeof showToast==='function') showToast('This contract is not actively billing','warning',2600); return; }
+  if(!c.nextBillingDate){ if(typeof showToast==='function') showToast('No next billing date set','warning',2600); return; }
+  _rcAheadId=id;
+  var total=_rcLineTotal2(c);
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  _rcAheadOverlay(
+    '<div style="background:#fff;border-radius:12px;max-width:440px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);overflow:hidden;font-family:Arial,sans-serif">'
+    +'<div style="background:#1565c0;padding:14px 20px;color:#fff"><div style="font-size:15px;font-weight:800">⚡ Generate Next Invoice</div>'
+      +'<div style="font-size:12px;opacity:.92;margin-top:2px">'+esc(c.number||'')+' · '+esc(c.client||'')+'</div></div>'
+    +'<div style="padding:20px">'
+      +'<div style="font-size:13px;color:#37474f;line-height:1.55">Generate the <b>'+esc(c.nextBillingDate)+'</b> invoice now for <b>$'+total.toFixed(2)+'</b>?</div>'
+      +'<div style="font-size:12px;color:#546e7a;margin-top:10px;background:#f5f7fa;border-radius:8px;padding:10px 12px">It lands in <b>Ready to Send</b> as a draft — nothing is emailed to the client. The schedule advances to the next cycle, and the nightly run won’t bill this period again.</div>'
+      +'<div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">'
+        +'<button onclick="_rcCloseAhead()" style="background:#eceff1;color:#546e7a;border:none;border-radius:6px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">Cancel</button>'
+        +'<button id="rc-ahead-go" onclick="_rcConfirmAhead()" style="background:#1565c0;color:#fff;border:none;border-radius:6px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer">⚡ Generate</button>'
+      +'</div>'
+    +'</div></div>'
+  );
+}
+function _rcAheadOverlay(inner){
+  var o=document.getElementById('rc-ahead-overlay');
+  if(!o){ o=document.createElement('div'); o.id='rc-ahead-overlay'; document.body.appendChild(o); }
+  o.style.cssText='position:fixed;inset:0;background:rgba(13,27,42,.55);z-index:10003;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;overflow-y:auto';
+  o.innerHTML=inner;
+}
+function _rcCloseAhead(){ var o=document.getElementById('rc-ahead-overlay'); if(o){ o.style.display='none'; o.innerHTML=''; } _rcAheadId=null; }
+async function _rcConfirmAhead(){
+  var id=_rcAheadId; if(!id){ _rcCloseAhead(); return; }
+  if(typeof _sb==='undefined'||!_sb){ if(typeof showToast==='function') showToast('Offline — can’t generate right now','warning',2800); return; }
+  var c=(DB.recurringContracts||[]).find(function(x){return x.id===id;});
+  if(!c){ _rcCloseAhead(); return; }
+  var btn=document.getElementById('rc-ahead-go'); if(btn){ btn.disabled=true; btn.textContent='Generating…'; btn.style.opacity='.7'; }
+  try{
+    var rr=await _sb.rpc('run_managed_billing_one',{ p_contract_id:id, p_force:true });
+    if(rr.error){ if(typeof showToast==='function') showToast('Could not generate: '+(rr.error.message||rr.error),'error',6000); if(btn){ btn.disabled=false; btn.textContent='⚡ Generate'; btn.style.opacity='1'; } return; }
+    var d=rr.data||{};
+    _rcCloseAhead();
+    if(d.generated>=1){
+      // Mirror the server's advance locally so the detail updates now; mark synced so the
+      // dirty-gated sweep won't push the stale (pre-advance) date back over the server's.
+      c.nextBillingDate=_rcAdvanceDate(c.nextBillingDate, c.billingCycle);
+      c.lastBilledDate=(typeof getTodayISO==='function')?getTodayISO():new Date().toISOString().slice(0,10);
+      try{ if(typeof _officeMarkSynced==='function') _officeMarkSynced('recurring_contracts', c); }catch(e){}
+      try{ if(typeof saveDB==='function') saveDB(); }catch(e){}
+      if(typeof _rcRefreshDrafts==='function') await _rcRefreshDrafts();
+      openRCDetail(id);
+      if(typeof renderRecurring==='function') renderRecurring();
+      if(typeof showToast==='function') showToast('✅ '+(d.invoice_num||'Draft')+' generated — review it in Ready to Send','success',4500);
+    } else {
+      if(typeof showToast==='function') showToast(d.reason==='period already billed'?'That period was already billed — nothing generated':'Nothing generated ('+(d.reason||'no change')+')','info',4000);
+    }
+  }catch(e){ if(typeof showToast==='function') showToast('Generate error: '+(e.message||e),'error',6000); if(btn){ btn.disabled=false; btn.textContent='⚡ Generate'; btn.style.opacity='1'; } }
 }
 
