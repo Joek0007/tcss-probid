@@ -709,9 +709,16 @@ function renderRecurring() {
 
     var dueCount    = all.filter(function(c){ return _rcIsDue(c,today); }).length;
     var activeCount = all.filter(function(c){ return c.status==='active'; }).length;
+    // Awaiting-payment / overdue tally (sent-but-unpaid managed-services invoices) — don't let it rot.
+    var awN=0,awAmt=0,ovN=0;
+    (DB.invoices||[]).forEach(function(i){
+      if (!i || (i.type!=='recurring' && !(i.num||'').includes('INV-MSC'))) return;
+      var s=_rcInvStatus(i,today);
+      if (s.key==='sent'||s.key==='overdue'){ awN++; awAmt+=_rcInvTotal(i); if(s.key==='overdue') ovN++; }
+    });
 
     // Summary cards
-    var summary = '<div style="display:flex;gap:12px;margin-bottom:16px;align-items:center">'
+    var summary = '<div style="display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap">'
       +'<div style="background:#fff;border-radius:10px;padding:12px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06)">'
         +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Active Contracts</div>'
         +'<div style="font-size:24px;font-weight:800;color:#1565c0">'+activeCount+'</div>'
@@ -720,6 +727,10 @@ function renderRecurring() {
         +'<div style="font-size:10px;font-weight:700;color:#90a4ae;text-transform:uppercase">Due This Run</div>'
         +'<div style="font-size:24px;font-weight:800;color:'+(dueCount>0?'#c62828':'#2e7d32')+'">'+dueCount+'</div>'
       +'</div>'
+      +(awN>0?'<div onclick="toggleMSInvoiceHistory()" title="Open invoice history" style="background:'+(ovN?'#fff5f5':'#fff')+';border:1px solid '+(ovN?'#ffcdd2':'#eef2f6')+';border-radius:10px;padding:12px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06);cursor:pointer">'
+        +'<div style="font-size:10px;font-weight:700;color:'+(ovN?'#c62828':'#90a4ae')+';text-transform:uppercase">Awaiting Payment'+(ovN?' · '+ovN+' overdue':'')+'</div>'
+        +'<div style="font-size:24px;font-weight:800;color:'+(ovN?'#c62828':'#1565c0')+'">'+awN+' <span style="font-size:13px;font-weight:600;color:#546e7a">· $'+awAmt.toFixed(2)+'</span></div>'
+      +'</div>':'')
       +(dueCount>0?'<button class="btn btn-primary" onclick="rcGenerateNow()">&#128184; Generate due invoices</button>':'')
     +'</div>';
 
@@ -1665,9 +1676,50 @@ function toggleMSInvoiceHistory() {
   if (opening) renderMSInvoiceHistory();
 }
 
+// ── Invoice lifecycle: status, aging, getting paid ──────────────────────────
+function _rcOverdueDays(){ return (DB.settings && DB.settings.msOverdueDays) || 30; }
+function _rcInvStatus(inv, today){
+  var st = (inv.status||'').toLowerCase();
+  if (st==='paid')  return { key:'paid',  label:'Paid',  color:'#2e7d32', bg:'#e8f5e9' };
+  if (st==='draft') return { key:'draft', label:'Draft', color:'#90a4ae', bg:'#eceff1' };
+  if (st==='held')  return { key:'held',  label:'Held',  color:'#e65100', bg:'#fff3e0' };
+  if (st==='sent'){
+    var sd = String(inv.sentAt||inv.invoiceDate||inv.runDate||'').slice(0,10);
+    var days = sd ? Math.max(0, Math.round((new Date(today)-new Date(sd))/86400000)) : 0;
+    if (days > _rcOverdueDays()) return { key:'overdue', label:'Overdue', color:'#c62828', bg:'#ffebee', days:days };
+    return { key:'sent', label:'Awaiting payment', color:'#1565c0', bg:'#e3f2fd', days:days };
+  }
+  return { key:st||'other', label:(inv.status||'—'), color:'#546e7a', bg:'#eceff1' };
+}
+function markRCInvoicePaid(invId){
+  var inv=(DB.invoices||[]).find(function(i){return i.id===invId;});
+  if(!inv) return;
+  if((inv.status||'')==='paid'){
+    if(confirm((inv.num||'This invoice')+' is marked PAID. Reopen it as unpaid?')){
+      var o={status:inv.status,paidAmount:inv.paidAmount,paidAt:inv.paidAt};
+      inv.status='sent'; inv.paidAmount=null; inv.paidAt=null;
+      if(typeof auditLog==='function') auditLog('ms_invoice_reopened','invoice',inv.id,{old:o,new:{status:'sent'},note:'Invoice '+(inv.num||'')+' reopened as unpaid'});
+      _rcSaveInvoice(inv); renderMSInvoiceHistory(); renderRecurring();
+      if(typeof showToast==='function') showToast('Invoice reopened as unpaid','info',2500);
+    }
+    return;
+  }
+  var full=_rcInvTotal(inv);
+  var amtStr=prompt('Payment received for '+(inv.num||'')+'\n\nAmount:', full.toFixed(2));
+  if(amtStr===null) return;
+  var amt=parseFloat(amtStr);
+  if(isNaN(amt)||amt<0){ if(typeof showToast==='function') showToast('Enter a valid amount','warning',2500); return; }
+  var o={status:inv.status,paidAmount:inv.paidAmount,paidAt:inv.paidAt};
+  inv.status='paid'; inv.paidAt=new Date().toISOString(); inv.paidAmount=amt;
+  if(typeof auditLog==='function') auditLog('ms_invoice_paid','invoice',inv.id,{old:o,new:{status:'paid',paidAmount:amt,paidAt:inv.paidAt},note:'Invoice '+(inv.num||'')+' marked PAID — $'+amt.toFixed(2)+(amt<full?(' (partial of $'+full.toFixed(2)+')'):'')});
+  _rcSaveInvoice(inv); renderMSInvoiceHistory(); renderRecurring();
+  if(typeof showToast==='function') showToast('✅ '+(inv.num||'')+' marked paid — $'+amt.toFixed(2),'success',3000);
+}
+
 function renderMSInvoiceHistory() {
   var body = document.getElementById('ms-invoice-history-body');
   if (!body) return;
+  var today = (typeof getTodayISO==='function') ? getTodayISO() : new Date().toISOString().slice(0,10);
 
   var rcInvoices = (DB.invoices||[]).filter(function(i){
     return i.type==='recurring' || (i.num||'').includes('INV-RC') || (i.num||'').includes('INV-MSC');
@@ -1689,6 +1741,19 @@ function renderMSInvoiceHistory() {
     return;
   }
 
+  // ── Getting-paid summary: awaiting payment (incl. overdue), overdue, paid ──
+  var awN=0,awAmt=0, ovN=0,ovAmt=0, pdN=0,pdAmt=0;
+  rcInvoices.forEach(function(i){
+    var s=_rcInvStatus(i,today), t=_rcInvTotal(i);
+    if (s.key==='sent' || s.key==='overdue'){ awN++; awAmt+=t; if(s.key==='overdue'){ ovN++; ovAmt+=t; } }
+    else if (s.key==='paid'){ pdN++; pdAmt += (i.paidAmount!=null?parseFloat(i.paidAmount):t); }
+  });
+  var summaryBar = '<div style="display:flex;gap:12px;flex-wrap:wrap;padding:14px 18px;background:#fafbfc;border-bottom:1px solid #e0e7ef">'
+    + '<div style="flex:1;min-width:150px;background:#e3f2fd;border-radius:8px;padding:10px 14px"><div style="font-size:10px;font-weight:700;color:#1565c0;text-transform:uppercase">Awaiting payment</div><div style="font-size:18px;font-weight:800;color:#0d1b2a">'+awN+' <span style="font-size:12px;font-weight:600;color:#546e7a">· $'+awAmt.toFixed(2)+'</span></div></div>'
+    + '<div style="flex:1;min-width:150px;background:'+(ovN?'#ffebee':'#f5f7fa')+';border-radius:8px;padding:10px 14px"><div style="font-size:10px;font-weight:700;color:'+(ovN?'#c62828':'#90a4ae')+';text-transform:uppercase">Overdue ('+_rcOverdueDays()+'d+)</div><div style="font-size:18px;font-weight:800;color:'+(ovN?'#c62828':'#90a4ae')+'">'+ovN+' <span style="font-size:12px;font-weight:600">· $'+ovAmt.toFixed(2)+'</span></div></div>'
+    + '<div style="flex:1;min-width:150px;background:#e8f5e9;border-radius:8px;padding:10px 14px"><div style="font-size:10px;font-weight:700;color:#2e7d32;text-transform:uppercase">Paid</div><div style="font-size:18px;font-weight:800;color:#2e7d32">'+pdN+' <span style="font-size:12px;font-weight:600;color:#546e7a">· $'+pdAmt.toFixed(2)+'</span></div></div>'
+  + '</div>';
+
   // Group by run date
   var byDate = {};
   rcInvoices.forEach(function(i){
@@ -1707,20 +1772,26 @@ function renderMSInvoiceHistory() {
       + '<button data-runid="'+runGroupId+'" onclick="batchPrintMSRun(this.getAttribute(\'data-runid\'))" style="background:#1565c0;color:#fff;border:none;border-radius:5px;padding:4px 12px;font-size:10px;font-weight:700;cursor:pointer">&#128424; Print All</button>'
     +'</div>';
     invs.forEach(function(inv){
-      html += '<div class="ms-inv-row" data-runid="'+runGroupId+'" data-invid="'+inv.id+'" style="display:grid;grid-template-columns:120px 1fr 130px 90px 80px 80px;padding:10px 18px;border-bottom:1px solid #f5f5f5;align-items:center;gap:8px">'
+      var s=_rcInvStatus(inv,today);
+      var aging = (s.key==='sent'||s.key==='overdue') && s.days ? '<div style="font-size:10px;color:'+s.color+';margin-top:1px">'+s.days+' day'+(s.days!==1?'s':'')+' since sent</div>' : '';
+      var paidInfo = (s.key==='paid' && inv.paidAmount!=null) ? '<div style="font-size:10px;color:#90a4ae;margin-top:1px">$'+parseFloat(inv.paidAmount).toFixed(2)+(inv.paidAt?(' · '+String(inv.paidAt).slice(0,10)):'')+'</div>' : '';
+      var canPay = (s.key==='sent'||s.key==='overdue');
+      html += '<div class="ms-inv-row" data-runid="'+runGroupId+'" data-invid="'+inv.id+'" style="display:grid;grid-template-columns:110px 1fr 100px 90px 140px 165px;padding:10px 18px;border-bottom:1px solid #f5f5f5;align-items:center;gap:8px">'
         +'<div style="font-size:12px;font-weight:700;color:#1565c0">' + (inv.num||'') + '</div>'
-        +'<div style="font-size:12px;font-weight:600">' + (inv.clientName||'') + '</div>'
-        +'<div style="font-size:11px;color:#546e7a">' + (inv.contractType||inv.rcNumber||'') + '</div>'
-        +'<div style="font-size:12px;font-weight:700">$' + parseFloat(inv.amount||0).toFixed(2) + '</div>'
-        +'<div style="font-size:11px">' + (inv.deliveryMethod==='mail'?'&#128236; Mail':'&#128231; Email') + '</div>'
-        +'<div style="display:flex;gap:6px">'
-        +'<button data-invid="'+inv.id+'" onclick="var id=this.getAttribute(\'data-invid\');printRCInvoice(id)" style="background:#f0f4ff;color:#1565c0;border:1px solid #d0dcff;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Print</button>'
+        +'<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (inv.clientName||'') + '</div>'
+        +'<div style="font-size:11px;color:#546e7a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (inv.contractType||inv.rcNumber||'') + '</div>'
+        +'<div style="font-size:12px;font-weight:700">$' + _rcInvTotal(inv).toFixed(2) + '</div>'
+        +'<div><span style="background:'+s.bg+';color:'+s.color+';padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap">'+s.label+'</span>'+aging+paidInfo+'</div>'
+        +'<div style="display:flex;gap:6px;justify-content:flex-end">'
+          +(canPay?'<button data-invid="'+inv.id+'" onclick="markRCInvoicePaid(this.getAttribute(\'data-invid\'))" style="background:#2e7d32;color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">💵 Mark paid</button>':'')
+          +(s.key==='paid'?'<button data-invid="'+inv.id+'" onclick="markRCInvoicePaid(this.getAttribute(\'data-invid\'))" title="Reopen as unpaid" style="background:#fff;color:#546e7a;border:1px solid #cfd8e3;border-radius:5px;padding:4px 8px;font-size:11px;cursor:pointer">↺</button>':'')
+          +'<button data-invid="'+inv.id+'" onclick="var id=this.getAttribute(\'data-invid\');printRCInvoice(id)" style="background:#f0f4ff;color:#1565c0;border:1px solid #d0dcff;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Print</button>'
         +'</div>'
       +'</div>';
     });
   });
 
-  body.innerHTML = html;
+  body.innerHTML = summaryBar + html;
 }
 
 
