@@ -7802,10 +7802,10 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/notiflog.js?v=20261109r114dlog"></script>
 <script src="js/recyclebin.js?v=20260919ix"></script>
 <script src="js/contracts.js?v=20261025ctrsync"></script>
-  <script src="js/recurring.js?v=r256email2"></script>
+  <script src="js/recurring.js?v=r257syncfix"></script>
   <script src="js/seed_managed.js?v=20260919ix"></script>
   <script src="js/applock.js?v=20261121r205sticky"></script>
-  <script src="js/auth.js?v=20261123r243legacyhide"></script>
+  <script src="js/auth.js?v=r257syncfix"></script>
   <script>
     // Register the service worker so the app LOADS with no signal (field techs offline).
     // Served from the app root as /tcss-probid/sw.js → scope covers the whole app.
@@ -9292,7 +9292,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r256';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r257';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-25';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;

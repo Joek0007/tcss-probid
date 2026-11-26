@@ -354,7 +354,12 @@ var _officeSnap = { quotes:{}, customers:{}, contacts:{}, work_orders:{}, invoic
   // re-push an unchanged child over a newer cross-device edit (the push-all clobber r41 flagged).
   wo_parts:{}, wo_labor:{}, wo_expenses:{}, wo_checklist:{},
   // r76 (WS-3a-ii): payroll tables join the changed-only model too.
-  time_entries:{}, app_work_days:{} };   // in-memory: { table: { id: contentHash } }
+  time_entries:{}, app_work_days:{},
+  // Managed-services contracts join the changed-only model so the server-side auto-biller's
+  // date advancement (next_billing_date / last_billed_date) is NEVER clobbered by a stale tab
+  // re-pushing an unedited contract. Without this the nightly cron's advance could be reverted
+  // and the contract re-billed — a double-bill. (Found 2026-11-26 on the auto-billing rollout.)
+  recurring_contracts:{} };   // in-memory: { table: { id: contentHash } }
 // r75: per-child content hash over ONLY the round-tripping (pull-shape) keys, falsy→'' collapsed —
 // same discipline as _woHash — so a cloud-pulled row and the same row after a local save hash
 // IDENTICALLY (null/undefined/'' all collapse), and only a real content change flips the hash.
@@ -370,7 +375,12 @@ var _CHILD_HASH_KEYS = {
   // hashed (deleted, isApproved, corrected, dayLocked, …), so excluding the blobs avoids a
   // permanent-dirty trap that would churn-re-push payroll rows every sweep.
   time_entries:['techName','date','entryType','startTime','endTime','totalHours','totalMins','isPaid','woId','jobId','woLabel','notes','gpsReason','isManual','userId','teamMemberId','clockIn','clockOut','breakMinutes','gpsLat','gpsLng','isApproved','approvedBy','deleted','deletedBy','deletedAt'],
-  app_work_days:['techName','techId','date','totalPaidMins','onsiteMins','travelMins','breakMins','lunchMins','officeMins','ptoMins','vacationMins','holidayMins','jobName','jobId','dayType','approved','approvedBy','lunchFlagged','hasManualEntries','autoStopped','corrected','workNote','noteLocked','dayLocked','payrollUnlocked','segments']
+  app_work_days:['techName','techId','date','totalPaidMins','onsiteMins','travelMins','breakMins','lunchMins','officeMins','ptoMins','vacationMins','holidayMins','jobName','jobId','dayType','approved','approvedBy','lunchFlagged','hasManualEntries','autoStopped','corrected','workNote','noteLocked','dayLocked','payrollUnlocked','segments'],
+  // Hash over the round-tripping local fields the contract pull mapper produces (auth.js ~2056). A
+  // cloud-pulled contract and the same contract after a local save hash IDENTICALLY, so only a REAL
+  // local edit flips the hash — an unedited contract is skipped by the sweep, leaving the server's
+  // auto-billing date advancement intact.
+  recurring_contracts:['number','client','type','billingCycle','billingDay','status','autoRenew','deliveryMethod','clientEmail','contractStart','contractEnd','nextBillingDate','lastBilledDate','lineItems','notes','doNotBill','sortOrder','priceHistory']
 };
 function _childHash(table, row){
   var keys = _CHILD_HASH_KEYS[table]; if (!keys || !row) return '';
@@ -2070,7 +2080,9 @@ async function syncAllFromCloud(silent) {
         var sbIds = mapped.map(function(r){return r.id;});
         var rcCloudComplete = rcRows.length > 0 && rcRows.length < 1000;
         var localOnly = (DB.recurringContracts||[]).filter(function(c){return !sbIds.includes(c.id) && delRC.indexOf(String(c.id)) < 0 && !(c._synced && rcCloudComplete);});
-        mapped.forEach(function(m){ m._synced = true; });
+        // Record each pulled contract's content hash so the office sweep treats an UNEDITED contract as
+        // clean (skips it) — the guard that stops a stale tab from reverting the server's billing dates.
+        mapped.forEach(function(m){ m._synced = true; if (typeof _officeMarkSynced==='function') _officeMarkSynced('recurring_contracts', m); });
         DB.recurringContracts = mapped.concat(localOnly);
       }
     } catch(e) { errors.push('recurring_contracts: '+e.message); }
@@ -4016,10 +4028,19 @@ async function pushAllToCloud() {
       } catch(wcErr) { console.warn('[Push] WO checklist:', wcErr.message||wcErr); }
     }
 
-    // Push recurring contracts (Managed Services)
+    // Push recurring contracts (Managed Services) — CHANGED-ONLY + ready-gated, same discipline as
+    // invoices/WOs. Critical: the nightly auto-biller advances next_billing_date/last_billed_date on the
+    // SERVER; a blind re-push of an unedited contract from a stale tab would revert that advance and the
+    // contract would be re-billed (a double invoice). Gating on _officeDirty means an unedited contract is
+    // never pushed, so the server's billing dates survive; a contract the user actually edited still syncs.
+    var _rcTomb = (DB.deletedIds && DB.deletedIds.recurringContracts) || [];
     for (var rc of (DB.recurringContracts||[])) {
+      if (!rc || !rc.id) continue;
+      if (!_officeSnapReady) continue;                          // no sweep before the first pull rebuilt the snapshot
+      if (_rcTomb.indexOf(String(rc.id)) >= 0) continue;        // being deleted → don't re-create via upsert
+      if (!_officeDirty('recurring_contracts', rc)) continue;   // unchanged locally → skip (prevents billing-date revert)
       try {
-        _pushErr('recurring contract '+(rc.number||rc.id), await _sb.from('recurring_contracts').upsert({
+        var _rcRes = _pushErr('recurring contract '+(rc.number||rc.id), await _sb.from('recurring_contracts').upsert({
           id:rc.id, number:rc.number, client:rc.client, type:rc.type,
           billing_cycle:rc.billingCycle, billing_day:rc.billingDay||1,
           status:rc.status||'active', auto_renew:!!rc.autoRenew,
@@ -4030,6 +4051,7 @@ async function pushAllToCloud() {
           do_not_bill:!!rc.doNotBill, sort_order:rc.sortOrder||0,
           price_history:rc.priceHistory||[], created_at:rc.createdAt||new Date().toISOString()
         }));
+        if (!(_rcRes && _rcRes.error) && (typeof _writesBlocked!=='function' || !_writesBlocked())) { rc._synced = true; _officeMarkSynced('recurring_contracts', rc); }
       } catch(rcErr) { console.warn('[Push] RC:', rcErr.message||rcErr); }
     }
 

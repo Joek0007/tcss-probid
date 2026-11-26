@@ -1961,7 +1961,11 @@ function _pushRCToSupabase(c) {
     do_not_bill:!!c.doNotBill, sort_order:c.sortOrder||0,
     price_history:c.priceHistory||[],
     created_at:c.createdAt
-  }).then(function(){});
+  }).then(function(r){
+    // Record the synced hash so the office sweep treats this just-pushed contract as clean
+    // (same changed-only model as invoices/WOs) — a user edit syncs here, the sweep won't re-push it.
+    if (!(r && r.error) && typeof _officeMarkSynced==='function') { try { _officeMarkSynced('recurring_contracts', c); } catch(e){} }
+  });
 }
 
 function _pushRCInvoiceToSupabase(inv) {
