@@ -1691,29 +1691,80 @@ function _rcInvStatus(inv, today){
   }
   return { key:st||'other', label:(inv.status||'—'), color:'#546e7a', bg:'#eceff1' };
 }
+// Record payment via a proper in-app modal (not a browser prompt — a money action deserves a real form).
+var _rcPaidInvId = null;
 function markRCInvoicePaid(invId){
   var inv=(DB.invoices||[]).find(function(i){return i.id===invId;});
   if(!inv) return;
-  if((inv.status||'')==='paid'){
-    if(confirm((inv.num||'This invoice')+' is marked PAID. Reopen it as unpaid?')){
-      var o={status:inv.status,paidAmount:inv.paidAmount,paidAt:inv.paidAt};
-      inv.status='sent'; inv.paidAmount=null; inv.paidAt=null;
-      if(typeof auditLog==='function') auditLog('ms_invoice_reopened','invoice',inv.id,{old:o,new:{status:'sent'},note:'Invoice '+(inv.num||'')+' reopened as unpaid'});
-      _rcSaveInvoice(inv); renderMSInvoiceHistory(); renderRecurring();
-      if(typeof showToast==='function') showToast('Invoice reopened as unpaid','info',2500);
-    }
-    return;
-  }
+  _rcPaidInvId = inv.id;
+  if((inv.status||'')==='paid'){ _rcRenderReopenModal(inv); return; }
+  _rcRenderPaidModal(inv);
+}
+function _rcClosePaidModal(){ var o=document.getElementById('rc-paid-overlay'); if(o){ o.style.display='none'; o.innerHTML=''; } _rcPaidInvId=null; }
+function _rcPaidOverlay(inner){
+  var o=document.getElementById('rc-paid-overlay');
+  if(!o){ o=document.createElement('div'); o.id='rc-paid-overlay'; document.body.appendChild(o); }
+  o.style.cssText='position:fixed;inset:0;background:rgba(13,27,42,.55);z-index:10002;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto';
+  o.innerHTML=inner;
+}
+function _rcRenderPaidModal(inv){
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   var full=_rcInvTotal(inv);
-  var amtStr=prompt('Payment received for '+(inv.num||'')+'\n\nAmount:', full.toFixed(2));
-  if(amtStr===null) return;
-  var amt=parseFloat(amtStr);
+  var today=(typeof getTodayISO==='function')?getTodayISO():new Date().toISOString().slice(0,10);
+  _rcPaidOverlay(
+    '<div style="background:#fff;border-radius:12px;max-width:440px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);overflow:hidden;font-family:Arial,sans-serif">'
+    +'<div style="background:#2e7d32;padding:14px 20px;color:#fff"><div style="font-size:15px;font-weight:800">💵 Record Payment</div>'
+      +'<div style="font-size:12px;opacity:.92;margin-top:2px">'+esc(inv.num||'')+' · '+esc(inv.clientName||'')+'</div></div>'
+    +'<div style="padding:20px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;background:#f5f7fa;border-radius:8px;padding:10px 14px;margin-bottom:16px"><span style="font-size:12px;color:#546e7a">Invoice total</span><span style="font-size:18px;font-weight:800;color:#0d1b2a">$'+full.toFixed(2)+'</span></div>'
+      +'<label style="font-size:12px;color:#546e7a;font-weight:600;display:block;margin-bottom:4px">Amount received</label>'
+      +'<input id="rc-paid-amount" type="number" min="0" step="0.01" value="'+full.toFixed(2)+'" style="width:100%;box-sizing:border-box;border:1px solid #cfd8e3;border-radius:6px;padding:10px 12px;font-size:15px;font-weight:700;margin-bottom:14px">'
+      +'<label style="font-size:12px;color:#546e7a;font-weight:600;display:block;margin-bottom:4px">Payment date</label>'
+      +'<input id="rc-paid-date" type="date" value="'+today+'" style="width:100%;box-sizing:border-box;border:1px solid #cfd8e3;border-radius:6px;padding:10px 12px;font-size:14px;margin-bottom:6px">'
+      +'<div style="font-size:11px;color:#90a4ae">Enter a smaller amount to record a partial payment.</div>'
+      +'<div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">'
+        +'<button onclick="_rcClosePaidModal()" style="background:#eceff1;color:#546e7a;border:none;border-radius:6px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">Cancel</button>'
+        +'<button onclick="_rcConfirmPaid()" style="background:#2e7d32;color:#fff;border:none;border-radius:6px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer">✓ Mark Paid</button>'
+      +'</div>'
+    +'</div></div>'
+  );
+  setTimeout(function(){ var a=document.getElementById('rc-paid-amount'); if(a){ a.focus(); a.select(); } },60);
+}
+function _rcConfirmPaid(){
+  var inv=(DB.invoices||[]).find(function(i){return i.id===_rcPaidInvId;});
+  if(!inv){ _rcClosePaidModal(); return; }
+  var full=_rcInvTotal(inv);
+  var amt=parseFloat((document.getElementById('rc-paid-amount')||{}).value);
+  var date=(document.getElementById('rc-paid-date')||{}).value || ((typeof getTodayISO==='function')?getTodayISO():new Date().toISOString().slice(0,10));
   if(isNaN(amt)||amt<0){ if(typeof showToast==='function') showToast('Enter a valid amount','warning',2500); return; }
   var o={status:inv.status,paidAmount:inv.paidAmount,paidAt:inv.paidAt};
-  inv.status='paid'; inv.paidAt=new Date().toISOString(); inv.paidAmount=amt;
+  inv.status='paid'; inv.paidAt=new Date(date+'T12:00:00').toISOString(); inv.paidAmount=amt;
   if(typeof auditLog==='function') auditLog('ms_invoice_paid','invoice',inv.id,{old:o,new:{status:'paid',paidAmount:amt,paidAt:inv.paidAt},note:'Invoice '+(inv.num||'')+' marked PAID — $'+amt.toFixed(2)+(amt<full?(' (partial of $'+full.toFixed(2)+')'):'')});
-  _rcSaveInvoice(inv); renderMSInvoiceHistory(); renderRecurring();
-  if(typeof showToast==='function') showToast('✅ '+(inv.num||'')+' marked paid — $'+amt.toFixed(2),'success',3000);
+  _rcSaveInvoice(inv); _rcClosePaidModal(); renderMSInvoiceHistory(); renderRecurring();
+  if(typeof showToast==='function') showToast('✅ '+(inv.num||'')+' marked paid — $'+amt.toFixed(2),'success',3200);
+}
+function _rcRenderReopenModal(inv){
+  function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  _rcPaidOverlay(
+    '<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);overflow:hidden;font-family:Arial,sans-serif">'
+    +'<div style="background:#546e7a;padding:14px 20px;color:#fff;font-size:15px;font-weight:800">↺ Reopen Invoice</div>'
+    +'<div style="padding:20px">'
+      +'<div style="font-size:14px;color:#37474f;line-height:1.5">'+esc(inv.num||'This invoice')+' is marked <b>Paid</b>'+(inv.paidAmount!=null?(' ($'+parseFloat(inv.paidAmount).toFixed(2)+')'):'')+'. Reopen it as <b>unpaid</b> (awaiting payment)?</div>'
+      +'<div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">'
+        +'<button onclick="_rcClosePaidModal()" style="background:#eceff1;color:#546e7a;border:none;border-radius:6px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">Cancel</button>'
+        +'<button onclick="_rcConfirmReopen()" style="background:#c62828;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">Reopen as unpaid</button>'
+      +'</div>'
+    +'</div></div>'
+  );
+}
+function _rcConfirmReopen(){
+  var inv=(DB.invoices||[]).find(function(i){return i.id===_rcPaidInvId;});
+  if(!inv){ _rcClosePaidModal(); return; }
+  var o={status:inv.status,paidAmount:inv.paidAmount,paidAt:inv.paidAt};
+  inv.status='sent'; inv.paidAmount=null; inv.paidAt=null;
+  if(typeof auditLog==='function') auditLog('ms_invoice_reopened','invoice',inv.id,{old:o,new:{status:'sent'},note:'Invoice '+(inv.num||'')+' reopened as unpaid'});
+  _rcSaveInvoice(inv); _rcClosePaidModal(); renderMSInvoiceHistory(); renderRecurring();
+  if(typeof showToast==='function') showToast('Invoice reopened as unpaid','info',2500);
 }
 
 function renderMSInvoiceHistory() {
