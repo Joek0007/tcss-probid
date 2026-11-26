@@ -8427,6 +8427,10 @@ function loadSettings() {
   sv('s-cname',s.cname);sv('s-cabbr',s.cabbr);sv('s-cphone',s.cphone);sv('s-cemail',s.cemail);sv('s-billing-email',s.billingEmail);sv('s-dispatch-email',s.dispatchEmail);sv('s-caddr',s.caddr);sv('s-clic',s.clic);sv('s-cweb',s.cweb);sv('s-ctag',s.ctag);
   sv('s-lr',s.laborRate||100);sv('s-mk',s.targetMargin||35);sv('s-tx',s.taxRate||0);sv('s-vd',s.validDays||30);sv('s-pt',s.payTerms);sv('s-tc',s.tc);
   var sNoM=document.getElementById('s-nomargin'); if(sNoM) sNoM.checked = !!s.defaultNoMargin; // No Margin (price at cost) company default
+  // Managed Services — automatic billing controls (settings tab)
+  var mAB=document.getElementById('set-ms-autobill'); if(mAB) mAB.checked = !!s.msAutobillOn;
+  var mSB=document.getElementById('set-ms-sandbox');  if(mSB) mSB.checked = (s.msSendSandbox !== false);   // default ON
+  var mST=document.getElementById('set-ms-sandboxto');if(mST) mST.value   = s.msSandboxTo || s.notifSandboxTo || 'joek@tcss.com';
   sv('s-followup-days', s.followupDays||7);
   sv('s-perdiem-markup', s.perDiemMarkup!==undefined ? s.perDiemMarkup : 15);
   sv('s-parts-markup', s.partsMarkupPct!==undefined ? s.partsMarkupPct : 0); // Wave 1c: WO-invoice parts markup default
@@ -8495,6 +8499,9 @@ function _pushSettingsToSupabase() {
 
 function saveSettings() {
   function gv(id){const el=document.getElementById(id);return el?el.value:'';}
+  // Capture before-state of the billing-critical flags so a change is audited (money feature).
+  var _wasMsAutobill = !!(DB.settings && DB.settings.msAutobillOn);
+  var _wasMsSandbox  = !(DB.settings && DB.settings.msSendSandbox === false);
   // Preserve fields not in the settings form (logo, favorites, usage tracking, etc.)
   DB.settings = Object.assign({}, DB.settings, {
     cname:gv('s-cname'),cabbr:gv('s-cabbr'),cphone:gv('s-cphone'),cemail:gv('s-cemail'),billingEmail:gv('s-billing-email'),dispatchEmail:gv('s-dispatch-email'),caddr:gv('s-caddr'),clic:gv('s-clic'),cweb:gv('s-cweb'),ctag:gv('s-ctag'),
@@ -8505,11 +8512,22 @@ function saveSettings() {
     partsMarkupPct:parseFloat(gv('s-parts-markup'))||0, // Wave 1c: WO-invoice parts markup default
     poApprovalThreshold:parseFloat(gv('s-po-approval-threshold'))||0, // (r138) PO approval threshold ($); 0 = off
     fiscalYearStartMonth:parseInt(gv('s-fiscal-month'))||1,
-    uname:gv('s-uname'),utitle:gv('s-utitle'),uphone:gv('s-uphone'),uemail:gv('s-uemail')
+    uname:gv('s-uname'),utitle:gv('s-utitle'),uphone:gv('s-uphone'),uemail:gv('s-uemail'),
+    // Managed Services automatic billing. msAutobillOn is read SERVER-SIDE by the nightly cron, so the
+    // _pushSettingsToSupabase below is what makes it take effect. msSendSandbox default is ON.
+    msAutobillOn: !!(document.getElementById('set-ms-autobill')||{}).checked,
+    msSendSandbox: !!(document.getElementById('set-ms-sandbox')||{}).checked,
+    msSandboxTo: gv('set-ms-sandboxto').trim()
   });
   saveDB();
   const cb=document.getElementById('company-badge');if(cb)cb.textContent=(DB.settings.cname||'TCSS').substring(0,12);
   _pushSettingsToSupabase();
+  // Audit any change to the billing-critical flags (first-class auditability).
+  var _nowMsAutobill = !!DB.settings.msAutobillOn, _nowMsSandbox = (DB.settings.msSendSandbox !== false);
+  if (typeof auditLog==='function') {
+    if (_nowMsAutobill !== _wasMsAutobill) auditLog('ms_autobill_'+(_nowMsAutobill?'enabled':'disabled'),'setting','msAutobillOn',{old:{on:_wasMsAutobill},new:{on:_nowMsAutobill},note:'Nightly auto-billing turned '+(_nowMsAutobill?'ON':'OFF')});
+    if (_nowMsSandbox !== _wasMsSandbox) auditLog('ms_sandbox_'+(_nowMsSandbox?'on':'off'),'setting','msSendSandbox',{old:{sandbox:_wasMsSandbox},new:{sandbox:_nowMsSandbox},note:'Email sandbox turned '+(_nowMsSandbox?'ON (office inbox)':'OFF (LIVE to clients)')});
+  }
   showToast('Settings saved','success');
 }
 
