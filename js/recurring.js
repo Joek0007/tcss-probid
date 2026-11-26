@@ -2341,6 +2341,17 @@ function openRCDetail(id) {
   openModal('modal-rc-detail');
 }
 
+// Taxed total a generated invoice will carry — mirrors the server's tax math
+// (taxable ? contract rate else company rate; round tax then add) so the confirm
+// modal shows the real invoice amount, not the pre-tax subtotal.
+function _rcTaxedTotal(c){
+  var sub = _rcLineTotal2(c);
+  var taxable = (c.taxable!==false);
+  var coRate = parseFloat((typeof DB!=='undefined' && DB.settings && DB.settings.taxRate)||0)||0;
+  var rate = taxable ? ((c.taxRate!=null) ? (parseFloat(c.taxRate)||0) : coRate) : 0;
+  var tax = Math.round(sub*rate/100*100)/100;
+  return Math.round((sub+tax)*100)/100;
+}
 // ── Generate-ahead: bill a contract's NEXT period now (money-safe via server RPC) ──
 // Routes through run_managed_billing_one, which shares the ms_billing_log period lock
 // with the nightly run — so a period generated here can NEVER be billed twice.
@@ -2351,14 +2362,16 @@ function rcGenerateAhead(id){
   if(c.status!=='active'||c.doNotBill){ if(typeof showToast==='function') showToast('This contract is not actively billing','warning',2600); return; }
   if(!c.nextBillingDate){ if(typeof showToast==='function') showToast('No next billing date set','warning',2600); return; }
   _rcAheadId=id;
-  var total=_rcLineTotal2(c);
+  var sub=_rcLineTotal2(c);
+  var total=_rcTaxedTotal(c);
+  var taxNote=(total>sub)?(' <span style="color:#90a4ae;font-weight:400">(incl. tax; $'+sub.toFixed(2)+' + $'+(total-sub).toFixed(2)+')</span>'):'';
   function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   _rcAheadOverlay(
     '<div style="background:#fff;border-radius:12px;max-width:440px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);overflow:hidden;font-family:Arial,sans-serif">'
     +'<div style="background:#1565c0;padding:14px 20px;color:#fff"><div style="font-size:15px;font-weight:800">⚡ Generate Next Invoice</div>'
       +'<div style="font-size:12px;opacity:.92;margin-top:2px">'+esc(c.number||'')+' · '+esc(c.client||'')+'</div></div>'
     +'<div style="padding:20px">'
-      +'<div style="font-size:13px;color:#37474f;line-height:1.55">Generate the <b>'+esc(c.nextBillingDate)+'</b> invoice now for <b>$'+total.toFixed(2)+'</b>?</div>'
+      +'<div style="font-size:13px;color:#37474f;line-height:1.55">Generate the <b>'+esc(c.nextBillingDate)+'</b> invoice now for <b>$'+total.toFixed(2)+'</b>?'+taxNote+'</div>'
       +'<div style="font-size:12px;color:#546e7a;margin-top:10px;background:#f5f7fa;border-radius:8px;padding:10px 12px">It lands in <b>Ready to Send</b> as a draft — nothing is emailed to the client. The schedule advances to the next cycle, and the nightly run won’t bill this period again.</div>'
       +'<div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">'
         +'<button onclick="_rcCloseAhead()" style="background:#eceff1;color:#546e7a;border:none;border-radius:6px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer">Cancel</button>'
