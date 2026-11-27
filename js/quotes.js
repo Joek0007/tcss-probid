@@ -6574,18 +6574,38 @@ function addCatToQQ(id, skipNav) {
 // ── r227: Deal-registration discount per vendor ───────────────────────────
 // MSRP-priced lines carry {vendor, msrp, priceMode:'msrp'}. The estimator sets one % off MSRP per
 // vendor on THIS quote; cost = MSRP × (1 − %). The existing markup/margin then produces the sell price.
+// Resolve a line's MSRP identity. A line added from an OLDER catalog state, or on a quote saved
+// before the per-line MSRP tag existed, can lack {vendor,msrp,priceMode} even though it IS a catalog
+// MSRP item — so the deal-reg box would silently omit that vendor. Match such a line to the CURRENT
+// catalog by part# (or exact name) and back-fill the tag so the panel includes it (old quotes self-heal).
+function _qqLineMsrp(it) {
+  if (!it) return null;
+  if (it.priceMode === 'msrp' && it.vendor && it.msrp != null) return { vendor: it.vendor, msrp: it.msrp };
+  var cat = (typeof DB !== 'undefined' && DB.catalog) ? DB.catalog : [];
+  var p = it.part || it.partNum || '';
+  var c = cat.find(function(x){
+    if (!(x && x.priceMode === 'msrp' && x.vendor && x.msrp != null)) return false;
+    if (p && (x.part === p || x.partNum === p)) return true;
+    if (it.desc && x.name && x.name === it.desc) return true;
+    return false;
+  });
+  if (c) { it.vendor = c.vendor; it.msrp = c.msrp; it.priceMode = 'msrp'; return { vendor: c.vendor, msrp: c.msrp }; }
+  return null;
+}
 function _qqMsrpVendors() {
   var vends = [];
   (lineItems || []).forEach(function(it){
-    if (it && it.priceMode === 'msrp' && it.vendor && it.msrp != null && vends.indexOf(it.vendor) < 0) vends.push(it.vendor);
+    var m = _qqLineMsrp(it);
+    if (m && vends.indexOf(m.vendor) < 0) vends.push(m.vendor);
   });
   return vends.sort();
 }
 function _recomputeVendorLines(vendor) {
   var disc = (quoteVendorDiscounts && quoteVendorDiscounts[vendor]) ? quoteVendorDiscounts[vendor] : 0;
   (lineItems || []).forEach(function(it){
-    if (it && it.priceMode === 'msrp' && it.vendor === vendor && it.msrp != null) {
-      it.mc = Math.round(it.msrp * (1 - disc) * 100) / 100;
+    var m = _qqLineMsrp(it);
+    if (m && m.vendor === vendor) {
+      it.mc = Math.round(m.msrp * (1 - disc) * 100) / 100;
     }
   });
 }
@@ -6610,8 +6630,9 @@ function renderDealRegPanel() {
     var disc = (quoteVendorDiscounts && quoteVendorDiscounts[v]) ? quoteVendorDiscounts[v] : 0;
     var n = 0, msrpSub = 0, costSub = 0;
     (lineItems || []).forEach(function(it){
-      if (it && it.priceMode === 'msrp' && it.vendor === v && it.msrp != null) {
-        var qty = parseFloat(it.qty) || 0; n++; msrpSub += it.msrp * qty; costSub += (parseFloat(it.mc)||0) * qty;
+      var m = _qqLineMsrp(it);
+      if (m && m.vendor === v) {
+        var qty = parseFloat(it.qty) || 0; n++; msrpSub += m.msrp * qty; costSub += (parseFloat(it.mc)||0) * qty;
       }
     });
     return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0;border-top:1px solid #eef2f7">'
