@@ -4733,7 +4733,7 @@ function startNotifPoll() {
   _notifPollTimer = setInterval(function(){
     if (_currentUser && _sb) { try { if (typeof wtLoadNotifications==='function') wtLoadNotifications(); } catch(e){} }
     else clearInterval(_notifPollTimer);
-  }, 45000);
+  }, 15000);  // r272: tightened 45s→15s so a customer approval/change-request surfaces on the bell faster
 }
 
 function startPermRefresh() {

@@ -3025,16 +3025,28 @@ async function sendQuoteConfirmed(){
       setTimeout(function(){ if(typeof loadEmailEvents==='function') loadEmailEvents(true); }, 14000);
       // mark quote sent (only after a successful send) — use the canonical saved record resolved up top,
       // so this flips reliably even when the send started from a form-derived quote that had no id.
+      // r272: a (re)send flips the quote to 'sent'. Besides a first send of a draft, this now also
+      // covers a RESEND after the customer clicked "Request Changes" (status 'followup'/'review') —
+      // i.e. the revised quote going back out. In that revised-resend case we restart the age clock
+      // (sentDate=today) and recompute a fresh follow-up date, so the pipeline treats it as a new
+      // send. Closed quotes (approved/won/declined) are never resurrected.
+      function _applySendStatus(obj){
+        var s = String(obj.status||'').toLowerCase();
+        var wasRevised = (s==='followup' || s==='review');  // customer had asked for changes
+        if (s==='' || s==='draft' || wasRevised) obj.status = 'sent';
+        if (wasRevised || !obj.sentDate) {
+          obj.sentDate = getTodayISO();
+          try { if (typeof calcFollowupDate==='function') obj.followupDate = calcFollowupDate(obj.sentDate); } catch(_e){}
+        }
+      }
       var saved = _savedQuote;
       if (saved) {
-        if (!saved.status || String(saved.status).toLowerCase()==='draft') saved.status='sent';
-        if (!saved.sentDate) saved.sentDate = getTodayISO();
+        _applySendStatus(saved);
         saved.emailedTo = allTo; saved.emailedAt = new Date().toISOString();
         if (q.approvalToken) saved.approvalToken = q.approvalToken;
         saveDB(); renderQuotes && renderQuotes(); renderDash && renderDash();
       } else {
-        if (!q.status || String(q.status).toLowerCase()==='draft') q.status='sent';
-        if (!q.sentDate) q.sentDate = getTodayISO();
+        _applySendStatus(q);
       }
       // Persist the approval token to the cloud so the portal link in the email resolves.
       try {
@@ -3043,7 +3055,7 @@ async function sendQuoteConfirmed(){
         }
       } catch(_tokErr){ console.warn('[Email Quote] approval token persist failed', _tokErr); }
       var stEl = document.getElementById('qq-status');
-      if (stEl && stEl.value==='draft') stEl.value='sent';
+      if (stEl && (stEl.value==='draft' || stEl.value==='followup' || stEl.value==='review')) stEl.value='sent';
       closeEmailQuoteModal();
     } else {
       showToast('Mailgun error: '+(data.message||('Status '+res.status)),'error',6000);
