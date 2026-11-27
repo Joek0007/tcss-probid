@@ -3032,12 +3032,17 @@ async function sendQuoteConfirmed(){
       // send. Closed quotes (approved/won/declined) are never resurrected.
       function _applySendStatus(obj){
         var s = String(obj.status||'').toLowerCase();
-        var wasRevised = (s==='followup' || s==='review');  // customer had asked for changes
+        var hadChangeReq = !!(obj.approval && obj.approval.status === 'changes_requested');
+        var wasRevised = (s==='followup' || s==='review' || hadChangeReq);  // customer had asked for changes
         if (s==='' || s==='draft' || wasRevised) obj.status = 'sent';
         if (wasRevised || !obj.sentDate) {
           obj.sentDate = getTodayISO();
           try { if (typeof calcFollowupDate==='function') obj.followupDate = calcFollowupDate(obj.sentDate); } catch(_e){}
         }
+        // r273: sending the revised quote RESOLVES the change request — clear the approval signal so
+        // the blinking "Changes Requested" list badge and the dashboard "needs a response" bucket
+        // drop it. The quote_approvals audit history is untouched. Pushes approval_status=null.
+        if (hadChangeReq) obj.approval = null;
       }
       var saved = _savedQuote;
       if (saved) {

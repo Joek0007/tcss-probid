@@ -688,7 +688,15 @@ function renderQuotes() {
   var _canDelQ = (typeof hasPermission === 'function') ? hasPermission('quote.delete') : true;
   tbody.innerHTML = list.map(function(q){
     const envLabel = q.envLabel || (ENV_PRESETS[q.env] ? ENV_PRESETS[q.env].label : q.env || '');
-    const fuBadge = isFollowupDue(q) ? '<span class="followup-due'+(isFollowupOverdue(q)?' followup-overdue':'')+'" style="margin-left:4px">'+(isFollowupOverdue(q)?'Overdue':'Follow-Up')+'</span>' : '';
+    // r273: a customer "Request Changes" already tags the quote approval_status='changes_requested'
+    // (portal.html). Surface it as its own standout, blinking badge in the list instead of the
+    // generic "followup" status, which read as a routine sales follow-up and hid that the customer
+    // actually acted. Derived from the signal that already exists — no new status enum.
+    const _crFlag = !!(q.approval && q.approval.status === 'changes_requested');
+    const _statusChip = _crFlag
+      ? '<span class="status-badge s-changes cr-blink" title="Customer requested changes — send a revised quote to clear this">&#9888; Changes Requested</span>'
+      : '<span class="status-badge s-'+(q.status||'draft')+'">'+(q.status||'draft')+'</span>';
+    const fuBadge = (!_crFlag && isFollowupDue(q)) ? '<span class="followup-due'+(isFollowupOverdue(q)?' followup-overdue':'')+'" style="margin-left:4px">'+(isFollowupOverdue(q)?'Overdue':'Follow-Up')+'</span>' : '';
     const pr = getQuotePriority(q);
     const prColor = pr.tone==='critical'?'#c62828':pr.tone==='high'?'#e65100':pr.tone==='needswork'?'#e65100':pr.tone==='ready'?'#2e7d32':'#607d8b';
     var canConvert = q.status!=='approved' && q.status!=='declined';
@@ -723,7 +731,7 @@ function renderQuotes() {
       '<td style="font-size:11px">'+escHtml(envLabel)+'</td>'+
       '<td style="font-weight:700;white-space:nowrap">'+fmt(q.total||0)+'</td>'+
       '<td style="font-weight:700;'+healthColor(q)+'">'+pct(q.achievedMargin||0)+'</td>'+
-      '<td><span class="status-badge s-'+(q.status||'draft')+'">'+(q.status||'draft')+'</span>'+fuBadge+
+      '<td>'+_statusChip+fuBadge+
         '<div style="font-size:10px;color:'+prColor+';font-weight:700;margin-top:3px">'+pr.label+'</div>'+
         (typeof emailStatusBadge==='function' ? (function(){ var _b=emailStatusBadge('quote',q.id,q.num); return _b?'<div style="margin-top:3px">'+_b+'</div>':''; })() : '')+
         '</td>'+

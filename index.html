@@ -213,6 +213,11 @@ tr:hover td{background:#fafbfc}
 .s-draft{background:#eceff1;color:#546e7a}.s-sent{background:#e3f2fd;color:#1565c0}.s-approved{background:#e8f5e9;color:#2e7d32}
 .s-declined{background:#ffebee;color:#c62828}.s-pending{background:#fff8e1;color:#f57f17}.s-won{background:#e8f5e9;color:#1b5e20}
 .s-lost{background:#ffebee;color:#b71c1c}.s-followup{background:#f3e5f5;color:#6a1b9a}
+/* r273: customer requested changes — distinct, attention-grabbing. Blinks so it stands out in the list. */
+.s-changes{background:#ffebee;color:#c62828;border:1px solid #ef9a9a;box-shadow:0 0 0 2px rgba(198,40,40,.12)}
+@keyframes cr-blink{0%,100%{opacity:1}50%{opacity:.38}}
+.cr-blink{animation:cr-blink 1.1s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.cr-blink{animation:none}}
 input,select,textarea{width:100%;padding:8px 12px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:13px;color:#1a1a2e;background:#fff;transition:border-color .2s;font-family:inherit}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(25,118,210,.1)}
 label{display:block;font-size:12px;font-weight:700;color:#455a64;margin-bottom:5px}
@@ -7809,7 +7814,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
      ON EACH RELEASE, bump this version (find-replace ?v=20260919ix with the new value) so the whole
      team gets the new code automatically — no hard refresh needed. Format: YYYYMMDD + letter. -->
 <script src="js/core.js?v=r270comment"></script>
-<script src="js/quotes.js?v=r272resend"></script>
+<script src="js/quotes.js?v=r273changereq"></script>
 <script src="js/qq-selftest.js?v=20260919jg"></script>
 <script src="js/scanner.js?v=20261111r126scanner"></script>
 <script src="js/tools_db.js?v=20261111r125toolidstable"></script>
@@ -7831,7 +7836,7 @@ body.role-lead-tech .page-settings-btn{display:none!important}
 <script src="js/rfq.js?v=20261120r180rfqfooter"></script>
 <script src="js/inventory_locations_db.js?v=20260919ix"></script>
 <script src="js/inventory.js?v=20261121r193recvby"></script>
-<script src="js/reports.js?v=20261122r233laborclass"></script>
+<script src="js/reports.js?v=r273changereq"></script>
 <script src="js/expenses.js?v=20260919jd"></script>
 <script src="js/perdiem.js?v=20260919kd"></script>
 <script src="js/notifrules.js?v=20261119r176seedflag"></script>
@@ -9328,7 +9333,7 @@ window.getQData = function() {
      Rule: increment the r# each time code ships (r1, r2, r3 …). -->
 <script>
 (function(){
-  window.APP_BUILD = 'v9 · r272';          // <-- the number to bump every deploy
+  window.APP_BUILD = 'v9 · r273';          // <-- the number to bump every deploy
   window.APP_BUILD_DATE = '2026-11-26';  // <-- date of this build (human context)
   function stamp(){
     var full = window.APP_BUILD;
