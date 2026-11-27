@@ -3067,7 +3067,17 @@ function renderLI() {
     html += '<td><input data-li="'+item._id+'" data-field="cat" value="'+escHtml(item.cat)+'" style="width:90px" placeholder="Category"></td>';
     html += '<td><input data-li="'+item._id+'" data-field="qty" type="number" value="'+item.qty+'" min="0" style="width:60px"></td>';
     html += '<td><input data-li="'+item._id+'" data-field="unit" value="'+escHtml(item.unit)+'" style="width:50px" placeholder="ea"></td>';
-    html += '<td><input data-li="'+item._id+'" data-field="mc" type="number" value="'+item.mc+'" min="0" step="0.01" style="width:80px"></td>';
+    // MSRP basis hint: for an MSRP-priced line (vendor deal-reg), show what the cost is based on —
+    // MSRP, and the deal-reg % off when set — so the estimator sees the pricing basis, not a bare cost.
+    var _ml = (typeof _qqLineMsrp === 'function') ? _qqLineMsrp(item) : ((item.priceMode==='msrp'&&item.msrp!=null)?{vendor:item.vendor,msrp:item.msrp}:null);
+    var _msrpHint = '';
+    if (_ml && _ml.msrp != null) {
+      var _vd = (typeof quoteVendorDiscounts!=='undefined' && quoteVendorDiscounts && quoteVendorDiscounts[_ml.vendor]) ? quoteVendorDiscounts[_ml.vendor] : 0;
+      _msrpHint = '<div style="font-size:10px;color:#90a4ae;margin-top:3px;white-space:nowrap" title="Material cost = this vendor MSRP minus the deal-registration discount">MSRP $'+Number(_ml.msrp).toFixed(0)
+        + (_vd>0 ? ' <span style="color:#2e7d32;font-weight:700">−'+(Math.round(_vd*1000)/10)+'%</span>' : '')
+        + '</div>';
+    }
+    html += '<td><input data-li="'+item._id+'" data-field="mc" type="number" value="'+item.mc+'" min="0" step="0.01" style="width:80px">'+_msrpHint+'</td>';
     html += '<td><input data-li="'+item._id+'" data-field="lh" type="number" value="'+item.lh+'" min="0" step="0.25" style="width:65px"></td>';
     // r168: per-line labor RATE (Std / OT 1.5× / 2× / Custom $/hr) + FLAT labor $ (per unit, added on top)
     // r233: a per-line LABOR CLASS (Standard / Access control) picks the base rate from the brand×class table.
