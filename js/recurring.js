@@ -15,11 +15,17 @@ var RC_TYPES = [
   'Cabling Maintenance','Audio / Visual','Other'
 ];
 
+// Full cycle table from load — _rcAdvanceDate / _rcNextDates / _rcIsDue read this global
+// BEFORE _rcNextNumber() first refreshes it from _getMSCycles(), so it must already carry
+// every term or multi-year contracts mis-advance (+1 month). Keep in sync with MS_DEFAULT_CYCLES.
 var RC_CYCLES = {
-  monthly:    { label:'Monthly',    months:1 },
-  quarterly:  { label:'Quarterly',  months:3 },
-  biannual:   { label:'Bi-Annual',  months:6 },
-  annual:     { label:'Annual',     months:12 },
+  monthly:    { label:'Monthly',       months:1 },
+  quarterly:  { label:'Quarterly',     months:3 },
+  biannual:   { label:'Bi-Annual',     months:6 },
+  annual:     { label:'Annual (1 yr)', months:12 },
+  '2year':    { label:'2-Year',        months:24 },
+  '3year':    { label:'3-Year',        months:36 },
+  '5year':    { label:'5-Year',        months:60 },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
