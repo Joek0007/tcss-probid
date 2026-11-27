@@ -1575,9 +1575,12 @@ function buildPrintHTML(q, mode) {
   const envLabel = q.envLabel || (ENV_PRESETS[q.env] ? ENV_PRESETS[q.env].label : 'Office');
   const logoDataUrl = b.logoDataUrl || null;
 
-  // Proposal header logo/name block
+  // Proposal header logo/name block. r271: the DCC logo read ~17% small on quotes vs TCSS (different
+  // artwork proportions), so bump DCC's cap ~17% (60→70px / 200→235px); TCSS unchanged.
+  var _logoMaxH = b._isDCC ? 70 : 60;
+  var _logoMaxW = b._isDCC ? 235 : 200;
   const companyLogoBlock = logoDataUrl
-    ? '<img src="' + logoDataUrl + '" style="max-height:60px;max-width:200px;object-fit:contain" alt="' + escHtml(cname) + '">'
+    ? '<img src="' + logoDataUrl + '" style="max-height:'+_logoMaxH+'px;max-width:'+_logoMaxW+'px;object-fit:contain" alt="' + escHtml(cname) + '">'
     : '<div class="prop-company-name">' + escHtml(cname) + '</div>';
 
   // Executive Summary — reads actual line items to write specific, professional prose
