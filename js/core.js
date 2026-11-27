@@ -3027,6 +3027,40 @@ function delRow(id) {
   renderLI();
   calcTotals();
 }
+// Comment / note line — text only, never priced (mc/lh/qty = 0 → $0 in every total).
+function newComment(text) {
+  return { _id: nextLiId(), isComment:true, desc:text||'', cat:'', qty:0, unit:'', mc:0, lh:0, laborMult:1, laborRate:null, flatLabor:0 };
+}
+function addCommentRow() {
+  lineItems.push(newComment(''));
+  renderLI();
+  calcTotals();
+  if (typeof setQQDirty==='function') setQQDirty(true, 'Comment line added');
+  if (typeof updateQQStage3UI==='function') updateQQStage3UI();
+}
+// Drag-to-reorder the quote line items via SortableJS (already loaded app-wide; touch-friendly).
+// Handle = the ⠿ grip; on drop, rebuild lineItems in the new DOM order and re-render.
+function _wireLISort() {
+  if (typeof Sortable === 'undefined') return;
+  var body = document.getElementById('li-body'); if (!body) return;
+  if (body._sortable) { try { body._sortable.destroy(); } catch(e){} body._sortable = null; }
+  if (!lineItems || lineItems.length < 2) return;
+  try {
+    body._sortable = Sortable.create(body, {
+      handle:'.li-grip', draggable:'tr', animation:150,
+      ghostClass:'li-ghost', chosenClass:'li-chosen',
+      onEnd:function(){
+        var order = [].map.call(body.querySelectorAll('tr'), function(tr){ return tr.getAttribute('data-li'); }).filter(function(x){ return x!=null; });
+        var byId = {}; lineItems.forEach(function(it){ byId[it._id] = it; });
+        var next = order.map(function(id){ return byId[id]; }).filter(Boolean);
+        if (next.length !== lineItems.length) { renderLI(); return; }   // safety: bail + resync
+        lineItems = next;
+        renderLI(); calcTotals();
+        if (typeof setQQDirty==='function') setQQDirty(true, 'Line items reordered');
+      }
+    });
+  } catch(e){}
+}
 function renderLI() {
   const body = document.getElementById('li-body');
   if (!body) return;
@@ -3050,6 +3084,16 @@ function renderLI() {
     : '';
   let html = '';
   lineItems.forEach(function(item, i) {
+    var _grip = '<span class="li-grip" title="Drag to reorder" style="cursor:grab;color:#b0bec5;font-size:15px;margin-right:5px;touch-action:none;user-select:none">⠿</span>';
+    // Comment / note line — spans the grid, italic, not priced.
+    if (item.isComment) {
+      html += '<tr data-li="'+item._id+'" style="background:#fffdf3">'
+        + '<td style="white-space:nowrap">'+_grip+'<span style="font-size:13px" title="Comment line">💬</span></td>'
+        + '<td colspan="11"><input data-li="'+item._id+'" data-field="desc" value="'+escHtml(item.desc)+'" placeholder="Comment / note — not priced (shows on the quote)" style="width:100%;font-style:italic;color:#6d5a1f;border:1px dashed #e6d9a8;background:#fffef8"></td>'
+        + '<td><button class="btn btn-danger btn-sm" data-action="delRow" data-id="'+item._id+'">×</button></td>'
+      + '</tr>';
+      return;
+    }
     let unitMS;
     if (!item.mc) {
       unitMS = item.mc;
@@ -3061,8 +3105,8 @@ function renderLI() {
       unitMS = (_rate < 1) ? (item.mc / (1 - _rate)) : item.mc;
     }
     const totalMS = unitMS * item.qty;
-    html += '<tr>';
-    html += '<td style="color:#90a4ae;font-size:11px">' + (i+1) + '</td>';
+    html += '<tr data-li="'+item._id+'">';
+    html += '<td style="white-space:nowrap">' + _grip + '<span style="color:#90a4ae;font-size:11px">' + (i+1) + '</span></td>';
     html += '<td><input data-li="'+item._id+'" data-field="desc" value="'+escHtml(item.desc)+'" style="min-width:140px" placeholder="Description"></td>';
     html += '<td><input data-li="'+item._id+'" data-field="cat" value="'+escHtml(item.cat)+'" style="width:90px" placeholder="Category"></td>';
     html += '<td><input data-li="'+item._id+'" data-field="qty" type="number" value="'+item.qty+'" min="0" style="width:60px"></td>';
@@ -3104,6 +3148,7 @@ function renderLI() {
   });
   body.innerHTML = html;
   if (typeof renderDealRegPanel === 'function') renderDealRegPanel();   // r227: deal-reg discount panel stays in sync with the lines
+  if (typeof _wireLISort === 'function') _wireLISort();                 // r270: drag-to-reorder line items
 }
 function getLaborRate() {
   const el = document.getElementById('qq-lr');

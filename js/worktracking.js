@@ -9196,6 +9196,7 @@ document.addEventListener('click', function(e) {
     case 'emailSavedQuote': emailSavedQuote(id); break;
     case 'emailFromView': if(_viewingQuoteId) emailSavedQuote(_viewingQuoteId); break;
     case 'addRow': addRow(); break;
+    case 'addComment': if(typeof addCommentRow==='function') addCommentRow(); break;
     case 'delRow': delRow(id); break;
     case 'openCatalog': openCatalog(); break;
     case 'addFromCatalog': addFromCatalog(); break;

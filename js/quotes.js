@@ -111,6 +111,7 @@ async function emailInvoiceDirect() {
   function _metaRow(l,v){ return '<tr><td style="padding:3px 0;font-size:12px;color:#8a94a6;text-align:right;white-space:nowrap">'+l+'</td><td style="padding:3px 0 3px 18px;font-size:12.5px;color:#111827;text-align:right;white-space:nowrap;font-weight:700">'+v+'</td></tr>'; }
 
   var lineRows = lineItems.map(function(i){
+    if (i.isComment) { return i.desc ? '<tr><td colspan="4" style="padding:11px 0;border-bottom:1px solid #f0f1f3;font-size:12.5px;font-style:italic;color:#6b7280">'+esc(i.desc)+'</td></tr>' : ''; }
     var lt = parseFloat(i.unitPrice||i.mc||0)*parseFloat(i.qty||1);
     return '<tr>'
       +'<td style="padding:14px 0;border-bottom:1px solid #f0f1f3;font-size:13.5px;color:#1f2937">'+esc(i.desc||i.description||'')+'</td>'
@@ -1726,6 +1727,7 @@ function buildPrintHTML(q, mode) {
       if (showItems && q.items && q.items.length > 0) {
         rows += '<tr><td colspan="6" style="padding:6px 12px;background:#f8fafc;font-size:11px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px">Included Materials &amp; Scope</td></tr>';
         q.items.forEach(function(item, idx) {
+          if (item.isComment) { if (item.desc) rows += '<tr><td colspan="6" style="padding:6px 14px;font-style:italic;color:#555;font-size:12px;background:#fcfcfa">'+escHtml(item.desc)+'</td></tr>'; return; }
           if (!item.desc) return;
           var qty = parseFloat(item.qty)||0;
           rows += '<tr style="border-bottom:1px solid #f5f5f5">' +
@@ -1745,6 +1747,7 @@ function buildPrintHTML(q, mode) {
     var rows = '';
     let rowNum = 0;
     q.items.forEach(function(item) {
+      if (item.isComment) { if (item.desc) rows += '<tr><td colspan="6" style="padding:6px 14px;font-style:italic;color:#555;font-size:12px;background:#fcfcfa">'+escHtml(item.desc)+'</td></tr>'; return; }
       const qty = parseFloat(item.qty)||0;
       const mc  = parseFloat(item.mc)||0;
       const lh  = parseFloat(item.lh)||0;
@@ -1816,6 +1819,7 @@ function buildPrintHTML(q, mode) {
     var showHrs = !!q.showLaborHours;
     var matTot = 0, labTot = 0, rows = '', n = 0;
     q.items.forEach(function(item){
+      if (item.isComment) { if (item.desc) rows += '<tr><td colspan="6" style="padding:6px 14px;font-style:italic;color:#555;font-size:12px;background:#fcfcfa">'+escHtml(item.desc)+'</td></tr>'; return; }
       var qty = parseFloat(item.qty)||0, mc = parseFloat(item.mc)||0, lh = parseFloat(item.lh)||0;
       var unitSell = mc > 0 ? (_isMarkup ? mc*(1+margin) : (margin < 1 ? mc/(1-margin) : mc)) : 0;
       var matSell = unitSell * qty;
