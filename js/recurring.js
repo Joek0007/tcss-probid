@@ -1466,11 +1466,13 @@ function printRCInvoice(invId) {
 // DB.msSettings = { types:[], statuses:[], cycles:{} }
 var MS_DEFAULT_TYPES    = ['Phone Equipment','VoIP','Computer Services','IT Support','Security / Access Control','Camera System','Network Maintenance','Cabling Maintenance','Audio / Visual','Other'];
 var MS_DEFAULT_STATUSES = ['active','paused','cancelled']; // 'expired' is system-driven only
-var MS_DEFAULT_CYCLES   = {monthly:{label:'Monthly',months:1},quarterly:{label:'Quarterly',months:3},biannual:{label:'Bi-Annual',months:6},annual:{label:'Annual',months:12}};
+var MS_DEFAULT_CYCLES   = {monthly:{label:'Monthly',months:1},quarterly:{label:'Quarterly',months:3},biannual:{label:'Bi-Annual',months:6},annual:{label:'Annual (1 yr)',months:12},'2year':{label:'2-Year',months:24},'3year':{label:'3-Year',months:36},'5year':{label:'5-Year',months:60}};
 
 function _getMSTypes()    { return (DB.msSettings&&DB.msSettings.types&&DB.msSettings.types.length)    ? DB.msSettings.types    : MS_DEFAULT_TYPES; }
 function _getMSStatuses() { return (DB.msSettings&&DB.msSettings.statuses&&DB.msSettings.statuses.length) ? DB.msSettings.statuses : MS_DEFAULT_STATUSES; }
-function _getMSCycles()   { return (DB.msSettings&&DB.msSettings.cycles&&Object.keys(DB.msSettings.cycles).length) ? DB.msSettings.cycles : MS_DEFAULT_CYCLES; }
+// Merge defaults with any stored cycles so the multi-year terms always appear even if a prior
+// settings save stored only the original four. Stored entries win on label; defaults fill gaps.
+function _getMSCycles()   { return Object.assign({}, MS_DEFAULT_CYCLES, (DB.msSettings&&DB.msSettings.cycles)||{}); }
 
 // ── Line item drag to reorder ─────────────────────────────────────────────────
 var _rcLiDragIdx = null;
