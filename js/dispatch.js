@@ -109,6 +109,7 @@ function _saveJobToWO(job) {
   if (typeof _sb !== 'undefined' && _sb) {
     _sb.from('work_orders').update({
       assigned_techs: wo.assignedTechs,
+      assigned_tech_ids: _woTechIds(wo.assignedTechs),
       status: wo.status||null,
       scheduled_date: wo.scheduledDate||null,
       scheduled_time: wo.scheduledTime||null,
@@ -201,7 +202,7 @@ function dispatchPoolCardDrop(e, woId) {
 
   // Sync to Supabase
   if (typeof _sb !== 'undefined' && _sb) {
-    _sb.from('work_orders').update({ assigned_techs: wo.assignedTechs })
+    _sb.from('work_orders').update({ assigned_techs: wo.assignedTechs, assigned_tech_ids: _woTechIds(wo.assignedTechs) })
       .eq('id', wo.id).then(function(r){
         if (r && r.error) console.warn('[Dispatch] assign error:', r.error.message);
       });
@@ -294,7 +295,7 @@ function dispatchResetWO(e) {
   setWOStatus(wo, 'New', {noSave:true, noPush:true}); wo.scheduledDate=''; wo.scheduledTime=''; wo.assignedTechs=[];
   saveDB();
   if (typeof _sb!=='undefined' && _sb) {
-    _sb.from('work_orders').update({status:wo.status,scheduled_date:null,scheduled_time:null,assigned_techs:[]}).eq('id',wo.id).then(function(){});
+    _sb.from('work_orders').update({status:wo.status,scheduled_date:null,scheduled_time:null,assigned_techs:[],assigned_tech_ids:[]}).eq('id',wo.id).then(function(){});
   }
   showToast('WO reset to New — moved to Unscheduled','success',3000);
   renderDispatchBoard();

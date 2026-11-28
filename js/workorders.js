@@ -3583,6 +3583,7 @@ async function _pushWOToCloud(wo) {
       internal_notes:wo.internalNotes||null,
       invoice_id:    wo.invoiceId||null,
       assigned_techs:wo.assignedTechs||[],
+      assigned_tech_ids:_woTechIds(wo.assignedTechs),
       created_by:    wo.createdBy||_currentUser.id,
       created_by_name:wo.createdByName||null,
       updated_at:     new Date().toISOString(),
@@ -3995,6 +3996,17 @@ function clearAllTeamModal() {
   });
 }
 
+// r283 — assignment folds into the notification engine. The server `wo/assigned` trigger
+// fires on work_orders.assigned_tech_ids; assignedTechs stores NAMES, so map name→team id at
+// every work_orders push site. Tolerates string or {name} entries; unknown names are dropped.
+function _woTechIds(names){
+  return (names||[]).map(function(n){
+    var nm = (typeof n==='string') ? n : (n && n.name) || '';
+    var m = (DB.team||[]).find(function(t){ return t && t.name===nm; });
+    return m ? m.id : null;
+  }).filter(Boolean);
+}
+
 function saveTeamModal() {
   // Capture final state of checkboxes
   document.querySelectorAll('#team-modal-list input[type="checkbox"]').forEach(function(cb){
@@ -4020,7 +4032,7 @@ function saveTeamModal() {
   saveDB();
   // Push to Supabase
   if (_sb && _currentUser) {
-    _sb.from('work_orders').update({assigned_techs:wo.assignedTechs}).eq('id',wo.id).then(function(){});
+    _sb.from('work_orders').update({assigned_techs:wo.assignedTechs, assigned_tech_ids:_woTechIds(wo.assignedTechs)}).eq('id',wo.id).then(function(){});
   }
 
   // Sync newly added techs to calendar + send notifications
