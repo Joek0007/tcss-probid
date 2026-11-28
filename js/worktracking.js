@@ -189,29 +189,40 @@ function wtReadNotif(id, source, rawId, projectId, refMod, refId) {
   }
 }
 
-// r145 — route a tapped engine notification to its source record. Guarded so a user who can't
-// access the target page (or a module without a record opener) simply no-ops instead of breaking.
-// Modules today: po (openPO), wo (openWorkOrder), rfq (openRFQ), quote (viewQuote — r275, surfaces the
-// customer's change-request note via _loadSignedApproval), tool (Tools page — rec_id is the loan row),
-// expense (Expenses page — r276; list, no single-record opener). Id-less or opener-less → land on page.
+// r277 — CENTRAL module → deep-link map (the ONE source of truth for "a tapped bell opens its record").
+// Adding a module takes exactly ONE entry here, plus a trigger that stamps ref_module on the bell.
+// This mapping is shared by EVERY rule of a module, so creating new notification rules never needs any
+// wiring. `opener(id)` opens the exact record when an id is present AND an opener exists; otherwise we
+// land on the module's page — never a dead tap. Unknown module → no-op (a future module = one line here).
+//   NOTE: `job` maps to Work Orders (the live data model is quotes→WOs; the jobs table is frozen).
+//   quote → viewQuote (detail shows the customer's change note via _loadSignedApproval).
+//   inv/ct → land on their page for now (single-record openers are a later nicety); contact/customer →
+//   openCustomerProfile when the id is a customer.
+function _notifModuleMap(){
+  var F = function(n){ return (typeof window[n]==='function') ? window[n] : null; };
+  return {
+    po:       { page:'purchaseorders', opener:F('openPO') },
+    wo:       { page:'workorders',     opener:F('openWorkOrder') },
+    job:      { page:'workorders',     opener:F('openWorkOrder') },   // jobs → work orders (jobs table frozen)
+    rfq:      { page:'rfq',            opener:F('openRFQ') },
+    quote:    { page:'quotes',         opener:F('viewQuote') },
+    inv:      { page:'invoices',       opener:F('openInvoice') },     // opener optional → land on Invoices
+    ct:       { page:'contracts',      opener:F('openContract') },    // opener optional → land on Contracts
+    contact:  { page:'customers',      opener:null },                 // ref_id may be a contact → land on Customers
+    customer: { page:'customers',      opener:F('openCustomerProfile') },
+    tool:     { page:'tools',          opener:null },                 // rec_id is the loan row — land on page
+    expense:  { page:'expenses',       opener:null }
+  };
+}
 function wtOpenNotifTarget(mod, id){
   try {
     var panel = document.getElementById('notif-panel'); if(panel) panel.classList.remove('open');
     var canPage = (typeof _canAccessPage==='function') ? _canAccessPage : function(){ return true; };
-    // r276: land on the module's page; open the exact record only when we have its id AND an opener.
-    // Record-less targets (tool, expense) and id-less alerts simply land on the page — never a dead tap.
-    // quote → viewQuote opens the detail where _loadSignedApproval shows the customer's change note (r275).
-    function _go(page, opener){
-      if (!canPage(page)) return;
-      goPage(page);
-      if (id && typeof opener==='function') setTimeout(function(){ try{ opener(id); }catch(e){} }, 300);
-    }
-    if      (mod==='po')      _go('purchaseorders', typeof openPO==='function'       ? openPO       : null);
-    else if (mod==='wo')      _go('workorders',     typeof openWorkOrder==='function'? openWorkOrder: null);
-    else if (mod==='rfq')     _go('rfq',            typeof openRFQ==='function'      ? openRFQ      : null);
-    else if (mod==='quote')   _go('quotes',         typeof viewQuote==='function'    ? viewQuote    : null);
-    else if (mod==='tool')    _go('tools',   null);    // the tool trigger's rec_id is the loan row — land on the page
-    else if (mod==='expense') _go('expenses', null);   // expenses is a page/list — no single-record opener
+    var m = _notifModuleMap()[mod];
+    if (!m) return;                                   // unknown module → no-op (future module = one map entry)
+    if (!canPage(m.page)) return;
+    goPage(m.page);
+    if (id && typeof m.opener==='function') setTimeout(function(){ try{ m.opener(id); }catch(e){} }, 300);
   } catch(e){ /* never let a tap throw */ }
 }
 window.wtOpenNotifTarget = wtOpenNotifTarget;
