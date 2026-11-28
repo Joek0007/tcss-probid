@@ -245,7 +245,18 @@
       recipients:[ _RE('owner','Owner'), _RE('back_office','Back Office') ] },
     { name:'Tool overdue → office', module:'tool', event:'date', status:'',
       subject:'⏰ Tool overdue', body:'A tool is overdue ({customer}) — was due {due_date}.',
-      recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] }
+      recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] },
+    // r287 — the last two event types. 'updated' is wired ONLY as the useful, unambiguous case:
+    // a WO gets RESCHEDULED → the assigned tech needs the new time (trg_notif_wo_reschedule on
+    // scheduled_date/time; reuses the dispatch infra). Blanket "notify on any field edit" is a
+    // noise trap and is intentionally NOT wired. 'comment' = a WO internal/field-log comment
+    // (trg_notif_wo_comment already live on both DBs) → office.
+    { name:'WO rescheduled → tech', module:'wo', event:'updated', status:'', urgent:true,
+      subject:'🔄 {number} rescheduled', body:'🔄 Schedule change — {dispatch}',
+      recipients:[ { cat:'ctx', id:'assigned', label:'Assigned tech', ch:{ sms:1, bell:1 } } ] },
+    { name:'WO comment → office', module:'wo', event:'comment', status:'',
+      subject:'💬 Comment on {number}', body:'{author} commented on {number}: {comment}',
+      recipients:[ _R('owner','Owner'), _R('manager','Manager'), _R('back_office','Back Office') ] }
   ];
   // Seeds missing defaults ONCE. Fully idempotent: per-rule it skips any (module,event,status) that
   // already exists, so a company that configured its own rules is never duplicated or overwritten.
@@ -258,12 +269,13 @@
   // r281: bumped 2→3 so seeded tenants pick up the new "created" rules.
   // r284: bumped 3→4 so seeded tenants pick up the new "WO assigned → tech" rule (engine fold-in).
   // r286: bumped 4→5 so seeded tenants pick up the 5 date/overdue reminder rules.
-  function _seedFlagGet(){ try{ return (typeof DB!=='undefined' && DB.settings && Number(DB.settings.notifDefaultsSeededV)>=5); }catch(e){ return false; } }
+  // r287: bumped 5→6 so seeded tenants pick up WO rescheduled ('updated') + WO comment rules.
+  function _seedFlagGet(){ try{ return (typeof DB!=='undefined' && DB.settings && Number(DB.settings.notifDefaultsSeededV)>=6); }catch(e){ return false; } }
   async function _seedFlagSet(){
     try{
       if(typeof DB==='undefined') return;
       if(!DB.settings) DB.settings={};
-      DB.settings.notifDefaultsSeededV = 5;
+      DB.settings.notifDefaultsSeededV = 6;
       try{ if(typeof saveDB==='function') saveDB(); }catch(e){}
       if(typeof _settingsMergePush==='function') await _settingsMergePush();
       else if(typeof _pushSettingsToCloud==='function') await _pushSettingsToCloud();
