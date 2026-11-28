@@ -219,7 +219,15 @@
       recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] },
     { name:'New RFQ created → office', module:'rfq', event:'created', status:'',
       subject:'🆕 RFQ {number} created', body:'{author} created RFQ {number}.',
-      recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] }
+      recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] },
+    // r284 — WO assigned → the assigned tech. Folds the client dispatch SMS into the engine.
+    // Recipient = the tech just assigned (ctx/assigned, resolved server-side by team id).
+    // body='{dispatch}' = the exact dispatch text built by fn_build_dispatch_sms in the trigger.
+    // urgent:true → bypasses quiet-hours (sends immediately, matching the old client behavior;
+    // an admin can turn urgent off per-rule to make dispatch texts respect quiet hours).
+    { name:'WO assigned → tech', module:'wo', event:'assigned', status:'', urgent:true,
+      subject:'You were assigned {number}', body:'{dispatch}',
+      recipients:[ { cat:'ctx', id:'assigned', label:'Assigned tech', ch:{ sms:1, bell:1 } } ] }
   ];
   // Seeds missing defaults ONCE. Fully idempotent: per-rule it skips any (module,event,status) that
   // already exists, so a company that configured its own rules is never duplicated or overwritten.
@@ -230,12 +238,13 @@
   // r274: bumped 1→2 so already-seeded tenants pick up the new Quote rules. The per-rule
   // (module,event,status) exists-check below still guards against duplicating anything.
   // r281: bumped 2→3 so seeded tenants pick up the new "created" rules.
-  function _seedFlagGet(){ try{ return (typeof DB!=='undefined' && DB.settings && Number(DB.settings.notifDefaultsSeededV)>=3); }catch(e){ return false; } }
+  // r284: bumped 3→4 so seeded tenants pick up the new "WO assigned → tech" rule (engine fold-in).
+  function _seedFlagGet(){ try{ return (typeof DB!=='undefined' && DB.settings && Number(DB.settings.notifDefaultsSeededV)>=4); }catch(e){ return false; } }
   async function _seedFlagSet(){
     try{
       if(typeof DB==='undefined') return;
       if(!DB.settings) DB.settings={};
-      DB.settings.notifDefaultsSeededV = 3;
+      DB.settings.notifDefaultsSeededV = 4;
       try{ if(typeof saveDB==='function') saveDB(); }catch(e){}
       if(typeof _settingsMergePush==='function') await _settingsMergePush();
       else if(typeof _pushSettingsToCloud==='function') await _pushSettingsToCloud();
@@ -253,7 +262,7 @@
         var exists=_rules.some(function(r){ return r.module===d.module && r.event===d.event && (r.status||'')===(d.status||''); });
         if(exists) continue;
         var ok=await nrSaveRule({ name:d.name, enabled:true, module:d.module, event:d.event, status:d.status,
-          conditions:[], recipients:d.recipients, subject:d.subject, body:d.body, simple:true, urgent:false, digest:false });
+          conditions:[], recipients:d.recipients, subject:d.subject, body:d.body, simple:true, urgent:!!d.urgent, digest:false });
         if(ok) added++;
       }
       await _seedFlagSet();                            // mark seeded (persists to cloud settings_json)

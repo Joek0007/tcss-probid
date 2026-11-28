@@ -4038,39 +4038,12 @@ function saveTeamModal() {
   // Sync newly added techs to calendar + send notifications
   var newlyAdded = _assigned.filter(function(n){ return prev.indexOf(n)<0; });
 
-  // Send SMS FIRST before any other calls that may throw errors
-  if (newlyAdded.length && typeof sendSMS === 'function') {
-    if (!wo.smsNotified) wo.smsNotified = [];
-    newlyAdded.forEach(function(techName) {
-      if (wo.smsNotified.indexOf(techName) >= 0) return;
-      var member = (DB.team||[]).find(function(m){ return m.name===techName; });
-      if (!member || !member.phone || member.smsEnabled === false) return;
-      // Claim this tech as notified IMMEDIATELY (synchronously), before the async
-      // sendSMS() call. This closes the race window where a second trigger path
-      // (e.g. the Dispatch Board's _saveJobToWO) could fire its own duplicate
-      // text for the same tech while this send is still in flight.
-      wo.smsNotified.push(techName);
-      saveDB();
-      var msg = (typeof buildDispatchSMS==='function') ? buildDispatchSMS({
-        customer: wo.customerName,
-        jobName:  '',
-        woNumber: wo.woNumber,
-        address:  (wo.siteAddr||'') + (wo.siteCity ? ((wo.siteAddr?', ':'')+wo.siteCity) : ''),
-        date:     wo.scheduledDate,
-        time:     wo.scheduledTime,
-        note:     wo.dispatchNotes
-      }) : ('TCSS Dispatch: '+(wo.woNumber||'WO')+' | '+(wo.customerName||'')+'\nReply STOP to opt out.');
-      sendSMS(member.phone, msg).then(function(ok){
-        if (!ok) {
-          // Send actually failed (e.g. insufficient credit) — un-claim so a
-          // future re-trigger can retry instead of silently staying "notified".
-          var idx = wo.smsNotified.indexOf(techName);
-          if (idx >= 0) wo.smsNotified.splice(idx, 1);
-          saveDB();
-        }
-      });
-    });
-  }
+  // r284 — the assignment dispatch SMS now flows through the ONE notification engine
+  // (work_orders.assigned_tech_ids → trg_notif_wo_assigned → fn_notif_dispatch →
+  // notification_outbox → notify-dispatch). The client no longer sends it directly; the
+  // "WO assigned → tech" rule owns recipients, channels and quiet-hours. The manual
+  // "send dispatch SMS now" button (dispatch.js dispatchSendSMS) is a deliberate on-demand
+  // action and STAYS client-side. (wo.smsNotified left intact for back-compat; not written here.)
 
   try { if (newlyAdded.length) wtSyncWOTechsToCalendar(wo, newlyAdded); } catch(e) { console.warn('[WO] calendar sync error:', e.message); }
 

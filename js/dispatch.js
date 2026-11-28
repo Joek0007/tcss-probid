@@ -118,42 +118,10 @@ function _saveJobToWO(job) {
       if (r && r.error) console.warn('[Dispatch] WO update error:', r.error.message);
     });
   }
-  // Send SMS only to newly added techs who haven't been notified yet.
-  // wo.smsNotified is shared with the workorders.js assignment path — checking
-  // it here too prevents the same tech getting a duplicate text when both the
-  // Dispatch Board and the Work Order modal trigger off the same assignment.
-  if (typeof sendSMS === 'function') {
-    if (!wo.smsNotified) wo.smsNotified = [];
-    crew.forEach(function(c) {
-      // Skip if already notified for this WO (by either send path)
-      if (wo.smsNotified.indexOf(c.techName) >= 0) return;
-      var member = (DB.team||[]).find(function(m){ return m.name === c.techName; });
-      // Skip cleanly if the tech can't be found, has no phone on file, or opted out
-      if (!member || !member.phone || member.smsEnabled === false) return;
-      // Claim this tech as notified IMMEDIATELY (synchronously), before the async
-      // sendSMS() call, to close the race window against the workorders.js path.
-      wo.smsNotified.push(c.techName);
-      saveDB();
-      // Unified message (same builder the manual button + WO modal use)
-      var msg = buildDispatchSMS({
-        customer: wo.customerName || job.customer,
-        jobName:  job.name,
-        woNumber: wo.woNumber,
-        address:  (wo.siteAddr||'') + (wo.siteCity ? ((wo.siteAddr?', ':'')+wo.siteCity) : ''),
-        date:     wo.scheduledDate,
-        time:     wo.scheduledTime,
-        note:     wo.dispatchNotes || job.dispatchNotes
-      });
-      sendSMS(member.phone, msg).then(function(ok){
-        if (!ok) {
-          // Send actually failed — un-claim so a future re-trigger can retry.
-          var idx = wo.smsNotified.indexOf(c.techName);
-          if (idx >= 0) wo.smsNotified.splice(idx, 1);
-          saveDB();
-        }
-      });
-    });
-  }
+  // r284 — the dispatch SMS for a newly-assigned tech now flows through the ONE
+  // notification engine (this update wrote assigned_tech_ids above → trg_notif_wo_assigned
+  // → fn_notif_dispatch → notification_outbox). The Dispatch Board no longer sends it
+  // directly, same as the WO modal. The manual "send dispatch SMS now" button stays.
 }
 
 
