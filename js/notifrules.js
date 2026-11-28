@@ -23,7 +23,9 @@
     {key:'wo',   label:'Work Order',     emoji:'🔧', statuses:['New','Scheduled','In Progress','Ready for Review','On Hold','Closed']},
     {key:'po',   label:'Purchase Order', emoji:'📦', statuses:['Draft','Pending Approval','Ordered','Partially Received','Received','Ready to Pay','Packing Slip Received','Closed']},
     {key:'rfq',  label:'Request for Quote', emoji:'📝', statuses:['Draft','Sent','Quoting','Quoted','Awarded','Converted','Closed']},
-    {key:'inv',  label:'Invoice',        emoji:'🧾', statuses:['Draft','Sent','Partially Paid','Paid','Overdue','Void']},
+    // r278: these MUST be the RAW stored app_invoices.status values (lowercase) so a rule matches what
+    // fn_notif_inv_status emits (NEW.status). 'overdue' is DERIVED (not stored) → it's a date event, not a status.
+    {key:'inv',  label:'Invoice',        emoji:'🧾', statuses:['draft','sent','unpaid','partial','paid','void']},
     {key:'quote',label:'Quote',          emoji:'📄', statuses:['Draft','Sent','Approved','Changes Requested','Won','Lost']},
     {key:'job',  label:'Job / Project',  emoji:'🏗️', statuses:['Open','In Progress','On Hold','Complete']},
     {key:'ct',   label:'Contract',       emoji:'📜', statuses:['Draft','Active','Expiring','Expired']},
