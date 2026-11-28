@@ -196,8 +196,8 @@ function wtReadNotif(id, source, rawId, projectId, refMod, refId) {
 // land on the module's page — never a dead tap. Unknown module → no-op (a future module = one line here).
 //   NOTE: `job` maps to Work Orders (the live data model is quotes→WOs; the jobs table is frozen).
 //   quote → viewQuote (detail shows the customer's change note via _loadSignedApproval).
-//   inv/ct → land on their page for now (single-record openers are a later nicety); contact/customer →
-//   openCustomerProfile when the id is a customer.
+//   inv → reprintInvoice (opens the invoice editor; r280). ct → openRCDetail (Managed Services contract).
+//   contact/customer → openCustomerProfile when the id is a customer.
 function _notifModuleMap(){
   var F = function(n){ return (typeof window[n]==='function') ? window[n] : null; };
   return {
@@ -206,7 +206,7 @@ function _notifModuleMap(){
     job:      { page:'workorders',     opener:F('openWorkOrder') },   // jobs → work orders (jobs table frozen)
     rfq:      { page:'rfq',            opener:F('openRFQ') },
     quote:    { page:'quotes',         opener:F('viewQuote') },
-    inv:      { page:'invoices',       opener:F('openInvoice') },     // opener optional → land on Invoices
+    inv:      { page:'invoices',       opener:F('reprintInvoice') },  // r280 — opens the invoice editor (reprintInvoice has a fetch-by-id fallback for not-in-memory ids)
     ct:       { page:'recurring',       opener:F('openRCDetail') },    // r279 — 'Contract' = Managed Services (recurring_contracts); opens the contract detail
     contact:  { page:'customers',      opener:null },                 // ref_id may be a contact → land on Customers
     customer: { page:'customers',      opener:F('openCustomerProfile') },
