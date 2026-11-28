@@ -257,13 +257,26 @@
     try{
       await nrLoad();                                 // fresh cloud snapshot of existing rules
       var added=0;
+      // r285: build the missing-default rows, then UPSERT once on seed_key with
+      // ignoreDuplicates — concurrency-safe. Two tabs seeding at the same moment both
+      // target the same stable seed_key ('d:<module>:<event>:<status>'), and the DB's
+      // UNIQUE(seed_key) index collapses them to one row (no more seed-race duplicates).
+      // The (module,event,status) exists-check still runs first, so a default the user
+      // deliberately deleted/replaced is never re-added.
+      var _seedRows=[];
       for(var i=0;i<NR_DEFAULTS.length;i++){
         var d=NR_DEFAULTS[i];
         var exists=_rules.some(function(r){ return r.module===d.module && r.event===d.event && (r.status||'')===(d.status||''); });
         if(exists) continue;
-        var ok=await nrSaveRule({ name:d.name, enabled:true, module:d.module, event:d.event, status:d.status,
-          conditions:[], recipients:d.recipients, subject:d.subject, body:d.body, simple:true, urgent:!!d.urgent, digest:false });
-        if(ok) added++;
+        _seedRows.push({ name:d.name, enabled:true, module:d.module, event:d.event, status:d.status||'',
+          conditions:[], recipients:d.recipients, subject:d.subject, body:d.body, simple:true, urgent:!!d.urgent, digest:false,
+          seed_key:'d:'+d.module+':'+d.event+':'+(d.status||''), created_by:_me(), updated_at:new Date().toISOString() });
+      }
+      if(_seedRows.length){
+        var up=await sb.from('notification_rules').upsert(_seedRows,{onConflict:'seed_key',ignoreDuplicates:true}).select();
+        if(up.error) throw up.error;
+        (up.data||[]).forEach(function(r){ _rules.push(_fromRow(r)); });
+        added=(up.data||[]).length;
       }
       await _seedFlagSet();                            // mark seeded (persists to cloud settings_json)
       if(added>0) console.log('[notifrules] seeded '+added+' default rule(s)');
@@ -339,13 +352,41 @@
     '<div id="nr-list"></div>';
   }
 
+  // r285 — DEAD-RULE LINTER. An ENABLED status-event rule whose status isn't a real
+  // status for its module can NEVER fire (the trigger emits the stored vocab) — exactly
+  // the invoice "Paid" vs stored "paid" bug (fixed r278) and contract (r279). We only lint
+  // modules whose status vocab is CONFIRMED correct, to keep this high-precision (no false
+  // alarms): inv/ct (pinned r278/r279), quote (quote_status enum), po (app-set literals),
+  // tool (raw enum). wo + rfq are EXCLUDED until the Phase-3 status-vocab audit confirms them.
+  var _VOCAB_AUTHORITATIVE = {inv:1, ct:1, quote:1, po:1, tool:1};
+  function _deadRules(){
+    return _rules.filter(function(ru){
+      if(!ru.enabled || ru.event!=='status' || ru.module==='any') return false;
+      if(!_VOCAB_AUTHORITATIVE[ru.module]) return false;
+      var st=(ru.status||''); if(!st) return false;            // blank = any status, always matchable
+      return (modStatuses(ru.module)||[]).indexOf(st)<0;
+    });
+  }
+  function _healthBannerHTML(){
+    var dead=_deadRules(); if(!dead.length) return '';
+    var items=dead.map(function(ru){
+      return '<button class="nr-dead-item" onclick="nrOpenBuilder(\''+ru.id+'\')">'+esc(ru.name||'(unnamed rule)')+
+        ' <span>— '+esc(mod(ru.module).label)+' has no status “'+esc(ru.status)+'”</span></button>';
+    }).join('');
+    return '<div class="nr-health">'+
+      '<div class="nr-health-h">⚠ '+dead.length+' rule'+(dead.length>1?'s':'')+' may never fire</div>'+
+      '<div class="nr-health-b">These are turned ON, but their status isn’t one the module actually uses — so the trigger can never match them. Click to fix the status:</div>'+
+      '<div class="nr-health-list">'+items+'</div></div>';
+  }
+
   function renderList(){
     var host=document.getElementById('nr-list'); if(!host) return;
     var an=document.getElementById('nr-all-n'); if(an) an.textContent=_rules.length;
-    if(!_rules.length){ host.innerHTML='<div class="nr-empty">No rules yet. Click <b>+ New rule</b> to create your first alert.</div>'; return; }
+    var bn=_healthBannerHTML();   // r285 dead-rule health check (shown above the list)
+    if(!_rules.length){ host.innerHTML=bn+'<div class="nr-empty">No rules yet. Click <b>+ New rule</b> to create your first alert.</div>'; return; }
     var list=_rules.filter(function(ru){ return matchSearch(ru)&&matchFilter(ru); });
-    if(!list.length){ host.innerHTML='<div class="nr-empty">No rules match your search or filter.</div>'; return; }
-    if(_group==='none'){ host.innerHTML=list.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(ruleCardHTML).join(''); return; }
+    if(!list.length){ host.innerHTML=bn+'<div class="nr-empty">No rules match your search or filter.</div>'; return; }
+    if(_group==='none'){ host.innerHTML=bn+list.slice().sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(ruleCardHTML).join(''); return; }
     var groups=[], idx={};
     function gpush(key,label,icon,ru){ var g=idx[key]; if(!g){g={key:key,label:label,icon:icon,rules:[]};idx[key]=g;groups.push(g);} g.rules.push(ru); }
     var chMeta={email:['Email','✉️'],sms:['Text','💬'],bell:['In-app','🔔'],none:['No channel yet','—']};
@@ -358,7 +399,7 @@
     });
     if(_group==='module'){ var ord=MODULES.map(function(m){return m.key;}); groups.sort(function(a,b){return ord.indexOf(a.key)-ord.indexOf(b.key);}); }
     else if(_group==='recipient'){ groups.sort(function(a,b){return b.rules.length-a.rules.length;}); }
-    host.innerHTML=groups.map(function(g){
+    host.innerHTML=bn+groups.map(function(g){
       var col=!!_collapsed[g.key];
       return '<div class="nr-grp'+(col?' collapsed':'')+'">'+
         '<div class="nr-gh" onclick="nrToggleGroup(\''+String(g.key).replace(/\\/g,'').replace(/'/g,'')+'\')"><span class="nr-ghic">'+g.icon+'</span><span class="nr-ght">'+esc(g.label)+'</span><span class="nr-ghn">'+g.rules.length+'</span><span class="nr-ghc">▾</span></div>'+
@@ -531,6 +572,13 @@
     s.textContent = [
       '#page-notifrules{--nra:#1565c0;--nrline:#e4ebf2;--nrink:#15314e;--nrink2:#5a7085;--nrbg:#f5f8fc;--nrcard:#fff}',
       '#nr-root{max-width:900px;margin:0 auto}',
+      '.nr-health{background:#fff8e1;border:1px solid #ffe0a3;border-left:4px solid #f0a500;border-radius:10px;padding:12px 14px;margin:0 0 14px}',
+      '.nr-health-h{font-weight:800;color:#8a5a00;font-size:14px;margin-bottom:3px}',
+      '.nr-health-b{font-size:12.5px;color:#7a6020;margin-bottom:9px;max-width:680px}',
+      '.nr-health-list{display:flex;flex-direction:column;gap:6px}',
+      '.nr-dead-item{text-align:left;background:#fff;border:1px solid #ffe0a3;border-radius:8px;padding:7px 11px;cursor:pointer;font-size:13px;font-weight:700;color:#8a5a00}',
+      '.nr-dead-item:hover{border-color:#f0a500;background:#fffdf7}',
+      '.nr-dead-item span{font-weight:500;color:#9a7b3a}',
       '.nr-head{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-bottom:14px}',
       '.nr-h-t{flex:1;min-width:240px}.nr-h-t h2{margin:0 0 3px;font-size:22px;color:var(--nrink)}.nr-h-t p{margin:0;font-size:13px;color:var(--nrink2);max-width:620px}',
       '.nr-h-btns{display:flex;gap:8px;flex-wrap:wrap}',
