@@ -227,7 +227,25 @@
     // an admin can turn urgent off per-rule to make dispatch texts respect quiet hours).
     { name:'WO assigned → tech', module:'wo', event:'assigned', status:'', urgent:true,
       subject:'You were assigned {number}', body:'{dispatch}',
-      recipients:[ { cat:'ctx', id:'assigned', label:'Assigned tech', ch:{ sms:1, bell:1 } } ] }
+      recipients:[ { cat:'ctx', id:'assigned', label:'Assigned tech', ch:{ sms:1, bell:1 } } ] },
+    // r286 — date / overdue reminders. Fired by the daily sweep `fn_notif_date_sweep()` (pg_cron)
+    // as event='date'. urgent:false → these RESPECT quiet hours (not time-critical like a dispatch).
+    // {due_date}/{date} come from the sweep's p_ctx. Admin can add SMS or change recipients per rule.
+    { name:'Invoice overdue → office', module:'inv', event:'date', status:'',
+      subject:'⏰ Invoice {number} is overdue', body:'Invoice {number} ({customer}) is past due (was due {due_date}).',
+      recipients:[ _RE('owner','Owner'), _RE('back_office','Back Office') ] },
+    { name:'Quote follow-up due → rep/office', module:'quote', event:'date', status:'',
+      subject:'⏰ Follow up on {number}', body:'Time to follow up on quote {number} ({customer}).',
+      recipients:[ { cat:'ctx', id:'owner_rec', label:'Record owner / creator', ch:{ bell:1 } }, _R('manager','Manager') ] },
+    { name:'RFQ need-by approaching → office', module:'rfq', event:'date', status:'',
+      subject:'⏰ RFQ {number} need-by', body:'RFQ {number} is due by {due_date}.',
+      recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] },
+    { name:'Contract expiring → office', module:'ct', event:'date', status:'',
+      subject:'⏰ Contract {number} expiring', body:'Managed-services contract {number} ({customer}) expires {due_date}.',
+      recipients:[ _RE('owner','Owner'), _RE('back_office','Back Office') ] },
+    { name:'Tool overdue → office', module:'tool', event:'date', status:'',
+      subject:'⏰ Tool overdue', body:'A tool is overdue ({customer}) — was due {due_date}.',
+      recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] }
   ];
   // Seeds missing defaults ONCE. Fully idempotent: per-rule it skips any (module,event,status) that
   // already exists, so a company that configured its own rules is never duplicated or overwritten.
@@ -239,12 +257,13 @@
   // (module,event,status) exists-check below still guards against duplicating anything.
   // r281: bumped 2→3 so seeded tenants pick up the new "created" rules.
   // r284: bumped 3→4 so seeded tenants pick up the new "WO assigned → tech" rule (engine fold-in).
-  function _seedFlagGet(){ try{ return (typeof DB!=='undefined' && DB.settings && Number(DB.settings.notifDefaultsSeededV)>=4); }catch(e){ return false; } }
+  // r286: bumped 4→5 so seeded tenants pick up the 5 date/overdue reminder rules.
+  function _seedFlagGet(){ try{ return (typeof DB!=='undefined' && DB.settings && Number(DB.settings.notifDefaultsSeededV)>=5); }catch(e){ return false; } }
   async function _seedFlagSet(){
     try{
       if(typeof DB==='undefined') return;
       if(!DB.settings) DB.settings={};
-      DB.settings.notifDefaultsSeededV = 4;
+      DB.settings.notifDefaultsSeededV = 5;
       try{ if(typeof saveDB==='function') saveDB(); }catch(e){}
       if(typeof _settingsMergePush==='function') await _settingsMergePush();
       else if(typeof _pushSettingsToCloud==='function') await _pushSettingsToCloud();
