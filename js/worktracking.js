@@ -207,7 +207,7 @@ function _notifModuleMap(){
     rfq:      { page:'rfq',            opener:F('openRFQ') },
     quote:    { page:'quotes',         opener:F('viewQuote') },
     inv:      { page:'invoices',       opener:F('openInvoice') },     // opener optional → land on Invoices
-    ct:       { page:'contracts',      opener:F('openContract') },    // opener optional → land on Contracts
+    ct:       { page:'recurring',       opener:F('openRCDetail') },    // r279 — 'Contract' = Managed Services (recurring_contracts); opens the contract detail
     contact:  { page:'customers',      opener:null },                 // ref_id may be a contact → land on Customers
     customer: { page:'customers',      opener:F('openCustomerProfile') },
     tool:     { page:'tools',          opener:null },                 // rec_id is the loan row — land on page

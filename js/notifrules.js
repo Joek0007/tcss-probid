@@ -28,7 +28,9 @@
     {key:'inv',  label:'Invoice',        emoji:'🧾', statuses:['draft','sent','unpaid','partial','paid','void']},
     {key:'quote',label:'Quote',          emoji:'📄', statuses:['Draft','Sent','Approved','Changes Requested','Won','Lost']},
     {key:'job',  label:'Job / Project',  emoji:'🏗️', statuses:['Open','In Progress','On Hold','Complete']},
-    {key:'ct',   label:'Contract',       emoji:'📜', statuses:['Draft','Active','Expiring','Expired']},
+    // r279: 'Contract' = Managed Services (recurring_contracts). RAW stored status values (lowercase)
+    // so a rule matches what fn_notif_ct_status emits. ('expiring' is derived → a date event, not a status.)
+    {key:'ct',   label:'Contract (Managed Svc)', emoji:'📜', statuses:['active','cancelled','expired']},
     // 'tool' statuses are the RAW stored enum values (tool_status) so a rule's status
     // matches NEW.status::text in the fn_notif_tool_status trigger. Do NOT prettify
     // these strings here or matching breaks (same discipline as the WO status ids).
