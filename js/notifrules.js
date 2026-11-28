@@ -177,6 +177,10 @@
   // strings or you create a dead rule that never fires. PO 'Pending Approval'/'Ready to Pay' are set by
   // the app (purchaseorders.js) so those are safe literals. See the WORKFLOW-RULE project doc.
   function _R(id,label){ return { cat:'role', id:id, label:label, ch:{bell:1} }; }
+  // r274: bell+email role recipient (SMS stays opt-in — a person turns on their own text
+  // by enabling SMS on their Team profile; an admin ticks SMS on the rule). Keeps a fresh
+  // tenant from surprise-texting out of the box, while still emailing + belling the office.
+  function _RE(id,label){ return { cat:'role', id:id, label:label, ch:{bell:1, email:1} }; }
   var NR_DEFAULTS = [
     { name:'PO needs approval → approvers', module:'po', event:'status', status:'Pending Approval',
       subject:'PO {number} needs approval', body:'Purchase order {number} is waiting for approval.',
@@ -186,7 +190,17 @@
       recipients:[ _R('owner','Owner'), _R('manager','Manager'), _R('back_office','Back Office') ] },
     { name:'PO ready to pay → office', module:'po', event:'status', status:'Ready to Pay',
       subject:'PO {number} ready to pay', body:'Purchase order {number} is ready to pay.',
-      recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] }
+      recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] },
+    // r274 — Quote proposal response (folded out of the old hardwired triggers into the engine).
+    // Status strings MUST equal what fn_notif_quote_approval dispatches: 'Changes Requested' / 'Approved'.
+    { name:'Quote — changes requested → office', module:'quote', event:'status', status:'Changes Requested',
+      subject:'✏️ Changes requested — {number}',
+      body:'{customer} requested changes on {number}. {comment}',
+      recipients:[ _RE('owner','Owner'), _RE('manager','Manager'), _RE('back_office','Back Office') ] },
+    { name:'Quote — approved → office', module:'quote', event:'status', status:'Approved',
+      subject:'✅ Proposal {number} approved',
+      body:'{author} approved {number}.',
+      recipients:[ _RE('owner','Owner'), _RE('manager','Manager'), _RE('back_office','Back Office') ] }
   ];
   // Seeds missing defaults ONCE. Fully idempotent: per-rule it skips any (module,event,status) that
   // already exists, so a company that configured its own rules is never duplicated or overwritten.
@@ -194,12 +208,14 @@
   // property (it's a lexical global), so those helpers silently no-op for settings. We therefore
   // read/write the seeded flag directly on the global DB.settings and persist it with the SAME proven
   // path the working toggles use (_settingsMergePush), not sSet. (r176)
-  function _seedFlagGet(){ try{ return (typeof DB!=='undefined' && DB.settings && Number(DB.settings.notifDefaultsSeededV)>=1); }catch(e){ return false; } }
+  // r274: bumped 1→2 so already-seeded tenants pick up the new Quote rules. The per-rule
+  // (module,event,status) exists-check below still guards against duplicating anything.
+  function _seedFlagGet(){ try{ return (typeof DB!=='undefined' && DB.settings && Number(DB.settings.notifDefaultsSeededV)>=2); }catch(e){ return false; } }
   async function _seedFlagSet(){
     try{
       if(typeof DB==='undefined') return;
       if(!DB.settings) DB.settings={};
-      DB.settings.notifDefaultsSeededV = 1;
+      DB.settings.notifDefaultsSeededV = 2;
       try{ if(typeof saveDB==='function') saveDB(); }catch(e){}
       if(typeof _settingsMergePush==='function') await _settingsMergePush();
       else if(typeof _pushSettingsToCloud==='function') await _pushSettingsToCloud();

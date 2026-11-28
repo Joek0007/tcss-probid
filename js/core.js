@@ -4482,15 +4482,9 @@ function saveNotificationSettings(btn) {
     notifExpenseEnabled:  expenseEnabled !== '0',
     invLowStockWarn:      invEnabled !== '0',
     invLowStockDaily:     invEnabled !== '0',
-    // Client approval / changes notifications (read by the notify-quote-approval edge function)
-    notifyApprovalOn:     ((document.getElementById('ms-notif-approval-enabled')||{}).value) !== '0',
-    notifyChangesOn:      ((document.getElementById('ms-notif-changes-enabled')||{}).value) !== '0',
-    notifyQuoterOn:       ((document.getElementById('ms-notif-quoter-enabled')||{}).value) !== '0',
-    notifyQuoterEmail:    !!((document.getElementById('ms-notif-quoter-email')||{}).checked),
-    notifyQuoterSms:      !!((document.getElementById('ms-notif-quoter-sms')||{}).checked),
-    notifyRep:            ((document.getElementById('ms-notif-quoter-enabled')||{}).value) !== '0', // back-compat alias
-    notifyRecipients:     (typeof _readNotifyRecips==='function' ? _readNotifyRecips() : (DB.settings.notifyRecipients||[])),
-    notifyEmail:          '', // migrated into notifyRecipients
+    // r274: quote approval/changes recipients now live in the notification_rules engine
+    // (Settings → Notification Rules), not in these hardwired settings keys. The old keys are
+    // left untouched in storage (dormant) — the edge function that read them is retired.
     // Escalation — read by the run_quote_escalations() pg_cron job via company_settings.settings_json.
     // Fail-safe defaults (on / 24h / 48h) so a signed job can never sit unattended; someone must opt OUT.
     escalationOn:         ((document.getElementById('ms-notif-escalation-enabled')||{}).value) !== '0',
@@ -4613,17 +4607,7 @@ function loadNotificationSettings() {
   if (clockTime)  clockTime.value  = s.notifClockInTime || '07:00';
   if (expenseEl)  expenseEl.value  = s.notifExpenseEnabled  !== false ? '1' : '0';
   if (invEl)      invEl.value      = (s.invLowStockWarn !== false)    ? '1' : '0';
-  var nAppr   = document.getElementById('ms-notif-approval-enabled');
-  var nChg    = document.getElementById('ms-notif-changes-enabled');
-  var nQuoter = document.getElementById('ms-notif-quoter-enabled');
-  var nQEm    = document.getElementById('ms-notif-quoter-email');
-  var nQSms   = document.getElementById('ms-notif-quoter-sms');
-  if (nAppr)  nAppr.value  = s.notifyApprovalOn !== false ? '1' : '0';
-  if (nChg)   nChg.value   = s.notifyChangesOn  !== false ? '1' : '0';
-  var _quoterOn = (s.notifyQuoterOn !== undefined) ? !!s.notifyQuoterOn : (s.notifyRep !== false);
-  if (nQuoter) nQuoter.value = _quoterOn ? '1' : '0';
-  if (nQEm)   nQEm.checked  = s.notifyQuoterEmail !== false;
-  if (nQSms)  nQSms.checked  = s.notifyQuoterSms   !== false;
+  // r274: approval/changes recipient controls removed — managed in Notification Rules now.
   // Escalation controls — fail-safe defaults (on / 24h / 48h) when the keys are absent.
   var escEn = document.getElementById('ms-notif-escalation-enabled');
   var escF  = document.getElementById('ms-notif-escalate-first');
@@ -4631,13 +4615,6 @@ function loadNotificationSettings() {
   if (escEn) escEn.value = (s.escalationOn !== false) ? '1' : '0';
   if (escF)  escF.value  = String(s.escalateFirstHours   || 24);
   if (escM)  escM.value  = String(s.escalateManagerHours || 48);
-  // Recipients list (migrate a legacy single notifyEmail into the list if the list is empty)
-  if (typeof _renderNotifyRecips === 'function') {
-    var _recs = Array.isArray(s.notifyRecipients) ? s.notifyRecipients.slice() : [];
-    if (!_recs.length && s.notifyEmail) _recs = [{ name:'', email:s.notifyEmail, phone:'', sendEmail:true, sendSms:false }];
-    _renderNotifyRecips(_recs);
-    _fillNotifyTeamPicker();
-  }
   var vIssEn = document.getElementById('ms-notif-vehissue-enabled');
   var vIssTo = document.getElementById('ms-notif-vehissue-to');
   if (vIssEn) vIssEn.value = s.vehIssueEmailEnabled ? '1' : '0';   // default OFF
