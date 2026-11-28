@@ -414,7 +414,7 @@
       var sum = touched.length===1 ? (_money(touched[0].amount)+' ('+(touched[0].category||'')+', '+(touched[0].loggedBy||'')+')') : (touched.length+' expenses');
       var msg = _me()+' flagged '+sum+(note?': '+note:'');
       // Cloud feed → reaches owner/manager/back_office on their own devices.
-      if (typeof notifyOfficeCloud==='function') notifyOfficeCloud('expense_flagged','🚩 Expense Flagged', msg, true);
+      if (typeof notifyOfficeCloud==='function') notifyOfficeCloud('expense_flagged','🚩 Expense Flagged', msg, true, 'expense', (touched.length===1?touched[0].id:null));   // r276 — deep-link to Expenses
       // Local bell for the person who flagged (immediate confirmation on this screen).
       if (typeof addNotification==='function') addNotification('expense_flagged','🚩 Expense Flagged', msg, 'wo');
     }

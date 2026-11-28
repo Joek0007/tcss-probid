@@ -52,7 +52,7 @@ function addNotification(type, title, body, action) {
 // is read by), NOT DB.team — team records don't carry the auth user_id in this data, so
 // targeting off them notifies no one. De-dupes by id and (by default) skips the person who
 // triggered it. Async + fire-and-forget at the call sites.
-async function notifyOfficeCloud(type, title, message, excludeSelf) {
+async function notifyOfficeCloud(type, title, message, excludeSelf, refModule, refId) {
   if (!window._sb) return;
   var meId = (window._currentUser && _currentUser.id) || null;
   try {
@@ -74,6 +74,7 @@ async function notifyOfficeCloud(type, title, message, excludeSelf) {
         title:      title,
         message:    message,
         project_id: null,
+        ref_module: refModule||null, ref_id: refId||null,   // r276 — optional deep-link target
       }).then(function(){}, function(e){ console.warn('[notifyOfficeCloud insert]', (e&&e.message)||e); });
     });
   } catch(e){ console.warn('[notifyOfficeCloud]', (e&&e.message)||e); }
@@ -177,8 +178,9 @@ function wtReadNotif(id, source, rawId, projectId, refMod, refId) {
   }
   updateNotifBadge();
   renderNotifPanel();
-  // r145 — deep-link: tapping an engine notification now opens its source record (PO/WO/tool).
-  if (refMod && refId && typeof wtOpenNotifTarget==='function') {
+  // r145/r276 — deep-link: tapping a notification opens its source. r276 routes on module alone
+  // (id optional) so page-level targets (tool, expense) and id-less alerts still land somewhere.
+  if (refMod && typeof wtOpenNotifTarget==='function') {
     wtOpenNotifTarget(refMod, refId);
   } else if (projectId) {
     document.getElementById('notif-panel').classList.remove('open');
@@ -189,27 +191,27 @@ function wtReadNotif(id, source, rawId, projectId, refMod, refId) {
 
 // r145 — route a tapped engine notification to its source record. Guarded so a user who can't
 // access the target page (or a module without a record opener) simply no-ops instead of breaking.
-// Modules today: po (openPO), wo (openWorkOrder), tool (tools list — the tool trigger's rec_id is
-// the loan row, not the tool, so we land on the page rather than guess a record), rfq (openRFQ),
-// quote (viewQuote — r275, surfaces the customer's change-request note via _loadSignedApproval).
+// Modules today: po (openPO), wo (openWorkOrder), rfq (openRFQ), quote (viewQuote — r275, surfaces the
+// customer's change-request note via _loadSignedApproval), tool (Tools page — rec_id is the loan row),
+// expense (Expenses page — r276; list, no single-record opener). Id-less or opener-less → land on page.
 function wtOpenNotifTarget(mod, id){
   try {
     var panel = document.getElementById('notif-panel'); if(panel) panel.classList.remove('open');
     var canPage = (typeof _canAccessPage==='function') ? _canAccessPage : function(){ return true; };
-    if (mod==='po') {
-      if (canPage('purchaseorders') && typeof openPO==='function'){ goPage('purchaseorders'); setTimeout(function(){ try{ openPO(id); }catch(e){} }, 300); }
-    } else if (mod==='wo') {
-      if (canPage('workorders') && typeof openWorkOrder==='function'){ goPage('workorders'); setTimeout(function(){ try{ openWorkOrder(id); }catch(e){} }, 300); }
-    } else if (mod==='tool') {
-      if (canPage('tools')){ goPage('tools'); }
-    } else if (mod==='rfq') {
-      if (canPage('rfq') && typeof openRFQ==='function'){ goPage('rfq'); setTimeout(function(){ try{ openRFQ(id); }catch(e){} }, 300); }
-    } else if (mod==='quote') {
-      // r275: quote approve/changes alerts (folded into the engine r274) deep-link to the quote.
-      // viewQuote opens the detail AND _loadSignedApproval renders the customer's change-request note,
-      // so the office lands exactly where they can read it and act (Edit / Convert from there).
-      if (canPage('quotes') && typeof viewQuote==='function'){ goPage('quotes'); setTimeout(function(){ try{ viewQuote(id); }catch(e){} }, 300); }
+    // r276: land on the module's page; open the exact record only when we have its id AND an opener.
+    // Record-less targets (tool, expense) and id-less alerts simply land on the page — never a dead tap.
+    // quote → viewQuote opens the detail where _loadSignedApproval shows the customer's change note (r275).
+    function _go(page, opener){
+      if (!canPage(page)) return;
+      goPage(page);
+      if (id && typeof opener==='function') setTimeout(function(){ try{ opener(id); }catch(e){} }, 300);
     }
+    if      (mod==='po')      _go('purchaseorders', typeof openPO==='function'       ? openPO       : null);
+    else if (mod==='wo')      _go('workorders',     typeof openWorkOrder==='function'? openWorkOrder: null);
+    else if (mod==='rfq')     _go('rfq',            typeof openRFQ==='function'      ? openRFQ      : null);
+    else if (mod==='quote')   _go('quotes',         typeof viewQuote==='function'    ? viewQuote    : null);
+    else if (mod==='tool')    _go('tools',   null);    // the tool trigger's rec_id is the loan row — land on the page
+    else if (mod==='expense') _go('expenses', null);   // expenses is a page/list — no single-record opener
   } catch(e){ /* never let a tap throw */ }
 }
 window.wtOpenNotifTarget = wtOpenNotifTarget;
@@ -425,6 +427,7 @@ function addWOAssignmentNotifications(wo, techNames) {
       message:    'Work Order: '+(wo.woNumber||'')+(wo.description?' — '+wo.description:'')+
                   (wo.dateRequested?' · Scheduled: '+wo.dateRequested:''),
       project_id: null,
+      ref_module: 'wo', ref_id: (wo&&wo.id)||null,   // r276 — deep-link the bell to the work order
     }).then(function(){});
   });
 }

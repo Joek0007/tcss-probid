@@ -5048,6 +5048,7 @@ async function notifyFollowUpNeeded(woId, techName, notes) {
       title:      '⚠ Follow-up needed — '+(wo?wo.woNumber||'WO':'WO'),
       message:    techName+' flagged a follow-up: '+(notes||'See field log'),
       project_id: null,
+      ref_module: 'wo', ref_id: woId,   // r276 — deep-link the bell to the work order
     });
   }
 }

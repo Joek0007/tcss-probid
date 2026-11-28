@@ -1049,7 +1049,8 @@ function _notifyToolHandoff(toName, title, message) {
     if (!member || !member.userId) return;
     _sb.from('wt_notifications').insert({
       user_id: member.userId, user_name: toName,
-      type: 'tool_handoff', title: title, message: message, project_id: null
+      type: 'tool_handoff', title: title, message: message, project_id: null,
+      ref_module: 'tool'   // r276 — deep-link the bell to the Tools page
     }).then(function(){}).catch(function(e){ console.warn('[tool handoff notif]', e&&e.message); });
   } catch(e) { console.warn('[tool handoff notif]', e&&e.message); }
 }
