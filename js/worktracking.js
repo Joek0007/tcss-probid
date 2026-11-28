@@ -190,7 +190,8 @@ function wtReadNotif(id, source, rawId, projectId, refMod, refId) {
 // r145 — route a tapped engine notification to its source record. Guarded so a user who can't
 // access the target page (or a module without a record opener) simply no-ops instead of breaking.
 // Modules today: po (openPO), wo (openWorkOrder), tool (tools list — the tool trigger's rec_id is
-// the loan row, not the tool, so we land on the page rather than guess a record).
+// the loan row, not the tool, so we land on the page rather than guess a record), rfq (openRFQ),
+// quote (viewQuote — r275, surfaces the customer's change-request note via _loadSignedApproval).
 function wtOpenNotifTarget(mod, id){
   try {
     var panel = document.getElementById('notif-panel'); if(panel) panel.classList.remove('open');
@@ -203,6 +204,11 @@ function wtOpenNotifTarget(mod, id){
       if (canPage('tools')){ goPage('tools'); }
     } else if (mod==='rfq') {
       if (canPage('rfq') && typeof openRFQ==='function'){ goPage('rfq'); setTimeout(function(){ try{ openRFQ(id); }catch(e){} }, 300); }
+    } else if (mod==='quote') {
+      // r275: quote approve/changes alerts (folded into the engine r274) deep-link to the quote.
+      // viewQuote opens the detail AND _loadSignedApproval renders the customer's change-request note,
+      // so the office lands exactly where they can read it and act (Edit / Convert from there).
+      if (canPage('quotes') && typeof viewQuote==='function'){ goPage('quotes'); setTimeout(function(){ try{ viewQuote(id); }catch(e){} }, 300); }
     }
   } catch(e){ /* never let a tap throw */ }
 }
