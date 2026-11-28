@@ -204,7 +204,22 @@
     { name:'Quote — approved → office', module:'quote', event:'status', status:'Approved',
       subject:'✅ Proposal {number} approved',
       body:'{author} approved {number}.',
-      recipients:[ _RE('owner','Owner'), _RE('manager','Manager'), _RE('back_office','Back Office') ] }
+      recipients:[ _RE('owner','Owner'), _RE('manager','Manager'), _RE('back_office','Back Office') ] },
+    // r281 — "created" events (fn_notif_<m>_created triggers). These fire on EVERY new record
+    // (quotes especially are frequent), so defaults are BELL-ONLY (_R) to avoid inbox spam on a
+    // fresh tenant; an admin adds email/SMS per rule. event='created' matches regardless of status.
+    { name:'New quote created → office', module:'quote', event:'created', status:'',
+      subject:'🆕 Quote {number} created', body:'{author} created quote {number} for {customer}.',
+      recipients:[ _R('owner','Owner'), _R('manager','Manager') ] },
+    { name:'New work order created → office', module:'wo', event:'created', status:'',
+      subject:'🆕 Work order {number} created', body:'{author} created work order {number} for {customer}.',
+      recipients:[ _R('manager','Manager'), _R('back_office','Back Office') ] },
+    { name:'New purchase order created → office', module:'po', event:'created', status:'',
+      subject:'🆕 PO {number} created', body:'{author} created purchase order {number} ({customer}).',
+      recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] },
+    { name:'New RFQ created → office', module:'rfq', event:'created', status:'',
+      subject:'🆕 RFQ {number} created', body:'{author} created RFQ {number}.',
+      recipients:[ _R('owner','Owner'), _R('back_office','Back Office') ] }
   ];
   // Seeds missing defaults ONCE. Fully idempotent: per-rule it skips any (module,event,status) that
   // already exists, so a company that configured its own rules is never duplicated or overwritten.
@@ -214,12 +229,13 @@
   // path the working toggles use (_settingsMergePush), not sSet. (r176)
   // r274: bumped 1→2 so already-seeded tenants pick up the new Quote rules. The per-rule
   // (module,event,status) exists-check below still guards against duplicating anything.
-  function _seedFlagGet(){ try{ return (typeof DB!=='undefined' && DB.settings && Number(DB.settings.notifDefaultsSeededV)>=2); }catch(e){ return false; } }
+  // r281: bumped 2→3 so seeded tenants pick up the new "created" rules.
+  function _seedFlagGet(){ try{ return (typeof DB!=='undefined' && DB.settings && Number(DB.settings.notifDefaultsSeededV)>=3); }catch(e){ return false; } }
   async function _seedFlagSet(){
     try{
       if(typeof DB==='undefined') return;
       if(!DB.settings) DB.settings={};
-      DB.settings.notifDefaultsSeededV = 2;
+      DB.settings.notifDefaultsSeededV = 3;
       try{ if(typeof saveDB==='function') saveDB(); }catch(e){}
       if(typeof _settingsMergePush==='function') await _settingsMergePush();
       else if(typeof _pushSettingsToCloud==='function') await _pushSettingsToCloud();
